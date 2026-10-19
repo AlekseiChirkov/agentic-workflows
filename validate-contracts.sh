@@ -1842,21 +1842,23 @@ PYVERSION
 )
 
 test_contract_version_rule_history_warns_until_version_changes() (
-  local fixture root output
+  local fixture root output warning
   root="$(pwd -P)"
+  warning='[WARN] Rules changed after VERSION; update the contract version before release.'
   fixture="$(mktemp -d "${TMPDIR:-/tmp}/contract-history.XXXXXX")" || return 1
   trap 'rm -rf "$fixture"' EXIT
   # Run the real validator in a disposable repository. Remove this smoke group
   # from its copy to avoid recursively creating more fixture repositories.
   tar --exclude=.git --exclude=logs -cf - . | tar -xf - -C "$fixture" || return 1
-  python3 - "$fixture/validate-contracts.sh" <<'PYVERSION'
+  python3 - "$fixture/validate-contracts.sh" <<'PYVERSION' || return 1
 from pathlib import Path
 import sys
 path = Path(sys.argv[1])
 text = path.read_text()
-start = text.index('# ── Contract version smoke checks')
-end = text.index('# ── End contract version smoke checks', start)
-path.write_text(text[:start] + text[text.index('\n', end) + 1:])
+lines = text.splitlines(keepends=True)
+start = next(i for i, line in enumerate(lines) if line.startswith('# ── Contract version smoke checks'))
+end = next(i for i in range(start + 1, len(lines)) if lines[i].startswith('# ── End contract version smoke checks'))
+path.write_text(''.join(lines[:start] + lines[end + 1:]))
 PYVERSION
   cd "$fixture" || return 1
   git init -q || return 1
@@ -1865,20 +1867,29 @@ PYVERSION
   printf '0.9.0\n' > VERSION
   git add . || return 1
   GIT_AUTHOR_DATE=2026-01-01T00:00:00Z GIT_COMMITTER_DATE=2026-01-01T00:00:00Z git commit -qm 'Initialize contract fixture' || return 1
-  output="$(bash validate-contracts.sh 2>&1)" || :
-  if grep -qiE '(warn.*(rule|version)|(rule|version).*warn)' <<< "$output"; then
+  if ! output="$(bash validate-contracts.sh 2>&1)"; then
+    printf '%s\n' "$output"
+    echo 'Validator failed at the version commit'; return 1
+  fi
+  if grep -Fq "$warning" <<< "$output"; then
     echo 'Unexpected version warning at the version commit'; return 1
   fi
   printf '\nFixture rule change.\n' >> rules/run-log.md
   git add rules/run-log.md || return 1
   GIT_AUTHOR_DATE=2026-01-02T00:00:00Z GIT_COMMITTER_DATE=2026-01-02T00:00:00Z git commit -qm 'Change a rule contract' || return 1
-  output="$(bash validate-contracts.sh 2>&1)" || :
-  if ! grep -qiE '(warn.*(rule|version)|(rule|version).*warn)' <<< "$output"; then
+  if ! output="$(bash validate-contracts.sh 2>&1)"; then
+    printf '%s\n' "$output"
+    echo 'Validator failed while reporting a stale rule version'; return 1
+  fi
+  if ! grep -Fq "$warning" <<< "$output"; then
     echo 'Missing warning for a rule commit newer than unchanged VERSION'; return 1
   fi
   printf '0.9.1\n' > VERSION
-  output="$(bash validate-contracts.sh 2>&1)" || :
-  if grep -qiE '(warn.*(rule|version)|(rule|version).*warn)' <<< "$output"; then
+  if ! output="$(bash validate-contracts.sh 2>&1)"; then
+    printf '%s\n' "$output"
+    echo 'Validator failed after updating VERSION'; return 1
+  fi
+  if grep -Fq "$warning" <<< "$output"; then
     echo 'Version update in worktree must clear the warning'; return 1
   fi
 )
