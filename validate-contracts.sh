@@ -1459,12 +1459,13 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
   done
 
   for script in setup-new-project.sh setup-umbrella.sh setup-all-repos.sh; do
-    for mode in default empty override; do
+    for mode in default empty override relative; do
       selected="$source_tree"
       local -a setup_env=(-u WORKFLOWS_SOURCE)
       case "$mode" in
         empty) setup_env+=(WORKFLOWS_SOURCE=) ;;
         override) setup_env+=(WORKFLOWS_SOURCE="$alternate"); selected="$alternate" ;;
+        relative) setup_env+=(WORKFLOWS_SOURCE='../alternate source'); selected="$alternate" ;;
       esac
       target="$fixture/$script $mode"
       mkdir -p "$target"
