@@ -63,7 +63,7 @@ of a codebase whose language is instructional markdown plus bash.
 - `#!/bin/bash` (or `#!/usr/bin/env bash`), `set -uo pipefail`; `set -e` only where a
   failure must abort (`sync.sh`, `setup-*.sh`). Logging helpers exit 0 on every path.
 - A header comment: what the script does, its contract, usage, exit codes.
-- No hard-coded home paths in new code; read `WORKFLOWS_SOURCE` / `AGENTIC_LOG_ROOT`
+- No hard-coded home paths in new code; read `ORCHESTRAIL_HOME` / `ORCHESTRAIL_LOG_ROOT`
   with the current default as fallback.
 - Every check in `validate-contracts.sh` uses the `check "<desc>" "$(… && echo pass || echo '<reason>')"` form and is anchored to a definition line, not a bare substring.
 - `bash -n` before committing; `shellcheck` when available.
