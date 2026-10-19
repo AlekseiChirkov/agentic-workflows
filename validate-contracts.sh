@@ -1529,13 +1529,13 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
 
   for mode in default empty environment flag equals; do
     selected="$source_tree"
-    local -a source_env=(-u WORKFLOWS_SOURCE -u AGENTIC_LOG_ROOT)
+    local -a source_env=(-u WORKFLOWS_SOURCE -u AGENTIC_LOG_ROOT -u ORCHESTRAIL_HOME -u ORCHESTRAIL_LOG_ROOT)
     local -a sync_args=()
     case "$mode" in
-      empty) source_env+=(WORKFLOWS_SOURCE=) ;;
-      environment) source_env+=(WORKFLOWS_SOURCE="$alternate"); selected="$alternate" ;;
-      flag) source_env+=(WORKFLOWS_SOURCE="$fixture/missing"); sync_args=(--from "$alternate"); selected="$alternate" ;;
-      equals) source_env+=(WORKFLOWS_SOURCE="$fixture/missing"); sync_args=("--from=$alternate"); selected="$alternate" ;;
+      empty) source_env+=(ORCHESTRAIL_HOME=) ;;
+      environment) source_env+=(ORCHESTRAIL_HOME="$alternate"); selected="$alternate" ;;
+      flag) source_env+=(ORCHESTRAIL_HOME="$fixture/missing"); sync_args=(--from "$alternate"); selected="$alternate" ;;
+      equals) source_env+=(ORCHESTRAIL_HOME="$fixture/missing"); sync_args=("--from=$alternate"); selected="$alternate" ;;
     esac
     status=0
     output="$(cd "$fixture/work" && env "${source_env[@]}" HOME="$fixture/home" bash "$source_tree/sync.sh" "${sync_args[@]}" 2>&1)" || status=$?
@@ -1550,10 +1550,10 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
 
   for mode in default empty override; do
     selected="$source_tree/logs"
-    local -a log_env=(-u AGENTIC_LOG_ROOT)
+    local -a log_env=(-u AGENTIC_LOG_ROOT -u ORCHESTRAIL_LOG_ROOT)
     case "$mode" in
-      empty) log_env+=(AGENTIC_LOG_ROOT=) ;;
-      override) log_env+=(AGENTIC_LOG_ROOT="$fixture/custom logs"); selected="$fixture/custom logs" ;;
+      empty) log_env+=(ORCHESTRAIL_LOG_ROOT=) ;;
+      override) log_env+=(ORCHESTRAIL_LOG_ROOT="$fixture/custom logs"); selected="$fixture/custom logs" ;;
     esac
     output="$(cd "$fixture/work" && env "${log_env[@]}" HOME="$fixture/home" bash "$source_tree/log-step.sh" path)"
     if [ "$output" != "$selected" ] || [ -e "$selected" ]; then
@@ -1564,11 +1564,11 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
   for script in setup-new-project.sh setup-umbrella.sh setup-all-repos.sh; do
     for mode in default empty override relative; do
       selected="$source_tree"
-      local -a setup_env=(-u WORKFLOWS_SOURCE)
+      local -a setup_env=(-u WORKFLOWS_SOURCE -u ORCHESTRAIL_HOME)
       case "$mode" in
-        empty) setup_env+=(WORKFLOWS_SOURCE=) ;;
-        override) setup_env+=(WORKFLOWS_SOURCE="$alternate"); selected="$alternate" ;;
-        relative) setup_env+=(WORKFLOWS_SOURCE='../alternate source'); selected="$alternate" ;;
+        empty) setup_env+=(ORCHESTRAIL_HOME=) ;;
+        override) setup_env+=(ORCHESTRAIL_HOME="$alternate"); selected="$alternate" ;;
+        relative) setup_env+=(ORCHESTRAIL_HOME='../alternate source'); selected="$alternate" ;;
       esac
       target="$fixture/$script $mode"
       mkdir -p "$target"
@@ -1597,6 +1597,26 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
     done
   done
 
+  # An explicitly selected missing tree must fail instead of seeding from another tree.
+  for script in sync.sh setup-new-project.sh setup-umbrella.sh setup-all-repos.sh; do
+    target="$fixture/missing source $script"
+    mkdir -p "$target"
+    status=0
+    (cd "$target" && env -u WORKFLOWS_SOURCE ORCHESTRAIL_HOME="$fixture/missing tree" HOME="$fixture/home" bash "$source_tree/$script" </dev/null) > "$fixture/missing-output" 2>&1 || status=$?
+    if [ "$status" -eq 0 ] || [ -e "$target/.ai/source-marker" ]; then
+      echo "$script: missing source override did not fail without initialization"; bad=1
+    fi
+    if [ "$script" = sync.sh ]; then
+      if grep -Fq "source=$source_tree" "$fixture/missing-output"; then
+        echo 'sync.sh: missing source override reached fallback preflight'; bad=1
+      fi
+      if ! grep -Fq "$fixture/missing tree" "$fixture/missing-output" ||
+        ! grep -Eiq 'not found|no such|missing|not a .*tree|cannot|invalid' "$fixture/missing-output"; then
+        echo 'sync.sh: missing source override lacks a source-resolution diagnostic'; bad=1
+      fi
+    fi
+  done
+
   target="$fixture/skill project"
   mkdir -p "$target/.claude/skills"
   (cd "$target" && env HOME="$fixture/home" bash "$source_tree/link-skills.sh") > "$fixture/link-output" 2>&1 || bad=1
@@ -1610,6 +1630,35 @@ check "test_shell_paths_public_defaults_pass_syntax" \
   "$(test_shell_paths_public_defaults_pass_syntax && echo pass || echo 'shell sources contain private paths or invalid Bash')"
 check "test_shell_paths_relocated_checkout_preserves_overrides" \
   "$(test_shell_paths_relocated_checkout_preserves_overrides && echo pass || echo 'relocation or override behavior failed')"
+
+test_runtime_instructions_public_configuration_uses_orchestrail() {
+  local file bad=0
+  local -a helper_docs=(rules/run-log.md workflows/phase-discovery.md workflows/phase-execution.md
+    workflows/phase-pipeline.md workflows/phase-validation.md workflows/spec-run.md
+    workflows/pd-finalize.md workflows/pe-finalize.md)
+  for file in "${helper_docs[@]}" .ai/context/environment.md; do
+    if ! grep -Fq 'ORCHESTRAIL_HOME' "$file"; then
+      echo "$file: missing public source-root variable"; bad=1
+    fi
+  done
+  for file in rules/run-log.md workflows/retro.md .ai/context/environment.md; do
+    if ! grep -Fq 'ORCHESTRAIL_LOG_ROOT' "$file"; then
+      echo "$file: missing public log-root variable"; bad=1
+    fi
+  done
+  for file in "${helper_docs[@]}" workflows/retro.md .ai/context/environment.md .ai/context/runbook.md; do
+    if grep -nE 'WORKFLOWS_SOURCE|AGENTIC_LOG_ROOT|(~|\$HOME)/\.config/agentic[_-]workflows/' "$file"; then
+      echo "$file: obsolete runtime configuration remains"; bad=1
+    fi
+  done
+  if ! grep -Fq '~/.config/orchestrail/' .ai/context/environment.md; then
+    echo 'Environment instructions omit the public configuration root'; bad=1
+  fi
+  [ "$bad" -eq 0 ]
+}
+
+check "test_runtime_instructions_public_configuration_uses_orchestrail" \
+  "$(test_runtime_instructions_public_configuration_uses_orchestrail && echo pass || echo 'public runtime variables and configuration instructions are incomplete')"
 
 # ── Public examples ─────────────────────────────────────────────────
 
