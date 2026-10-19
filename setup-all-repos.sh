@@ -12,6 +12,8 @@ set -e
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 WORKFLOWS_SRC="${WORKFLOWS_SOURCE:-$SCRIPT_DIR}"
+WORKFLOWS_SRC="$(cd -- "$WORKFLOWS_SRC" && pwd)"
+export WORKFLOWS_SOURCE="$WORKFLOWS_SRC"
 UMBRELLA_DIR="$(pwd)"
 INCLUDE_NON_GIT=false
 
