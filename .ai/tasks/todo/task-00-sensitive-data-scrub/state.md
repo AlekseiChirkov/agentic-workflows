@@ -367,3 +367,19 @@ recorded_paths:
 - .ai/tasks/todo/task-00-sensitive-data-scrub/state.md
 - .ai/memory/state.md
 - .ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md
+
+## Pull Request Review Followup — 2026-10-19
+- The owner requested verification of feedback on all three pull requests and correction of real defects.
+- PR #2 logging-consumer feedback is already addressed by PR #4: every writer resolves its helper from the shared source override, and the reader obtains the default store from that helper's path command.
+- PR #3 scan-scope feedback is already addressed by PR #4: the production gate enumerates every indexed path, including rules, workflows, and the complete knowledge base, subject only to the two exact approved exceptions. The earlier example-specific test is supplemental.
+- PR #2 child-command feedback was reproduced at the complete stack tip. The regression executes the emitted command from a child with spaces while retaining each original source override; the relative case failed before correction. Regression commit: 906eab85b00e42f33e38f24e4d80b38a5eb50689.
+- The setup now resolves the selected source before emitting a shell-escaped command that explicitly supplies the absolute override, so inherited relative settings cannot change the template source after entering a child.
+- PR #4 privileged-fixture feedback was reproduced with unshare --user --map-root-user bash validate-contracts.sh: 541 passed, 1 failed because mode 000 remains readable to root. The corrected fixture injects an unavailable readability result only in its scanner subprocess and asserts the exact guard diagnostic; production permission semantics remain unchanged.
+- Full suite after correction: 542 passed, 0 failed as the normal user and as UID 0 in a temporary user namespace. Shell syntax and diff whitespace checks pass.
+- Both corrections are additive at the stack tip in PR #4. Earlier branch tips and ancestry are unchanged. The separate working checkout's ongoing next-task edits were left untouched.
+
+### Review Followup Commit
+branch: fix/public-hygiene-guard
+expected_parent: 906eab85b00e42f33e38f24e4d80b38a5eb50689
+allowed_scope: setup-umbrella.sh, validate-contracts.sh, .ai/tasks/todo/task-00-sensitive-data-scrub/state.md
+The publication metadata commit is a4602e115cafb393f791031b60ca95a4e8f66938 and its parent is the previously recorded closure snapshot. The regression commit follows that metadata commit and changes only validate-contracts.sh. The review correction follows the regression commit with the exact scope above; its enclosing hash is reported externally. Reconciliation must validate these additive followups before applying the historical metadata descriptors. Original branch points and subtask implementation hashes remain unchanged.

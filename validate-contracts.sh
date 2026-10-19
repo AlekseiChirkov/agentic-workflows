@@ -1727,12 +1727,29 @@ test_public_hygiene_fixture_scans_fail_closed() (
   fixture_scan fail 'configured list selected' --denylist "$fixture/alternate.txt" || return 1
   printf '%s\n' 'Public content' > "$repo/clean file.md"
   fixture_scan pass 'configured list with clean content' --denylist "$fixture/alternate.txt" || return 1
-  chmod 000 "$fixture/alternate.txt"
-  fixture_scan fail 'unreadable configured list' --denylist "$fixture/alternate.txt" || return 1
-  chmod 600 "$fixture/alternate.txt"
-  chmod 000 "$repo/clean file.md"
-  fixture_scan fail 'unreadable tracked file' || return 1
-  chmod 600 "$repo/clean file.md"
+  # Inject a failed readability check only in the scanner subprocess. Mode 000
+  # remains readable to root, so filesystem permissions cannot drive these cases.
+  cat > "$fixture/unreadable.bash" <<'EOF'
+function [ {
+  if [[ $# -eq 3 && $1 == -r && $2 == "${HYGIENE_UNREADABLE:-}" ]]; then
+    return 1
+  fi
+  if [[ $# -eq 4 && $1 == '!' && $2 == -r && $3 == "${HYGIENE_UNREADABLE:-}" ]]; then
+    return 0
+  fi
+  builtin [ "$@"
+}
+EOF
+  BASH_ENV="$fixture/unreadable.bash" HYGIENE_UNREADABLE="$fixture/alternate.txt" \
+    fixture_scan fail 'unreadable configured list' --denylist "$fixture/alternate.txt" || return 1
+  if ! grep -Fq 'Hygiene denylist is missing or unreadable' <<< "$output"; then
+    echo 'Configured-list fixture did not reach the readability guard'; return 1
+  fi
+  BASH_ENV="$fixture/unreadable.bash" HYGIENE_UNREADABLE="$repo/clean file.md" \
+    fixture_scan fail 'unreadable tracked file' || return 1
+  if ! grep -Fq 'Hygiene tracked file is missing or unreadable:' <<< "$output"; then
+    echo 'Tracked-file fixture did not reach the readability guard'; return 1
+  fi
   : > "$repo/clean file.md"
   fixture_scan pass 'empty tracked file' || return 1
   rm "$repo/clean file.md"
