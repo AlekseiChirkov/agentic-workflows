@@ -1788,6 +1788,111 @@ check "test_public_hygiene_repository_preserves_context_and_local_ignores" \
 
 # ── End public hygiene smoke checks ─────────────────────────────────
 
+# ── Contract version smoke checks ───────────────────────────────────
+test_contract_version_root_has_exact_release_value() {
+  [ -f VERSION ] && cmp -s VERSION <(printf '0.9.0\n')
+}
+
+test_contract_version_analysis_stamps_state_and_accepts_legacy() {
+  # Markdown is the executable interface for analysis; verify its declared output.
+  grep -qE '^spec_path: ' workflows/pd-analyze.md &&
+    grep -A1 -E '^spec_path: ' workflows/pd-analyze.md | grep -qE '^contract_version: ' &&
+    grep -q 'VERSION' workflows/pd-analyze.md &&
+    grep -qiE '(absent|missing|without|unavailable).*VERSION|VERSION.*(absent|missing|without|unavailable)' workflows/pd-analyze.md &&
+    grep -qiE '(legacy|older|readers).*contract_version|contract_version.*(legacy|older|readers)' workflows/pd-analyze.md
+}
+
+test_contract_version_run_start_stamps_current_and_reads_legacy() (
+  local fixture run file value
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/contract-log.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  cp log-step.sh "$fixture/log-step.sh" || return 1
+  # Test the helper against its own checkout, independently of the caller's cwd.
+  for value in 0.9.0 1.2.3 absent empty malformed; do
+    rm -f "$fixture/VERSION"
+    case "$value" in
+      absent) ;;
+      empty) : > "$fixture/VERSION" ;;
+      malformed) printf 'invalid\nextra\n' > "$fixture/VERSION" ;;
+      *) printf '%s\n' "$value" > "$fixture/VERSION" ;;
+    esac
+    run="$(AGENTIC_LOG_ROOT="$fixture/store-$value" bash "$fixture/log-step.sh" run-start --pipeline phase-discovery)" || return 1
+    file="$(AGENTIC_LOG_ROOT="$fixture/store-$value" bash "$fixture/log-step.sh" path --run "$run")" || return 1
+    python3 - "$file" "$value" <<'PYVERSION'
+import json
+import sys
+from pathlib import Path
+record = json.loads(Path(sys.argv[1]).read_text())
+expected = sys.argv[2]
+assert record['event'] == 'run-start'
+if expected in ('0.9.0', '1.2.3'):
+    assert record.get('contract_version') == expected, record
+else:
+    assert 'contract_version' not in record, record
+# Historical events omit the optional field and remain ordinary JSON records.
+legacy = dict(record)
+legacy.pop('contract_version', None)
+assert json.loads(json.dumps(legacy))['event'] == 'run-start'
+PYVERSION
+    [ "$?" -eq 0 ] || return 1
+    AGENTIC_LOG_ROOT="$fixture/store-$value" bash "$fixture/log-step.sh" run-end --run "$run" --outcome completed || return 1
+  done
+  grep -qE '^.*contract_version.*' rules/run-log.md &&
+    grep -qiE '(legacy|older|optional|missing|absent).*contract_version|contract_version.*(legacy|older|optional|missing|absent)' rules/run-log.md
+)
+
+test_contract_version_rule_history_warns_until_version_changes() (
+  local fixture root output
+  root="$(pwd -P)"
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/contract-history.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  # Run the real validator in a disposable repository. Remove this smoke group
+  # from its copy to avoid recursively creating more fixture repositories.
+  tar --exclude=.git --exclude=logs -cf - . | tar -xf - -C "$fixture" || return 1
+  python3 - "$fixture/validate-contracts.sh" <<'PYVERSION'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+start = text.index('# ── Contract version smoke checks')
+end = text.index('# ── End contract version smoke checks', start)
+path.write_text(text[:start] + text[text.index('\n', end) + 1:])
+PYVERSION
+  cd "$fixture" || return 1
+  git init -q || return 1
+  git config user.name 'Contract Fixture' || return 1
+  git config user.email 'fixture@example.invalid' || return 1
+  printf '0.9.0\n' > VERSION
+  git add . || return 1
+  GIT_AUTHOR_DATE=2026-01-01T00:00:00Z GIT_COMMITTER_DATE=2026-01-01T00:00:00Z git commit -qm 'Initialize contract fixture' || return 1
+  output="$(bash validate-contracts.sh 2>&1)" || :
+  if grep -qiE '(warn.*(rule|version)|(rule|version).*warn)' <<< "$output"; then
+    echo 'Unexpected version warning at the version commit'; return 1
+  fi
+  printf '\nFixture rule change.\n' >> rules/run-log.md
+  git add rules/run-log.md || return 1
+  GIT_AUTHOR_DATE=2026-01-02T00:00:00Z GIT_COMMITTER_DATE=2026-01-02T00:00:00Z git commit -qm 'Change a rule contract' || return 1
+  output="$(bash validate-contracts.sh 2>&1)" || :
+  if ! grep -qiE '(warn.*(rule|version)|(rule|version).*warn)' <<< "$output"; then
+    echo 'Missing warning for a rule commit newer than unchanged VERSION'; return 1
+  fi
+  printf '0.9.1\n' > VERSION
+  output="$(bash validate-contracts.sh 2>&1)" || :
+  if grep -qiE '(warn.*(rule|version)|(rule|version).*warn)' <<< "$output"; then
+    echo 'Version update in worktree must clear the warning'; return 1
+  fi
+)
+
+check "test_contract_version_root_has_exact_release_value" \
+  "$(test_contract_version_root_has_exact_release_value && echo pass || echo 'VERSION must contain exactly 0.9.0 followed by newline')"
+check "test_contract_version_analysis_stamps_state_and_accepts_legacy" \
+  "$(test_contract_version_analysis_stamps_state_and_accepts_legacy && echo pass || echo 'analysis must stamp version after spec_path and preserve legacy states')"
+check "test_contract_version_run_start_stamps_current_and_reads_legacy" \
+  "$(test_contract_version_run_start_stamps_current_and_reads_legacy && echo pass || echo 'run-start version metadata or legacy compatibility is incomplete')"
+check "test_contract_version_rule_history_warns_until_version_changes" \
+  "$(test_contract_version_rule_history_warns_until_version_changes && echo pass || echo 'rule-history version warning behavior is incomplete')"
+# ── End contract version smoke checks ───────────────────────────────
+
 # ── Tracked public hygiene ──────────────────────────────────────────
 check "test_public_hygiene_tracked_tree_excludes_private_tokens" \
   "$(run_public_hygiene "$(pwd -P)" && echo pass || echo 'tracked publication scope requires redaction')"
