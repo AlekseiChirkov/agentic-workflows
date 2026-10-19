@@ -2,11 +2,12 @@
 # setup-new-project.sh
 # Sets up workflow infrastructure for a new or existing project.
 # Safe to run multiple times — never overwrites existing content.
-# Usage: bash ~/Documents/projects/alterra/agentic_workflows/setup-new-project.sh
+# Usage: bash /path/to/agentic_workflows/setup-new-project.sh
 # Run from the project root directory.
 set -e
 
-WORKFLOWS_SRC="$HOME/Documents/projects/alterra/agentic_workflows"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+WORKFLOWS_SRC="${WORKFLOWS_SOURCE:-$SCRIPT_DIR}"
 PROJECT_DIR="$(pwd)"
 CLAUDE_SKILLS="$HOME/.claude/skills"
 

@@ -3,10 +3,11 @@
 # Initializes the top-level .ai/ knowledge base for a multi-repo project.
 # Run from the umbrella root — the parent directory that contains all service repos.
 # Safe to re-run — never overwrites existing content.
-# Usage: bash ~/Documents/projects/alterra/agentic_workflows/setup-umbrella.sh
+# Usage: bash /path/to/agentic_workflows/setup-umbrella.sh
 set -e
 
-WORKFLOWS_SRC="$HOME/Documents/projects/alterra/agentic_workflows"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+WORKFLOWS_SRC="${WORKFLOWS_SOURCE:-$SCRIPT_DIR}"
 PROJECT_DIR="$(pwd)"
 TMPL="$WORKFLOWS_SRC/templates/.ai-umbrella"
 
@@ -104,5 +105,5 @@ echo "  3. Edit .ai/principles/domain.md     — ubiquitous language and domain 
 echo "  4. Edit .ai/context/environment.md   — GCP project IDs, environment URLs, etc."
 echo ""
 echo "Then for each service repo:"
-echo "  cd <service-dir> && bash ~/Documents/projects/alterra/agentic_workflows/setup-new-project.sh"
+echo "  cd <service-dir> && bash \"$WORKFLOWS_SRC/setup-new-project.sh\""
 echo "  (auto-detects ../.ai/ and configures service with two-level context loading)"

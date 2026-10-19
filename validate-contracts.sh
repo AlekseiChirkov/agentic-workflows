@@ -1,7 +1,7 @@
 #!/bin/bash
 # validate-contracts.sh
 # Validates consistency of workflow contracts in agentic_workflows.
-# Run from ~/Documents/projects/alterra/agentic_workflows/
+# Run with bash /path/to/agentic_workflows/validate-contracts.sh.
 # Exit 0 = all pass. Exit 1 = failures found.
 
 set -e

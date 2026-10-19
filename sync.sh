@@ -1,9 +1,10 @@
 #!/bin/bash
 set -e
 
-# Source tree to deploy from. Defaults to the canonical checkout; --from <dir> overrides it,
-# so a copy of the tree living somewhere else can be deployed without being moved first.
-ROOT="${WORKFLOWS_SOURCE:-$HOME/Documents/projects/alterra/agentic_workflows}"
+# Source tree to deploy from. Defaults to this script's directory; WORKFLOWS_SOURCE
+# overrides the default, and --from <dir> takes precedence over the environment.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="${WORKFLOWS_SOURCE:-$SCRIPT_DIR}"
 ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -15,7 +16,7 @@ while [ $# -gt 0 ]; do
       ROOT="${1#--from=}"; shift ;;
     -h|--help)
       echo "Usage: sync.sh [--from <source-tree>]"
-      echo "  --from <dir>  deploy from <dir> instead of ~/Documents/projects/alterra/agentic_workflows"
+      echo "  --from <dir>  deploy from <dir> instead of the script directory (or WORKFLOWS_SOURCE)"
       exit 0 ;;
     *) ARGS+=("$1"); shift ;;
   esac
@@ -180,10 +181,9 @@ for devin_dir in $(find "$HOME" -maxdepth 6 -type d -name ".devin" \
     -not -path "*/.git/*" 2>/dev/null); do
 
   project_dir="$(dirname "$devin_dir")"
-  # Never treat a source tree as a target project — neither the deployed default nor
-  # the tree --from points at.
+  # Never treat the script directory or selected source tree as a target project.
   [ "$project_dir" = "$ROOT" ] && continue
-  [ "$project_dir" = "$HOME/Documents/projects/alterra/agentic_workflows" ] && continue
+  [ "$project_dir" = "$SCRIPT_DIR" ] && continue
 
   echo "  project: $project_dir"
 
