@@ -10,7 +10,7 @@ completed_at: 2026-10-19
 
 Clean the current working tree of private client, employer, internal-system, and machine references, and enforce the agreed public-hygiene scope before further publication.
 
-The original pre-initialization premise no longer holds: an initial Git commit already contains private references. The owner explicitly permits local failing-test and implementation commits, preserves the existing history, and withholds all pushes and pull requests pending a separately authorized history-remediation decision (revised 2026-10-19). Cleaning descendants does not clean their ancestors.
+The original pre-initialization premise no longer holds: an initial Git commit already contains private references. The owner explicitly permitted local failing-test and implementation commits and subsequently authorized publication and merging of the reviewed stack with existing ancestry retained (revised 2026-10-19). Cleaning descendants does not clean their ancestors.
 
 ## Acceptance Criteria
 
@@ -85,7 +85,7 @@ The original pre-initialization premise no longer holds: an initial Git commit a
 
 ## Notes
 
-- Runs before the remaining roadmap work. The owner permits local test-first commits; every push and pull request is withheld pending separate history remediation (revised 2026-10-19). ADR-0010 records the amended timing clause of ADR-0009 Decision 1.
+- Runs before the remaining roadmap work. The owner permitted local test-first commits, then explicitly authorized publication, merging, and completed-record archival with existing ancestry retained (revised 2026-10-19). ADR-0010 records the amended timing clause of ADR-0009 Decision 1.
 - Inventory as of 2026-09-17 (file → what): `docs/USAGE.md` (umbrella example, 19 hits),
   `docs/analysis/*` (run table by project), `.ai/context/environment.md` (consumer list,
   host name), `.ai/memory/progress.md` (project names, PR and run ids),
@@ -113,3 +113,8 @@ The original pre-initialization premise no longer holds: an initial Git commit a
 ## Optional Followup
 
 The isolated Git enumeration-error fixture can be refined later. Production failure handling is already independently verified; this does not defer any hygiene criterion.
+
+### 2026-10-19 — completed delivery and archival
+- Publication and integration | owner-authorized | The earlier hold was superseded by explicit approval to publish existing ancestry, merge the three reviewed pull requests, and close the task. No history rewriting was performed.
+- Record location | owner-authorized | The complete task is retained under `.ai/tasks/completed/task-00-sensitive-data-scrub/`; this source is retained under `.ai/specs/completed/`. The exact scanner exception follows this source file; its previous path is no longer exempt.
+- Review corrections | verified | Suggested child setup commands preserve absolute source overrides, and unreadability fixtures pass as both the normal user and UID 0. All 542 checks pass.

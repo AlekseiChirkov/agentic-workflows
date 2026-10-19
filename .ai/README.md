@@ -26,6 +26,7 @@ Read this file first, every time. It changes only when the structure of `.ai/` c
 - `context/environment.md` — the three target environments and every hard-coded path
 - `context/integrations.md` — the agent harnesses and tools the workflows depend on
 - `specs/README.md` — the improvement roadmap, one spec per change, in priority order
+- `specs/completed/` — completed source specifications retained for historical reference
 - `tasks/todo/<task>/` — when working on a specific task
 - `tasks/completed/<task>/` — for historical reference only
 

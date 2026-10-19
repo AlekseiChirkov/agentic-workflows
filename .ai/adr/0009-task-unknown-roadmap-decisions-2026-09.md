@@ -38,7 +38,7 @@ match this record.
 **Amended 2026-09-17 (owner):** sensitive data is scrubbed **before** `git init`, not at
 the public release. Client and employer project names, internal source-file references
 taken from client code, pull-request and workflow-run identifiers, the machine host name,
-and `$HOME`-absolute paths are removed in `.ai/specs/00-sensitive-data-scrub.md`, which
+and `$HOME`-absolute paths are removed in `.ai/specs/completed/00-sensitive-data-scrub.md`, which
 also adds a forbidden-token check group to `validate-contracts.sh`. Rationale: git
 history cannot be edited after publication; a later scrub would require a rewrite that
 invalidates every published hash. Spec 11 only re-verifies the check.

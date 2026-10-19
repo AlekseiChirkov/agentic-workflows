@@ -16,3 +16,6 @@ Strict sequential local stack from main: fix/portable-script-paths → docs/neut
 | T-01 | leaf | S1=5, S2=1, S3=1, S4=false, S5=1 | One script path-resolution behavior; isolated relocation/override smoke criteria. |
 | T-02 | leaf | S1=5, S2=1, S3=1, S4=false, S5=1 | One public-example corpus with scoped editorial/semantic checks. |
 | T-03 | leaf | S1=6, S2=1, S3=1, S4=false, S5=1 | One final full-tree scanner contract with its remaining corpus cleanup. |
+
+## Delivery Closure
+Completed under explicit owner authorization: reviewed PRs #2, #3, and #4 integrate in order into main. The task and source specification are retained in their completed collections. Historical execution restrictions above describe the initial local-only phase and are superseded by the recorded publication and merge decisions.

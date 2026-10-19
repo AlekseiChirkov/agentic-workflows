@@ -41,7 +41,7 @@ run_public_hygiene() (
   while IFS= read -r -d '' file; do
     count=$((count + 1))
     case "$file" in
-      scrub-denylist.txt|.ai/specs/00-sensitive-data-scrub.md) continue ;;
+      scrub-denylist.txt|.ai/specs/completed/00-sensitive-data-scrub.md) continue ;;
     esac
     if [ -L "$root/$file" ]; then
       # Git stores link text; do not follow a target outside the repository.

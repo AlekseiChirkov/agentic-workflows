@@ -53,6 +53,6 @@ read the repository (ADR-0009, Decision 1).
   for on-disk consumer formats only.
 - The rename of the local directory happens before `git init`; `sync.sh --from` is not
   needed afterwards.
-- **Depends on `.ai/specs/00-sensitive-data-scrub.md`.** Discovery must stop if the
+- **Depends on `.ai/specs/completed/00-sensitive-data-scrub.md`.** Discovery must stop if the
   scrub's forbidden-token check is absent or failing: nothing sensitive may enter the
   first commit, because git history cannot be edited after publication.
