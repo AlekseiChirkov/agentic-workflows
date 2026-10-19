@@ -30,10 +30,16 @@ store, the field vocabulary, and the rule that logging never blocks a run.
 
 At Step 0, after preflight passes and the resume point is known, open the run:
 
+Open the run with `log-step.sh run-start` through the configured helper:
+
 ```bash
-RUN_ID=$(~/Documents/projects/alterra/agentic_workflows/log-step.sh run-start --pipeline spec-run \
+LOG_HELPER="${WORKFLOWS_SOURCE:+$WORKFLOWS_SOURCE/log-step.sh}"
+RUN_ID=""
+if [ -x "$LOG_HELPER" ]; then
+  RUN_ID=$("$LOG_HELPER" run-start --pipeline spec-run \
   --project "$(pwd)" --task <task-directory> --spec <spec-path> \
-  --flags "<--allow-pr / --dry-run as passed>")
+  --flags "<--allow-pr / --dry-run as passed>") || RUN_ID=""
+fi
 ```
 
 The Orchestrator owns every log call, exactly as it owns every shared file — a sub-agent
@@ -48,7 +54,7 @@ produces. On `--dry-run`, log `run-start`, one `--step dry-run --outcome skipped
 `run-end --outcome completed`; write nothing else. Close with `run-end --outcome
 completed`, `stopped`, or `failed`.
 
-Logging is best-effort: if `~/Documents/projects/alterra/agentic_workflows/log-step.sh` is missing or a call fails,
+Logging is best-effort: if `$LOG_HELPER` is missing or a call fails,
 continue unchanged and mention it once in the final report. Never stop, retry, or ask the
 user because of a log write.
 

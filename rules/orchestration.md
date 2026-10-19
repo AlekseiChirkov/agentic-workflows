@@ -48,7 +48,7 @@ the token economy this design exists for would evaporate.
 `architecture.md`, or a concrete file and pattern in the repository.
 *An answer without a citation is not an answer.*
 It is reclassified as a question for the human. This is the single mechanism preventing the
-arbiter from becoming a well-formatted source of invention.
+arbiter from becoming a well-formatted source of unsupported claims.
 
 The arbiter has no authority to: clear a violated invariant, approve a composite promotion,
 override a Guard, or decide that a test-level gate returns `none`.
@@ -132,7 +132,7 @@ Every ambiguity is one of two classes. Route by class — never by how important
 
 **Class A — missing context.** The answer exists in the project's artifacts but not in the
 asking agent's window. Examples: which layer owns validation, what error shape the API
-returns, which naming convention applies, whether a pattern already exists.
+returns, which naming standard applies, whether a pattern already exists.
 
 → Ask the **Arbiter**. It answers with a citation. The resolution is recorded in the
 subtask's `notes:` in the form `arbiter: <question> → <answer> (source: <citation>)`.

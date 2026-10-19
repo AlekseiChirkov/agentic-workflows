@@ -20,9 +20,15 @@ store, the field vocabulary, and the rule that logging never blocks a run.
 
 At Step 0, open the run:
 
+Open the run with `log-step.sh run-start` through the configured helper:
+
 ```bash
-RUN_ID=$(~/Documents/projects/alterra/agentic_workflows/log-step.sh run-start --pipeline phase-execution \
-  --project "$(pwd)" --task <task-directory> --flow <quick|full>)
+LOG_HELPER="${WORKFLOWS_SOURCE:+$WORKFLOWS_SOURCE/log-step.sh}"
+RUN_ID=""
+if [ -x "$LOG_HELPER" ]; then
+  RUN_ID=$("$LOG_HELPER" run-start --pipeline phase-execution \
+  --project "$(pwd)" --task <task-directory> --flow <quick|full>) || RUN_ID=""
+fi
 ```
 
 Log one `step` line per subtask cycle rather than per inner workflow: after each subtask's
@@ -32,7 +38,7 @@ with `--tests` mirroring the leaf's `atomic-tests:` value, `--files` from its
 plus `--blocker` when the subtask ends blocked. Log `pe-finalize` as its own step. Close
 with `run-end`.
 
-Logging is best-effort: if `~/Documents/projects/alterra/agentic_workflows/log-step.sh` is missing or a call fails,
+Logging is best-effort: if `$LOG_HELPER` is missing or a call fails,
 continue unchanged and mention it once in the final report. Never stop, retry, or ask the
 user because of a log write.
 

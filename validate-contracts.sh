@@ -5,6 +5,92 @@
 # Exit 0 = all pass. Exit 1 = failures found.
 
 set -e
+
+# Scan the working contents of all indexed paths, including newly staged files.
+# Only the root hygiene metadata and its immutable source specification are exempt.
+run_public_hygiene() (
+  local root="$1" denylist="${2:-$1/scrub-denylist.txt}" scratch line file status count=0 bad=0
+  root="$(cd "$root" && pwd -P)" || { echo 'Hygiene root is unavailable'; return 1; }
+  if [ ! -f "$denylist" ] || [ ! -r "$denylist" ]; then
+    echo 'Hygiene denylist is missing or unreadable'; return 1
+  fi
+  scratch="$(mktemp -d "${TMPDIR:-/tmp}/tracked-hygiene.XXXXXX")" || return 1
+  trap 'rm -rf "$scratch"' EXIT
+  : > "$scratch/patterns" || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      *[![:space:]]*) ;;
+      *) continue ;;
+    esac
+    case "${line#"${line%%[![:space:]]*}"}" in \#*) continue ;; esac
+    printf '%s\n' "$line" >> "$scratch/patterns" || return 1
+  done < "$denylist"
+  if [ ! -s "$scratch/patterns" ]; then
+    echo 'Hygiene denylist has no literal patterns'; return 1
+  fi
+  if [ "$(git -C "$root" rev-parse --show-toplevel)" != "$root" ]; then
+    echo 'Hygiene root must be the repository root'; return 1
+  fi
+  if ! git -C "$root" ls-files --cached -z > "$scratch/files"; then
+    echo 'Hygiene tracked-file enumeration failed'; return 1
+  fi
+  # An empty index is an error: there is no tracked publication scope to verify.
+  if [ ! -s "$scratch/files" ]; then
+    echo 'Hygiene scan requires tracked files'; return 1
+  fi
+  while IFS= read -r -d '' file; do
+    count=$((count + 1))
+    case "$file" in
+      scrub-denylist.txt|.ai/specs/00-sensitive-data-scrub.md) continue ;;
+    esac
+    if [ -L "$root/$file" ]; then
+      # Git stores link text; do not follow a target outside the repository.
+      if ! readlink -- "$root/$file" > "$scratch/link"; then
+        printf 'Hygiene cannot read symlink: %q\n' "$file"; bad=1; continue
+      fi
+      line="$scratch/link"
+    elif [ -f "$root/$file" ] && [ -r "$root/$file" ]; then
+      line="$root/$file"
+    else
+      printf 'Hygiene tracked file is missing or unreadable: %q\n' "$file"; bad=1; continue
+    fi
+    status=0
+    grep -Fia -f "$scratch/patterns" -- "$line" > /dev/null || status=$?
+    case "$status" in
+      0) printf 'Hygiene forbidden token in tracked file: %q\n' "$file"; bad=1 ;;
+      1) ;;
+      *) printf 'Hygiene scan error for tracked file: %q\n' "$file"; bad=1 ;;
+    esac
+  done < "$scratch/files"
+  [ "$count" -gt 0 ] && [ "$bad" -eq 0 ]
+)
+
+# Standalone scanner: --root selects a repository; --denylist selects its patterns.
+# A configured list adds no scan exemptions. Relative paths use the caller's cwd.
+if [ "${1:-}" = --hygiene-only ]; then
+  shift
+  hygiene_root="$(cd "$(dirname "$0")" && pwd -P)"
+  hygiene_denylist=''
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --root|--denylist)
+        [ "$#" -ge 2 ] && [ -n "$2" ] || { echo 'Missing hygiene option value' >&2; exit 1; }
+        case "$1" in
+          --root) hygiene_root="$2" ;;
+          --denylist) hygiene_denylist="$2" ;;
+        esac
+        shift 2 ;;
+      *) echo 'Unknown hygiene option' >&2; exit 1 ;;
+    esac
+  done
+  run_public_hygiene "$hygiene_root" "$hygiene_denylist"
+  exit $?
+fi
+if [ "$#" -gt 0 ]; then
+  echo 'Usage: validate-contracts.sh [--hygiene-only [--root PATH] [--denylist PATH]]' >&2
+  exit 1
+fi
+
 cd "$(dirname "$0")"
 
 PASS=0
@@ -1673,6 +1759,10 @@ check "test_public_hygiene_repository_preserves_context_and_local_ignores" \
   "$(test_public_hygiene_repository_preserves_context_and_local_ignores && echo pass || echo 'repository context and local ignore policy is incomplete')"
 
 # ── End public hygiene smoke checks ─────────────────────────────────
+
+# ── Tracked public hygiene ──────────────────────────────────────────
+check "test_public_hygiene_tracked_tree_excludes_private_tokens" \
+  "$(run_public_hygiene "$(pwd -P)" && echo pass || echo 'tracked publication scope requires redaction')"
 
 echo ""
 echo "=== Contract Validation ==="

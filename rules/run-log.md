@@ -28,7 +28,7 @@ have made.
 
 ```
 $AGENTIC_LOG_ROOT            # if set — used verbatim
-~/Documents/projects/alterra/agentic_workflows/logs/     # otherwise (the default)
+<helper-directory>/logs/    # otherwise, relative to log-step.sh
   runs/
     <ISO-timestamp>-<pipeline>-<run-id>.jsonl   # append-only, one JSON object per line
     <ISO-timestamp>-<pipeline>-<run-id>.md      # human-readable digest, written at run-end
@@ -38,8 +38,9 @@ $AGENTIC_LOG_ROOT            # if set — used verbatim
 
 The store is **central and cross-project**: runs from every repository land in one place,
 because the question the log answers ("what should change in the workflows?") is only
-answerable across projects. The path is machine-global and identical for every deployed
-copy of a workflow — a workflow must never hard-code a project-relative log path.
+answerable across projects. Set `WORKFLOWS_SOURCE` to the shared workflow checkout in every consuming environment
+so all workflows resolve the same helper and default store. `AGENTIC_LOG_ROOT` can select
+another shared store; never substitute the current consumer project directory.
 
 The store is local telemetry. It is not committed, not synced by `sync.sh`, and not copied
 into a project.
@@ -53,43 +54,48 @@ line** — the helper stamps the time and derives every duration from its own pr
 A duration written by a model is a guess, and a guessed number in a metrics store is worse
 than a missing one.
 
-Resolve the helper as `~/Documents/projects/alterra/agentic_workflows/log-step.sh`. If it is not executable there, skip
-logging for the whole run and note that once in the final report.
+Resolve the helper from the configured `WORKFLOWS_SOURCE` checkout. If that variable is
+unset or the helper is not executable, skip logging for the whole run and note that once
+in the final report. Keep the resolved `LOG_HELPER` and `RUN_ID` for all three calls.
 
-**1 — At the start of the pipeline, before its first step:**
+**1 — At the start of the pipeline, before its first step (`log-step.sh run-start`):**
 
 ```bash
-RUN_ID=$(~/Documents/projects/alterra/agentic_workflows/log-step.sh run-start \
+LOG_HELPER="${WORKFLOWS_SOURCE:+$WORKFLOWS_SOURCE/log-step.sh}"
+RUN_ID=""
+if [ -x "$LOG_HELPER" ]; then
+  RUN_ID=$("$LOG_HELPER" run-start \
   --pipeline phase-discovery \
   --project "$(pwd)" \
   --task .ai/tasks/todo/task-01-add-oauth \
   --spec .ai/specs/01-add-oauth.md \
   --flow full \
-  --flags "--step-by-step")
+  --flags "--step-by-step") || RUN_ID=""
+fi
 ```
 
 Keep `RUN_ID` for the rest of the run. If the pipeline resumes in a later session, start a
 new run — `/retro` correlates runs by `task`, so a resumed task reads as two runs of the
 same task, which is itself a signal worth measuring.
 
-**2 — Immediately after each step completes**, before moving to the next one:
+**2 — Immediately after each step completes** (`log-step.sh step`), before moving to the next one:
 
 ```bash
-~/Documents/projects/alterra/agentic_workflows/log-step.sh step --run "$RUN_ID" \
+[ -n "$RUN_ID" ] && "$LOG_HELPER" step --run "$RUN_ID" \
   --step pd-analyze --outcome ok \
   --decisions 3 --questions 2 --stops 1 \
-  --note "resolved 3 ambiguities from principles"
+  --note "resolved 3 ambiguities from principles" || true
 ```
 
 Log the step **after it finishes**, whatever the outcome — a step that failed, blocked, or
 was skipped is the most valuable line in the file. A step that ends the run still gets its
 own `step` line before `run-end`.
 
-**3 — When the pipeline stops, for any reason:**
+**3 — When the pipeline stops, for any reason (`log-step.sh run-end`):**
 
 ```bash
-~/Documents/projects/alterra/agentic_workflows/log-step.sh run-end --run "$RUN_ID" \
-  --outcome stopped --note "escalated: two ADRs conflict"
+[ -n "$RUN_ID" ] && "$LOG_HELPER" run-end --run "$RUN_ID" \
+  --outcome stopped --note "escalated: two ADRs conflict" || true
 ```
 
 This includes a planned stop. `/phase-discovery` completing normally is `--outcome

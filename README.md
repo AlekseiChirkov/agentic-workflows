@@ -73,7 +73,7 @@ project means maintaining that combination yourself.
 
 Choose agentic_workflows when several of these needs occur together:
 
-- **Long-lived project context:** architecture, conventions, decisions, and active
+- **Long-lived project context:** architecture, standards, decisions, and active
   work must survive session changes and developer handoffs.
 - **Explicit engineering boundaries:** changes need documented acceptance criteria,
   existing invariants, and areas the implementation must leave untouched.
@@ -103,12 +103,12 @@ project packages those requirements into one process.
 - **Full execution is sequential.** Agent separation limits context and separates
   responsibilities; it does not provide parallel implementation of independent
   tasks. Prefer a system with built-in parallel execution if that is decisive.
-- **Setup needs adaptation.** Several scripts assume a particular checkout location
-  under the user's home directory. Engineering principles include stack-specific
-  standards that should be reviewed before adoption.
-- **Local knowledge needs ownership.** Task and knowledge artifacts are excluded
-  from version control by the current policy. Team sharing, backup, and recovery
-  require an explicit arrangement.
+- **Setup needs adaptation.** Scripts derive their source roots from their locations;
+  set `WORKFLOWS_SOURCE` to select a shared checkout for helpers and setup. Engineering
+  principles include stack-specific standards that should be reviewed before adoption.
+- **Local knowledge needs ownership.** Consumer projects exclude task and knowledge
+  artifacts from version control by default; this repository tracks its full knowledge
+  base. Team sharing, backup, and recovery require an explicit arrangement.
 
 For a short prototype or a team seeking minimal setup, OpenSpec or a ready-made
 Superpowers installation may be a better fit. For integrated task execution, assess

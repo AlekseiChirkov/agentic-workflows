@@ -202,7 +202,7 @@ The composite's `## Acceptance Criteria` MUST be integration-level (the whole wo
    <execution order, parallelism constraints, rationale>
    ```
 
-   **Task with Type 2 composites** (any subtask classified as composite): add `Type` column. Composite rows show `(children: T-XXa, T-XXb, …)` in Key Steps. Child rows are indented by convention. Composite row Depends On = the composite's own dependencies; child row Depends On = either the composite parent's deps or a sibling child.
+   **Task with Type 2 composites** (any subtask classified as composite): add `Type` column. Composite rows show `(children: T-XXa, T-XXb, …)` in Key Steps. Child rows are indented by standard. Composite row Depends On = the composite's own dependencies; child row Depends On = either the composite parent's deps or a sibling child.
    ```
    ## Subtasks
 

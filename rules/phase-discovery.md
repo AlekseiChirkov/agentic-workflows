@@ -16,7 +16,7 @@ Report at end: "Discovery context loaded: [files read]"
 | 1 | `.ai/memory/architecture.md` | System components, service boundaries, constraints |
 | 2 | `.ai/memory/state.md` | Active tasks, blockers, in-flight work |
 | 3 | `.ai/principles/architecture.md` | Architectural patterns, boundaries, what NOT to build |
-| 4 | `.ai/principles/coding.md` | Naming conventions, forbidden patterns — shapes decomposition |
+| 4 | `.ai/principles/coding.md` | Naming standards, forbidden patterns — shapes decomposition |
 | 5 | `.ai/principles/domain.md` | Domain rules, ubiquitous language, business constraints |
 | 6 | `.ai/adr/index.md` | Past decisions index — read full ADR only if directly relevant |
 | 7 | `.ai/memory/progress.md` | Previous session context — only if resuming interrupted work |
