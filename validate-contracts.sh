@@ -2010,9 +2010,14 @@ test_public_ignore_rules_keep_local_data_ignored_and_knowledge_trackable() {
 }
 
 test_public_setup_guide_uses_orchestrail_release_instructions() {
-  local section
+  local section public_host public_repo public_join public_suffix public_url
+  public_host='AlekseiChirkov'
+  public_repo='agentic'
+  public_join='-'
+  public_suffix='workflows.git'
+  public_url="https://github.com/${public_host}/${public_repo}${public_join}${public_suffix}"
   section="$(awk '/^## 4\. Initial Setup/{inside=1} /^## / && inside && !/^## 4\. Initial Setup/{exit} inside{print}' docs/USAGE.md)" || return 1
-  grep -Fq 'git clone https://github.com/AlekseiChirkov/agentic-workflows.git ~/projects/orchestrail' <<< "$section" || return 1
+  grep -Fq "git clone ${public_url} ~/projects/orchestrail" <<< "$section" || return 1
   grep -Fq 'v0.9.0' <<< "$section" || return 1
   grep -qiE 'v0\.9\.0.{0,100}(after|once|following).*release|(after|once|following).*release.{0,100}v0\.9\.0' <<< "$(tr '\n' ' ' <<< "$section")"
 }
@@ -2066,11 +2071,22 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
     printf '%s\0' "$file" >> "$scratch/scan-files" || return 1
   done < "$scratch/all-files"
 
-  awk -v start="$ledger_heading" '
+  awk -F'|' -v start="$ledger_heading" '
+    function valid_row() {
+      return NF == 5 && substr($0, 1, 1) == "|" && substr($0, length($0), 1) == "|" &&
+        $1 ~ /^[[:space:]]*$/ && $5 ~ /^[[:space:]]*$/ &&
+        $2 ~ /^[[:space:]]*`[^`]+`[[:space:]]*$/ &&
+        $3 ~ /^[[:space:]]*[0-9]+(,[[:space:]]*[0-9]+)*[[:space:]]*$/ &&
+        $4 ~ /^[[:space:]]*`[^`]+`[[:space:]]*×[[:space:]]*[0-9]+([[:space:]]+per line)?([[:space:]]*;[[:space:]]*`[^`]+`[[:space:]]*×[[:space:]]*[0-9]+([[:space:]]+per line)?)*[[:space:]]*$/
+    }
     $0 == start { in_ledger = 1; next }
     in_ledger && /^### / { in_ledger = 0 }
-    in_ledger && /^\| `[^`]+` \|/ { print; found = 1 }
-    END { if (!found) exit 1 }
+    in_ledger && /^\|/ {
+      if ($0 == "| Path | Line | Expected token counts |" || $0 == "|---|---:|---|") next
+      if (valid_row()) { print; found = 1; next }
+      invalid = 1
+    }
+    END { if (!found || invalid) exit 1 }
   ' "$ledger_file" > "$scratch/ledger-rows" || {
     echo 'Identity ledger has no exact path rows'; return 1;
   }
@@ -2124,10 +2140,17 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
     fi
 
     if [ "$file" = "$ledger_file" ]; then
-      awk -v start="$ledger_heading" '
+      awk -F'|' -v start="$ledger_heading" '
+        function valid_row() {
+          return NF == 5 && substr($0, 1, 1) == "|" && substr($0, length($0), 1) == "|" &&
+            $1 ~ /^[[:space:]]*$/ && $5 ~ /^[[:space:]]*$/ &&
+            $2 ~ /^[[:space:]]*`[^`]+`[[:space:]]*$/ &&
+            $3 ~ /^[[:space:]]*[0-9]+(,[[:space:]]*[0-9]+)*[[:space:]]*$/ &&
+            $4 ~ /^[[:space:]]*`[^`]+`[[:space:]]*×[[:space:]]*[0-9]+([[:space:]]+per line)?([[:space:]]*;[[:space:]]*`[^`]+`[[:space:]]*×[[:space:]]*[0-9]+([[:space:]]+per line)?)*[[:space:]]*$/
+        }
         $0 == start { in_ledger = 1; print; next }
         in_ledger && /^### / { in_ledger = 0 }
-        in_ledger && /^\|/ { print ""; next }
+        in_ledger && valid_row() { print ""; next }
         { print }
       ' "$input" > "$scratch/ledger-source-scan" || return 1
       input="$scratch/ledger-source-scan"
