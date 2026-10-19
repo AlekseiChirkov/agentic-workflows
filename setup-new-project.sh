@@ -7,7 +7,11 @@
 set -e
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-WORKFLOWS_SRC="${WORKFLOWS_SOURCE:-$SCRIPT_DIR}"
+WORKFLOWS_SRC="${ORCHESTRAIL_HOME:-$SCRIPT_DIR}"
+WORKFLOWS_SRC="$(cd -- "$WORKFLOWS_SRC" 2>/dev/null && pwd)" || {
+  echo "ERROR: source directory not found: ${ORCHESTRAIL_HOME:-$SCRIPT_DIR}" >&2
+  exit 1
+}
 PROJECT_DIR="$(pwd)"
 CLAUDE_SKILLS="$HOME/.claude/skills"
 

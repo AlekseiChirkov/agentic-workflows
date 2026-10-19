@@ -18,6 +18,16 @@ Notes:
 - `validate-task.sh <task-dir>` checks one task's artifacts; run it manually when working
   on a task under `.ai/tasks/`.
 
+## Local configuration
+
+Keep machine settings under `~/.config/orchestrail/`. Export `ORCHESTRAIL_HOME`
+to select the shared checkout for setup helpers and workflow helper resolution.
+Scripts default to their own directory when the source override is unset or empty;
+`sync.sh --from <dir>` and `--from=<dir>` take precedence over the environment.
+Export `ORCHESTRAIL_LOG_ROOT` to select a shared log store; unset or empty values
+use the helper checkout's `logs/` directory. Inspect it without creating files with
+`bash "$ORCHESTRAIL_HOME/log-step.sh" path`.
+
 ## Procedures
 
 ### Deploy a change

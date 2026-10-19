@@ -7,8 +7,11 @@
 set -e
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-WORKFLOWS_SRC="${WORKFLOWS_SOURCE:-$SCRIPT_DIR}"
-WORKFLOWS_SRC="$(cd -- "$WORKFLOWS_SRC" && pwd)"
+WORKFLOWS_SRC="${ORCHESTRAIL_HOME:-$SCRIPT_DIR}"
+WORKFLOWS_SRC="$(cd -- "$WORKFLOWS_SRC" 2>/dev/null && pwd)" || {
+  echo "ERROR: source directory not found: ${ORCHESTRAIL_HOME:-$SCRIPT_DIR}" >&2
+  exit 1
+}
 PROJECT_DIR="$(pwd)"
 TMPL="$WORKFLOWS_SRC/templates/.ai-umbrella"
 
@@ -106,5 +109,5 @@ echo "  3. Edit .ai/principles/domain.md     — ubiquitous language and domain 
 echo "  4. Edit .ai/context/environment.md   — GCP project IDs, environment URLs, etc."
 echo ""
 echo "Then for each service repo:"
-printf '  cd <service-dir> && WORKFLOWS_SOURCE=%q bash %q\n' "$WORKFLOWS_SRC" "$WORKFLOWS_SRC/setup-new-project.sh"
+printf '  cd <service-dir> && ORCHESTRAIL_HOME=%q bash %q\n' "$WORKFLOWS_SRC" "$WORKFLOWS_SRC/setup-new-project.sh"
 echo "  (auto-detects ../.ai/ and configures service with two-level context loading)"

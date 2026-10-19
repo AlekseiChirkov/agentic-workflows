@@ -25,7 +25,7 @@ input" is.
 
 ## Guard
 
-1. Resolve the store: `$AGENTIC_LOG_ROOT`, else the script-relative store reported by `bash <workflow-source>/log-step.sh path`. If absent →
+1. Resolve the store: `$ORCHESTRAIL_LOG_ROOT`, else the script-relative store reported by `bash <workflow-source>/log-step.sh path`. If absent →
    **stop**: "No run log at `<path>`. Pipelines write it via `log-step.sh`; nothing has been
    recorded yet."
 2. Count run files after filters. Fewer than **5** → report the count and warn: "Below 5 runs

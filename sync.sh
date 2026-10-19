@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-# Source tree to deploy from. Defaults to this script's directory; WORKFLOWS_SOURCE
+# Source tree to deploy from. Defaults to this script's directory; ORCHESTRAIL_HOME
 # overrides the default, and --from <dir> takes precedence over the environment.
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="${WORKFLOWS_SOURCE:-$SCRIPT_DIR}"
+ROOT="${ORCHESTRAIL_HOME:-$SCRIPT_DIR}"
 ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -16,23 +16,22 @@ while [ $# -gt 0 ]; do
       ROOT="${1#--from=}"; shift ;;
     -h|--help)
       echo "Usage: sync.sh [--from <source-tree>]"
-      echo "  --from <dir>  deploy from <dir> instead of the script directory (or WORKFLOWS_SOURCE)"
+      echo "  --from <dir>  deploy from <dir> instead of the script directory (or ORCHESTRAIL_HOME)"
       exit 0 ;;
     *) ARGS+=("$1"); shift ;;
   esac
 done
 set -- "${ARGS[@]+"${ARGS[@]}"}"
 
-ROOT="${ROOT%/}"
-case "$ROOT" in
-  /*) ;;
-  *)  ROOT="$(cd "$ROOT" 2>/dev/null && pwd)" || { echo "ERROR: --from directory not found"; exit 1; } ;;
-esac
+SELECTED_ROOT="$ROOT"
+ROOT="$(cd -- "$SELECTED_ROOT" 2>/dev/null && pwd)" || {
+  echo "ERROR: source directory not found: $SELECTED_ROOT" >&2
+  exit 1
+}
 
 for d in workflows rules principles templates; do
   [ -d "$ROOT/$d" ] || { echo "ERROR: $ROOT is not a agentic_workflows tree (missing $d/)"; exit 1; }
 done
-[ "$ROOT" = "$ROOT" ] || echo "Deploying from: $ROOT"
 
 SRC="$ROOT/workflows"
 RULES="$ROOT/rules"
