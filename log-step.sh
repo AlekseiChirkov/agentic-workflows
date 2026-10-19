@@ -127,7 +127,12 @@ cmd_run_start() {
   ensure_store || die "cannot create log store at $LOG_ROOT"
 
   [ -n "$project" ] || project="$(pwd)"
-  local run_id ts file base
+  local run_id ts file base contract_version=""
+  # The version belongs to this helper's checkout, independently of the caller.
+  if [ -r "$SCRIPT_DIR/VERSION" ]; then
+    contract_version="$(cat "$SCRIPT_DIR/VERSION" 2>/dev/null)" || contract_version=""
+    [[ "$contract_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || contract_version=""
+  fi
   run_id="$(new_run_id)"
   ts="$(now_iso)"
   base="$(printf '%s' "$ts" | tr ':' '-')-$pipeline-$run_id"
@@ -148,6 +153,7 @@ cmd_run_start() {
     printf 'ts=%s\n' "$ts"
     printf 'run_id=%s\n' "$run_id"
     printf 'event=run-start\n'
+    [ -z "$contract_version" ] || printf 'contract_version=%s\n' "$contract_version"
     printf 'seq=0\n'
     printf 'pipeline=%s\n' "$pipeline"
     printf 'project=%s\n' "$project"

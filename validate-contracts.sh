@@ -93,6 +93,23 @@ fi
 
 cd "$(dirname "$0")"
 
+# Warn about committed rule changes since the last version change. Compare Git
+# ancestry rather than timestamps so same-second commits and merges remain valid.
+warn_stale_contract_version() {
+  local version_commit newer_rules
+  [ -f VERSION ] || return 0
+  version_commit="$(git log -1 --format=%H -- VERSION 2>/dev/null)" || return 0
+  [ -n "$version_commit" ] || return 0
+  # Include staged and unstaged contents: a pending version update clears the warning.
+  git diff --quiet "$version_commit" -- VERSION 2>/dev/null || return 0
+  newer_rules="$(git log --format=%H "$version_commit..HEAD" -- rules/ 2>/dev/null)" || return 0
+  if [ -n "$newer_rules" ]; then
+    echo '[WARN] Rules changed after VERSION; update the contract version before release.' >&2
+  fi
+  return 0
+}
+warn_stale_contract_version
+
 PASS=0
 FAIL=0
 

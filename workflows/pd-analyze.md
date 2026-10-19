@@ -123,9 +123,20 @@ autonomous — pass `--step-by-step` to be asked.
 
    In `state.md → ## Task Analysis → ### Codebase Analysis`, explicitly list every file you read and why — if none were needed beyond step 2, write "No additional files read — state files provided sufficient context."
 5. Analyze only the codebase parts relevant to the task that were not covered by step 2.
-6. Write to `state.md` in the task directory:
+6. Read `VERSION` from the workflow source checkout (the checkout containing this workflow,
+   not the consumer project's root). Accept a single nonempty `major.minor.patch` value
+   with numeric components. If VERSION is missing, empty, unreadable, or malformed,
+   omit `contract_version:` and continue analysis. Readers accept older state files
+   without `contract_version`; its absence never blocks analysis or resume.
+   When a valid version is available, write `contract_version:` immediately after
+   the existing `spec_path:` line, preserving that path. If no `spec_path:` exists,
+   resolve and write the source specification path first. Preserve an already recorded
+   contract version when resuming an existing analysis; do not stamp it retroactively.
+   Write to `state.md` in the task directory:
 
 ```
+spec_path: <resolved specification path>
+contract_version: <valid VERSION value; omit when unavailable>
 flow: quick | full
 
 ## Phases
