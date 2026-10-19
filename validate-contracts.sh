@@ -1395,6 +1395,107 @@ check "BUGFIX: reproduction precedes the fix" \
 check "BUGFIX: the reproduction becomes the failing test" \
   "$(tr '\n' ' ' < workflows/bugfix.md 2>/dev/null | tr -s ' ' | grep -qi 'reproduction \*is\* the RED test' && echo pass || echo 'bugfix.md does not turn the reproduction into a RED test, so the fix would be unverified and unguarded against regression')"
 
+# ── Script path portability smoke checks ────────────────────────────
+test_shell_paths_public_defaults_pass_syntax() {
+  local script
+  for script in sync.sh log-step.sh setup-new-project.sh setup-umbrella.sh setup-all-repos.sh link-skills.sh; do
+    bash -n "$script" || return 1
+    if grep -nE '(/|~/|\$HOME/)Documents/projects/' "$script"; then
+      echo "$script contains a machine-specific source path"
+      return 1
+    fi
+  done
+}
+
+test_shell_paths_relocated_checkout_preserves_overrides() (
+  local fixture source_tree alternate script mode target selected output status bad=0
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/script-paths.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  source_tree="$fixture/checkout with spaces"
+  alternate="$fixture/alternate source"
+  mkdir -p "$fixture/home/.claude/skills/example" "$fixture/work"
+  for selected in "$source_tree" "$alternate"; do
+    mkdir -p "$selected"/{workflows,rules,principles,templates/.ai,templates/.ai-umbrella}
+    cp sync.sh log-step.sh setup-new-project.sh setup-umbrella.sh setup-all-repos.sh link-skills.sh "$selected/"
+    printf '%s\n' "$selected" > "$selected/templates/.ai/source-marker"
+    printf '%s\n' "$selected" > "$selected/templates/.ai-umbrella/source-marker"
+    printf '%s\n' 'Umbrella fixture' > "$selected/templates/.ai-umbrella/README.md"
+    # Fail at the real preflight boundary so sync cannot deploy anything.
+    printf '%s\n' 'printf "source=%s\n" "$(cd "$(dirname "$0")" && pwd)"' 'exit 9' > "$selected/validate-contracts.sh"
+  done
+
+  for mode in default empty environment flag equals; do
+    selected="$source_tree"
+    local -a source_env=(-u WORKFLOWS_SOURCE -u AGENTIC_LOG_ROOT)
+    local -a sync_args=()
+    case "$mode" in
+      empty) source_env+=(WORKFLOWS_SOURCE=) ;;
+      environment) source_env+=(WORKFLOWS_SOURCE="$alternate"); selected="$alternate" ;;
+      flag) source_env+=(WORKFLOWS_SOURCE="$fixture/missing"); sync_args=(--from "$alternate"); selected="$alternate" ;;
+      equals) source_env+=(WORKFLOWS_SOURCE="$fixture/missing"); sync_args=("--from=$alternate"); selected="$alternate" ;;
+    esac
+    status=0
+    output="$(cd "$fixture/work" && env "${source_env[@]}" HOME="$fixture/home" bash "$source_tree/sync.sh" "${sync_args[@]}" 2>&1)" || status=$?
+    if [ "$status" -ne 1 ] || ! printf '%s\n' "$output" | grep -Fxq "source=$selected"; then
+      echo "sync.sh ($mode): expected selected source to reach failing preflight"
+      bad=1
+    fi
+  done
+  if [ -d "$fixture/home/.codeium" ] || [ -d "$fixture/home/.codex" ] || [ -f "$fixture/home/.claude/CLAUDE.md" ]; then
+    echo 'sync.sh crossed the deployment boundary'; bad=1
+  fi
+
+  for mode in default empty override; do
+    selected="$source_tree/logs"
+    local -a log_env=(-u AGENTIC_LOG_ROOT)
+    case "$mode" in
+      empty) log_env+=(AGENTIC_LOG_ROOT=) ;;
+      override) log_env+=(AGENTIC_LOG_ROOT="$fixture/custom logs"); selected="$fixture/custom logs" ;;
+    esac
+    output="$(cd "$fixture/work" && env "${log_env[@]}" HOME="$fixture/home" bash "$source_tree/log-step.sh" path)"
+    if [ "$output" != "$selected" ] || [ -e "$selected" ]; then
+      echo "log-step.sh ($mode): wrong root or read-only path command created a store"; bad=1
+    fi
+  done
+
+  for script in setup-new-project.sh setup-umbrella.sh setup-all-repos.sh; do
+    for mode in default empty override; do
+      selected="$source_tree"
+      local -a setup_env=(-u WORKFLOWS_SOURCE)
+      case "$mode" in
+        empty) setup_env+=(WORKFLOWS_SOURCE=) ;;
+        override) setup_env+=(WORKFLOWS_SOURCE="$alternate"); selected="$alternate" ;;
+      esac
+      target="$fixture/$script $mode"
+      mkdir -p "$target"
+      if [ "$script" = setup-all-repos.sh ]; then
+        mkdir -p "$target/service with spaces/.git"
+      fi
+      status=0
+      (cd "$target" && env "${setup_env[@]}" HOME="$fixture/home" bash "$source_tree/$script" </dev/null) > "$fixture/setup-output" 2>&1 || status=$?
+      if [ "$status" -ne 0 ] || [ "$(cat "$target/.ai/source-marker" 2>/dev/null)" != "$selected" ]; then
+        echo "$script ($mode): did not initialize from selected source"; bad=1
+      fi
+      if [ "$script" = setup-all-repos.sh ] && [ "$(cat "$target/service with spaces/.ai/source-marker" 2>/dev/null)" != "$selected" ]; then
+        echo "$script ($mode): child setup did not use selected source"; bad=1
+      fi
+    done
+  done
+
+  target="$fixture/skill project"
+  mkdir -p "$target/.claude/skills"
+  (cd "$target" && env HOME="$fixture/home" bash "$source_tree/link-skills.sh") > "$fixture/link-output" 2>&1 || bad=1
+  if [ ! -L "$target/.claude/skills/example" ] || [ ! -d "$target/.claude/skills/example" ]; then
+    echo 'link-skills.sh: relocated invocation did not link the configured home skills'; bad=1
+  fi
+  [ "$bad" -eq 0 ]
+)
+
+check "test_shell_paths_public_defaults_pass_syntax" \
+  "$(test_shell_paths_public_defaults_pass_syntax && echo pass || echo 'shell sources contain private paths or invalid Bash')"
+check "test_shell_paths_relocated_checkout_preserves_overrides" \
+  "$(test_shell_paths_relocated_checkout_preserves_overrides && echo pass || echo 'relocation or override behavior failed')"
+
 echo ""
 echo "=== Contract Validation ==="
 echo "  Passed: $PASS"
