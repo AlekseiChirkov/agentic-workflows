@@ -1573,6 +1573,107 @@ check "test_public_examples_quick_gate_preserves_fictional_outcomes" \
 check "test_public_examples_scoped_documents_exclude_private_tokens" \
   "$(test_public_examples_scoped_documents_exclude_private_tokens && echo pass || echo 'scoped public documents require redaction')"
 
+# ── Public hygiene smoke checks ─────────────────────────────────────
+
+test_public_hygiene_fixture_scans_fail_closed() (
+  local fixture validator repo output status name real_git
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/public-hygiene.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  validator="$fixture/runner/validate-contracts.sh"
+  mkdir -p "$fixture/runner"
+  git archive HEAD | tar -x -C "$fixture/runner" || return 1
+  repo="$fixture/repository with spaces"
+  real_git="$(command -v git)" || return 1
+  # Omit this smoke group in the copied runner to prevent recursive fixture tests.
+  sed '/^# ── Public hygiene smoke checks /,/^# ── End public hygiene smoke checks /d' validate-contracts.sh > "$validator"
+  mkdir -p "$repo/.ai/specs" "$repo/logs" "$repo/nested" "$fixture/bin"
+  "$real_git" init -q "$repo" || return 1
+  printf '%s\n' '# Synthetic public-hygiene fixture' 'forbidden-marker' 'literal.[x]' > "$repo/scrub-denylist.txt"
+  printf '%s\n' 'FORBIDDEN-MARKER' > "$repo/.ai/specs/00-sensitive-data-scrub.md"
+  printf '%s\n' 'Ordinary public content; literalax is allowed.' > "$repo/clean file.md"
+  "$real_git" -C "$repo" add -- scrub-denylist.txt .ai/specs/00-sensitive-data-scrub.md "clean file.md" || return 1
+
+  fixture_scan() {
+    local expected="$1" label="$2"
+    shift 2
+    status=0
+    output="$(bash "$validator" --hygiene-only --root "$repo" "$@" 2>&1)" || status=$?
+    if { [ "$expected" = pass ] && [ "$status" -ne 0 ]; } || { [ "$expected" = fail ] && [ "$status" -eq 0 ]; }; then
+      printf '%s: expected %s, exit %s\n' "$label" "$expected" "$status"
+      return 1
+    fi
+  }
+
+  fixture_scan pass 'clean tree and exact self exceptions' || return 1
+  for name in 'clean file.md' $'line\nbreak.md' '.ai/new context.md' 'logs/tracked.log' 'nested/scrub-denylist.txt' 'nested/00-sensitive-data-scrub.md'; do
+    printf '%s\n' 'prefix-FoRbIdDeN-MaRkEr-suffix' > "$repo/$name"
+    "$real_git" -C "$repo" add -- "$name" || return 1
+    fixture_scan fail "case-insensitive substring in $name" || return 1
+    printf '%s\n' 'Public content' > "$repo/$name"
+    fixture_scan pass "restored $name" || return 1
+  done
+  printf '%s\n' 'prefixliteral.[x]suffix' > "$repo/clean file.md"
+  fixture_scan fail 'literal punctuation substring' || return 1
+  printf '%s\n' 'Public content' > "$repo/clean file.md"
+  ln -s 'prefix-FoRbIdDeN-MaRkEr-suffix' "$repo/linked file" || return 1
+  "$real_git" -C "$repo" add -- "linked file" || return 1
+  fixture_scan fail 'symlink target text contamination' || return 1
+  rm "$repo/linked file"
+  ln -s 'public-target' "$repo/linked file" || return 1
+  fixture_scan pass 'clean dangling symlink target text' || return 1
+  printf '%s\n' 'Public content' > "$repo/clean file.md"
+  fixture_scan fail 'missing configured list' --denylist "$fixture/missing.txt" || return 1
+  printf '%s\n' '# Comments only' '' > "$fixture/empty.txt"
+  fixture_scan fail 'empty configured list' --denylist "$fixture/empty.txt" || return 1
+  printf '%s\n' 'different-marker' > "$fixture/alternate.txt"
+  printf '%s\n' 'DIFFERENT-MARKER' > "$repo/clean file.md"
+  fixture_scan fail 'configured list selected' --denylist "$fixture/alternate.txt" || return 1
+  printf '%s\n' 'Public content' > "$repo/clean file.md"
+  fixture_scan pass 'configured list with clean content' --denylist "$fixture/alternate.txt" || return 1
+  chmod 000 "$fixture/alternate.txt"
+  fixture_scan fail 'unreadable configured list' --denylist "$fixture/alternate.txt" || return 1
+  chmod 600 "$fixture/alternate.txt"
+  chmod 000 "$repo/clean file.md"
+  fixture_scan fail 'unreadable tracked file' || return 1
+  chmod 600 "$repo/clean file.md"
+  : > "$repo/clean file.md"
+  fixture_scan pass 'empty tracked file' || return 1
+  rm "$repo/clean file.md"
+  fixture_scan fail 'missing tracked file' || return 1
+  printf '%s\n' 'Public content' > "$repo/clean file.md"
+  printf '%s\n' '#!/bin/bash' 'exit 2' > "$fixture/bin/git"
+  chmod +x "$fixture/bin/git"
+  PATH="$fixture/bin:$PATH" fixture_scan fail 'git enumeration failure' || return 1
+  rm "$fixture/bin/git"
+  printf '%s\n' '#!/bin/bash' 'exit 2' > "$fixture/bin/grep"
+  chmod +x "$fixture/bin/grep"
+  PATH="$fixture/bin:$PATH" fixture_scan fail 'scanner failure' || return 1
+  rm "$fixture/bin/grep"
+  mkdir "$fixture/empty repository"
+  "$real_git" init -q "$fixture/empty repository" || return 1
+  repo="$fixture/empty repository"
+  fixture_scan fail 'no tracked files fail closed' --denylist "$fixture/alternate.txt" || return 1
+)
+
+test_public_hygiene_repository_preserves_context_and_local_ignores() {
+  if git check-ignore -q -- .ai/public-context.md; then
+    echo 'Repository knowledge base must be eligible for tracking'; return 1
+  fi
+  local file
+  for file in logs/runs/local.jsonl .claude/settings.local.json; do
+    if ! git check-ignore -q -- "$file"; then
+      echo 'Local logs and machine settings must remain ignored'; return 1
+    fi
+  done
+}
+
+check "test_public_hygiene_fixture_scans_fail_closed" \
+  "$(test_public_hygiene_fixture_scans_fail_closed && echo pass || echo 'public-hygiene fixture behavior is incomplete')"
+check "test_public_hygiene_repository_preserves_context_and_local_ignores" \
+  "$(test_public_hygiene_repository_preserves_context_and_local_ignores && echo pass || echo 'repository context and local ignore policy is incomplete')"
+
+# ── End public hygiene smoke checks ─────────────────────────────────
+
 echo ""
 echo "=== Contract Validation ==="
 echo "  Passed: $PASS"
