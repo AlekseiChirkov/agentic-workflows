@@ -100,8 +100,14 @@ Resolve existing history before any remote publication. Preserve this source-rep
 
 Independent atomic and task validation passed: 542 contract/smoke checks, Bash syntax, frozen-test audits, 23 contract requirements, full indexed hygiene including 45 knowledge files, and a 152-file manual sweep with zero unexpected matches/errors. All 44 baseline knowledge paths are preserved. One optional test-fixture refinement is deferred. Main and existing history remain unchanged; no push, PR, merge, or deployment occurred.
 
+## Publication Amendment — 2026-10-19
+
+After validation, the owner requested pull requests and explicitly approved publication to AlekseiChirkov/agentic-workflows with private references in existing ancestry and approved scan exceptions retained. This supersedes Decision 3's remote-publication hold and the historical publication restrictions above. It authorizes additive branch pushes and pull requests only; no merge, force push, branch deletion, main update, deployment, or history rewrite is authorized.
+
+The three branches were published and their drafts promoted to ready after validation. Merge order is [#2](https://github.com/AlekseiChirkov/agentic-workflows/pull/2), then [#3](https://github.com/AlekseiChirkov/agentic-workflows/pull/3), then [#4](https://github.com/AlekseiChirkov/agentic-workflows/pull/4). Existing ancestry remains unchanged. Earlier verification statements describe the local validation checkpoint before this amendment.
+
 ## References
 
 - Task: [Local state](../tasks/todo/task-00-sensitive-data-scrub/state.md)
-- Pull request: none; publication withheld by the owner
+- Pull requests: #2, #3, and #4 ready for review; see the publication amendment
 - Related documents: ADR-0007, ADR-0009, user answers of 2026-10-19

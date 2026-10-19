@@ -1,5 +1,6 @@
 spec_path: .ai/specs/00-sensitive-data-scrub.md
 flow: full
+publication: ready for review; the Publication Update below supersedes the original local-only hold
 
 ## Phases
 - discovery: complete
@@ -98,7 +99,7 @@ T-01 | Portable script path defaults | atomic-tests: green | atomic-execution: c
   base_branch: main
   base_commit: fc94fc1f9331d092cd59255ce41fa043c791cd9e
   commits: 34790f153f1a912b4665a6b9fc8b721aed308cf6 test: cover portable script defaults and source overrides, a2c218e266a5e3de8e7d09d78bf33a1a3671eb3b fix: resolve script roots without private checkout paths, 4275345c969ef4f5f516732cbe8f592d775a8d3d test: cover relative source overrides in child setup, 297bda22d5f4c07f7bbf2d73e8fc95fdb6d675bd fix: preserve relative source overrides across child setup
-  pr: none
+  pr: #2 ready
 T-02 | Neutral public examples | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: Atomic validation complete — all acceptance criteria met; unchanged RED checks verified; 539 contract checks pass; one pre-existing path-example improvement deferred.
   target_files: validate-contracts.sh, scrub-denylist.txt, docs/USAGE.md, docs/audits/AUDIT-PROMPT.md, docs/audits/2026-07-21-logic-audit-fixes.md, docs/analysis/2026-09-16-comparative-analysis-tldr.ru.md, docs/analysis/2026-09-16-rules-workflows-naming-review.md, docs/analysis/2026-09-16-comparative-analysis.ru.md, templates/.ai-umbrella/README.md, templates/.ai-umbrella/principles/coding.md, templates/.ai/principles/coding.md, templates/.ai/principles/architecture.md, rules/workflow-reference.md, workflows/retro.md, rules/quick-flow.md, workflows/phase-pipeline.md
@@ -119,7 +120,7 @@ T-02 | Neutral public examples | atomic-tests: green | atomic-execution: complet
   base_branch: fix/portable-script-paths
   base_commit: 297bda22d5f4c07f7bbf2d73e8fc95fdb6d675bd
   commits: ee22ca13443ab86858b85199aea1464a3ad9536a test: cover neutral public examples and privacy redactions, 37f4b2f05516b9f99343eb10c89b22ac083d6493 docs: replace private examples with fictional systems
-  pr: none
+  pr: #3 ready
 T-03 | Public hygiene scanner and final sweep | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: Atomic validation complete — all acceptance criteria met; frozen RED and original checks intact; 542 checks and full-context sweep pass.
   target_files: validate-contracts.sh, .gitignore, README.md, docs/USAGE.md, rules/orchestration.md, rules/phase-discovery.md, rules/run-log.md, workflows/onboard-legacy-project.md, workflows/pd-analyze.md, workflows/pd-decompose.md, workflows/pd-finalize.md, workflows/pe-finalize.md, workflows/phase-discovery.md, workflows/phase-execution.md, workflows/phase-pipeline.md, workflows/phase-validation.md, workflows/spec-run.md, workflows/suggest-commit-message.md
@@ -153,7 +154,7 @@ T-03 | Public hygiene scanner and final sweep | atomic-tests: green | atomic-exe
   base_branch: docs/neutral-public-examples
   base_commit: 37f4b2f05516b9f99343eb10c89b22ac083d6493
   commits: a0652f33710906082501ff2fca88ceaa00fc296e test: cover tracked-file hygiene and context preservation, df71192b8299ce89328f4cb6202b523a59e852ec fix: enforce public hygiene and remove private references
-  pr: none
+  pr: #4 ready
 
 ## Arbiter Review
 - Scan exceptions require a user decision: the denylist and immutable source spec self-match. Source: spec Guard criteria and domain Spec definition.
@@ -349,3 +350,20 @@ recorded_paths:
 - Git and publication: original main unchanged; explicit staged scope contains only the recorded knowledge-base paths; no merge, push, pull request, deployment, or history rewrite.
 - Optional: Git enumeration-error fixture isolation deferred; an existing template path issue remains an unrelated followup.
 - Shell syntax passes; shellcheck is unavailable.
+
+## Publication Update
+- 2026-10-19: The owner explicitly authorized publication to AlekseiChirkov/agentic-workflows with existing ancestry and approved scan exceptions retained. This supersedes the earlier local-only hold; history rewriting remains outside scope.
+- All three branches were pushed without force. Draft pull requests were created and promoted to ready after the completed validation.
+- Merge order: [#2](https://github.com/AlekseiChirkov/agentic-workflows/pull/2) (main) → [#3](https://github.com/AlekseiChirkov/agentic-workflows/pull/3) (fix/portable-script-paths) → [#4](https://github.com/AlekseiChirkov/agentic-workflows/pull/4) (docs/neutral-public-examples).
+- Main, existing ancestry, and the first two branch tips remain unchanged. No merge, branch deletion, deployment, or history rewrite occurred.
+- The original closure snapshot is 0867afedd2bb343b9326daeef0ef2cbbe9e2bbac. Its descriptor above remains historical; the publication metadata follows it in a separate additive commit.
+
+### Publication Metadata Commit
+branch: fix/public-hygiene-guard
+expected_parent: 0867afedd2bb343b9326daeef0ef2cbbe9e2bbac
+allowed_scope: exactly the three paths below; no source-code changes
+Reconciliation must first verify this metadata commit against its parent and path list, then verify the original closure snapshot against the historical descriptor. Its own hash is reported externally because this tracked record cannot contain its enclosing commit hash. Original subtask commits and immutable branch-point hashes remain unchanged.
+recorded_paths:
+- .ai/tasks/todo/task-00-sensitive-data-scrub/state.md
+- .ai/memory/state.md
+- .ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md
