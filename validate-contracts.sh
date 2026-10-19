@@ -1923,6 +1923,7 @@ path = Path(sys.argv[1])
 for opening, closing in (
     ('# ── Contract version smoke checks', '# ── End contract version smoke checks'),
     ('# ── Public package materials smoke checks', '# ── End public package materials smoke checks'),
+    ('# ── Public identity smoke checks', '# ── End public identity smoke checks'),
 ):
     lines = path.read_text().splitlines(keepends=True)
     start = next(i for i, line in enumerate(lines) if line.startswith(opening))
@@ -2023,6 +2024,155 @@ check "test_public_ignore_rules_keep_local_data_ignored_and_knowledge_trackable"
 check "test_public_setup_guide_uses_orchestrail_release_instructions" \
   "$(test_public_setup_guide_uses_orchestrail_release_instructions && echo pass || echo 'USAGE section 4 must give the live clone URL, Orchestrail checkout path, and v0.9.0 as the post-release tag')"
 # ── End public package materials smoke checks ───────────────────────
+
+# ── Public identity smoke checks ────────────────────────────────────
+test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
+  local root scratch files ledger_file ledger_heading ledger_title ledger_suffix
+  local path_field line_field token_field path lines token count line_number file input
+  local row candidate_count=0 row_count=0 expected_count=0 identity_prefix identity_join identity_suffix identity_pattern
+  local content token_entry matches status
+  local -A token_counts=()
+  root="$(pwd -P)" || return 1
+  scratch="$(mktemp -d "${TMPDIR:-/tmp}/identity-scan.XXXXXX")" || return 1
+  trap 'rm -rf "$scratch"' EXIT
+
+  # Assemble the scan term so the validator never stores the complete former name.
+  identity_prefix='agentic'
+  identity_join='[_-]'
+  identity_suffix='workflows'
+  identity_pattern="${identity_prefix}${identity_join}${identity_suffix}"
+
+  git ls-files --cached --others --exclude-standard -z > "$scratch/all-files" || return 1
+  : > "$scratch/scan-files" || return 1
+
+  # The one state record carrying the ledger is discovered by its unique heading.
+  # Split the heading fragments so this source cannot discover itself as the ledger.
+  ledger_title='Exact Identity'
+  ledger_suffix='Match Ledger'
+  ledger_heading="### ${ledger_title} ${ledger_suffix}"
+  while IFS= read -r -d '' candidate; do
+    if [ -f "$root/$candidate" ] && grep -Fq "$ledger_heading" "$root/$candidate"; then
+      ledger_file="$candidate"
+      candidate_count=$((candidate_count + 1))
+    fi
+  done < "$scratch/all-files"
+  [ "$candidate_count" -eq 1 ] || {
+    echo 'Expected exactly one identity match ledger'; return 1;
+  }
+
+  # Scan all repository files. Mask only the markdown table rows beneath the
+  # discovered ledger heading; its heading and surrounding prose remain scanned.
+  while IFS= read -r -d '' file; do
+    printf '%s\0' "$file" >> "$scratch/scan-files" || return 1
+  done < "$scratch/all-files"
+
+  awk -v start="$ledger_heading" '
+    $0 == start { in_ledger = 1; next }
+    in_ledger && /^### / { in_ledger = 0 }
+    in_ledger && /^\| `[^`]+` \|/ { print; found = 1 }
+    END { if (!found) exit 1 }
+  ' "$ledger_file" > "$scratch/ledger-rows" || {
+    echo 'Identity ledger has no exact path rows'; return 1;
+  }
+
+  : > "$scratch/expected" || return 1
+  while IFS= read -r row; do
+    IFS='|' read -r _ path_field line_field token_field _ <<< "$row"
+    path="$(sed -E 's/^[[:space:]]*`([^`]*)`.*/\1/' <<< "$path_field")" || return 1
+    lines="$(tr -d '[:space:]' <<< "$line_field")" || return 1
+    case "$path" in
+      ''|/*|../*|*/../*) echo 'Identity ledger contains an invalid path'; return 1 ;;
+    esac
+    [ -n "$lines" ] && [ -n "$token_field" ] || {
+      echo 'Identity ledger contains an incomplete row'; return 1;
+    }
+    printf '%s\0' "$path" >> "$scratch/scan-files" || return 1
+    row_count=$((row_count + 1))
+
+    IFS=',' read -r -a line_entries <<< "$lines"
+    IFS=';' read -r -a token_entries <<< "$token_field"
+    [ "${#line_entries[@]}" -gt 0 ] && [ "${#token_entries[@]}" -gt 0 ] || return 1
+    for line_number in "${line_entries[@]}"; do
+      [[ "$line_number" =~ ^[0-9]+$ ]] || {
+        echo 'Identity ledger contains an invalid line number'; return 1;
+      }
+      for token_entry in "${token_entries[@]}"; do
+        token="$(sed -nE 's/.*`([^`]*)`.*/\1/p' <<< "$token_entry")" || return 1
+        count="$(sed -nE 's/.*×[[:space:]]*([0-9]+).*/\1/p' <<< "$token_entry")" || return 1
+        [[ -n "$token" && "$count" =~ ^[0-9]+$ && "$count" -gt 0 ]] || {
+          echo 'Identity ledger contains an invalid token count'; return 1;
+        }
+        printf '%s\t%s\t%s\t%s\n' "$path" "$line_number" "$token" "$count" >> "$scratch/expected" || return 1
+        expected_count=$((expected_count + 1))
+      done
+    done
+  done < "$scratch/ledger-rows"
+  [ "$row_count" -gt 0 ] && [ "$expected_count" -gt 0 ] || return 1
+
+  sort -zu "$scratch/scan-files" -o "$scratch/scan-files" || return 1
+  : > "$scratch/actual" || return 1
+  while IFS= read -r -d '' file; do
+    if [ -L "$root/$file" ]; then
+      readlink -- "$root/$file" > "$scratch/link" || {
+        printf 'Cannot read scanned symlink: %s\n' "$file"; return 1;
+      }
+      input="$scratch/link"
+    elif [ -f "$root/$file" ] && [ -r "$root/$file" ]; then
+      input="$root/$file"
+    else
+      printf 'Scanned path is missing or unreadable: %s\n' "$file"; return 1
+    fi
+
+    if [ "$file" = "$ledger_file" ]; then
+      awk -v start="$ledger_heading" '
+        $0 == start { in_ledger = 1; print; next }
+        in_ledger && /^### / { in_ledger = 0 }
+        in_ledger && /^\|/ { print ""; next }
+        { print }
+      ' "$input" > "$scratch/ledger-source-scan" || return 1
+      input="$scratch/ledger-source-scan"
+    fi
+
+    line_number=0
+    while IFS= read -r content || [ -n "$content" ]; do
+      line_number=$((line_number + 1))
+      token_counts=()
+      status=0
+      matches="$(printf '%s\n' "$content" | grep -aEio "$identity_pattern")" || status=$?
+      case "$status" in
+        0)
+          while IFS= read -r token; do
+            token_counts["$token"]=$(( ${token_counts["$token"]:-0} + 1 ))
+          done <<< "$matches"
+          for token in "${!token_counts[@]}"; do
+            printf '%s\t%s\t%s\t%s\n' "$file" "$line_number" "$token" "${token_counts[$token]}" >> "$scratch/actual" || return 1
+          done
+          ;;
+        1) ;;
+        *) printf 'Identity scan failed on %s:%s\n' "$file" "$line_number"; return 1 ;;
+      esac
+    done < "$input"
+  done < "$scratch/scan-files"
+
+  LC_ALL=C sort "$scratch/expected" -o "$scratch/expected" || return 1
+  LC_ALL=C sort "$scratch/actual" -o "$scratch/actual" || return 1
+  if ! diff -u "$scratch/expected" "$scratch/actual" > "$scratch/diff"; then
+    echo 'Identity scan differs from the exact path, line, token, and count ledger:'
+    sed -n '1,80p' "$scratch/diff"
+    return 1
+  fi
+
+  # Every knowledge file present before this branch must still exist in the worktree.
+  git ls-tree -r --name-only HEAD -- .ai > "$scratch/baseline" || return 1
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    [ -e "$file" ] || { printf 'Knowledge file was removed: %s\n' "$file"; return 1; }
+  done < "$scratch/baseline"
+)
+
+check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
+  "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
+# ── End public identity smoke checks ────────────────────────────────
 
 # ── Tracked public hygiene ──────────────────────────────────────────
 check "test_public_hygiene_tracked_tree_excludes_private_tokens" \
