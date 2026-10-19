@@ -1129,7 +1129,7 @@ if grep -qi 'approved' "$CCV" 2>/dev/null; then
     "$(printf '%s' "$CCV_FLAT" | grep -q 'Approve every .critical. and .important. failure' && echo pass || echo 'phase-composite-validation.md adds a user prompt with no autonomous branch — /phase-pipeline and /spec-run reach it through /pav-close and would stop undeclared')"
 
   check "APPROVE: the recorded decision section is compression-protected" \
-    "$(awk '/^## Protected Sections Contract/,/^## Multi-Phase Spec Conventions/' rules/workflow-reference.md 2>/dev/null | grep -qF '## Integration Issues' && echo pass || echo 'workflow-reference Protected Sections Contract does not protect ## Integration Issues (T-XX) — /compress-state may delete the approve/defer decision before the D8 step reads it')"
+    "$(awk '/^## Protected Sections Contract/,/^## Multi-Phase Spec Rules/' rules/workflow-reference.md 2>/dev/null | grep -qF '## Integration Issues' && echo pass || echo 'workflow-reference Protected Sections Contract does not protect ## Integration Issues (T-XX) — /compress-state may delete the approve/defer decision before the D8 step reads it')"
 
   check "APPROVE: the workflow still refuses to auto-advance after creating siblings" \
     "$(grep -q '\*\*Stop. Do not auto-advance.\*\*' "$CCV" 2>/dev/null && echo pass || echo 'phase-composite-validation.md lost its closing Stop — an approval gate that then auto-advances defeats the point')"
@@ -1496,6 +1496,82 @@ check "test_shell_paths_public_defaults_pass_syntax" \
   "$(test_shell_paths_public_defaults_pass_syntax && echo pass || echo 'shell sources contain private paths or invalid Bash')"
 check "test_shell_paths_relocated_checkout_preserves_overrides" \
   "$(test_shell_paths_relocated_checkout_preserves_overrides && echo pass || echo 'relocation or override behavior failed')"
+
+# ── Public examples ─────────────────────────────────────────────────
+
+test_public_examples_umbrella_uses_neutral_services() {
+  local file required bad=0
+  for file in docs/USAGE.md templates/.ai-umbrella/README.md; do
+    for required in acme-platform/ service-api service-worker service-frontend infra; do
+      if ! grep -Fq -- "$required" "$file"; then
+        echo "$file: missing neutral umbrella entry $required"
+        bad=1
+      fi
+    done
+  done
+  for required in '~/projects/acme-platform' ; do
+    if ! grep -Fq -- "$required" docs/USAGE.md; then
+      echo 'docs/USAGE.md: missing neutral umbrella setup path'; bad=1
+    fi
+  done
+  if ! grep -Fq -- '/retro --project ~/projects/acme-platform' workflows/retro.md; then
+    echo 'workflows/retro.md: missing neutral project filter example'; bad=1
+  fi
+  [ "$bad" -eq 0 ]
+}
+
+test_public_examples_quick_gate_preserves_fictional_outcomes() {
+  local rejected accepted required bad=0
+  rejected="$(sed -n '/^## Worked example A /,/^## Worked example B /p' rules/quick-flow.md)"
+  accepted="$(sed -n '/^## Worked example B /,$p' rules/quick-flow.md)"
+  for required in 'fictional' 'export_builder.py' 'export_cache.py' 'export_view.tsx' 'tests/test_export_builder.py' 'Condition 1' '**FAIL**' 'Condition 2' 'Condition 3' 'flow: full'; do
+    if ! printf '%s\n' "$rejected" | grep -Fq -- "$required"; then
+      echo "Rejected example: missing $required"; bad=1
+    fi
+  done
+  for required in 'fictional' 'queue_diagnostics.py' 'INFO' 'DEBUG' 'one file' 'flow: quick' 'level: none'; do
+    if ! printf '%s\n' "$accepted" | grep -Fq -- "$required"; then
+      echo "Accepted example: missing $required"; bad=1
+    fi
+  done
+  if printf '%s\n' "$accepted" | grep -Eiq 'invoice|IPN|[1-5][0-9]{2}'; then
+    echo 'Accepted example retains private payment-system details'; bad=1
+  fi
+  [ "$bad" -eq 0 ]
+}
+
+test_public_examples_scoped_documents_exclude_private_tokens() {
+  local file status bad=0
+  local -a files=(rules/quick-flow.md rules/tdd.md rules/workflow-reference.md workflows/retro.md)
+  while IFS= read -r -d '' file; do
+    files+=("$file")
+  done < <(find docs templates -type f -name '*.md' -print0)
+  if [ ! -r scrub-denylist.txt ] || ! grep -qEv '^[[:space:]]*(#|$)' scrub-denylist.txt; then
+    echo 'Public example denylist is missing, unreadable, or empty'; return 1
+  fi
+  for file in "${files[@]}"; do
+    status=0
+    grep -Fiq -f <(sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' scrub-denylist.txt) -- "$file" || status=$?
+    case "$status" in
+      0) echo "$file: contains a forbidden public-example token"; bad=1 ;;
+      1) ;;
+      *) echo "$file: forbidden-token scan failed"; bad=1 ;;
+    esac
+  done
+  for file in docs/analysis/2026-09-16-comparative-analysis.ru.md docs/analysis/2026-09-16-comparative-analysis-tldr.ru.md; do
+    if ! grep -Fq 'Redaction legend: Project A, Project B, and Project C are anonymized labels; the mapping is intentionally not recorded.' "$file"; then
+      echo "$file: missing English project-redaction legend"; bad=1
+    fi
+  done
+  [ "$bad" -eq 0 ]
+}
+
+check "test_public_examples_umbrella_uses_neutral_services" \
+  "$(test_public_examples_umbrella_uses_neutral_services && echo pass || echo 'neutral umbrella examples are incomplete')"
+check "test_public_examples_quick_gate_preserves_fictional_outcomes" \
+  "$(test_public_examples_quick_gate_preserves_fictional_outcomes && echo pass || echo 'fictional quick-gate teaching outcomes are incomplete')"
+check "test_public_examples_scoped_documents_exclude_private_tokens" \
+  "$(test_public_examples_scoped_documents_exclude_private_tokens && echo pass || echo 'scoped public documents require redaction')"
 
 echo ""
 echo "=== Contract Validation ==="

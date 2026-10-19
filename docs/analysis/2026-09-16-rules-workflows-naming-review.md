@@ -103,7 +103,7 @@ suffix says for whom. Citations become `` follow `bootstrap-discovery` → ## Co
 — unambiguous in every harness, no `.md`-suffix guessing.
 
 Consequences: the `rule-` deploy prefix is no longer *required* for correctness (keep it
-as a namespace convention or drop it — see R4); the resolution paragraph in
+as a namespace standard or drop it — see R4); the resolution paragraph in
 `workflow-globals` shrinks to one line; one check group in `validate-contracts.sh`
 becomes a plain "file exists" check.
 
@@ -134,7 +134,7 @@ Proposed final layout of `rules/`:
 | `phase-*` | `bootstrap-*` (R1) | |
 
 Deploy prefix: keep `rule-` for skills so the skill list groups rules together, but
-state it as a convention, not a collision workaround.
+state it as a standard, not a collision workaround.
 
 ### R5 — Make workflow names readable without a legend
 Two viable schemes; pick one in an ADR.

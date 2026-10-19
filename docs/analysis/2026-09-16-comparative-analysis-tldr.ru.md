@@ -1,5 +1,7 @@
 # agentic_workflows — TL;DR анализа
 
+Redaction legend: Project A, Project B, and Project C are anonymized labels; the mapping is intentionally not recorded.
+
 Полная версия: `2026-09-16-comparative-analysis.ru.md`. Дата: 2026-09-16.
 
 ## Что это

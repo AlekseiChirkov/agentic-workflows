@@ -36,12 +36,23 @@ On demand:
 
 ## Cross-Repo Tasks
 
+Example layout:
+
+```
+acme-platform/
+├── .ai/
+├── service-api/
+├── service-worker/
+├── service-frontend/
+└── infra/
+```
+
 A cross-repo task lives in `tasks/todo/<task-slug>/` at the umbrella level.
 Its subtasks (T-XX) each declare `working_dir:` pointing to the target service repo.
 
 **Workflow:**
 ```
-cd lattice_lab/
+cd acme-platform/
 /phase-discovery .ai/specs/01-auth-feature.md
 # → creates .ai/tasks/todo/task-01-auth-feature/ with T-XX dirs
 # → each T-XX/description.md has working_dir: ../../../../service-api (or similar)
@@ -53,14 +64,14 @@ cd lattice_lab/
 # → runs lint/test from that service's .ai/context/runbook.md
 ```
 
-**working_dir path convention:**
+**working_dir path standard:**
 Path is relative from the T-XX directory to the target service repo.
 Example: task at `.ai/tasks/todo/task-01/T-01/description.md`
-→ `working_dir: ../../../../service-api` resolves to `lattice_lab/service-api/`
+→ `working_dir: ../../../../service-api` resolves to `acme-platform/service-api/`
 
 **Single-service tasks** still run inside the service repo directly:
 ```
-cd lattice_lab/service-api/
+cd acme-platform/service-api/
 /phase-discovery .ai/specs/02-local-feature.md
 ```
 Prefer this when a feature is entirely contained within one service.

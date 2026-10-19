@@ -119,7 +119,7 @@ wait for the user.
       - **Step 0.4b — multi-phase detection.** A spec with ≥2 `Phase N` markers (or a
         `## Phases` manifest) gets a `-p<N>` directory suffix, `active_phase:`,
         `spec_phase_count:`, and a `## Spec Phases` section
-        (`workflow-reference → ## Multi-Phase Spec Conventions`). Without it the pipeline
+        (`workflow-reference → ## Multi-Phase Spec Rules`). Without it the pipeline
         discovers a whole multi-phase spec as one unphased task and no deferred-phase
         bookkeeping is ever written.
       - **Step 0.5 — the numeric-prefix collision guard**, which stops on two specs sharing a
