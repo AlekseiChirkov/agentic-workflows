@@ -1,9 +1,11 @@
 # agentic_workflows — полный анализ проекта и сравнение с альтернативами
 
+Redaction legend: Project A, Project B, and Project C are anonymized labels; the mapping is intentionally not recorded.
+
 Дата анализа: 2026-09-16. Проанализировано 123 файла (≈16 000 строк markdown и shell):
 38 workflow-файлов, 14 rules, 4 principles, шаблоны `.ai/`, 5 shell-скриптов,
 `validate-contracts.sh` (534 проверки, все проходят) и 10 реальных run-логов из проектов
-`lattice_lab`, `mariner-gulf`, `dbt_dw`.
+`Project A`, `Project B`, `Project C`.
 
 ---
 
@@ -76,11 +78,11 @@ Execution (TDD-цикл на каждую подзадачу) → Validation (к
 
 | Запуск | Проект | Итог | Наблюдения |
 |---|---|---|---|
-| spec-run b905a8a5 | lattice_lab | 9 подзадач, все PASS, PR открыты | **26 ч** wall-clock; T-06 — 15,4 ч; `pd-select-model` — 3 ч (живой web-поиск каталога моделей) |
-| spec-run 41b4496e | lattice_lab | 10 подзадач, завершён | **21,7 ч**; T-01 блокирован → NEEDS WORK → PASS (3 итерации); T-02 «implementer terminated by spend limit; scratch impl reverted»; T-10 — 10 ч |
-| spec-run 4029e93a | mariner-gulf | остановлен на batch-gate | инструкция пользователя «same-branch» конфликтовала с 3 gated-фазами — гейт сработал как задумано |
-| spec-run 4305eda1 | mariner-gulf | завершён | все 12 шагов записаны **одним пакетом с duration 0** — логирование задним числом; 2 подзадачи deferred |
-| bugfix ×6 | mariner-gulf, dbt_dw | все завершены, 3–21 мин | quick-tier работает; `resolve` — самый долгий шаг (до 8 мин); один запуск без `flow:` и с шагами вне вокабуляра (`implement`, `verify-local`, `verify-ci`) |
+| spec-run b905a8a5 | Project A | 9 подзадач, все PASS, PR открыты | **26 ч** wall-clock; T-06 — 15,4 ч; `pd-select-model` — 3 ч (живой web-поиск каталога моделей) |
+| spec-run 41b4496e | Project A | 10 подзадач, завершён | **21,7 ч**; T-01 блокирован → NEEDS WORK → PASS (3 итерации); T-02 «implementer terminated by spend limit; scratch impl reverted»; T-10 — 10 ч |
+| spec-run 4029e93a | Project B | остановлен на batch-gate | инструкция пользователя «same-branch» конфликтовала с 3 gated-фазами — гейт сработал как задумано |
+| spec-run 4305eda1 | Project B | завершён | все 12 шагов записаны **одним пакетом с duration 0** — логирование задним числом; 2 подзадачи deferred |
+| bugfix ×6 | Project B, Project C | все завершены, 3–21 мин | quick-tier работает; `resolve` — самый долгий шаг (до 8 мин); один запуск без `flow:` и с шагами вне вокабуляра (`implement`, `verify-local`, `verify-ci`) |
 
 Выводы из телеметрии: (1) система реально доводит крупные задачи до PR без участия
 человека кроме batch-gate; (2) стоимость и длительность огромны и не контролируются;
@@ -108,7 +110,7 @@ Execution (TDD-цикл на каждую подзадачу) → Validation (к
 | **Conductor (Google, Gemini CLI)** | Context-driven: product.md, tech-stack.md, workflow.md, tracks с plan.md; markdown-состояние | Gemini CLI | Идея «состояние в markdown на диске» близка к `.ai/`; treks как задачи | Привязка к Gemini CLI, молодой, нет TDD-контракта, нет оркестрации |
 | **Нативные средства Claude Code** | CLAUDE.md, skills, subagents, hooks, plan mode, worktrees, `/loop`, plugins | Claude Code | Всё исполняется harness'ом: hooks реально блокируют команды, subagents реально изолируют контекст, worktrees дают параллельность | Нет методологии «из коробки»; каждая команда собирает свою |
 | **Cline Memory Bank / Cursor Rules / Windsurf Memories** | Файлы памяти и правил, подгружаемые в контекст | соответствующий IDE | Минимальный порог | Только контекст, никакого процесса |
-| **Aider** | conventions-файлы, architect/editor режимы, авто-коммиты | CLI | Дешёвый, предсказуемый, git-first | Нет фаз, нет спек, нет валидации |
+| **Aider** | project rules files, architect/editor режимы, авто-коммиты | CLI | Дешёвый, предсказуемый, git-first | Нет фаз, нет спек, нет валидации |
 
 ### 3.2 Матрица возможностей
 
@@ -158,7 +160,7 @@ Execution (TDD-цикл на каждую подзадачу) → Validation (к
 
 5. **Все состояние на диске, «continue, never restart».** Прерванный запуск возобновляется
    той же командой; Guard-секции защищают от перезаписи. По логам resume действительно
-   работает (mariner-gulf: 4029e93a остановлен → 4305eda1 продолжен).
+   работает (Project B: 4029e93a остановлен → 4305eda1 продолжен).
 
 6. **Обратная связь на сам процесс.** Run-log с честными правилами («число, написанное
    моделью — догадка», «опущенное поле ≠ 0»), `/retro` с обязательной привязкой находки к
@@ -258,7 +260,7 @@ Execution (TDD-цикл на каждую подзадачу) → Validation (к
     web-поиск, специальные ветки для «creative» трейта — и 3 часа в реальном запуске. При
     этом реальная разница в цене между Sonnet/Opus на подзадачу известна заранее.
 
-13. **Жёсткие абсолютные пути.** `~/Documents/projects/alterra/agentic_workflows`
+13. **Жёсткие абсолютные пути.** `~/projects/agentic_workflows`
     зашит в rules, workflows и `log-step.sh`; `--from` есть только у `sync.sh`. Перенос на
     другую машину/CI — ручная правка.
 

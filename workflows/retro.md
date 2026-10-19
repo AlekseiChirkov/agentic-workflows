@@ -6,7 +6,7 @@ Invocation: `/retro [--since <YYYY-MM-DD>] [--pipeline <name>] [--project <path>
 Examples:
 - `/retro` — everything in the store
 - `/retro --since 2026-08-01 --pipeline spec-run` — one pipeline, one month
-- `/retro --project ~/Documents/projects/alterra/invest_ai` — one repository
+- `/retro --project ~/projects/acme-platform` — one repository
 
 ---
 
@@ -25,7 +25,7 @@ input" is.
 
 ## Guard
 
-1. Resolve the store: `$AGENTIC_LOG_ROOT`, else `~/Documents/projects/alterra/agentic_workflows/logs`. If absent →
+1. Resolve the store: `$AGENTIC_LOG_ROOT`, else the script-relative store reported by `bash <workflow-source>/log-step.sh path`. If absent →
    **stop**: "No run log at `<path>`. Pipelines write it via `log-step.sh`; nothing has been
    recorded yet."
 2. Count run files after filters. Fewer than **5** → report the count and warn: "Below 5 runs

@@ -1,6 +1,6 @@
 # Audit prompt — `/spec-run`
 
-Paste everything below the line into a fresh agent session opened in `~/Documents/projects/alterra/agentic_workflows`.
+Paste everything below the line into a fresh agent session opened in the repository root.
 
 ---
 
@@ -13,7 +13,7 @@ impossible to execute as written**, and to write what you find into a report fil
 **You are auditing, not repairing.** Do not edit any workflow, rule, template, or script. The
 only file you create is the report. If a fix is obvious, describe it in the report and move on.
 
-Work only inside `~/Documents/projects/alterra/agentic_workflows`. Do not run `sync.sh`. Do not touch `~/.claude/`,
+Work only inside the repository root. Do not run `sync.sh`. Do not touch `~/.claude/`,
 `~/.codex/`, `~/.codeium/`, or anything outside this directory. You may copy the repository to
 a scratch directory and experiment there.
 
@@ -163,7 +163,7 @@ Work through these deliberately. For each, state what you checked, not only what
 
 ## 5. Write the report
 
-Create **`SPEC-RUN-AUDIT.md`** in `~/Documents/projects/alterra/agentic_workflows`, in English, with this structure:
+Create **`SPEC-RUN-AUDIT.md`** in the repository root, in English, with this structure:
 
 ```
 # /spec-run — audit, <YYYY-MM-DD>

@@ -20,9 +20,9 @@ relevant sections and states what it inherits vs replaces.
 <!-- Exception strategy, logging library (e.g., structlog), forbidden patterns -->
 
 ### Testing
-<!-- TDD sequence, what to mock vs what to keep real, naming convention -->
+<!-- TDD sequence, what to mock vs what to keep real, naming standard -->
 
-### Naming Conventions
+### Naming Standards
 <!-- File names, functions, booleans, abbreviation rules -->
 
 ## Forbidden — All Services

@@ -764,7 +764,7 @@ Rewrite as:
 
 `validate-contracts.sh` has 16 groups, none covering the defect classes above. Add three
 groups before the `## Summary` block, following the existing `check "<desc>" "<result>"`
-convention (result is the literal string `pass`, or an error message).
+standard (result is the literal string `pass`, or an error message).
 
 **Group 17 — `workflow-globals` section references resolve.** For every
 `` `workflow-globals → ## <section>` `` occurrence in `workflows/*.md`, assert the named

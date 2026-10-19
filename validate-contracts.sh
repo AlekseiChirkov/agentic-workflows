@@ -1129,7 +1129,7 @@ if grep -qi 'approved' "$CCV" 2>/dev/null; then
     "$(printf '%s' "$CCV_FLAT" | grep -q 'Approve every .critical. and .important. failure' && echo pass || echo 'phase-composite-validation.md adds a user prompt with no autonomous branch — /phase-pipeline and /spec-run reach it through /pav-close and would stop undeclared')"
 
   check "APPROVE: the recorded decision section is compression-protected" \
-    "$(awk '/^## Protected Sections Contract/,/^## Multi-Phase Spec Conventions/' rules/workflow-reference.md 2>/dev/null | grep -qF '## Integration Issues' && echo pass || echo 'workflow-reference Protected Sections Contract does not protect ## Integration Issues (T-XX) — /compress-state may delete the approve/defer decision before the D8 step reads it')"
+    "$(awk '/^## Protected Sections Contract/,/^## Multi-Phase Spec Rules/' rules/workflow-reference.md 2>/dev/null | grep -qF '## Integration Issues' && echo pass || echo 'workflow-reference Protected Sections Contract does not protect ## Integration Issues (T-XX) — /compress-state may delete the approve/defer decision before the D8 step reads it')"
 
   check "APPROVE: the workflow still refuses to auto-advance after creating siblings" \
     "$(grep -q '\*\*Stop. Do not auto-advance.\*\*' "$CCV" 2>/dev/null && echo pass || echo 'phase-composite-validation.md lost its closing Stop — an approval gate that then auto-advances defeats the point')"

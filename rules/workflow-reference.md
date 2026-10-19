@@ -216,7 +216,7 @@ The following sections are contracts read by orchestrators and must never be rem
   - `active_phase:` — active spec phase number (multi-phase only)
   - `spec_phase_count:` — total number of spec phases (multi-phase only)
 
-## Multi-Phase Spec Conventions
+## Multi-Phase Spec Rules
 
 When a spec defines ≥2 phase markers (`## Phase N` or `### Phase N` headings),
 `/phase-discovery` enters multi-phase mode:
@@ -330,7 +330,7 @@ Describe each variant with approach summary, advantages, disadvantages, risks.
 |---|---|
 | **Simplicity** | How much new code, concepts, or abstractions does this add? Fewer = better. |
 | **Reversibility** | How hard is it to change this decision later without breaking things? Easier = better. |
-| **Codebase fit** | How well does it align with patterns, conventions, and abstractions already present in the repo? |
+| **Codebase fit** | How well does it align with patterns, standards, and abstractions already present in the repo? |
 | **Testability** | How easy is it to write fast, deterministic, isolated tests for this? |
 | **Blast radius** | How many existing files / modules need to change? Fewer = better. |
 
@@ -477,7 +477,7 @@ All projects using these workflows MUST define the following in `.ai/`:
 - Immutable after creation (except via the Description Amendment procedure, and the completion
   frontmatter `/pv-finalize` step 2.5 prepends — see `## File Responsibility`).
 - Consumed by `phase-discovery` to create the task directory.
-- Naming convention: `<NN>-<kebab-name>.md` where NN is zero-padded two digits (01, 02...).
+- Naming standard: `<NN>-<kebab-name>.md` where NN is zero-padded two digits (01, 02...).
 
 ### .ai/context/runbook.md — ## Commands (required for test/lint automation)
 - `test:` — command to run full test suite
@@ -490,7 +490,7 @@ placeholder, because RED cannot be observed without a way to run tests.
 
 ### .ai/principles/coding.md — ## Standards (optional but recommended)
 - `architecture:` — key patterns, e.g. "repository pattern, no business logic in routers"
-- `naming:` — conventions
+- `naming:` — standards
 - `error-handling:` — approach
 - `forbidden:` — what never to do
 

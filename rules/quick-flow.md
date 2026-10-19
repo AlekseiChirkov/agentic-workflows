@@ -12,12 +12,11 @@ task `state.md`:
 - `flow: quick` — a lighter but still-governed path for small changes that clear the
   escalation gate below. It removes ceremony, never the contract.
 
-The purpose of the quick tier is to give small changes a **real, auditable path** so they
-are no longer forced through full decomposition (the `task1_subscription_fix/` case, 23
-`fix-NN` directories for often single-file changes) **nor** done outside the pipeline
-entirely (the 2026-07-22 "Macro (forex) report defects, ad-hoc fix" case — four behaviour
-changes to a shipped pipeline with no contract, no `pv-contract`, no ADR). A quick task is
-lighter than the first and governed unlike the second.
+The quick tier gives small changes an auditable path without full decomposition.
+A single-file log-level adjustment needs an inline contract and regression checks.
+A multi-file change to a shipped pipeline needs the full path, including its contract,
+tests, review, and any architectural decision. The worked examples below use fictional
+systems to show the difference.
 
 This rule does not weaken `workflow-globals → Never auto-advance between phases`, it does not
 weaken the ADR trigger, and it does not weaken `workflow-globals → Test-first execution`. It
@@ -150,52 +149,50 @@ The promotion is a normal, expected outcome, not a failure — it is the gate do
 
 ---
 
-## Worked example A — rejected by the gate (2026-07-22 macro fix)
+## Worked example A — rejected by the gate (export pipeline changes)
 
-The `.ai/memory/progress.md` "Macro (forex) report defects, ad-hoc fix" made four changes
-to the **already-shipped** macro pipeline: (1) stopped `macro_metrics` echoing
-`price_history`/`technicals`/`news` (response-shape + cache-blob change), (2) moved the news
-fetch into `_build_macro_data` and cached it so `/data` returns headlines (control-flow +
-caching change), (3) nulled `beta`/`sharpe_ratio_1y` and dropped zero `volume_avg` (output
-change), (4) added magnitude-scaled MACD precision (rendered-value change).
+A fictional export service already ships downloadable archives. A proposed change
+rebuilds its archive manifest, caches a new manifest format, and changes the download
+page to render that format. It touches `export_builder.py`, `export_cache.py`,
+`export_view.tsx`, and `tests/test_export_builder.py`.
 
 Gate evaluation:
-- Condition 1 (≤3 files): **FAIL** — `report_builder.py`, `MacroTechnical.tsx`, and more.
-- Condition 2 (no new invariant): **FAIL** — "the response carries each field once" and
-  "one provider call per report" are new invariants.
-- Condition 3 (no shipped-pipeline behaviour change): **FAIL, decisively** — all four
-  changes alter outputs, control flow, and cached data of a shipped pipeline.
+- Condition 1 (≤3 files): **FAIL** — four files, including the test file.
+- Condition 2 (no new invariant): **FAIL** — "each archive entry appears once" and
+  "cached manifests match generated archives" are new invariants.
+- Condition 3 (no shipped-pipeline behaviour change): **FAIL, decisively** — the change
+  alters generated output, persisted cache data, and rendering in a shipped pipeline.
 - Condition 4 (no migration): pass.
 
 Any one failure sends it to `full`; three fail. **Verdict: `flow: full`.** The full path
-would have required: a task directory, an inline-or-decomposed contract naming those
-invariants under `### Invariants`, decomposition into T-NN, `/pv-contract` + `/pv-review`,
-an **ADR** (these were material, revisit-worthy decisions), and a `progress.md` entry —
-precisely the governance the out-of-pipeline fix skipped.
+requires a task directory, a contract naming those invariants under `### Invariants`,
+decomposition, tests observed failing before implementation, `/pv-contract` + `/pv-review`,
+an **ADR** for the material design decisions, and a `progress.md` entry.
 
 ## Worked example B — legitimately quick (log-level fix)
 
-Audit item L-05: lower the invoice-body log line in `nowpayments_service.py` from `INFO` to
-`DEBUG` (it logged full payloads at INFO).
+In a fictional queue-monitoring service, lower the diagnostic snapshot log line in
+`queue_diagnostics.py` from `INFO` to `DEBUG`. The snapshot remains available for
+troubleshooting without appearing in routine logs.
 
 Gate evaluation:
 - Condition 1 (≤3 files): **pass** — one file.
 - Condition 2 (no new invariant): **pass**.
 - Condition 3 (no shipped-pipeline behaviour change): **pass** — a log-level change is
-  explicitly outside the behaviour-change definition; the payment pipeline's inputs,
+  explicitly outside the behaviour-change definition; the queue monitor's inputs,
   outputs, persisted data, and control flow are untouched.
 - Condition 4 (no migration): **pass**.
 
 **Verdict: `flow: quick`.** Path: write `## Contract (quick)` — Off-limits: "do not change
-IPN control flow or status codes"; Invariants (existing, not new): "V2 IPN signature failure
-still returns 403"; Acceptance Criteria: "invoice body no longer logged at INFO; DEBUG line
-present; existing payment tests still green" — then the inline TDD step, then implement, run
-`/pv-contract` + `/pv-review`, and add the `progress.md` entry. No ADR (no reader-relevant
-decision). Done in one light cycle instead of a `fix-NN` directory.
+sampling or retry control flow"; Invariants (existing, not new): "failed samples preserve
+the previous snapshot"; Acceptance Criteria: "diagnostic snapshot no longer logged at
+INFO; DEBUG line present; existing queue-monitor tests still green" — then the inline TDD
+step, then implement, run `/pv-contract` + `/pv-review`, and add the `progress.md` entry.
+No ADR is needed because the adjustment makes no reader-relevant design decision.
 
 TDD step for this example: the gate returns `none` — a log-level change alters no input,
 output, persisted data, or control flow, so there is no behaviour to assert. `## TDD (quick)`
 records `level: none`, `red-observed: n-a — log-level change only; unit/integration/contract
 have no behaviour to assert, smoke has no validating tool for log levels`. The Acceptance
-Criterion "existing payment tests still green" is then covered by the regression run, not by
-a new test.
+Criterion "existing queue-monitor tests still green" is then covered by the regression run,
+not by a new test.
