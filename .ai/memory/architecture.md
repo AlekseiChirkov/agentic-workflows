@@ -1,14 +1,14 @@
 # architecture.md — current snapshot of the workflow system
 
 ## Purpose
-Describes agentic_workflows as it exists now: the layers of markdown, how they are
+Describes Orchestrail as it exists now: the layers of markdown, how they are
 deployed into agent harnesses, how a task flows through them, and the contracts that
 hold the files together. Updated only when a layer, a deployment target, or a contract
 surface changes.
 
 ## Overview
 
-agentic_workflows is a **file-based specification of an AI-assisted SDLC**. There is no
+Orchestrail is a **file-based specification of an AI-assisted SDLC**. There is no
 runtime: every behaviour is an instruction that an LLM agent (Claude Code, Codex, or
 Windsurf/Devin) reads and follows. The repository is the single source of truth;
 `sync.sh` copies it into each harness's global configuration, and
@@ -149,4 +149,4 @@ log-step.sh ──▶ logs/runs/*.jsonl ──▶ /retro ──▶ recommended e
 - Tools invoked by workflows: `git`, `gh` (PRs, only with `--allow-pr`), `jq`
   (`log-step.sh` digests, `/retro`), `bash`, a web search capability (`pd-select-model`
   rebuilds its model catalog live).
-- Script source defaults resolve from each script directory. `WORKFLOWS_SOURCE` overrides source selection; `sync.sh --from` takes precedence. `AGENTIC_LOG_ROOT` overrides the script-relative log directory. Documentation paths are placeholders.
+- Script source defaults resolve from each script directory. `ORCHESTRAIL_HOME` overrides source selection; `sync.sh --from` takes precedence. Setup helpers normalize and propagate the selected root to children. `ORCHESTRAIL_LOG_ROOT` overrides the script-relative log directory. Documentation paths are placeholders.

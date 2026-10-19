@@ -30,7 +30,7 @@ ROOT="$(cd -- "$SELECTED_ROOT" 2>/dev/null && pwd)" || {
 }
 
 for d in workflows rules principles templates; do
-  [ -d "$ROOT/$d" ] || { echo "ERROR: $ROOT is not a agentic_workflows tree (missing $d/)"; exit 1; }
+  [ -d "$ROOT/$d" ] || { echo "ERROR: $ROOT is not an Orchestrail checkout (missing $d/)"; exit 1; }
 done
 
 SRC="$ROOT/workflows"
@@ -45,7 +45,7 @@ bash "$ROOT/validate-contracts.sh" || {
 }
 echo ""
 
-echo "=== Syncing agentic_workflows ==="
+echo "=== Syncing Orchestrail ==="
 echo ""
 
 # ── 1. Devin Desktop / Windsurf: global workflows (path unchanged) ──
@@ -153,7 +153,7 @@ for file in "$RULES"/*.md; do
 done
 echo "  $(ls "$RULES"/*.md | wc -l | tr -d ' ') rules → ~/.codex/skills/rule-*/"
 
-# ── 5. Codex: principles summary in agentic_workflows ─────────────────
+# ── 5. Codex: principles summary in Orchestrail ──────────────────────
 # Codex reads AGENTS.md per project — setup-new-project.sh handles that.
 # Here we just confirm the template is current.
 echo "[5/5] Codex"
@@ -222,7 +222,7 @@ for devin_dir in $(find "$HOME" -maxdepth 6 -type d -name ".devin" \
   fi
 
   # 4. Remove local workflow files that duplicate global ones.
-  #    Project-specific workflows (names not in agentic_workflows/) are preserved.
+  #    Project-specific workflows (names not in orchestrail/) are preserved.
   for wf_dir in "$devin_dir/workflows" "$project_dir/.windsurf/workflows"; do
     if [ -d "$wf_dir" ]; then
       removed=0

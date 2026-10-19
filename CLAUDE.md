@@ -1,4 +1,4 @@
-# Project Claude Rules — agentic_workflows
+# Project Claude Rules — Orchestrail
 
 This repository is the source of truth for the AI-SDLC pipeline and is developed with
 that same pipeline. Its own knowledge base lives in `.ai/` (not to be confused with

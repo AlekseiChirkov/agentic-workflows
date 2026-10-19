@@ -3,7 +3,7 @@
 ## Purpose
 Project-specific architectural principles the agent must follow when
 proposing or implementing changes. Distinct from the global principles in
-`~/projects/agentic_workflows/principles/`. Answers "what architectural constraints
+`~/projects/orchestrail/principles/`. Answers "what architectural constraints
 apply here?" Updated rarely — only when a new principle is consciously
 adopted.
 

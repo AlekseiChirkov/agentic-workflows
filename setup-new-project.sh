@@ -2,7 +2,7 @@
 # setup-new-project.sh
 # Sets up workflow infrastructure for a new or existing project.
 # Safe to run multiple times — never overwrites existing content.
-# Usage: bash /path/to/agentic_workflows/setup-new-project.sh
+# Usage: bash /path/to/orchestrail/setup-new-project.sh
 # Run from the project root directory.
 set -e
 

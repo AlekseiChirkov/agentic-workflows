@@ -1,7 +1,7 @@
 # README.md — entry point for agents working inside .ai/
 
 ## Purpose
-This is the knowledge base for **agentic_workflows itself** — the repository that
+This is the knowledge base for **Orchestrail itself** — the repository that
 defines the AI-SDLC pipeline. It is a meta-project: the product is a set of markdown
 workflows, rules, principles, templates, and shell scripts, and "the codebase" is those
 files. Do not confuse this directory with `templates/.ai/`, which is the skeleton the

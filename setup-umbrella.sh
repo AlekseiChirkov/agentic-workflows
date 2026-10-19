@@ -3,7 +3,7 @@
 # Initializes the top-level .ai/ knowledge base for a multi-repo project.
 # Run from the umbrella root — the parent directory that contains all service repos.
 # Safe to re-run — never overwrites existing content.
-# Usage: bash /path/to/agentic_workflows/setup-umbrella.sh
+# Usage: bash /path/to/orchestrail/setup-umbrella.sh
 set -e
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,7 +25,7 @@ if [ "$PROJECT_DIR" = "$HOME" ]; then
 fi
 
 if [ ! -d "$TMPL" ]; then
-  echo "ERROR: $TMPL not found. Is agentic_workflows up to date?"
+  echo "ERROR: $TMPL not found. Is Orchestrail up to date?"
   exit 1
 fi
 

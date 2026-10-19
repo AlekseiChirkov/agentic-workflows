@@ -3,7 +3,7 @@
 # When project has .claude/skills/, global ~/.claude/skills/ are ignored.
 # This script symlinks global skills into the project.
 # Run once per project that has its own .claude/skills/ directory.
-# Usage: bash /path/to/agentic_workflows/link-skills.sh
+# Usage: bash /path/to/orchestrail/link-skills.sh
 
 set -e
 PROJECT_SKILLS=".claude/skills"
