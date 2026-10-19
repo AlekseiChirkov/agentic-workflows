@@ -46,7 +46,7 @@ autonomous — pass `--step-by-step` to be asked.
    - `.ai/memory/architecture.md` — system architecture, components, constraints
    - `.ai/memory/state.md` — current phase, active tasks, blockers
    - `.ai/principles/architecture.md` — architectural decisions and constraints
-   - `.ai/principles/coding.md` — naming conventions, forbidden patterns (shapes decomposition)
+   - `.ai/principles/coding.md` — naming standards, forbidden patterns (shapes decomposition)
    - `.ai/principles/domain.md` — domain rules, ubiquitous language, business constraints
    - `.ai/adr/index.md` — past decisions index (read full ADR only if directly relevant)
    - `.ai/memory/progress.md` — only if resuming interrupted work

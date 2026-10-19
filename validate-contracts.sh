@@ -5,6 +5,92 @@
 # Exit 0 = all pass. Exit 1 = failures found.
 
 set -e
+
+# Scan the working contents of all indexed paths, including newly staged files.
+# Only the root hygiene metadata and its immutable source specification are exempt.
+run_public_hygiene() (
+  local root="$1" denylist="${2:-$1/scrub-denylist.txt}" scratch line file status count=0 bad=0
+  root="$(cd "$root" && pwd -P)" || { echo 'Hygiene root is unavailable'; return 1; }
+  if [ ! -f "$denylist" ] || [ ! -r "$denylist" ]; then
+    echo 'Hygiene denylist is missing or unreadable'; return 1
+  fi
+  scratch="$(mktemp -d "${TMPDIR:-/tmp}/tracked-hygiene.XXXXXX")" || return 1
+  trap 'rm -rf "$scratch"' EXIT
+  : > "$scratch/patterns" || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      *[![:space:]]*) ;;
+      *) continue ;;
+    esac
+    case "${line#"${line%%[![:space:]]*}"}" in \#*) continue ;; esac
+    printf '%s\n' "$line" >> "$scratch/patterns" || return 1
+  done < "$denylist"
+  if [ ! -s "$scratch/patterns" ]; then
+    echo 'Hygiene denylist has no literal patterns'; return 1
+  fi
+  if [ "$(git -C "$root" rev-parse --show-toplevel)" != "$root" ]; then
+    echo 'Hygiene root must be the repository root'; return 1
+  fi
+  if ! git -C "$root" ls-files --cached -z > "$scratch/files"; then
+    echo 'Hygiene tracked-file enumeration failed'; return 1
+  fi
+  # An empty index is an error: there is no tracked publication scope to verify.
+  if [ ! -s "$scratch/files" ]; then
+    echo 'Hygiene scan requires tracked files'; return 1
+  fi
+  while IFS= read -r -d '' file; do
+    count=$((count + 1))
+    case "$file" in
+      scrub-denylist.txt|.ai/specs/completed/00-sensitive-data-scrub.md) continue ;;
+    esac
+    if [ -L "$root/$file" ]; then
+      # Git stores link text; do not follow a target outside the repository.
+      if ! readlink -- "$root/$file" > "$scratch/link"; then
+        printf 'Hygiene cannot read symlink: %q\n' "$file"; bad=1; continue
+      fi
+      line="$scratch/link"
+    elif [ -f "$root/$file" ] && [ -r "$root/$file" ]; then
+      line="$root/$file"
+    else
+      printf 'Hygiene tracked file is missing or unreadable: %q\n' "$file"; bad=1; continue
+    fi
+    status=0
+    grep -Fia -f "$scratch/patterns" -- "$line" > /dev/null || status=$?
+    case "$status" in
+      0) printf 'Hygiene forbidden token in tracked file: %q\n' "$file"; bad=1 ;;
+      1) ;;
+      *) printf 'Hygiene scan error for tracked file: %q\n' "$file"; bad=1 ;;
+    esac
+  done < "$scratch/files"
+  [ "$count" -gt 0 ] && [ "$bad" -eq 0 ]
+)
+
+# Standalone scanner: --root selects a repository; --denylist selects its patterns.
+# A configured list adds no scan exemptions. Relative paths use the caller's cwd.
+if [ "${1:-}" = --hygiene-only ]; then
+  shift
+  hygiene_root="$(cd "$(dirname "$0")" && pwd -P)"
+  hygiene_denylist=''
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --root|--denylist)
+        [ "$#" -ge 2 ] && [ -n "$2" ] || { echo 'Missing hygiene option value' >&2; exit 1; }
+        case "$1" in
+          --root) hygiene_root="$2" ;;
+          --denylist) hygiene_denylist="$2" ;;
+        esac
+        shift 2 ;;
+      *) echo 'Unknown hygiene option' >&2; exit 1 ;;
+    esac
+  done
+  run_public_hygiene "$hygiene_root" "$hygiene_denylist"
+  exit $?
+fi
+if [ "$#" -gt 0 ]; then
+  echo 'Usage: validate-contracts.sh [--hygiene-only [--root PATH] [--denylist PATH]]' >&2
+  exit 1
+fi
+
 cd "$(dirname "$0")"
 
 PASS=0
@@ -1480,6 +1566,17 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
       if [ "$script" = setup-all-repos.sh ] && [ "$(cat "$target/service with spaces/.ai/source-marker" 2>/dev/null)" != "$selected" ]; then
         echo "$script ($mode): child setup did not use selected source"; bad=1
       fi
+      if [ "$script" = setup-umbrella.sh ]; then
+        # Execute the actual suggested command from a child, retaining the caller's overrides.
+        local child_command
+        child_command="$(sed -n 's/^  cd <service-dir> && //p' "$fixture/setup-output")"
+        mkdir -p "$target/service with spaces"
+        status=0
+        (cd "$target/service with spaces" && env "${setup_env[@]}" HOME="$fixture/home" bash -c "${child_command:-exit 1}" </dev/null) > "$fixture/child-output" 2>&1 || status=$?
+        if [ "$status" -ne 0 ] || [ "$(cat "$target/service with spaces/.ai/source-marker" 2>/dev/null)" != "$selected" ]; then
+          echo "$script ($mode): suggested child command did not use selected source"; bad=1
+        fi
+      fi
     done
   done
 
@@ -1572,6 +1669,128 @@ check "test_public_examples_quick_gate_preserves_fictional_outcomes" \
   "$(test_public_examples_quick_gate_preserves_fictional_outcomes && echo pass || echo 'fictional quick-gate teaching outcomes are incomplete')"
 check "test_public_examples_scoped_documents_exclude_private_tokens" \
   "$(test_public_examples_scoped_documents_exclude_private_tokens && echo pass || echo 'scoped public documents require redaction')"
+
+# ── Public hygiene smoke checks ─────────────────────────────────────
+
+test_public_hygiene_fixture_scans_fail_closed() (
+  local fixture validator repo output status name real_git
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/public-hygiene.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  validator="$fixture/runner/validate-contracts.sh"
+  mkdir -p "$fixture/runner"
+  git archive HEAD | tar -x -C "$fixture/runner" || return 1
+  repo="$fixture/repository with spaces"
+  real_git="$(command -v git)" || return 1
+  # Omit this smoke group in the copied runner to prevent recursive fixture tests.
+  sed '/^# ── Public hygiene smoke checks /,/^# ── End public hygiene smoke checks /d' validate-contracts.sh > "$validator"
+  mkdir -p "$repo/.ai/specs/completed" "$repo/logs" "$repo/nested" "$fixture/bin"
+  "$real_git" init -q "$repo" || return 1
+  printf '%s\n' '# Synthetic public-hygiene fixture' 'forbidden-marker' 'literal.[x]' > "$repo/scrub-denylist.txt"
+  printf '%s\n' 'FORBIDDEN-MARKER' > "$repo/.ai/specs/completed/00-sensitive-data-scrub.md"
+  printf '%s\n' 'Ordinary public content; literalax is allowed.' > "$repo/clean file.md"
+  "$real_git" -C "$repo" add -- scrub-denylist.txt .ai/specs/completed/00-sensitive-data-scrub.md "clean file.md" || return 1
+
+  fixture_scan() {
+    local expected="$1" label="$2"
+    shift 2
+    status=0
+    output="$(bash "$validator" --hygiene-only --root "$repo" "$@" 2>&1)" || status=$?
+    if { [ "$expected" = pass ] && [ "$status" -ne 0 ]; } || { [ "$expected" = fail ] && [ "$status" -eq 0 ]; }; then
+      printf '%s: expected %s, exit %s\n' "$label" "$expected" "$status"
+      return 1
+    fi
+  }
+
+  fixture_scan pass 'clean tree and exact self exceptions' || return 1
+  for name in 'clean file.md' $'line\nbreak.md' '.ai/new context.md' 'logs/tracked.log' 'nested/scrub-denylist.txt' 'nested/00-sensitive-data-scrub.md' '.ai/specs/00-sensitive-data-scrub.md'; do
+    printf '%s\n' 'prefix-FoRbIdDeN-MaRkEr-suffix' > "$repo/$name"
+    "$real_git" -C "$repo" add -- "$name" || return 1
+    fixture_scan fail "case-insensitive substring in $name" || return 1
+    printf '%s\n' 'Public content' > "$repo/$name"
+    fixture_scan pass "restored $name" || return 1
+  done
+  printf '%s\n' 'prefixliteral.[x]suffix' > "$repo/clean file.md"
+  fixture_scan fail 'literal punctuation substring' || return 1
+  printf '%s\n' 'Public content' > "$repo/clean file.md"
+  ln -s 'prefix-FoRbIdDeN-MaRkEr-suffix' "$repo/linked file" || return 1
+  "$real_git" -C "$repo" add -- "linked file" || return 1
+  fixture_scan fail 'symlink target text contamination' || return 1
+  rm "$repo/linked file"
+  ln -s 'public-target' "$repo/linked file" || return 1
+  fixture_scan pass 'clean dangling symlink target text' || return 1
+  printf '%s\n' 'Public content' > "$repo/clean file.md"
+  fixture_scan fail 'missing configured list' --denylist "$fixture/missing.txt" || return 1
+  printf '%s\n' '# Comments only' '' > "$fixture/empty.txt"
+  fixture_scan fail 'empty configured list' --denylist "$fixture/empty.txt" || return 1
+  printf '%s\n' 'different-marker' > "$fixture/alternate.txt"
+  printf '%s\n' 'DIFFERENT-MARKER' > "$repo/clean file.md"
+  fixture_scan fail 'configured list selected' --denylist "$fixture/alternate.txt" || return 1
+  printf '%s\n' 'Public content' > "$repo/clean file.md"
+  fixture_scan pass 'configured list with clean content' --denylist "$fixture/alternate.txt" || return 1
+  # Inject a failed readability check only in the scanner subprocess. Mode 000
+  # remains readable to root, so filesystem permissions cannot drive these cases.
+  cat > "$fixture/unreadable.bash" <<'EOF'
+function [ {
+  if [[ $# -eq 3 && $1 == -r && $2 == "${HYGIENE_UNREADABLE:-}" ]]; then
+    return 1
+  fi
+  if [[ $# -eq 4 && $1 == '!' && $2 == -r && $3 == "${HYGIENE_UNREADABLE:-}" ]]; then
+    return 0
+  fi
+  builtin [ "$@"
+}
+EOF
+  BASH_ENV="$fixture/unreadable.bash" HYGIENE_UNREADABLE="$fixture/alternate.txt" \
+    fixture_scan fail 'unreadable configured list' --denylist "$fixture/alternate.txt" || return 1
+  if ! grep -Fq 'Hygiene denylist is missing or unreadable' <<< "$output"; then
+    echo 'Configured-list fixture did not reach the readability guard'; return 1
+  fi
+  BASH_ENV="$fixture/unreadable.bash" HYGIENE_UNREADABLE="$repo/clean file.md" \
+    fixture_scan fail 'unreadable tracked file' || return 1
+  if ! grep -Fq 'Hygiene tracked file is missing or unreadable:' <<< "$output"; then
+    echo 'Tracked-file fixture did not reach the readability guard'; return 1
+  fi
+  : > "$repo/clean file.md"
+  fixture_scan pass 'empty tracked file' || return 1
+  rm "$repo/clean file.md"
+  fixture_scan fail 'missing tracked file' || return 1
+  printf '%s\n' 'Public content' > "$repo/clean file.md"
+  printf '%s\n' '#!/bin/bash' 'exit 2' > "$fixture/bin/git"
+  chmod +x "$fixture/bin/git"
+  PATH="$fixture/bin:$PATH" fixture_scan fail 'git enumeration failure' || return 1
+  rm "$fixture/bin/git"
+  printf '%s\n' '#!/bin/bash' 'exit 2' > "$fixture/bin/grep"
+  chmod +x "$fixture/bin/grep"
+  PATH="$fixture/bin:$PATH" fixture_scan fail 'scanner failure' || return 1
+  rm "$fixture/bin/grep"
+  mkdir "$fixture/empty repository"
+  "$real_git" init -q "$fixture/empty repository" || return 1
+  repo="$fixture/empty repository"
+  fixture_scan fail 'no tracked files fail closed' --denylist "$fixture/alternate.txt" || return 1
+)
+
+test_public_hygiene_repository_preserves_context_and_local_ignores() {
+  if git check-ignore -q -- .ai/public-context.md; then
+    echo 'Repository knowledge base must be eligible for tracking'; return 1
+  fi
+  local file
+  for file in logs/runs/local.jsonl .claude/settings.local.json; do
+    if ! git check-ignore -q -- "$file"; then
+      echo 'Local logs and machine settings must remain ignored'; return 1
+    fi
+  done
+}
+
+check "test_public_hygiene_fixture_scans_fail_closed" \
+  "$(test_public_hygiene_fixture_scans_fail_closed && echo pass || echo 'public-hygiene fixture behavior is incomplete')"
+check "test_public_hygiene_repository_preserves_context_and_local_ignores" \
+  "$(test_public_hygiene_repository_preserves_context_and_local_ignores && echo pass || echo 'repository context and local ignore policy is incomplete')"
+
+# ── End public hygiene smoke checks ─────────────────────────────────
+
+# ── Tracked public hygiene ──────────────────────────────────────────
+check "test_public_hygiene_tracked_tree_excludes_private_tokens" \
+  "$(run_public_hygiene "$(pwd -P)" && echo pass || echo 'tracked publication scope requires redaction')"
 
 echo ""
 echo "=== Contract Validation ==="

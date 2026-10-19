@@ -21,7 +21,7 @@ ls CLAUDE.md AGENTS.md 2>/dev/null
 ```
 
 If any directory is missing → **stop**:
-"Run `bash ~/Documents/projects/alterra/agentic_workflows/setup-new-project.sh` first, then invoke `/onboard-legacy-project` again."
+"Run `bash <workflow-source>/setup-new-project.sh` first, then invoke `/onboard-legacy-project` again."
 
 ### 0.2 — Resume detection
 
@@ -259,16 +259,16 @@ find . -maxdepth 4 -not -path './.git/*' \
 Read each CI file. Extract:
 - What runs on every PR (lint, typecheck, test, build, deploy-to-staging)
 - What triggers a production deploy
-- Branch naming conventions, protected branches
+- Branch naming standards, protected branches
 - Any secrets required by CI (names only — values are secrets)
 
-### 1.11 — Conventions and patterns
+### 1.11 — Standards and patterns
 
 Scan 5–10 representative source files across different layers. Look for:
 
 **Naming**:
 ```bash
-# Get a sample of source filenames to detect naming convention
+# Get a sample of source filenames to detect naming standard
 find . -maxdepth 5 -not -path './.git/*' -not -path './node_modules/*' \
   \( -name "*.py" -o -name "*.ts" -o -name "*.go" \) | \
   grep -v test | grep -v spec | grep -v migration | head -30
@@ -511,7 +511,7 @@ Do not replicate this pattern; fix it when touching user flows.">
 ## Standards
 
 ### Naming
-<File naming convention, class naming, function naming, variable naming.
+<File naming standard, class naming, function naming, variable naming.
 e.g. snake_case files, PascalCase classes, snake_case functions and variables>
 
 ### Error Handling
@@ -524,7 +524,7 @@ Where errors are caught. What is logged vs re-raised.>
 ### Dependency Injection
 <Pattern: constructor injection / DI container / module-level singletons. Examples.>
 
-### Testing Conventions
+### Testing Standards
 <Test file naming, fixture approach, mock vs real implementations, test structure.>
 
 ### Forbidden Patterns

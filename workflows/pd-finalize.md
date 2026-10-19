@@ -81,7 +81,7 @@ pass/fail assertion fails the check — **stop** and return to `/pd-analyze`. St
    directory:
 
    ```bash
-   ~/Documents/projects/alterra/agentic_workflows/validate-task.sh <task-directory> --phase discovery
+   bash "${WORKFLOWS_SOURCE:?Set WORKFLOWS_SOURCE}/validate-task.sh" <task-directory> --phase discovery
    ```
 
    It applies the canonical contracts — `## Phases` vocabulary, the `flow:` tier, the

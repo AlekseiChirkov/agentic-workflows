@@ -55,7 +55,7 @@ Rules:
 - Subject line: imperative mood, ≤ 72 characters, no period, no issue number unless obvious from the diff.
 - Blank line after subject.
 - Body (only if needed): explain *why*, not *what*. Wrap at 72 characters. Omit entirely if the subject is self-explanatory.
-- Conventional commit prefix when the project uses it (infer from `git log`). Common prefixes: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `perf`, `ci`.
+- Standard commit prefix when the project uses it (infer from `git log`). Common prefixes: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `perf`, `ci`.
 - **Never mention file names, file paths, or directory names** — describe what changed conceptually, not where it lives in the repository.
 
 Output format — present inside a fenced code block so it is copy-ready:

@@ -1,0 +1,152 @@
+# architecture.md — current snapshot of the workflow system
+
+## Purpose
+Describes agentic_workflows as it exists now: the layers of markdown, how they are
+deployed into agent harnesses, how a task flows through them, and the contracts that
+hold the files together. Updated only when a layer, a deployment target, or a contract
+surface changes.
+
+## Overview
+
+agentic_workflows is a **file-based specification of an AI-assisted SDLC**. There is no
+runtime: every behaviour is an instruction that an LLM agent (Claude Code, Codex, or
+Windsurf/Devin) reads and follows. The repository is the single source of truth;
+`sync.sh` copies it into each harness's global configuration, and
+`setup-new-project.sh` seeds a target project with a `CLAUDE.md`/`AGENTS.md`, rule
+copies, skill symlinks, and a `.ai/` knowledge base. A task then moves through three
+phases — Discovery, Execution, Validation — with all progress persisted in the target
+project's `.ai/tasks/…/state.md`, and every orchestrated run appends telemetry to a
+central log store that `/retro` reads.
+
+Size at the time of writing: 38 workflows, 14 rules, 4 principles, 5 scripts,
+≈76 000 words of instructions, 542 contract checks.
+
+## Components
+
+### Layer 1 — `rules/` (always-on contracts, 14 files)
+Policies every workflow obeys. Deployed as Windsurf/Devin global rules, and — because
+Claude Code and Codex have no rules directory — as skills under the mandatory `rule-`
+prefix (five basenames collide with workflows). Key files:
+
+| File | Owns |
+|---|---|
+| `workflow-globals.md` | phase contract, never-auto-advance, mode overrides registry, `--batch` semantics, flow tiers summary, **Canonical Status Formats** (`state.md`, `## Subtask Progress` leaf/composite blocks, `## Fix-Tasks`, `plan.md` statuses) |
+| `workflow-reference.md` | file responsibilities, Description Amendment, Protected Sections Contract, multi-phase rules, `.ai/memory/state.md` entry format, **Autonomous Decision Protocol**, **Autonomous Subtask Classifier** (S1–S5, Type 2/3, tripwire), Decomposition Rules |
+| `tdd.md` | RED/GREEN/pinned/n-a/failed states, test-level gate, frozen RED set, characterization mode |
+| `git-flow.md` | preflight, stacked branch model, two-commit rule, no-attribution rule, pipeline identifiers out of the repo, safety rails, recorded git fields |
+| `orchestration.md` | four roles (Orchestrator, Arbiter, Implementer, Validator), shared-file discipline (one writer per shared file), class A/B escalation, Discovery batch gate |
+| `quick-flow.md` | four-condition gate, what quick skips and still mandates, mid-flight promotion |
+| `run-log.md` | log store, three `log-step.sh` calls, field vocabulary, never-block rule |
+| `language.md` | English in every project file |
+| `phase-*.md` (5) | per-phase Context Bootstrap (which `.ai/` files to load and in what order), Blocker Reconciliation |
+| `global-claude.md` | the content of `~/.claude/CLAUDE.md` — always-on essentials for Claude Code |
+
+### Layer 2 — `principles/` (engineering standards, 4 files)
+`code-quality.md`, `python-standards.md`, `testing-standards.md`, `infra-standards.md`.
+Domain-quality rules, Python/FastAPI/GCP-centric. Deployed as Windsurf global rules and
+as `principle-*` skills. `testing-standards` owns test *style*; `rules/tdd.md` owns test
+*process*.
+
+### Layer 3 — `workflows/` (slash commands, 38 files)
+
+```
+Orchestrators        phase-discovery  phase-execution  phase-validation  phase-pipeline
+Atomic orchestrators phase-atomic-execution  phase-atomic-validation  phase-composite-validation
+Discovery children   pd-analyze → pd-decompose → (pd-select-model) → pd-design → pd-finalize → pd-archive
+Execution children   pe-execute → pe-finalize
+Atomic children      pae-tests → pae-implement → pae-finalize ; pav-check → pav-propose → pav-close
+Validation children  pv-contract → pv-review → pv-issues → pv-create-fixes (→ pv-classify-fixes) → pv-execute-fixes → pv-finalize
+Orchestrated mode    spec-run, restack
+Entry points         spec-draft, bugfix, onboard-legacy-project, adr-new, spec-sync
+Utilities            context-pack, compress-state, retro, suggest-commit-message, suggest-pr-description, suggest-commit-pr
+Reference            PIPELINE.md (not executable)
+```
+
+Every executable workflow has: a front-matter `description:`, an `Invocation:` line, a
+`## Guard` section (detects completed work, asks before overwriting), numbered steps,
+explicit `**stop**` points, and a report line. Children are callable standalone and must
+run the full Context Bootstrap when they are.
+
+### Layer 4 — `templates/`
+`.ai/` skeleton (seeded into projects, never overwrites), `.ai-umbrella/` (multi-repo
+root), `AGENTS.md` (Codex, per project), `codex-global-AGENTS.md` (→ `~/.codex/AGENTS.md`),
+`subtask-description.md` and `spec.md` (reference skeletons), `stacks/python-fastapi.md`.
+
+### Layer 5 — scripts
+| Script | Role |
+|---|---|
+| `validate-contracts.sh` | 542 consistency and smoke checks across layers 1–3; includes the tracked-file public-hygiene scanner (`--hygiene-only`, `--root`, `--denylist`); run by `sync.sh`; any failure blocks deploy |
+| `validate-task.sh` | applies the same contracts to one task directory's artifacts; run by `/pd-finalize` and `/pe-finalize` |
+| `sync.sh` | validate → copy to Windsurf, Claude Code, Codex → walk every project with `.devin/` and refresh its rule copies and skill symlinks |
+| `setup-new-project.sh` | seed a project (auto-detects umbrella `../.ai/`) |
+| `setup-umbrella.sh`, `setup-all-repos.sh` | multi-repo initialization |
+| `link-skills.sh` | workaround: symlink global skills into a project's `.claude/skills/` |
+| `log-step.sh` | append-only JSONL run log; stamps timestamps itself; exits 0 on every error |
+
+### Layer 6 — `logs/` (central telemetry store)
+`logs/runs/<ts>-<pipeline>-<id>.jsonl` + `.md` digest, `.active/` for open runs.
+Cross-project by design; gitignored; read only by `/retro`.
+
+### Layer 7 — `docs/` (documents about the system)
+`docs/USAGE.md` (operating manual), `docs/SPEC-RUN-QUICKSTART.md`, `docs/audits/`
+(`AUDIT-PROMPT.md`, `2026-07-21-logic-audit-fixes.md`), `docs/analysis/`
+(`2026-09-16-comparative-analysis.ru.md` and its TL;DR), `docs/README.md` (index).
+Placement rule: `.ai/principles/coding.md → Document placement`. The root holds only
+`CLAUDE.md`, scripts, and source directories.
+
+## Data Flow
+
+```
+author edits rules/ workflows/ principles/ templates/
+        │
+        ▼
+validate-contracts.sh ──fail──▶ deploy blocked
+        │ pass
+        ▼
+sync.sh ──▶ ~/.codeium/windsurf/global_{workflows,rules}/
+        ├─▶ ~/.claude/skills/{<wf>,rule-<r>,principle-<p>}/SKILL.md + ~/.claude/CLAUDE.md
+        ├─▶ ~/.codex/skills/… + ~/.codex/AGENTS.md
+        └─▶ every project with .devin/: refresh .devin/rules, .windsurf/rules, .claude/skills symlinks
+        │
+        ▼
+setup-new-project.sh (per project) ──▶ CLAUDE.md, AGENTS.md, .ai/ skeleton, .gitignore (.ai/ untracked)
+        │
+        ▼
+spec in .ai/specs/NN-slug.md
+  ──▶ /phase-discovery  ──▶ .ai/tasks/todo/task-NN-slug/{state.md, plan.md, T-XX/description.md}
+  ──▶ /phase-execution  ──▶ per T-XX: pae-tests (RED) → pae-implement (GREEN) → pae-finalize → pav-*
+  ──▶ /phase-validation ──▶ contract → review → issues → fix-tasks → finalize → ADR, progress.md, spec-sync
+  (or /spec-run: same, plus Arbiter, stacked branches, test:/feat: commits, draft→ready PRs)
+        │
+        ▼
+log-step.sh ──▶ logs/runs/*.jsonl ──▶ /retro ──▶ recommended edits to this repository
+```
+
+## Contract surface (what must stay consistent across files)
+
+- **Canonical Status Formats** (`workflow-globals`) — every reader/writer of `state.md`
+  and `plan.md`; readers key on field names, never on position; missing `atomic-tests:`
+  is read as `not-started`.
+- **Protected Sections Contract** (`workflow-reference`) — what `/compress-state` may never
+  remove (`notes:`, `target_files:`, git fields, `tdd:` lines, composite blocks,
+  `## Improvement Proposals`, `### Fix Classification`).
+- **Cross-reference syntax** — `<file> → ## <Section>`; 127 such references exist and
+  `validate-contracts.sh` checks that named sections exist.
+- **Mode overrides registry** (`workflow-globals → Workflow-declared mode overrides`) —
+  the only place a workflow may declare autonomy; `phase-pipeline → ## Pipeline
+  Overrides` is the detail.
+- **`--batch`** — one meaning everywhere: record, prompt for nothing, apply nothing.
+- **Rule-name resolution** — bare basename on Windsurf/Devin, `rule-<name>` skill on
+  Claude Code/Codex.
+- **Run-log vocabulary** (`run-log → ## Field vocabulary`) — currently *not* enforced by
+  `log-step.sh` (see `specs/02-run-log-vocabulary-validation.md`).
+
+## External Dependencies
+
+- Agent harnesses: Claude Code (skills, `CLAUDE.md`, sub-agents — the only harness where
+  `/spec-run`'s Arbiter/Implementer/Validator model is executable), OpenAI Codex
+  (`AGENTS.md`, skills), Windsurf / Devin Desktop (global workflows and rules).
+- Tools invoked by workflows: `git`, `gh` (PRs, only with `--allow-pr`), `jq`
+  (`log-step.sh` digests, `/retro`), `bash`, a web search capability (`pd-select-model`
+  rebuilds its model catalog live).
+- Script source defaults resolve from each script directory. `WORKFLOWS_SOURCE` overrides source selection; `sync.sh --from` takes precedence. `AGENTIC_LOG_ROOT` overrides the script-relative log directory. Documentation paths are placeholders.

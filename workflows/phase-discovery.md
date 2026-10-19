@@ -87,10 +87,16 @@ store, the field vocabulary, and the rule that logging never blocks a run.
 
 At Step 0, before reading anything, open the run:
 
+Open the run with `log-step.sh run-start` through the configured helper:
+
 ```bash
-RUN_ID=$(~/Documents/projects/alterra/agentic_workflows/log-step.sh run-start --pipeline phase-discovery \
+LOG_HELPER="${WORKFLOWS_SOURCE:+$WORKFLOWS_SOURCE/log-step.sh}"
+RUN_ID=""
+if [ -x "$LOG_HELPER" ]; then
+  RUN_ID=$("$LOG_HELPER" run-start --pipeline phase-discovery \
   --project "$(pwd)" --task <task-directory> --spec <spec-path> \
-  --flow <quick|full, once known> --flags "<flags in force>")
+  --flow <quick|full, once known> --flags "<flags in force>") || RUN_ID=""
+fi
 ```
 
 Log one `step` line after each of `pd-analyze`, `pd-decompose`, `pd-select-model` (when
@@ -101,7 +107,7 @@ Decision Protocol hit its threshold, and `--promoted yes` when `pd-analyze` set
 `flow: quick` and a later step promoted it. Close with `run-end --outcome completed` when
 Step 4 finishes, or `--outcome stopped` with the reason when the phase stops early.
 
-Logging is best-effort: if `~/Documents/projects/alterra/agentic_workflows/log-step.sh` is missing or a call fails,
+Logging is best-effort: if `$LOG_HELPER` is missing or a call fails,
 continue unchanged and mention it once in the final report. Never stop, retry, or ask the
 user because of a log write.
 

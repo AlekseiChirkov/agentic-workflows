@@ -15,9 +15,15 @@ store, the field vocabulary, and the rule that logging never blocks a run.
 
 At Step 0, open **one** run for the whole pipeline:
 
+Open the run with `log-step.sh run-start` through the configured helper:
+
 ```bash
-RUN_ID=$(~/Documents/projects/alterra/agentic_workflows/log-step.sh run-start --pipeline phase-pipeline \
-  --project "$(pwd)" --task <task-directory> --spec <spec-path> --flow <quick|full>)
+LOG_HELPER="${WORKFLOWS_SOURCE:+$WORKFLOWS_SOURCE/log-step.sh}"
+RUN_ID=""
+if [ -x "$LOG_HELPER" ]; then
+  RUN_ID=$("$LOG_HELPER" run-start --pipeline phase-pipeline \
+  --project "$(pwd)" --task <task-directory> --spec <spec-path> --flow <quick|full>) || RUN_ID=""
+fi
 ```
 
 Do not open a second run when this pipeline invokes `/phase-discovery`,
@@ -28,7 +34,7 @@ workflow, and additionally one line per **pipeline override actually exercised**
 pipeline is learning which overrides fire and what they cost. Close with `run-end
 --outcome completed`, or `--outcome stopped` naming the declared stop that ended it.
 
-Logging is best-effort: if `~/Documents/projects/alterra/agentic_workflows/log-step.sh` is missing or a call fails,
+Logging is best-effort: if `$LOG_HELPER` is missing or a call fails,
 continue unchanged and mention it once in the final report. Never stop, retry, or ask the
 user because of a log write.
 

@@ -632,12 +632,24 @@ Or re-run `setup-new-project.sh` after deleting the affected file.
 |----------------------------|-----------------------------------------------------------------------------------|
 | `docs/USAGE.md`            | This document.                                                                    |
 | `docs/SPEC-RUN-QUICKSTART.md` | Operating procedure for `/spec-run`: preflight, the batch gate, what stops the run, the branch stack you get, merging and `/restack`, interruption recovery. |
-| `validate-contracts.sh`    | 539 contract checks across the three layers. Run by `sync.sh` before every deploy; any failure blocks deployment. |
+| `validate-contracts.sh`    | 542 contract checks across the three layers, including tracked-file public hygiene. Run by `sync.sh` before every deploy; any failure blocks deployment. |
 | `sync.sh`                  | Deploy source → Windsurf workflows + rules, Claude skills, `~/.claude/CLAUDE.md`. Source tree defaults to the script directory; `--from <dir>` takes precedence over `$WORKFLOWS_SOURCE`. |
 | `validate-task.sh`         | Applies the canonical contracts to ONE task directory's artifacts (`state.md`, `plan.md`, `description.md`) rather than to the workflow definitions. Run by `/pd-finalize` and `/pe-finalize`; exit 1 blocks the phase. |
 | `log-step.sh`              | Append-only run log writer. Stamps its own timestamps and derives durations, so no duration is ever model-guessed. Exits 0 on every error path — logging never blocks a pipeline. |
 | `setup-new-project.sh`     | Initialize a project: `CLAUDE.md`, `AGENTS.md`, `.windsurf/rules/`, skill symlinks, `.gitignore`. |
 | `link-skills.sh`           | Workaround for Claude bug: symlink `~/.claude/skills/` into project `.claude/skills/`. |
+
+Run `bash validate-contracts.sh --hygiene-only` for the tracked-file scan alone.
+Use `--root <repository>` and `--denylist <file>` to select another checkout or pattern
+list. Patterns are literal case-insensitive substrings; comments and blank lines are
+ignored. Add a token and scrub matching content in the same change. This metadata is
+public hygiene, never secret storage.
+
+The scanner reads every indexed path, including newly staged knowledge files and
+tracked logs, and scans symlink target text without following it. Only the exact root
+`scrub-denylist.txt` and immutable source specification are exempt. Missing or unreadable
+inputs, empty pattern lists, scanner failures, and an empty index fail validation; empty
+tracked files are clean. Logs and local machine settings stay ignored in this repository.
 
 ### `rules/`
 
