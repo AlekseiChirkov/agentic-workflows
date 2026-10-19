@@ -239,14 +239,15 @@ with two-level loading (umbrella first, local overrides second).
 
 ## 4. Initial Setup (new machine / standalone project)
 
-```bash
-# 1. Place the repository at the canonical path
-git clone <repo-url> ~/projects/agentic_workflows
-# or: cp -r <existing-copy> ~/projects/agentic_workflows
+Clone the public repository to the Orchestrail checkout path:
 
-# 2. Deploy to all three environments
-bash ~/projects/agentic_workflows/sync.sh
+```bash
+git clone https://github.com/AlekseiChirkov/agentic-workflows.git ~/projects/orchestrail
+bash ~/projects/orchestrail/sync.sh
 ```
+
+The `v0.9.0` tag is intended for use after release. Once it is published, check it out
+with `git -C ~/projects/orchestrail checkout v0.9.0`. Until then, use the default branch.
 
 `sync.sh` runs `validate-contracts.sh` first and refuses to deploy if any check fails.
 It then performs:

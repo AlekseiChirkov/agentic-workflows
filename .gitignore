@@ -1,2 +1,6 @@
-logs/
+# Local run data
+/logs/runs/
+/logs/.active/
+
+# Per-machine Claude Code settings
 /.claude/settings.local.json
