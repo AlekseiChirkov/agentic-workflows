@@ -1,0 +1,20 @@
+# Public-hygiene metadata, not a secrets store.
+# One literal token per line; matching is case-insensitive and includes substrings.
+# Adding a token requires scrubbing the tree in the same change.
+# Comments and empty lines are not tokens. The denylist itself is exempt.
+vention
+lattice_lab
+mariner-gulf
+dbt_dw
+invest_ai
+investment_analyst
+alterra
+nowpayments_service.py
+report_builder.py
+MacroTechnical.tsx
+macro_metrics
+task1_subscription_fix
+Prestige-14Evo
+scareface
+PR 732
+33612468450
