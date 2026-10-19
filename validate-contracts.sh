@@ -1635,13 +1635,13 @@ test_runtime_instructions_public_configuration_uses_orchestrail() {
   local file bad=0
   local -a helper_docs=(rules/run-log.md workflows/phase-discovery.md workflows/phase-execution.md
     workflows/phase-pipeline.md workflows/phase-validation.md workflows/spec-run.md
-    workflows/pd-finalize.md workflows/pe-finalize.md)
+    workflows/pd-finalize.md workflows/pe-finalize.md .ai/principles/coding.md)
   for file in "${helper_docs[@]}" .ai/context/environment.md; do
     if ! grep -Fq 'ORCHESTRAIL_HOME' "$file"; then
       echo "$file: missing public source-root variable"; bad=1
     fi
   done
-  for file in rules/run-log.md workflows/retro.md .ai/context/environment.md; do
+  for file in rules/run-log.md workflows/retro.md .ai/context/environment.md .ai/principles/coding.md; do
     if ! grep -Fq 'ORCHESTRAIL_LOG_ROOT' "$file"; then
       echo "$file: missing public log-root variable"; bad=1
     fi
@@ -2032,7 +2032,7 @@ check "test_public_setup_guide_uses_orchestrail_release_instructions" \
 
 # ── Public identity smoke checks ────────────────────────────────────
 test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
-  local root scratch files ledger_file ledger_heading ledger_title ledger_suffix
+  local root scratch files ledger_file ledger_heading ledger_title ledger_suffix baseline_commit
   local path_field line_field token_field path lines token count line_number file input
   local row candidate_count=0 row_count=0 expected_count=0 identity_prefix identity_join identity_suffix identity_pattern
   local content token_entry matches status
@@ -2185,11 +2185,21 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
     return 1
   fi
 
-  # Every knowledge file present before this branch must still exist in the worktree.
-  git ls-tree -r --name-only HEAD -- .ai > "$scratch/baseline" || return 1
+  # The recorded base commit defines the knowledge inventory before this change.
+  baseline_commit="$(awk '/^  base_commit:/ { value = $2; found = 1 } END { if (found) print value }' "$ledger_file")"
+  [[ "$baseline_commit" =~ ^[[:xdigit:]]{40}$ ]] || {
+    echo 'Identity ledger state has no valid baseline commit'; return 1;
+  }
+  git cat-file -e "${baseline_commit}^{commit}" 2>/dev/null || {
+    echo 'Identity ledger baseline commit is unavailable'; return 1;
+  }
+  git ls-tree -r --name-only "$baseline_commit" -- .ai > "$scratch/baseline" || return 1
   while IFS= read -r file; do
     [ -n "$file" ] || continue
     [ -e "$file" ] || { printf 'Knowledge file was removed: %s\n' "$file"; return 1; }
+    git ls-files --error-unmatch -- "$file" >/dev/null 2>&1 || {
+      printf 'Knowledge file is no longer tracked: %s\n' "$file"; return 1;
+    }
   done < "$scratch/baseline"
 )
 
