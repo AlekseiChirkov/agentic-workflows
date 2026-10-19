@@ -1566,6 +1566,17 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
       if [ "$script" = setup-all-repos.sh ] && [ "$(cat "$target/service with spaces/.ai/source-marker" 2>/dev/null)" != "$selected" ]; then
         echo "$script ($mode): child setup did not use selected source"; bad=1
       fi
+      if [ "$script" = setup-umbrella.sh ]; then
+        # Execute the actual suggested command from a child, retaining the caller's overrides.
+        local child_command
+        child_command="$(sed -n 's/^  cd <service-dir> && //p' "$fixture/setup-output")"
+        mkdir -p "$target/service with spaces"
+        status=0
+        (cd "$target/service with spaces" && env "${setup_env[@]}" HOME="$fixture/home" bash -c "${child_command:-exit 1}" </dev/null) > "$fixture/child-output" 2>&1 || status=$?
+        if [ "$status" -ne 0 ] || [ "$(cat "$target/service with spaces/.ai/source-marker" 2>/dev/null)" != "$selected" ]; then
+          echo "$script ($mode): suggested child command did not use selected source"; bad=1
+        fi
+      fi
     done
   done
 
