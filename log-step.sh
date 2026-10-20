@@ -29,7 +29,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-LOG_ROOT="${AGENTIC_LOG_ROOT:-$SCRIPT_DIR/logs}"
+LOG_ROOT="${ORCHESTRAIL_LOG_ROOT:-$SCRIPT_DIR/logs}"
 RUNS_DIR="$LOG_ROOT/runs"
 ACTIVE_DIR="$LOG_ROOT/.active"
 

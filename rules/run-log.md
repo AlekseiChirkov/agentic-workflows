@@ -35,7 +35,7 @@ valid; readers accept its absence. Other event fields keep their existing meanin
 ## Where the log lives
 
 ```
-$AGENTIC_LOG_ROOT            # if set — used verbatim
+$ORCHESTRAIL_LOG_ROOT            # if nonempty — used verbatim
 <helper-directory>/logs/    # otherwise, relative to log-step.sh
   runs/
     <ISO-timestamp>-<pipeline>-<run-id>.jsonl   # append-only, one JSON object per line
@@ -46,8 +46,8 @@ $AGENTIC_LOG_ROOT            # if set — used verbatim
 
 The store is **central and cross-project**: runs from every repository land in one place,
 because the question the log answers ("what should change in the workflows?") is only
-answerable across projects. Set `WORKFLOWS_SOURCE` to the shared workflow checkout in every consuming environment
-so all workflows resolve the same helper and default store. `AGENTIC_LOG_ROOT` can select
+answerable across projects. Set `ORCHESTRAIL_HOME` to the shared workflow checkout in every consuming environment
+so all workflows resolve the same helper and default store. `ORCHESTRAIL_LOG_ROOT` can select
 another shared store; never substitute the current consumer project directory.
 
 The store is local telemetry. It is not committed, not synced by `sync.sh`, and not copied
@@ -62,14 +62,14 @@ line** — the helper stamps the time and derives every duration from its own pr
 A duration written by a model is a guess, and a guessed number in a metrics store is worse
 than a missing one.
 
-Resolve the helper from the configured `WORKFLOWS_SOURCE` checkout. If that variable is
+Resolve the helper from the configured `ORCHESTRAIL_HOME` checkout. If that variable is
 unset or the helper is not executable, skip logging for the whole run and note that once
 in the final report. Keep the resolved `LOG_HELPER` and `RUN_ID` for all three calls.
 
 **1 — At the start of the pipeline, before its first step (`log-step.sh run-start`):**
 
 ```bash
-LOG_HELPER="${WORKFLOWS_SOURCE:+$WORKFLOWS_SOURCE/log-step.sh}"
+LOG_HELPER="${ORCHESTRAIL_HOME:+$ORCHESTRAIL_HOME/log-step.sh}"
 RUN_ID=""
 if [ -x "$LOG_HELPER" ]; then
   RUN_ID=$("$LOG_HELPER" run-start \

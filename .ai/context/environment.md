@@ -40,11 +40,19 @@ deployed into, plus consumer projects.
 
 | Variable / path | Used by | Default | Notes |
 |---|---|---|---|
-| `WORKFLOWS_SOURCE` | `sync.sh` | the script directory | `--from <dir>` overrides |
-| `AGENTIC_LOG_ROOT` | `log-step.sh`, `/retro` | `<repo>/logs` | store is gitignored |
-| `WORKFLOWS_SOURCE` helper resolution | `rules/run-log.md`, orchestrator workflows, artifact checks | unset: skip optional logging | Configure one shared checkout; required artifact checks need a configured source |
+| `ORCHESTRAIL_HOME` | `sync.sh`, `setup-*.sh` | the script directory | Empty values use the default; `sync.sh --from <dir>` and `--from=<dir>` override it; relative paths resolve from the caller directory |
+| `ORCHESTRAIL_LOG_ROOT` | `log-step.sh`, `/retro` | `<repo>/logs` | store is gitignored |
+| `ORCHESTRAIL_HOME` helper resolution | `rules/run-log.md`, orchestrator workflows, artifact checks | unset: skip optional logging | Configure one shared checkout; required artifact checks need a configured source |
 | `$HOME/.claude`, `$HOME/.codex`, `$HOME/.codeium/windsurf` | `sync.sh`, `setup-new-project.sh` | — | harness locations |
 | `.ai/context/runbook.md → ## Commands` (per consumer project) | `pae-implement`, `pae-tests`, `bugfix` | — | `test:` required for TDD |
+
+Local configuration belongs under `~/.config/orchestrail/`. Keep machine settings
+outside the checkout; configure `ORCHESTRAIL_HOME` with the checkout location and
+`ORCHESTRAIL_LOG_ROOT` when selecting a different shared log store. These variables
+are read from the environment; scripts do not automatically source configuration files.
+Setup helpers normalize the selected source before invoking children. A missing
+source directory fails before project initialization. `log-step.sh path` only prints
+the selected path and never creates the store; an empty log override uses `<root>/logs`.
 
 ## Host
 - Linux, bash, `jq` (required for run-log digests and `/retro`), `git`, `gh` (only for

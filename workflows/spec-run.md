@@ -33,7 +33,7 @@ At Step 0, after preflight passes and the resume point is known, open the run:
 Open the run with `log-step.sh run-start` through the configured helper:
 
 ```bash
-LOG_HELPER="${WORKFLOWS_SOURCE:+$WORKFLOWS_SOURCE/log-step.sh}"
+LOG_HELPER="${ORCHESTRAIL_HOME:+$ORCHESTRAIL_HOME/log-step.sh}"
 RUN_ID=""
 if [ -x "$LOG_HELPER" ]; then
   RUN_ID=$("$LOG_HELPER" run-start --pipeline spec-run \
