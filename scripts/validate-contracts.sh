@@ -2699,6 +2699,8 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -2733,6 +2735,15 @@ with tempfile.TemporaryDirectory(prefix="retro-contract-") as temporary:
         env.update(filters)
         result = subprocess.run(["bash", str(script)], env=env,
                                 text=True, capture_output=True)
+        assert result.returncode == 0, result.stderr
+        return json.loads(result.stdout)
+
+    def metrics(data):
+        snippet = next(b for b in blocks if "# Retrospective metric inputs." in b)
+        artifact = temp / "dataset.json"
+        artifact.write_text(json.dumps(data))
+        result = subprocess.run(["bash", "-c", snippet], text=True, capture_output=True,
+                                env=dict(os.environ, RETRO_DATA=str(artifact)))
         assert result.returncode == 0, result.stderr
         return json.loads(result.stdout)
 
@@ -2772,6 +2783,10 @@ with tempfile.TemporaryDirectory(prefix="retro-contract-") as temporary:
         assert tests.count("n-a") == 1 and len(tests) == 2
         closes = [r["record"] for r in observations if r["record"]["event"] == "run-end"]
         assert [r["duration_s"] for r in closes] == [10]
+        aggregate = metrics(data)
+        assert aggregate == {"stops": {"sum": 2, "observations": 2},
+                             "tests": {"na": 1, "observations": 2, "na_share": 0.5},
+                             "close_durations": [10]}
         assert all(r["line"] != 5 for r in observations if r["file"] == str(clean))
         assert {r["file"] for r in data["incomplete_runs"]} == {str(clean), str(invalid_close)}
     elif scenario == "boundaries":
@@ -2783,6 +2798,9 @@ with tempfile.TemporaryDirectory(prefix="retro-contract-") as temporary:
         data = load()
         assert data["invalid_lines"] == 7 and data["examined_lines"] == 7
         assert data["usable_records"] == [] and len(data["examples"]) == 5
+        assert metrics(data) == {"stops": {"sum": None, "observations": 0},
+                                 "tests": {"na": 0, "observations": 0, "na_share": None},
+                                 "close_durations": []}
         assert data["abandoned_runs"] == 1 and data["unusable_closes"] == 0
         assert data["violations"] == [{"field": "record", "code": "invalid-json", "count": 7}]
         assert load(PIPELINE="absent")["total_runs"] == 0
@@ -2799,14 +2817,40 @@ printf '%s\\n' '{"kind":"summary","status":"STATUS","files":1,"lines":1,"invalid
             assert data["status"] == status and data["usable_records"] == []
             assert data["examined_lines"] is None and data["affected_runs"] == 1
             assert data["limitations"] and len(data["incomplete_runs"]) == 1
+        violation = dict(kind="violation", file=str(runs / "2026-08-10-11111111.jsonl"),
+                         line=2, field="outcome", code="invalid-enum")
+        summary = dict(kind="summary", status="partial", files=1, lines=2,
+                       invalid_lines=1, violations=1)
+        payload = json.dumps(violation) + "\n" + json.dumps(summary)
+        helper.write_text("#!/bin/bash\nprintf '%s\\n' " + shlex.quote(payload) + "\n")
+        data = load()
+        assert data["invalid_lines"] == 1 and data["invalid_lines_exact"] is False
+        assert data["violations"] == [{"field": "outcome", "code": "invalid-enum", "count": 1}]
+        assert data["examples"] == [{"file": violation["file"], "line": 2}]
+        assert metrics(data)["stops"] == {"sum": None, "observations": 0}
         helper.write_text('#!/bin/bash\nexit 0\n')
         data = load()
         assert data["status"] == "unavailable" and data["usable_records"] == []
+        helper.write_text("#!/bin/bash\nprintf '%s\\n' '{}' >> \"$ORCHESTRAIL_LOG_ROOT/runs/2026-08-10-11111111.jsonl\"\n"
+                          + "bash " + shlex.quote(str(actual)) + " lint --all\n")
+        data = load()
+        assert data["status"] == "partial" and data["usable_records"] == []
+        assert data["examined_lines"] is None
         helper = actual
         (runs / "2026-08-11-22222222.jsonl").symlink_to(temp / "missing")
         data = load()
         assert data["status"] == "partial" and data["usable_records"] == []
         assert data["examined_lines"] is None and data["limitations"]
+        minimal = temp / "minimal-path"
+        minimal.mkdir()
+        (minimal / "bash").symlink_to(shutil.which("bash"))
+        helper = temp / "no-jq-lint.sh"
+        helper.write_text('#!/bin/bash\n[ "$1" = lint ] && [ "$2" = --all ] || exit 9\n'
+                          'printf checked > "$ORCHESTRAIL_LOG_ROOT/lint-called"\n')
+        data = load(PATH=str(minimal))
+        assert data["status"] == "unavailable" and data["limitations"]
+        assert (store / "lint-called").read_text() == "checked"
+        assert "usable_records" not in data or data["usable_records"] == []
     else:
         raise AssertionError("unknown retrospective scenario")
 PYRETRO
