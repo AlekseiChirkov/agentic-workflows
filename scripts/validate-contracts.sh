@@ -1603,7 +1603,7 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
       case "$mode" in
         empty) setup_env+=(ORCHESTRAIL_HOME=) ;;
         override) setup_env+=(ORCHESTRAIL_HOME="$alternate"); selected="$alternate" ;;
-        relative) setup_env+=(ORCHESTRAIL_HOME='../alternate source'); selected="$alternate" ;;
+        relative) setup_env+=(ORCHESTRAIL_HOME='../../alternate source'); selected="$alternate" ;;
       esac
       target="$fixture/$script $mode"
       mkdir -p "$target"
@@ -1992,6 +1992,7 @@ test_run_log_step_rejects_invalid_fields_without_mutation() (
   reject_step missing-outcome
   reject_step unknown-option --outcome ok --surprise raw-probe-741
   reject_step gate --outcome ok --gate arbitrary
+  reject_step internal-alias-key --outcome ok --gate NEEDS_WORK_EXACT
   reject_step empty-enum --outcome ok --tests ''
   reject_step tests-enum --outcome ok --tests unknown
   reject_step promoted-enum --outcome ok --promoted maybe
@@ -2269,6 +2270,57 @@ PYRUNLOG
   done
 )
 
+test_run_log_fallback_and_filesystem_errors_remain_nonblocking() (
+  set -e
+  local fixture helper fakebin utility run file active before_active status note
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/run-log-fallback.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  prepare_run_log_fixture "$fixture" || return 1
+  helper="$fixture/helper"
+  fakebin="$fixture/bin"
+  mkdir -p "$fakebin"
+  for utility in bash dirname mkdir od tr date cat uname touch grep mv sed head rm wc; do
+    ln -s "$(command -v "$utility")" "$fakebin/$utility" || return 1
+  done
+  export ORCHESTRAIL_HOME="$helper" ORCHESTRAIL_LOG_ROOT="$fixture/store"
+  invoke_log() { PATH="$fakebin" bash "$helper/scripts/log-step.sh" "$@"; }
+  note=$'quoted "value"; backslash \\; newline\nnext\tline\r\001'
+  run="$(invoke_log run-start --pipeline phase-execution 2> "$fixture/stderr")" || return 1
+  [[ "$run" =~ ^[0-9a-f]{8}$ ]] && [ ! -s "$fixture/stderr" ] || return 1
+  file="$(invoke_log path --run "$run")"
+  active="$fixture/store/.active/$run"
+  invoke_log step --run "$run" --step pae-tests --outcome completed --note "$note" --stops 0 --files 9007199254740991 > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+  [ ! -s "$fixture/stdout" ] && [ ! -s "$fixture/stderr" ] || return 1
+  invoke_log run-end --run "$run" --outcome completed > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+  [ ! -s "$fixture/stdout" ] && [ ! -s "$fixture/stderr" ] && [ ! -e "$active" ] || return 1
+  python3 - "$file" "$note" <<'PYRUNLOG' || return 1
+import json
+import sys
+from pathlib import Path
+rows = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
+assert [row["event"] for row in rows] == ["run-start", "step", "run-end"]
+assert all(row["flow"] == "unknown" for row in rows)
+assert rows[1]["note"] == sys.argv[2] + "; raw:completed"
+assert rows[1]["stops"] == 0 and type(rows[1]["stops"]) is int
+assert rows[1]["files"] == 9007199254740991
+PYRUNLOG
+  printf 'blocked\n' > "$fixture/blocked-store"
+  status=0
+  ORCHESTRAIL_LOG_ROOT="$fixture/blocked-store" invoke_log run-start --pipeline phase-execution > "$fixture/stdout" 2> "$fixture/stderr" || status=$?
+  [ "$status" -eq 0 ] && [ ! -s "$fixture/stdout" ] && assert_one_redacted_warning "$fixture/stderr" "$fixture" || return 1
+  run="$(invoke_log run-start --pipeline phase-execution)" || return 1
+  file="$(invoke_log path --run "$run")"
+  active="$fixture/store/.active/$run"
+  before_active="$(sha256sum "$active" | awk '{print $1}')"
+  rm "$file"
+  status=0
+  invoke_log run-end --run "$run" --outcome completed > "$fixture/stdout" 2> "$fixture/stderr" || status=$?
+  [ "$status" -eq 0 ] && [ ! -s "$fixture/stdout" ] && assert_one_redacted_warning "$fixture/stderr" "$fixture" || return 1
+  [ "$before_active" = "$(sha256sum "$active" | awk '{print $1}')" ] && [ ! -e "${file%.jsonl}.md" ] || return 1
+)
+
+check "LOGPRODUCER: fallback preserves strings and filesystem failures warn safely" \
+  "$(test_run_log_fallback_and_filesystem_errors_remain_nonblocking && echo pass || echo 'fallback encoding or filesystem error behavior is incomplete')"
 check "LOGPRODUCER: run-start rejects invalid complete argument sets" \
   "$(test_run_log_start_rejects_invalid_argument_sets && echo pass || echo 'invalid run-start arguments changed state or returned unsafe output')"
 check "LOGPRODUCER: step rejects invalid fields before metadata changes" \
@@ -2625,6 +2677,12 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
   git ls-tree -r --name-only "$baseline_commit" -- .ai > "$scratch/baseline" || return 1
   while IFS= read -r file; do
     [ -n "$file" ] || continue
+    if [ ! -e "$file" ]; then
+      case "$file" in
+        .ai/tasks/todo/*) file=".ai/tasks/completed/${file#.ai/tasks/todo/}" ;;
+        .ai/specs/*) file=".ai/specs/completed/${file#.ai/specs/}" ;;
+      esac
+    fi
     [ -e "$file" ] || { printf 'Knowledge file was removed: %s\n' "$file"; return 1; }
     git ls-files --error-unmatch -- "$file" >/dev/null 2>&1 || {
       printf 'Knowledge file is no longer tracked: %s\n' "$file"; return 1;
