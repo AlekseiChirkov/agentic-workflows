@@ -18,7 +18,7 @@ These rules govern ALL phase workflows (`/phase-discovery`, `/phase-execution`, 
 
 **How to resolve a rules reference in each environment.** On Windsurf and Devin a rule is a file
 under `global_rules/` / `.windsurf/rules/` / `.devin/rules/`, addressed by its bare basename. On
-Claude Code and Codex there is no rules directory, so `sync.sh` deploys every `rules/*.md` as a
+Claude Code and Codex there is no rules directory, so `scripts/sync.sh` deploys every `rules/*.md` as a
 skill under the `rule-` prefix — `workflow-globals` → `rule-workflow-globals`, `tdd` →
 `rule-tdd`. The prefix is mandatory: five basenames (`phase-discovery`, `phase-execution`,
 `phase-validation`, `phase-atomic-execution`, `phase-atomic-validation`) exist in both

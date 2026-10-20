@@ -82,7 +82,7 @@ step 3 onward runs unchanged. If `flow: full`, run every step below unchanged.
    directory:
 
    ```bash
-   bash "${ORCHESTRAIL_HOME:?Set ORCHESTRAIL_HOME}/validate-task.sh" <task-directory> --phase execution
+   bash "${ORCHESTRAIL_HOME:?Set ORCHESTRAIL_HOME}/scripts/validate-task.sh" <task-directory> --phase execution
    ```
 
    It applies the canonical contracts — `## Phases` vocabulary, the `flow:` tier, the

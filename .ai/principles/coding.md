@@ -2,7 +2,7 @@
 
 ## Purpose
 How files in this repository are written so that an LLM can execute them, a human can
-audit them, and `validate-contracts.sh` can check them. These are the "coding standards"
+audit them, and `scripts/validate-contracts.sh` can check them. These are the "coding standards"
 of a codebase whose language is instructional markdown plus bash.
 
 ## Standards
@@ -37,7 +37,7 @@ of a codebase whose language is instructional markdown plus bash.
 - Contract first, rationale second, worked examples last. Target: a rule readable in one
   screen before its first example.
 - Any vocabulary (status values, field names, enum) is defined on **one anchored line**
-  that `validate-contracts.sh` can grep for, e.g.
+  that `scripts/validate-contracts.sh` can grep for, e.g.
   `Status values for atomic-execution / atomic-validation: …`.
 - When a rule changes a canonical format, it also states the backward-compatibility rule
   for readers.
@@ -45,27 +45,27 @@ of a codebase whose language is instructional markdown plus bash.
 ### Cross-references
 - Syntax: `` `file → ## Section` `` or `` `file → ## Section → ### Subsection` ``. The
   section must exist with that exact heading text.
-- Adding a reference means adding a check in `validate-contracts.sh` if the target is a
+- Adding a reference means adding a check in `scripts/validate-contracts.sh` if the target is a
   section other workflows do not already depend on.
 - A concept has exactly one canonical definition. If two files must mention it, one of
   them says "canonical definition: `file → ## Section`".
 
 ### Changing a contract
-1. Write the failing check in `validate-contracts.sh` first (RED at `smoke` level).
+1. Write the failing check in `scripts/validate-contracts.sh` first (RED at `smoke` level).
 2. Update the canonical definition.
 3. Update every reader and writer — grep for the old value across `workflows/`, `rules/`,
    `docs/USAGE.md`, `PIPELINE.md`, `templates/`.
 4. Add the backward-compatibility rule if artifacts in the old shape may exist.
-5. Run `validate-contracts.sh`, then `sync.sh`.
+5. Run `scripts/validate-contracts.sh`, then `scripts/sync.sh`.
 6. Record the change in `.ai/adr/` if it alters a format, a stop, or a mode override.
 
 ### Shell scripts
 - `#!/bin/bash` (or `#!/usr/bin/env bash`), `set -uo pipefail`; `set -e` only where a
-  failure must abort (`sync.sh`, `setup-*.sh`). Logging helpers exit 0 on every path.
+  failure must abort (`scripts/sync.sh`, `setup-*.sh`). Logging helpers exit 0 on every path.
 - A header comment: what the script does, its contract, usage, exit codes.
 - No hard-coded home paths in new code; read `ORCHESTRAIL_HOME` / `ORCHESTRAIL_LOG_ROOT`
   with the current default as fallback.
-- Every check in `validate-contracts.sh` uses the `check "<desc>" "$(… && echo pass || echo '<reason>')"` form and is anchored to a definition line, not a bare substring.
+- Every check in `scripts/validate-contracts.sh` uses the `check "<desc>" "$(… && echo pass || echo '<reason>')"` form and is anchored to a definition line, not a bare substring.
 - `bash -n` before committing; `shellcheck` when available.
 
 ### Document placement (mandatory)

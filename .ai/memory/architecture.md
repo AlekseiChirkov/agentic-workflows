@@ -11,14 +11,14 @@ surface changes.
 Orchestrail is a **file-based specification of an AI-assisted SDLC**. There is no
 runtime: every behaviour is an instruction that an LLM agent (Claude Code, Codex, or
 Windsurf/Devin) reads and follows. The repository is the single source of truth;
-`sync.sh` copies it into each harness's global configuration, and
-`setup-new-project.sh` seeds a target project with a `CLAUDE.md`/`AGENTS.md`, rule
+`scripts/sync.sh` copies it into each harness's global configuration, and
+`scripts/setup-new-project.sh` seeds a target project with a `CLAUDE.md`/`AGENTS.md`, rule
 copies, skill symlinks, and a `.ai/` knowledge base. A task then moves through three
 phases — Discovery, Execution, Validation — with all progress persisted in the target
 project's `.ai/tasks/…/state.md`, and every orchestrated run appends telemetry to a
 central log store that `/retro` reads.
 
-Size at the time of writing: 38 workflows, 14 rules, 4 principles, 5 scripts,
+Size at the time of writing: 38 workflows, 14 rules, 4 principles, and 8 shell scripts under `scripts/`,
 ≈76 000 words of instructions, 551 contract checks.
 
 ## Components
@@ -36,7 +36,7 @@ prefix (five basenames collide with workflows). Key files:
 | `git-flow.md` | preflight, stacked branch model, two-commit rule, no-attribution rule, pipeline identifiers out of the repo, safety rails, recorded git fields |
 | `orchestration.md` | four roles (Orchestrator, Arbiter, Implementer, Validator), shared-file discipline (one writer per shared file), class A/B escalation, Discovery batch gate |
 | `quick-flow.md` | four-condition gate, what quick skips and still mandates, mid-flight promotion |
-| `run-log.md` | log store, three `log-step.sh` calls, field vocabulary, never-block rule |
+| `run-log.md` | log store, three `scripts/log-step.sh` calls, field vocabulary, never-block rule |
 | `language.md` | English in every project file |
 | `phase-*.md` (5) | per-phase Context Bootstrap (which `.ai/` files to load and in what order), Blocker Reconciliation |
 | `global-claude.md` | the content of `~/.claude/CLAUDE.md` — always-on essentials for Claude Code |
@@ -75,13 +75,13 @@ root), `AGENTS.md` (Codex, per project), `codex-global-AGENTS.md` (→ `~/.codex
 ### Layer 5 — scripts
 | Script | Role |
 |---|---|
-| `validate-contracts.sh` | 551 consistency and smoke checks across layers 1–3; includes an optional tracked-file public-hygiene scanner using local patterns (`--hygiene-only`, `--root`, `--denylist`); run by `sync.sh`; any failure blocks deploy |
-| `validate-task.sh` | applies the same contracts to one task directory's artifacts; run by `/pd-finalize` and `/pe-finalize` |
-| `sync.sh` | validate → copy to Windsurf, Claude Code, Codex → walk every project with `.devin/` and refresh its rule copies and skill symlinks |
-| `setup-new-project.sh` | seed a project (auto-detects umbrella `../.ai/`) |
-| `setup-umbrella.sh`, `setup-all-repos.sh` | multi-repo initialization |
-| `link-skills.sh` | workaround: symlink global skills into a project's `.claude/skills/` |
-| `log-step.sh` | append-only JSONL run log; stamps timestamps itself; exits 0 on every error |
+| `scripts/validate-contracts.sh` | 551 consistency and smoke checks across layers 1–3; includes an optional tracked-file public-hygiene scanner using local patterns (`--hygiene-only`, `--root`, `--denylist`); run by `scripts/sync.sh`; any failure blocks deploy |
+| `scripts/validate-task.sh` | applies the same contracts to one task directory's artifacts; run by `/pd-finalize` and `/pe-finalize` |
+| `scripts/sync.sh` | validate → copy to Windsurf, Claude Code, Codex → walk every project with `.devin/` and refresh its rule copies and skill symlinks |
+| `scripts/setup-new-project.sh` | seed a project (auto-detects umbrella `../.ai/`) |
+| `scripts/setup-umbrella.sh`, `scripts/setup-all-repos.sh` | multi-repo initialization |
+| `scripts/link-skills.sh` | workaround: symlink global skills into a project's `.claude/skills/` |
+| `scripts/log-step.sh` | append-only JSONL run log; stamps timestamps itself; exits 0 on every error |
 
 ### Layer 6 — `logs/` (central telemetry store)
 `logs/runs/<ts>-<pipeline>-<id>.jsonl` + `.md` digest, `.active/` for open runs.
@@ -100,16 +100,16 @@ Placement rule: `.ai/principles/coding.md → Document placement`. The root hold
 author edits rules/ workflows/ principles/ templates/
         │
         ▼
-validate-contracts.sh ──fail──▶ deploy blocked
+scripts/validate-contracts.sh ──fail──▶ deploy blocked
         │ pass
         ▼
-sync.sh ──▶ ~/.codeium/windsurf/global_{workflows,rules}/
+scripts/sync.sh ──▶ ~/.codeium/windsurf/global_{workflows,rules}/
         ├─▶ ~/.claude/skills/{<wf>,rule-<r>,principle-<p>}/SKILL.md + ~/.claude/CLAUDE.md
         ├─▶ ~/.codex/skills/… + ~/.codex/AGENTS.md
         └─▶ every project with .devin/: refresh .devin/rules, .windsurf/rules, .claude/skills symlinks
         │
         ▼
-setup-new-project.sh (per project) ──▶ CLAUDE.md, AGENTS.md, .ai/ skeleton, .gitignore (.ai/ untracked)
+scripts/setup-new-project.sh (per project) ──▶ CLAUDE.md, AGENTS.md, .ai/ skeleton, .gitignore (.ai/ untracked)
         │
         ▼
 spec in .ai/specs/NN-slug.md
@@ -119,7 +119,7 @@ spec in .ai/specs/NN-slug.md
   (or /spec-run: same, plus Arbiter, stacked branches, test:/feat: commits, draft→ready PRs)
         │
         ▼
-log-step.sh ──▶ logs/runs/*.jsonl ──▶ /retro ──▶ recommended edits to this repository
+scripts/log-step.sh ──▶ logs/runs/*.jsonl ──▶ /retro ──▶ recommended edits to this repository
 ```
 
 ## Contract surface (what must stay consistent across files)
@@ -131,7 +131,7 @@ log-step.sh ──▶ logs/runs/*.jsonl ──▶ /retro ──▶ recommended e
   remove (`notes:`, `target_files:`, git fields, `tdd:` lines, composite blocks,
   `## Improvement Proposals`, `### Fix Classification`).
 - **Cross-reference syntax** — `<file> → ## <Section>`; 127 such references exist and
-  `validate-contracts.sh` checks that named sections exist.
+  `scripts/validate-contracts.sh` checks that named sections exist.
 - **Mode overrides registry** (`workflow-globals → Workflow-declared mode overrides`) —
   the only place a workflow may declare autonomy; `phase-pipeline → ## Pipeline
   Overrides` is the detail.
@@ -139,7 +139,7 @@ log-step.sh ──▶ logs/runs/*.jsonl ──▶ /retro ──▶ recommended e
 - **Rule-name resolution** — bare basename on Windsurf/Devin, `rule-<name>` skill on
   Claude Code/Codex.
 - **Run-log vocabulary** (`run-log → ## Field vocabulary`) — currently *not* enforced by
-  `log-step.sh` (see `specs/02-run-log-vocabulary-validation.md`).
+  `scripts/log-step.sh` (see `specs/02-run-log-vocabulary-validation.md`).
 
 ## External Dependencies
 
@@ -147,6 +147,6 @@ log-step.sh ──▶ logs/runs/*.jsonl ──▶ /retro ──▶ recommended e
   `/spec-run`'s Arbiter/Implementer/Validator model is executable), OpenAI Codex
   (`AGENTS.md`, skills), Windsurf / Devin Desktop (global workflows and rules).
 - Tools invoked by workflows: `git`, `gh` (PRs, only with `--allow-pr`), `jq`
-  (`log-step.sh` digests, `/retro`), `bash`, a web search capability (`pd-select-model`
+  (`scripts/log-step.sh` digests, `/retro`), `bash`, a web search capability (`pd-select-model`
   rebuilds its model catalog live).
-- Script source defaults resolve from each script directory. `ORCHESTRAIL_HOME` overrides source selection; `sync.sh --from` takes precedence. Setup helpers normalize and propagate the selected root to children. `ORCHESTRAIL_LOG_ROOT` overrides the script-relative log directory. Documentation paths are placeholders.
+- Script source defaults resolve to the repository root, the parent of `scripts/`. `ORCHESTRAIL_HOME` overrides source selection; `scripts/sync.sh --from` takes precedence. Setup helpers normalize and propagate the selected root to children. `ORCHESTRAIL_LOG_ROOT` overrides the repository-root `logs/` directory. Documentation paths are placeholders.

@@ -1,15 +1,15 @@
 #!/bin/bash
-# setup-new-project.sh
+# scripts/setup-new-project.sh
 # Sets up workflow infrastructure for a new or existing project.
 # Safe to run multiple times — never overwrites existing content.
-# Usage: bash /path/to/orchestrail/setup-new-project.sh
+# Usage: bash /path/to/orchestrail/scripts/setup-new-project.sh
 # Run from the project root directory.
 set -e
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-WORKFLOWS_SRC="${ORCHESTRAIL_HOME:-$SCRIPT_DIR}"
+WORKFLOWS_SRC="${ORCHESTRAIL_HOME:-$SCRIPT_DIR/..}"
 WORKFLOWS_SRC="$(cd -- "$WORKFLOWS_SRC" 2>/dev/null && pwd)" || {
-  echo "ERROR: source directory not found: ${ORCHESTRAIL_HOME:-$SCRIPT_DIR}" >&2
+  echo "ERROR: source directory not found: ${ORCHESTRAIL_HOME:-$SCRIPT_DIR/..}" >&2
   exit 1
 }
 PROJECT_DIR="$(pwd)"
@@ -212,8 +212,8 @@ stack_content = pathlib.Path(sys.argv[1]).read_text()
 
 agents = pathlib.Path("AGENTS.md").read_text()
 injection_block = (
-    "<!-- Stack standards are injected here by setup-new-project.sh -->\n"
-    "<!-- Run setup-new-project.sh to select a stack and populate this section -->\n"
+    "<!-- Stack standards are injected here by scripts/setup-new-project.sh -->\n"
+    "<!-- Run scripts/setup-new-project.sh to select a stack and populate this section -->\n"
     "<!-- If no stack was selected, define project-specific standards here -->"
 )
 agents = agents.replace(injection_block, stack_content.strip())

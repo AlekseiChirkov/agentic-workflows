@@ -3,7 +3,7 @@ description: One-time knowledge-base initialization for legacy projects — anal
 ---
 
 Invocation: `/onboard-legacy-project`
-No arguments required. Run from the project root after `setup-new-project.sh`.
+No arguments required. Run from the project root after `scripts/setup-new-project.sh`.
 
 To resume a partially completed onboarding, invoke again — the workflow detects progress and skips completed phases.
 
@@ -13,7 +13,7 @@ To resume a partially completed onboarding, invoke again — the workflow detect
 
 ### 0.1 — Infrastructure check
 
-Verify `setup-new-project.sh` was already run:
+Verify `scripts/setup-new-project.sh` was already run:
 
 ```bash
 ls .ai/memory/ .ai/context/ .ai/principles/ .ai/adr/ .ai/specs/ .ai/tasks/ 2>/dev/null
@@ -21,7 +21,7 @@ ls CLAUDE.md AGENTS.md 2>/dev/null
 ```
 
 If any directory is missing → **stop**:
-"Run `bash <workflow-source>/setup-new-project.sh` first, then invoke `/onboard-legacy-project` again."
+"Run `bash <workflow-source>/scripts/setup-new-project.sh` first, then invoke `/onboard-legacy-project` again."
 
 ### 0.2 — Resume detection
 

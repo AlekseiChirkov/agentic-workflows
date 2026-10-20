@@ -37,10 +37,10 @@ Read this file first, every time. It changes only when the structure of `.ai/` c
   `adr/index.md`, and update `memory/architecture.md` if the deployment shape or the
   contract surface changed
 - After each principle clarification: update the relevant `principles/*.md`
-- After a change to `sync.sh`, `setup-*.sh`, or a deployment path: update
+- After a change to `scripts/sync.sh`, `scripts/setup-*.sh`, or a deployment path: update
   `context/environment.md` and `context/runbook.md`
 - After a change to any always-on rule or canonical status format: add or update the
-  matching check in `validate-contracts.sh` **in the same change**
+  matching check in `scripts/validate-contracts.sh` **in the same change**
 
 ### Where documents go
 
@@ -53,8 +53,8 @@ specs in `specs/`. Full rule: `principles/coding.md → Document placement`.
 
 Changes here are made with the same pipeline the repository defines. A change to a rule
 or workflow is a task: it starts from a spec in `specs/`, runs through Discovery, and ends
-with `validate-contracts.sh` green and `sync.sh` deployed. The TDD rule applies with the
-test level `smoke` — `validate-contracts.sh` is the validating tool, and a new contract
+with `scripts/validate-contracts.sh` green and `scripts/sync.sh` deployed. The TDD rule applies with the
+test level `smoke` — `scripts/validate-contracts.sh` is the validating tool, and a new contract
 check that fails before the change and passes after it is the RED test.
 
 ### File Map

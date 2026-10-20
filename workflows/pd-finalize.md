@@ -81,7 +81,7 @@ pass/fail assertion fails the check — **stop** and return to `/pd-analyze`. St
    directory:
 
    ```bash
-   bash "${ORCHESTRAIL_HOME:?Set ORCHESTRAIL_HOME}/validate-task.sh" <task-directory> --phase discovery
+   bash "${ORCHESTRAIL_HOME:?Set ORCHESTRAIL_HOME}/scripts/validate-task.sh" <task-directory> --phase discovery
    ```
 
    It applies the canonical contracts — `## Phases` vocabulary, the `flow:` tier, the

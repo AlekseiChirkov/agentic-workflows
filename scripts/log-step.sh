@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# log-step.sh — append-only run log for the pipeline workflows.
+# scripts/log-step.sh — append-only run log for the pipeline workflows.
 #
 # The workflow system has no runtime, so an agent cannot measure a step's duration
 # on its own. This helper stamps the time itself and derives every duration from
@@ -8,28 +8,29 @@
 # Contract: rules/run-log.md
 #
 # Usage:
-#   log-step.sh run-start --pipeline <name> [--project <path>] [--task <path>]
+#   scripts/log-step.sh run-start --pipeline <name> [--project <path>] [--task <path>]
 #                         [--spec <path>] [--flow quick|full] [--flags "<str>"]
 #       → prints the run id on stdout, nothing else
 #
-#   log-step.sh step --run <id> --step <name> --outcome <ok|blocked|failed|skipped|deferred>
+#   scripts/log-step.sh step --run <id> --step <name> --outcome <ok|blocked|failed|skipped|deferred>
 #                    [--stops N] [--escalations N] [--decisions N] [--questions N]
 #                    [--gate <pass|fail|n-a|...>] [--tests <red|green|n-a|failed|not-run>]
 #                    [--fix-tasks N] [--promoted <yes|no>] [--amendments N]
 #                    [--files N] [--subtask <T-XX>] [--blocker "<text>"] [--note "<text>"]
 #
-#   log-step.sh run-end --run <id> --outcome <completed|stopped|failed|abandoned> [--note "<text>"]
+#   scripts/log-step.sh run-end --run <id> --outcome <completed|stopped|failed|abandoned> [--note "<text>"]
 #       → appends the closing line and writes the human-readable digest
 #
-#   log-step.sh path [--run <id>]     → print the log root, or one run's jsonl path
-#   log-step.sh active                → list runs that have not been closed
+#   scripts/log-step.sh path [--run <id>]     → print the log root, or one run's jsonl path
+#   scripts/log-step.sh active                → list runs that have not been closed
 #
 # Never fails a pipeline: every error is a warning on stderr and exit 0.
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-LOG_ROOT="${ORCHESTRAIL_LOG_ROOT:-$SCRIPT_DIR/logs}"
+REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
+LOG_ROOT="${ORCHESTRAIL_LOG_ROOT:-$REPO_ROOT/logs}"
 RUNS_DIR="$LOG_ROOT/runs"
 ACTIVE_DIR="$LOG_ROOT/.active"
 
@@ -129,8 +130,8 @@ cmd_run_start() {
   [ -n "$project" ] || project="$(pwd)"
   local run_id ts file base contract_version=""
   # The version belongs to this helper's checkout, independently of the caller.
-  if [ -r "$SCRIPT_DIR/VERSION" ]; then
-    contract_version="$(cat "$SCRIPT_DIR/VERSION" 2>/dev/null)" || contract_version=""
+  if [ -r "$REPO_ROOT/VERSION" ]; then
+    contract_version="$(cat "$REPO_ROOT/VERSION" 2>/dev/null)" || contract_version=""
     [[ "$contract_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || contract_version=""
   fi
   run_id="$(new_run_id)"

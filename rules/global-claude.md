@@ -94,7 +94,7 @@ After every architectural decision, update:
 
 If the project's CLAUDE.md defines its own `## Context Loading Protocol`, that
 definition takes precedence over this one for that project. This happens automatically
-when `setup-new-project.sh` detects an umbrella `.ai/` at `../.ai/`.
+when `scripts/setup-new-project.sh` detects an umbrella `.ai/` at `../.ai/`.
 
 In multi-repo projects, always load umbrella context before local:
 - `../.ai/` — shared system context (architecture, principles, domain)

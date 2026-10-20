@@ -20,7 +20,7 @@ with explicit state on disk. The AI assistant is constrained by:
 - **Principles** — domain-quality standards (`code-quality.md`, `python-standards.md`,
   `testing-standards.md`, `infra-standards.md`) loaded into every conversation.
 - **Templates** — boilerplate. `AGENTS.md` and the `.ai/` skeleton are copied into a
-  project by `setup-new-project.sh`; `subtask-description.md` and `spec.md` stay in this
+  project by `scripts/setup-new-project.sh`; `subtask-description.md` and `spec.md` stay in this
   repository as reference skeletons the workflows reproduce inline.
 
 ### What problems it solves
@@ -31,7 +31,7 @@ with explicit state on disk. The AI assistant is constrained by:
 | Long tasks lose context across sessions              | All progress in `state.md` / `plan.md` on disk    |
 | Phase boundaries get blurred                         | Each phase is a separate slash command, stops at end |
 | Inconsistent quality across projects                 | Always-on principles + per-project `CLAUDE.md`    |
-| Three AI tools, three different config formats       | `sync.sh` deploys one source to all three         |
+| Three AI tools, three different config formats       | `scripts/sync.sh` deploys one source to all three         |
 | Re-running a single step requires guesswork          | Child workflows callable directly; `## Guard` checks |
 | Tests get written after the code, describing what was built instead of what was required | `/pae-tests` writes failing tests from Acceptance Criteria before `/pae-implement`; the RED set is frozen during implementation |
 | One long session runs out of context halfway through a task    | `/spec-run` gives each subtask a fresh, narrowly-scoped agent; a long-lived Arbiter holds the project context the sub-agents deliberately lack |
@@ -48,7 +48,7 @@ with explicit state on disk. The AI assistant is constrained by:
           │  principles/  templates/                         │
           └────────────────────────┬─────────────────────────┘
                                    │
-                              sync.sh
+                              scripts/sync.sh
                                    │
             ┌──────────────────────┼──────────────────────┐
             ▼                      ▼                      ▼
@@ -62,7 +62,7 @@ with explicit state on disk. The AI assistant is constrained by:
             │                      │                      │
             └──────────────────────┴──────────────────────┘
                                    │
-                          setup-new-project.sh
+                          scripts/setup-new-project.sh
                                    │
                                    ▼
                     ┌──────────────────────────────┐
@@ -83,9 +83,15 @@ with explicit state on disk. The AI assistant is constrained by:
 ~/projects/orchestrail/
 ├── docs/USAGE.md                    this file
 │
-├── sync.sh                          deploy source → Windsurf + Claude + ~/.claude/CLAUDE.md
-├── setup-new-project.sh             initialize a project (CLAUDE.md, AGENTS.md, rules, skills)
-├── link-skills.sh                   workaround: symlink ~/.claude/skills/ into project
+├── scripts/                         repository command-line helpers
+│   ├── sync.sh                      deploy source → Windsurf + Claude + ~/.claude/CLAUDE.md
+│   ├── setup-new-project.sh         initialize a project (CLAUDE.md, AGENTS.md, rules, skills)
+│   ├── setup-umbrella.sh            initialize a multi-repository umbrella
+│   ├── setup-all-repos.sh           initialize services under an umbrella
+│   ├── link-skills.sh               link global Claude skills into a project
+│   ├── log-step.sh                  write the append-only pipeline run log
+│   ├── validate-contracts.sh        check repository-wide workflow contracts
+│   └── validate-task.sh             check one task directory
 │
 ├── rules/                           always-on rules (deployed globally to Windsurf + Claude)
 │   ├── workflow-globals.md          phase contract, canonical status formats, flow tiers
@@ -95,7 +101,7 @@ with explicit state on disk. The AI assistant is constrained by:
 │   ├── orchestration.md             agent roles, context boundaries, class A/B escalation
 │   ├── quick-flow.md                quick vs full tier, escalation gate
 │   ├── language.md                  English in every project file (chat language is user-specific)
-│   └── global-claude.md             contents written to ~/.claude/CLAUDE.md by sync.sh
+│   └── global-claude.md             contents written to ~/.claude/CLAUDE.md by scripts/sync.sh
 │
 ├── principles/                      always-on engineering standards (Windsurf global_rules)
 │   ├── code-quality.md              clean architecture, SOLID, naming, error handling, DI
@@ -154,8 +160,8 @@ with explicit state on disk. The AI assistant is constrained by:
     ├── spec.md                      task spec template — copy to .ai/specs/<NN>-<slug>.md
     ├── .ai/                         project knowledge-base skeleton (memory/, principles/,
     │                                  context/, adr/, specs/, tasks/) seeded into a project
-    │                                  by setup-new-project.sh — existing files are never touched
-    └── .ai-umbrella/                umbrella-root skeleton, seeded by setup-umbrella.sh
+    │                                  by scripts/setup-new-project.sh — existing files are never touched
+    └── .ai-umbrella/                umbrella-root skeleton, seeded by scripts/setup-umbrella.sh
 ```
 
 ### How each category is deployed
@@ -199,7 +205,7 @@ acme-platform/              ← umbrella root
 ```bash
 # 1. Initialize the umbrella root
 cd ~/projects/acme-platform
-bash ~/projects/orchestrail/setup-umbrella.sh
+bash ~/projects/orchestrail/scripts/setup-umbrella.sh
 
 # 2. Fill in the umbrella knowledge base
 $EDITOR .ai/memory/architecture.md   # describe all services and how they interact
@@ -208,14 +214,14 @@ $EDITOR .ai/principles/domain.md     # ubiquitous language
 
 # 3. Initialize each service repo (auto-detects ../.ai/)
 cd service-api
-bash ~/projects/orchestrail/setup-new-project.sh
+bash ~/projects/orchestrail/scripts/setup-new-project.sh
 
 cd ../service-worker
-bash ~/projects/orchestrail/setup-new-project.sh
+bash ~/projects/orchestrail/scripts/setup-new-project.sh
 # ... repeat for each service
 ```
 
-`setup-new-project.sh` detects `../.ai/` automatically and generates a `CLAUDE.md`
+`scripts/setup-new-project.sh` detects `../.ai/` automatically and generates a `CLAUDE.md`
 with two-level loading (umbrella first, local overrides second).
 
 ### What lives where
@@ -243,13 +249,13 @@ Clone the public repository to the Orchestrail checkout path:
 
 ```bash
 git clone https://github.com/AlekseiChirkov/agentic-workflows.git ~/projects/orchestrail
-bash ~/projects/orchestrail/sync.sh
+bash ~/projects/orchestrail/scripts/sync.sh
 ```
 
 The `v0.9.0` tag is intended for use after release. Once it is published, check it out
 with `git -C ~/projects/orchestrail checkout v0.9.0`. Until then, use the default branch.
 
-`sync.sh` runs `validate-contracts.sh` first and refuses to deploy if any check fails.
+`scripts/sync.sh` runs `scripts/validate-contracts.sh` first and refuses to deploy if any check fails.
 It then performs:
 
 1. Copy `workflows/*.md` → `~/.codeium/windsurf/global_workflows/`
@@ -285,7 +291,7 @@ In Windsurf or Claude Code, typing `/phase-discovery` should now autocomplete.
 
 ```bash
 cd <project-root>
-bash ~/projects/orchestrail/setup-new-project.sh
+bash ~/projects/orchestrail/scripts/setup-new-project.sh
 ```
 
 The script (idempotent — safe to re-run):
@@ -577,17 +583,17 @@ Edit only in `~/projects/orchestrail/`. Then re-sync.
 
 ```bash
 $EDITOR ~/projects/orchestrail/principles/python-standards.md   # or any other file
-bash ~/projects/orchestrail/sync.sh
+bash ~/projects/orchestrail/scripts/sync.sh
 ```
 
-`sync.sh` is idempotent. It re-copies everything; whatever was edited propagates
+`scripts/sync.sh` is idempotent. It re-copies everything; whatever was edited propagates
 to all three environments on the next slash-command invocation:
 
 - Windsurf reads from `~/.codeium/windsurf/global_workflows/` and `global_rules/`
 - Claude Code reads from `~/.claude/skills/<name>/SKILL.md` and `~/.claude/CLAUDE.md`
 - Codex reads `AGENTS.md` per project — the template is at
   `~/projects/orchestrail/templates/AGENTS.md`. To propagate template changes to
-  *existing* projects, re-run `setup-new-project.sh` in each project (it does
+  *existing* projects, re-run `scripts/setup-new-project.sh` in each project (it does
   NOT overwrite an existing `AGENTS.md`; you must update each project's
   `AGENTS.md` manually or `rm AGENTS.md` first).
 
@@ -595,13 +601,13 @@ to all three environments on the next slash-command invocation:
 
 - Do **not** edit files in `~/.codeium/windsurf/global_workflows/`,
   `~/.codeium/windsurf/global_rules/`, `~/.claude/skills/`, or `~/.claude/CLAUDE.md`
-  directly — they are overwritten by the next `sync.sh`.
+  directly — they are overwritten by the next `scripts/sync.sh`.
 - Do **not** edit `templates/AGENTS.md` and expect existing projects to update.
   Existing projects keep their own copy.
 
 ### Where each edit lands
 
-| You edit                                    | Effect after `sync.sh`                                              |
+| You edit                                    | Effect after `scripts/sync.sh`                                              |
 |---------------------------------------------|---------------------------------------------------------------------|
 | `workflows/<x>.md`                          | Windsurf workflow `/x` updated, Claude skill `x/SKILL.md` updated   |
 | `rules/global-claude.md`                    | `~/.claude/CLAUDE.md` rewritten / appended; also redeployed as skill `rule-global-claude` |
@@ -609,7 +615,7 @@ to all three environments on the next slash-command invocation:
 | `rules/<x>.md` (any other rule)             | Windsurf global rule updated; Claude Code and Codex skill `rule-<x>` updated                |
 | `principles/<x>.md`                         | Windsurf global rule updated; Claude Code and Codex skill `principle-<x>` updated           |
 | `templates/AGENTS.md`                       | New projects get the new template; existing projects unaffected      |
-| `setup-new-project.sh` / `sync.sh`          | Effective on next invocation                                        |
+| `scripts/setup-new-project.sh` / `scripts/sync.sh`          | Effective on next invocation                                        |
 
 ### Propagating rule changes to existing projects
 
@@ -621,7 +627,7 @@ cd <existing-project>
 cp ~/projects/orchestrail/rules/workflow-globals.md .windsurf/rules/workflow-globals.md
 ```
 
-Or re-run `setup-new-project.sh` after deleting the affected file.
+Or re-run `scripts/setup-new-project.sh` after deleting the affected file.
 
 ---
 
@@ -633,12 +639,12 @@ Or re-run `setup-new-project.sh` after deleting the affected file.
 |----------------------------|-----------------------------------------------------------------------------------|
 | `docs/USAGE.md`            | This document.                                                                    |
 | `docs/SPEC-RUN-QUICKSTART.md` | Operating procedure for `/spec-run`: preflight, the batch gate, what stops the run, the branch stack you get, merging and `/restack`, interruption recovery. |
-| `validate-contracts.sh`    | 551 contract checks across the three layers, including optional tracked-file public hygiene. Run by `sync.sh` before every deploy; any failure blocks deployment. |
-| `sync.sh`                  | Deploy source → Windsurf workflows + rules, Claude skills, `~/.claude/CLAUDE.md`. Source tree defaults to the script directory; `--from <dir>` takes precedence over `ORCHESTRAIL_HOME`. |
-| `validate-task.sh`         | Applies the canonical contracts to ONE task directory's artifacts (`state.md`, `plan.md`, `description.md`) rather than to the workflow definitions. Run by `/pd-finalize` and `/pe-finalize`; exit 1 blocks the phase. |
-| `log-step.sh`              | Append-only run log writer. Stamps its own timestamps and derives durations, so no duration is ever model-guessed. Exits 0 on every error path — logging never blocks a pipeline. |
-| `setup-new-project.sh`     | Initialize a project: `CLAUDE.md`, `AGENTS.md`, `.windsurf/rules/`, skill symlinks, `.gitignore`. |
-| `link-skills.sh`           | Workaround for Claude bug: symlink `~/.claude/skills/` into project `.claude/skills/`. |
+| `scripts/validate-contracts.sh`    | 551 contract checks across the three layers, including optional tracked-file public hygiene. Run by `scripts/sync.sh` before every deploy; any failure blocks deployment. |
+| `scripts/sync.sh`                  | Deploy source → Windsurf workflows + rules, Claude skills, `~/.claude/CLAUDE.md`. Source tree defaults to the repository root (the parent of `scripts/`); `--from <dir>` takes precedence over `ORCHESTRAIL_HOME`. |
+| `scripts/validate-task.sh`         | Applies the canonical contracts to ONE task directory's artifacts (`state.md`, `plan.md`, `description.md`) rather than to the workflow definitions. Run by `/pd-finalize` and `/pe-finalize`; exit 1 blocks the phase. |
+| `scripts/log-step.sh`              | Append-only run log writer. Stamps its own timestamps and derives durations, so no duration is ever model-guessed. Exits 0 on every error path — logging never blocks a pipeline. |
+| `scripts/setup-new-project.sh`     | Initialize a project: `CLAUDE.md`, `AGENTS.md`, `.windsurf/rules/`, skill symlinks, `.gitignore`. |
+| `scripts/link-skills.sh`           | Workaround for Claude bug: symlink `~/.claude/skills/` into project `.claude/skills/`. |
 
 Keep private hygiene patterns in a local file outside the repository. Set
 `ORCHESTRAIL_HYGIENE_DENYLIST` to its path, or place it at
@@ -646,7 +652,7 @@ Keep private hygiene patterns in a local file outside the repository. Set
 `~/.config/orchestrail/hygiene-patterns.txt`). Never commit this file. Patterns are
 literal case-insensitive substrings; comments and blank lines are ignored.
 
-Run `bash validate-contracts.sh --hygiene-only` for the tracked-file scan alone. Use
+Run `bash scripts/validate-contracts.sh --hygiene-only` for the tracked-file scan alone. Use
 `--root <repository>` and `--denylist <file>` to select a checkout or override the local
 pattern file. Explicit scans fail closed when inputs are missing or unreadable, the
 pattern file is empty, scanning fails, or the index is empty. The full contract suite
@@ -666,7 +672,7 @@ files are clean. Logs and local machine settings stay ignored in this repository
 | `git-flow.md`              | Always-on. Branch stack, commit granularity, the no-attribution commit rule, PR policy (draft → ready), preflight, and every git safety rail. |
 | `orchestration.md`         | Always-on. Roles (Orchestrator / Arbiter / Implementer / Validator), context boundaries, shared-file discipline, class A/B escalation, the Discovery batch gate. |
 | `tdd.md`                   | Always-on. TDD contract: RED→GREEN cycle, test-level gate (unit/integration/contract/smoke/none), what counts as RED, frozen-test-set rule during GREEN, characterization mode (`pinned`) for behaviour-preserving work, `atomic-tests:` status vocabulary. |
-| `run-log.md`               | Always-on. Run log contract: the central store, the three `log-step.sh` calls, the field vocabulary, what must never be logged, and the rule that logging never blocks a run. |
+| `run-log.md`               | Always-on. Run log contract: the central store, the three `scripts/log-step.sh` calls, the field vocabulary, what must never be logged, and the rule that logging never blocks a run. |
 | `quick-flow.md`            | Always-on. Quick vs full tier: four-condition escalation gate, what the quick path skips and still mandates (inline contract + inline TDD step), mid-flight promotion to full. |
 | `phase-discovery.md`, `phase-execution.md`, `phase-validation.md`, `phase-atomic-execution.md`, `phase-atomic-validation.md` | Model-decision trigger. Per-phase Context Bootstrap (which `.ai/` files to load, in what order), phase behaviours, and — for atomic execution — the Blocker Reconciliation procedure. Every phase workflow cites these by name. |
 | `global-claude.md`         | Content for `~/.claude/CLAUDE.md`. Architecture principles + Python/testing/infra/naming/forbidden summaries. |
@@ -721,7 +727,7 @@ files are clean. Logs and local machine settings stay ignored in this repository
 | `restack.md`                    | Replay the branch stack after the human merges part of it — works with merge, rebase, or squash. |
 | `pv-classify-fixes.md`          | Validation step 4a: classify fixes into shared vs dedicated branches using the quick-flow gate. |
 | `phase-composite-validation.md` | Integration validation for a Type 2 composite, after every child is individually reviewed. Triggered by `pav-close` when the last child closes. |
-| `onboard-legacy-project.md`     | One-time: analyze an existing codebase and fill every `.ai/` file so later phases start from context instead of re-reading the code. Run after `setup-new-project.sh`. |
+| `onboard-legacy-project.md`     | One-time: analyze an existing codebase and fill every `.ai/` file so later phases start from context instead of re-reading the code. Run after `scripts/setup-new-project.sh`. |
 | `suggest-commit-message.md`     | Utility: copy-ready commit message for the current changes (session context by default, git with a flag). |
 | `suggest-pr-description.md`     | Utility: copy-ready PR description — summary, how it works, how to test. |
 | `suggest-commit-pr.md`          | Utility: runs both of the above with the same arguments. |

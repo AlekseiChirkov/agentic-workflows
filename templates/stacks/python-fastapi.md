@@ -1,6 +1,6 @@
 # Stack: Python / FastAPI / GCP
 # Append to AGENTS.md → ## Standards when using this stack.
-# setup-new-project.sh handles this automatically when stack=python-fastapi is selected.
+# scripts/setup-new-project.sh handles this automatically when stack=python-fastapi is selected.
 
 ---
 

@@ -17,7 +17,7 @@ Consumed by `/retro`. Produced by `/spec-run`, `/phase-pipeline`, `/phase-discov
 
 **Logging never blocks, delays, or alters a pipeline.** If the helper is missing, the log
 store is unwritable, or a call fails, the pipeline continues unchanged and says nothing
-beyond one line in its final report. `log-step.sh` is written to exit `0` on every error
+beyond one line in its final report. `scripts/log-step.sh` is written to exit `0` on every error
 path for exactly this reason. A workflow must never stop, retry, or ask the user because a
 log write failed, and must never let a logging concern change a decision it would otherwise
 have made.
@@ -36,7 +36,7 @@ valid; readers accept its absence. Other event fields keep their existing meanin
 
 ```
 $ORCHESTRAIL_LOG_ROOT            # if nonempty — used verbatim
-<helper-directory>/logs/    # otherwise, relative to log-step.sh
+<helper-directory>/logs/    # otherwise, relative to scripts/log-step.sh
   runs/
     <ISO-timestamp>-<pipeline>-<run-id>.jsonl   # append-only, one JSON object per line
     <ISO-timestamp>-<pipeline>-<run-id>.md      # human-readable digest, written at run-end
@@ -50,14 +50,14 @@ answerable across projects. Set `ORCHESTRAIL_HOME` to the shared workflow checko
 so all workflows resolve the same helper and default store. `ORCHESTRAIL_LOG_ROOT` can select
 another shared store; never substitute the current consumer project directory.
 
-The store is local telemetry. It is not committed, not synced by `sync.sh`, and not copied
+The store is local telemetry. It is not committed, not synced by `scripts/sync.sh`, and not copied
 into a project.
 
 ---
 
 ## How a pipeline logs
 
-Three calls, all through `log-step.sh` via the shell. **Agents never hand-write a JSON
+Three calls, all through `scripts/log-step.sh` via the shell. **Agents never hand-write a JSON
 line** — the helper stamps the time and derives every duration from its own previous write.
 A duration written by a model is a guess, and a guessed number in a metrics store is worse
 than a missing one.
@@ -66,10 +66,10 @@ Resolve the helper from the configured `ORCHESTRAIL_HOME` checkout. If that vari
 unset or the helper is not executable, skip logging for the whole run and note that once
 in the final report. Keep the resolved `LOG_HELPER` and `RUN_ID` for all three calls.
 
-**1 — At the start of the pipeline, before its first step (`log-step.sh run-start`):**
+**1 — At the start of the pipeline, before its first step (`scripts/log-step.sh run-start`):**
 
 ```bash
-LOG_HELPER="${ORCHESTRAIL_HOME:+$ORCHESTRAIL_HOME/log-step.sh}"
+LOG_HELPER="${ORCHESTRAIL_HOME:+$ORCHESTRAIL_HOME/scripts/log-step.sh}"
 RUN_ID=""
 if [ -x "$LOG_HELPER" ]; then
   RUN_ID=$("$LOG_HELPER" run-start \
@@ -86,7 +86,7 @@ Keep `RUN_ID` for the rest of the run. If the pipeline resumes in a later sessio
 new run — `/retro` correlates runs by `task`, so a resumed task reads as two runs of the
 same task, which is itself a signal worth measuring.
 
-**2 — Immediately after each step completes** (`log-step.sh step`), before moving to the next one:
+**2 — Immediately after each step completes** (`scripts/log-step.sh step`), before moving to the next one:
 
 ```bash
 [ -n "$RUN_ID" ] && "$LOG_HELPER" step --run "$RUN_ID" \
@@ -99,7 +99,7 @@ Log the step **after it finishes**, whatever the outcome — a step that failed,
 was skipped is the most valuable line in the file. A step that ends the run still gets its
 own `step` line before `run-end`.
 
-**3 — When the pipeline stops, for any reason (`log-step.sh run-end`):**
+**3 — When the pipeline stops, for any reason (`scripts/log-step.sh run-end`):**
 
 ```bash
 [ -n "$RUN_ID" ] && "$LOG_HELPER" run-end --run "$RUN_ID" \
@@ -108,7 +108,7 @@ own `step` line before `run-end`.
 
 This includes a planned stop. `/phase-discovery` completing normally is `--outcome
 completed`; the batch gate in `/spec-run` handing control to the human is `--outcome
-stopped`. A run left without `run-end` shows up in `log-step.sh active` and is counted by
+stopped`. A run left without `run-end` shows up in `scripts/log-step.sh active` and is counted by
 `/retro` as an abandoned run — which is accurate, and deliberately visible.
 
 ---

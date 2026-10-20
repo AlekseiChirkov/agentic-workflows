@@ -13,7 +13,7 @@ impossible to execute as written**, and to write what you find into a report fil
 **You are auditing, not repairing.** Do not edit any workflow, rule, template, or script. The
 only file you create is the report. If a fix is obvious, describe it in the report and move on.
 
-Work only inside the repository root. Do not run `sync.sh`. Do not touch `~/.claude/`,
+Work only inside the repository root. Do not run `scripts/sync.sh`. Do not touch `~/.claude/`,
 `~/.codex/`, `~/.codeium/`, or anything outside this directory. You may copy the repository to
 a scratch directory and experiment there.
 
@@ -67,7 +67,7 @@ read alone.
 - `workflows/PIPELINE.md`, `docs/USAGE.md`, `docs/SPEC-RUN-QUICKSTART.md` — documentation that must
   agree with the workflow
 
-`validate-contracts.sh` holds the executable checks. Run it (`bash validate-contracts.sh`) to
+`scripts/validate-contracts.sh` holds the executable checks. Run it (`bash scripts/validate-contracts.sh`) to
 see the current baseline; it should report zero failures. A passing suite is not evidence of
 correctness — several checks have been found to pass against an inverted contract.
 
@@ -122,7 +122,7 @@ give different answers.
 
 ### 3.4 Attack the check suite
 
-Pick the checks in `validate-contracts.sh` that claim to guard `/spec-run` behaviour. For each:
+Pick the checks in `scripts/validate-contracts.sh` that claim to guard `/spec-run` behaviour. For each:
 copy the repo to a scratch directory, **delete or invert the contract the check names**, and
 re-run the suite. If it still passes, the check is vacuous — record it as a finding with the
 regression it failed to catch. Delete the scratch copy afterwards. Do not modify the suite.

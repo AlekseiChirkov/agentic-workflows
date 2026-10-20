@@ -2,7 +2,7 @@
 
 ## Purpose
 Where the workflow system runs and what it assumes about the host. Read before any
-change to `sync.sh`, `setup-*.sh`, `log-step.sh`, or to a path mentioned in a rule.
+change to `scripts/sync.sh`, `scripts/setup-*.sh`, `scripts/log-step.sh`, or to a path mentioned in a rule.
 
 ## Environments
 
@@ -28,11 +28,11 @@ deployed into, plus consumer projects.
 - Workflows → `~/.codeium/windsurf/global_workflows/`
 - Rules and principles → `~/.codeium/windsurf/global_rules/` (always-on by front matter)
 - Per project: copies (not symlinks) of a fixed list of rule files in `.windsurf/rules/`
-  and `.devin/rules/`; refreshed by `sync.sh` for every project that has `.devin/`.
+  and `.devin/rules/`; refreshed by `scripts/sync.sh` for every project that has `.devin/`.
 - No sub-agents; the Orchestrator role degrades to a single session.
 
 ### Consumer projects
-- Seeded by `setup-new-project.sh`: `CLAUDE.md`, `AGENTS.md`, `.ai/` (from
+- Seeded by `scripts/setup-new-project.sh`: `CLAUDE.md`, `AGENTS.md`, `.ai/` (from
   `templates/.ai/`, never overwrites), `.gitignore` entries (`.ai/`, `.claude/skills/`).
 - Consumer projects are recorded in the local registry; none is named here.
 
@@ -40,10 +40,10 @@ deployed into, plus consumer projects.
 
 | Variable / path | Used by | Default | Notes |
 |---|---|---|---|
-| `ORCHESTRAIL_HOME` | `sync.sh`, `setup-*.sh` | the script directory | Empty values use the default; `sync.sh --from <dir>` and `--from=<dir>` override it; relative paths resolve from the caller directory |
-| `ORCHESTRAIL_LOG_ROOT` | `log-step.sh`, `/retro` | `<repo>/logs` | store is gitignored |
+| `ORCHESTRAIL_HOME` | `scripts/sync.sh`, `scripts/setup-*.sh` | the repository root (parent of `scripts/`) | Empty values use the default; `scripts/sync.sh --from <dir>` and `--from=<dir>` override it; relative paths resolve from the caller directory |
+| `ORCHESTRAIL_LOG_ROOT` | `scripts/log-step.sh`, `/retro` | `<repo>/logs` | store is gitignored |
 | `ORCHESTRAIL_HOME` helper resolution | `rules/run-log.md`, orchestrator workflows, artifact checks | unset: skip optional logging | Configure one shared checkout; required artifact checks need a configured source |
-| `$HOME/.claude`, `$HOME/.codex`, `$HOME/.codeium/windsurf` | `sync.sh`, `setup-new-project.sh` | — | harness locations |
+| `$HOME/.claude`, `$HOME/.codex`, `$HOME/.codeium/windsurf` | `scripts/sync.sh`, `scripts/setup-new-project.sh` | — | harness locations |
 | `.ai/context/runbook.md → ## Commands` (per consumer project) | `pae-implement`, `pae-tests`, `bugfix` | — | `test:` required for TDD |
 
 Local configuration belongs under `~/.config/orchestrail/`. Keep machine settings
@@ -51,7 +51,7 @@ outside the checkout; configure `ORCHESTRAIL_HOME` with the checkout location an
 `ORCHESTRAIL_LOG_ROOT` when selecting a different shared log store. These variables
 are read from the environment; scripts do not automatically source configuration files.
 Setup helpers normalize the selected source before invoking children. A missing
-source directory fails before project initialization. `log-step.sh path` only prints
+source directory fails before project initialization. `scripts/log-step.sh path` only prints
 the selected path and never creates the store; an empty log override uses `<root>/logs`.
 
 ## Host

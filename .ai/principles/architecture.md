@@ -11,7 +11,7 @@ still apply to the shell scripts.
 ### P1 — The repository is the only source of truth
 Edits happen here and nowhere else. Deployed copies (`~/.claude/skills`, `~/.codex/skills`,
 `~/.codeium/windsurf/global_*`, project `.windsurf/rules/`) are disposable and overwritten
-by `sync.sh`. A fix applied to a deployed copy is lost; a fix applied here reaches every
+by `scripts/sync.sh`. A fix applied to a deployed copy is lost; a fix applied here reaches every
 harness and every project.
 *Rationale:* three harnesses, N projects, one author — divergence is the default failure.
 
@@ -55,7 +55,7 @@ a defect (see the 2026-07 audit: ten dangling references).
 `/pae-tests` precedes `/pae-implement` on every leaf; the quick tier runs the same cycle
 inline; `/phase-pipeline` and `/spec-run` do not override it; `none` needs a written
 justification. This repository applies it to itself at the `smoke` level via
-`validate-contracts.sh`.
+`scripts/validate-contracts.sh`.
 *Rationale:* tests written after the code describe the code, not the requirement.
 
 ### P8 — The pipeline is invisible to the repository it works on
@@ -67,7 +67,7 @@ accepted and stated.
 pointers.
 
 ### P9 — Logging never blocks, and numbers are never guessed
-`log-step.sh` stamps its own timestamps, derives durations from its own previous write,
+`scripts/log-step.sh` stamps its own timestamps, derives durations from its own previous write,
 and exits 0 on every error. An agent never hand-writes a log line. An omitted field means
 "not measured"; a `0` means "measured and none".
 *Rationale:* a metrics store with invented numbers is worse than none.

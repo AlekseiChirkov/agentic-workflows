@@ -1,10 +1,13 @@
 #!/bin/bash
-# validate-contracts.sh
+# scripts/validate-contracts.sh
 # Validates consistency of workflow contracts in Orchestrail.
-# Run with bash /path/to/orchestrail/validate-contracts.sh.
+# Run with bash /path/to/orchestrail/scripts/validate-contracts.sh.
 # Exit 0 = all pass. Exit 1 = failures found.
 
 set -e
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 # Resolve private patterns from an explicit local override or user config. Keep the
 # pattern file outside the repository so it does not publish the identifiers it guards.
@@ -89,7 +92,7 @@ run_public_hygiene() (
 # Standalone scanner: --root selects a repository; --denylist selects a local pattern file.
 if [ "${1:-}" = --hygiene-only ]; then
   shift
-  hygiene_root="$(cd "$(dirname "$0")" && pwd -P)"
+  hygiene_root="$REPO_ROOT"
   hygiene_denylist=''
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -115,11 +118,11 @@ if [ "${1:-}" = --hygiene-only ]; then
   exit $?
 fi
 if [ "$#" -gt 0 ]; then
-  echo 'Usage: validate-contracts.sh [--hygiene-only [--root PATH] [--denylist PATH]]' >&2
+  echo 'Usage: scripts/validate-contracts.sh [--hygiene-only [--root PATH] [--denylist PATH]]' >&2
   exit 1
 fi
 
-cd "$(dirname "$0")"
+cd "$REPO_ROOT"
 
 # Warn about committed rule changes since the last version change. Compare Git
 # ancestry rather than timestamps so same-second commits and merges remain valid.
@@ -514,11 +517,11 @@ check "TDD: testing-standards links to the executing workflow" \
 check "TDD: PIPELINE.md documents the three-step atomic cycle" \
   "$(grep -q 'pae-tests' workflows/PIPELINE.md 2>/dev/null && echo pass || echo 'PIPELINE.md missing pae-tests in atomic cycle / child workflow table')"
 
-check "TDD: sync.sh deploys tdd.md to projects" \
-  "$(grep -q 'tdd\.md' sync.sh 2>/dev/null && echo pass || echo 'sync.sh does not deploy tdd.md to per-project rule directories')"
+check "TDD: scripts/sync.sh deploys tdd.md to projects" \
+  "$(grep -q 'tdd\.md' scripts/sync.sh 2>/dev/null && echo pass || echo 'scripts/sync.sh does not deploy tdd.md to per-project rule directories')"
 
-check "TDD: setup-new-project.sh deploys tdd.md" \
-  "$(grep -q 'tdd\.md' setup-new-project.sh 2>/dev/null && echo pass || echo 'setup-new-project.sh does not deploy tdd.md to new projects')"
+check "TDD: scripts/setup-new-project.sh deploys tdd.md" \
+  "$(grep -q 'tdd\.md' scripts/setup-new-project.sh 2>/dev/null && echo pass || echo 'scripts/setup-new-project.sh does not deploy tdd.md to new projects')"
 
 check "TDD: pv-create-fixes requires Test Plan for fix-tasks" \
   "$(grep -q '## Test Plan' workflows/pv-create-fixes.md 2>/dev/null && echo pass || echo 'pv-create-fixes.md missing Test Plan requirement for fix-tasks')"
@@ -736,16 +739,16 @@ check "ORCH: pd-select-model no longer claims it writes no files" \
   "$(grep -q 'writes \*\*no files at all\*\*' workflows/pd-select-model.md 2>/dev/null && echo 'pd-select-model.md still claims it writes no files — contradicts the Model column' || echo pass)"
 
 # Deployment
-for f in sync.sh setup-new-project.sh; do
+for f in scripts/sync.sh scripts/setup-new-project.sh; do
   check "ORCH: $f deploys git-flow.md and orchestration.md" \
     "$(grep -q 'git-flow\.md' "$f" 2>/dev/null && grep -q 'orchestration\.md' "$f" 2>/dev/null && echo pass || echo "$f does not deploy the orchestration rules")"
 done
 
 check "ORCH: setup-new-project seeds .ai/ into .gitignore" \
-  "$(grep -q '"\.ai/"' setup-new-project.sh 2>/dev/null && echo pass || echo 'setup-new-project.sh does not add .ai/ to GITIGNORE_ENTRIES — pipeline state must never be committed')"
+  "$(grep -q '"\.ai/"' scripts/setup-new-project.sh 2>/dev/null && echo pass || echo 'scripts/setup-new-project.sh does not add .ai/ to GITIGNORE_ENTRIES — pipeline state must never be committed')"
 
-check "ORCH: sync.sh backfills .ai/ into existing .gitignore" \
-  "$(grep -q 'added \.ai/' sync.sh 2>/dev/null && echo pass || echo 'sync.sh does not backfill .ai/ into existing project .gitignore files')"
+check "ORCH: scripts/sync.sh backfills .ai/ into existing .gitignore" \
+  "$(grep -q 'added \.ai/' scripts/sync.sh 2>/dev/null && echo pass || echo 'scripts/sync.sh does not backfill .ai/ into existing project .gitignore files')"
 
 # ── Group 19: Cross-file reference integrity ─────────────────────────
 # The reference tables were moved from workflow-globals to workflow-reference; ten workflows
@@ -770,7 +773,7 @@ check "REF: rules/phase-discovery does not point at itself for ## Execution Mode
   "$(grep -q 'See .phase-discovery.md → ## Execution Modes' rules/phase-discovery.md 2>/dev/null && echo 'rules/phase-discovery.md points at itself for ## Execution Modes — that section lives in the workflow' || echo pass)"
 
 check "REF: pv-create-fixes does not claim the subtask template is deployed into projects" \
-  "$(grep -q 'provided by setup-new-project.sh in the project' workflows/pv-create-fixes.md 2>/dev/null && echo 'pv-create-fixes.md points at a template that no script copies into a project' || echo pass)"
+  "$(grep -q 'provided by scripts/setup-new-project.sh in the project' workflows/pv-create-fixes.md 2>/dev/null && echo 'pv-create-fixes.md points at a template that no script copies into a project' || echo pass)"
 
 check "REF: phase-atomic-execution description names description.md, not a T-XX plan.md" \
   "$(sed -n '1,5p' workflows/phase-atomic-execution.md | grep -q 'using its plan.md' && echo 'phase-atomic-execution.md frontmatter still names a T-XX plan.md — that file does not exist in this structure' || echo pass)"
@@ -827,7 +830,7 @@ check "QUICK: phase-execution quick branch records ## TDD (quick)" \
 
 # ── Group 25: rule deployment completeness ───────────────────────────
 # Checking two named rules passed while quick-flow and all five phase-* rules were absent
-# from setup-new-project.sh: a workflow saying "follow phase-atomic-execution rules" had
+# from scripts/setup-new-project.sh: a workflow saying "follow phase-atomic-execution rules" had
 # nothing to follow in a freshly set-up project.
 for rule in rules/*.md; do
   name=$(basename "$rule")
@@ -838,24 +841,24 @@ for rule in rules/*.md; do
   check "DEPLOY: the rule skill path rule-$base cannot collide with a workflow skill" \
     "$([ ! -f "workflows/rule-$base.md" ] && echo pass || echo "workflows/rule-$base.md exists, so the rule skill rule-$base and that workflow skill would deploy to the same path")"
   [ "$name" = "global-claude.md" ] && continue   # deployed as ~/.claude/CLAUDE.md, not as a project rule
-  check "DEPLOY: setup-new-project.sh copies $name" \
-    "$(grep -q "$name" setup-new-project.sh 2>/dev/null && echo pass || echo "setup-new-project.sh does not copy rules/$name into .windsurf/rules/ and .devin/rules/")"
-  check "DEPLOY: sync.sh refreshes $name in existing projects" \
-    "$(grep -q "$name" sync.sh 2>/dev/null && echo pass || echo "sync.sh per-project loop does not refresh rules/$name")"
+  check "DEPLOY: scripts/setup-new-project.sh copies $name" \
+    "$(grep -q "$name" scripts/setup-new-project.sh 2>/dev/null && echo pass || echo "scripts/setup-new-project.sh does not copy rules/$name into .windsurf/rules/ and .devin/rules/")"
+  check "DEPLOY: scripts/sync.sh refreshes $name in existing projects" \
+    "$(grep -q "$name" scripts/sync.sh 2>/dev/null && echo pass || echo "scripts/sync.sh per-project loop does not refresh rules/$name")"
 done
 
 # Both skill roots must receive *every* rule, not a hand-maintained subset: the deployment loop
 # has to iterate "$RULES"/*.md. Before this, "load the `tdd` rule" pointed at a file that existed
 # in neither Claude Code nor Codex.
-check "DEPLOY: sync.sh deploys every rule as a Claude Code rule-* skill" \
-  "$(awk '/^# ── 3c\./,/^# ── 4\./' sync.sh 2>/dev/null | grep -q 'for file in "$RULES"/\*\.md' && awk '/^# ── 3c\./,/^# ── 4\./' sync.sh 2>/dev/null | grep -q 'cp "$file" ~/.claude/skills/$skill_name/SKILL.md' && echo pass || echo 'sync.sh has no step that copies every rules/*.md to ~/.claude/skills/rule-<name>/SKILL.md — every "load the <rule> rule" instruction is unreachable in Claude Code')"
+check "DEPLOY: scripts/sync.sh deploys every rule as a Claude Code rule-* skill" \
+  "$(awk '/^# ── 3c\./,/^# ── 4\./' scripts/sync.sh 2>/dev/null | grep -q 'for file in "$RULES"/\*\.md' && awk '/^# ── 3c\./,/^# ── 4\./' scripts/sync.sh 2>/dev/null | grep -q 'cp "$file" ~/.claude/skills/$skill_name/SKILL.md' && echo pass || echo 'scripts/sync.sh has no step that copies every rules/*.md to ~/.claude/skills/rule-<name>/SKILL.md — every "load the <rule> rule" instruction is unreachable in Claude Code')"
 
-check "DEPLOY: sync.sh deploys every rule as a Codex rule-* skill" \
-  "$(awk '/^# ── 4d\./,/^# ── 5\./' sync.sh 2>/dev/null | grep -q 'for file in "$RULES"/\*\.md' && awk '/^# ── 4d\./,/^# ── 5\./' sync.sh 2>/dev/null | grep -q 'cp "$file" ~/.codex/skills/$skill_name/SKILL.md' && echo pass || echo 'sync.sh has no step that copies every rules/*.md to ~/.codex/skills/rule-<name>/SKILL.md — every "load the <rule> rule" instruction is unreachable in Codex')"
+check "DEPLOY: scripts/sync.sh deploys every rule as a Codex rule-* skill" \
+  "$(awk '/^# ── 4d\./,/^# ── 5\./' scripts/sync.sh 2>/dev/null | grep -q 'for file in "$RULES"/\*\.md' && awk '/^# ── 4d\./,/^# ── 5\./' scripts/sync.sh 2>/dev/null | grep -q 'cp "$file" ~/.codex/skills/$skill_name/SKILL.md' && echo pass || echo 'scripts/sync.sh has no step that copies every rules/*.md to ~/.codex/skills/rule-<name>/SKILL.md — every "load the <rule> rule" instruction is unreachable in Codex')"
 
 for root in claude codex; do
   check "DEPLOY: the $root rule deployment uses the rule- prefix" \
-    "$(grep -q "skill_name=\"rule-\${name}\"" sync.sh 2>/dev/null && grep -q "mkdir -p ~/.$root/skills/\$skill_name" sync.sh 2>/dev/null && echo pass || echo "sync.sh deploys rules into ~/.$root/skills/ without the rule- prefix, which overwrites the five identically-named workflow skills")"
+    "$(grep -q "skill_name=\"rule-\${name}\"" scripts/sync.sh 2>/dev/null && grep -q "mkdir -p ~/.$root/skills/\$skill_name" scripts/sync.sh 2>/dev/null && echo pass || echo "scripts/sync.sh deploys rules into ~/.$root/skills/ without the rule- prefix, which overwrites the five identically-named workflow skills")"
 done
 
 check "DEPLOY: workflow-globals tells the reader how to resolve a rule reference per agent" \
@@ -868,7 +871,7 @@ check "DEPLOY: USAGE deployment matrix shows the rule skills" \
   "$(grep -q 'skills/rule-<name>/SKILL.md' docs/USAGE.md 2>/dev/null && echo pass || echo 'docs/USAGE.md section 2 deployment matrix still says rules reach Claude Code only as global-claude and Codex not at all')"
 
 check "DEPLOY: setup-all-repos captures a failing setup run (set -e safe)" \
-  "$(grep -q 'if ! (cd "$dir" && bash "$WORKFLOWS_SRC/setup-new-project.sh")' setup-all-repos.sh 2>/dev/null && echo pass || echo 'setup-all-repos.sh runs setup-new-project.sh bare under set -e — the error branch below it can never execute')"
+  "$(grep -q 'if ! (cd "$dir" && bash "$WORKFLOWS_SRC/scripts/setup-new-project.sh")' scripts/setup-all-repos.sh 2>/dev/null && echo pass || echo 'scripts/setup-all-repos.sh runs scripts/setup-new-project.sh bare under set -e — the error branch below it can never execute')"
 
 # ── Group 26: no pipeline identifier in a commit-shaped example ───────
 # The canonical commits: field showed "type(T-XX): summary", which is exactly the leak
@@ -975,7 +978,7 @@ check "ADR: pv-finalize appends a row in the canonical column order" \
 
 # The superseded schema may still be quoted in the specs/ documents that describe the defect;
 # it must not survive anywhere that is executed or deployed.
-ADR_OLD_HITS="$(grep -rlF 'ADR | Task | Decision | Status | Date' workflows/ rules/ templates/ principles/ docs/USAGE.md sync.sh setup-new-project.sh setup-all-repos.sh setup-umbrella.sh link-skills.sh 2>/dev/null || true)"
+ADR_OLD_HITS="$(grep -rlF 'ADR | Task | Decision | Status | Date' workflows/ rules/ templates/ principles/ docs/USAGE.md scripts/sync.sh scripts/setup-new-project.sh scripts/setup-all-repos.sh scripts/setup-umbrella.sh scripts/link-skills.sh 2>/dev/null || true)"
 check "ADR: the superseded index schema appears in no deployed file" \
   "$([ -z "$ADR_OLD_HITS" ] && echo pass || echo "the superseded ADR index schema still lives in: $(printf '%s' "$ADR_OLD_HITS" | tr '\n' ' ')— two schemas cannot both be legal")"
 
@@ -1389,12 +1392,12 @@ check "LOG: rules/run-log.md exists" \
 check "LOG: rules/run-log.md is always_on" \
   "$(grep -q 'trigger: always_on' rules/run-log.md 2>/dev/null && echo pass || echo 'rules/run-log.md missing trigger: always_on')"
 
-check "LOG: log-step.sh exists and is executable" \
-  "$([ -x log-step.sh ] && echo pass || echo 'log-step.sh is missing or not executable — every logging instruction in the pipelines is then unrunnable')"
+check "LOG: scripts/log-step.sh exists and is executable" \
+  "$([ -x scripts/log-step.sh ] && echo pass || echo 'scripts/log-step.sh is missing or not executable — every logging instruction in the pipelines is then unrunnable')"
 
 # The never-blocks rule is the one property that makes logging safe to add everywhere.
-check "LOG: log-step.sh never fails its caller" \
-  "$(grep -qE 'die\(\).*exit 0' log-step.sh 2>/dev/null && echo pass || echo 'log-step.sh die() no longer exits 0 — a logging failure could then abort a pipeline step')"
+check "LOG: scripts/log-step.sh never fails its caller" \
+  "$(grep -qE 'die\(\).*exit 0' scripts/log-step.sh 2>/dev/null && echo pass || echo 'scripts/log-step.sh die() no longer exits 0 — a logging failure could then abort a pipeline step')"
 
 check "LOG: run-log states that logging never blocks a run" \
   "$(grep -qi 'never blocks' rules/run-log.md 2>/dev/null && echo pass || echo 'rules/run-log.md no longer carries the never-blocks rule, which is the precondition for logging from inside every pipeline')"
@@ -1403,13 +1406,13 @@ check "LOG: run-log forbids model-written log lines" \
   "$(grep -qi 'never hand-write' rules/run-log.md 2>/dev/null && echo pass || echo 'rules/run-log.md no longer forbids hand-written log lines — durations would become model guesses and the metrics store worthless')"
 
 check "LOG: run-log names the three helper calls" \
-  "$(for c in run-start step run-end; do grep -q "log-step.sh $c" rules/run-log.md || exit 1; done && echo pass || echo 'rules/run-log.md does not document all three of run-start / step / run-end')"
+  "$(for c in run-start step run-end; do grep -q "scripts/log-step.sh $c" rules/run-log.md || exit 1; done && echo pass || echo 'rules/run-log.md does not document all three of run-start / step / run-end')"
 
 for wf in spec-run phase-pipeline phase-discovery phase-execution phase-validation; do
   check "LOG: $wf declares its run logging" \
     "$(grep -q '## Run Logging' "workflows/$wf.md" 2>/dev/null && echo pass || echo "workflows/$wf.md has no ## Run Logging section, although run-log names it as a producer")"
   check "LOG: $wf opens the run through the helper" \
-    "$(grep -q 'log-step.sh run-start' "workflows/$wf.md" 2>/dev/null && echo pass || echo "workflows/$wf.md never calls log-step.sh run-start — nothing would be logged")"
+    "$(grep -q 'scripts/log-step.sh run-start' "workflows/$wf.md" 2>/dev/null && echo pass || echo "workflows/$wf.md never calls scripts/log-step.sh run-start — nothing would be logged")"
   check "LOG: $wf names its pipeline correctly in run-start" \
     "$(grep -q -- "--pipeline $wf" "workflows/$wf.md" 2>/dev/null && echo pass || echo "workflows/$wf.md passes a --pipeline value that is not '$wf'; /retro groups by that field")"
 done
@@ -1420,7 +1423,7 @@ check "LOG: phase-pipeline keeps a single run across its child phases" \
 
 # The Orchestrator owns shared files; a sub-agent calling the helper breaks that discipline.
 check "LOG: spec-run keeps log calls with the Orchestrator" \
-  "$(tr '\n' ' ' < workflows/spec-run.md 2>/dev/null | tr -s ' ' | grep -qi 'sub-agent never calls' && echo pass || echo 'spec-run.md does not reserve log-step.sh for the Orchestrator, contradicting the shared-file discipline in orchestration')"
+  "$(tr '\n' ' ' < workflows/spec-run.md 2>/dev/null | tr -s ' ' | grep -qi 'sub-agent never calls' && echo pass || echo 'spec-run.md does not reserve scripts/log-step.sh for the Orchestrator, contradicting the shared-file discipline in orchestration')"
 
 check "LOG: retro is the only declared reader" \
   "$(grep -qi 'sole reader is .\?/retro' rules/run-log.md 2>/dev/null && echo pass || echo 'rules/run-log.md no longer states that /retro is the only reader — a pipeline reading its own telemetry mid-run would make behaviour depend on history')"
@@ -1429,16 +1432,16 @@ check "LOG: retro workflow exists" \
   "$([ -f workflows/retro.md ] && echo pass || echo 'workflows/retro.md not found, although run-log names it as the consumer')"
 
 # ── Group 42: task-artifact validator is reachable from the phases ────
-check "TASKVAL: validate-task.sh exists and is executable" \
-  "$([ -x validate-task.sh ] && echo pass || echo 'validate-task.sh is missing or not executable')"
+check "TASKVAL: scripts/validate-task.sh exists and is executable" \
+  "$([ -x scripts/validate-task.sh ] && echo pass || echo 'scripts/validate-task.sh is missing or not executable')"
 
 for wf in pd-finalize pe-finalize; do
   check "TASKVAL: $wf runs the artifact conformance check" \
-    "$(grep -q 'validate-task.sh' "workflows/$wf.md" 2>/dev/null && echo pass || echo "workflows/$wf.md does not run validate-task.sh, so nothing checks that the artifacts the phase just wrote conform")"
+    "$(grep -q 'scripts/validate-task.sh' "workflows/$wf.md" 2>/dev/null && echo pass || echo "workflows/$wf.md does not run scripts/validate-task.sh, so nothing checks that the artifacts the phase just wrote conform")"
 done
 
 check "TASKVAL: the validator accepts the full atomic-tests vocabulary" \
-  "$(for v in not-started red pinned green n-a failed; do grep -q "$v" validate-task.sh || exit 1; done && echo pass || echo 'validate-task.sh does not accept every atomic-tests value defined in workflow-globals — a legal status would be reported as a contract failure')"
+  "$(for v in not-started red pinned green n-a failed; do grep -q "$v" scripts/validate-task.sh || exit 1; done && echo pass || echo 'scripts/validate-task.sh does not accept every atomic-tests value defined in workflow-globals — a legal status would be reported as a contract failure')"
 
 # ── Group 43: spec reconciliation has a writer and a caller ───────────
 check "SPECSYNC: spec-sync workflow exists" \
@@ -1533,7 +1536,7 @@ check "BUGFIX: the reproduction becomes the failing test" \
 # ── Script path portability smoke checks ────────────────────────────
 test_shell_paths_public_defaults_pass_syntax() {
   local script
-  for script in sync.sh log-step.sh setup-new-project.sh setup-umbrella.sh setup-all-repos.sh link-skills.sh; do
+  for script in scripts/sync.sh scripts/log-step.sh scripts/setup-new-project.sh scripts/setup-umbrella.sh scripts/setup-all-repos.sh scripts/link-skills.sh scripts/validate-contracts.sh scripts/validate-task.sh; do
     bash -n "$script" || return 1
     if grep -nE '(/|~/|\$HOME/)Documents/projects/' "$script"; then
       echo "$script contains a machine-specific source path"
@@ -1550,13 +1553,13 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
   alternate="$fixture/alternate source"
   mkdir -p "$fixture/home/.claude/skills/example" "$fixture/work"
   for selected in "$source_tree" "$alternate"; do
-    mkdir -p "$selected"/{workflows,rules,principles,templates/.ai,templates/.ai-umbrella}
-    cp sync.sh log-step.sh setup-new-project.sh setup-umbrella.sh setup-all-repos.sh link-skills.sh "$selected/"
+    mkdir -p "$selected"/{workflows,rules,principles,scripts,templates/.ai,templates/.ai-umbrella}
+    cp scripts/sync.sh scripts/log-step.sh scripts/setup-new-project.sh scripts/setup-umbrella.sh scripts/setup-all-repos.sh scripts/link-skills.sh "$selected/scripts/"
     printf '%s\n' "$selected" > "$selected/templates/.ai/source-marker"
     printf '%s\n' "$selected" > "$selected/templates/.ai-umbrella/source-marker"
     printf '%s\n' 'Umbrella fixture' > "$selected/templates/.ai-umbrella/README.md"
     # Fail at the real preflight boundary so sync cannot deploy anything.
-    printf '%s\n' 'printf "source=%s\n" "$(cd "$(dirname "$0")" && pwd)"' 'exit 9' > "$selected/validate-contracts.sh"
+    printf '%s\n' 'printf "source=%s\n" "$(cd "$(dirname "$0")/.." && pwd)"' 'exit 9' > "$selected/scripts/validate-contracts.sh"
   done
 
   for mode in default empty environment flag equals; do
@@ -1570,14 +1573,14 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
       equals) source_env+=(ORCHESTRAIL_HOME="$fixture/missing"); sync_args=("--from=$alternate"); selected="$alternate" ;;
     esac
     status=0
-    output="$(cd "$fixture/work" && env "${source_env[@]}" HOME="$fixture/home" bash "$source_tree/sync.sh" "${sync_args[@]}" 2>&1)" || status=$?
+    output="$(cd "$fixture/work" && env "${source_env[@]}" HOME="$fixture/home" bash "$source_tree/scripts/sync.sh" "${sync_args[@]}" 2>&1)" || status=$?
     if [ "$status" -ne 1 ] || ! printf '%s\n' "$output" | grep -Fxq "source=$selected"; then
-      echo "sync.sh ($mode): expected selected source to reach failing preflight"
+      echo "scripts/sync.sh ($mode): expected selected source to reach failing preflight"
       bad=1
     fi
   done
   if [ -d "$fixture/home/.codeium" ] || [ -d "$fixture/home/.codex" ] || [ -f "$fixture/home/.claude/CLAUDE.md" ]; then
-    echo 'sync.sh crossed the deployment boundary'; bad=1
+    echo 'scripts/sync.sh crossed the deployment boundary'; bad=1
   fi
 
   for mode in default empty override; do
@@ -1587,13 +1590,13 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
       empty) log_env+=(ORCHESTRAIL_LOG_ROOT=) ;;
       override) log_env+=(ORCHESTRAIL_LOG_ROOT="$fixture/custom logs"); selected="$fixture/custom logs" ;;
     esac
-    output="$(cd "$fixture/work" && env "${log_env[@]}" HOME="$fixture/home" bash "$source_tree/log-step.sh" path)"
+    output="$(cd "$fixture/work" && env "${log_env[@]}" HOME="$fixture/home" bash "$source_tree/scripts/log-step.sh" path)"
     if [ "$output" != "$selected" ] || [ -e "$selected" ]; then
-      echo "log-step.sh ($mode): wrong root or read-only path command created a store"; bad=1
+      echo "scripts/log-step.sh ($mode): wrong root or read-only path command created a store"; bad=1
     fi
   done
 
-  for script in setup-new-project.sh setup-umbrella.sh setup-all-repos.sh; do
+  for script in scripts/setup-new-project.sh scripts/setup-umbrella.sh scripts/setup-all-repos.sh; do
     for mode in default empty override relative; do
       selected="$source_tree"
       local -a setup_env=(-u WORKFLOWS_SOURCE -u ORCHESTRAIL_HOME)
@@ -1604,7 +1607,7 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
       esac
       target="$fixture/$script $mode"
       mkdir -p "$target"
-      if [ "$script" = setup-all-repos.sh ]; then
+      if [ "$script" = scripts/setup-all-repos.sh ]; then
         mkdir -p "$target/service with spaces/.git"
       fi
       status=0
@@ -1612,10 +1615,10 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
       if [ "$status" -ne 0 ] || [ "$(cat "$target/.ai/source-marker" 2>/dev/null)" != "$selected" ]; then
         echo "$script ($mode): did not initialize from selected source"; bad=1
       fi
-      if [ "$script" = setup-all-repos.sh ] && [ "$(cat "$target/service with spaces/.ai/source-marker" 2>/dev/null)" != "$selected" ]; then
+      if [ "$script" = scripts/setup-all-repos.sh ] && [ "$(cat "$target/service with spaces/.ai/source-marker" 2>/dev/null)" != "$selected" ]; then
         echo "$script ($mode): child setup did not use selected source"; bad=1
       fi
-      if [ "$script" = setup-umbrella.sh ]; then
+      if [ "$script" = scripts/setup-umbrella.sh ]; then
         # Execute the actual suggested command from a child, retaining the caller's overrides.
         local child_command
         child_command="$(sed -n 's/^  cd <service-dir> && //p' "$fixture/setup-output")"
@@ -1630,7 +1633,7 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
   done
 
   # An explicitly selected missing tree must fail instead of seeding from another tree.
-  for script in sync.sh setup-new-project.sh setup-umbrella.sh setup-all-repos.sh; do
+  for script in scripts/sync.sh scripts/setup-new-project.sh scripts/setup-umbrella.sh scripts/setup-all-repos.sh; do
     target="$fixture/missing source $script"
     mkdir -p "$target"
     status=0
@@ -1638,22 +1641,22 @@ test_shell_paths_relocated_checkout_preserves_overrides() (
     if [ "$status" -eq 0 ] || [ -e "$target/.ai/source-marker" ]; then
       echo "$script: missing source override did not fail without initialization"; bad=1
     fi
-    if [ "$script" = sync.sh ]; then
+    if [ "$script" = scripts/sync.sh ]; then
       if grep -Fq "source=$source_tree" "$fixture/missing-output"; then
-        echo 'sync.sh: missing source override reached fallback preflight'; bad=1
+        echo 'scripts/sync.sh: missing source override reached fallback preflight'; bad=1
       fi
       if ! grep -Fq "$fixture/missing tree" "$fixture/missing-output" ||
         ! grep -Eiq 'not found|no such|missing|not a .*tree|cannot|invalid' "$fixture/missing-output"; then
-        echo 'sync.sh: missing source override lacks a source-resolution diagnostic'; bad=1
+        echo 'scripts/sync.sh: missing source override lacks a source-resolution diagnostic'; bad=1
       fi
     fi
   done
 
   target="$fixture/skill project"
   mkdir -p "$target/.claude/skills"
-  (cd "$target" && env HOME="$fixture/home" bash "$source_tree/link-skills.sh") > "$fixture/link-output" 2>&1 || bad=1
+  (cd "$target" && env HOME="$fixture/home" bash "$source_tree/scripts/link-skills.sh") > "$fixture/link-output" 2>&1 || bad=1
   if [ ! -L "$target/.claude/skills/example" ] || [ ! -d "$target/.claude/skills/example" ]; then
-    echo 'link-skills.sh: relocated invocation did not link the configured home skills'; bad=1
+    echo 'scripts/link-skills.sh: relocated invocation did not link the configured home skills'; bad=1
   fi
   [ "$bad" -eq 0 ]
 )
@@ -1777,13 +1780,13 @@ test_public_hygiene_fixture_scans_fail_closed() (
   fixture="$(mktemp -d "${TMPDIR:-/tmp}/public-hygiene.XXXXXX")" || return 1
   trap 'rm -rf "$fixture"' EXIT
   unset ORCHESTRAIL_HYGIENE_DENYLIST
-  validator="$fixture/runner/validate-contracts.sh"
+  validator="$fixture/runner/scripts/validate-contracts.sh"
   mkdir -p "$fixture/runner"
   git archive HEAD | tar -x -C "$fixture/runner" || return 1
   repo="$fixture/repository with spaces"
   real_git="$(command -v git)" || return 1
   # Omit this smoke group in the copied runner to prevent recursive fixture tests.
-  sed '/^# ── Public hygiene smoke checks /,/^# ── End public hygiene smoke checks /d' validate-contracts.sh > "$validator"
+  sed '/^# ── Public hygiene smoke checks /,/^# ── End public hygiene smoke checks /d' scripts/validate-contracts.sh > "$validator"
   mkdir -p "$repo/.ai/specs/completed" "$repo/logs" "$repo/nested" "$fixture/bin"
   "$real_git" init -q "$repo" || return 1
   printf '%s\n' 'different-marker' > "$repo/scrub-denylist.txt"
@@ -1925,7 +1928,8 @@ test_contract_version_run_start_stamps_current_and_reads_legacy() (
   local fixture run file value
   fixture="$(mktemp -d "${TMPDIR:-/tmp}/contract-log.XXXXXX")" || return 1
   trap 'rm -rf "$fixture"' EXIT
-  cp log-step.sh "$fixture/log-step.sh" || return 1
+  mkdir -p "$fixture/scripts" || return 1
+  cp scripts/log-step.sh "$fixture/scripts/log-step.sh" || return 1
   # Test the helper against its own checkout, independently of the caller's cwd.
   for value in 0.9.0 1.2.3 absent empty malformed; do
     rm -f "$fixture/VERSION"
@@ -1935,8 +1939,8 @@ test_contract_version_run_start_stamps_current_and_reads_legacy() (
       malformed) printf 'invalid\nextra\n' > "$fixture/VERSION" ;;
       *) printf '%s\n' "$value" > "$fixture/VERSION" ;;
     esac
-    run="$(AGENTIC_LOG_ROOT="$fixture/store-$value" bash "$fixture/log-step.sh" run-start --pipeline phase-discovery)" || return 1
-    file="$(AGENTIC_LOG_ROOT="$fixture/store-$value" bash "$fixture/log-step.sh" path --run "$run")" || return 1
+    run="$(AGENTIC_LOG_ROOT="$fixture/store-$value" bash "$fixture/scripts/log-step.sh" run-start --pipeline phase-discovery)" || return 1
+    file="$(AGENTIC_LOG_ROOT="$fixture/store-$value" bash "$fixture/scripts/log-step.sh" path --run "$run")" || return 1
     python3 - "$file" "$value" <<'PYVERSION'
 import json
 import sys
@@ -1954,7 +1958,7 @@ legacy.pop('contract_version', None)
 assert json.loads(json.dumps(legacy))['event'] == 'run-start'
 PYVERSION
     [ "$?" -eq 0 ] || return 1
-    AGENTIC_LOG_ROOT="$fixture/store-$value" bash "$fixture/log-step.sh" run-end --run "$run" --outcome completed || return 1
+    AGENTIC_LOG_ROOT="$fixture/store-$value" bash "$fixture/scripts/log-step.sh" run-end --run "$run" --outcome completed || return 1
   done
   grep -qE '^.*contract_version.*' rules/run-log.md &&
     grep -qiE '(legacy|older|optional|missing|absent).*contract_version|contract_version.*(legacy|older|optional|missing|absent)' rules/run-log.md
@@ -1969,7 +1973,7 @@ test_contract_version_rule_history_warns_until_version_changes() (
   # Run the real validator in a disposable repository. Remove this smoke group
   # from its copy to avoid recursively creating more fixture repositories.
   tar --exclude=.git --exclude=logs -cf - . | tar -xf - -C "$fixture" || return 1
-  python3 - "$fixture/validate-contracts.sh" <<'PYVERSION' || return 1
+  python3 - "$fixture/scripts/validate-contracts.sh" <<'PYVERSION' || return 1
 from pathlib import Path
 import sys
 path = Path(sys.argv[1])
@@ -1990,7 +1994,7 @@ PYVERSION
   printf '0.9.0\n' > VERSION
   git add . || return 1
   GIT_AUTHOR_DATE=2026-01-01T00:00:00Z GIT_COMMITTER_DATE=2026-01-01T00:00:00Z git commit -qm 'Initialize contract fixture' || return 1
-  if ! output="$(bash validate-contracts.sh 2>&1)"; then
+  if ! output="$(bash scripts/validate-contracts.sh 2>&1)"; then
     printf '%s\n' "$output"
     echo 'Validator failed at the version commit'; return 1
   fi
@@ -2000,7 +2004,7 @@ PYVERSION
   printf '\nFixture rule change.\n' >> rules/run-log.md
   git add rules/run-log.md || return 1
   GIT_AUTHOR_DATE=2026-01-02T00:00:00Z GIT_COMMITTER_DATE=2026-01-02T00:00:00Z git commit -qm 'Change a rule contract' || return 1
-  if ! output="$(bash validate-contracts.sh 2>&1)"; then
+  if ! output="$(bash scripts/validate-contracts.sh 2>&1)"; then
     printf '%s\n' "$output"
     echo 'Validator failed while reporting a stale rule version'; return 1
   fi
@@ -2008,7 +2012,7 @@ PYVERSION
     echo 'Missing warning for a rule commit newer than unchanged VERSION'; return 1
   fi
   printf '0.9.1\n' > VERSION
-  if ! output="$(bash validate-contracts.sh 2>&1)"; then
+  if ! output="$(bash scripts/validate-contracts.sh 2>&1)"; then
     printf '%s\n' "$output"
     echo 'Validator failed after updating VERSION'; return 1
   fi
@@ -2285,7 +2289,7 @@ echo "  Skipped: $SKIP"
 echo ""
 
 if [ $FAIL -gt 0 ]; then
-  echo "Fix failures before running sync.sh"
+  echo "Fix failures before running scripts/sync.sh"
   exit 1
 else
   echo "All required contracts valid."
