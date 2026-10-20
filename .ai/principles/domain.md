@@ -39,12 +39,12 @@ appears in a rule.
 | **Stack** | Subtask branches chained in dependency order; branch N is cut from the tip of N-1 after N-1 is `reviewed`. |
 | **`base_commit`** | The sha at branch creation, written once, never recomputed; the only input that makes `/restack` merge-strategy-agnostic. |
 | **Fix-task** | A `T-XX-fix-<slug>` subtask created by `/pv-create-fixes` from an approved review issue. |
-| **Run log** | The central JSONL store written by `log-step.sh`; read only by `/retro`. |
+| **Run log** | The central JSONL store written by `scripts/log-step.sh`; read only by `/retro`. |
 | **Retro** | `/retro` — aggregates the run log and recommends edits to this repository; never applies them. |
 | **Context Bootstrap** | The ordered `.ai/` load list a phase performs before touching any file; defined per phase in `rules/phase-*.md`. |
 | **Context pack** | `.ai/context-pack.md` — a manifest-verified cache of bootstrap sources 1–7. |
 | **Umbrella** | The root `.ai/` of a multi-repo project; loaded before the service's own `.ai/`. |
-| **Sync** | `sync.sh` — validate then deploy this repository to all harness locations. |
+| **Sync** | `scripts/sync.sh` — validate then deploy this repository to all harness locations. |
 
 ## Invariants
 
@@ -63,4 +63,4 @@ appears in a rule.
 11. A rule or vocabulary is defined in exactly one place; every other mention cites it.
 12. A `none` test level and a `quick` tier are always justified in writing; an
     unjustified one is a validation finding.
-13. `validate-contracts.sh` must pass before any deploy.
+13. `scripts/validate-contracts.sh` must pass before any deploy.

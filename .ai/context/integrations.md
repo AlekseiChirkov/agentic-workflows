@@ -15,7 +15,7 @@ searches the web.
   alive and addressing it by message, and pausing the Implementer mid-run.
 - Assumptions: skills are model-invoked (not always-on) — hence `global-claude.md`
   duplicates the essentials; a project-local `.claude/skills/` hides global skills
-  (`link-skills.sh`). Hooks and permission deny-lists are available but **not used yet**
+  (`scripts/link-skills.sh`). Hooks and permission deny-lists are available but **not used yet**
   (`specs/03`, `specs/06`).
 - Docs: https://docs.claude.com/en/docs/claude-code
 
@@ -42,7 +42,7 @@ searches the web.
   `git-flow → ## Pull requests` and carry no attribution.
 
 ### `jq` — JSON processing
-- Used by: `log-step.sh` (digest generation; degrades to a stub without it), `/retro`
+- Used by: `scripts/log-step.sh` (digest generation; degrades to a stub without it), `/retro`
   (all aggregation).
 
 ### Web search — model catalog

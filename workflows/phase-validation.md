@@ -21,10 +21,10 @@ store, the field vocabulary, and the rule that logging never blocks a run.
 
 At Step 0, open the run:
 
-Open the run with `log-step.sh run-start` through the configured helper:
+Open the run with `scripts/log-step.sh run-start` through the configured helper:
 
 ```bash
-LOG_HELPER="${ORCHESTRAIL_HOME:+$ORCHESTRAIL_HOME/log-step.sh}"
+LOG_HELPER="${ORCHESTRAIL_HOME:+$ORCHESTRAIL_HOME/scripts/log-step.sh}"
 RUN_ID=""
 if [ -x "$LOG_HELPER" ]; then
   RUN_ID=$("$LOG_HELPER" run-start --pipeline phase-validation \

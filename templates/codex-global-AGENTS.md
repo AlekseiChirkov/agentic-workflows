@@ -1,5 +1,5 @@
 # AGENTS.md — Global Codex Instructions
-# Managed by Orchestrail/sync.sh — do not edit here; edit templates/codex-global-AGENTS.md.
+# Managed by Orchestrail/scripts/sync.sh — do not edit here; edit templates/codex-global-AGENTS.md.
 # Codex merges this global file with each project's own AGENTS.md.
 
 ## Language (always-on)

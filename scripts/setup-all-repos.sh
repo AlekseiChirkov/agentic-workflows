@@ -1,19 +1,19 @@
 #!/bin/bash
-# setup-all-repos.sh
+# scripts/setup-all-repos.sh
 # Initializes .ai/ context in all service repositories under an umbrella project.
 # Safe to re-run — never overwrites existing files. Existing CLAUDE.md files are
 # checked for two-level protocol compliance but never modified.
 #
-# Usage: bash /path/to/orchestrail/setup-all-repos.sh [--include-non-git]
+# Usage: bash /path/to/orchestrail/scripts/setup-all-repos.sh [--include-non-git]
 #
 # Run from the umbrella root (the directory that contains all service repos).
-# The umbrella's own .ai/ must already exist (run setup-umbrella.sh first if not).
+# The umbrella's own .ai/ must already exist (run scripts/setup-umbrella.sh first if not).
 set -e
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-WORKFLOWS_SRC="${ORCHESTRAIL_HOME:-$SCRIPT_DIR}"
+WORKFLOWS_SRC="${ORCHESTRAIL_HOME:-$SCRIPT_DIR/..}"
 WORKFLOWS_SRC="$(cd -- "$WORKFLOWS_SRC" 2>/dev/null && pwd)" || {
-  echo "ERROR: source directory not found: ${ORCHESTRAIL_HOME:-$SCRIPT_DIR}" >&2
+  echo "ERROR: source directory not found: ${ORCHESTRAIL_HOME:-$SCRIPT_DIR/..}" >&2
   exit 1
 }
 export ORCHESTRAIL_HOME="$WORKFLOWS_SRC"
@@ -40,8 +40,8 @@ if [ "$UMBRELLA_DIR" = "$HOME" ]; then
   exit 1
 fi
 
-if [ ! -f "$WORKFLOWS_SRC/setup-new-project.sh" ]; then
-  echo "ERROR: $WORKFLOWS_SRC/setup-new-project.sh not found."
+if [ ! -f "$WORKFLOWS_SRC/scripts/setup-new-project.sh" ]; then
+  echo "ERROR: $WORKFLOWS_SRC/scripts/setup-new-project.sh not found."
   exit 1
 fi
 
@@ -51,8 +51,8 @@ echo ""
 # ── STEP 1: Umbrella .ai/ check ────────────────────────────────────────
 echo "[1/3] Checking umbrella .ai/"
 if [ ! -d ".ai" ]; then
-  warn "Umbrella .ai/ not found — running setup-umbrella.sh first"
-  bash "$WORKFLOWS_SRC/setup-umbrella.sh"
+  warn "Umbrella .ai/ not found — running scripts/setup-umbrella.sh first"
+  bash "$WORKFLOWS_SRC/scripts/setup-umbrella.sh"
 elif [ ! -f ".ai/README.md" ]; then
   warn ".ai/ exists but README.md is missing — adding it"
   cp "$WORKFLOWS_SRC/templates/.ai-umbrella/README.md" ".ai/README.md"
@@ -93,7 +93,7 @@ echo ""
 echo "  Found ${#GIT_REPOS[@]} git repos, ${#NON_GIT_DIRS[@]} non-git dirs"
 echo ""
 
-# ── STEP 3: Run setup-new-project.sh in each ─────────────────────────
+# ── STEP 3: Run scripts/setup-new-project.sh in each ─────────────────────────
 echo "[3/3] Initializing service directories"
 echo ""
 
@@ -109,8 +109,8 @@ run_setup() {
 
   # `set -e` is in force: a bare failing command would abort the whole script before the
   # error branch below could run, so the failure must be captured by the `if` itself.
-  if ! (cd "$dir" && bash "$WORKFLOWS_SRC/setup-new-project.sh"); then
-    fail "$dir: setup-new-project.sh exited non-zero"
+  if ! (cd "$dir" && bash "$WORKFLOWS_SRC/scripts/setup-new-project.sh"); then
+    fail "$dir: scripts/setup-new-project.sh exited non-zero"
     REPORT_ERR+=("$dir")
     return
   fi

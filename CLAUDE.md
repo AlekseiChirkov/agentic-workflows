@@ -25,8 +25,8 @@ After every completed task, update `.ai/memory/state.md` and append to
 
 ## Commands
 
-See `.ai/context/runbook.md → ## Commands`. In short: `bash validate-contracts.sh` is the
-test suite; `bash sync.sh` deploys; never edit deployed copies under `~/.claude`,
+See `.ai/context/runbook.md → ## Commands`. In short: `bash scripts/validate-contracts.sh` is the
+test suite; `bash scripts/sync.sh` deploys; never edit deployed copies under `~/.claude`,
 `~/.codex`, `~/.codeium`.
 
 ## Document placement
@@ -39,6 +39,6 @@ in the repository root. Actionable changes become specs in `.ai/specs/`. Full ru
 ## Standards
 
 - `.ai/principles/coding.md` — how workflow, rule, principle, and script files are written.
-- A contract change starts with a failing check in `validate-contracts.sh` (TDD at the
+- A contract change starts with a failing check in `scripts/validate-contracts.sh` (TDD at the
   `smoke` level), then the canonical definition, then every reader, then the ADR.
 - English in every file. No pipeline identifiers or tool attribution in commits.

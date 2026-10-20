@@ -1,10 +1,10 @@
 #!/bin/bash
 set -e
 
-# Source tree to deploy from. Defaults to this script's directory; ORCHESTRAIL_HOME
-# overrides the default, and --from <dir> takes precedence over the environment.
+# Source tree to deploy from. Defaults to the repository root (the parent of scripts/).
+# ORCHESTRAIL_HOME overrides the default; --from <dir> takes precedence over the environment.
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="${ORCHESTRAIL_HOME:-$SCRIPT_DIR}"
+ROOT="${ORCHESTRAIL_HOME:-$SCRIPT_DIR/..}"
 ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -15,8 +15,8 @@ while [ $# -gt 0 ]; do
     --from=*)
       ROOT="${1#--from=}"; shift ;;
     -h|--help)
-      echo "Usage: sync.sh [--from <source-tree>]"
-      echo "  --from <dir>  deploy from <dir> instead of the script directory (or ORCHESTRAIL_HOME)"
+      echo "Usage: scripts/sync.sh [--from <source-tree>]"
+      echo "  --from <dir>  deploy from <dir> instead of the repository root (or ORCHESTRAIL_HOME)"
       exit 0 ;;
     *) ARGS+=("$1"); shift ;;
   esac
@@ -29,7 +29,7 @@ ROOT="$(cd -- "$SELECTED_ROOT" 2>/dev/null && pwd)" || {
   exit 1
 }
 
-for d in workflows rules principles templates; do
+for d in workflows rules principles templates scripts; do
   [ -d "$ROOT/$d" ] || { echo "ERROR: $ROOT is not an Orchestrail checkout (missing $d/)"; exit 1; }
 done
 
@@ -39,7 +39,7 @@ PRINCIPLES="$ROOT/principles"
 
 # ── 0. Pre-flight contract validation ────────────────────────────────
 echo "[0/5] Contract validation"
-bash "$ROOT/validate-contracts.sh" || {
+bash "$ROOT/scripts/validate-contracts.sh" || {
   echo "ERROR: Contract validation failed. Fix errors before syncing."
   exit 1
 }
@@ -154,18 +154,18 @@ done
 echo "  $(ls "$RULES"/*.md | wc -l | tr -d ' ') rules → ~/.codex/skills/rule-*/"
 
 # ── 5. Codex: principles summary in Orchestrail ──────────────────────
-# Codex reads AGENTS.md per project — setup-new-project.sh handles that.
+# Codex reads AGENTS.md per project — scripts/setup-new-project.sh handles that.
 # Here we just confirm the template is current.
 echo "[5/5] Codex"
 if [ -f "$ROOT/templates/AGENTS.md" ]; then
-  echo "  AGENTS.md template present → setup-new-project.sh will deploy per project"
+  echo "  AGENTS.md template present → scripts/setup-new-project.sh will deploy per project"
 else
   echo "  WARNING: templates/AGENTS.md not found — Codex template missing"
 fi
 
 # ── .ai/ knowledge-base template ─────────────────────────────────────
 if [ -d "$ROOT/templates/.ai" ]; then
-  echo "  .ai/ template present → setup-new-project.sh will deploy per project"
+  echo "  .ai/ template present → scripts/setup-new-project.sh will deploy per project"
 else
   echo "  WARNING: templates/.ai not found — knowledge-base template missing"
 fi

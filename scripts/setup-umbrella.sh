@@ -1,15 +1,15 @@
 #!/bin/bash
-# setup-umbrella.sh
+# scripts/setup-umbrella.sh
 # Initializes the top-level .ai/ knowledge base for a multi-repo project.
 # Run from the umbrella root — the parent directory that contains all service repos.
 # Safe to re-run — never overwrites existing content.
-# Usage: bash /path/to/orchestrail/setup-umbrella.sh
+# Usage: bash /path/to/orchestrail/scripts/setup-umbrella.sh
 set -e
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-WORKFLOWS_SRC="${ORCHESTRAIL_HOME:-$SCRIPT_DIR}"
+WORKFLOWS_SRC="${ORCHESTRAIL_HOME:-$SCRIPT_DIR/..}"
 WORKFLOWS_SRC="$(cd -- "$WORKFLOWS_SRC" 2>/dev/null && pwd)" || {
-  echo "ERROR: source directory not found: ${ORCHESTRAIL_HOME:-$SCRIPT_DIR}" >&2
+  echo "ERROR: source directory not found: ${ORCHESTRAIL_HOME:-$SCRIPT_DIR/..}" >&2
   exit 1
 }
 PROJECT_DIR="$(pwd)"
@@ -109,5 +109,5 @@ echo "  3. Edit .ai/principles/domain.md     — ubiquitous language and domain 
 echo "  4. Edit .ai/context/environment.md   — GCP project IDs, environment URLs, etc."
 echo ""
 echo "Then for each service repo:"
-printf '  cd <service-dir> && ORCHESTRAIL_HOME=%q bash %q\n' "$WORKFLOWS_SRC" "$WORKFLOWS_SRC/setup-new-project.sh"
+printf '  cd <service-dir> && ORCHESTRAIL_HOME=%q bash %q\n' "$WORKFLOWS_SRC" "$WORKFLOWS_SRC/scripts/setup-new-project.sh"
 echo "  (auto-detects ../.ai/ and configures service with two-level context loading)"

@@ -1,7 +1,7 @@
 # docs/ — documents about Orchestrail
 
 Everything here is *about* the system; the system itself is `workflows/`, `rules/`,
-`principles/`, `templates/`, and the scripts. Placement rule:
+`principles/`, `templates/`, and `scripts/`. Placement rule:
 `.ai/principles/coding.md → Document placement`.
 
 ## Manuals

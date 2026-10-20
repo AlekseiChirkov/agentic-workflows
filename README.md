@@ -12,10 +12,10 @@ Versions below 1.0.0 are unstable and may change without compatibility guarantee
 - Reusable project instructions, setup scripts, and persistent project knowledge.
 - Workflow and rule deployment across supported coding assistants.
 
-`sync.sh` writes skills under `~/.claude` and `~/.codex`, and overwrites
+`scripts/sync.sh` writes skills under `~/.claude` and `~/.codex`, and overwrites
 `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` on each run.
 
-Orchestrail provides instructions and scripts rather than a runtime; execution depends
+All shell helpers live in `scripts/`. Orchestrail provides instructions and scripts rather than a runtime; execution depends
 on the coding assistant and project configuration.
 
 ## Guides

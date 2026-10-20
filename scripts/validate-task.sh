@@ -1,12 +1,12 @@
 #!/bin/bash
-# validate-task.sh
+# scripts/validate-task.sh
 # Validates the artifacts of ONE task directory against the canonical contracts.
 #
-# validate-contracts.sh checks that the workflow definitions agree with each other.
+# scripts/validate-contracts.sh checks that the workflow definitions agree with each other.
 # This script checks that a task the workflows produced actually conforms — the same
 # contracts, applied to the output rather than to the instructions.
 #
-# Usage: validate-task.sh <task-directory> [--phase discovery|execution|validation]
+# Usage: scripts/validate-task.sh <task-directory> [--phase discovery|execution|validation]
 #        --phase narrows the checks to those meaningful at that point; without it,
 #        every check runs and phase-inappropriate ones report as [SKIP].
 #
@@ -25,7 +25,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$TASK" ]; then
-  echo "Usage: validate-task.sh <task-directory> [--phase discovery|execution|validation]" >&2
+  echo "Usage: scripts/validate-task.sh <task-directory> [--phase discovery|execution|validation]" >&2
   exit 2
 fi
 TASK="${TASK%/}"
