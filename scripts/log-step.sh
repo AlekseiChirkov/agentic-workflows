@@ -357,15 +357,40 @@ meta_get() { # meta_get <run_id> <key>
   sed -n "s/^$2=//p" "$f" | head -1
 }
 
+meta_read_flow() { # meta_read_flow <run_id> <output-variable>
+  local stored_flow encoding
+  stored_flow="$(meta_get "$1" flow)" || return 1
+  encoding="$(meta_get "$1" flow_encoding)"
+  if [ "$encoding" = percent ]; then
+    stored_flow="${stored_flow//%0A/$'\n'}"
+    stored_flow="${stored_flow//%25/%}"
+  fi
+  # Assign directly so trailing newlines survive decoding.
+  printf -v "$2" '%s' "$stored_flow"
+}
+
 meta_set() { # meta_set <run_id> <key> <value>
   valid_run_id "$1" || return 1
   local f="$ACTIVE_DIR/$1"
   touch "$f" 2>/dev/null || return 1
-  local tmp="$f.tmp.$$" grep_status
-  grep -v "^$2=" "$f" 2>/dev/null > "$tmp"
+  local tmp="$f.tmp.$$" grep_status pattern="^$2=" stored_value="$3" encoding=''
+  if [ "$2" = flow ]; then
+    pattern='^flow(=|_encoding=)'
+    if [[ "$stored_value" == *$'\n'* ]]; then
+      stored_value="${stored_value//%/%25}"
+      stored_value="${stored_value//$'\n'/%0A}"
+      encoding=percent
+    fi
+  fi
+  grep -Ev "$pattern" "$f" 2>/dev/null > "$tmp"
   grep_status=$?
   if [ "$grep_status" -gt 1 ]; then rm -f "$tmp" 2>/dev/null; return 1; fi
-  if ! ( printf '%s=%s\n' "$2" "$3" >> "$tmp" ) 2>/dev/null; then
+  if ! (
+    printf '%s=%s\n' "$2" "$stored_value" >> "$tmp" || exit 1
+    if [ -n "$encoding" ]; then
+      printf 'flow_encoding=%s\n' "$encoding" >> "$tmp" || exit 1
+    fi
+  ) 2>/dev/null; then
     rm -f "$tmp" 2>/dev/null
     return 1
   fi
@@ -428,7 +453,7 @@ cmd_run_start() {
   fi
   recorded_file="$(meta_get "$run_id" file 2>/dev/null)"
   recorded_seq="$(meta_get "$run_id" seq 2>/dev/null)"
-  recorded_flow="$(meta_get "$run_id" flow 2>/dev/null)"
+  meta_read_flow "$run_id" recorded_flow 2>/dev/null || recorded_flow=''
   if [ ! -f "$active" ] || [ "$recorded_file" != "$file" ] ||
      [ "$recorded_seq" != 0 ] || [ "$recorded_flow" != "$flow" ]; then
     rm -f "$active" 2>/dev/null
@@ -494,8 +519,6 @@ cmd_step() {
   blocker="${PARSED_ARGS[blocker]-}"
   note="${PARSED_ARGS[note]-}"
   if ! validate_step_args; then return 0; fi
-  check_step_name "$step"
-
   local file last seq dur event_epoch ts pipeline project task flow before_size after_size
   file="$(meta_get "$run" file)" || { reject_invocation step run not-found; return 0; }
   [ -n "$file" ] && [ -f "$file" ] || { reject_invocation step run not-found; return 0; }
@@ -512,7 +535,7 @@ cmd_step() {
   pipeline="$(meta_get "$run" pipeline)"
   project="$(meta_get "$run" project)"
   task="$(meta_get "$run" task)"
-  flow="$(meta_get "$run" flow)"
+  meta_read_flow "$run" flow || flow=''
   [ -n "$flow" ] || flow='unknown'
 
   if ! (
@@ -558,6 +581,7 @@ cmd_step() {
     warn 'step metadata persistence failed'
     return 0
   fi
+  check_step_name "$step"
 }
 
 # ── run-end ───────────────────────────────────────────────────────────
@@ -589,7 +613,7 @@ cmd_run_end() {
   pipeline="$(meta_get "$run" pipeline)"
   project="$(meta_get "$run" project)"
   task="$(meta_get "$run" task)"
-  flow="$(meta_get "$run" flow)"
+  meta_read_flow "$run" flow || flow=''
   [ -n "$flow" ] || flow='unknown'
   before_size="$( (wc -c < "$file") 2>/dev/null)" || { warn 'run-end event storage unavailable'; return 0; }
 

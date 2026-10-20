@@ -2335,7 +2335,7 @@ test_run_log_preserves_unrestricted_flow_across_events() (
   for mode in jq no-jq; do
     rm -f "$fakebin/jq"
     [ "$mode" != jq ] || ln -s "$(command -v jq)" "$fakebin/jq" || return 1
-    for flow in $'custom\nflow' $'custom\n' $'\n' 'literal\nflow\\' $'custom\nseq=91\npipeline=other\n'; do
+    for flow in $'custom\nflow' $'custom\n' $'\n' 'literal\nflow\\' $'custom\nseq=91\npipeline=other\n' $'\n\n' $'literal%0A%25\\n\n'; do
       status=0
       run="$(invoke_log run-start --pipeline phase-execution --flow "$flow" 2> "$fixture/stderr")" || status=$?
       if [ "$status" -ne 0 ] || [[ ! "$run" =~ ^[0-9a-f]{8}$ ]] || [ -s "$fixture/stderr" ]; then
@@ -2416,6 +2416,14 @@ test_run_log_reports_only_one_diagnostic_on_rejection_or_write_failure() (
       failures=$((failures + 1))
     fi
     [ "$before_active" = "$(sha256sum "$active" | awk '{print $1}')" ] || return 1
+    mv "$helper/workflows" "$fixture/workflows-held" || return 1
+    invoke_log step --run "$run" --step unknown-diagnostic-probe --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+    if [ -s "$fixture/stdout" ] || ! assert_one_redacted_warning "$fixture/stderr" unknown-diagnostic-probe; then
+      printf 'failed metadata write was accompanied by an unavailable-workflows advisory (%s)\n' "$mode"
+      failures=$((failures + 1))
+    fi
+    [ "$before_active" = "$(sha256sum "$active" | awk '{print $1}')" ] || return 1
+    mv "$fixture/workflows-held" "$helper/workflows" || return 1
     rm "$fakebin/mv"
     ln -s "$(command -v mv)" "$fakebin/mv" || return 1
     rm "$file"
