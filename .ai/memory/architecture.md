@@ -83,6 +83,10 @@ root), `AGENTS.md` (Codex, per project), `codex-global-AGENTS.md` (→ `~/.codex
 | `scripts/link-skills.sh` | workaround: symlink global skills into a project's `.claude/skills/` |
 | `scripts/log-step.sh` | validates complete producer arguments and exact legacy aliases before append-only JSONL writes; optional-jq fallback; sorted runtime `contract` export and read-only `lint [<run-id>|--all]` diagnostics/summary; jq required only for lint; stamps timestamps itself; exits 0 on every error |
 
+### Executable acceptance checks
+
+`tests/log-step.sh` copies the helper, canonical contract and workflows into a disposable checkout and runs the focused producer, lint, retrospective and drift checks in separate Bash processes. Explicit temporary log/workflow roots and per-operation checksums isolate fixtures from real logs; exit and signal traps clean up the temporary tree.
+
 ### Layer 6 — `logs/` (central telemetry store)
 `logs/runs/<ts>-<pipeline>-<id>.jsonl` + `.md` digest, `.active/` for open runs.
 Cross-project by design; gitignored; read only by `/retro`.
