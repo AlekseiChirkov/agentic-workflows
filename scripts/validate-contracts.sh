@@ -1910,6 +1910,377 @@ check "test_public_hygiene_repository_preserves_context_and_local_ignores" \
 
 # ── End public hygiene smoke checks ─────────────────────────────────
 
+# ── Run-log producer smoke checks ───────────────────────────────────
+prepare_run_log_fixture() {
+  local fixture="$1" helper="$1/helper"
+  mkdir -p "$helper/scripts" "$helper/workflows" || return 1
+  cp scripts/log-step.sh "$helper/scripts/log-step.sh" || return 1
+  cp -R workflows/. "$helper/workflows/" || return 1
+}
+
+assert_one_redacted_warning() {
+  local warning_file="$1" raw_value="${2:-}"
+  [ "$(wc -l < "$warning_file")" -eq 1 ] || return 1
+  [ -z "$raw_value" ] || ! grep -Fq -- "$raw_value" "$warning_file"
+}
+
+test_run_log_start_rejects_invalid_argument_sets() (
+  set -e
+  local fixture helper failures=0 status label
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/run-log-start.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  prepare_run_log_fixture "$fixture" || return 1
+  helper="$fixture/helper"
+  export ORCHESTRAIL_HOME="$helper"
+  export ORCHESTRAIL_LOG_ROOT="$fixture/store"
+  invoke_log() { bash "$helper/scripts/log-step.sh" "$@"; }
+  reject_start() {
+    label="$1"; shift
+    : > "$fixture/stdout"; : > "$fixture/stderr"
+    status=0
+    timeout 2 bash "$helper/scripts/log-step.sh" run-start "$@" > "$fixture/stdout" 2> "$fixture/stderr" || status=$?
+    if [ "$status" -ne 0 ] || [ -s "$fixture/stdout" ] || ! assert_one_redacted_warning "$fixture/stderr" raw-probe-741; then
+      printf 'run-start accepted or exposed invalid %s input\n' "$label"
+      failures=$((failures + 1))
+    fi
+    if [ "$(find "$fixture/store/runs" -type f -name '*.jsonl' 2>/dev/null | wc -l)" -ne 0 ] ||
+       [ "$(find "$fixture/store/.active" -type f 2>/dev/null | wc -l)" -ne 0 ]; then
+      printf 'run-start changed storage for invalid %s input\n' "$label"
+      failures=$((failures + 1))
+    fi
+  }
+  reject_start missing-required
+  reject_start unknown-option --pipeline phase-discovery --surprise raw-probe-741
+  reject_start duplicate-option --pipeline phase-discovery --pipeline phase-execution
+  reject_start missing-operand --pipeline
+  reject_start flag-as-operand --pipeline --flow full
+  [ "$failures" -eq 0 ]
+)
+
+test_run_log_step_rejects_invalid_fields_without_mutation() (
+  set -e
+  local fixture helper run file active failures=0 status label before_log before_active after_log after_active
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/run-log-step.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  prepare_run_log_fixture "$fixture" || return 1
+  helper="$fixture/helper"
+  export ORCHESTRAIL_HOME="$helper"
+  export ORCHESTRAIL_LOG_ROOT="$fixture/store"
+  invoke_log() { bash "$helper/scripts/log-step.sh" "$@"; }
+  run="$(invoke_log run-start --pipeline phase-execution --flow full 2> "$fixture/start.err")" || return 1
+  file="$(invoke_log path --run "$run")" || return 1
+  active="$fixture/store/.active/$run"
+  reject_step() {
+    label="$1"; shift
+    before_log="$(sha256sum "$file" | awk '{print $1}')"
+    before_active="$(sha256sum "$active" | awk '{print $1}')"
+    : > "$fixture/stdout"; : > "$fixture/stderr"
+    status=0
+    timeout 2 bash "$helper/scripts/log-step.sh" step --run "$run" --step pae-tests "$@" > "$fixture/stdout" 2> "$fixture/stderr" || status=$?
+    after_log="$(sha256sum "$file" | awk '{print $1}')"
+    after_active="$(sha256sum "$active" | awk '{print $1}')"
+    if [ "$status" -ne 0 ] || [ -s "$fixture/stdout" ] || ! assert_one_redacted_warning "$fixture/stderr" raw-probe-741; then
+      printf 'step did not reject or safely report invalid %s input\n' "$label"
+      failures=$((failures + 1))
+    fi
+    if [ "$before_log" != "$after_log" ] || [ "$before_active" != "$after_active" ]; then
+      printf 'step changed event or active metadata for invalid %s input\n' "$label"
+      failures=$((failures + 1))
+    fi
+  }
+  reject_step outcome --outcome raw-probe-741
+  reject_step missing-outcome
+  reject_step unknown-option --outcome ok --surprise raw-probe-741
+  reject_step gate --outcome ok --gate arbitrary
+  reject_step empty-enum --outcome ok --tests ''
+  reject_step tests-enum --outcome ok --tests unknown
+  reject_step promoted-enum --outcome ok --promoted maybe
+  for count_flag in --stops --escalations --decisions --questions --fix-tasks --amendments --files; do
+    reject_step "malformed-$count_flag" --outcome ok "$count_flag" 01
+    reject_step "negative-$count_flag" --outcome ok "$count_flag" -1
+    reject_step "fractional-$count_flag" --outcome ok "$count_flag" 1.5
+    reject_step "signed-$count_flag" --outcome ok "$count_flag" +1
+    reject_step "exponent-$count_flag" --outcome ok "$count_flag" 1e3
+    reject_step "oversized-$count_flag" --outcome ok "$count_flag" 9007199254740992
+  done
+  reject_step duplicate-option --outcome ok --outcome failed
+  reject_step missing-operand --outcome ok --note
+  before_log="$(sha256sum "$file" | awk '{print $1}')"
+  before_active="$(sha256sum "$active" | awk '{print $1}')"
+  : > "$fixture/stdout"; : > "$fixture/stderr"
+  status=0
+  timeout 2 bash "$helper/scripts/log-step.sh" step --run '../../outside' --step pae-tests --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || status=$?
+  after_log="$(sha256sum "$file" | awk '{print $1}')"
+  after_active="$(sha256sum "$active" | awk '{print $1}')"
+  if [ "$status" -ne 0 ] || [ -s "$fixture/stdout" ] || ! assert_one_redacted_warning "$fixture/stderr" '../../outside' ||
+     [ "$before_log" != "$after_log" ] || [ "$before_active" != "$after_active" ]; then
+    echo 'unsafe run identifier was not rejected before metadata access'
+    failures=$((failures + 1))
+  fi
+  : > "$fixture/stdout"; : > "$fixture/stderr"
+  for value in ok blocked failed skipped deferred; do
+    invoke_log step --run "$run" --step pae-tests --outcome "$value" > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+    [ ! -s "$fixture/stdout" ] && [ ! -s "$fixture/stderr" ] || failures=$((failures + 1))
+  done
+  for value in pass fail n-a needs-work ready; do
+    invoke_log step --run "$run" --step pae-tests --outcome ok --gate "$value" || return 1
+  done
+  for value in red green n-a failed not-run pinned; do
+    invoke_log step --run "$run" --step pae-tests --outcome ok --tests "$value" || return 1
+  done
+  for value in yes no; do
+    invoke_log step --run "$run" --step pae-tests --outcome ok --promoted "$value" || return 1
+  done
+  local fakebin="$fixture/fakebin" before_log before_active after_log after_active status
+  mkdir -p "$fakebin" || return 1
+  printf '#!/bin/sh\nexit 1\n' > "$fakebin/jq"
+  chmod +x "$fakebin/jq"
+  before_log="$(sha256sum "$file" | awk '{print $1}')"
+  before_active="$(sha256sum "$active" | awk '{print $1}')"
+  status=0
+  PATH="$fakebin:$PATH" invoke_log step --run "$run" --step pae-tests --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || status=$?
+  after_log="$(sha256sum "$file" | awk '{print $1}')"
+  after_active="$(sha256sum "$active" | awk '{print $1}')"
+  [ "$status" -eq 0 ] && [ ! -s "$fixture/stdout" ] && assert_one_redacted_warning "$fixture/stderr" || failures=$((failures + 1))
+  [ "$before_log" = "$after_log" ] && [ "$before_active" = "$after_active" ] || failures=$((failures + 1))
+  rm -rf "$fakebin"
+  invoke_log step --run "$run" --step pae-tests --outcome deferred --stops 0 --escalations 9007199254740991 \
+    --decisions 0 --questions 0 --fix-tasks 0 --amendments 0 --files 0 || return 1
+  python3 - "$file" <<'PYRUNLOG'
+import json
+import sys
+from pathlib import Path
+records = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
+steps = [record for record in records if record.get("event") == "step"]
+assert len(steps) == 19, "rejected calls and a failed write must leave only canonical events"
+assert [record["seq"] for record in steps] == list(range(1, 20)), "rejections must not advance sequence"
+assert [record["outcome"] for record in steps[:5]] == ["ok", "blocked", "failed", "skipped", "deferred"], "step outcomes"
+assert [record["gate"] for record in steps[5:10]] == ["pass", "fail", "n-a", "needs-work", "ready"], "gate vocabulary"
+assert [record["tests"] for record in steps[10:16]] == ["red", "green", "n-a", "failed", "not-run", "pinned"], "test vocabulary"
+assert [record["promoted"] for record in steps[16:18]] == ["yes", "no"], "promotion vocabulary"
+assert steps[18]["stops"] == 0 and type(steps[18]["stops"]) is int, "zero is a JSON integer"
+assert steps[18]["escalations"] == 9007199254740991, "maximum safe integer is accepted"
+assert all(steps[18][field] == 0 and type(steps[18][field]) is int for field in (
+    "decisions", "questions", "fix_tasks", "amendments", "files"
+)), "all count fields are numeric"
+PYRUNLOG
+  status=$?
+  [ "$status" -eq 0 ] || failures=$((failures + 1))
+  [ "$failures" -eq 0 ]
+)
+
+test_run_log_normalizes_only_exact_legacy_values() (
+  set -e
+  local fixture helper run file raw expected
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/run-log-alias.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  prepare_run_log_fixture "$fixture" || return 1
+  helper="$fixture/helper"
+  export ORCHESTRAIL_HOME="$helper"
+  export ORCHESTRAIL_LOG_ROOT="$fixture/store"
+  invoke_log() { bash "$helper/scripts/log-step.sh" "$@"; }
+  run="$(invoke_log run-start --pipeline phase-execution --flow full)" || return 1
+  file="$(invoke_log path --run "$run")" || return 1
+  invoke_log step --run "$run" --step pae-tests --outcome completed --gate PASS --note 'caller note' || return 1
+  for pair in 'implemented ok' 'restarted failed' 'needs-work failed'; do
+    read -r raw expected <<< "$pair"
+    invoke_log step --run "$run" --step pae-tests --outcome "$raw" || return 1
+  done
+  invoke_log step --run "$run" --step pae-tests --outcome ok --gate 'NEEDS WORK' || return 1
+  invoke_log step --run "$run" --step pae-tests --outcome ok --gate 'NEEDS WORK: review' || return 1
+  invoke_log step --run "$run" --step pae-tests --outcome ok --gate 'NEEDS WORK - review' || return 1
+  invoke_log step --run "$run" --step pae-tests --outcome ok --gate 'NEEDS WORK review' || return 1
+  invoke_log step --run "$run" --step pae-tests --outcome ok --gate escalated || return 1
+  local before_log before_active after_log after_active
+  before_log="$(sha256sum "$file" | awk '{print $1}')"
+  before_active="$(sha256sum "$fixture/store/.active/$run" | awk '{print $1}')"
+  invoke_log step --run "$run" --step pae-tests --outcome ok --gate 'NEEDS WORKING' > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+  after_log="$(sha256sum "$file" | awk '{print $1}')"
+  after_active="$(sha256sum "$fixture/store/.active/$run" | awk '{print $1}')"
+  [ ! -s "$fixture/stdout" ] && assert_one_redacted_warning "$fixture/stderr" 'NEEDS WORKING' || return 1
+  [ "$before_log" = "$after_log" ] && [ "$before_active" = "$after_active" ] || return 1
+  python3 - "$file" <<'PYRUNLOG'
+import json
+import sys
+from pathlib import Path
+records = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
+steps = [record for record in records if record.get("event") == "step"]
+assert steps[0]["outcome"] == "ok" and steps[0]["gate"] == "pass", "canonical alias values"
+assert steps[0]["note"] == "caller note; raw:completed; raw:PASS", "ordered raw provenance"
+assert [record["outcome"] for record in steps[1:4]] == ["ok", "failed", "failed"], "outcome aliases"
+assert [record["note"] for record in steps[1:4]] == ["raw:implemented", "raw:restarted", "raw:needs-work"], "outcome provenance"
+assert [record["gate"] for record in steps[4:9]] == ["needs-work", "needs-work", "needs-work", "needs-work", "fail"], "gate aliases"
+assert [record["note"] for record in steps[4:9]] == [
+    "raw:NEEDS WORK", "raw:NEEDS WORK: review", "raw:NEEDS WORK - review",
+    "raw:NEEDS WORK review", "raw:escalated"
+], "gate provenance"
+PYRUNLOG
+)
+
+test_run_log_flow_defaults_and_step_name_warnings() (
+  set -e
+  local fixture helper run file status
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/run-log-flow.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  prepare_run_log_fixture "$fixture" || return 1
+  helper="$fixture/helper"
+  mkdir -p "$fixture/caller" || return 1
+  export ORCHESTRAIL_LOG_ROOT="$fixture/store"
+  run="$(ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" run-start --pipeline phase-execution)" || return 1
+  file="$(ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" path --run "$run")" || return 1
+  (cd "$fixture/caller" && env -u ORCHESTRAIL_HOME ORCHESTRAIL_LOG_ROOT="$ORCHESTRAIL_LOG_ROOT" bash "$helper/scripts/log-step.sh" step --run "$run" --step pae-tests --outcome ok) > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+  [ ! -s "$fixture/stdout" ] && [ ! -s "$fixture/stderr" ] || return 1
+  ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" step --run "$run" --step batch-gate --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+  [ ! -s "$fixture/stdout" ] && [ ! -s "$fixture/stderr" ] || return 1
+  ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" step --run "$run" --step unknown-probe --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+  assert_one_redacted_warning "$fixture/stderr" || return 1
+  ORCHESTRAIL_HOME="$fixture/unavailable" bash "$helper/scripts/log-step.sh" step --run "$run" --step dry-run --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+  assert_one_redacted_warning "$fixture/stderr" || return 1
+  ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" run-end --run "$run" --outcome completed > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+  [ ! -s "$fixture/stdout" ] || return 1
+  python3 - "$file" <<'PYRUNLOG'
+import json
+import sys
+from pathlib import Path
+records = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
+assert [record["flow"] for record in records] == ["unknown"] * 6, "flow fallback propagation"
+assert [record["step"] for record in records if record.get("event") == "step"] == [
+    "pae-tests", "batch-gate", "unknown-probe", "dry-run"
+], "step name preservation"
+PYRUNLOG
+  # Explicitly empty flow uses the same stored fallback across all event kinds.
+  run="$(ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" run-start --pipeline phase-execution --flow '')" || return 1
+  file="$(ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" path --run "$run")" || return 1
+  ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" step --run "$run" --step pae-tests --outcome ok || return 1
+  ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" run-end --run "$run" --outcome completed || return 1
+  python3 - "$file" <<'PYRUNLOG'
+import json
+import sys
+from pathlib import Path
+records = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
+assert [record["flow"] for record in records] == ["unknown"] * 3, "empty flow fallback propagation"
+PYRUNLOG
+  ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" step --run '../../outside' --step pae-tests --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+  [ ! -s "$fixture/stdout" ] && assert_one_redacted_warning "$fixture/stderr" '../../outside'
+)
+
+test_run_log_start_and_end_persist_before_reporting_success() (
+  set -e
+  local fixture helper fakebin real_jq run file active status before_log before_active after_log after_active
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/run-log-persist.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  prepare_run_log_fixture "$fixture" || return 1
+  helper="$fixture/helper"
+  fakebin="$fixture/fakebin"
+  mkdir -p "$fakebin" || return 1
+  export ORCHESTRAIL_HOME="$helper"
+  invoke_log() { bash "$helper/scripts/log-step.sh" "$@"; }
+  printf '#!/bin/sh\nexit 1\n' > "$fakebin/jq"
+  chmod +x "$fakebin/jq"
+  status=0
+  PATH="$fakebin:$PATH" ORCHESTRAIL_LOG_ROOT="$fixture/start-failure" invoke_log run-start --pipeline phase-execution > "$fixture/stdout" 2> "$fixture/stderr" || status=$?
+  [ "$status" -eq 0 ] && [ ! -s "$fixture/stdout" ] && assert_one_redacted_warning "$fixture/stderr" || return 1
+  export ORCHESTRAIL_LOG_ROOT="$fixture/store"
+  run="$(invoke_log run-start --pipeline phase-execution --flow full 2> "$fixture/start.err")" || return 1
+  [[ "$run" =~ ^[0-9a-f]{8}$ ]] || return 1
+  file="$(invoke_log path --run "$run")" || return 1
+  active="$fixture/store/.active/$run"
+  [ -s "$file" ] && [ -f "$active" ] || return 1
+  reject_end() {
+    local label="$1" raw_value="$2" status=0
+    shift 2
+    before_log="$(sha256sum "$file" | awk '{print $1}')"
+    before_active="$(sha256sum "$active" | awk '{print $1}')"
+    : > "$fixture/stdout"; : > "$fixture/stderr"
+    timeout 2 bash "$helper/scripts/log-step.sh" run-end "$@" > "$fixture/stdout" 2> "$fixture/stderr" || status=$?
+    after_log="$(sha256sum "$file" | awk '{print $1}')"
+    after_active="$(sha256sum "$active" | awk '{print $1}')"
+    if [ "$status" -ne 0 ] || [ -s "$fixture/stdout" ] || ! assert_one_redacted_warning "$fixture/stderr" "$raw_value" ||
+       [ "$before_log" != "$after_log" ] || [ "$before_active" != "$after_active" ]; then
+      printf 'run-end changed state or exposed values for invalid %s input\n' "$label"
+      return 1
+    fi
+  }
+  reject_end missing-outcome '' --run "$run"
+  reject_end duplicate-option '' --run "$run" --run "$run" --outcome completed
+  reject_end unknown-option raw-probe-741 --run "$run" --outcome completed --surprise raw-probe-741
+  reject_end missing-operand '' --run "$run" --outcome
+  reject_end unsafe-run-id '../../outside' --run '../../outside' --outcome completed
+  reject_end invalid-outcome invalid-close --run "$run" --outcome invalid-close
+  [ ! -e "${file%.jsonl}.md" ] || return 1
+  printf '#!/bin/sh\nexit 1\n' > "$fakebin/jq"
+  chmod +x "$fakebin/jq"
+  before_log="$(sha256sum "$file" | awk '{print $1}')"
+  before_active="$(sha256sum "$active" | awk '{print $1}')"
+  status=0
+  PATH="$fakebin:$PATH" invoke_log run-end --run "$run" --outcome completed > "$fixture/stdout" 2> "$fixture/stderr" || status=$?
+  [ "$status" -eq 0 ] && [ ! -s "$fixture/stdout" ] && assert_one_redacted_warning "$fixture/stderr" || return 1
+  [ "$before_log" = "$(sha256sum "$file" | awk '{print $1}')" ] || return 1
+  [ "$before_active" = "$(sha256sum "$active" | awk '{print $1}')" ] || return 1
+  rm -f "$fakebin/jq"
+  invoke_log run-end --run "$run" --outcome completed > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+  [ ! -s "$fixture/stdout" ] && [ ! -s "$fixture/stderr" ] || return 1
+  [ ! -e "$active" ] || return 1
+  python3 - "$file" <<'PYRUNLOG'
+import json
+import sys
+from pathlib import Path
+records = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
+assert [record["event"] for record in records] == ["run-start", "run-end"], "invalid close must be inert"
+assert records[1]["outcome"] == "completed", "valid close outcome"
+PYRUNLOG
+  # A digest failure follows a persisted close and emits one warning without reopening the run.
+  run="$(invoke_log run-start --pipeline phase-execution --flow full)" || return 1
+  file="$(invoke_log path --run "$run")" || return 1
+  active="$fixture/store/.active/$run"
+  real_jq="$(command -v jq)"
+  cat > "$fakebin/jq" <<EOF
+#!/usr/bin/env bash
+if [ "\${1-}" = -Rn ]; then
+  exec "$real_jq" "\$@"
+fi
+exit 1
+EOF
+  chmod +x "$fakebin/jq"
+  status=0
+  PATH="$fakebin:$PATH" invoke_log run-end --run "$run" --outcome stopped > "$fixture/stdout" 2> "$fixture/stderr" || status=$?
+  [ "$status" -eq 0 ] && [ ! -s "$fixture/stdout" ] && assert_one_redacted_warning "$fixture/stderr" || return 1
+  [ ! -e "$active" ] || return 1
+  python3 - "$file" <<'PYRUNLOG'
+import json
+import sys
+from pathlib import Path
+records = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
+assert [record["event"] for record in records] == ["run-start", "run-end"], "persisted close survives digest failure"
+assert records[1]["outcome"] == "stopped", "persisted close outcome"
+PYRUNLOG
+  local end_outcome end_file
+  for end_outcome in failed abandoned; do
+    run="$(invoke_log run-start --pipeline phase-execution --flow full)" || return 1
+    end_file="$(invoke_log path --run "$run")" || return 1
+    invoke_log run-end --run "$run" --outcome "$end_outcome" || return 1
+    python3 - "$end_file" "$end_outcome" <<'PYRUNLOG'
+import json
+import sys
+from pathlib import Path
+rows = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
+assert rows[-1]["event"] == "run-end" and rows[-1]["outcome"] == sys.argv[2], "run-end outcome vocabulary"
+PYRUNLOG
+  done
+)
+
+check "LOGPRODUCER: run-start rejects invalid complete argument sets" \
+  "$(test_run_log_start_rejects_invalid_argument_sets && echo pass || echo 'invalid run-start arguments changed state or returned unsafe output')"
+check "LOGPRODUCER: step rejects invalid fields before metadata changes" \
+  "$(test_run_log_step_rejects_invalid_fields_without_mutation && echo pass || echo 'invalid step fields changed the event file or active metadata')"
+check "LOGPRODUCER: exact legacy aliases normalize with ordered provenance" \
+  "$(test_run_log_normalizes_only_exact_legacy_values && echo pass || echo 'legacy aliases or raw provenance are not exact')"
+check "LOGPRODUCER: flow defaults and workflow names are handled safely" \
+  "$(test_run_log_flow_defaults_and_step_name_warnings && echo pass || echo 'flow defaults or advisory step-name checks are incomplete')"
+check "LOGPRODUCER: success output follows persistence and rejected closes remain active" \
+  "$(test_run_log_start_and_end_persist_before_reporting_success && echo pass || echo 'run persistence, close recovery, or digest warning behavior is incomplete')"
+# ── End run-log producer smoke checks ───────────────────────────────
+
 # ── Contract version smoke checks ───────────────────────────────────
 test_contract_version_root_has_exact_release_value() {
   [ -f VERSION ] && cmp -s VERSION <(printf '0.9.0\n')
@@ -1978,6 +2349,7 @@ from pathlib import Path
 import sys
 path = Path(sys.argv[1])
 for opening, closing in (
+    ('# ── Run-log producer smoke checks', '# ── End run-log producer smoke checks'),
     ('# ── Contract version smoke checks', '# ── End contract version smoke checks'),
     ('# ── Public package materials smoke checks', '# ── End public package materials smoke checks'),
     ('# ── Public identity smoke checks', '# ── End public identity smoke checks'),
