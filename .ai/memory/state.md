@@ -1,12 +1,13 @@
 # state.md — current task-level state and active work
 
 ## Purpose
-Canonical task-level context for work on agentic_workflows itself. Loaded at the start
+Canonical task-level context for work on Orchestrail itself. Loaded at the start
 of every session. Updated after every phase transition.
 
 ## Active Tasks
+- [task-01-git-source-of-truth] | phase: discovery | status: complete | note: 4 sequential subtasks; license and release tag deferred by owner; batch gate resolved
 
- Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11 → 12; 07 is backlog. The roadmap is in `specs/README.md`; each spec becomes a task via
+Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11 → 12; 07 is backlog. The roadmap is in `specs/README.md`; each spec becomes a task via
 `/phase-discovery .ai/specs/<NN>-<slug>.md`.
 
 ## Done
@@ -23,9 +24,9 @@ None.
 - `.ai/` in this repository is **committed in full**, including `tasks/todo/` — the
   opposite of the pipeline's default for consumer projects (ADR-0007, accepted 2026-09-16).
 - The owner permits local test-first and implementation commits. Current mutable content is scrubbed; the root denylist and source requirement are intentional exceptions. The owner subsequently authorized pushes and pull requests to AlekseiChirkov/agentic-workflows; The owner subsequently authorized merging PRs #2, #3, and #4 and archiving the completed task and source specification. Existing ancestry remains unchanged; history rewriting is outside scope.
-- The public name is **Orchestrail**; the rename (directory, `ORCHESTRAIL_HOME`,
-  `~/.config/orchestrail/`, `ORCHESTRAIL_LOG_ROOT`) happens in spec 01, not before.
-  Until then paths in this knowledge base still say `agentic_workflows`.
+- The public name is **Orchestrail**. Local checkout references use `~/projects/orchestrail`;
+  machine settings use `~/.config/orchestrail/`, with `ORCHESTRAIL_HOME` and
+  `ORCHESTRAIL_LOG_ROOT` selecting shared checkouts and logs.
 - All analysis, audit, and similar documents live under `docs/` (`principles/coding.md →
   Document placement`). The repository root holds only `CLAUDE.md`, scripts, and the
   source directories.

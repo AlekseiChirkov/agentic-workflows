@@ -73,7 +73,7 @@ Task directory = provided argument (trailing slash optional).
    - `description.md` — following the same six-section template `/pd-decompose` uses for a leaf
      subtask (`## Goal`, `## Context`, `## Scope`, `## Steps`, `## Acceptance Criteria`,
      `## Test Plan`); see `/pd-decompose` step 3. The source skeleton is
-     `templates/subtask-description.md` in `agentic_workflows` — it is not copied into projects,
+     `templates/subtask-description.md` in Orchestrail — it is not copied into projects,
      so do not look for it under the project root.
 
    The template's `## Test Plan` section is **required for fix-tasks too** — a fix-task runs

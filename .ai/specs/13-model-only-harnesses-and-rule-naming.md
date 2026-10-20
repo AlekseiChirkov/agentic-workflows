@@ -123,7 +123,7 @@ scripts, or contract checks refers to an IDE.
 | Always-on file | `harness/<name>/always-on.md`, deployed as the harness's global instruction (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`), carrying the capability table | ADR-0009 Decision 2 |
 | Load mode | `always` (in the harness global instruction) or `on-demand` (a skill loaded when cited) | this spec, replaces Windsurf `trigger:` |
 | Consumer project | A repository seeded by `setup-new-project.sh` | `.ai/context/environment.md` |
-| Project registry | `~/.config/agentic-workflows/projects`, one absolute path per line | this spec |
+| Project registry | `~/.config/orchestrail/projects`, one absolute path per line | this spec |
 | Kind | The classification of a rule file: bootstrap, contract, protocol, procedure | ADR-0009 Decision 3 |
 | Harness directory | `harness/<name>/` holding `always-on.md`, `capabilities.md`, `deploy.env`, optional `hooks.json` | ADR-0009 Decision 2 |
 | Capability | A declared harness ability workflows may branch on: `sub-agents`, `concurrent-sub-agents`, `agent-messaging`, `hooks`, `worktrees`, `git`, `always-on-path` | ADR-0009 Decision 2 |
@@ -306,8 +306,8 @@ absolute path per line, no duplicates, created by `setup-new-project.sh`, read b
 `sync.sh`. Lifecycle: append on setup; entries whose path is missing are reported by
 `sync.sh` and left for the owner to prune.
 
-**Skill manifest** — `new`: `~/.claude/skills/.agentic-workflows-manifest` and
-`~/.codex/skills/.agentic-workflows-manifest`, one skill directory name per line, rewritten
+**Skill manifest** — `new`: `~/.claude/skills/.orchestrail-manifest` and
+`~/.codex/skills/.orchestrail-manifest`, one skill directory name per line, rewritten
 on every `sync.sh`; the previous content drives stale-directory removal (REQ-10).
 
 **Harness directory** — `new`: `harness/<name>/always-on.md` (core body; rendered with the
@@ -630,7 +630,7 @@ unreadable (exit 1, message); `setup-new-project.sh` continues without registry 
   docs and records (REQ-16, REQ-33, REQ-34). Each rename is `git mv` + one committed
   `sed` script + green `validate-contracts.sh`.
 - **Implementation hint (not a requirement):** the registry and manifest paths can share
-  `~/.config/agentic-workflows/`; the manifest could live there too, keyed by harness,
+  `~/.config/orchestrail/`; the manifest could live there too, keyed by harness,
   if writing dotfiles into `~/.claude/skills/` proves undesirable.
 - **Rejected alternative:** keeping Windsurf as a "best effort" target with the
   `rule-` workaround — rejected by the owner; it is the source of the collision.

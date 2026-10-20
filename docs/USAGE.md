@@ -1,4 +1,4 @@
-# agentic_workflows — USAGE
+# Orchestrail — USAGE
 
 Source of truth for an AI-assisted SDLC pipeline deployed to three environments:
 Windsurf, Claude Code, and Codex. Everything in this repository is plain markdown;
@@ -42,7 +42,7 @@ with explicit state on disk. The AI assistant is constrained by:
 
 ```
           ┌──────────────────────────────────────────────────┐
-          │  ~/projects/agentic_workflows/                     │ ← source of truth (edit here)
+          │  ~/projects/orchestrail/                     │ ← source of truth (edit here)
           │                                                  │
           │  workflows/   rules/                             │
           │  principles/  templates/                         │
@@ -80,7 +80,7 @@ with explicit state on disk. The AI assistant is constrained by:
 ## 2. Directory Structure
 
 ```
-~/projects/agentic_workflows/
+~/projects/orchestrail/
 ├── docs/USAGE.md                    this file
 │
 ├── sync.sh                          deploy source → Windsurf + Claude + ~/.claude/CLAUDE.md
@@ -199,7 +199,7 @@ acme-platform/              ← umbrella root
 ```bash
 # 1. Initialize the umbrella root
 cd ~/projects/acme-platform
-bash ~/projects/agentic_workflows/setup-umbrella.sh
+bash ~/projects/orchestrail/setup-umbrella.sh
 
 # 2. Fill in the umbrella knowledge base
 $EDITOR .ai/memory/architecture.md   # describe all services and how they interact
@@ -208,10 +208,10 @@ $EDITOR .ai/principles/domain.md     # ubiquitous language
 
 # 3. Initialize each service repo (auto-detects ../.ai/)
 cd service-api
-bash ~/projects/agentic_workflows/setup-new-project.sh
+bash ~/projects/orchestrail/setup-new-project.sh
 
 cd ../service-worker
-bash ~/projects/agentic_workflows/setup-new-project.sh
+bash ~/projects/orchestrail/setup-new-project.sh
 # ... repeat for each service
 ```
 
@@ -285,7 +285,7 @@ In Windsurf or Claude Code, typing `/phase-discovery` should now autocomplete.
 
 ```bash
 cd <project-root>
-bash ~/projects/agentic_workflows/setup-new-project.sh
+bash ~/projects/orchestrail/setup-new-project.sh
 ```
 
 The script (idempotent — safe to re-run):
@@ -573,11 +573,11 @@ Path argument syntax:
 
 ## 8. Updating the System
 
-Edit only in `~/projects/agentic_workflows/`. Then re-sync.
+Edit only in `~/projects/orchestrail/`. Then re-sync.
 
 ```bash
-$EDITOR ~/projects/agentic_workflows/principles/python-standards.md   # or any other file
-bash ~/projects/agentic_workflows/sync.sh
+$EDITOR ~/projects/orchestrail/principles/python-standards.md   # or any other file
+bash ~/projects/orchestrail/sync.sh
 ```
 
 `sync.sh` is idempotent. It re-copies everything; whatever was edited propagates
@@ -586,7 +586,7 @@ to all three environments on the next slash-command invocation:
 - Windsurf reads from `~/.codeium/windsurf/global_workflows/` and `global_rules/`
 - Claude Code reads from `~/.claude/skills/<name>/SKILL.md` and `~/.claude/CLAUDE.md`
 - Codex reads `AGENTS.md` per project — the template is at
-  `~/projects/agentic_workflows/templates/AGENTS.md`. To propagate template changes to
+  `~/projects/orchestrail/templates/AGENTS.md`. To propagate template changes to
   *existing* projects, re-run `setup-new-project.sh` in each project (it does
   NOT overwrite an existing `AGENTS.md`; you must update each project's
   `AGENTS.md` manually or `rm AGENTS.md` first).
@@ -618,7 +618,7 @@ Rules under `.windsurf/rules/` are *copies* (not symlinks). After editing
 
 ```bash
 cd <existing-project>
-cp ~/projects/agentic_workflows/rules/workflow-globals.md .windsurf/rules/workflow-globals.md
+cp ~/projects/orchestrail/rules/workflow-globals.md .windsurf/rules/workflow-globals.md
 ```
 
 Or re-run `setup-new-project.sh` after deleting the affected file.
@@ -634,7 +634,7 @@ Or re-run `setup-new-project.sh` after deleting the affected file.
 | `docs/USAGE.md`            | This document.                                                                    |
 | `docs/SPEC-RUN-QUICKSTART.md` | Operating procedure for `/spec-run`: preflight, the batch gate, what stops the run, the branch stack you get, merging and `/restack`, interruption recovery. |
 | `validate-contracts.sh`    | 542 contract checks across the three layers, including tracked-file public hygiene. Run by `sync.sh` before every deploy; any failure blocks deployment. |
-| `sync.sh`                  | Deploy source → Windsurf workflows + rules, Claude skills, `~/.claude/CLAUDE.md`. Source tree defaults to the script directory; `--from <dir>` takes precedence over `$WORKFLOWS_SOURCE`. |
+| `sync.sh`                  | Deploy source → Windsurf workflows + rules, Claude skills, `~/.claude/CLAUDE.md`. Source tree defaults to the script directory; `--from <dir>` takes precedence over `ORCHESTRAIL_HOME`. |
 | `validate-task.sh`         | Applies the canonical contracts to ONE task directory's artifacts (`state.md`, `plan.md`, `description.md`) rather than to the workflow definitions. Run by `/pd-finalize` and `/pe-finalize`; exit 1 blocks the phase. |
 | `log-step.sh`              | Append-only run log writer. Stamps its own timestamps and derives durations, so no duration is ever model-guessed. Exits 0 on every error path — logging never blocks a pipeline. |
 | `setup-new-project.sh`     | Initialize a project: `CLAUDE.md`, `AGENTS.md`, `.windsurf/rules/`, skill symlinks, `.gitignore`. |

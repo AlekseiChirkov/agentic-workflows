@@ -1,4 +1,4 @@
-# specs/ — improvement roadmap for Orchestrail (agentic_workflows)
+# specs/ — improvement roadmap for Orchestrail
 
 One spec per change, in the shape of `templates/spec.md` (spec 13 uses the full SDD
 shape of `/spec-draft`). Start a task with `/phase-discovery .ai/specs/<NN>-<slug>.md`

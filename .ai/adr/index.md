@@ -1,7 +1,7 @@
 # index.md — index of architectural decision records
 
 ## Purpose
-Lists all ADRs for agentic_workflows itself with number, title, status, and date.
+Lists all ADRs for Orchestrail itself with number, title, status, and date.
 ADR-0001 … 0006 are reconstructions of decisions already embedded in the rules, written
 so that a contributor can find the *why* without reading every rule. ADR-0007 and 0009 record owner decisions of September 2026; ADR-0008 is provisional.
 

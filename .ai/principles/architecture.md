@@ -1,7 +1,7 @@
 # architecture.md — architectural principles of the workflow system
 
 ## Purpose
-The design principles that shape agentic_workflows as a product. A change to a rule,
+The design principles that shape Orchestrail as a product. A change to a rule,
 workflow, or script that violates one of these is a design change and needs an ADR — not
 a quiet edit. Global engineering principles (`principles/*.md` at the repository root)
 still apply to the shell scripts.

@@ -4,7 +4,7 @@
 # Safe to re-run — never overwrites existing files. Existing CLAUDE.md files are
 # checked for two-level protocol compliance but never modified.
 #
-# Usage: bash /path/to/agentic_workflows/setup-all-repos.sh [--include-non-git]
+# Usage: bash /path/to/orchestrail/setup-all-repos.sh [--include-non-git]
 #
 # Run from the umbrella root (the directory that contains all service repos).
 # The umbrella's own .ai/ must already exist (run setup-umbrella.sh first if not).

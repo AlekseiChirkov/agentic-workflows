@@ -1,4 +1,4 @@
-# runbook.md — operational procedures for agentic_workflows
+# runbook.md — operational procedures for Orchestrail
 
 ## Purpose
 How to validate, deploy, audit, and recover the workflow system. The `## Commands` keys
