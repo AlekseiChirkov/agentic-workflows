@@ -3,8 +3,8 @@ flow: full
 
 ## Phases
 - discovery: complete
-- execution: in-progress
-- validation: not-started
+- execution: complete
+- validation: in-progress
 
 ## Task Analysis
 → archived to state-archive.md
@@ -77,8 +77,25 @@ T-04 | Public identity sweep | atomic-tests: green | atomic-execution: complete 
   branch: feat/public-identity-sweep
   base_branch: feat/public-package-materials
   base_commit: 3cdf9bc93dbde32ee57223df4a0c14b092d0b976
-  commits: daf5fbf, 412206d, 8deba46, 1314aa2, e9221a5, f922b9e, 5d7713f
+  commits: daf5fbf, 412206d, 8deba46, 1314aa2, e9221a5, f922b9e, 5d7713f, 42d960d, 0c7e46f
   pr: #8 draft
+T-05-fix-validation-metadata | Synchronize validation metadata | atomic-tests: n-a | atomic-execution: complete | atomic-validation: not-started
+  last_action: all steps complete — updated the published validator count to 551 after the full validator passed.
+  target_files: docs/USAGE.md, .ai/memory/architecture.md, .ai/tasks/todo/task-01-git-source-of-truth/state.md
+  blocker: none
+  notes: tdd: none — unit, integration, and contract tests do not apply because no executable behavior or public interface changes; smoke checks do not observe the documentation count or recorded commit list. The full validator remains the regression check.
+  branch: fix/validation-metadata
+  base_branch: feat/public-identity-sweep
+  base_commit: 0c7e46f1965e317429cd2b730578e61a95b27000
+  commits: none
+  pr: none
+
+## Execution Report
+- T-01: reviewed — version metadata, legacy record compatibility, and stale-rule warning implemented and atomically validated.
+- T-02: reviewed — portable runtime roots, override precedence, and setup propagation implemented and atomically validated.
+- T-03: reviewed — public package materials, ignore policy, and release setup guidance implemented and atomically validated; license and release tag deferred by owner decision.
+- T-04: reviewed — public identity sweep and exact knowledge inventory guard implemented; both independent validation findings corrected and the full validator passes.
+
 ## Solution Design
 
 ### Variants
@@ -182,7 +199,7 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 | `docs/USAGE.md` | 245 | `agentic-workflows` × 1 |
 
 ### Root File Decisions
-- `.ai/memory/architecture.md`: update during Discovery finalization because repository identity, configuration roots, and version metadata are part of the current system snapshot.
+- `.ai/memory/architecture.md`: updated during Discovery finalization for repository identity, configuration roots, and version metadata; the validator count was synchronized during the approved documentation fix.
 - `.ai/principles/architecture.md`: update during T-04 to use the new product identity; do not change the existing architectural principles.
 - `.ai/project_state.md`: skip because the file is absent.
 - `.ai/memory/state.md`: update during Discovery finalization with the active task entry.
@@ -211,3 +228,68 @@ None
 
 ### Optional
 - Expand the machine-specific path check beyond `/Documents/projects/` to catch other hard-coded checkout locations.
+
+## Contract Check
+
+### Invariants
+| Invariant | Status |
+|-----------|--------|
+| Git history and existing ancestry remain intact | PASS — the current branch descends from the recorded stack base with additive commits; no rewrite, merge, or main update is present. |
+| The complete `.ai/` knowledge base and `docs/` remain tracked | PASS — all 45 baseline `.ai/` paths remain present and tracked; the current tree tracks 52 `.ai/` paths and 8 documentation paths. |
+| Script defaults resolve from the checkout and supported overrides retain their precedence | PASS — shell path and configuration smoke checks pass, including relative roots, empty overrides, missing sources, and `sync.sh --from` precedence. |
+| State and run-log readers accept legacy records without `contract_version` | PASS — compatibility checks pass for both task state and run-start records. |
+| Public hygiene and the complete contract validator pass before publication | PASS — the full validator reports 551 passed and 0 failed; the hygiene-only check passes, and the published task branches were pushed after their green gates. |
+| The task branches preserve the scrubbed predecessor and dependency order | PASS — the recorded base commits and additive history form the required T-01 → T-02 → T-03 → T-04 stack. |
+
+### Acceptance Criteria
+| Criterion | Status |
+|-----------|--------|
+| Checkout name, Git metadata, and tracked-path privacy | PASS — `git rev-parse --git-dir` succeeds and the hygiene validator finds no absolute checkout path in tracked content. Per the accepted scope, the local directory rename is an Orchestrator-owned finalization action after task validation and PR promotion. |
+| Former project name absent from mutable scopes except exact approved scan locations | PASS — the full identity-ledger and tracked-tree checks pass with no unexpected matches. |
+| Runtime scripts and configuration examples use the public roots and variables | PASS — contract checks cover `ORCHESTRAIL_HOME`, `ORCHESTRAIL_LOG_ROOT`, documented paths, and `--from` precedence. |
+| Ignore rules exclude local logs and machine settings while keeping `.ai/` and `docs/` trackable | PASS — ignore-policy checks pass; both trees are tracked. |
+| Full validator and scrub check pass before task branches are pushed | PASS — each task branch passed its green validation gate before push; the final full validator and hygiene-only check also pass. |
+| Version metadata, state stamping, legacy readers, and stale-rule warning | PASS — `VERSION` is `0.9.0`; version metadata and legacy compatibility checks pass, and the validator emits the expected stale-version warning. |
+| README length and required package content; license deferral recorded without a placeholder | PASS — package-material checks pass; README is 26 lines, no placeholder license exists, and the owner's deferral is recorded. |
+| Additive PR stack preserves history; release tag remains deferred and unchanged | PASS — the stack is additive, no `v0.9.0` tag exists, and no tag was created or moved. |
+| `docs/USAGE.md` section 4 instructs cloning and names the post-release tag | PASS — the section documents the clone command and `v0.9.0` checkout after release. |
+
+### Off-limits
+| Constraint | Status |
+|------------|--------|
+| Do not rewrite or delete commits, merge PRs, update `main`, force-push, or delete branches | PASS — current history is additive on the task branch; no prohibited Git operation occurred. |
+| Do not remove or ignore `.ai/` or `docs/` | PASS — both directories remain tracked and are not ignored. |
+| Do not copy private absolute paths or denylisted identifiers into tracked files | PASS — the tracked-tree hygiene validator passes. |
+| Do not broaden source/history scan exceptions | PASS — the exact approved identity ledger remains enforced and passes. |
+| Do not promote draft PRs before task-level validation passes | PASS — the task PRs remain drafts while validation is in progress. |
+
+## Code Review
+
+### Findings
+1. `docs/USAGE.md:636` and `.ai/memory/architecture.md:22,78` still state that the validator has 542 checks, while the current suite reports 551. The coding standard requires quoted check counts to be updated with the change. Severity: important.
+2. The T-04 `commits:` audit trail ends at `5d7713f`, but the recorded branch head is `0c7e46f` and includes the later state commits `42d960d` and `0c7e46f`. Spec-run resume reconciliation compares the branch tip with the final recorded SHA, so this task cannot safely resume from its current state. Severity: important.
+
+### Summary
+2 findings: 0 critical, 2 important, 0 optional. Test coverage and TDD amendment records were reviewed; no test-set weakening or unsupported test exemption was found.
+
+## Issue List
+
+### Approved
+1. Synchronize the published validator check counts. Update the usage guide and current architecture snapshot from 542 to the verified count so repository documentation matches the 551-check validator.
+2. Repair the T-04 commit audit trail. Record the missing state commits so the final SHA matches the `feat/public-identity-sweep` branch tip and spec-run can resume safely.
+
+### Deferred
+(none)
+
+## Fix-Tasks
+
+### Fix Classification
+
+| Issue | Severity | Gate 1 | Gate 2 | Gate 3 | Gate 4 | Grouping | Branch |
+|-------|----------|--------|--------|--------|--------|----------|--------|
+| #1 Synchronize validator check counts | important | pass | pass | pass | pass | shared | T-05-fix-validation-metadata |
+| #2 Repair T-04 commit audit trail | important | pass | pass | pass | pass | shared | T-05-fix-validation-metadata |
+
+fixes-created: complete
+fixes-count: 1
+Created: T-05-fix-validation-metadata

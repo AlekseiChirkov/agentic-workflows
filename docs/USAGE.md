@@ -633,7 +633,7 @@ Or re-run `setup-new-project.sh` after deleting the affected file.
 |----------------------------|-----------------------------------------------------------------------------------|
 | `docs/USAGE.md`            | This document.                                                                    |
 | `docs/SPEC-RUN-QUICKSTART.md` | Operating procedure for `/spec-run`: preflight, the batch gate, what stops the run, the branch stack you get, merging and `/restack`, interruption recovery. |
-| `validate-contracts.sh`    | 542 contract checks across the three layers, including tracked-file public hygiene. Run by `sync.sh` before every deploy; any failure blocks deployment. |
+| `validate-contracts.sh`    | 551 contract checks across the three layers, including tracked-file public hygiene. Run by `sync.sh` before every deploy; any failure blocks deployment. |
 | `sync.sh`                  | Deploy source → Windsurf workflows + rules, Claude skills, `~/.claude/CLAUDE.md`. Source tree defaults to the script directory; `--from <dir>` takes precedence over `ORCHESTRAIL_HOME`. |
 | `validate-task.sh`         | Applies the canonical contracts to ONE task directory's artifacts (`state.md`, `plan.md`, `description.md`) rather than to the workflow definitions. Run by `/pd-finalize` and `/pe-finalize`; exit 1 blocks the phase. |
 | `log-step.sh`              | Append-only run log writer. Stamps its own timestamps and derives durations, so no duration is ever model-guessed. Exits 0 on every error path — logging never blocks a pipeline. |

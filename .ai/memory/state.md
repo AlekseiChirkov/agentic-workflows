@@ -6,7 +6,7 @@ of every session. Updated after every phase transition.
 
 ## Active Tasks
 - [task-00-sensitive-data-scrub] | phase: validation | status: blocked | note: validation complete, all subtasks reviewed, 542 checks pass; only optional fixture isolation deferred; full knowledge base preserved; PRs #2, #3, and #4 ready for review in that merge order
-- [task-01-git-source-of-truth] | phase: discovery | status: complete | note: 4 sequential subtasks; license and release tag deferred by owner; batch gate resolved
+- [task-01-git-source-of-truth] | phase: execution | status: complete | note: four sequential subtasks implemented and individually reviewed; license and release tag remain deferred by owner
 
  Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11 → 12; 07 is backlog. The roadmap is in `specs/README.md`; each spec becomes a task via
 `/phase-discovery .ai/specs/<NN>-<slug>.md`.

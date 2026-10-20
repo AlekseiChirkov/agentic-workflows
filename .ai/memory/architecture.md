@@ -19,7 +19,7 @@ project's `.ai/tasks/…/state.md`, and every orchestrated run appends telemetry
 central log store that `/retro` reads.
 
 Size at the time of writing: 38 workflows, 14 rules, 4 principles, 5 scripts,
-≈76 000 words of instructions, 542 contract checks.
+≈76 000 words of instructions, 551 contract checks.
 
 ## Components
 
@@ -75,7 +75,7 @@ root), `AGENTS.md` (Codex, per project), `codex-global-AGENTS.md` (→ `~/.codex
 ### Layer 5 — scripts
 | Script | Role |
 |---|---|
-| `validate-contracts.sh` | 542 consistency and smoke checks across layers 1–3; includes the tracked-file public-hygiene scanner (`--hygiene-only`, `--root`, `--denylist`); run by `sync.sh`; any failure blocks deploy |
+| `validate-contracts.sh` | 551 consistency and smoke checks across layers 1–3; includes the tracked-file public-hygiene scanner (`--hygiene-only`, `--root`, `--denylist`); run by `sync.sh`; any failure blocks deploy |
 | `validate-task.sh` | applies the same contracts to one task directory's artifacts; run by `/pd-finalize` and `/pe-finalize` |
 | `sync.sh` | validate → copy to Windsurf, Claude Code, Codex → walk every project with `.devin/` and refresh its rule copies and skill symlinks |
 | `setup-new-project.sh` | seed a project (auto-detects umbrella `../.ai/`) |
