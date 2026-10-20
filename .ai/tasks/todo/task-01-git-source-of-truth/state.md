@@ -4,7 +4,7 @@ flow: full
 ## Phases
 - discovery: complete
 - execution: complete
-- validation: in-progress
+- validation: complete
 
 ## Task Analysis
 → archived to state-archive.md
@@ -18,6 +18,10 @@ flow: full
 - Preserve the current public GitHub slug and historical links; scan exceptions are limited to the active source specification, exact historical records, and that slug inside the live clone URL. Replace other mutable names and all old checkout paths. Source: user batch-gate answer.
 - Defer the Apache-2.0 license until the owner supplies exact copyright-holder wording; do not add a placeholder. Source: user batch-gate answer.
 - Deliver the versioned PR stack on the existing ancestry; defer the v0.9.0 tag until the stack is merged and the owner authorizes release. Source: user batch-gate answer.
+
+### Owner Deferrals
+- Apache-2.0 license | deferred | exact copyright-holder wording is pending from the owner; do not create a placeholder.
+- v0.9.0 release tag | deferred | create only after the PR stack is merged and the owner authorizes release.
 
 ## Open Questions (batch)
 None.
@@ -162,11 +166,10 @@ Use the sequential feature stack. It keeps each independently verifiable outcome
 - [ ] docs/USAGE.md section 4 says to clone and identifies v0.9.0 as the tag to use after release.
 
 ## Deferred
-- Apache-2.0 license | deferred | exact copyright-holder wording is pending from the owner; do not create a placeholder.
-- v0.9.0 release tag | deferred | create only after the PR stack is merged and the owner authorizes release.
+(none)
 
 ## Approved Identity Scan Exceptions
-- .ai/specs/01-git-source-of-truth.md:17 — preserve only the active source criterion.
+- .ai/specs/01-git-source-of-truth.md:22 — preserve only the active source criterion.
 - .ai/adr/0007-task-unknown-commit-ai-directory-in-this-repository.md:18 — preserve the historical repository-tracking decision.
 - .ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:69 — preserve the historical naming decision.
 - .ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md:105,107 — preserve only the publication authorization and historical pull-request links.
@@ -183,7 +186,7 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 
 | Path | Line | Expected token counts |
 |---|---:|---|
-| `.ai/specs/01-git-source-of-truth.md` | 17 | `agentic_workflows` × 1; `agentic-workflows` × 1 |
+| `.ai/specs/01-git-source-of-truth.md` | 22 | `agentic_workflows` × 1; `agentic-workflows` × 1 |
 | `.ai/adr/0007-task-unknown-commit-ai-directory-in-this-repository.md` | 18 | `agentic_workflows` × 1 |
 | `.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md` | 69 | `agentic_workflows` × 1 |
 | `.ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md` | 105 | `agentic-workflows` × 1 |
@@ -199,13 +202,13 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 | `docs/USAGE.md` | 245 | `agentic-workflows` × 1 |
 
 ### Root File Decisions
-- `.ai/memory/architecture.md`: updated during Discovery finalization for repository identity, configuration roots, and version metadata; the validator count was synchronized during the approved documentation fix.
-- `.ai/principles/architecture.md`: update during T-04 to use the new product identity; do not change the existing architectural principles.
+- `.ai/memory/architecture.md`: updated during Discovery for repository identity, configuration roots, and version metadata; the validator count was synchronized during validation.
+- `.ai/principles/architecture.md`: updated during the identity sweep; no further update was needed because architectural principles did not change.
 - `.ai/project_state.md`: skip because the file is absent.
-- `.ai/memory/state.md`: update during Discovery finalization with the active task entry.
+- `.ai/memory/state.md`: updated at phase transitions; the completed task is now recorded under Done.
 
 ### ADR Decision
-`adr: not triggered — the identity and versioning decisions are in ADR-0009; the owner resolved license and release boundaries at the batch gate without a new architectural decision.`
+`adr: existing decisions verified — the accepted identity, versioning, and publication records cover the choices made; validation introduced no new architectural decision.`
 
 ## Improvement Proposals (T-01)
 
@@ -261,7 +264,7 @@ None
 | Do not remove or ignore `.ai/` or `docs/` | PASS — both directories remain tracked and are not ignored. |
 | Do not copy private absolute paths or denylisted identifiers into tracked files | PASS — the tracked-tree hygiene validator passes. |
 | Do not broaden source/history scan exceptions | PASS — the exact approved identity ledger remains enforced and passes. |
-| Do not promote draft PRs before task-level validation passes | PASS — the task PRs remain drafts while validation is in progress. |
+| Do not promote draft PRs before task-level validation passes | PASS — draft PRs were withheld until task-level validation passed; all remain unmerged. |
 
 ## Code Review
 
@@ -293,3 +296,9 @@ None
 fixes-created: complete
 fixes-count: 1
 Created: T-05-fix-validation-metadata
+
+## Spec Sync
+sync: complete
+synced_at: 2026-10-20
+deltas: 5 (implemented-differently: 3, not-implemented: 2, implemented-beyond: 0)
+spec: .ai/specs/01-git-source-of-truth.md

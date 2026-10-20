@@ -7,6 +7,12 @@ and the audit spec — dates are those recorded in the sources.
 
 ## Log
 
+- **2026-10-20 — Source-of-truth release stack.** Versioned contracts, portable runtime
+  paths, public package materials, identity checks, and validation metadata are complete.
+  The reviewed stack is published without rewriting existing history; license wording and
+  the release tag remain owner-deferred. The reconciled spec records three implemented-
+  differently and two not-implemented deltas; the full validator passes 551 checks.
+
 - **2026-10-19 — Public hygiene and local-only delivery.** Three reviewed local branches remove private references and add an indexed literal-token guard. All 44 baseline knowledge files are preserved; all 45 current files are included. Validation: 542 checks pass, 23 contract requirements pass, manual sweep 152 files with zero matches/errors. Five source differences reconciled (four implemented differently, one additional inclusion requirement); ADR-0010 accepted. Existing history remains unchanged and remote publication is withheld. One optional fixture-isolation improvement is deferred.
 
 - **2026-09-17 — Scrub moved ahead of everything.** The owner required sensitive data to
