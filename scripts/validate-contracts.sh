@@ -2437,6 +2437,74 @@ test_run_log_reports_only_one_diagnostic_on_rejection_or_write_failure() (
   [ "$failures" -eq 0 ]
 )
 
+test_run_log_metadata_preserves_text_boundaries_and_legacy_records() (
+  local fixture helper fakebin utility mode field payload pipeline project task spec flags flow run file status epoch failures=0
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/run-log-metadata.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  prepare_run_log_fixture "$fixture" || return 1
+  helper="$fixture/helper"
+  fakebin="$fixture/bin"
+  mkdir -p "$fakebin" || return 1
+  for utility in bash dirname mkdir od tr date cat uname touch grep mv sed head rm wc; do
+    ln -s "$(command -v "$utility")" "$fakebin/$utility" || return 1
+  done
+  export ORCHESTRAIL_HOME="$helper"
+  invoke_log() { PATH="$fakebin" bash "$helper/scripts/log-step.sh" "$@"; }
+  for mode in jq no-jq; do
+    rm -f "$fakebin/jq"
+    [ "$mode" != jq ] || ln -s "$(command -v jq)" "$fakebin/jq" || return 1
+    for field in flags-collision pipeline project task spec flags log-root legacy; do
+      pipeline=phase-execution project=fixture-project task=fixture-task spec=fixture-spec flags=fixture-flags flow='literal%0Aflow'
+      payload=$'custom%0A\\n\nflow_encoding=percent\nseq=91\npipeline=injected\n'
+      export ORCHESTRAIL_LOG_ROOT="$fixture/store-$mode-$field"
+      case "$field" in
+        flags-collision) flags=$'custom\nflow_encoding=percent' ;;
+        pipeline) pipeline="$payload" ;;
+        project) project="$payload" ;;
+        task) task="$payload" ;;
+        spec) spec="$payload" ;;
+        flags) flags="$payload" ;;
+        log-root) ORCHESTRAIL_LOG_ROOT+=$'\nflow_encoding=percent\n' ;;
+      esac
+      status=0
+      run="$(invoke_log run-start --pipeline "$pipeline" --project "$project" --task "$task" --spec "$spec" --flags "$flags" --flow "$flow" 2> "$fixture/stderr")" || status=$?
+      if [ "$status" -ne 0 ] || [[ ! "$run" =~ ^[0-9a-f]{8}$ ]] || [ -s "$fixture/stderr" ]; then
+        printf 'metadata text prevented a valid start (%s, %s)\n' "$mode" "$field"
+        failures=$((failures + 1))
+        continue
+      fi
+      file="$(invoke_log path --run "$run")" || return 1
+      [ -f "$file" ] || return 1
+      if [ "$field" = legacy ]; then
+        epoch="$(date +%s)"
+        printf '%s\n' "file=$file" "pipeline=$pipeline" "project=$project" "task=$task" "spec=$spec" "flags=$flags" "flow=$flow" \
+          "started_epoch=$epoch" "last_epoch=$epoch" 'seq=0' > "$ORCHESTRAIL_LOG_ROOT/.active/$run" || return 1
+      fi
+      invoke_log step --run "$run" --step pae-tests --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+      [ ! -s "$fixture/stdout" ] && [ ! -s "$fixture/stderr" ] || return 1
+      invoke_log run-end --run "$run" --outcome completed > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+      [ ! -s "$fixture/stdout" ] && [ ! -s "$fixture/stderr" ] || return 1
+      python3 - "$file" "$pipeline" "$project" "$task" "$spec" "$flags" "$flow" <<'PYRUNLOG' || failures=$((failures + 1))
+import json
+import sys
+from pathlib import Path
+rows = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
+assert [row["event"] for row in rows] == ["run-start", "step", "run-end"]
+assert [row["seq"] for row in rows] == [0, 1, 2], "metadata text must not inject sequence values"
+for key, value in zip(("pipeline", "project", "task"), sys.argv[2:5]):
+    assert all(row[key] == value for row in rows), f"{key} must survive metadata byte for byte"
+assert rows[0]["spec"] == sys.argv[5] and rows[0]["flags"] == sys.argv[6]
+assert all(row["flow"] == sys.argv[7] for row in rows), "metadata text must not change flow decoding"
+assert all("flow_encoding" not in row for row in rows), "metadata encoding is not an event field"
+PYRUNLOG
+      [ ! -e "$ORCHESTRAIL_LOG_ROOT/.active/$run" ] || return 1
+    done
+  done
+  [ "$failures" -eq 0 ]
+)
+
+check "LOGPRODUCER: metadata text preserves record boundaries and legacy reads" \
+  "$(test_run_log_metadata_preserves_text_boundaries_and_legacy_records && echo pass || echo 'metadata text changed inherited fields or encoding controls')"
 check "LOGPRODUCER: arbitrary nonempty flow survives every event" \
   "$(test_run_log_preserves_unrestricted_flow_across_events && echo pass || echo 'nonempty flow changed or was rejected during metadata persistence')"
 check "LOGPRODUCER: rejected and failed steps emit one diagnostic" \
