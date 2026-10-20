@@ -81,7 +81,7 @@ T-02 | read-only-run-linter | atomic-tests: green | atomic-execution: complete |
   base_branch: feat/run-log-producer-validation
   base_commit: 872538e2ea3c28faf0f296c9979fa01d6b6d76ae
   commits: 93c985c test: cover read-only lint diagnostics and selection; 610e097 feat: lint historical records without changing files
-  pr: none
+  pr: #14 draft
   last_action: DoD met — independent read-only lint review complete; selectors, strict JSON, exact numbers, diagnostics, coverage, and preservation pass
   target_files: `scripts/log-step.sh`, `scripts/validate-contracts.sh`
   blocker: none
@@ -116,11 +116,38 @@ T-02 | read-only-run-linter | atomic-tests: green | atomic-execution: complete |
          closure: orchestrated pav-close complete; return plan delta T-02 -> reviewed to the sole shared-plan writer. No child composite trigger applies. No implementation, tests, git, shared memory, plan, or historical logs changed.
          compression: auto audit retains protected notes, test/git history, and earlier repair evidence; no further compression needed within owned block and no shared sections edited.
 
-T-03 | lint-aware-retrospective | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: Discovery artifacts created
-  target_files: `workflows/retro.md`
+T-03 | lint-aware-retrospective | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  branch: feat/lint-aware-retrospective
+  base_branch: feat/run-log-lint
+  base_commit: 4e0b7f85b1eb94272caafdccc5afc3eea4062b87
+  commits: f096c89 test: cover filtered lint coverage and usable metrics; a799dbc feat: report lint coverage and exclude unusable telemetry
+  pr: none
+  last_action: DoD met — independent lint-aware retrospective validation complete; filtered coverage, usable denominators, and physical close classification reviewed
+  target_files: `workflows/retro.md`, `scripts/validate-contracts.sh`
   blocker: none
   notes: Depends on the linter's stable diagnostics and summary contract.
+
+         tdd: contract, smoke — 4 functions, AC coverage 4/4; isolated executable loader scenarios use temporary stores, no historical records.
+         tdd: red digest — AC-1 → test_retro_filters_intersect_exact_selected_corpus; AC-2 → test_retro_empty_and_invalid_corpora_report_safe_counts, test_retro_incomplete_lint_never_implies_clean_measurements; AC-3 → test_retro_invalid_records_never_enter_metric_observations, test_retro_incomplete_lint_never_implies_clean_measurements; AC-4 → test_retro_invalid_records_never_enter_metric_observations.
+         tdd: RED observed — all four report "retro must provide an executable lint-aware corpus loader"; bash -n passes; no workflow edits. Paused for orchestrator test-only commit.
+         tdd: test amended — test_retro_empty_and_invalid_corpora_report_safe_counts — malformed JSON diagnostics use the existing helper field name record; original line expectation misunderstood the stable linter interface; corrected before implementation.
+         implementation: embedded loader uses lint --all, exact selected-file intersection after all filters and limit, safe grouped diagnostics, invalid-line exclusions, and conservative unverified coverage; snapshots detect changed stores; no helper or producer behavior changed.
+         implementation: all metric families specify usable observation/run denominators, optional-field missingness, incomplete subtotal labels, physical abandonment vs unusable/unknown closes, and not-measurable outcomes; report template includes coverage and exclusions; below-five/honesty/recommendation-only behavior preserved.
+         tdd: added during GREEN — execute the documented metric aggregation snippet against valid/invalid observations; preserve known diagnostics in partial coverage; active-store changes suppress all unverified metrics.
+         verification: all four focused functions pass; frozen names and original assertions preserved, with added coverage only; bash -n passes for the modified validator. Full gate starting.
+         tdd: added during GREEN — missing-jq startup still attempts lint --all, reports unavailable without guessed corpus counts or usable observations; no new runtime dependency.
+         verification-final: stable complete suite 566 passed, 0 failed, 2 configured hygiene skips; all scripts and embedded Bash snippets pass bash -n; git diff --check passes; shellcheck unavailable. Evidence: /tmp/orchestrail-retro-verified.log.
+         verification-final: comparison with test-only commit f096c89 shows 44 added test lines, zero removed lines; all 4 original functions, cases, and assertions preserved. No helper, acceptance-harness, historical log, deployment, or git mutation.
+         architecture.md: existing retrospective reader interface updated; return delta to orchestrator for lint-aligned corpus/coverage and usable-observation reporting; no new module.
+         finalization: orchestrated pae-finalize complete; return plan transition T-03 -> done, memory status delta, and architecture interface delta to the sole shared-file writer; atomic validation remains not-started for independent review.
+         compression: audit limited to owned progress block; protected TDD/git evidence retained; prior pending verification is superseded by final result; no shared sections changed and no further compression needed.
+         validation: independent pav-check DONE; AC-1 exact filter/limit diagnostic intersection, AC-2 corpus counts/grouping/safe examples/incomplete status, AC-3 usable-only numerators and denominators plus exclusion effects, and AC-4 absent physical close versus unusable close all met.
+         validation: all four focused executable functions independently pass; frozen RED f096c89 audit has zero removed lines/assertions, later coverage is additive, and the pre-implementation invalid-JSON field amendment has its recorded test-defect reason. Tests assert observable results using isolated temporary stores, without skips or vacuous assertions.
+         validation: independent targeted checks pass inclusive/combined filtering through the frozen suite, invalid dates/limits, newline-bearing file paths with safe JSON examples, invalid physical close exclusion, unreadable-file unknown closes, unavailable directory coverage, and unselectable-start disclosure; original below-five, honesty, recommendation-only, and raw-context restrictions preserved.
+         validation: stable complete-suite evidence /tmp/orchestrail-retro-verified.log confirms 566 passed, 0 failed, 2 conditional hygiene skips; independently repeated focused tests and extra edge checks; all scripts and embedded Bash snippets pass bash -n; git diff --check passes; shellcheck unavailable.
+         proposals: pav-propose --batch complete — Do Now: none; Do Later: none; Optional: add permanent executable cases for newline-bearing diagnostic paths and inaccessible runs directories. Independent direct checks pass both; fixtures would protect their safe rendering and unavailable-coverage disclosures. Shared proposal section returned to orchestrator; nothing applied.
+         closure: orchestrated pav-close complete; return plan delta T-03 -> reviewed to sole shared-plan writer. No child composite trigger applies. No code, tests, git, shared memory, plan, historical logs, or deployment changes made by this review.
+         compression: owned-block auto audit retained protected notes, TDD/git evidence, and all existing fields; no further compression needed; shared sections untouched.
 
 T-04 | vocabulary-docs-and-drift-gate | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: Discovery artifacts created
@@ -207,7 +234,7 @@ adr: not triggered — the spec fixes the vocabulary and validation strategy, an
 
 - T-01: reviewed — strict producer validation and safe persistence; all independent findings repaired.
 - T-02: reviewed — read-only lint with exact record validation and honest coverage.
-- T-03: not-started — lint-aware retrospective.
+- T-03: reviewed — filtered lint coverage, usable metric observations, and honest close classification.
 - T-04: not-started — vocabulary documentation and drift gate.
 - T-05: not-started — isolated acceptance harness.
 - Verification: 558 passed, 0 failed, 2 conditional hygiene skips; nine producer groups, shell syntax, and whitespace pass.
@@ -249,7 +276,23 @@ recorded_paths:
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/plan.md
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
 
+### Lint-aware retrospective
+
+branch: feat/lint-aware-retrospective
+expected_parent: a799dbc094494ed3bd2a288f71c1ed035ec0d59c
+allowed_scope: listed knowledge-base paths only
+recorded_paths:
+- .ai/memory/architecture.md
+- .ai/memory/state.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/plan.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
+
 ## Improvement Proposals (T-02)
 
 ### Do Later
 - Include the independently verified mid-file jq failure scenario in the planned acceptance harness, checking partial status and retained examined counts. This is assigned to the existing acceptance scope rather than deferred beyond the task.
+
+## Improvement Proposals (T-03)
+
+### Optional
+- Permanently cover newline-bearing diagnostic paths and inaccessible run directories in the planned acceptance harness; direct independent checks already pass.
