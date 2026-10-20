@@ -3070,6 +3070,76 @@ check "RETRO: incomplete lint discloses unverified observations" \
 
 # ── End retrospective executable corpus contract ─────────────────────
 
+# ── Isolated run-log acceptance harness ──────────────────────────────
+test_run_log_acceptance_harness_isolated_and_complete() {
+  python3 - "$REPO_ROOT" <<'PYACCEPTANCE'
+from pathlib import Path
+import hashlib, os, re, shutil, signal, subprocess, sys, tempfile
+root = Path(sys.argv[1])
+harness = root / 'tests/log-step.sh'
+assert harness.is_file() and os.access(harness, os.X_OK), 'missing executable isolated run-log harness'
+source = (root / 'scripts/validate-contracts.sh').read_text()
+required = set(re.findall(r'^(test_(?:run_log|retro)_[a-z_]+)\(\)', source, re.M))
+required.remove('test_run_log_acceptance_harness_isolated_and_complete')
+assert len(required) >= 20, required
+with tempfile.TemporaryDirectory(prefix='acceptance meta ') as temporary:
+    fixture = Path(temporary)
+    checkout = fixture / 'checkout with spaces'
+    for directory in ('scripts', 'rules', 'workflows', 'tests'):
+        (checkout / directory).mkdir(parents=True)
+    for name in ('scripts/log-step.sh', 'scripts/validate-contracts.sh', 'rules/run-log.md', 'tests/log-step.sh'):
+        shutil.copy2(root / name, checkout / name)
+    for workflow in (root / 'workflows').glob('*.md'):
+        shutil.copy2(workflow, checkout / 'workflows' / workflow.name)
+    hostile = fixture / 'inherited store'
+    hostile.mkdir()
+    (hostile / 'sentinel').write_bytes(b'private fixture must stay untouched\n')
+    scratch = fixture / 'temporary children'
+    scratch.mkdir()
+    env = dict(os.environ, ORCHESTRAIL_HOME=str(fixture / 'missing inherited home'),
+               ORCHESTRAIL_LOG_ROOT=str(hostile), TMPDIR=str(scratch))
+    def snapshot():
+        return {str(p.relative_to(hostile)): hashlib.sha256(p.read_bytes()).hexdigest()
+                for p in hostile.rglob('*') if p.is_file()}
+    before = snapshot()
+    command = ['bash', str(checkout / 'tests/log-step.sh')]
+    result = subprocess.run(command, env=env, cwd=fixture, capture_output=True, text=True, timeout=180)
+    assert result.returncode == 0, result.stdout + result.stderr
+    passed = set(re.findall(r'^\[PASS\] (test_[a-z_]+)$', result.stdout, re.M))
+    assert required <= passed, ('harness did not execute required checks', sorted(required - passed))
+    assert snapshot() == before and not (fixture / 'missing inherited home').exists()
+    assert list(scratch.iterdir()) == [], 'successful harness leaked fixtures'
+    # A focused check must fail the runner even when its caller tests its status.
+    validator = checkout / 'scripts/validate-contracts.sh'
+    original = validator.read_text()
+    needle = 'test_run_log_contract_documents_effective_runtime_tables() { run_log_contract_smoke tables; }'
+    assert needle in original
+    validator.write_text(original.replace(needle,
+        'test_run_log_contract_documents_effective_runtime_tables() { false; echo masked-failure; }', 1))
+    result = subprocess.run(command, env=env, cwd=fixture, capture_output=True, text=True, timeout=180)
+    assert result.returncode != 0, 'harness masked a failing assertion'
+    assert snapshot() == before and list(scratch.iterdir()) == [], 'failed harness leaked or changed storage'
+    # Stop during a real focused check; no sleeps or timing assumptions are needed.
+    validator.write_text(original.replace(needle,
+        'test_run_log_contract_documents_effective_runtime_tables() { kill -TERM "$PPID"; exit 99; }', 1))
+    result = subprocess.run(command, env=env, cwd=fixture, capture_output=True, text=True, timeout=180)
+    assert result.returncode != 0, 'interrupted harness reported success'
+    assert snapshot() == before and list(scratch.iterdir()) == [], 'interrupted harness leaked fixtures'
+    # An absent inherited log root must stay absent as well.
+    validator.write_text(original.replace(needle,
+        'test_run_log_contract_documents_effective_runtime_tables() { exit 29; }', 1))
+    absent = fixture / 'absent inherited store'
+    result = subprocess.run(command, env=env | {'ORCHESTRAIL_LOG_ROOT': str(absent)},
+                            cwd=fixture, capture_output=True, text=True, timeout=180)
+    assert result.returncode != 0 and not absent.exists()
+    assert list(scratch.iterdir()) == [], 'absent-root run leaked fixtures'
+PYACCEPTANCE
+}
+check "test_run_log_acceptance_harness_isolated_and_complete" \
+  "$(test_run_log_acceptance_harness_isolated_and_complete && echo pass || echo 'isolated executable harness, coverage, failure propagation, or cleanup failed')"
+
+# ── End isolated run-log acceptance harness ─────────────────────────
+
 # ── Contract version smoke checks ───────────────────────────────────
 test_contract_version_root_has_exact_release_value() {
   [ -f VERSION ] && cmp -s VERSION <(printf '0.9.0\n')
