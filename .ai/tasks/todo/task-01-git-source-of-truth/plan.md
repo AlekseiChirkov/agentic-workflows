@@ -5,7 +5,7 @@
 | T-01 | Versioned contract metadata    | gpt-6.1-sol        | add VERSION → stamp task state and run logs → warn on stale rules | —          | reviewed |
 | T-02 | Portable runtime paths         | gpt-6.1-sol        | rename root overrides → update setup helpers → verify relocation  | T-01       | reviewed |
 | T-03 | Public package materials       | gemini-3.8-flash   | add concise README → narrow ignores → update setup guide; defer license and release tag | T-02    | reviewed |
-| T-04 | Public identity sweep          | gemini-3.8-flash   | update remaining references → enforce scoped scan → verify hygiene | T-03     | in-progress |
+| T-04 | Public identity sweep          | gemini-3.8-flash   | update remaining references → enforce scoped scan → verify hygiene | T-03     | reviewed |
 
 ## Execution Strategy
 

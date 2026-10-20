@@ -68,8 +68,8 @@ None
 
 ### Optional
 - Mention that `sync.sh` also writes to Windsurf global directories and updates eligible project-local files.
-T-04 | Public identity sweep | atomic-tests: green | atomic-execution: complete | atomic-validation: in-progress
-  last_action: Corrected the public setup reference; full validator passed 551/551, hygiene-only, Bash syntax, and diff checks passed; independent validation pending.
+T-04 | Public identity sweep | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: pav-close DONE — independent validation passed all acceptance criteria; no important findings or useful proposals.
   target_files: CLAUDE.md, README.md, docs/README.md, docs/USAGE.md, link-skills.sh, setup-all-repos.sh, setup-new-project.sh, setup-umbrella.sh, sync.sh, validate-contracts.sh, templates/.ai/principles/architecture.md, templates/codex-global-AGENTS.md, workflows/pv-create-fixes.md, .ai/README.md, .ai/adr/index.md, .ai/context/runbook.md, .ai/memory/architecture.md, .ai/memory/state.md, .ai/principles/architecture.md, .ai/specs/README.md, .ai/specs/13-model-only-harnesses-and-rule-naming.md
   blocker: none
   notes: Assigned model `gemini-3.8-flash` is unavailable in this agent runtime; the session default was used. tdd: smoke — one exact identity-ledger check, AC coverage 4/4. tdd: red digest — AC1,AC2,AC4 → test_public_identity_matches_exact_ledger_and_preserves_knowledge; AC3 → identity check and test_public_hygiene_tracked_tree_excludes_private_tokens. tdd: green — full validator 551/551; hygiene-only pass; all root scripts pass bash -n; git diff --check passes; ShellCheck unavailable. Final scan scope: all 163 tracked and non-ignored untracked worktree files, with no directory exclusions; only the 14 self-referential ledger data rows are masked while all other state content is scanned. The exact ledger records 22 `(path, line, token, count)` tuples across 21 line locations, 26 total occurrences in 10 files. The only current-content match is the single public-slug token in `docs/USAGE.md:245`; all other retained matches are source or historical lines listed below. pav-check NEEDS WORK: AC1 — `.ai/principles/coding.md` still names obsolete root variables; AC3 test gap — the knowledge inventory reads current HEAD instead of the pre-branch base, so it cannot detect a file removed in this branch. Review confirms the current base and HEAD both contain the same 45 knowledge paths. Independent revalidation 2026-10-20: pav-check NEEDS WORK. AC1 remains unmet (important): docs/USAGE.md:637 says --from takes precedence over $WORKFLOWS_SOURCE, but sync.sh reads ORCHESTRAIL_HOME; setting the documented variable has no effect. TDD audit (important): test changes were committed after RED in 1314aa2, but the required amendment record was absent. Checks: full validator 551/551; hygiene-only, shell syntax, and git diff --check passed; all 45 base .ai paths are present and tracked in HEAD; ShellCheck unavailable. tdd: test amended — 1314aa2: compare the knowledge inventory against the recorded base commit and require every baseline file to remain present and tracked. tdd: test amended — test_runtime_instructions_public_configuration_uses_orchestrail: include docs/USAGE.md so published setup examples must use the public source-root variable and reject its obsolete name.
@@ -77,7 +77,7 @@ T-04 | Public identity sweep | atomic-tests: green | atomic-execution: complete 
   branch: feat/public-identity-sweep
   base_branch: feat/public-package-materials
   base_commit: 3cdf9bc93dbde32ee57223df4a0c14b092d0b976
-  commits: daf5fbf, 412206d, 8deba46, 1314aa2, e9221a5, f922b9e
+  commits: daf5fbf, 412206d, 8deba46, 1314aa2, e9221a5, f922b9e, 5d7713f
   pr: none
 ## Solution Design
 
