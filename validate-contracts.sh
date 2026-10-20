@@ -1920,11 +1920,14 @@ test_contract_version_rule_history_warns_until_version_changes() (
 from pathlib import Path
 import sys
 path = Path(sys.argv[1])
-text = path.read_text()
-lines = text.splitlines(keepends=True)
-start = next(i for i, line in enumerate(lines) if line.startswith('# ── Contract version smoke checks'))
-end = next(i for i in range(start + 1, len(lines)) if lines[i].startswith('# ── End contract version smoke checks'))
-path.write_text(''.join(lines[:start] + lines[end + 1:]))
+for opening, closing in (
+    ('# ── Contract version smoke checks', '# ── End contract version smoke checks'),
+    ('# ── Public package materials smoke checks', '# ── End public package materials smoke checks'),
+):
+    lines = path.read_text().splitlines(keepends=True)
+    start = next(i for i, line in enumerate(lines) if line.startswith(opening))
+    end = next(i for i in range(start + 1, len(lines)) if lines[i].startswith(closing))
+    path.write_text(''.join(lines[:start] + lines[end + 1:]))
 PYVERSION
   cd "$fixture" || return 1
   git init -q || return 1
@@ -1969,6 +1972,57 @@ check "test_contract_version_run_start_stamps_current_and_reads_legacy" \
 check "test_contract_version_rule_history_warns_until_version_changes" \
   "$(test_contract_version_rule_history_warns_until_version_changes && echo pass || echo 'rule-history version warning behavior is incomplete')"
 # ── End contract version smoke checks ───────────────────────────────
+
+# ── Public package materials smoke checks ───────────────────────────
+test_public_package_overview_and_release_policy() {
+  local line_count readme task_state='.ai/tasks/todo/task-01-git-source-of-truth/state.md'
+  line_count="$(wc -l < README.md)" || return 1
+  [ "$line_count" -le 60 ] || return 1
+  readme="$(tr '\n\t' '  ' < README.md | sed -E 's/[[:space:]]+/ /g')" || return 1
+  grep -qi 'Orchestrail' <<< "$readme" || return 1
+  grep -qiE 'AI|agent' <<< "$readme" || return 1
+  grep -qiE 'workflow|process' <<< "$readme" || return 1
+  grep -qiE '(versions? (below|under|before) 1\.0\.0|pre.?1\.0(\.0)?).{0,80}unstable' <<< "$readme" || return 1
+  grep -qiE 'sync\.sh.*~/?\.claude.*~/?\.codex|sync\.sh.*~/?\.codex.*~/?\.claude' <<< "$readme" || return 1
+  grep -Fq '](docs/USAGE.md)' <<< "$readme" || return 1
+  grep -Fq '](docs/SPEC-RUN-QUICKSTART.md)' <<< "$readme" || return 1
+  grep -Fq '](.ai/specs/README.md)' <<< "$readme" || return 1
+  [ -f "$task_state" ] || return 1
+  [ ! -e LICENSE ] || return 1
+  grep -Fq -- '- Apache-2.0 license | deferred |' "$task_state" || return 1
+  grep -qi 'exact copyright-holder wording' "$task_state" || return 1
+  grep -Fq -- '- v0.9.0 release tag | deferred |' "$task_state"
+}
+
+test_public_ignore_rules_keep_local_data_ignored_and_knowledge_trackable() {
+  [ -f logs/.gitignore ] || return 1
+  grep -qE '^/?logs/runs/?$' .gitignore || return 1
+  grep -qE '^/?logs/\.active/?$' .gitignore || return 1
+  grep -qE '^/?\.claude/settings\.local\.json$' .gitignore || return 1
+  git -c core.excludesFile=/dev/null check-ignore --no-index -q -- logs/runs/package-smoke.log || return 1
+  git -c core.excludesFile=/dev/null check-ignore --no-index -q -- logs/.active/package-smoke.jsonl || return 1
+  git -c core.excludesFile=/dev/null check-ignore --no-index -q -- .claude/settings.local.json || return 1
+  git -c core.excludesFile=/dev/null check-ignore --no-index -q -- .ai/specs/README.md && return 1
+  git -c core.excludesFile=/dev/null check-ignore --no-index -q -- docs/USAGE.md && return 1
+  git -c core.excludesFile=/dev/null check-ignore --no-index -q -- logs/.gitignore && return 1
+  ! grep -qE '^[[:space:]]*/?logs/?[[:space:]]*(#.*)?$' .gitignore
+}
+
+test_public_setup_guide_uses_orchestrail_release_instructions() {
+  local section
+  section="$(awk '/^## 4\. Initial Setup/{inside=1} /^## / && inside && !/^## 4\. Initial Setup/{exit} inside{print}' docs/USAGE.md)" || return 1
+  grep -Fq 'git clone https://github.com/AlekseiChirkov/agentic-workflows.git ~/projects/orchestrail' <<< "$section" || return 1
+  grep -Fq 'v0.9.0' <<< "$section" || return 1
+  grep -qiE 'v0\.9\.0.{0,100}(after|once|following).*release|(after|once|following).*release.{0,100}v0\.9\.0' <<< "$(tr '\n' ' ' <<< "$section")"
+}
+
+check "test_public_package_overview_and_release_policy" \
+  "$(test_public_package_overview_and_release_policy && echo pass || echo 'README must identify Orchestrail, state its purpose and instability policy, describe sync destinations, link the required guides, stay within 60 lines, and preserve the recorded license and tag deferrals')"
+check "test_public_ignore_rules_keep_local_data_ignored_and_knowledge_trackable" \
+  "$(test_public_ignore_rules_keep_local_data_ignored_and_knowledge_trackable && echo pass || echo 'ignore rules must exclude local run data and machine settings while keeping .ai/, docs/, and logs/.gitignore eligible for tracking')"
+check "test_public_setup_guide_uses_orchestrail_release_instructions" \
+  "$(test_public_setup_guide_uses_orchestrail_release_instructions && echo pass || echo 'USAGE section 4 must give the live clone URL, Orchestrail checkout path, and v0.9.0 as the post-release tag')"
+# ── End public package materials smoke checks ───────────────────────
 
 # ── Tracked public hygiene ──────────────────────────────────────────
 check "test_public_hygiene_tracked_tree_excludes_private_tokens" \
