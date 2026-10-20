@@ -2692,6 +2692,142 @@ check "Run-log lint reports unavailable and partial checks" \
 
 # ── End run-log producer smoke checks ───────────────────────────────
 
+# ── Retrospective executable corpus contract ──────────────────────────
+run_retro_smoke() {
+  python3 - "$1" "$PWD" <<'PYRETRO'
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+
+scenario, root = sys.argv[1:]
+root = Path(root)
+text = (root / "workflows/retro.md").read_text()
+blocks = re.findall(r"```bash\n(.*?)\n```", text, re.S)
+loader = next((b for b in blocks if "# Retrospective corpus loader." in b), None)
+assert loader is not None, "retro must provide an executable lint-aware corpus loader"
+with tempfile.TemporaryDirectory(prefix="retro-contract-") as temporary:
+    temp = Path(temporary)
+    store = temp / "store"
+    runs = store / "runs"
+    runs.mkdir(parents=True)
+    script = temp / "load.sh"
+    script.write_text(loader)
+    helper = root / "scripts/log-step.sh"
+    base = dict(ts="2026-08-10T00:00:00Z", run_id="1234abcd", seq=0,
+                pipeline="spec-run", project="/acme", flow="full")
+
+    def write(name, changes=None, events=None):
+        start = dict(base, event="run-start", **(changes or {}))
+        rows = events if events is not None else [start]
+        path = runs / name
+        path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+        return path
+
+    def load(**filters):
+        env = dict(os.environ, STORE=str(store), HELPER=str(helper),
+                   SINCE="", PIPELINE="", PROJECT="", LIMIT="")
+        env.update(filters)
+        result = subprocess.run(["bash", str(script)], env=env,
+                                text=True, capture_output=True)
+        assert result.returncode == 0, result.stderr
+        return json.loads(result.stdout)
+
+    def step(**fields):
+        return dict(base, event="step", seq=1, step="dry-run", outcome="ok", **fields)
+
+    if scenario == "filters":
+        write("2026-08-01-11111111.jsonl", {"ts": "2026-08-01T00:00:00Z"})
+        write("2026-08-10-22222222.jsonl", {"pipeline": "other"})
+        write("2026-08-10-33333333.jsonl", {"project": "/other"})
+        selected = write("2026-08-10-44444444.jsonl", events=[dict(base, event="run-start"), step(tests="BAD")])
+        newest = write("2026-08-11-55555555.jsonl", events=[dict(base, event="run-start"), step(tests="BAD", gate="BAD")])
+        assert load(SINCE="2026-08-02")["total_runs"] == 4
+        assert load(PIPELINE="spec-run")["total_runs"] == 4
+        assert load(PROJECT="/acme")["total_runs"] == 4
+        data = load(SINCE="2026-08-02", PIPELINE="spec-run", PROJECT="/acme", LIMIT="1")
+        assert data["files"] == [str(newest)], data
+        assert (data["total_runs"], data["examined_lines"], data["invalid_lines"], data["affected_runs"]) == (1, 2, 1, 1)
+        assert data["violations"] == [{"field": "gate", "code": "invalid-enum", "count": 1}, {"field": "tests", "code": "invalid-enum", "count": 1}]
+        assert data["examples"] == [{"file": str(newest), "line": 2}]
+        assert data["status"] == "ok" and data["weak_evidence"] is True
+        data = load(SINCE="2026-08-02", PIPELINE="spec-run", PROJECT="/acme", LIMIT="2")
+        assert data["files"] == [str(newest), str(selected)]
+        assert data["invalid_lines"] == 2 and data["affected_runs"] == 2
+    elif scenario == "metrics":
+        clean = write("2026-08-10-11111111.jsonl", events=[dict(base, event="run-start"), step(tests="n-a", stops=0), step(tests="green", stops=2), step(), step(tests="BAD", stops=900, duration_s=900), dict(base, event="run-end", seq=5, outcome="completed", duration_s=10)])
+        invalid_close = write("2026-08-10-22222222.jsonl", events=[dict(base, event="run-start"), dict(base, event="run-end", outcome="BAD", duration_s=999)])
+        missing_close = write("2026-08-10-33333333.jsonl")
+        data = load()
+        assert data["invalid_lines"] == 2 and data["affected_runs"] == 2
+        assert data["abandoned_runs"] == 1 and data["unusable_closes"] == 1
+        observations = data["usable_records"]
+        steps = [r["record"] for r in observations if r["record"]["event"] == "step"]
+        measured = [r for r in steps if "stops" in r]
+        assert sum(r["stops"] for r in measured) == 2 and len(measured) == 2
+        tests = [r["tests"] for r in steps if "tests" in r]
+        assert tests.count("n-a") == 1 and len(tests) == 2
+        closes = [r["record"] for r in observations if r["record"]["event"] == "run-end"]
+        assert [r["duration_s"] for r in closes] == [10]
+        assert all(r["line"] != 5 for r in observations if r["file"] == str(clean))
+        assert {r["file"] for r in data["incomplete_runs"]} == {str(clean), str(invalid_close)}
+    elif scenario == "boundaries":
+        data = load()
+        assert data["status"] == "ok" and data["total_runs"] == 0
+        assert data["examined_lines"] == 0 and data["usable_records"] == []
+        broken = runs / "2026-08-10-11111111.jsonl"
+        broken.write_text("not-json\n" * 7)
+        data = load()
+        assert data["invalid_lines"] == 7 and data["examined_lines"] == 7
+        assert data["usable_records"] == [] and len(data["examples"]) == 5
+        assert data["abandoned_runs"] == 1 and data["unusable_closes"] == 0
+        assert data["violations"] == [{"field": "record", "code": "invalid-json", "count": 7}]
+        assert load(PIPELINE="absent")["total_runs"] == 0
+    elif scenario == "coverage":
+        write("2026-08-10-11111111.jsonl", events=[dict(base, event="run-start"), step(stops=1)])
+        actual = helper
+        helper = temp / "lint.sh"
+        for status in ("partial", "unavailable"):
+            helper.write_text('''#!/bin/bash
+[ "$1" = lint ] && [ "$2" = --all ] || exit 9
+printf '%s\\n' '{"kind":"summary","status":"STATUS","files":1,"lines":1,"invalid_lines":0,"violations":0}'
+'''.replace("STATUS", status))
+            data = load()
+            assert data["status"] == status and data["usable_records"] == []
+            assert data["examined_lines"] is None and data["affected_runs"] == 1
+            assert data["limitations"] and len(data["incomplete_runs"]) == 1
+        helper.write_text('#!/bin/bash\nexit 0\n')
+        data = load()
+        assert data["status"] == "unavailable" and data["usable_records"] == []
+        helper = actual
+        (runs / "2026-08-11-22222222.jsonl").symlink_to(temp / "missing")
+        data = load()
+        assert data["status"] == "partial" and data["usable_records"] == []
+        assert data["examined_lines"] is None and data["limitations"]
+    else:
+        raise AssertionError("unknown retrospective scenario")
+PYRETRO
+}
+
+test_retro_filters_intersect_exact_selected_corpus() { run_retro_smoke filters; }
+test_retro_invalid_records_never_enter_metric_observations() { run_retro_smoke metrics; }
+test_retro_empty_and_invalid_corpora_report_safe_counts() { run_retro_smoke boundaries; }
+test_retro_incomplete_lint_never_implies_clean_measurements() { run_retro_smoke coverage; }
+
+check "RETRO: combined filters and limit align lint diagnostics" \
+  "$(test_retro_filters_intersect_exact_selected_corpus && echo pass || echo 'retrospective corpus filters or lint intersection failed')"
+check "RETRO: invalid observations and unusable closes are excluded" \
+  "$(test_retro_invalid_records_never_enter_metric_observations && echo pass || echo 'retrospective usable observations or close classification failed')"
+check "RETRO: empty and all-invalid corpora remain measurable honestly" \
+  "$(test_retro_empty_and_invalid_corpora_report_safe_counts && echo pass || echo 'retrospective boundary counts or safe examples failed')"
+check "RETRO: incomplete lint discloses unverified observations" \
+  "$(test_retro_incomplete_lint_never_implies_clean_measurements && echo pass || echo 'retrospective incomplete coverage was treated as clean')"
+
+# ── End retrospective executable corpus contract ─────────────────────
+
 # ── Contract version smoke checks ───────────────────────────────────
 test_contract_version_root_has_exact_release_value() {
   [ -f VERSION ] && cmp -s VERSION <(printf '0.9.0\n')
