@@ -2453,12 +2453,13 @@ test_run_log_metadata_preserves_text_boundaries_and_legacy_records() (
   for mode in jq no-jq; do
     rm -f "$fakebin/jq"
     [ "$mode" != jq ] || ln -s "$(command -v jq)" "$fakebin/jq" || return 1
-    for field in flags-collision pipeline project task spec flags log-root legacy; do
+    for field in flags-collision pipeline project task spec flags log-root legacy format-marker; do
       pipeline=phase-execution project=fixture-project task=fixture-task spec=fixture-spec flags=fixture-flags flow='literal%0Aflow'
       payload=$'custom%0A\\n\nflow_encoding=percent\nseq=91\npipeline=injected\n'
       export ORCHESTRAIL_LOG_ROOT="$fixture/store-$mode-$field"
       case "$field" in
         flags-collision) flags=$'custom\nflow_encoding=percent' ;;
+        format-marker) flags=$'# run-log-metadata percent-v1\nflow_encoding=percent\n' ;;
         pipeline) pipeline="$payload" ;;
         project) project="$payload" ;;
         task) task="$payload" ;;
@@ -2480,6 +2481,13 @@ test_run_log_metadata_preserves_text_boundaries_and_legacy_records() (
         printf '%s\n' "file=$file" "pipeline=$pipeline" "project=$project" "task=$task" "spec=$spec" "flags=$flags" "flow=$flow" \
           "started_epoch=$epoch" "last_epoch=$epoch" 'seq=0' > "$ORCHESTRAIL_LOG_ROOT/.active/$run" || return 1
       fi
+      invoke_log active > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+      [ ! -s "$fixture/stderr" ] || return 1
+      python3 - "$fixture/stdout" "$run" "$pipeline" "$task" <<'PYRUNLOG' || failures=$((failures + 1))
+import sys
+from pathlib import Path
+assert Path(sys.argv[1]).read_text() == f"{sys.argv[2]}  {sys.argv[3]}  {sys.argv[4]}\n", "active listing must decode metadata text"
+PYRUNLOG
       invoke_log step --run "$run" --step pae-tests --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || return 1
       [ ! -s "$fixture/stdout" ] && [ ! -s "$fixture/stderr" ] || return 1
       invoke_log run-end --run "$run" --outcome completed > "$fixture/stdout" 2> "$fixture/stderr" || return 1

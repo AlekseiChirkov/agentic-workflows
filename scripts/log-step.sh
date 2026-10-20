@@ -34,6 +34,7 @@ REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 LOG_ROOT="${ORCHESTRAIL_LOG_ROOT:-$REPO_ROOT/logs}"
 RUNS_DIR="$LOG_ROOT/runs"
 ACTIVE_DIR="$LOG_ROOT/.active"
+METADATA_FORMAT='# run-log-metadata percent-v1'
 
 # Canonical producer vocabulary. Values are pipe-delimited enums, a space-delimited
 # count field list, or exact alias mappings; consumers can inspect this structure
@@ -350,47 +351,65 @@ emit_json() {
   fi
 }
 
-meta_get() { # meta_get <run_id> <key>
+meta_read() { # meta_read <run_id> <key> <output-variable>
   valid_run_id "$1" || return 1
-  local f="$ACTIVE_DIR/$1"
-  [ -f "$f" ] || return 1
-  sed -n "s/^$2=//p" "$f" | head -1
-}
-
-meta_read_flow() { # meta_read_flow <run_id> <output-variable>
-  local stored_flow encoding
-  stored_flow="$(meta_get "$1" flow)" || return 1
-  encoding="$(meta_get "$1" flow_encoding)"
-  if [ "$encoding" = percent ]; then
-    stored_flow="${stored_flow//%0A/$'\n'}"
-    stored_flow="${stored_flow//%25/%}"
+  local metadata_file="$ACTIVE_DIR/$1" metadata_header='' metadata_line metadata_value='' metadata_found=0 metadata_legacy_flow=0
+  [ -f "$metadata_file" ] || return 1
+  {
+    IFS= read -r metadata_header < "$metadata_file" || return 1
+    while IFS= read -r metadata_line || [ -n "$metadata_line" ]; do
+      if [[ "$metadata_line" == "$2="* ]] && [ "$metadata_found" -eq 0 ]; then
+        metadata_value="${metadata_line#*=}"
+        metadata_found=1
+      fi
+      if [ "$metadata_line" = flow_encoding=percent ]; then metadata_legacy_flow=1; fi
+    done < "$metadata_file"
+  } 2>/dev/null || return 1
+  [ "$metadata_found" -eq 1 ] || return 1
+  if [ "$metadata_header" = "$METADATA_FORMAT" ] ||
+     { [ "$2" = flow ] && [ "$metadata_legacy_flow" -eq 1 ]; }; then
+    metadata_value="${metadata_value//%0A/$'\n'}"
+    metadata_value="${metadata_value//%25/%}"
   fi
   # Assign directly so trailing newlines survive decoding.
-  printf -v "$2" '%s' "$stored_flow"
+  printf -v "$3" '%s' "$metadata_value"
+}
+
+meta_get() { # meta_get <run_id> <key>
+  local meta_value
+  meta_read "$1" "$2" meta_value || return 1
+  printf '%s\n' "$meta_value"
+}
+
+meta_encode() { # meta_encode <value>
+  local encoded_value="$1"
+  encoded_value="${encoded_value//%/%25}"
+  encoded_value="${encoded_value//$'\n'/%0A}"
+  printf '%s' "$encoded_value"
 }
 
 meta_set() { # meta_set <run_id> <key> <value>
   valid_run_id "$1" || return 1
   local f="$ACTIVE_DIR/$1"
   touch "$f" 2>/dev/null || return 1
-  local tmp="$f.tmp.$$" grep_status pattern="^$2=" stored_value="$3" encoding=''
-  if [ "$2" = flow ]; then
-    pattern='^flow(=|_encoding=)'
-    if [[ "$stored_value" == *$'\n'* ]]; then
-      stored_value="${stored_value//%/%25}"
-      stored_value="${stored_value//$'\n'/%0A}"
-      encoding=percent
-    fi
-  fi
-  grep -Ev "$pattern" "$f" 2>/dev/null > "$tmp"
-  grep_status=$?
-  if [ "$grep_status" -gt 1 ]; then rm -f "$tmp" 2>/dev/null; return 1; fi
-  if ! (
-    printf '%s=%s\n' "$2" "$stored_value" >> "$tmp" || exit 1
-    if [ -n "$encoding" ]; then
-      printf 'flow_encoding=%s\n' "$encoding" >> "$tmp" || exit 1
-    fi
-  ) 2>/dev/null; then
+  local tmp="$f.tmp.$$" header='' line key value
+  { IFS= read -r header < "$f"; } 2>/dev/null || [ ! -s "$f" ] || return 1
+  if ! { (
+    printf '%s\n' "$METADATA_FORMAT" || exit 1
+    while IFS= read -r line || [ -n "$line" ]; do
+      [[ "$line" == *=* ]] || continue
+      key="${line%%=*}"
+      [ "$key" != "$2" ] || continue
+      value="${line#*=}"
+      if [ "$header" != "$METADATA_FORMAT" ]; then
+        meta_read "$1" "$key" value || exit 1
+        value="$(meta_encode "$value")" || exit 1
+      fi
+      printf '%s=%s\n' "$key" "$value" || exit 1
+    done < "$f"
+    value="$(meta_encode "$3")" || exit 1
+    printf '%s=%s\n' "$2" "$value" || exit 1
+  ) > "$tmp"; } 2>/dev/null; then
     rm -f "$tmp" 2>/dev/null
     return 1
   fi
@@ -451,9 +470,9 @@ cmd_run_start() {
     warn 'run-start metadata persistence failed'
     return 0
   fi
-  recorded_file="$(meta_get "$run_id" file 2>/dev/null)"
+  meta_read "$run_id" file recorded_file 2>/dev/null || recorded_file=''
   recorded_seq="$(meta_get "$run_id" seq 2>/dev/null)"
-  meta_read_flow "$run_id" recorded_flow 2>/dev/null || recorded_flow=''
+  meta_read "$run_id" flow recorded_flow 2>/dev/null || recorded_flow=''
   if [ ! -f "$active" ] || [ "$recorded_file" != "$file" ] ||
      [ "$recorded_seq" != 0 ] || [ "$recorded_flow" != "$flow" ]; then
     rm -f "$active" 2>/dev/null
@@ -532,10 +551,10 @@ cmd_step() {
   dur=$((event_epoch - last))
   [ "$dur" -ge 0 ] || dur=0
   ts="$(now_iso)"
-  pipeline="$(meta_get "$run" pipeline)"
-  project="$(meta_get "$run" project)"
-  task="$(meta_get "$run" task)"
-  meta_read_flow "$run" flow || flow=''
+  meta_read "$run" pipeline pipeline || pipeline=''
+  meta_read "$run" project project || project=''
+  meta_read "$run" task task || task=''
+  meta_read "$run" flow flow || flow=''
   [ -n "$flow" ] || flow='unknown'
 
   if ! (
@@ -610,10 +629,10 @@ cmd_run_end() {
   seq=$((seq + 1))
   total=$(( $(now_epoch) - started ))
   [ "$total" -ge 0 ] || total=0
-  pipeline="$(meta_get "$run" pipeline)"
-  project="$(meta_get "$run" project)"
-  task="$(meta_get "$run" task)"
-  meta_read_flow "$run" flow || flow=''
+  meta_read "$run" pipeline pipeline || pipeline=''
+  meta_read "$run" project project || project=''
+  meta_read "$run" task task || task=''
+  meta_read "$run" flow flow || flow=''
   [ -n "$flow" ] || flow='unknown'
   before_size="$( (wc -c < "$file") 2>/dev/null)" || { warn 'run-end event storage unavailable'; return 0; }
 
@@ -741,12 +760,14 @@ cmd_contract() {
 
 cmd_active() {
   [ -d "$ACTIVE_DIR" ] || { echo "no active runs"; return 0; }
-  local any=0 f
+  local any=0 f run active_pipeline active_task
   for f in "$ACTIVE_DIR"/*; do
     [ -f "$f" ] || continue
     any=1
-    printf '%s  %s  %s\n' "$(basename "$f")" "$(sed -n 's/^pipeline=//p' "$f" | head -1)" \
-                          "$(sed -n 's/^task=//p' "$f" | head -1)"
+    run="${f##*/}"
+    meta_read "$run" pipeline active_pipeline || active_pipeline=''
+    meta_read "$run" task active_task || active_task=''
+    printf '%s  %s  %s\n' "$run" "$active_pipeline" "$active_task"
   done
   [ $any -eq 1 ] || echo "no active runs"
 }
