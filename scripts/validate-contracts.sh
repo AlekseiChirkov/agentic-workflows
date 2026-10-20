@@ -1910,6 +1910,114 @@ check "test_public_hygiene_repository_preserves_context_and_local_ignores" \
 
 # ── End public hygiene smoke checks ─────────────────────────────────
 
+# ── Run-log contract smoke checks ───────────────────────────────────
+run_log_contract_smoke() {
+  python3 - "$REPO_ROOT" "$1" <<'PYCONTRACTTEST'
+from pathlib import Path
+import json, os, re, shutil, subprocess, sys, tempfile
+root, scenario = Path(sys.argv[1]), sys.argv[2]
+with tempfile.TemporaryDirectory(prefix='run-log-contract-') as temporary:
+    fixture = Path(temporary)
+    (fixture/'scripts').mkdir()
+    (fixture/'rules').mkdir()
+    for name in ('scripts/log-step.sh', 'scripts/validate-contracts.sh', 'rules/run-log.md'):
+        shutil.copy2(root/name, fixture/name)
+    helper = fixture/'scripts/log-step.sh'
+    rule = fixture/'rules/run-log.md'
+    original_helper, original_rule = helper.read_text(), rule.read_text()
+    def gate(field=None):
+        result = subprocess.run(['bash', str(fixture/'scripts/validate-contracts.sh'),
+                                 '--run-log-contract-only'], capture_output=True, text=True)
+        output = result.stdout + result.stderr
+        if field is None:
+            assert result.returncode == 0, output
+            assert 'run-log contract' in output.lower(), output
+        else:
+            assert result.returncode != 0, (field, output)
+            assert field in output, (field, output)
+    gate()
+    exported = subprocess.check_output(['bash',str(helper),'contract'], text=True)
+    contract = dict(line.split('=',1) for line in exported.splitlines())
+    rows = {}
+    for line in original_rule.splitlines():
+        match = re.fullmatch(r'\| `([^`]+)` \| (.+) \|', line)
+        if match:
+            try: rows[match[1]] = (line, json.loads(match[2]))
+            except json.JSONDecodeError: pass
+    assert set(rows) == set(contract), (set(rows),set(contract))
+    if scenario == 'tables':
+        for heading in ('## Field vocabulary','### Legacy normalization','## Validation and writes',
+                        '## Read-only lint'):
+            assert heading in original_rule, heading
+        for phrase in ('9007199254740991','pinned','unknown','invalid_lines','unavailable',
+                       '1.0','1e0','raw:','NEEDS WORKING'):
+            assert phrase in original_rule, phrase
+    elif scenario == 'mutations':
+        for key, (line, value) in rows.items():
+            alternatives = ([value[:-1], value+['unexpected'], ['unexpected']+value[1:], value+[value[0]]]
+                            if isinstance(value,list) else ['', value+'unexpected'])
+            for alternative in alternatives:
+                rule.write_text(original_rule.replace(line, f'| `{key}` | {json.dumps(alternative)} |',1))
+                gate(key)
+            rule.write_text(original_rule.replace(line+'\n','',1)); gate(key)
+            rule.write_text(original_rule.replace(line,line+'\n'+line,1)); gate(key)
+            rule.write_text(original_rule)
+            pattern = re.compile(r'(^  \['+re.escape(key)+r"\]=)'([^']*)'", re.M)
+            assert pattern.search(original_helper), key
+            raw = contract[key]
+            separator = ' ' if key == 'count.fields' else '|'
+            changed = ([separator.join(raw.split(separator)[:-1]), raw+separator+'unexpected',
+                        'unexpected'+separator+separator.join(raw.split(separator)[1:]), raw+separator+raw.split(separator)[0]]
+                       if isinstance(value,list) else ['', raw+'unexpected'])
+            for alternative in changed:
+                helper.write_text(pattern.sub(lambda m:m[1]+"'"+alternative+"'", original_helper, count=1))
+                gate(key)
+            helper.write_text(pattern.sub('',original_helper,count=1)); gate(key)
+            helper.write_text(original_helper)
+        rule.write_text(original_rule+'\n| `alias.gate.EXTRA` | "fail" |\n'); gate('alias.gate.EXTRA')
+        rule.write_text(original_rule)
+        helper.write_text(original_helper.replace('declare -Ar RUN_LOG_CONTRACT=(',
+                          "declare -Ar RUN_LOG_CONTRACT=(\n  [alias.gate.EXTRA]='fail'",1))
+        gate('alias.gate.EXTRA'); helper.write_text(original_helper)
+        rule.write_text(original_rule.replace('### Legacy normalization','### Missing normalization',1))
+        gate('normalization')
+    elif scenario == 'effective':
+        # Change the value exported by the actual shared definition; docs follow it.
+        key='step.tests'; line,value=rows[key]
+        helper.write_text(original_helper.replace("[step.tests]='red|green|n-a|failed|not-run|pinned'",
+                            "[step.tests]='red|green|n-a|failed|not-run|pinned|custom-test'",1))
+        rule.write_text(original_rule.replace(line,f'| `{key}` | {json.dumps(value+["custom-test"])} |',1))
+        gate()
+        environment=dict(os.environ, ORCHESTRAIL_LOG_ROOT=str(fixture/'store'), ORCHESTRAIL_HOME=str(root))
+        def invoke(*args):
+            return subprocess.run(['bash',str(helper),*args],env=environment,capture_output=True,text=True)
+        run=invoke('run-start','--pipeline','contract-probe').stdout.strip()
+        assert re.fullmatch('[0-9a-f]{8}',run),run
+        invoke('step','--run',run,'--step','dry-run','--outcome','ok','--tests','custom-test')
+        lint=invoke('lint','--all')
+        assert 'invalid-enum' not in lint.stdout,lint.stdout
+        assert any(json.loads(line).get('tests')=='custom-test'
+                   for file in (fixture/'store/runs').glob('*.jsonl') for line in file.read_text().splitlines())
+        helper.write_text(original_helper); rule.write_text(original_rule)
+        # Identical but overbroad regexes on both sides still violate the boundary contract.
+        key='alias.gate.NEEDS_WORK_PREFIX'; line,value=rows[key]
+        broad='^NEEDS WORK.*$'
+        helper.write_text(original_helper.replace(value,broad,1))
+        rule.write_text(original_rule.replace(line,f'| `{key}` | {json.dumps(broad)} |',1))
+        gate(key)
+PYCONTRACTTEST
+}
+test_run_log_contract_documents_effective_runtime_tables() { run_log_contract_smoke tables; }
+test_run_log_contract_rejects_bidirectional_vocabulary_drift() { run_log_contract_smoke mutations; }
+test_run_log_contract_checks_shared_definitions_and_prefix_boundary() { run_log_contract_smoke effective; }
+check "test_run_log_contract_documents_effective_runtime_tables" \
+  "$(test_run_log_contract_documents_effective_runtime_tables && echo pass || echo 'run-log contract tables are missing or incomplete')"
+check "test_run_log_contract_rejects_bidirectional_vocabulary_drift" \
+  "$(test_run_log_contract_rejects_bidirectional_vocabulary_drift && echo pass || echo 'run-log contract drift was not rejected by field')"
+check "test_run_log_contract_checks_shared_definitions_and_prefix_boundary" \
+  "$(test_run_log_contract_checks_shared_definitions_and_prefix_boundary && echo pass || echo 'effective definitions or prefix boundaries differ')"
+# ── End run-log contract smoke checks ───────────────────────────────
+
 # ── Run-log producer smoke checks ───────────────────────────────────
 prepare_run_log_fixture() {
   local fixture="$1" helper="$1/helper"
