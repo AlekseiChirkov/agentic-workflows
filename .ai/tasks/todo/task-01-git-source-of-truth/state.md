@@ -91,7 +91,7 @@ T-05-fix-validation-metadata | Synchronize validation metadata | atomic-tests: n
   branch: fix/validation-metadata
   base_branch: feat/public-identity-sweep
   base_commit: 0c7e46f1965e317429cd2b730578e61a95b27000
-  commits: 260185e, d1e3125, 364b83e
+  commits: 260185e, d1e3125, 364b83e, de3d5c7
   pr: #9 ready
 
 ## Execution Report
@@ -247,7 +247,7 @@ None
 ### Acceptance Criteria
 | Criterion | Status |
 |-----------|--------|
-| Checkout name, Git metadata, and tracked-path privacy | PASS — `git rev-parse --git-dir` succeeds and the hygiene validator finds no absolute checkout path in tracked content. Per the accepted scope, the local directory rename is an Orchestrator-owned finalization action after task validation and PR promotion. |
+| Checkout name, Git metadata, and tracked-path privacy | PASS — the checkout is named `orchestrail`; `git rev-parse --git-dir` succeeds after the move, and the hygiene validator finds no absolute checkout path in tracked content. |
 | Former project name absent from mutable scopes except exact approved scan locations | PASS — the full identity-ledger and tracked-tree checks pass with no unexpected matches. |
 | Runtime scripts and configuration examples use the public roots and variables | PASS — contract checks cover `ORCHESTRAIL_HOME`, `ORCHESTRAIL_LOG_ROOT`, documented paths, and `--from` precedence. |
 | Ignore rules exclude local logs and machine settings while keeping `.ai/` and `docs/` trackable | PASS — ignore-policy checks pass; both trees are tracked. |
