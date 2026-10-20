@@ -2529,6 +2529,140 @@ check "LOGPRODUCER: flow defaults and workflow names are handled safely" \
   "$(test_run_log_flow_defaults_and_step_name_warnings && echo pass || echo 'flow defaults or advisory step-name checks are incomplete')"
 check "LOGPRODUCER: success output follows persistence and rejected closes remain active" \
   "$(test_run_log_start_and_end_persist_before_reporting_success && echo pass || echo 'run persistence, close recovery, or digest warning behavior is incomplete')"
+
+run_lint_smoke() {
+  python3 - "$1" "$PWD/scripts/log-step.sh" <<'PYLINT'
+import copy
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+scenario, helper = sys.argv[1:]
+base = dict(event="step", ts="2026-01-01T00:00:00Z", run_id="1234abcd",
+            seq=1, pipeline="phase-execution", flow="unknown", step="retired-workflow", outcome="ok")
+with tempfile.TemporaryDirectory(prefix="run-log-lint-") as scratch:
+    root = Path(scratch) / 'store'
+    env = dict(os.environ, ORCHESTRAIL_LOG_ROOT=str(root))
+    def invoke(*args, extra=None):
+        result = subprocess.run(['/bin/bash', helper, 'lint', *args], env=env | (extra or {}),
+                                text=True, capture_output=True, timeout=10)
+        assert result.returncode == 0, result
+        try:
+            rows = [json.loads(line) for line in result.stdout.splitlines()]
+        except ValueError as error:
+            raise AssertionError('lint must emit only JSON objects') from error
+        assert rows and rows[-1].get('kind') == 'summary', result
+        assert sum(r.get('kind') == 'summary' for r in rows) == 1, rows
+        assert set(rows[-1]) == {'kind', 'status', 'files', 'lines', 'invalid_lines', 'violations'}, rows
+        for row in rows[:-1]:
+            assert set(row) == {'kind', 'file', 'line', 'field', 'code'}, row
+            assert row['kind'] == 'violation', row
+            assert row['code'] in {'invalid-json', 'invalid-object', 'missing-field', 'invalid-type',
+                                   'invalid-enum', 'invalid-integer', 'empty-flow'}, row
+        return rows, result.stderr
+    def summary(rows, files, lines, invalid=0, violations=0, status='ok'):
+        assert rows[-1] == dict(kind='summary', status=status, files=files, lines=lines,
+                               invalid_lines=invalid, violations=violations), rows
+    def write(name, rows, final=True):
+        (root / 'runs').mkdir(parents=True, exist_ok=True)
+        path = root / 'runs' / name
+        path.write_text('\n'.join(json.dumps(r) if not isinstance(r, str) else r for r in rows)
+                        + ('\n' if final else ''))
+        return path
+    if scenario == 'selection':
+        rows, _ = invoke(); summary(rows, 0, 0); assert not root.exists()
+        a = write('a-1234abcd.jsonl', [base])
+        b = write('b-1234abcd.jsonl', [base])
+        c = write('c-deadbeef.jsonl', [dict(base, tests='secret-bad-enum')])
+        (root / '.active').mkdir(); (root / '.active' / '1234abcd').write_text('opaque metadata')
+        (root / 'runs' / 'a-1234abcd.md').write_text('opaque digest')
+        before = {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+        for args in [(), ('--all',)]:
+            rows, err = invoke(*args); summary(rows, 3, 3, 1, 1); assert not err
+            assert rows[0]['file'] == str(c)
+        rows, _ = invoke('1234abcd'); summary(rows, 2, 2)
+        rows, _ = invoke('00000000'); summary(rows, 0, 0)
+        for args in [('bad-secret',), ('--all', '1234abcd'), ('1234abcd', 'deadbeef'), ('--other',)]:
+            rows, err = invoke(*args); summary(rows, 0, 0, status='unavailable'); assert err
+            assert 'bad-secret' not in err
+        assert before == {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    elif scenario == 'diagnostics':
+        a = write('a-1234abcd.jsonl', ['{secret', [], {}, dict(base, flow='', tests='secret', stops=-1),
+                                     '', '{} {}', base], final=False)
+        b = write('b-deadbeef.jsonl', [dict(base, outcome='completed')])
+        rows, err = invoke('--all'); assert not err
+        assert [(r['file'], r['line']) for r in rows[:-1]] == sorted((r['file'], r['line']) for r in rows[:-1])
+        assert 'secret' not in json.dumps(rows)
+        issues = {(r['line'], r['field'], r['code']) for r in rows[:-1] if r['file'] == str(a)}
+        for issue in [(1, 'record', 'invalid-json'), (2, 'record', 'invalid-object'),
+                      (4, 'flow', 'empty-flow'), (4, 'tests', 'invalid-enum'),
+                      (4, 'stops', 'invalid-integer'), (5, 'record', 'invalid-json'), (6, 'record', 'invalid-json')]:
+            assert issue in issues, (issue, rows)
+        assert any(r['line'] == 3 and r['field'] == 'event' and r['code'] == 'missing-field' for r in rows[:-1])
+        summary(rows, 2, 8, 7, len(rows)-1)
+        again, _ = invoke('--all'); assert again == rows
+    elif scenario == 'fields':
+        records, expected = [], []
+        def case(record, field, code):
+            records.append(record); expected.append((len(records), field, code))
+        for event in ['run-start', 'step', 'run-end']:
+            valid = dict(base, event=event, outcome='completed' if event == 'run-end' else 'ok')
+            records.append(valid)
+            for field in ['event', 'ts', 'run_id', 'seq', 'pipeline', 'flow'] + (['step', 'outcome'] if event == 'step' else ['outcome'] if event == 'run-end' else []):
+                r = copy.deepcopy(valid); del r[field]; case(r, field, 'missing-field')
+                case(dict(valid, **{field: None}), field, 'invalid-type')
+        for field, values in {'outcome':['completed','implemented','restarted','needs-work','OK',''],
+                              'gate':['PASS','NEEDS WORK','NEEDS WORK: secret','escalated','NEEDS WORKING',''],
+                              'tests':['secret',''], 'promoted':['secret','']}.items():
+            for value in values: case(dict(base, **{field:value}), field, 'invalid-enum')
+            case(dict(base, **{field:False}), field, 'invalid-type')
+        for field in ['seq','duration_s','stops','escalations','decisions','questions','fix_tasks','amendments','files']:
+            for value in [-1, 0.5, 9007199254740992]: case(dict(base, **{field:value}), field, 'invalid-integer')
+            for value in ['0', None, True]: case(dict(base, **{field:value}), field, 'invalid-type')
+            records.extend([dict(base, **{field:0}), dict(base, **{field:9007199254740991})])
+        case(dict(base, event='secret'), 'event', 'invalid-enum')
+        for field, values in {'outcome':['ok','blocked','failed','skipped','deferred'], 'gate':['pass','fail','n-a','needs-work','ready'],
+                              'tests':['red','green','n-a','failed','not-run','pinned'], 'promoted':['yes','no']}.items():
+            records.extend(dict(base, **{field:v}) for v in values)
+        records.extend(dict(base, event='run-end', outcome=v) for v in ['completed','stopped','failed','abandoned'])
+        write('a-1234abcd.jsonl', records)
+        rows, err = invoke(); assert not err
+        actual = [(r['line'], r['field'], r['code']) for r in rows[:-1]]
+        assert sorted(actual) == sorted(expected), (actual, expected)
+        summary(rows, 1, len(records), len({e[0] for e in expected}), len(expected))
+    elif scenario == 'availability':
+        write('a-1234abcd.jsonl', [base])
+        bin_dir = Path(scratch) / 'bin'; bin_dir.mkdir()
+        for name in ['dirname', 'sort']:
+            os.symlink(shutil.which(name), bin_dir / name)
+        rows, err = invoke(extra={'PATH':str(bin_dir)}); summary(rows, 0, 0, status='unavailable'); assert err
+        jq = bin_dir / 'jq'; jq.write_text('#!/bin/sh\nexit 7\n'); jq.chmod(0o755)
+        rows, err = invoke(extra={'PATH':str(bin_dir)}); summary(rows, 0, 0, status='unavailable'); assert err
+        jq.unlink()
+        unreadable = write('b-1234abcd.jsonl', [base]); unreadable.chmod(0)
+        rows, err = invoke(); summary(rows, 1, 1, status='partial'); assert err
+        unreadable.chmod(0o600)
+PYLINT
+}
+
+test_run_log_lint_selects_files_and_preserves_storage() { run_lint_smoke selection; }
+test_run_log_lint_emits_ordered_redacted_diagnostics() { run_lint_smoke diagnostics; }
+test_run_log_lint_validates_fields_and_shared_vocabulary() { run_lint_smoke fields; }
+test_run_log_lint_reports_unavailable_and_partial_checks() { run_lint_smoke availability; }
+
+check "Run-log lint selects files and preserves storage" \
+  "$(test_run_log_lint_selects_files_and_preserves_storage && echo pass || echo 'lint selection or immutable storage contract failed')"
+check "Run-log lint emits ordered redacted diagnostics" \
+  "$(test_run_log_lint_emits_ordered_redacted_diagnostics && echo pass || echo 'lint diagnostics or distinct-line counts failed')"
+check "Run-log lint validates fields and shared vocabulary" \
+  "$(test_run_log_lint_validates_fields_and_shared_vocabulary && echo pass || echo 'lint field vocabulary or types failed')"
+check "Run-log lint reports unavailable and partial checks" \
+  "$(test_run_log_lint_reports_unavailable_and_partial_checks && echo pass || echo 'lint availability status or examined counts failed')"
+
 # ── End run-log producer smoke checks ───────────────────────────────
 
 # ── Contract version smoke checks ───────────────────────────────────
@@ -2599,7 +2733,141 @@ from pathlib import Path
 import sys
 path = Path(sys.argv[1])
 for opening, closing in (
-    ('# ── Run-log producer smoke checks', '# ── End run-log producer smoke checks'),
+    ('# ── Run-log producer smoke checks', '
+run_lint_smoke() {
+  python3 - "$1" "$PWD/scripts/log-step.sh" <<'PYLINT'
+import copy
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+scenario, helper = sys.argv[1:]
+base = dict(event="step", ts="2026-01-01T00:00:00Z", run_id="1234abcd",
+            seq=1, pipeline="phase-execution", flow="unknown", step="retired-workflow", outcome="ok")
+with tempfile.TemporaryDirectory(prefix="run-log-lint-") as scratch:
+    root = Path(scratch) / 'store'
+    env = dict(os.environ, ORCHESTRAIL_LOG_ROOT=str(root))
+    def invoke(*args, extra=None):
+        result = subprocess.run(['/bin/bash', helper, 'lint', *args], env=env | (extra or {}),
+                                text=True, capture_output=True, timeout=10)
+        assert result.returncode == 0, result
+        try:
+            rows = [json.loads(line) for line in result.stdout.splitlines()]
+        except ValueError as error:
+            raise AssertionError('lint must emit only JSON objects') from error
+        assert rows and rows[-1].get('kind') == 'summary', result
+        assert sum(r.get('kind') == 'summary' for r in rows) == 1, rows
+        assert set(rows[-1]) == {'kind', 'status', 'files', 'lines', 'invalid_lines', 'violations'}, rows
+        for row in rows[:-1]:
+            assert set(row) == {'kind', 'file', 'line', 'field', 'code'}, row
+            assert row['kind'] == 'violation', row
+            assert row['code'] in {'invalid-json', 'invalid-object', 'missing-field', 'invalid-type',
+                                   'invalid-enum', 'invalid-integer', 'empty-flow'}, row
+        return rows, result.stderr
+    def summary(rows, files, lines, invalid=0, violations=0, status='ok'):
+        assert rows[-1] == dict(kind='summary', status=status, files=files, lines=lines,
+                               invalid_lines=invalid, violations=violations), rows
+    def write(name, rows, final=True):
+        (root / 'runs').mkdir(parents=True, exist_ok=True)
+        path = root / 'runs' / name
+        path.write_text('\n'.join(json.dumps(r) if not isinstance(r, str) else r for r in rows)
+                        + ('\n' if final else ''))
+        return path
+    if scenario == 'selection':
+        rows, _ = invoke(); summary(rows, 0, 0); assert not root.exists()
+        a = write('a-1234abcd.jsonl', [base])
+        b = write('b-1234abcd.jsonl', [base])
+        c = write('c-deadbeef.jsonl', [dict(base, tests='secret-bad-enum')])
+        (root / '.active').mkdir(); (root / '.active' / '1234abcd').write_text('opaque metadata')
+        (root / 'runs' / 'a-1234abcd.md').write_text('opaque digest')
+        before = {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+        for args in [(), ('--all',)]:
+            rows, err = invoke(*args); summary(rows, 3, 3, 1, 1); assert not err
+            assert rows[0]['file'] == str(c)
+        rows, _ = invoke('1234abcd'); summary(rows, 2, 2)
+        rows, _ = invoke('00000000'); summary(rows, 0, 0)
+        for args in [('bad-secret',), ('--all', '1234abcd'), ('1234abcd', 'deadbeef'), ('--other',)]:
+            rows, err = invoke(*args); summary(rows, 0, 0, status='unavailable'); assert err
+            assert 'bad-secret' not in err
+        assert before == {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    elif scenario == 'diagnostics':
+        a = write('a-1234abcd.jsonl', ['{secret', [], {}, dict(base, flow='', tests='secret', stops=-1),
+                                     '', '{} {}', base], final=False)
+        b = write('b-deadbeef.jsonl', [dict(base, outcome='completed')])
+        rows, err = invoke('--all'); assert not err
+        assert [(r['file'], r['line']) for r in rows[:-1]] == sorted((r['file'], r['line']) for r in rows[:-1])
+        assert 'secret' not in json.dumps(rows)
+        issues = {(r['line'], r['field'], r['code']) for r in rows[:-1] if r['file'] == str(a)}
+        for issue in [(1, 'record', 'invalid-json'), (2, 'record', 'invalid-object'),
+                      (4, 'flow', 'empty-flow'), (4, 'tests', 'invalid-enum'),
+                      (4, 'stops', 'invalid-integer'), (5, 'record', 'invalid-json'), (6, 'record', 'invalid-json')]:
+            assert issue in issues, (issue, rows)
+        assert any(r['line'] == 3 and r['field'] == 'event' and r['code'] == 'missing-field' for r in rows[:-1])
+        summary(rows, 2, 8, 7, len(rows)-1)
+        again, _ = invoke('--all'); assert again == rows
+    elif scenario == 'fields':
+        records, expected = [], []
+        def case(record, field, code):
+            records.append(record); expected.append((len(records), field, code))
+        for event in ['run-start', 'step', 'run-end']:
+            valid = dict(base, event=event, outcome='completed' if event == 'run-end' else 'ok')
+            records.append(valid)
+            for field in ['event', 'ts', 'run_id', 'seq', 'pipeline', 'flow'] + (['step', 'outcome'] if event == 'step' else ['outcome'] if event == 'run-end' else []):
+                r = copy.deepcopy(valid); del r[field]; case(r, field, 'missing-field')
+                case(dict(valid, **{field: None}), field, 'invalid-type')
+        for field, values in {'outcome':['completed','implemented','restarted','needs-work','OK',''],
+                              'gate':['PASS','NEEDS WORK','NEEDS WORK: secret','escalated','NEEDS WORKING',''],
+                              'tests':['secret',''], 'promoted':['secret','']}.items():
+            for value in values: case(dict(base, **{field:value}), field, 'invalid-enum')
+            case(dict(base, **{field:False}), field, 'invalid-type')
+        for field in ['seq','duration_s','stops','escalations','decisions','questions','fix_tasks','amendments','files']:
+            for value in [-1, 0.5, 9007199254740992]: case(dict(base, **{field:value}), field, 'invalid-integer')
+            for value in ['0', None, True]: case(dict(base, **{field:value}), field, 'invalid-type')
+            records.extend([dict(base, **{field:0}), dict(base, **{field:9007199254740991})])
+        case(dict(base, event='secret'), 'event', 'invalid-enum')
+        for field, values in {'outcome':['ok','blocked','failed','skipped','deferred'], 'gate':['pass','fail','n-a','needs-work','ready'],
+                              'tests':['red','green','n-a','failed','not-run','pinned'], 'promoted':['yes','no']}.items():
+            records.extend(dict(base, **{field:v}) for v in values)
+        records.extend(dict(base, event='run-end', outcome=v) for v in ['completed','stopped','failed','abandoned'])
+        write('a-1234abcd.jsonl', records)
+        rows, err = invoke(); assert not err
+        actual = [(r['line'], r['field'], r['code']) for r in rows[:-1]]
+        assert sorted(actual) == sorted(expected), (actual, expected)
+        summary(rows, 1, len(records), len({e[0] for e in expected}), len(expected))
+    elif scenario == 'availability':
+        write('a-1234abcd.jsonl', [base])
+        bin_dir = Path(scratch) / 'bin'; bin_dir.mkdir()
+        for name in ['dirname', 'sort']:
+            os.symlink(shutil.which(name), bin_dir / name)
+        rows, err = invoke(extra={'PATH':str(bin_dir)}); summary(rows, 0, 0, status='unavailable'); assert err
+        jq = bin_dir / 'jq'; jq.write_text('#!/bin/sh\nexit 7\n'); jq.chmod(0o755)
+        rows, err = invoke(extra={'PATH':str(bin_dir)}); summary(rows, 0, 0, status='unavailable'); assert err
+        jq.unlink()
+        unreadable = write('b-1234abcd.jsonl', [base]); unreadable.chmod(0)
+        rows, err = invoke(); summary(rows, 1, 1, status='partial'); assert err
+        unreadable.chmod(0o600)
+PYLINT
+}
+
+test_run_log_lint_selects_files_and_preserves_storage() { run_lint_smoke selection; }
+test_run_log_lint_emits_ordered_redacted_diagnostics() { run_lint_smoke diagnostics; }
+test_run_log_lint_validates_fields_and_shared_vocabulary() { run_lint_smoke fields; }
+test_run_log_lint_reports_unavailable_and_partial_checks() { run_lint_smoke availability; }
+
+check "Run-log lint selects files and preserves storage" \
+  "$(test_run_log_lint_selects_files_and_preserves_storage && echo pass || echo 'lint selection or immutable storage contract failed')"
+check "Run-log lint emits ordered redacted diagnostics" \
+  "$(test_run_log_lint_emits_ordered_redacted_diagnostics && echo pass || echo 'lint diagnostics or distinct-line counts failed')"
+check "Run-log lint validates fields and shared vocabulary" \
+  "$(test_run_log_lint_validates_fields_and_shared_vocabulary && echo pass || echo 'lint field vocabulary or types failed')"
+check "Run-log lint reports unavailable and partial checks" \
+  "$(test_run_log_lint_reports_unavailable_and_partial_checks && echo pass || echo 'lint availability status or examined counts failed')"
+
+# ── End run-log producer smoke checks'),
     ('# ── Contract version smoke checks', '# ── End contract version smoke checks'),
     ('# ── Public package materials smoke checks', '# ── End public package materials smoke checks'),
     ('# ── Public identity smoke checks', '# ── End public identity smoke checks'),
