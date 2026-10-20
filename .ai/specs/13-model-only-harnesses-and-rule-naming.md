@@ -613,7 +613,7 @@ unreadable (exit 1, message); `setup-new-project.sh` continues without registry 
 
 ## Notes
 
-- **Depends on** `.ai/specs/01-git-source-of-truth.md` (git, Orchestrail name) and
+- **Depends on** `.ai/specs/completed/01-git-source-of-truth.md` (git, Orchestrail name) and
   `.ai/specs/13a-rules-workflows-audit.md` (findings folded in via `/spec-sync`).
   Discovery must stop if either is not complete.
 - **Related:** `.ai/specs/10-generated-reference-docs.md` (front-matter keys added here

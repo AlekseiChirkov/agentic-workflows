@@ -319,7 +319,7 @@ recorded_paths:
 - .ai/principles/coding.md
 - .ai/principles/domain.md
 - .ai/specs/00-sensitive-data-scrub.md
-- .ai/specs/01-git-source-of-truth.md
+- .ai/specs/completed/01-git-source-of-truth.md
 - .ai/specs/02-run-log-vocabulary-validation.md
 - .ai/specs/03-hook-based-logging.md
 - .ai/specs/04-model-catalog-cache.md

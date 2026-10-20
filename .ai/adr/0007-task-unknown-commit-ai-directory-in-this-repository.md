@@ -58,7 +58,7 @@ repository-level override exists, changes here run through `/phase-*` manually o
 here, but the no-attribution and no-identifier commit rules still do.
 
 **Related files:**
-- `.gitignore` (to be created with `specs/01-git-source-of-truth.md`)
+- `.gitignore` (to be created with `specs/completed/01-git-source-of-truth.md`)
 
 ## Questions and Answers
 

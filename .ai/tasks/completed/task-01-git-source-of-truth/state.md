@@ -1,4 +1,4 @@
-spec_path: .ai/specs/01-git-source-of-truth.md
+spec_path: .ai/specs/completed/01-git-source-of-truth.md
 flow: full
 
 ## Phases
@@ -40,7 +40,7 @@ T-01 | Versioned contract metadata | atomic-tests: green | atomic-execution: com
   base_branch: fix/public-hygiene-guard
   base_commit: 3ae483eb5efe5d45288da166728fb6902e615efb
   commits: cd58b7b, 4f7e70a, ba00806
-  pr: #5 ready
+  pr: #5 merged into main
 T-02 | Portable runtime paths | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close DONE — all acceptance criteria met; optional path-scan coverage proposal recorded; draft PR #6 opened.
   target_files: sync.sh, log-step.sh, setup-new-project.sh, setup-umbrella.sh, setup-all-repos.sh, link-skills.sh, validate-contracts.sh, rules/run-log.md, workflows/phase-discovery.md, workflows/phase-execution.md, workflows/phase-pipeline.md, workflows/phase-validation.md, workflows/spec-run.md, workflows/retro.md, workflows/pd-finalize.md, workflows/pe-finalize.md, .ai/context/environment.md, .ai/context/runbook.md
@@ -50,7 +50,7 @@ T-02 | Portable runtime paths | atomic-tests: green | atomic-execution: complete
   base_branch: feat/contract-version-metadata
   base_commit: ba008063a0d3cae0a0fe210690646666320fd9e1
   commits: 986c8f9, fc69d1a
-  pr: #6 ready
+  pr: #6 merged into main
 T-03 | Public package materials | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close DONE — all acceptance criteria met; optional README destination proposal recorded; draft PR #7 opened.
   target_files: README.md, .gitignore, logs/.gitignore, docs/USAGE.md, validate-contracts.sh
@@ -60,7 +60,7 @@ T-03 | Public package materials | atomic-tests: green | atomic-execution: comple
   base_branch: feat/portable-runtime-paths
   base_commit: fc69d1ac3718a106d3e8e96f6a11309fbb14a018
   commits: 6e4119d, 3cdf9bc
-  pr: #7 ready
+  pr: #7 merged into main
 
 ## Improvement Proposals (T-03)
 
@@ -82,17 +82,17 @@ T-04 | Public identity sweep | atomic-tests: green | atomic-execution: complete 
   base_branch: feat/public-package-materials
   base_commit: 3cdf9bc93dbde32ee57223df4a0c14b092d0b976
   commits: daf5fbf, 412206d, 8deba46, 1314aa2, e9221a5, f922b9e, 5d7713f, 42d960d, 0c7e46f
-  pr: #8 ready
+  pr: #8 merged into main
 T-05-fix-validation-metadata | Synchronize validation metadata | atomic-tests: n-a | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close DONE — all acceptance criteria passed; draft PR #9 opened; no useful improvements proposed.
-  target_files: docs/USAGE.md, .ai/memory/architecture.md, .ai/tasks/todo/task-01-git-source-of-truth/state.md
+  target_files: docs/USAGE.md, .ai/memory/architecture.md, .ai/tasks/completed/task-01-git-source-of-truth/state.md
   blocker: none
   notes: tdd: none — unit, integration, and contract tests do not apply because no executable behavior or public interface changes; smoke checks do not observe the documentation count or recorded commit list. The full validator remains the regression check.
   branch: fix/validation-metadata
   base_branch: feat/public-identity-sweep
   base_commit: 0c7e46f1965e317429cd2b730578e61a95b27000
   commits: 260185e, d1e3125, 364b83e, de3d5c7
-  pr: #9 ready
+  pr: #9 merged into main
 
 ## Execution Report
 - T-01: reviewed — version metadata, legacy record compatibility, and stale-rule warning implemented and atomically validated.
@@ -169,7 +169,7 @@ Use the sequential feature stack. It keeps each independently verifiable outcome
 (none)
 
 ## Approved Identity Scan Exceptions
-- .ai/specs/01-git-source-of-truth.md:22 — preserve only the active source criterion.
+- .ai/specs/completed/01-git-source-of-truth.md:22 — preserve only the active source criterion.
 - .ai/adr/0007-task-unknown-commit-ai-directory-in-this-repository.md:18 — preserve the historical repository-tracking decision.
 - .ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:69 — preserve the historical naming decision.
 - .ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md:105,107 — preserve only the publication authorization and historical pull-request links.
@@ -186,7 +186,7 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 
 | Path | Line | Expected token counts |
 |---|---:|---|
-| `.ai/specs/01-git-source-of-truth.md` | 22 | `agentic_workflows` × 1; `agentic-workflows` × 1 |
+| `.ai/specs/completed/01-git-source-of-truth.md` | 22 | `agentic_workflows` × 1; `agentic-workflows` × 1 |
 | `.ai/adr/0007-task-unknown-commit-ai-directory-in-this-repository.md` | 18 | `agentic_workflows` × 1 |
 | `.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md` | 69 | `agentic_workflows` × 1 |
 | `.ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md` | 105 | `agentic-workflows` × 1 |
@@ -301,4 +301,4 @@ Created: T-05-fix-validation-metadata
 sync: complete
 synced_at: 2026-10-20
 deltas: 5 (implemented-differently: 3, not-implemented: 2, implemented-beyond: 0)
-spec: .ai/specs/01-git-source-of-truth.md
+spec: .ai/specs/completed/01-git-source-of-truth.md

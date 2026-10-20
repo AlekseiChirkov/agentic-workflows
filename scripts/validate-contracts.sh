@@ -2033,7 +2033,7 @@ check "test_contract_version_rule_history_warns_until_version_changes" \
 
 # ── Public package materials smoke checks ───────────────────────────
 test_public_package_overview_and_release_policy() {
-  local line_count readme task_state='.ai/tasks/todo/task-01-git-source-of-truth/state.md'
+  local line_count readme task_state='.ai/tasks/completed/task-01-git-source-of-truth/state.md'
   line_count="$(wc -l < README.md)" || return 1
   [ "$line_count" -le 60 ] || return 1
   readme="$(tr '\n\t' '  ' < README.md | sed -E 's/[[:space:]]+/ /g')" || return 1

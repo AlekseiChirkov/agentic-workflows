@@ -10,7 +10,7 @@ parallelism. All owner decisions behind these specs are in ADR-0009.
 | Order | NN | Spec | Effort | Depends on | Why this position |
 |---|---|---|---|---|---|
 | 1 | 00 | [sensitive-data-scrub — completed](completed/00-sensitive-data-scrub.md) | days | — | Completed: current-content cleanup and forbidden-token guard; owner accepted existing ancestry |
-| 2 | 01 | [git-source-of-truth](01-git-source-of-truth.md) | days | 00 | git, Orchestrail rename, `VERSION`, minimal public slice |
+| 2 | 01 | [git-source-of-truth — completed](completed/01-git-source-of-truth.md) | days | 00 | Completed: git, Orchestrail rename, `VERSION`, and minimal public slice |
 | 3 | 13a | [rules-workflows-audit](13a-rules-workflows-audit.md) | days | 01 | evidence for every rename; may amend 13 |
 | 4 | 13 | [model-only-harnesses-and-rule-naming](13-model-only-harnesses-and-rule-naming.md) | weeks | 01, 13a | drop Windsurf/Devin; `harness/` + capabilities; `<kind>-<subject>` rules; command renames |
 | 5 | 04 | [model-catalog-cache](04-model-catalog-cache.md) | hours | 13 | independent; removes up to 3 h per run |
