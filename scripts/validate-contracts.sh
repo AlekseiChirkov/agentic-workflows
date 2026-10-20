@@ -2319,6 +2319,120 @@ PYRUNLOG
   [ "$before_active" = "$(sha256sum "$active" | awk '{print $1}')" ] && [ ! -e "${file%.jsonl}.md" ] || return 1
 )
 
+test_run_log_preserves_unrestricted_flow_across_events() (
+  local fixture helper fakebin utility mode flow run file status failures=0
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/run-log-flow.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  prepare_run_log_fixture "$fixture" || return 1
+  helper="$fixture/helper"
+  fakebin="$fixture/bin"
+  mkdir -p "$fakebin" || return 1
+  for utility in bash dirname mkdir od tr date cat uname touch grep mv sed head rm wc; do
+    ln -s "$(command -v "$utility")" "$fakebin/$utility" || return 1
+  done
+  export ORCHESTRAIL_HOME="$helper" ORCHESTRAIL_LOG_ROOT="$fixture/store"
+  invoke_log() { PATH="$fakebin" bash "$helper/scripts/log-step.sh" "$@"; }
+  for mode in jq no-jq; do
+    rm -f "$fakebin/jq"
+    [ "$mode" != jq ] || ln -s "$(command -v jq)" "$fakebin/jq" || return 1
+    for flow in $'custom\nflow' $'custom\n' $'\n' 'literal\nflow\\' $'custom\nseq=91\npipeline=other\n'; do
+      status=0
+      run="$(invoke_log run-start --pipeline phase-execution --flow "$flow" 2> "$fixture/stderr")" || status=$?
+      if [ "$status" -ne 0 ] || [[ ! "$run" =~ ^[0-9a-f]{8}$ ]] || [ -s "$fixture/stderr" ]; then
+        printf 'nonempty flow did not start successfully (%s)\n' "$mode"
+        failures=$((failures + 1))
+        continue
+      fi
+      file="$(invoke_log path --run "$run")" || return 1
+      invoke_log step --run "$run" --step pae-tests --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+      [ ! -s "$fixture/stdout" ] && [ ! -s "$fixture/stderr" ] || return 1
+      invoke_log run-end --run "$run" --outcome completed > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+      [ ! -s "$fixture/stdout" ] && [ ! -s "$fixture/stderr" ] || return 1
+      python3 - "$file" "$flow" <<'PYRUNLOG' || failures=$((failures + 1))
+import json
+import sys
+from pathlib import Path
+rows = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
+assert [row["event"] for row in rows] == ["run-start", "step", "run-end"]
+assert [row["seq"] for row in rows] == [0, 1, 2]
+assert all(row["pipeline"] == "phase-execution" for row in rows)
+assert all(row["flow"] == sys.argv[2] for row in rows), "flow must survive metadata byte for byte"
+PYRUNLOG
+      [ ! -e "$fixture/store/.active/$run" ] || return 1
+    done
+  done
+  [ "$failures" -eq 0 ]
+)
+
+test_run_log_reports_only_one_diagnostic_on_rejection_or_write_failure() (
+  local fixture helper fakebin utility mode run file active before_active before_log status failures=0
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/run-log-diagnostics.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  prepare_run_log_fixture "$fixture" || return 1
+  helper="$fixture/helper"
+  fakebin="$fixture/bin"
+  mkdir -p "$fakebin" || return 1
+  for utility in bash dirname mkdir od tr date cat uname touch grep mv sed head rm wc; do
+    ln -s "$(command -v "$utility")" "$fakebin/$utility" || return 1
+  done
+  export ORCHESTRAIL_HOME="$helper"
+  invoke_log() { PATH="$fakebin" bash "$helper/scripts/log-step.sh" "$@"; }
+  for mode in jq no-jq; do
+    export ORCHESTRAIL_LOG_ROOT="$fixture/store-$mode"
+    rm -f "$fakebin/jq"
+    [ "$mode" != jq ] || ln -s "$(command -v jq)" "$fakebin/jq" || return 1
+    status=0
+    invoke_log step --run 00000000 --step unknown-diagnostic-probe --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || status=$?
+    if [ "$status" -ne 0 ] || [ -s "$fixture/stdout" ] || ! assert_one_redacted_warning "$fixture/stderr" unknown-diagnostic-probe; then
+      printf 'unknown run produced multiple or unsafe diagnostics (%s)\n' "$mode"
+      failures=$((failures + 1))
+    fi
+    [ ! -e "$ORCHESTRAIL_LOG_ROOT" ] || return 1
+    run="$(invoke_log run-start --pipeline phase-execution)" || return 1
+    file="$(invoke_log path --run "$run")"
+    active="$ORCHESTRAIL_LOG_ROOT/.active/$run"
+    before_active="$(sha256sum "$active" | awk '{print $1}')"
+    before_log="$(sha256sum "$file" | awk '{print $1}')"
+    if [ "$mode" = jq ]; then
+      rm "$fakebin/jq"
+      printf '#!/bin/sh\nexit 1\n' > "$fakebin/jq"
+      chmod +x "$fakebin/jq"
+      invoke_log step --run "$run" --step unknown-diagnostic-probe --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+      if [ -s "$fixture/stdout" ] || ! assert_one_redacted_warning "$fixture/stderr" unknown-diagnostic-probe; then
+        echo 'failed serialization was accompanied by an advisory diagnostic'
+        failures=$((failures + 1))
+      fi
+      [ "$before_active" = "$(sha256sum "$active" | awk '{print $1}')" ] &&
+        [ "$before_log" = "$(sha256sum "$file" | awk '{print $1}')" ] || return 1
+      rm "$fakebin/jq"
+      ln -s "$(command -v jq)" "$fakebin/jq" || return 1
+    fi
+    rm "$fakebin/mv"
+    printf '#!/bin/sh\nexit 1\n' > "$fakebin/mv"
+    chmod +x "$fakebin/mv"
+    invoke_log step --run "$run" --step unknown-diagnostic-probe --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+    if [ -s "$fixture/stdout" ] || ! assert_one_redacted_warning "$fixture/stderr" unknown-diagnostic-probe; then
+      printf 'failed metadata write was accompanied by an advisory diagnostic (%s)\n' "$mode"
+      failures=$((failures + 1))
+    fi
+    [ "$before_active" = "$(sha256sum "$active" | awk '{print $1}')" ] || return 1
+    rm "$fakebin/mv"
+    ln -s "$(command -v mv)" "$fakebin/mv" || return 1
+    rm "$file"
+    invoke_log step --run "$run" --step unknown-diagnostic-probe --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+    if [ -s "$fixture/stdout" ] || ! assert_one_redacted_warning "$fixture/stderr" unknown-diagnostic-probe; then
+      printf 'unavailable event file was accompanied by an advisory diagnostic (%s)\n' "$mode"
+      failures=$((failures + 1))
+    fi
+    [ "$before_active" = "$(sha256sum "$active" | awk '{print $1}')" ] || return 1
+  done
+  [ "$failures" -eq 0 ]
+)
+
+check "LOGPRODUCER: arbitrary nonempty flow survives every event" \
+  "$(test_run_log_preserves_unrestricted_flow_across_events && echo pass || echo 'nonempty flow changed or was rejected during metadata persistence')"
+check "LOGPRODUCER: rejected and failed steps emit one diagnostic" \
+  "$(test_run_log_reports_only_one_diagnostic_on_rejection_or_write_failure && echo pass || echo 'step-name advisories duplicated rejection or filesystem diagnostics')"
 check "LOGPRODUCER: fallback preserves strings and filesystem failures warn safely" \
   "$(test_run_log_fallback_and_filesystem_errors_remain_nonblocking && echo pass || echo 'fallback encoding or filesystem error behavior is incomplete')"
 check "LOGPRODUCER: run-start rejects invalid complete argument sets" \
