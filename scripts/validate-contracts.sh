@@ -117,6 +117,93 @@ if [ "${1:-}" = --hygiene-only ]; then
   run_public_hygiene "$hygiene_root" "$hygiene_denylist"
   exit $?
 fi
+# Compare canonical Markdown JSON tables with the helper's effective shared export.
+validate_run_log_contract() {
+  python3 - "$REPO_ROOT" <<'PYRUNLOGCONTRACT'
+from pathlib import Path
+import json, re, subprocess, sys
+root = Path(sys.argv[1])
+errors = []
+def fail(field, reason):
+    errors.append(f'run-log contract {field}: {reason}')
+try:
+    text = (root/'rules/run-log.md').read_text()
+    output = subprocess.check_output(['bash', str(root/'scripts/log-step.sh'), 'contract'], text=True)
+    runtime = {}
+    for line in output.splitlines():
+        key, separator, value = line.partition('=')
+        if not separator or key in runtime:
+            fail(key, 'malformed or duplicate runtime definition')
+        runtime[key] = value
+    documented = {}
+    for heading in ('Runtime vocabulary', 'Legacy normalization'):
+        matches = list(re.finditer(r'^### '+re.escape(heading)+r'\s*$', text, re.M))
+        if len(matches) != 1:
+            fail(heading.lower(), 'missing or duplicate canonical table section')
+        elif not re.match(r'\s*\| Runtime key \| Canonical JSON value \|\n\|---\|---\|\n\| `',
+                          text[matches[0].end():]):
+            fail(heading.lower(), 'missing canonical table header or rows')
+    for line in text.splitlines():
+        match = re.fullmatch(r'\| `([^`]+)` \| ([^|]+) \|', line)
+        if not match:
+            continue
+        key, encoded = match.groups()
+        if key in documented:
+            fail(key, 'duplicate documentation row')
+        try:
+            value = json.loads(encoded)
+        except ValueError:
+            fail(key, 'invalid canonical JSON value'); continue
+        if not isinstance(value, (str, list)) or isinstance(value,list) and (
+                not value or not all(isinstance(item,str) and item for item in value)):
+            fail(key, 'expected exact string or nonempty string array'); continue
+        documented[key] = value
+    if not runtime:
+        fail('tables', 'empty runtime export')
+    for key in sorted(runtime.keys() | documented.keys()):
+        if key not in runtime:
+            fail(key, 'extra documentation value or missing runtime definition'); continue
+        if key not in documented:
+            fail(key, 'missing documentation value or extra runtime definition'); continue
+        raw, expected = runtime[key], documented[key]
+        is_set = key.startswith('step.') or key == 'run-end.outcome' or key == 'count.fields'
+        if isinstance(expected,list) != is_set:
+            fail(key, 'canonical value has the wrong JSON type'); continue
+        if isinstance(expected,list):
+            actual = raw.split(' ' if key == 'count.fields' else '|')
+            if len(expected) != len(set(expected)) or len(actual) != len(set(actual)):
+                fail(key, 'duplicate enum or count value')
+            if set(actual) != set(expected):
+                fail(key, 'runtime and documentation values differ')
+        elif raw != expected or not raw:
+            fail(key, 'runtime and documentation mapping or bound differ')
+    prefix_key = 'alias.gate.NEEDS_WORK_PREFIX'
+    if prefix_key in runtime:
+        # Check the documented boundary meaning independently of regex spelling.
+        samples = [('NEEDS WORK',False), ('NEEDS WORKING',False), ('NEEDS WORK_',False),
+                   ('needs work: text',False), ('XNEEDS WORK: text',False)]
+        samples += [('NEEDS WORK'+boundary+suffix,True)
+                    for boundary in (' ', '\t', '\n', '\r', '\v', '\f', ':', '-')
+                    for suffix in ('', 'review', 'review\ncontinued')]
+        probe = 'pattern=$1; shift; for value in "$@"; do if [[ "$value" =~ $pattern ]]; then echo yes; else echo no; fi; done'
+        result = subprocess.check_output(['bash','-c',probe,'contract-boundary',runtime[prefix_key],
+                                          *(value for value,_ in samples)],text=True).splitlines()
+        if result != ['yes' if accepted else 'no' for _,accepted in samples]:
+            fail(prefix_key, 'NEEDS WORK prefix boundary semantics differ')
+except (OSError, ValueError, subprocess.SubprocessError) as error:
+    fail('tables', f'cannot read canonical contract: {type(error).__name__}')
+if errors:
+    print('\n'.join(errors)); sys.exit(1)
+print('run-log contract: pass')
+PYRUNLOGCONTRACT
+}
+
+if [ "${1:-}" = --run-log-contract-only ]; then
+  [ "$#" -eq 1 ] || { echo 'Unexpected run-log contract argument' >&2; exit 1; }
+  validate_run_log_contract
+  exit $?
+fi
+
 if [ "$#" -gt 0 ]; then
   echo 'Usage: scripts/validate-contracts.sh [--hygiene-only [--root PATH] [--denylist PATH]]' >&2
   exit 1
@@ -1227,6 +1314,9 @@ check "SEED: no state.md seed carries a writerless ## Blocked section" \
 
 check "SEED: the Entry Format documents where a blocked task lives" \
   "$(tr '\n' ' ' < rules/workflow-reference.md 2>/dev/null | tr -s ' ' | grep -q 'There is no .## Blocked. section' && echo pass || echo 'workflow-reference Entry Format does not say where a blocked task is recorded, so dropping ## Blocked from the seed is undocumented')"
+
+check "LOG: canonical tables match effective runtime contract" \
+  "$(validate_run_log_contract >/dev/null && echo pass || validate_run_log_contract)"
 
 # ── Group 41: the quick-flow gate has no fuzzy condition ──────────────
 # quick-flow calls the gate "a checklist, not a judgement call", yet condition 1 read "roughly 3
@@ -3049,6 +3139,7 @@ import sys
 path = Path(sys.argv[1])
 for opening, closing in (
     ('# ── Run-log producer smoke checks', '# ── End run-log producer smoke checks'),
+    ('# ── Run-log contract smoke checks', '# ── End run-log contract smoke checks'),
     ('# ── Contract version smoke checks', '# ── End contract version smoke checks'),
     ('# ── Public package materials smoke checks', '# ── End public package materials smoke checks'),
     ('# ── Public identity smoke checks', '# ── End public identity smoke checks'),
