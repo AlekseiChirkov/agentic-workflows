@@ -6,6 +6,7 @@ newest first. Entries before 2026-09-16 are reconstructed from file contents, ru
 and the audit spec — dates are those recorded in the sources.
 
 ## Log
+- **2026-10-20 — Local hygiene configuration and merge authorization.** The tracked pattern file remains deleted; exact scans now read maintainer-local patterns, and the full suite reports two explicit skips when they are unavailable. Validation: 551 checks passed with local patterns; 549 passed and 2 skipped without them. The owner authorized merging the reviewed changes while preserving existing history.
 
 - **2026-10-20 — Source-of-truth release stack.** Versioned contracts, portable runtime
   paths, public package materials, identity checks, and validation metadata are complete.

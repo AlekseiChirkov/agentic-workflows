@@ -6,13 +6,34 @@
 
 set -e
 
+# Resolve private patterns from an explicit local override or user config. Keep the
+# pattern file outside the repository so it does not publish the identifiers it guards.
+hygiene_patterns_path() {
+  local config_home candidate
+  if [ "${ORCHESTRAIL_HYGIENE_DENYLIST+x}" = x ]; then
+    [ -n "$ORCHESTRAIL_HYGIENE_DENYLIST" ] || return 1
+    printf '%s\n' "$ORCHESTRAIL_HYGIENE_DENYLIST"
+    return 0
+  fi
+  if [ -n "${XDG_CONFIG_HOME:-}" ]; then
+    config_home="$XDG_CONFIG_HOME"
+  elif [ -n "${HOME:-}" ]; then
+    config_home="$HOME/.config"
+  else
+    return 2
+  fi
+  candidate="$config_home/orchestrail/hygiene-patterns.txt"
+  [ -e "$candidate" ] || return 2
+  printf '%s\n' "$candidate"
+}
+
 # Scan the working contents of all indexed paths, including newly staged files.
-# Only the root hygiene metadata and its immutable source specification are exempt.
+# Only the original source specification is exempt.
 run_public_hygiene() (
-  local root="$1" denylist="${2:-$1/scrub-denylist.txt}" scratch line file status count=0 bad=0
+  local root="$1" denylist="${2:-}" scratch line file status count=0 bad=0
   root="$(cd "$root" && pwd -P)" || { echo 'Hygiene root is unavailable'; return 1; }
-  if [ ! -f "$denylist" ] || [ ! -r "$denylist" ]; then
-    echo 'Hygiene denylist is missing or unreadable'; return 1
+  if [ -z "$denylist" ] || [ ! -f "$denylist" ] || [ ! -r "$denylist" ]; then
+    echo 'Hygiene pattern file is missing or unreadable'; return 1
   fi
   scratch="$(mktemp -d "${TMPDIR:-/tmp}/tracked-hygiene.XXXXXX")" || return 1
   trap 'rm -rf "$scratch"' EXIT
@@ -26,7 +47,7 @@ run_public_hygiene() (
     printf '%s\n' "$line" >> "$scratch/patterns" || return 1
   done < "$denylist"
   if [ ! -s "$scratch/patterns" ]; then
-    echo 'Hygiene denylist has no literal patterns'; return 1
+    echo 'Hygiene pattern file has no literal patterns'; return 1
   fi
   if [ "$(git -C "$root" rev-parse --show-toplevel)" != "$root" ]; then
     echo 'Hygiene root must be the repository root'; return 1
@@ -41,7 +62,7 @@ run_public_hygiene() (
   while IFS= read -r -d '' file; do
     count=$((count + 1))
     case "$file" in
-      scrub-denylist.txt|.ai/specs/00-sensitive-data-scrub.md) continue ;;
+      .ai/specs/00-sensitive-data-scrub.md) continue ;;
     esac
     if [ -L "$root/$file" ]; then
       # Git stores link text; do not follow a target outside the repository.
@@ -65,8 +86,7 @@ run_public_hygiene() (
   [ "$count" -gt 0 ] && [ "$bad" -eq 0 ]
 )
 
-# Standalone scanner: --root selects a repository; --denylist selects its patterns.
-# A configured list adds no scan exemptions. Relative paths use the caller's cwd.
+# Standalone scanner: --root selects a repository; --denylist selects a local pattern file.
 if [ "${1:-}" = --hygiene-only ]; then
   shift
   hygiene_root="$(cd "$(dirname "$0")" && pwd -P)"
@@ -83,6 +103,14 @@ if [ "${1:-}" = --hygiene-only ]; then
       *) echo 'Unknown hygiene option' >&2; exit 1 ;;
     esac
   done
+  if [ -z "$hygiene_denylist" ]; then
+    status=0
+    hygiene_denylist="$(hygiene_patterns_path)" || status=$?
+    if [ "$status" -ne 0 ]; then
+      echo 'Hygiene patterns are not configured; set ORCHESTRAIL_HYGIENE_DENYLIST or pass --denylist' >&2
+      exit 1
+    fi
+  fi
   run_public_hygiene "$hygiene_root" "$hygiene_denylist"
   exit $?
 fi
@@ -112,6 +140,7 @@ warn_stale_contract_version
 
 PASS=0
 FAIL=0
+SKIP=0
 
 check() {
   local desc="$1"
@@ -119,6 +148,9 @@ check() {
   if [ "$result" = "pass" ]; then
     echo "[PASS] $desc"
     PASS=$((PASS + 1))
+  elif [[ "$result" == skip:* ]]; then
+    echo "[SKIP] $desc: ${result#skip: }"
+    SKIP=$((SKIP + 1))
   else
     echo "[FAIL] $desc: $result"
     FAIL=$((FAIL + 1))
@@ -1704,17 +1736,19 @@ test_public_examples_quick_gate_preserves_fictional_outcomes() {
 }
 
 test_public_examples_scoped_documents_exclude_private_tokens() {
-  local file status bad=0
+  local file status bad=0 pattern_file pattern_status=0
   local -a files=(rules/quick-flow.md rules/tdd.md rules/workflow-reference.md workflows/retro.md)
+  pattern_file="$(hygiene_patterns_path)" || pattern_status=$?
+  [ "$pattern_status" -eq 0 ] || return "$pattern_status"
   while IFS= read -r -d '' file; do
     files+=("$file")
   done < <(find docs templates -type f -name '*.md' -print0)
-  if [ ! -r scrub-denylist.txt ] || ! grep -qEv '^[[:space:]]*(#|$)' scrub-denylist.txt; then
-    echo 'Public example denylist is missing, unreadable, or empty'; return 1
+  if [ ! -r "$pattern_file" ] || ! grep -qEv '^[[:space:]]*(#|$)' "$pattern_file"; then
+    echo 'Public example pattern file is missing, unreadable, or empty'; return 1
   fi
   for file in "${files[@]}"; do
     status=0
-    grep -Fiq -f <(sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' scrub-denylist.txt) -- "$file" || status=$?
+    grep -Fiq -f <(sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' "$pattern_file") -- "$file" || status=$?
     case "$status" in
       0) echo "$file: contains a forbidden public-example token"; bad=1 ;;
       1) ;;
@@ -1734,7 +1768,7 @@ check "test_public_examples_umbrella_uses_neutral_services" \
 check "test_public_examples_quick_gate_preserves_fictional_outcomes" \
   "$(test_public_examples_quick_gate_preserves_fictional_outcomes && echo pass || echo 'fictional quick-gate teaching outcomes are incomplete')"
 check "test_public_examples_scoped_documents_exclude_private_tokens" \
-  "$(test_public_examples_scoped_documents_exclude_private_tokens && echo pass || echo 'scoped public documents require redaction')"
+  "$(test_public_examples_scoped_documents_exclude_private_tokens && echo pass || { status=$?; if [ "$status" -eq 2 ]; then echo 'skip: no local private hygiene pattern file is configured'; else echo 'scoped public documents require redaction'; fi; })"
 
 # ── Public hygiene smoke checks ─────────────────────────────────────
 
@@ -1742,6 +1776,7 @@ test_public_hygiene_fixture_scans_fail_closed() (
   local fixture validator repo output status name real_git
   fixture="$(mktemp -d "${TMPDIR:-/tmp}/public-hygiene.XXXXXX")" || return 1
   trap 'rm -rf "$fixture"' EXIT
+  unset ORCHESTRAIL_HYGIENE_DENYLIST
   validator="$fixture/runner/validate-contracts.sh"
   mkdir -p "$fixture/runner"
   git archive HEAD | tar -x -C "$fixture/runner" || return 1
@@ -1751,7 +1786,8 @@ test_public_hygiene_fixture_scans_fail_closed() (
   sed '/^# ── Public hygiene smoke checks /,/^# ── End public hygiene smoke checks /d' validate-contracts.sh > "$validator"
   mkdir -p "$repo/.ai/specs" "$repo/logs" "$repo/nested" "$fixture/bin"
   "$real_git" init -q "$repo" || return 1
-  printf '%s\n' '# Synthetic public-hygiene fixture' 'forbidden-marker' 'literal.[x]' > "$repo/scrub-denylist.txt"
+  printf '%s\n' 'different-marker' > "$repo/scrub-denylist.txt"
+  printf '%s\n' 'forbidden-marker' 'literal.[x]' > "$fixture/private-patterns.txt"
   printf '%s\n' 'FORBIDDEN-MARKER' > "$repo/.ai/specs/00-sensitive-data-scrub.md"
   printf '%s\n' 'Ordinary public content; literalax is allowed.' > "$repo/clean file.md"
   "$real_git" -C "$repo" add -- scrub-denylist.txt .ai/specs/00-sensitive-data-scrub.md "clean file.md" || return 1
@@ -1760,15 +1796,29 @@ test_public_hygiene_fixture_scans_fail_closed() (
     local expected="$1" label="$2"
     shift 2
     status=0
-    output="$(bash "$validator" --hygiene-only --root "$repo" "$@" 2>&1)" || status=$?
+    output="$(ORCHESTRAIL_HYGIENE_DENYLIST="${ORCHESTRAIL_HYGIENE_DENYLIST:-$fixture/private-patterns.txt}" bash "$validator" --hygiene-only --root "$repo" "$@" 2>&1)" || status=$?
     if { [ "$expected" = pass ] && [ "$status" -ne 0 ]; } || { [ "$expected" = fail ] && [ "$status" -eq 0 ]; }; then
       printf '%s: expected %s, exit %s\n' "$label" "$expected" "$status"
       return 1
     fi
   }
 
-  fixture_scan pass 'clean tree and exact self exceptions' || return 1
-  for name in 'clean file.md' $'line\nbreak.md' '.ai/new context.md' 'logs/tracked.log' 'nested/scrub-denylist.txt' 'nested/00-sensitive-data-scrub.md'; do
+  fixture_scan pass 'clean tree and exact source exception' || return 1
+  if output="$(env -u ORCHESTRAIL_HYGIENE_DENYLIST XDG_CONFIG_HOME="$fixture/no-config" \
+      bash "$validator" --hygiene-only --root "$repo" 2>&1)"; then
+    echo 'Standalone hygiene scan passed without a configured pattern file'; return 1
+  fi
+  if ! grep -Fq 'Hygiene patterns are not configured' <<< "$output"; then
+    echo 'Unconfigured scanner did not fail at the configuration guard'; return 1
+  fi
+  printf '%s\n' 'different-marker' > "$repo/scrub-denylist.txt"
+  printf '%s\n' 'forbidden-marker' 'literal.[x]' > "$fixture/private-patterns.txt"
+  printf '%s\n' 'prefix-FoRbIdDeN-MaRkEr-suffix' > "$repo/clean file.md"
+  ORCHESTRAIL_HYGIENE_DENYLIST="$fixture/private-patterns.txt" fixture_scan fail 'environment pattern list selected' || return 1
+  printf '%s\n' 'Public content' > "$repo/clean file.md"
+  ORCHESTRAIL_HYGIENE_DENYLIST="$fixture/private-patterns.txt" fixture_scan pass 'environment pattern list with clean content' || return 1
+  printf '%s\n' 'different-marker' > "$repo/scrub-denylist.txt"
+  for name in 'clean file.md' 'scrub-denylist.txt' $'line\nbreak.md' '.ai/new context.md' 'logs/tracked.log' 'nested/scrub-denylist.txt' 'nested/00-sensitive-data-scrub.md'; do
     printf '%s\n' 'prefix-FoRbIdDeN-MaRkEr-suffix' > "$repo/$name"
     "$real_git" -C "$repo" add -- "$name" || return 1
     fixture_scan fail "case-insensitive substring in $name" || return 1
@@ -1808,7 +1858,7 @@ function [ {
 EOF
   BASH_ENV="$fixture/unreadable.bash" HYGIENE_UNREADABLE="$fixture/alternate.txt" \
     fixture_scan fail 'unreadable configured list' --denylist "$fixture/alternate.txt" || return 1
-  if ! grep -Fq 'Hygiene denylist is missing or unreadable' <<< "$output"; then
+  if ! grep -Fq 'Hygiene pattern file is missing or unreadable' <<< "$output"; then
     echo 'Configured-list fixture did not reach the readability guard'; return 1
   fi
   BASH_ENV="$fixture/unreadable.bash" HYGIENE_UNREADABLE="$repo/clean file.md" \
@@ -1836,6 +1886,9 @@ EOF
 )
 
 test_public_hygiene_repository_preserves_context_and_local_ignores() {
+  if git ls-files --error-unmatch -- scrub-denylist.txt >/dev/null 2>&1; then
+    echo 'Private hygiene patterns must not be tracked'; return 1
+  fi
   if git check-ignore -q -- .ai/public-context.md; then
     echo 'Repository knowledge base must be eligible for tracking'; return 1
   fi
@@ -1850,7 +1903,7 @@ test_public_hygiene_repository_preserves_context_and_local_ignores() {
 check "test_public_hygiene_fixture_scans_fail_closed" \
   "$(test_public_hygiene_fixture_scans_fail_closed && echo pass || echo 'public-hygiene fixture behavior is incomplete')"
 check "test_public_hygiene_repository_preserves_context_and_local_ignores" \
-  "$(test_public_hygiene_repository_preserves_context_and_local_ignores && echo pass || echo 'repository context and local ignore policy is incomplete')"
+  "$(test_public_hygiene_repository_preserves_context_and_local_ignores && echo pass || echo 'repository context, local ignore policy, and private pattern storage are incomplete')"
 
 # ── End public hygiene smoke checks ─────────────────────────────────
 
@@ -2208,19 +2261,33 @@ check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
 # ── End public identity smoke checks ────────────────────────────────
 
 # ── Tracked public hygiene ──────────────────────────────────────────
+hygiene_tracked_tree_result() {
+  local pattern_file pattern_status=0
+  pattern_file="$(hygiene_patterns_path)" || pattern_status=$?
+  if [ "$pattern_status" -eq 2 ]; then
+    echo 'skip: no local private hygiene pattern file is configured'
+    return 0
+  fi
+  if [ "$pattern_status" -ne 0 ]; then
+    echo 'tracked publication scope has an invalid private pattern configuration'
+    return 0
+  fi
+  run_public_hygiene "$(pwd -P)" "$pattern_file" && echo pass || echo 'tracked publication scope requires redaction'
+}
 check "test_public_hygiene_tracked_tree_excludes_private_tokens" \
-  "$(run_public_hygiene "$(pwd -P)" && echo pass || echo 'tracked publication scope requires redaction')"
+  "$(hygiene_tracked_tree_result)"
 
 echo ""
 echo "=== Contract Validation ==="
 echo "  Passed: $PASS"
 echo "  Failed: $FAIL"
+echo "  Skipped: $SKIP"
 echo ""
 
 if [ $FAIL -gt 0 ]; then
   echo "Fix failures before running sync.sh"
   exit 1
 else
-  echo "All contracts valid."
+  echo "All required contracts valid."
   exit 0
 fi

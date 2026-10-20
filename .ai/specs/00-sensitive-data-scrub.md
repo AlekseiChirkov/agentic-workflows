@@ -17,7 +17,7 @@ The original pre-initialization premise no longer holds: an initial Git commit a
 ### Client, employer, and project identifiers
 
 - [x] No occurrence of `vention`, `lattice_lab`, `mariner-gulf`, `dbt_dw`, `invest_ai`,
-      `investment_analyst`, or `alterra` (case-insensitive) outside the explicitly approved exceptions: root `scrub-denylist.txt`, this source specification, Git internals, `logs/` (untracked), and `.claude/settings.local.json` (untracked) (revised 2026-10-19)
+      `investment_analyst`, or `alterra` (case-insensitive) outside the explicitly approved exceptions: this source specification, Git internals, local logs, and local settings (amended 2026-10-20)
 - [x] The checkout keeps living under a parent directory named `alterra` on the
       maintainer's machine (owner's decision, 2026-09-17). That name must therefore never
       be written into a file: scripts resolve their own location, documentation writes
@@ -64,15 +64,18 @@ The original pre-initialization premise no longer holds: an initial Git commit a
 
 ### Guard so it cannot come back
 
-- [x] `validate-contracts.sh` gains a check group that fails on any of a configurable
-      forbidden-token list (`scrub-denylist.txt` at the root: the identifiers above plus
-      the user name), scanning every indexed working-tree path, including newly staged knowledge-base files, with only the exact root denylist and this source specification exempt (revised 2026-10-19)
-- [x] `scrub-denylist.txt` documents that it is a *public-hygiene* list, not a secrets
-      store, and that adding a token to it requires scrubbing the tree in the same change
-- [x] A final manual sweep is recorded: `grep -rniE -f scrub-denylist.txt` over an explicitly enumerated tree scope
-      excluding Git internals, local logs/settings, the root denylist, and this source specification returns no unexpected matches (revised 2026-10-19), and the result is pasted into the task's
-      `state.md`
-- [x] `.gitignore` excludes local logs and `.claude/settings.local.json`, while the complete `.ai/` directory is included without deleting any existing file. The explicit source/list scan exceptions remain in force (revised 2026-10-19)
+- [x] `validate-contracts.sh` accepts a local forbidden-token pattern file through
+      `ORCHESTRAIL_HYGIENE_DENYLIST` or `--denylist`, scanning every indexed
+      working-tree path with only this source specification exempt
+- [x] The pattern file stays outside the repository; explicit scan inputs fail
+      closed when missing, unreadable, empty, or when scanning fails
+- [x] The tracked pattern list was removed before publication; maintainers can
+      keep their private hygiene patterns in local configuration without
+      exposing those identifiers in the repository
+- [x] A final manual sweep remains recorded with explicit tree scope, excluding
+      Git internals, local logs/settings, and this source specification; current exact
+      scans use a local-only pattern input
+- [x] `.gitignore` excludes local logs and `.claude/settings.local.json`, while the complete `.ai/` directory is included without deleting any existing file. The source specification remains the only exact scan exception (amended 2026-10-20)
 
 ## Out of Scope
 
@@ -102,6 +105,10 @@ The original pre-initialization premise no longer holds: an initial Git commit a
   observed failing on the current tree, then the tree is cleaned until it passes.
 
 ## Change Log
+
+### 2026-10-20 — keep private hygiene patterns local
+- Pattern source | implemented-differently | The tracked pattern file remains deleted. The scanner now accepts a local pattern file through `ORCHESTRAIL_HYGIENE_DENYLIST` or user configuration; no pattern contents are committed.
+- Missing local configuration | implemented-differently | Contract fixtures continue to exercise fail-closed scanning with synthetic patterns. The full-suite exact scans report `SKIP` when no local private patterns are configured, while an explicit scan still fails closed.
 
 ### 2026-10-19 — reconciled after validated working-tree cleanup
 - Timing | implemented-differently | Existing Git history is preserved; local test-first commits are permitted and remote publication is withheld. Source: owner answer 2A, task Description Amendments, ADR-0010 Decision 3.

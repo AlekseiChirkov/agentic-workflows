@@ -11,7 +11,7 @@ Accepted
 ## Related Task
 
 - Task: [Sensitive-data scrub](../tasks/todo/task-00-sensitive-data-scrub/state.md)
-- Related files: `validate-contracts.sh`, `scrub-denylist.txt`, `.gitignore`, source and log helpers
+- Related files: `validate-contracts.sh`, local hygiene configuration, `.gitignore`, source and log helpers
 
 ## Summary
 
@@ -105,6 +105,20 @@ Independent atomic and task validation passed: 542 contract/smoke checks, Bash s
 After validation, the owner requested pull requests and explicitly approved publication to AlekseiChirkov/agentic-workflows with private references in existing ancestry and approved scan exceptions retained. This supersedes Decision 3's remote-publication hold and the historical publication restrictions above. It authorizes additive branch pushes and pull requests only; no merge, force push, branch deletion, main update, deployment, or history rewrite is authorized.
 
 The three branches were published and their drafts promoted to ready after validation. Merge order is [#2](https://github.com/AlekseiChirkov/agentic-workflows/pull/2), then [#3](https://github.com/AlekseiChirkov/agentic-workflows/pull/3), then [#4](https://github.com/AlekseiChirkov/agentic-workflows/pull/4). Existing ancestry remains unchanged. Earlier verification statements describe the local validation checkpoint before this amendment.
+
+## Pattern-Storage Amendment — 2026-10-20
+
+The owner chose to retain deletion of the tracked pattern file and repair the scanner to
+accept a maintainer-local file through `ORCHESTRAIL_HYGIENE_DENYLIST` or user configuration.
+The exact scan source is now local while scans continue to cover all indexed files
+with the source requirement exempt, while private patterns stay outside Git. Synthetic
+fixtures continue to exercise missing, unreadable, empty, and matching pattern cases. The
+full contract suite marks exact private scans `SKIP` if no local file is configured; the
+standalone scan still fails closed. Current code: `validate-contracts.sh:9` resolves local
+configuration and `validate-contracts.sh:32` validates the file before scanning. The owner
+authorized merging the reviewed changes after validation while preserving existing history.
+Verification: 551 checks passed with local patterns; 549 passed and 2 private scans were
+explicitly skipped without local patterns; shell syntax and whitespace checks passed.
 
 ## References
 
