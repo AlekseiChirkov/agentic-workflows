@@ -40,7 +40,7 @@ T-01 | Versioned contract metadata | atomic-tests: green | atomic-execution: com
   base_branch: fix/public-hygiene-guard
   base_commit: 3ae483eb5efe5d45288da166728fb6902e615efb
   commits: cd58b7b, 4f7e70a, ba00806
-  pr: #5
+  pr: #5 ready
 T-02 | Portable runtime paths | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close DONE — all acceptance criteria met; optional path-scan coverage proposal recorded; draft PR #6 opened.
   target_files: sync.sh, log-step.sh, setup-new-project.sh, setup-umbrella.sh, setup-all-repos.sh, link-skills.sh, validate-contracts.sh, rules/run-log.md, workflows/phase-discovery.md, workflows/phase-execution.md, workflows/phase-pipeline.md, workflows/phase-validation.md, workflows/spec-run.md, workflows/retro.md, workflows/pd-finalize.md, workflows/pe-finalize.md, .ai/context/environment.md, .ai/context/runbook.md
@@ -50,7 +50,7 @@ T-02 | Portable runtime paths | atomic-tests: green | atomic-execution: complete
   base_branch: feat/contract-version-metadata
   base_commit: ba008063a0d3cae0a0fe210690646666320fd9e1
   commits: 986c8f9, fc69d1a
-  pr: #6 draft
+  pr: #6 ready
 T-03 | Public package materials | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close DONE — all acceptance criteria met; optional README destination proposal recorded; draft PR #7 opened.
   target_files: README.md, .gitignore, logs/.gitignore, docs/USAGE.md, validate-contracts.sh
@@ -60,7 +60,7 @@ T-03 | Public package materials | atomic-tests: green | atomic-execution: comple
   base_branch: feat/portable-runtime-paths
   base_commit: fc69d1ac3718a106d3e8e96f6a11309fbb14a018
   commits: 6e4119d, 3cdf9bc
-  pr: #7 draft
+  pr: #7 ready
 
 ## Improvement Proposals (T-03)
 
@@ -82,7 +82,7 @@ T-04 | Public identity sweep | atomic-tests: green | atomic-execution: complete 
   base_branch: feat/public-package-materials
   base_commit: 3cdf9bc93dbde32ee57223df4a0c14b092d0b976
   commits: daf5fbf, 412206d, 8deba46, 1314aa2, e9221a5, f922b9e, 5d7713f, 42d960d, 0c7e46f
-  pr: #8 draft
+  pr: #8 ready
 T-05-fix-validation-metadata | Synchronize validation metadata | atomic-tests: n-a | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close DONE — all acceptance criteria passed; draft PR #9 opened; no useful improvements proposed.
   target_files: docs/USAGE.md, .ai/memory/architecture.md, .ai/tasks/todo/task-01-git-source-of-truth/state.md
@@ -91,8 +91,8 @@ T-05-fix-validation-metadata | Synchronize validation metadata | atomic-tests: n
   branch: fix/validation-metadata
   base_branch: feat/public-identity-sweep
   base_commit: 0c7e46f1965e317429cd2b730578e61a95b27000
-  commits: 260185e
-  pr: #9 draft
+  commits: 260185e, d1e3125, 364b83e
+  pr: #9 ready
 
 ## Execution Report
 - T-01: reviewed — version metadata, legacy record compatibility, and stale-rule warning implemented and atomically validated.
