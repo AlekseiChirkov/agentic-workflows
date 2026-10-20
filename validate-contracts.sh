@@ -41,7 +41,7 @@ run_public_hygiene() (
   while IFS= read -r -d '' file; do
     count=$((count + 1))
     case "$file" in
-      scrub-denylist.txt|.ai/specs/00-sensitive-data-scrub.md) continue ;;
+      scrub-denylist.txt|.ai/specs/completed/00-sensitive-data-scrub.md) continue ;;
     esac
     if [ -L "$root/$file" ]; then
       # Git stores link text; do not follow a target outside the repository.
@@ -1749,12 +1749,12 @@ test_public_hygiene_fixture_scans_fail_closed() (
   real_git="$(command -v git)" || return 1
   # Omit this smoke group in the copied runner to prevent recursive fixture tests.
   sed '/^# ── Public hygiene smoke checks /,/^# ── End public hygiene smoke checks /d' validate-contracts.sh > "$validator"
-  mkdir -p "$repo/.ai/specs" "$repo/logs" "$repo/nested" "$fixture/bin"
+  mkdir -p "$repo/.ai/specs/completed" "$repo/logs" "$repo/nested" "$fixture/bin"
   "$real_git" init -q "$repo" || return 1
   printf '%s\n' '# Synthetic public-hygiene fixture' 'forbidden-marker' 'literal.[x]' > "$repo/scrub-denylist.txt"
-  printf '%s\n' 'FORBIDDEN-MARKER' > "$repo/.ai/specs/00-sensitive-data-scrub.md"
+  printf '%s\n' 'FORBIDDEN-MARKER' > "$repo/.ai/specs/completed/00-sensitive-data-scrub.md"
   printf '%s\n' 'Ordinary public content; literalax is allowed.' > "$repo/clean file.md"
-  "$real_git" -C "$repo" add -- scrub-denylist.txt .ai/specs/00-sensitive-data-scrub.md "clean file.md" || return 1
+  "$real_git" -C "$repo" add -- scrub-denylist.txt .ai/specs/completed/00-sensitive-data-scrub.md "clean file.md" || return 1
 
   fixture_scan() {
     local expected="$1" label="$2"
@@ -1768,7 +1768,7 @@ test_public_hygiene_fixture_scans_fail_closed() (
   }
 
   fixture_scan pass 'clean tree and exact self exceptions' || return 1
-  for name in 'clean file.md' $'line\nbreak.md' '.ai/new context.md' 'logs/tracked.log' 'nested/scrub-denylist.txt' 'nested/00-sensitive-data-scrub.md'; do
+  for name in 'clean file.md' $'line\nbreak.md' '.ai/new context.md' 'logs/tracked.log' 'nested/scrub-denylist.txt' 'nested/00-sensitive-data-scrub.md' '.ai/specs/00-sensitive-data-scrub.md'; do
     printf '%s\n' 'prefix-FoRbIdDeN-MaRkEr-suffix' > "$repo/$name"
     "$real_git" -C "$repo" add -- "$name" || return 1
     fixture_scan fail "case-insensitive substring in $name" || return 1

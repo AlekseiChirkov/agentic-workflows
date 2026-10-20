@@ -1,6 +1,8 @@
-spec_path: .ai/specs/00-sensitive-data-scrub.md
+spec_path: .ai/specs/completed/00-sensitive-data-scrub.md
 flow: full
-publication: ready for review; the Publication Update below supersedes the original local-only hold
+status: completed
+closed_at: 2026-10-19
+publication: integrated through PRs #2, #3, and #4 under explicit owner authorization
 
 ## Phases
 - discovery: complete
@@ -99,7 +101,7 @@ T-01 | Portable script path defaults | atomic-tests: green | atomic-execution: c
   base_branch: main
   base_commit: fc94fc1f9331d092cd59255ce41fa043c791cd9e
   commits: 34790f153f1a912b4665a6b9fc8b721aed308cf6 test: cover portable script defaults and source overrides, a2c218e266a5e3de8e7d09d78bf33a1a3671eb3b fix: resolve script roots without private checkout paths, 4275345c969ef4f5f516732cbe8f592d775a8d3d test: cover relative source overrides in child setup, 297bda22d5f4c07f7bbf2d73e8fc95fdb6d675bd fix: preserve relative source overrides across child setup
-  pr: #2 ready
+  pr: #2 merged
 T-02 | Neutral public examples | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: Atomic validation complete — all acceptance criteria met; unchanged RED checks verified; 539 contract checks pass; one pre-existing path-example improvement deferred.
   target_files: validate-contracts.sh, scrub-denylist.txt, docs/USAGE.md, docs/audits/AUDIT-PROMPT.md, docs/audits/2026-07-21-logic-audit-fixes.md, docs/analysis/2026-09-16-comparative-analysis-tldr.ru.md, docs/analysis/2026-09-16-rules-workflows-naming-review.md, docs/analysis/2026-09-16-comparative-analysis.ru.md, templates/.ai-umbrella/README.md, templates/.ai-umbrella/principles/coding.md, templates/.ai/principles/coding.md, templates/.ai/principles/architecture.md, rules/workflow-reference.md, workflows/retro.md, rules/quick-flow.md, workflows/phase-pipeline.md
@@ -120,7 +122,7 @@ T-02 | Neutral public examples | atomic-tests: green | atomic-execution: complet
   base_branch: fix/portable-script-paths
   base_commit: 297bda22d5f4c07f7bbf2d73e8fc95fdb6d675bd
   commits: ee22ca13443ab86858b85199aea1464a3ad9536a test: cover neutral public examples and privacy redactions, 37f4b2f05516b9f99343eb10c89b22ac083d6493 docs: replace private examples with fictional systems
-  pr: #3 ready
+  pr: #3 merged
 T-03 | Public hygiene scanner and final sweep | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: Atomic validation complete — all acceptance criteria met; frozen RED and original checks intact; 542 checks and full-context sweep pass.
   target_files: validate-contracts.sh, .gitignore, README.md, docs/USAGE.md, rules/orchestration.md, rules/phase-discovery.md, rules/run-log.md, workflows/onboard-legacy-project.md, workflows/pd-analyze.md, workflows/pd-decompose.md, workflows/pd-finalize.md, workflows/pe-finalize.md, workflows/phase-discovery.md, workflows/phase-execution.md, workflows/phase-pipeline.md, workflows/phase-validation.md, workflows/spec-run.md, workflows/suggest-commit-message.md
@@ -154,7 +156,7 @@ T-03 | Public hygiene scanner and final sweep | atomic-tests: green | atomic-exe
   base_branch: docs/neutral-public-examples
   base_commit: 37f4b2f05516b9f99343eb10c89b22ac083d6493
   commits: a0652f33710906082501ff2fca88ceaa00fc296e test: cover tracked-file hygiene and context preservation, df71192b8299ce89328f4cb6202b523a59e852ec fix: enforce public hygiene and remove private references
-  pr: #4 ready
+  pr: #4 merged
 
 ## Arbiter Review
 - Scan exceptions require a user decision: the denylist and immutable source spec self-match. Source: spec Guard criteria and domain Spec definition.
@@ -283,7 +285,7 @@ Created: none
 sync: complete
 synced_at: 2026-10-19
 deltas: 5 (implemented-differently: 4, not-implemented: 0, implemented-beyond: 1)
-spec: .ai/specs/00-sensitive-data-scrub.md
+spec: .ai/specs/completed/00-sensitive-data-scrub.md
 
 ## Validation Finalization
 All original subtasks reviewed; no required fix-tasks. Existing history and remote publication remain separate owner decisions, as explicitly agreed. Optional fixture refinement and the existing template path followup do not change the passed hygiene contract. Root architecture/current counts and repository-specific tracking principles are updated; no new runtime or deployment target was introduced. Project state skipped because absent. Post-validation spec reconciliation records owner-approved differences; no failed criterion was weakened or reclassified.
@@ -383,3 +385,17 @@ branch: fix/public-hygiene-guard
 expected_parent: 906eab85b00e42f33e38f24e4d80b38a5eb50689
 allowed_scope: setup-umbrella.sh, validate-contracts.sh, .ai/tasks/todo/task-00-sensitive-data-scrub/state.md
 The publication metadata commit is a4602e115cafb393f791031b60ca95a4e8f66938 and its parent is the previously recorded closure snapshot. The regression commit follows that metadata commit and changes only validate-contracts.sh. The review correction follows the regression commit with the exact scope above; its enclosing hash is reported externally. Reconciliation must validate these additive followups before applying the historical metadata descriptors. Original branch points and subtask implementation hashes remain unchanged.
+
+## Task Closure — 2026-10-19
+The owner explicitly authorized merging the three reviewed pull requests, closing this task, and moving its source specification and full task directory to their completed collections. This supersedes historical prohibitions on merging and record relocation in the original execution scope. History rewriting, branch deletion, and unrelated-task changes remain outside scope.
+
+- PR #2 integrated into main at 697d504a94559934e2ad87e5417b3a576fe7d8cf.
+- PR #3 retargeted to main and integrated at 457f0ac9b6d026ea4500c186ec05d725fa1a79a6.
+- PR #4 carries the reviewed corrections and this closure; its final integration hash is reported externally because this record is included in that integration.
+- All phases are complete and all subtasks remain reviewed. No critical or important issues remain. The optional Git-error fixture refinement and the unrelated template example followup remain outside this task.
+- Complete task retained at .ai/tasks/completed/task-00-sensitive-data-scrub/; source retained at .ai/specs/completed/00-sensitive-data-scrub.md. No knowledge-base content was discarded.
+- Current source references and roadmap links were updated; historical path lists above describe their original commits and remain unchanged.
+- Scanner exemption is limited to the root denylist and the exact completed source path. A regression verifies the old source location is scanned normally.
+- Earlier final-state descriptors are historical. The latest closure commit follows regression commit 6a4e38e7e825a91f7c354e0eb44c29788213e12c; it contains the record moves, related knowledge-base links/status, and the scanner exemption update. Its hash and PR #4 integration hash are reported externally. Original branch-point hashes remain immutable.
+
+Closure verification: 542 contract checks pass as the normal user and UID 0; 21 task-artifact checks pass at the completed path; staged whitespace and indexed hygiene checks pass.

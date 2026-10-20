@@ -9,7 +9,7 @@ parallelism. All owner decisions behind these specs are in ADR-0009.
 
 | Order | NN | Spec | Effort | Depends on | Why this position |
 |---|---|---|---|---|---|
-| 1 | 00 | [sensitive-data-scrub](00-sensitive-data-scrub.md) | days | — | **must precede `git init`** — client names, internal code references, host and home paths; adds the forbidden-token check |
+| 1 | 00 | [sensitive-data-scrub — completed](completed/00-sensitive-data-scrub.md) | days | — | Completed: current-content cleanup and forbidden-token guard; owner accepted existing ancestry |
 | 2 | 01 | [git-source-of-truth](01-git-source-of-truth.md) | days | 00 | git, Orchestrail rename, `VERSION`, minimal public slice |
 | 3 | 13a | [rules-workflows-audit](13a-rules-workflows-audit.md) | days | 01 | evidence for every rename; may amend 13 |
 | 4 | 13 | [model-only-harnesses-and-rule-naming](13-model-only-harnesses-and-rule-naming.md) | weeks | 01, 13a | drop Windsurf/Devin; `harness/` + capabilities; `<kind>-<subject>` rules; command renames |
@@ -24,6 +24,8 @@ parallelism. All owner decisions behind these specs are in ADR-0009.
 | 13 | 11 | [open-source-readiness](11-open-source-readiness.md) | days | 01, 09, 10, 13 | installer, profiles, examples, scrubbing, `1.0.0` |
 | 14 | 12 | [composite-branch-model-and-parallel-children](12-composite-branch-model-and-parallel-children.md) | weeks | 13, 09, 02, 03 | one branch + one PR per composite; parallel children |
 | backlog | 07 | [state-tool](07-state-tool.md) | weeks | — | deferred by the owner; shape agreed |
+
+Completed specifications are retained in `completed/`; their task records are in `../tasks/completed/`.
 
 Later candidates without a spec yet: RED-set protection hook (refuse test-file edits
 during GREEN without an amendment note); `/spec-run` on a second orchestrating harness;
