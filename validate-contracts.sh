@@ -1635,7 +1635,7 @@ test_runtime_instructions_public_configuration_uses_orchestrail() {
   local file bad=0
   local -a helper_docs=(rules/run-log.md workflows/phase-discovery.md workflows/phase-execution.md
     workflows/phase-pipeline.md workflows/phase-validation.md workflows/spec-run.md
-    workflows/pd-finalize.md workflows/pe-finalize.md .ai/principles/coding.md)
+    workflows/pd-finalize.md workflows/pe-finalize.md .ai/principles/coding.md docs/USAGE.md)
   for file in "${helper_docs[@]}" .ai/context/environment.md; do
     if ! grep -Fq 'ORCHESTRAIL_HOME' "$file"; then
       echo "$file: missing public source-root variable"; bad=1
