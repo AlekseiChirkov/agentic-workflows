@@ -78,7 +78,7 @@ T-04 | Public identity sweep | atomic-tests: green | atomic-execution: complete 
   base_branch: feat/public-package-materials
   base_commit: 3cdf9bc93dbde32ee57223df4a0c14b092d0b976
   commits: daf5fbf, 412206d, 8deba46, 1314aa2, e9221a5, f922b9e, 5d7713f
-  pr: none
+  pr: #8 draft
 ## Solution Design
 
 ### Variants
