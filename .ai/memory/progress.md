@@ -14,10 +14,12 @@ and the audit spec — dates are those recorded in the sources.
   the release tag remain owner-deferred. The reconciled spec records three implemented-
   differently and two not-implemented deltas; the full validator passes 551 checks.
 
+- **2026-10-19 — Public-hygiene delivery completed.** The owner authorized merging PRs #2, #3, and #4 in dependency order. Review corrections preserve source overrides in suggested child setup commands and make readability fixtures deterministic for root. Validation passes 542 checks as the normal user and UID 0. Task records moved to `tasks/completed/task-00-sensitive-data-scrub/`; the source specification moved to `specs/completed/00-sensitive-data-scrub.md`. Its exact scanner exception moved with it; the former path is scanned. Existing history is retained. Optional fixture isolation remains a separate followup.
+
 - **2026-10-19 — Public hygiene and local-only delivery.** Three reviewed local branches remove private references and add an indexed literal-token guard. All 44 baseline knowledge files are preserved; all 45 current files are included. Validation: 542 checks pass, 23 contract requirements pass, manual sweep 152 files with zero matches/errors. Five source differences reconciled (four implemented differently, one additional inclusion requirement); ADR-0010 accepted. Existing history remains unchanged and remote publication is withheld. One optional fixture-isolation improvement is deferred.
 
 - **2026-09-17 — Scrub moved ahead of everything.** The owner required sensitive data to
-  be removed before any work starts. `specs/00-sensitive-data-scrub.md` added as the first
+  be removed before any work starts. `specs/completed/00-sensitive-data-scrub.md` added as the first
   task: client and employer project names, internal source-file references from client
   code, PR and workflow-run identifiers, host name, and `$HOME` paths, plus a
   forbidden-token check group in `validate-contracts.sh` and a `scrub-denylist.txt`.

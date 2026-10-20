@@ -60,7 +60,7 @@ read the repository.
   on-disk consumer formats only.
 - `sync.sh --from` remains available when a consumer needs a source checkout other than
   the directory containing the script.
-- **Depends on `.ai/specs/00-sensitive-data-scrub.md`.** Discovery must stop if the
+- **Depends on `.ai/specs/completed/00-sensitive-data-scrub.md`.** Discovery must stop if the
   scrub's forbidden-token check is absent or failing before a public branch is pushed;
   existing ancestry remains unchanged.
 

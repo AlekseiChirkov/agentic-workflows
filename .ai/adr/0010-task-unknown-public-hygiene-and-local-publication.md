@@ -10,7 +10,7 @@ Accepted
 
 ## Related Task
 
-- Task: [Sensitive-data scrub](../tasks/todo/task-00-sensitive-data-scrub/state.md)
+- Task: [Sensitive-data scrub](../tasks/completed/task-00-sensitive-data-scrub/state.md)
 - Related files: `validate-contracts.sh`, local hygiene configuration, `.gitignore`, source and log helpers
 
 ## Summary
@@ -120,8 +120,12 @@ authorized merging the reviewed changes after validation while preserving existi
 Verification: 551 checks passed with local patterns; 549 passed and 2 private scans were
 explicitly skipped without local patterns; shell syntax and whitespace checks passed.
 
+## Integration and Archival Amendment — 2026-10-19
+
+The owner subsequently authorized merging all three reviewed pull requests and closing the task. This supersedes the publication amendment's prohibition on merging for these three pull requests only. Integration follows #2, #3, then #4 into main, preserving ancestry. The complete task directory and source specification are retained in their completed collections; active references and the scanner's exact source exception move with them. History rewriting and branch deletion remain outside scope. Historical statements above describe their earlier checkpoints.
+
 ## References
 
-- Task: [Local state](../tasks/todo/task-00-sensitive-data-scrub/state.md)
+- Task: [Local state](../tasks/completed/task-00-sensitive-data-scrub/state.md)
 - Pull requests: #2, #3, and #4 ready for review; see the publication amendment
 - Related documents: ADR-0007, ADR-0009, user answers of 2026-10-19
