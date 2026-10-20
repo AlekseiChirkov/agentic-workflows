@@ -58,11 +58,11 @@ the selected path and never creates the store; an empty log override uses `<root
 - Linux, bash, `jq` (required for run-log digests and `/retro`), `git`, `gh` (only for
   `--allow-pr`), `shellcheck` optional.
 - Development host: the maintainer's workstation.
-- Local Git history exists; remote publication remains withheld pending separate history remediation.
+- Local Git history exists. The owner has authorized publication and merging of the reviewed changes while preserving existing history.
 
 ## Scrub note (2026-09-17)
 
 Mutable repository content uses neutral placeholders and configured helper paths.
-The public-hygiene validator scans all tracked files except its root pattern list and
-the immutable source specification. Local logs, machine settings, and Git internals
-are outside the manual sweep. The local checkout location remains private.
+The public-hygiene validator scans tracked files with maintainer-local patterns; only the
+source specification is exempt. Local logs, machine settings, and Git internals are
+outside the manual sweep. The local checkout location remains private.

@@ -11,7 +11,7 @@ Accepted
 ## Related Task
 
 - Task: [Sensitive-data scrub](../tasks/completed/task-00-sensitive-data-scrub/state.md)
-- Related files: `validate-contracts.sh`, `scrub-denylist.txt`, `.gitignore`, source and log helpers
+- Related files: `validate-contracts.sh`, local hygiene configuration, `.gitignore`, source and log helpers
 
 ## Summary
 
@@ -106,6 +106,20 @@ After validation, the owner requested pull requests and explicitly approved publ
 
 The three branches were published and their drafts promoted to ready after validation. Merge order is [#2](https://github.com/AlekseiChirkov/agentic-workflows/pull/2), then [#3](https://github.com/AlekseiChirkov/agentic-workflows/pull/3), then [#4](https://github.com/AlekseiChirkov/agentic-workflows/pull/4). Existing ancestry remains unchanged. Earlier verification statements describe the local validation checkpoint before this amendment.
 
+## Pattern-Storage Amendment — 2026-10-20
+
+The owner chose to retain deletion of the tracked pattern file and repair the scanner to
+accept a maintainer-local file through `ORCHESTRAIL_HYGIENE_DENYLIST` or user configuration.
+The exact scan source is now local while scans continue to cover all indexed files
+with the source requirement exempt, while private patterns stay outside Git. Synthetic
+fixtures continue to exercise missing, unreadable, empty, and matching pattern cases. The
+full contract suite marks exact private scans `SKIP` if no local file is configured; the
+standalone scan still fails closed. Current code: `validate-contracts.sh:9` resolves local
+configuration and `validate-contracts.sh:32` validates the file before scanning. The owner
+authorized merging the reviewed changes after validation while preserving existing history.
+Verification: 551 checks passed with local patterns; 549 passed and 2 private scans were
+explicitly skipped without local patterns; shell syntax and whitespace checks passed.
+
 ## Integration and Archival Amendment — 2026-10-19
 
 The owner subsequently authorized merging all three reviewed pull requests and closing the task. This supersedes the publication amendment's prohibition on merging for these three pull requests only. Integration follows #2, #3, then #4 into main, preserving ancestry. The complete task directory and source specification are retained in their completed collections; active references and the scanner's exact source exception move with them. History rewriting and branch deletion remain outside scope. Historical statements above describe their earlier checkpoints.
@@ -113,5 +127,5 @@ The owner subsequently authorized merging all three reviewed pull requests and c
 ## References
 
 - Task: [Local state](../tasks/completed/task-00-sensitive-data-scrub/state.md)
-- Pull requests: #2, #3, and #4 integrated in dependency order; see the integration amendment
+- Pull requests: #2, #3, and #4 ready for review; see the publication amendment
 - Related documents: ADR-0007, ADR-0009, user answers of 2026-10-19

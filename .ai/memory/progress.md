@@ -6,6 +6,13 @@ newest first. Entries before 2026-09-16 are reconstructed from file contents, ru
 and the audit spec — dates are those recorded in the sources.
 
 ## Log
+- **2026-10-20 — Local hygiene configuration and merge authorization.** The tracked pattern file remains deleted; exact scans now read maintainer-local patterns, and the full suite reports two explicit skips when they are unavailable. Validation: 551 checks passed with local patterns; 549 passed and 2 skipped without them. The owner authorized merging the reviewed changes while preserving existing history.
+
+- **2026-10-20 — Source-of-truth release stack.** Versioned contracts, portable runtime
+  paths, public package materials, identity checks, and validation metadata are complete.
+  The reviewed stack is published without rewriting existing history; license wording and
+  the release tag remain owner-deferred. The reconciled spec records three implemented-
+  differently and two not-implemented deltas; the full validator passes 551 checks.
 
 - **2026-10-19 — Public-hygiene delivery completed.** The owner authorized merging PRs #2, #3, and #4 in dependency order. Review corrections preserve source overrides in suggested child setup commands and make readability fixtures deterministic for root. Validation passes 542 checks as the normal user and UID 0. Task records moved to `tasks/completed/task-00-sensitive-data-scrub/`; the source specification moved to `specs/completed/00-sensitive-data-scrub.md`. Its exact scanner exception moved with it; the former path is scanned. Existing history is retained. Optional fixture isolation remains a separate followup.
 

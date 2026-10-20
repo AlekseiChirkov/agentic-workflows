@@ -27,6 +27,12 @@ Scripts default to their own directory when the source override is unset or empt
 Export `ORCHESTRAIL_LOG_ROOT` to select a shared log store; unset or empty values
 use the helper checkout's `logs/` directory. Inspect it without creating files with
 `bash "$ORCHESTRAIL_HOME/log-step.sh" path`.
+Keep private hygiene patterns outside the repository and set
+`ORCHESTRAIL_HYGIENE_DENYLIST` to their local file. The default is
+`$XDG_CONFIG_HOME/orchestrail/hygiene-patterns.txt` or
+`~/.config/orchestrail/hygiene-patterns.txt`. The full suite reports exact scans as
+`SKIP` when no local pattern file exists; `bash validate-contracts.sh --hygiene-only`
+requires a configured file and fails closed.
 
 ## Procedures
 
