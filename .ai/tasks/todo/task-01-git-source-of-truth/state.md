@@ -79,16 +79,16 @@ T-04 | Public identity sweep | atomic-tests: green | atomic-execution: complete 
   base_commit: 3cdf9bc93dbde32ee57223df4a0c14b092d0b976
   commits: daf5fbf, 412206d, 8deba46, 1314aa2, e9221a5, f922b9e, 5d7713f, 42d960d, 0c7e46f
   pr: #8 draft
-T-05-fix-validation-metadata | Synchronize validation metadata | atomic-tests: n-a | atomic-execution: complete | atomic-validation: not-started
-  last_action: all steps complete — updated the published validator count to 551 after the full validator passed.
+T-05-fix-validation-metadata | Synchronize validation metadata | atomic-tests: n-a | atomic-execution: complete | atomic-validation: complete
+  last_action: pav-close DONE — all acceptance criteria passed; draft PR #9 opened; no useful improvements proposed.
   target_files: docs/USAGE.md, .ai/memory/architecture.md, .ai/tasks/todo/task-01-git-source-of-truth/state.md
   blocker: none
   notes: tdd: none — unit, integration, and contract tests do not apply because no executable behavior or public interface changes; smoke checks do not observe the documentation count or recorded commit list. The full validator remains the regression check.
   branch: fix/validation-metadata
   base_branch: feat/public-identity-sweep
   base_commit: 0c7e46f1965e317429cd2b730578e61a95b27000
-  commits: none
-  pr: none
+  commits: 260185e
+  pr: #9 draft
 
 ## Execution Report
 - T-01: reviewed — version metadata, legacy record compatibility, and stale-rule warning implemented and atomically validated.

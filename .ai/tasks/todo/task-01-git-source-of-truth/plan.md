@@ -6,7 +6,7 @@
 | T-02 | Portable runtime paths         | gpt-6.1-sol        | rename root overrides → update setup helpers → verify relocation  | T-01       | reviewed |
 | T-03 | Public package materials       | gemini-3.8-flash   | add concise README → narrow ignores → update setup guide; defer license and release tag | T-02    | reviewed |
 | T-04 | Public identity sweep          | gemini-3.8-flash   | update remaining references → enforce scoped scan → verify hygiene | T-03     | reviewed |
-| T-05-fix-validation-metadata | Synchronize validation metadata | gpt-6.1-sol | update documented check counts → complete the branch audit trail | T-04 | done |
+| T-05-fix-validation-metadata | Synchronize validation metadata | gpt-6.1-sol | update documented check counts → complete the branch audit trail | T-04 | reviewed |
 
 ## Execution Strategy
 
