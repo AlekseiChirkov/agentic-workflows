@@ -942,5 +942,5 @@ case "${1-}" in
   lint)      shift; cmd_lint "$@" ;;
   ""|-h|--help|help)
     sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//' ;;
-  *) die "unknown command: ${1-}" ;;
+  *) die 'command invalid-command' ;;
 esac
