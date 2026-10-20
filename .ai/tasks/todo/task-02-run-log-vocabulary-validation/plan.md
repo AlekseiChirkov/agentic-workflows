@@ -3,7 +3,7 @@
 | ID   | Name                           | Key Steps (summary)                                      | Depends On | Status      |
 |------|--------------------------------|----------------------------------------------------------|------------|-------------|
 | T-01 | Producer validation and writes | define contract → validate → normalize → persist safely | —          | reviewed |
-| T-02 | Read-only run linter           | select files → validate records → report JSON           | T-01       | not-started |
+| T-02 | Read-only run linter           | select files → validate records → report JSON           | T-01       | reviewed |
 | T-03 | Lint-aware retrospective       | filter corpus → exclude invalid lines → report coverage | T-02       | not-started |
 | T-04 | Vocabulary docs and drift gate | document tables → compare runtime contract → fail drift  | T-02       | not-started |
 | T-05 | Isolated acceptance harness    | fixture store → exercise branches → verify immutability | T-01, T-02, T-03, T-04 | not-started |
