@@ -24,6 +24,14 @@ have made.
 
 ---
 
+## Contract version
+
+`contract_version`: optional string on `run-start`, read from the root `VERSION`
+file beside the logging helper in the workflow source checkout. Record its current
+numeric `major.minor.patch` value. If VERSION is absent, unreadable, empty, or malformed,
+omit the field and continue logging. Older events without `contract_version` remain
+valid; readers accept its absence. Other event fields keep their existing meaning.
+
 ## Where the log lives
 
 ```
