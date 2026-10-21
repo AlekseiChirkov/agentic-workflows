@@ -3,8 +3,8 @@ flow: full
 
 ## Phases
 - discovery: complete
-- execution: in-progress
-- validation: not-started
+- execution: complete
+- validation: in-progress
 
 ## Task Analysis
 → archived to state-archive.md
@@ -181,7 +181,7 @@ T-05 | isolated-acceptance-harness | atomic-tests: green | atomic-execution: com
   base_branch: feat/run-log-contract-gate
   base_commit: b1f07863269411eda18b5d43f5eb5a01a4f6110f
   commits: 8d8cf60 test: require isolated executable acceptance runner; 60d315c test: add isolated run-log acceptance harness
-  pr: none
+  pr: #17 draft
   last_action: DoD met — independent isolated-harness validation complete; all criteria, frozen-test integrity, cleanup, and preservation checks pass
   target_files: `scripts/validate-contracts.sh`, `tests/log-step.sh`
   blocker: none
@@ -209,6 +209,45 @@ T-05 | isolated-acceptance-harness | atomic-tests: green | atomic-execution: com
          proposals: independent batch review — no concrete improvements with sufficient measurable effect found; Do Now, Do Later, and Optional are all none; no proposals applied.
          closure: orchestrated pav-close complete; plan delta T-05 -> reviewed returned to the sole shared-plan writer; no composite trigger applies. Source, tests, git, shared sections, plan, memory, installed skills, deployment, and real logs unchanged by this review.
          compression: auto audit of owned block retains protected TDD/git evidence and current findings; no shortening required. Shared execution-report status remains for the orchestrator to reconcile.
+
+T-06 | fix-redact-unknown-command | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  branch: fix/redact-unknown-command
+  base_branch: chore/run-log-acceptance
+  base_commit: 1081a29f62aefc79217089105da83695f57281c4
+  commits: 8028790 test: cover redacted unknown-command errors; 9827a9d fix: redact unknown-command diagnostics
+  pr: none
+  last_action: DoD met — independent unknown-command redaction review complete; all 22 focused checks and 573 full-suite checks pass
+  target_files: `scripts/log-step.sh`, `scripts/validate-contracts.sh`
+  blocker: none
+  notes: Critical contract gate paused; repair authorized by user instruction to fix all findings.
+         tdd: smoke — 1 new function, AC coverage 3/3; original producer functions and acceptance meta-test remain unchanged.
+         tdd: red digest — AC-1 unknown command redaction, termination, and immutable storage; AC-2 preserved help and valid neighboring commands; AC-3 permanent dynamic harness coverage -> test_run_log_unknown_commands_are_redacted_and_preserve_storage.
+         tdd: RED — focused function exits 1 because arbitrary command text and embedded control characters appear in stderr; exact newline reproduction yields two diagnostic lines; zero status, no stdout, help, valid neighboring commands, and temporary-storage hashes otherwise pass. Evidence: /tmp/orchestrail-unknown-command-red.log.
+         tdd: GREEN — the single frozen RED function passes; all 28 unknown invocations preserve absent/populated fixture storage, return zero, emit no stdout, and produce the same single safe diagnostic. All help aliases and valid neighboring commands pass.
+         implementation: replace only the final unknown-command dispatch diagnostic with constant command invalid-command; no parser, storage, vocabulary, or valid-command changes.
+         verification: focused regression exit 0, evidence /tmp/orchestrail-unknown-command-green.log; executable isolated harness 22 passed, exit 0, evidence /tmp/orchestrail-unknown-command-acceptance.log; full suite 573 passed, 0 failed, 2 configured hygiene skips, evidence /tmp/orchestrail-unknown-command-full.log.
+         verification: validator remains byte-for-byte equal to test-only commit 8028790; all scripts/*.sh and tests/*.sh pass bash -n; git diff --check passes; shellcheck unavailable. No test amendments or additional tests during GREEN.
+         finalization: orchestrated mode; return plan transition T-06 -> done to the sole shared-plan writer. Architecture requires no update because the helper's existing nonblocking interface remains described. No git writes, deployment, historical-log access, shared plan, or memory edits performed.
+         compression: owned block audited; protected TDD/git fields and current evidence retained; no shortening needed. Atomic validation remains pending independent review.
+         validation: independent pav-check DONE — AC-1 met: 28 unknown invocations across absent/populated fixtures return zero with no stdout, one constant redacted stderr line, timeout protection, and unchanged storage; direct newline reproduction independently passes.
+         validation: AC-2 met — missing/empty command and all help aliases retain identical output; valid producer, read-only path/active/contract/lint commands pass the unchanged focused checks; source diff changes only the final unknown-command diagnostic.
+         validation: AC-3 met — dynamic executable harness permanently discovers the new regression and passes all 22 focused functions; independently repeated full suite passes 573 with 0 failures and 2 configured hygiene skips. Evidence: /tmp/unknown-command-independent-harness.log and /tmp/unknown-command-independent-full.log.
+         validation: frozen RED validator is byte-identical to commit 8028790 (SHA-256 67de96a616ed99874a4da9ff9d1bdeaff0e77446e7d1b994a383a984140cb4cc); base diff adds one behavior-focused regression without changing earlier functions/assertions; no skips, vacuous assertions, or amendments. Independent frozen-helper replay reproduces original two-line disclosure.
+         validation: all scripts and harness pass bash -n; git diff --check passes; shellcheck unavailable. Every executed helper uses temporary storage; no real logs accessed. No critical or important findings within this repair scope.
+         proposals: independent batch review — no concrete improvements with sufficient measurable effect found; Do Now, Do Later, and Optional are all none; nothing applied.
+         closure: orchestrated pav-close complete; return plan delta T-06 -> reviewed to the sole shared-plan writer; no composite trigger applies. No source, tests, git, shared sections, plan, memory, deployment, or real logs changed by this review.
+         compression: auto audit of owned block retains protected TDD/git evidence and current validation results; no shortening required. Shared aggregate statuses remain for the orchestrator to reconcile.
+
+T-07 | fix-path-argument-progress | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  branch: none
+  base_branch: none
+  base_commit: none
+  commits: none
+  pr: none
+  last_action: approved critical argument-loop repair pending predecessor
+  target_files: `scripts/log-step.sh`, `scripts/validate-contracts.sh`
+  blocker: none
+  notes: Missing path operand causes an infinite loop; preserve successful path reads and reject malformed arguments without side effects.
 
 ## Solution Design
 
@@ -286,6 +325,8 @@ adr: not triggered — the spec fixes the vocabulary and validation strategy, an
 - T-03: reviewed — filtered lint coverage, usable metric observations, and honest close classification.
 - T-04: reviewed — canonical vocabulary documentation and bidirectional structured drift gate.
 - T-05: reviewed — isolated executable acceptance harness; 21 focused checks and cleanup meta check pass.
+- T-06: reviewed — unknown-command diagnostics are redacted; 22 focused checks and full suite 573/0/2 pass.
+- T-07: not-reached — bounded path parsing repair waits for the diagnostic repair.
 - Verification: 572 passed, 0 failed, 2 configured hygiene skips; all 21 focused acceptance checks, shell syntax, and whitespace pass.
 - Run logging skipped because no configured executable shared helper was available.
 
@@ -358,6 +399,18 @@ recorded_paths:
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/plan.md
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
 
+### Redacted command errors
+
+branch: fix/redact-unknown-command
+expected_parent: 9827a9d98866ca9932e50725d9804d39c8d43363
+allowed_scope: listed knowledge-base paths only
+recorded_paths:
+- .ai/memory/state.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/T-06-fix-redact-unknown-command/description.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/T-07-fix-path-argument-progress/description.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/plan.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
+
 ## Improvement Proposals (T-02)
 
 ### Do Later
@@ -367,3 +420,48 @@ recorded_paths:
 
 ### Optional
 - Completed in the isolated acceptance harness: newline-bearing diagnostic paths and inaccessible run directories pass.
+
+## Execution Finalization
+
+- All five leaf subtasks are reviewed; no blocked, deferred or unreached work and no composite reconciliation required.
+- Root file decisions: architecture updated for producer/lint/retrospective/drift gate and the isolated acceptance runner; architecture principles unchanged because existing single-source and nonblocking boundaries remain; project_state skipped because absent.
+- Compression audit: current progress and final aggregate evidence reconciled; protected git/TDD/arbiter records and archive references retained.
+- Task/spec paths remain stable through review readiness; archive relocation follows integration rather than being inferred from completion (pv-finalize completion marker and spec-run no-merge boundary).
+
+## Contract Check
+
+### Invariants
+| Invariant | Status |
+|---|---|
+| Logging never blocks and returns zero | FAIL: path --run loops because a failed shift leaves the parser unchanged; timeout reproduction exited 124. |
+
+### Off-limits
+| Constraint | Status |
+|---|---|
+| Diagnostics contain no arbitrary raw values | FAIL: unknown command text is echoed verbatim, including embedded newlines. |
+
+### Critical Failures Decision: pause
+
+- Source: user's standing approval to fix everything and finish the task; pause review, repair both reproducible defects with RED/GREEN and independent validation, then repeat the full contract check before code review.
+- Initial integrated reviewer stopped before pv-review; these are defects, not requirement changes. No historical data was accessed.
+
+## Issue List
+
+### Approved
+1. critical — Unknown-command diagnostic includes arbitrary caller text and can span multiple physical lines.
+2. critical — path --run with a missing operand loops forever instead of returning nonblocking diagnostic output.
+
+### Deferred
+(none)
+
+## Fix-Tasks
+fixes-created: complete
+fixes-count: 2
+Created: T-06-fix-redact-unknown-command, T-07-fix-path-argument-progress
+
+### Fix Classification
+
+| Issue | Severity | Gate 1 | Gate 2 | Gate 3 | Gate 4 | Grouping | Branch |
+|---|---|---|---|---|---|---|---|
+| #1 unknown-command diagnostic | critical | pass | pass | fail | pass | dedicated | T-06-fix-redact-unknown-command |
+| #2 path argument progress | critical | pass | pass | fail | pass | dedicated | T-07-fix-path-argument-progress |

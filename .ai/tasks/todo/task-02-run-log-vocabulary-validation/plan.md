@@ -7,6 +7,8 @@
 | T-03 | Lint-aware retrospective       | filter corpus → exclude invalid lines → report coverage | T-02       | reviewed |
 | T-04 | Vocabulary docs and drift gate | document tables → compare runtime contract → fail drift  | T-02       | reviewed |
 | T-05 | Isolated acceptance harness    | fixture store → exercise branches → verify immutability | T-01, T-02, T-03, T-04 | reviewed |
+| T-06 | Redact unknown command errors | freeze disclosure → redact diagnostic → verify | T-05 | reviewed |
+| T-07 | Bound path argument parsing | freeze missing-operand hang → validate path args → verify | T-06 | not-started |
 
 ## Execution Strategy
 
