@@ -2194,6 +2194,17 @@ test_run_log_step_rejects_invalid_fields_without_mutation() (
   reject_step empty-enum --outcome ok --tests ''
   reject_step tests-enum --outcome ok --tests unknown
   reject_step promoted-enum --outcome ok --promoted maybe
+  for enum_flag in --outcome --gate --tests --promoted; do
+    if [ "$enum_flag" = --outcome ]; then
+      reject_step "empty-$enum_flag" "$enum_flag" ''
+    else
+      reject_step "empty-$enum_flag" --outcome ok "$enum_flag" ''
+    fi
+  done
+  reject_step outcome-case --outcome OK
+  reject_step gate-case --outcome ok --gate Pass
+  reject_step outcome-whitespace --outcome 'ok '
+  reject_step flag-as-operand --outcome --tests green
   for count_flag in --stops --escalations --decisions --questions --fix-tasks --amendments --files; do
     reject_step "malformed-$count_flag" --outcome ok "$count_flag" 01
     reject_step "negative-$count_flag" --outcome ok "$count_flag" -1
@@ -2201,6 +2212,8 @@ test_run_log_step_rejects_invalid_fields_without_mutation() (
     reject_step "signed-$count_flag" --outcome ok "$count_flag" +1
     reject_step "exponent-$count_flag" --outcome ok "$count_flag" 1e3
     reject_step "oversized-$count_flag" --outcome ok "$count_flag" 9007199254740992
+    reject_step "empty-$count_flag" --outcome ok "$count_flag" ''
+    reject_step "whitespace-$count_flag" --outcome ok "$count_flag" ' 1'
   done
   reject_step duplicate-option --outcome ok --outcome failed
   reject_step missing-operand --outcome ok --note
@@ -2257,6 +2270,9 @@ assert [record["outcome"] for record in steps[:5]] == ["ok", "blocked", "failed"
 assert [record["gate"] for record in steps[5:10]] == ["pass", "fail", "n-a", "needs-work", "ready"], "gate vocabulary"
 assert [record["tests"] for record in steps[10:16]] == ["red", "green", "n-a", "failed", "not-run", "pinned"], "test vocabulary"
 assert [record["promoted"] for record in steps[16:18]] == ["yes", "no"], "promotion vocabulary"
+assert all(field not in row for row in steps[:5] for field in (
+    "gate", "tests", "promoted", "stops", "escalations", "decisions", "questions", "fix_tasks", "amendments", "files"
+)), "absent optional fields must stay omitted"
 assert steps[18]["stops"] == 0 and type(steps[18]["stops"]) is int, "zero is a JSON integer"
 assert steps[18]["escalations"] == 9007199254740991, "maximum safe integer is accepted"
 assert all(steps[18][field] == 0 and type(steps[18][field]) is int for field in (
@@ -2346,6 +2362,15 @@ assert [record["flow"] for record in records] == ["unknown"] * 6, "flow fallback
 assert [record["step"] for record in records if record.get("event") == "step"] == [
     "pae-tests", "batch-gate", "unknown-probe", "dry-run"
 ], "step name preservation"
+PYRUNLOG
+  run="$(ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" run-start --pipeline phase-execution)" || return 1
+  file="$(ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" path --run "$run")" || return 1
+  ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" step --run "$run" --step subtask --outcome ok > "$fixture/stdout" 2> "$fixture/stderr" || return 1
+  [ ! -s "$fixture/stdout" ] && [ ! -s "$fixture/stderr" ] || return 1
+  python3 - "$file" <<'PYRUNLOG' || return 1
+import json, sys
+from pathlib import Path
+assert json.loads(Path(sys.argv[1]).read_text().splitlines()[-1])["step"] == "subtask"
 PYRUNLOG
   # Explicitly empty flow uses the same stored fallback across all event kinds.
   run="$(ORCHESTRAIL_HOME="$helper" bash "$helper/scripts/log-step.sh" run-start --pipeline phase-execution --flow '')" || return 1
@@ -2651,7 +2676,7 @@ test_run_log_metadata_preserves_text_boundaries_and_legacy_records() (
   for mode in jq no-jq; do
     rm -f "$fakebin/jq"
     [ "$mode" != jq ] || ln -s "$(command -v jq)" "$fakebin/jq" || return 1
-    for field in flags-collision pipeline project task spec flags log-root legacy format-marker; do
+    for field in flags-collision pipeline project task spec flags log-root legacy legacy-percent format-marker; do
       pipeline=phase-execution project=fixture-project task=fixture-task spec=fixture-spec flags=fixture-flags flow='literal%0Aflow'
       payload=$'custom%0A\\n\nflow_encoding=percent\nseq=91\npipeline=injected\n'
       export ORCHESTRAIL_LOG_ROOT="$fixture/store-$mode-$field"
@@ -2664,6 +2689,7 @@ test_run_log_metadata_preserves_text_boundaries_and_legacy_records() (
         spec) spec="$payload" ;;
         flags) flags="$payload" ;;
         log-root) ORCHESTRAIL_LOG_ROOT+=$'\nflow_encoding=percent\n' ;;
+        legacy-percent) flow=$'encoded\nflow%0A\\n\n' ;;
       esac
       status=0
       run="$(invoke_log run-start --pipeline "$pipeline" --project "$project" --task "$task" --spec "$spec" --flags "$flags" --flow "$flow" 2> "$fixture/stderr")" || status=$?
@@ -2678,6 +2704,16 @@ test_run_log_metadata_preserves_text_boundaries_and_legacy_records() (
         epoch="$(date +%s)"
         printf '%s\n' "file=$file" "pipeline=$pipeline" "project=$project" "task=$task" "spec=$spec" "flags=$flags" "flow=$flow" \
           "started_epoch=$epoch" "last_epoch=$epoch" 'seq=0' > "$ORCHESTRAIL_LOG_ROOT/.active/$run" || return 1
+      fi
+      if [ "$field" = legacy-percent ]; then
+        epoch="$(date +%s)"
+        python3 - "$ORCHESTRAIL_LOG_ROOT/.active/$run" "$file" "$flow" "$epoch" <<'PYRUNLOG' || return 1
+from pathlib import Path
+import sys
+metadata, file, flow, epoch = sys.argv[1:]
+encoded = flow.replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
+Path(metadata).write_text(f"file={file}\npipeline=phase-execution\nproject=fixture-project\ntask=fixture-task\nspec=fixture-spec\nflags=fixture-flags\nflow={encoded}\nflow_encoding=percent\nstarted_epoch={epoch}\nlast_epoch={epoch}\nseq=0\n")
+PYRUNLOG
       fi
       invoke_log active > "$fixture/stdout" 2> "$fixture/stderr" || return 1
       [ ! -s "$fixture/stderr" ] || return 1
@@ -2709,6 +2745,78 @@ PYRUNLOG
   [ "$failures" -eq 0 ]
 )
 
+test_run_log_required_arguments_and_rejected_timing_preserve_storage() {
+  python3 - "$PWD/scripts/log-step.sh" <<'PYREQUIRED'
+from pathlib import Path
+import hashlib, json, os, re, shlex, shutil, subprocess, sys, tempfile
+with tempfile.TemporaryDirectory(prefix='required arguments ') as temporary:
+    fixture = Path(temporary)
+    home, store = fixture / 'helper home', fixture / 'log store'
+    (home / 'workflows').mkdir(parents=True)
+    (home / 'workflows/fixture-known.md').write_text('Fixture workflow\n')
+    env = dict(os.environ, ORCHESTRAIL_HOME=str(home), ORCHESTRAIL_LOG_ROOT=str(store))
+    helper = sys.argv[1]
+    def snapshot():
+        return {str(p): hashlib.sha256(p.read_bytes()).hexdigest()
+                for p in store.rglob('*') if p.is_file()}
+    def invoke(*args):
+        result = subprocess.run(['bash', helper, *args], env=env, capture_output=True, text=True)
+        assert result.returncode == 0, result
+        return result
+    run = invoke('run-start', '--pipeline', 'fixture-pipeline').stdout.strip()
+    assert re.fullmatch('[0-9a-f]{8}', run)
+    file = next((store / 'runs').glob('*.jsonl'))
+    digest = file.with_suffix('.md')
+    digest.write_text('Historical digest fixture\n')
+    active = store / '.active' / run
+    metadata = active.read_text()
+    assert re.search(r'^last_epoch=[0-9]+$', metadata, re.M)
+    active.write_text(re.sub(r'^last_epoch=[0-9]+$', 'last_epoch=1000', metadata, flags=re.M))
+    fakebin = fixture / 'clock bin'; fakebin.mkdir()
+    date = fakebin / 'date'
+    date.write_text('#!/bin/sh\nif [ "$*" = "-u +%s" ]; then printf "1005\\n"; else exec '
+                    + shlex.quote(shutil.which('date')) + ' "$@"; fi\n')
+    date.chmod(0o755)
+    env['PATH'] = str(fakebin) + os.pathsep + env['PATH']
+    cases = [
+        ('step', '--step', 'fixture-known', '--outcome', 'ok'),
+        ('step', '--run', run, '--outcome', 'ok'),
+        ('step', '--run', run, '--step', '', '--outcome', 'ok'),
+        ('step', '--run', '', '--step', 'fixture-known', '--outcome', 'ok'),
+        ('step', '--run', 'ABCDEF01', '--step', 'fixture-known', '--outcome', 'ok'),
+        ('step', '--run', '1234567', '--step', 'fixture-known', '--outcome', 'ok'),
+        ('step', '--run', run, '--step', 'fixture-known', '--outcome', 'ok', '--gate', '--tests', 'green'),
+        ('run-end', '--outcome', 'completed'),
+        ('run-end', '--run', run, '--outcome', ''),
+        ('run-end', '--run', run, '--outcome', 'ok'),
+        ('run-end', '--run', run, '--outcome', '--note', 'private-input'),
+    ]
+    for args in cases:
+        before = snapshot()
+        result = invoke(*args)
+        assert result.stdout == '' and len(result.stderr.splitlines()) == 1, (args, result)
+        assert 'private-input' not in result.stderr
+        assert snapshot() == before, ('rejected invocation changed storage', args)
+    for args in [('path', '--run', run), ('active',), ('contract',)]:
+        before = snapshot()
+        result = invoke(*args)
+        assert result.stdout and not result.stderr
+        assert snapshot() == before, ('query changed storage', args)
+    result = invoke('step', '--run', run, '--step', 'fixture-known', '--outcome', 'ok',
+                    '--note', '', '--subtask', '', '--blocker', '')
+    assert not result.stdout and not result.stderr
+    rows = [json.loads(line) for line in file.read_text().splitlines()]
+    assert rows[-1]['seq'] == 1 and rows[-1]['duration_s'] == 5, rows
+    assert all(field not in rows[-1] for field in ('note', 'subtask', 'blocker'))
+    assert digest.read_text() == 'Historical digest fixture\n'
+    result = invoke('run-end', '--run', run, '--outcome', 'completed')
+    assert not result.stdout and not result.stderr and not active.exists()
+PYREQUIRED
+}
+
+check "LOGPRODUCER: mandatory arguments and rejected timing preserve storage" \
+  "$(test_run_log_required_arguments_and_rejected_timing_preserve_storage && echo pass || echo 'required arguments, read-only queries, or accepted-event timing failed')"
+
 check "LOGPRODUCER: metadata text preserves record boundaries and legacy reads" \
   "$(test_run_log_metadata_preserves_text_boundaries_and_legacy_records && echo pass || echo 'metadata text changed inherited fields or encoding controls')"
 check "LOGPRODUCER: arbitrary nonempty flow survives every event" \
@@ -2731,6 +2839,8 @@ check "LOGPRODUCER: success output follows persistence and rejected closes remai
 run_lint_smoke() {
   python3 - "$1" "$PWD/scripts/log-step.sh" <<'PYLINT'
 import copy
+import hashlib
+import shlex
 import json
 import os
 from pathlib import Path
@@ -2745,9 +2855,22 @@ base = dict(event="step", ts="2026-01-01T00:00:00Z", run_id="1234abcd",
 with tempfile.TemporaryDirectory(prefix="run-log-lint-") as scratch:
     root = Path(scratch) / 'store'
     env = dict(os.environ, ORCHESTRAIL_LOG_ROOT=str(root))
+    def snapshot():
+        hashes = {}
+        for path in root.rglob('*'):
+            if path.is_symlink():
+                hashes[str(path)] = ('symlink', os.readlink(path))
+            elif path.is_file():
+                try:
+                    hashes[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
+                except PermissionError:
+                    hashes[str(path)] = ('unreadable', path.stat().st_mode, path.stat().st_size)
+        return hashes
     def invoke(*args, extra=None):
+        before_read = snapshot()
         result = subprocess.run(['/bin/bash', helper, 'lint', *args], env=env | (extra or {}),
                                 text=True, capture_output=True, timeout=10)
+        assert snapshot() == before_read, "lint changed historical fixture checksums"
         assert result.returncode == 0, result
         try:
             rows = [json.loads(line) for line in result.stdout.splitlines()]
@@ -2871,6 +2994,13 @@ with tempfile.TemporaryDirectory(prefix="run-log-lint-") as scratch:
         jq.write_text('#!/bin/sh\ncase \"$*\" in *-Rsc*) exit 7;; esac\nexec ' + shutil.which('jq') + ' \"$@\"\n')
         jq.chmod(0o755)
         rows, err = invoke(extra={'PATH':str(bin_dir)}); summary(rows, 0, 0, status='unavailable'); assert err
+        # Fail only on the second physical line of a single selected file.
+        write('a-1234abcd.jsonl', [dict(base, tests='BAD'), base, base])
+        jq.write_text('#!/bin/sh\ncase "$*" in *"--argjson line 2"*) exit 7;; esac\nexec '
+                      + shlex.quote(shutil.which('jq')) + ' "$@"\n')
+        rows, err = invoke('1234abcd', extra={'PATH':str(bin_dir)})
+        summary(rows, 2, 2, 1, 1, status='partial'); assert err
+        assert [(r['line'], r['field'], r['code']) for r in rows[:-1]] == [(1, 'tests', 'invalid-enum')]
 PYLINT
 }
 
@@ -2893,6 +3023,7 @@ check "Run-log lint reports unavailable and partial checks" \
 # ── Retrospective executable corpus contract ──────────────────────────
 run_retro_smoke() {
   python3 - "$1" "$PWD" <<'PYRETRO'
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -2927,22 +3058,43 @@ with tempfile.TemporaryDirectory(prefix="retro-contract-") as temporary:
         path.write_text("".join(json.dumps(row) + "\n" for row in rows))
         return path
 
-    def load(**filters):
+    def snapshot():
+        hashes = {}
+        for directory in (runs, store / '.active'):
+            for path in directory.rglob('*'):
+                if path.is_symlink():
+                    hashes[str(path)] = ('symlink', os.readlink(path))
+                elif path.is_file():
+                    try:
+                        hashes[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
+                    except PermissionError:
+                        hashes[str(path)] = ('unreadable', path.stat().st_mode, path.stat().st_size)
+        return hashes
+
+    def load(expect_mutation=False, **filters):
+        before_read = snapshot()
         env = dict(os.environ, STORE=str(store), HELPER=str(helper),
                    SINCE="", PIPELINE="", PROJECT="", LIMIT="")
         env.update(filters)
         result = subprocess.run(["bash", str(script)], env=env,
                                 text=True, capture_output=True)
+        after_read = snapshot()
+        if expect_mutation:
+            assert before_read != after_read, "negative fixture must actually change the corpus"
+        else:
+            assert before_read == after_read, "retro changed historical fixture checksums"
         assert result.returncode == 0, result.stderr
         return json.loads(result.stdout)
 
     def metrics(data):
+        before_read = snapshot()
         snippet = next(b for b in blocks if "# Retrospective metric inputs." in b)
         artifact = temp / "dataset.json"
         artifact.write_text(json.dumps(data))
         result = subprocess.run(["bash", "-c", snippet], text=True, capture_output=True,
                                 env=dict(os.environ, RETRO_DATA=str(artifact)))
         assert result.returncode == 0, result.stderr
+        assert snapshot() == before_read, "metrics changed historical fixture checksums"
         return json.loads(result.stdout)
 
     def step(**fields):
@@ -3002,6 +3154,14 @@ with tempfile.TemporaryDirectory(prefix="retro-contract-") as temporary:
         assert data["abandoned_runs"] == 1 and data["unusable_closes"] == 0
         assert data["violations"] == [{"field": "record", "code": "invalid-json", "count": 7}]
         assert load(PIPELINE="absent")["total_runs"] == 0
+        broken.unlink()
+        unusual = write('2026-08-12-newline\n1234abcd.jsonl',
+                        events=[dict(base, event='run-start'), step(tests='BAD')])
+        data = load()
+        assert data['examples'] == [{'file': str(unusual), 'line': 2}]
+        encoded_examples = json.dumps(data['examples'])
+        assert '\n' not in encoded_examples and r'\n' in encoded_examples
+        assert data['invalid_lines'] == 1 and data['affected_runs'] == 1
     elif scenario == "coverage":
         write("2026-08-10-11111111.jsonl", events=[dict(base, event="run-start"), step(stops=1)])
         actual = helper
@@ -3031,7 +3191,7 @@ printf '%s\\n' '{"kind":"summary","status":"STATUS","files":1,"lines":1,"invalid
         assert data["status"] == "unavailable" and data["usable_records"] == []
         helper.write_text("#!/bin/bash\nprintf '%s\\n' '{}' >> \"$ORCHESTRAIL_LOG_ROOT/runs/2026-08-10-11111111.jsonl\"\n"
                           + "bash " + shlex.quote(str(actual)) + " lint --all\n")
-        data = load()
+        data = load(expect_mutation=True)
         assert data["status"] == "partial" and data["usable_records"] == []
         assert data["examined_lines"] is None
         helper = actual
@@ -3039,6 +3199,21 @@ printf '%s\\n' '{"kind":"summary","status":"STATUS","files":1,"lines":1,"invalid
         data = load()
         assert data["status"] == "partial" and data["usable_records"] == []
         assert data["examined_lines"] is None and data["limitations"]
+        helper = actual
+        (runs / "2026-08-11-22222222.jsonl").unlink()
+        runs.chmod(0)
+        try:
+            data = load()
+            assert data['status'] == 'unavailable' and data['usable_records'] == []
+            assert data['examined_lines'] is None and data['limitations']
+        finally:
+            runs.chmod(0o700)
+        absent_store = temp / 'absent store'
+        saved_store, saved_runs = store, runs
+        store, runs = absent_store, absent_store / 'runs'
+        data = load()
+        assert data['status'] == 'ok' and data['total_runs'] == 0 and not absent_store.exists()
+        store, runs = saved_store, saved_runs
         minimal = temp / "minimal-path"
         minimal.mkdir()
         (minimal / "bash").symlink_to(shutil.which("bash"))
@@ -3069,6 +3244,76 @@ check "RETRO: incomplete lint discloses unverified observations" \
   "$(test_retro_incomplete_lint_never_implies_clean_measurements && echo pass || echo 'retrospective incomplete coverage was treated as clean')"
 
 # ── End retrospective executable corpus contract ─────────────────────
+
+# ── Isolated run-log acceptance harness ──────────────────────────────
+test_run_log_acceptance_harness_isolated_and_complete() {
+  python3 - "$REPO_ROOT" <<'PYACCEPTANCE'
+from pathlib import Path
+import hashlib, os, re, shutil, signal, subprocess, sys, tempfile
+root = Path(sys.argv[1])
+harness = root / 'tests/log-step.sh'
+assert harness.is_file() and os.access(harness, os.X_OK), 'missing executable isolated run-log harness'
+source = (root / 'scripts/validate-contracts.sh').read_text()
+required = set(re.findall(r'^(test_(?:run_log|retro)_[a-z_]+)\(\)', source, re.M))
+required.remove('test_run_log_acceptance_harness_isolated_and_complete')
+assert len(required) >= 20, required
+with tempfile.TemporaryDirectory(prefix='acceptance meta ') as temporary:
+    fixture = Path(temporary)
+    checkout = fixture / 'checkout with spaces'
+    for directory in ('scripts', 'rules', 'workflows', 'tests'):
+        (checkout / directory).mkdir(parents=True)
+    for name in ('scripts/log-step.sh', 'scripts/validate-contracts.sh', 'rules/run-log.md', 'tests/log-step.sh'):
+        shutil.copy2(root / name, checkout / name)
+    for workflow in (root / 'workflows').glob('*.md'):
+        shutil.copy2(workflow, checkout / 'workflows' / workflow.name)
+    hostile = fixture / 'inherited store'
+    hostile.mkdir()
+    (hostile / 'sentinel').write_bytes(b'private fixture must stay untouched\n')
+    scratch = fixture / 'temporary children'
+    scratch.mkdir()
+    env = dict(os.environ, ORCHESTRAIL_HOME=str(fixture / 'missing inherited home'),
+               ORCHESTRAIL_LOG_ROOT=str(hostile), TMPDIR=str(scratch))
+    def snapshot():
+        return {str(p.relative_to(hostile)): hashlib.sha256(p.read_bytes()).hexdigest()
+                for p in hostile.rglob('*') if p.is_file()}
+    before = snapshot()
+    command = ['bash', str(checkout / 'tests/log-step.sh')]
+    result = subprocess.run(command, env=env, cwd=fixture, capture_output=True, text=True, timeout=180)
+    assert result.returncode == 0, result.stdout + result.stderr
+    passed = set(re.findall(r'^\[PASS\] (test_[a-z_]+)$', result.stdout, re.M))
+    assert required <= passed, ('harness did not execute required checks', sorted(required - passed))
+    assert snapshot() == before and not (fixture / 'missing inherited home').exists()
+    assert list(scratch.iterdir()) == [], 'successful harness leaked fixtures'
+    # A focused check must fail the runner even when its caller tests its status.
+    validator = checkout / 'scripts/validate-contracts.sh'
+    original = validator.read_text()
+    needle = 'test_run_log_contract_documents_effective_runtime_tables() { run_log_contract_smoke tables; }'
+    assert needle in original
+    validator.write_text(original.replace(needle,
+        'test_run_log_contract_documents_effective_runtime_tables() { false; echo masked-failure; }', 1))
+    result = subprocess.run(command, env=env, cwd=fixture, capture_output=True, text=True, timeout=180)
+    assert result.returncode != 0, 'harness masked a failing assertion'
+    assert snapshot() == before and list(scratch.iterdir()) == [], 'failed harness leaked or changed storage'
+    # Stop during a real focused check; no sleeps or timing assumptions are needed.
+    validator.write_text(original.replace(needle,
+        'test_run_log_contract_documents_effective_runtime_tables() { kill -TERM "$PPID"; exit 99; }', 1))
+    result = subprocess.run(command, env=env, cwd=fixture, capture_output=True, text=True, timeout=180)
+    assert result.returncode != 0, 'interrupted harness reported success'
+    assert snapshot() == before and list(scratch.iterdir()) == [], 'interrupted harness leaked fixtures'
+    # An absent inherited log root must stay absent as well.
+    validator.write_text(original.replace(needle,
+        'test_run_log_contract_documents_effective_runtime_tables() { exit 29; }', 1))
+    absent = fixture / 'absent inherited store'
+    result = subprocess.run(command, env=env | {'ORCHESTRAIL_LOG_ROOT': str(absent)},
+                            cwd=fixture, capture_output=True, text=True, timeout=180)
+    assert result.returncode != 0 and not absent.exists()
+    assert list(scratch.iterdir()) == [], 'absent-root run leaked fixtures'
+PYACCEPTANCE
+}
+check "test_run_log_acceptance_harness_isolated_and_complete" \
+  "$(test_run_log_acceptance_harness_isolated_and_complete && echo pass || echo 'isolated executable harness, coverage, failure propagation, or cleanup failed')"
+
+# ── End isolated run-log acceptance harness ─────────────────────────
 
 # ── Contract version smoke checks ───────────────────────────────────
 test_contract_version_root_has_exact_release_value() {
@@ -3140,6 +3385,7 @@ path = Path(sys.argv[1])
 for opening, closing in (
     ('# ── Run-log producer smoke checks', '# ── End run-log producer smoke checks'),
     ('# ── Run-log contract smoke checks', '# ── End run-log contract smoke checks'),
+    ('# ── Isolated run-log acceptance harness', '# ── End isolated run-log acceptance harness'),
     ('# ── Contract version smoke checks', '# ── End contract version smoke checks'),
     ('# ── Public package materials smoke checks', '# ── End public package materials smoke checks'),
     ('# ── Public identity smoke checks', '# ── End public identity smoke checks'),

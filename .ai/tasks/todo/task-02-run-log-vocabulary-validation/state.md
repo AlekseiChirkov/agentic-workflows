@@ -154,7 +154,7 @@ T-04 | vocabulary-docs-and-drift-gate | atomic-tests: green | atomic-execution: 
   base_branch: feat/lint-aware-retrospective
   base_commit: 7531deed32d9187912bbf616d4186925999b4f32
   commits: 75703d6 test: cover contract documentation and bidirectional drift; 9aa0b36 feat: document the contract and reject vocabulary drift
-  pr: none
+  pr: #16 draft
   last_action: DoD met — independent contract documentation and bidirectional effective-runtime drift validation complete
   target_files: `rules/run-log.md`, `scripts/validate-contracts.sh`, `docs/USAGE.md`
   blocker: none
@@ -176,11 +176,39 @@ T-04 | vocabulary-docs-and-drift-gate | atomic-tests: green | atomic-execution: 
          closure: orchestrated pav-close complete; return plan delta T-04 -> reviewed to sole shared-plan writer. No composite trigger applies. No implementation, tests, git, shared memory, plan, historical logs, or deployment changes made by this review.
          compression: owned-block auto audit retains all protected TDD/git evidence and current fields; no stale content requires compression and no shared sections edited.
 
-T-05 | isolated-acceptance-harness | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: Discovery artifacts created
-  target_files: `tests/log-step.sh`
+T-05 | isolated-acceptance-harness | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  branch: chore/run-log-acceptance
+  base_branch: feat/run-log-contract-gate
+  base_commit: b1f07863269411eda18b5d43f5eb5a01a4f6110f
+  commits: 8d8cf60 test: require isolated executable acceptance runner; 60d315c test: add isolated run-log acceptance harness
+  pr: none
+  last_action: DoD met — independent isolated-harness validation complete; all criteria, frozen-test integrity, cleanup, and preservation checks pass
+  target_files: `scripts/validate-contracts.sh`, `tests/log-step.sh`
   blocker: none
   notes: Runs after all four behavior and contract subtasks are implemented.
+         scope expansion: scripts/validate-contracts.sh test infrastructure is authorized for the harness meta check and permanent acceptance fixtures; production behavior and documentation remain off-limits.
+         tdd: smoke — 1 failing meta check, AC coverage 3/3; scoped run returned AssertionError: missing executable isolated run-log harness; bash -n passes.
+         tdd: red digest — AC-1 executable and complete coverage -> test_run_log_acceptance_harness_isolated_and_complete; AC-2 temporary isolated roots -> test_run_log_acceptance_harness_isolated_and_complete; AC-3 historical preservation and syntax -> test_run_log_acceptance_harness_isolated_and_complete, focused read-only checks and bash -n.
+         checkpoint: paused before harness implementation for the orchestrator test-only commit; implementation resumed after the recorded checkpoint.
+         implementation: tests/log-step.sh copies only helper, contract validator, canonical run-log rule, and workflows to a disposable checkout; inherited source/store roots are overridden before helper use; focused functions run in independent errexit-enabled Bash processes; EXIT/INT/TERM cleanup removes all fixtures.
+         coverage: existing 20 focused functions and assertions retained; additive required-argument and fixed-clock timing function; empty/case/whitespace rejections, optional omission, all synthetic names, prior percent-flow compatibility, mid-file jq failure, newline diagnostic paths, inaccessible and absent stores, and per-operation SHA-256 preservation checks.
+         verification: actual bash tests/log-step.sh passes 21 focused functions; frozen meta check passed relocation, hostile and absent inherited roots, assertion failure propagation, and interrupted cleanup; frozen source block byte-identical to RED commit; bash -n all scripts and harness and git diff --check pass; shellcheck unavailable.
+         integration: disposable version-history validator excludes the acceptance-meta group alongside its existing focused-group exclusions to avoid running checks whose definitions were intentionally removed; all original version-history assertions retained.
+         tdd: green — frozen acceptance meta check and all 21 focused functions pass; all original assertions retained; the intentional mutation fixture now explicitly requires a changed checksum snapshot while every read-only lint/retro operation requires preservation.
+         verification-final: bash tests/log-step.sh passes 21/21; stable bash scripts/validate-contracts.sh passes 572 with 0 failures and 2 configured hygiene skips; evidence /tmp/run-log-acceptance-focused.log and /tmp/orchestrail-acceptance-verified.log; bash -n all scripts and harness, executable mode, and git diff --check pass; shellcheck unavailable.
+         acceptance: all 3 criteria met — executable harness runs producer/lint/retro/drift coverage; all helper, workflow, log, and mutation fixtures are temporary; historical checksums are verified around read-only calls and shell syntax passes. Production behavior and documentation unchanged; no real run files read or modified.
+         proposals resolved: permanent prior percent-flow metadata fixture with newline/literal escapes; jq failure after an examined physical line with retained partial counts; retro newline diagnostic path and inaccessible runs directory fixtures are covered and passing.
+         finalization: orchestrated mode — return plan delta T-05 -> done and architecture entry for tests/log-step.sh to the sole shared-file writer; no direct plan or shared-memory edits.
+         compression: own progress block audited; protected TDD/git evidence retained; no further compression or shared-file edits required.
+
+         validation: independent pav-check DONE — all three acceptance criteria met; executable isolated harness passes all 21 focused functions; full suite passes 572 with 0 failures and 2 configured hygiene skips.
+         validation: complete branch audit covers producer enums/aliases/counts, recovery and fixed-clock timing, flow/workflow membership, filesystem/no-jq failures, lint selection/diagnostics/availability, retrospective filters/metrics/closes, and bidirectional contract drift.
+         validation: frozen RED acceptance meta block is byte-identical to test-only commit 8d8cf60 (SHA-256 5c5401c152d0875e72f84202abdc22f5a0d797038f74b7d7c9560c0786337a1f); original focused cases and assertions remain intact, with additive coverage and no skips, vacuous assertions, or weakening.
+         validation: source review confirms every helper/workflow/log fixture is temporary; inherited source/store roots are overridden, copied-checkout relocation and hostile/absent inherited roots pass, and success/failure/TERM cleanup passes. Per-invocation checksums protect lint and retro reads; intentional mutation asserts a changed snapshot. No real run-store paths were opened by this review.
+         validation: bash -n passes for all scripts and harness; git diff --check passes; executable mode is 100755; shellcheck unavailable. Independent evidence: /tmp/acceptance-independent-focused.log and /tmp/acceptance-independent-full.log. No critical or important findings.
+         proposals: independent batch review — no concrete improvements with sufficient measurable effect found; Do Now, Do Later, and Optional are all none; no proposals applied.
+         closure: orchestrated pav-close complete; plan delta T-05 -> reviewed returned to the sole shared-plan writer; no composite trigger applies. Source, tests, git, shared sections, plan, memory, installed skills, deployment, and real logs unchanged by this review.
+         compression: auto audit of owned block retains protected TDD/git evidence and current findings; no shortening required. Shared execution-report status remains for the orchestrator to reconcile.
 
 ## Solution Design
 
@@ -257,14 +285,14 @@ adr: not triggered — the spec fixes the vocabulary and validation strategy, an
 - T-02: reviewed — read-only lint with exact record validation and honest coverage.
 - T-03: reviewed — filtered lint coverage, usable metric observations, and honest close classification.
 - T-04: reviewed — canonical vocabulary documentation and bidirectional structured drift gate.
-- T-05: not-started — isolated acceptance harness.
-- Verification: 558 passed, 0 failed, 2 conditional hygiene skips; nine producer groups, shell syntax, and whitespace pass.
+- T-05: reviewed — isolated executable acceptance harness; 21 focused checks and cleanup meta check pass.
+- Verification: 572 passed, 0 failed, 2 configured hygiene skips; all 21 focused acceptance checks, shell syntax, and whitespace pass.
 - Run logging skipped because no configured executable shared helper was available.
 
 ## Improvement Proposals (T-01)
 
 ### Optional
-- Add a permanent earlier flow-encoding metadata fixture in the planned isolated acceptance harness; independent direct verification already passes.
+- Completed in the isolated acceptance harness: permanent earlier flow-encoding metadata fixture passes.
 
 ## Knowledge Snapshots
 
@@ -319,12 +347,23 @@ recorded_paths:
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/plan.md
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
 
+### Isolated acceptance harness
+
+branch: chore/run-log-acceptance
+expected_parent: 60d315c11116fb109fd6b94c4b4338e160e769ef
+allowed_scope: listed knowledge-base paths only
+recorded_paths:
+- .ai/memory/architecture.md
+- .ai/memory/state.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/plan.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
+
 ## Improvement Proposals (T-02)
 
 ### Do Later
-- Include the independently verified mid-file jq failure scenario in the planned acceptance harness, checking partial status and retained examined counts. This is assigned to the existing acceptance scope rather than deferred beyond the task.
+- Completed in the isolated acceptance harness: mid-file jq failure reports partial status and retains examined counts.
 
 ## Improvement Proposals (T-03)
 
 ### Optional
-- Permanently cover newline-bearing diagnostic paths and inaccessible run directories in the planned acceptance harness; direct independent checks already pass.
+- Completed in the isolated acceptance harness: newline-bearing diagnostic paths and inaccessible run directories pass.
