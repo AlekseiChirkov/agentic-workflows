@@ -169,16 +169,17 @@ Use the sequential feature stack. It keeps each independently verifiable outcome
 (none)
 
 ## Approved Identity Scan Exceptions
+- .ai/specs/02-run-log-vocabulary-validation.md:9 — preserve only the unchanged issue link in the current active source specification, within the existing owner-approved source category.
 - .ai/specs/completed/01-git-source-of-truth.md:22 — preserve only the active source criterion.
 - .ai/adr/0007-task-unknown-commit-ai-directory-in-this-repository.md:18 — preserve the historical repository-tracking decision.
 - .ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:69 — preserve the historical naming decision.
 - .ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md:105,107 — preserve only the publication authorization and historical pull-request links.
 - .ai/memory/progress.md:4 — preserve the append-only history heading.
-- .ai/tasks/todo/task-00-sensitive-data-scrub/state.md:355,357 — preserve only the completed task's publication authorization and merge-order links.
+- .ai/tasks/completed/task-00-sensitive-data-scrub/state.md:357,359 — preserve only the completed task's publication authorization and merge-order links.
 - docs/analysis/2026-09-16-comparative-analysis-tldr.ru.md:1,40 — preserve the historical comparison record.
 - docs/analysis/2026-09-16-comparative-analysis.ru.md:1,14,117,225,263,429,444 — preserve the historical analysis record.
 - docs/audits/2026-07-21-logic-audit-fixes.md:1,8,568 — preserve the historical audit record.
-- docs/USAGE.md:245 — permit one public-slug token only inside the live clone URL; the clone destination and every other checkout reference use `~/projects/orchestrail`.
+- docs/USAGE.md:251 — permit one public-slug token only inside the live clone URL; the clone destination and every other checkout reference use `~/projects/orchestrail`.
 
 ### Exact Identity Match Ledger
 
@@ -186,20 +187,21 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 
 | Path | Line | Expected token counts |
 |---|---:|---|
+| `.ai/specs/02-run-log-vocabulary-validation.md` | 9 | `agentic-workflows` × 1 |
 | `.ai/specs/completed/01-git-source-of-truth.md` | 22 | `agentic_workflows` × 1; `agentic-workflows` × 1 |
 | `.ai/adr/0007-task-unknown-commit-ai-directory-in-this-repository.md` | 18 | `agentic_workflows` × 1 |
 | `.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md` | 69 | `agentic_workflows` × 1 |
 | `.ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md` | 105 | `agentic-workflows` × 1 |
 | `.ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md` | 107 | `agentic-workflows` × 3 |
 | `.ai/memory/progress.md` | 4 | `agentic_workflows` × 1 |
-| `.ai/tasks/todo/task-00-sensitive-data-scrub/state.md` | 355 | `agentic-workflows` × 1 |
-| `.ai/tasks/todo/task-00-sensitive-data-scrub/state.md` | 357 | `agentic-workflows` × 3 |
+| `.ai/tasks/completed/task-00-sensitive-data-scrub/state.md` | 357 | `agentic-workflows` × 1 |
+| `.ai/tasks/completed/task-00-sensitive-data-scrub/state.md` | 359 | `agentic-workflows` × 3 |
 | `docs/analysis/2026-09-16-comparative-analysis-tldr.ru.md` | 1 | `agentic_workflows` × 1 |
 | `docs/analysis/2026-09-16-comparative-analysis-tldr.ru.md` | 40 | `agentic_workflows` × 1 |
 | `docs/analysis/2026-09-16-comparative-analysis.ru.md` | 1, 14, 117, 225, 263, 444 | `agentic_workflows` × 1 per line |
 | `docs/analysis/2026-09-16-comparative-analysis.ru.md` | 429 | `AGENTIC_WORKFLOWS` × 1 |
 | `docs/audits/2026-07-21-logic-audit-fixes.md` | 1, 8, 568 | `agentic_workflows` × 1 per line |
-| `docs/USAGE.md` | 245 | `agentic-workflows` × 1 |
+| `docs/USAGE.md` | 251 | `agentic-workflows` × 1 |
 
 ### Root File Decisions
 - `.ai/memory/architecture.md`: updated during Discovery for repository identity, configuration roots, and version metadata; the validator count was synchronized during validation.

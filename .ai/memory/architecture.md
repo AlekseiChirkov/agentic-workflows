@@ -81,7 +81,7 @@ root), `AGENTS.md` (Codex, per project), `codex-global-AGENTS.md` (→ `~/.codex
 | `scripts/setup-new-project.sh` | seed a project (auto-detects umbrella `../.ai/`) |
 | `scripts/setup-umbrella.sh`, `scripts/setup-all-repos.sh` | multi-repo initialization |
 | `scripts/link-skills.sh` | workaround: symlink global skills into a project's `.claude/skills/` |
-| `scripts/log-step.sh` | append-only JSONL run log; stamps timestamps itself; exits 0 on every error |
+| `scripts/log-step.sh` | validates complete producer arguments and exact legacy aliases before append-only JSONL writes; optional-jq fallback; sorted runtime `contract` export; stamps timestamps itself; exits 0 on every error |
 
 ### Layer 6 — `logs/` (central telemetry store)
 `logs/runs/<ts>-<pipeline>-<id>.jsonl` + `.md` digest, `.active/` for open runs.
@@ -138,8 +138,8 @@ scripts/log-step.sh ──▶ logs/runs/*.jsonl ──▶ /retro ──▶ recom
 - **`--batch`** — one meaning everywhere: record, prompt for nothing, apply nothing.
 - **Rule-name resolution** — bare basename on Windsurf/Devin, `rule-<name>` skill on
   Claude Code/Codex.
-- **Run-log vocabulary** (`run-log → ## Field vocabulary`) — currently *not* enforced by
-  `scripts/log-step.sh` (see `specs/02-run-log-vocabulary-validation.md`).
+- **Active-run metadata** — a fixed format header and escaped values preserve multiline caller text without interpreting it as records; ordinary legacy metadata remains readable. JSONL events retain their existing schema.
+- **Run-log vocabulary** — the helper enforces event-specific enums, bounded counts, exact legacy aliases, and safe run identifiers through one runtime contract exposed by `contract`; rejected arguments leave accepted event state unchanged.
 
 ## External Dependencies
 

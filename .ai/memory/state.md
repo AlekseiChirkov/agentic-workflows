@@ -6,6 +6,8 @@ of every session. Updated after every phase transition.
 
 ## Active Tasks
 
+task-02-run-log-vocabulary-validation | phase: execution | status: in-progress | note: producer reviewed; read-only lint implementation next
+
 Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11 → 12; 07 is backlog. The roadmap is in `specs/README.md`; each spec becomes a task via
 `/phase-discovery .ai/specs/<NN>-<slug>.md`.
 
