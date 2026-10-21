@@ -27,7 +27,7 @@ T-01 | producer-validation-and-writes | atomic-tests: green | atomic-execution: 
   base_branch: main
   base_commit: 65a6e68c3cdfa775a8ff7685e01203a3d83fe09c
   commits: 6b7b548 test: cover producer validation and persistence; e9f8232 test: cover fallback writes and repair validation fixtures; f0149ad feat: validate producer vocabulary before writes; d21d3aa test: cover arbitrary flows and single failure diagnostics; e32a69b fix: preserve flow text and emit one failure warning; 0d6a032 test: cover metadata text boundaries and legacy records; 0abf4c1 fix: preserve metadata text without record injection
-  pr: #13 draft
+  pr: #13 ready
   last_action: DoD met — producer validation and persistence reviewed; prior findings resolved; all 9 producer checks pass
   target_files: `scripts/validate-contracts.sh`, `scripts/log-step.sh`
   blocker: none
@@ -82,7 +82,7 @@ T-02 | read-only-run-linter | atomic-tests: green | atomic-execution: complete |
   base_branch: feat/run-log-producer-validation
   base_commit: 872538e2ea3c28faf0f296c9979fa01d6b6d76ae
   commits: 93c985c test: cover read-only lint diagnostics and selection; 610e097 feat: lint historical records without changing files
-  pr: #14 draft
+  pr: #14 ready
   last_action: DoD met — independent read-only lint review complete; selectors, strict JSON, exact numbers, diagnostics, coverage, and preservation pass
   target_files: `scripts/log-step.sh`, `scripts/validate-contracts.sh`
   blocker: none
@@ -122,7 +122,7 @@ T-03 | lint-aware-retrospective | atomic-tests: green | atomic-execution: comple
   base_branch: feat/run-log-lint
   base_commit: 4e0b7f85b1eb94272caafdccc5afc3eea4062b87
   commits: f096c89 test: cover filtered lint coverage and usable metrics; a799dbc feat: report lint coverage and exclude unusable telemetry
-  pr: #15 draft
+  pr: #15 ready
   last_action: DoD met — independent lint-aware retrospective validation complete; filtered coverage, usable denominators, and physical close classification reviewed
   target_files: `workflows/retro.md`, `scripts/validate-contracts.sh`
   blocker: none
@@ -155,7 +155,7 @@ T-04 | vocabulary-docs-and-drift-gate | atomic-tests: green | atomic-execution: 
   base_branch: feat/lint-aware-retrospective
   base_commit: 7531deed32d9187912bbf616d4186925999b4f32
   commits: 75703d6 test: cover contract documentation and bidirectional drift; 9aa0b36 feat: document the contract and reject vocabulary drift
-  pr: #16 draft
+  pr: #16 ready
   last_action: DoD met — independent contract documentation and bidirectional effective-runtime drift validation complete
   target_files: `rules/run-log.md`, `scripts/validate-contracts.sh`, `docs/USAGE.md`
   blocker: none
@@ -182,7 +182,7 @@ T-05 | isolated-acceptance-harness | atomic-tests: green | atomic-execution: com
   base_branch: feat/run-log-contract-gate
   base_commit: b1f07863269411eda18b5d43f5eb5a01a4f6110f
   commits: 8d8cf60 test: require isolated executable acceptance runner; 60d315c test: add isolated run-log acceptance harness
-  pr: #17 draft
+  pr: #17 ready
   last_action: DoD met — independent isolated-harness validation complete; all criteria, frozen-test integrity, cleanup, and preservation checks pass
   target_files: `scripts/validate-contracts.sh`, `tests/log-step.sh`
   blocker: none
@@ -216,7 +216,7 @@ T-06 | fix-redact-unknown-command | atomic-tests: green | atomic-execution: comp
   base_branch: chore/run-log-acceptance
   base_commit: 1081a29f62aefc79217089105da83695f57281c4
   commits: 8028790 test: cover redacted unknown-command errors; 9827a9d fix: redact unknown-command diagnostics
-  pr: #18 draft
+  pr: #18 ready
   last_action: DoD met — independent unknown-command redaction review complete; all 22 focused checks and 573 full-suite checks pass
   target_files: `scripts/log-step.sh`, `scripts/validate-contracts.sh`
   blocker: none
@@ -244,7 +244,7 @@ T-07 | fix-path-argument-progress | atomic-tests: green | atomic-execution: comp
   base_branch: fix/redact-unknown-command
   base_commit: 6cc6e2bbcbd37371cfb7bb6fb181ef2477462bbd
   commits: 9af9998 test: cover malformed path arguments; 524785d fix: validate path arguments before lookup
-  pr: #19 draft
+  pr: #19 ready
   last_action: DoD met — independent bounded path parsing review complete; malformed calls terminate safely and valid reads preserve output and storage
   target_files: `scripts/log-step.sh`, `scripts/validate-contracts.sh`
   blocker: none
@@ -271,7 +271,7 @@ T-08 | fix-run-log-input-boundaries | atomic-tests: green | atomic-execution: co
   base_branch: fix/path-argument-progress
   base_commit: 30df8979237dbb20728e7f404fcde242c47ba6df
   commits: 8a9c116 test: cover flag text and workflow access boundaries; 4986aee fix: preserve flag text and check workflow access
-  pr: #20 draft
+  pr: #20 ready
   last_action: DoD met — independent input and workflow-access boundary review complete; all criteria pass
   target_files: `scripts/log-step.sh`, `scripts/validate-contracts.sh`
   blocker: none
@@ -495,6 +495,15 @@ recorded_paths:
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/state-archive.md
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
 
+### Pull request review readiness
+
+branch: fix/run-log-input-boundaries
+expected_parent: 3e70ccc383dc22feb5e5a8fc150d004457f3343d
+allowed_scope: listed knowledge-base paths only
+recorded_paths:
+- .ai/memory/state.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
+
 ## Improvement Proposals (T-02)
 
 ### Do Later
@@ -685,3 +694,9 @@ spec: .ai/specs/02-run-log-vocabulary-validation.md
 - Full repository gate after spec completion, exact ledger refresh and ADR creation: 576 passed, 0 failed, 2 configured hygiene skips, exit zero; evidence /tmp/orchestrail-final-full.log.
 - All scripts and test shell files pass bash -n; whitespace passes; task artifact validation passes 21 checks with zero failures/skips. Shellcheck is unavailable.
 - Independent integrated contract: 31 passed; code review: zero current findings. Four historical findings repaired, no deferred items.
+
+## Review Readiness
+
+- All eight PRs are ready for review in dependency order: #13, #14, #15, #16, #17, #18, #19, #20. Each retains its predecessor as base; the first targets main.
+- GitHub CLI body updates used REST because the installed edit command requests deprecated project fields. The connected GitHub app performed review-readiness transitions after the CLI token denied that mutation. All transitions were verified.
+- After a squash or rebase merge, replay the remaining stack onto its new base before continuing integration. No unresolved questions, findings or deferred work remain.
