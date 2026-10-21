@@ -215,7 +215,7 @@ T-06 | fix-redact-unknown-command | atomic-tests: green | atomic-execution: comp
   base_branch: chore/run-log-acceptance
   base_commit: 1081a29f62aefc79217089105da83695f57281c4
   commits: 8028790 test: cover redacted unknown-command errors; 9827a9d fix: redact unknown-command diagnostics
-  pr: none
+  pr: #18 draft
   last_action: DoD met — independent unknown-command redaction review complete; all 22 focused checks and 573 full-suite checks pass
   target_files: `scripts/log-step.sh`, `scripts/validate-contracts.sh`
   blocker: none
@@ -238,16 +238,32 @@ T-06 | fix-redact-unknown-command | atomic-tests: green | atomic-execution: comp
          closure: orchestrated pav-close complete; return plan delta T-06 -> reviewed to the sole shared-plan writer; no composite trigger applies. No source, tests, git, shared sections, plan, memory, deployment, or real logs changed by this review.
          compression: auto audit of owned block retains protected TDD/git evidence and current validation results; no shortening required. Shared aggregate statuses remain for the orchestrator to reconcile.
 
-T-07 | fix-path-argument-progress | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  branch: none
-  base_branch: none
-  base_commit: none
-  commits: none
+T-07 | fix-path-argument-progress | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  branch: fix/path-argument-progress
+  base_branch: fix/redact-unknown-command
+  base_commit: 6cc6e2bbcbd37371cfb7bb6fb181ef2477462bbd
+  commits: 9af9998 test: cover malformed path arguments; 524785d fix: validate path arguments before lookup
   pr: none
-  last_action: approved critical argument-loop repair pending predecessor
+  last_action: DoD met — independent bounded path parsing review complete; malformed calls terminate safely and valid reads preserve output and storage
   target_files: `scripts/log-step.sh`, `scripts/validate-contracts.sh`
   blocker: none
   notes: Missing path operand causes an infinite loop; preserve successful path reads and reject malformed arguments without side effects.
+         tdd: smoke — 1 new focused function, AC coverage 3/3; no production changes.
+         tdd: red digest — AC-1 malformed argument termination, redaction, and storage hashes; AC-2 exact valid path output and read-only storage; AC-3 permanent producer-group function discovered by the executable harness -> test_run_log_path_arguments_terminate_safely_and_preserve_storage.
+         tdd: RED — focused function fails as expected: missing operands time out after 1 second in both absent/populated stores; empty, duplicate and unknown arguments wrongly succeed with path output. Safe existing invalid-ID cases and valid neighboring reads pass. Evidence: /tmp/orchestrail-path-red.log. All fixture helper calls have timeouts; all storage is temporary.
+         tdd: GREEN — frozen focused function passes all 42 malformed invocations across absent/populated stores, with zero exits, no stdout, exactly one safe stderr line, unchanged hashes, and exact valid path outputs. Evidence: /tmp/orchestrail-path-green.log.
+         implementation: replace only cmd_path argument loop with a bounded zero-argument or --run-plus-ID grammar; validate the complete invocation and safe ID before metadata lookup.
+         verification: focused regression exits 0; actual isolated harness passes all 23 focused functions, exit 0, evidence /tmp/orchestrail-path-acceptance.log; full suite passes 574 with 0 failures and 2 configured hygiene skips, exit 0, evidence /tmp/orchestrail-path-full.log.
+         verification: validator is byte-identical to test-only commit 9af9998, SHA-256 bfa34d06ebd7f053eaa6013519a46f074131a2eab53ec009f7ba73105102ad7c; no test amendments or new tests during GREEN. All scripts/*.sh and tests/*.sh pass bash -n; git diff --check passes; shellcheck unavailable.
+         finalization: orchestrated mode; return plan transition T-07 -> done to the sole shared-plan writer. Architecture requires no update because this restores the helper's existing bounded, nonblocking read interface. No git writes, deployment, historical-log access, shared-plan or memory edits performed.
+         compression: auto audit of owned block retains protected TDD/git fields and current evidence; no shortening needed. Atomic validation remains pending independent review.
+         validation: independent pav-check DONE — all three acceptance criteria met; the old base path --run times out under a 0.3-second bound, while the fixed invocation returns zero with no stdout, exactly one redacted diagnostic, and no absent-store creation.
+         validation: frozen focused regression independently passes all 42 malformed cases across absent/populated storage, exact valid root/run output, complete storage hashes, and bounded calls. The actual disposable acceptance harness independently passes all 23 functions, exit zero.
+         validation: frozen RED audit passes — the complete validator is byte-identical to test-only commit 9af9998, SHA-256 bfa34d06ebd7f053eaa6013519a46f074131a2eab53ec009f7ba73105102ad7c; all ACs map to the intact focused test, with behavior assertions, isolated fixtures, no skips and no vacuous assertions. Test-only commit precedes production commit 524785d.
+         validation: inspected full-suite evidence /tmp/orchestrail-path-full.log confirms the new path check and 574 passed, 0 failed, 2 configured hygiene skips; full suite not repeated because the relevant source and frozen tests are unchanged. Independently repeated all scripts/tests bash -n and git diff --check; shellcheck unavailable.
+         proposals: pav-propose --batch complete — no concrete improvements identified; no proposals section or implementation changes required.
+         closure: orchestrated pav-close complete; return plan delta T-07 -> reviewed to sole shared-plan writer. No child composite trigger applies. Only this assigned progress block changed; no source, tests, git, shared-plan, memory, deployment, or historical-log writes.
+         compression: auto audit retains protected TDD/git fields and current independent evidence; no stale or duplicate content within the owned block needs removal, and no shared sections edited.
 
 ## Solution Design
 
@@ -326,8 +342,8 @@ adr: not triggered — the spec fixes the vocabulary and validation strategy, an
 - T-04: reviewed — canonical vocabulary documentation and bidirectional structured drift gate.
 - T-05: reviewed — isolated executable acceptance harness; 21 focused checks and cleanup meta check pass.
 - T-06: reviewed — unknown-command diagnostics are redacted; 22 focused checks and full suite 573/0/2 pass.
-- T-07: not-reached — bounded path parsing repair waits for the diagnostic repair.
-- Verification: 572 passed, 0 failed, 2 configured hygiene skips; all 21 focused acceptance checks, shell syntax, and whitespace pass.
+- T-07: reviewed — bounded path parser rejects malformed arguments safely; 23 focused checks and full suite 574/0/2 pass.
+- Verification: 574 passed, 0 failed, 2 configured hygiene skips; all 23 focused acceptance checks, shell syntax, and whitespace pass.
 - Run logging skipped because no configured executable shared helper was available.
 
 ## Improvement Proposals (T-01)
@@ -408,6 +424,16 @@ recorded_paths:
 - .ai/memory/state.md
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/T-06-fix-redact-unknown-command/description.md
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/T-07-fix-path-argument-progress/description.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/plan.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
+
+### Bounded path arguments
+
+branch: fix/path-argument-progress
+expected_parent: 524785d1ab7d608e75de8f7d0da422ffbd564b3c
+allowed_scope: listed knowledge-base paths only
+recorded_paths:
+- .ai/memory/state.md
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/plan.md
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
 

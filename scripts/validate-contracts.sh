@@ -2817,6 +2817,73 @@ with tempfile.TemporaryDirectory(prefix='unknown command ') as temporary:
 PYDISPATCH
 }
 
+test_run_log_path_arguments_terminate_safely_and_preserve_storage() {
+  python3 - "$PWD/scripts/log-step.sh" <<'PYPATH'
+from pathlib import Path
+import hashlib, os, re, shutil, subprocess, sys, tempfile
+with tempfile.TemporaryDirectory(prefix='path arguments ') as temporary:
+    fixture = Path(temporary)
+    home, store = fixture / 'helper home', fixture / 'log store'
+    (home / 'scripts').mkdir(parents=True)
+    helper = home / 'scripts/log-step.sh'
+    shutil.copyfile(sys.argv[1], helper)
+    env = dict(os.environ, ORCHESTRAIL_HOME=str(home), ORCHESTRAIL_LOG_ROOT=str(store))
+    def snapshot():
+        return (store.exists(), {str(p.relative_to(store)):
+                hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None
+                for p in store.rglob('*')})
+    def invoke(*args):
+        return subprocess.run(['bash', str(helper), *args], env=env,
+                              capture_output=True, timeout=1)
+    failures = []
+    for populated in (False, True):
+        run = '01234567'
+        if populated:
+            result = invoke('run-start', '--pipeline', 'fixture-pipeline')
+            run = result.stdout.decode().strip()
+            assert result.returncode == 0 and re.fullmatch('[0-9a-f]{8}', run), result
+            assert result.stderr == b'', result
+            event_file = next((store / 'runs').glob('*.jsonl'))
+            event_file.with_suffix('.md').write_text('Historical digest fixture\n')
+            # A lookup of an unsafe identifier would disclose this sentinel path.
+            (store / '.active/ABCDEF01').write_text('file=private-metadata-sentinel\n')
+        before = snapshot()
+        cases = [('--run',), ('--run', '--run'), ('--run', '--private-option'),
+                 ('--run', '-private-option'), ('--run', run, '--run'),
+                 ('--run', run, '--run', run), ('--run', '',),
+                 ('--private-option',), ('private-positional',),
+                 ('--run', run, '--private-option', 'private-operand'),
+                 ('--run', run, 'private-positional'),
+                 ('--private-option', '--run', run)]
+        for value in ('ABCDEF01', '1234567', '123456789', '../private',
+                      'private/operand', 'private\nsecond-line', 'private\rthird-line',
+                      'private\tfourth-line', '\x1b[31mprivate'):
+            cases.append(('--run', value))
+        for args in cases:
+            try:
+                result = invoke('path', *args)
+            except subprocess.TimeoutExpired:
+                failures.append((populated, args, 'path arguments did not terminate'))
+            else:
+                safe = (result.returncode == 0 and result.stdout == b'' and
+                        re.fullmatch(rb'log-step: path [a-z-]+ [a-z-]+\n', result.stderr) is not None and
+                        b'private' not in result.stderr)
+                if not safe:
+                    failures.append((populated, args, result))
+            assert snapshot() == before, ('malformed path changed storage', args)
+        result = invoke('path')
+        assert result.returncode == 0 and result.stdout == (str(store) + '\n').encode(), result
+        assert result.stderr == b'' and snapshot() == before, result
+        if populated:
+            result = invoke('path', '--run', run)
+            assert result.returncode == 0 and result.stdout == (str(event_file) + '\n').encode(), result
+            assert result.stderr == b'' and snapshot() == before, result
+        else:
+            assert not store.exists(), 'read-only path created the absent store'
+    assert not failures, ('malformed path must terminate with one safe warning', failures)
+PYPATH
+}
+
 test_run_log_required_arguments_and_rejected_timing_preserve_storage() {
   python3 - "$PWD/scripts/log-step.sh" <<'PYREQUIRED'
 from pathlib import Path
@@ -2888,6 +2955,9 @@ PYREQUIRED
 
 check "LOGPRODUCER: unknown commands emit one redacted warning without storage changes" \
   "$(test_run_log_unknown_commands_are_redacted_and_preserve_storage && echo pass || echo 'unknown-command dispatch leaked caller text or changed storage')"
+
+check "LOGPRODUCER: malformed path arguments terminate safely without storage changes" \
+  "$(test_run_log_path_arguments_terminate_safely_and_preserve_storage && echo pass || echo 'path parsing failed termination, redaction, or read-only behavior')"
 
 check "LOGPRODUCER: mandatory arguments and rejected timing preserve storage" \
   "$(test_run_log_required_arguments_and_rejected_timing_preserve_storage && echo pass || echo 'required arguments, read-only queries, or accepted-event timing failed')"
