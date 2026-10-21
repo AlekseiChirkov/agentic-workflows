@@ -26,7 +26,7 @@ T-01 | producer-validation-and-writes | atomic-tests: green | atomic-execution: 
   base_branch: main
   base_commit: 65a6e68c3cdfa775a8ff7685e01203a3d83fe09c
   commits: 6b7b548 test: cover producer validation and persistence; e9f8232 test: cover fallback writes and repair validation fixtures; f0149ad feat: validate producer vocabulary before writes; d21d3aa test: cover arbitrary flows and single failure diagnostics; e32a69b fix: preserve flow text and emit one failure warning; 0d6a032 test: cover metadata text boundaries and legacy records; 0abf4c1 fix: preserve metadata text without record injection
-  pr: none
+  pr: #13 draft
   last_action: DoD met — producer validation and persistence reviewed; prior findings resolved; all 9 producer checks pass
   target_files: `scripts/validate-contracts.sh`, `scripts/log-step.sh`
   blocker: none
@@ -76,11 +76,45 @@ T-01 | producer-validation-and-writes | atomic-tests: green | atomic-execution: 
          closure: orchestrated pav-close complete; return plan delta T-01 -> reviewed to sole shared-plan writer. No child composite trigger applies. No code, tests, git, shared memory, plan, or historical logs changed.
          compression: auto audit retained protected notes, TDD/git evidence, and prior findings as superseded review history; no shared sections edited and no further compression required.
 
-T-02 | read-only-run-linter | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: Discovery artifacts created
-  target_files: `scripts/log-step.sh`
+T-02 | read-only-run-linter | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  branch: feat/run-log-lint
+  base_branch: feat/run-log-producer-validation
+  base_commit: 872538e2ea3c28faf0f296c9979fa01d6b6d76ae
+  commits: 93c985c test: cover read-only lint diagnostics and selection; 610e097 feat: lint historical records without changing files
+  pr: none
+  last_action: DoD met — independent read-only lint review complete; selectors, strict JSON, exact numbers, diagnostics, coverage, and preservation pass
+  target_files: `scripts/log-step.sh`, `scripts/validate-contracts.sh`
   blocker: none
   notes: Depends on T-01 to reuse its runtime vocabulary; edits the same helper after producer behavior.
+         tdd: smoke — 4 tests, AC coverage 4/4; isolated extracted validate-contracts smoke group executed before implementation.
+         tdd: red digest — AC-1 → test_run_log_lint_selects_files_and_preserves_storage; AC-2 → test_run_log_lint_emits_ordered_redacted_diagnostics, test_run_log_lint_validates_fields_and_shared_vocabulary; AC-3 → test_run_log_lint_reports_unavailable_and_partial_checks, test_run_log_lint_emits_ordered_redacted_diagnostics; AC-4 → test_run_log_lint_selects_files_and_preserves_storage.
+         tdd: RED reason — every function expects the mandatory summary and receives empty stdout with the existing unknown-command warning; no implementation changed. Paused for orchestrator test-only commit.
+         implementation: read-only selection and physical-line JSON validation added; field enums/count keys/bound come directly from RUN_LOG_CONTRACT, with no independent vocabulary or producer changes.
+         tdd: added during GREEN — wrong-type event values, inaccessible corpus directory, and jq runtime failure after successful startup probe.
+         tdd: test amended — test_contract_version_rule_history_warns_until_version_changes — removed an accidental duplicate lint-test insertion inside its Python marker string; the original test logic and all four actual frozen lint functions/assertions remain unchanged.
+         verification: first full suite 561 passed, 1 failed, 2 configured skips; failure was the accidental fixture-string insertion above, now repaired. Stable repeat pending after raw-NUL implementation correction.
+         tdd: added during GREEN — literal raw NUL inside a JSON string must produce invalid-json; jq raw-line encoding preserves physical line bytes before shell handling and catches file-read failures.
+         verification: corrected raw-NUL implementation and fixture passed the complete suite: 562 passed, 0 failed, 2 configured hygiene skips. A subsequent numeric precision correction requires the final stable repeat below.
+         tdd: test amended — test_run_log_lint_validates_fields_and_shared_vocabulary — transient GREEN cases expecting mathematically integral 1.0/exponent values to be invalid were corrected per spec sections 1 and 5: strict spelling applies to CLI arguments, while historical JSON checks numeric integrality and bounds. Original frozen matrix unchanged.
+         implementation: raw JSON numeric tokens retain precision independently of jq number representation; bounded decimal-scale normalization compares exact integral values to the shared maximum without allocating exponent-sized strings. Equivalent integral forms and negative zero remain valid.
+         tdd: added during GREEN — decimal/exponent integral equivalents, exact maximum equivalents, near-bound fractional values, huge positive/negative exponents including zero, and broken selected symlinks.
+         tdd: green — all 4 frozen RED functions pass; original names/cases/assertions preserved, with additional raw-byte, numeric-precision, and access-error coverage.
+         verification: final stable complete suite 562 passed, 0 failed, 2 configured hygiene skips; all scripts pass bash -n and git diff --check passes; shellcheck unavailable. Evidence: /tmp/orchestrail-lint-verified.log.
+         finalization: orchestrated mode; return plan transition T-02 to done and helper architecture/interface delta to sole shared-file writer. No deployment, git writes, log calls, historical rewrites, or shared-file edits performed.
+         architecture.md: interface update returned to orchestrator — helper adds lint selectors, redacted violation records, and ok/partial/unavailable summaries; lint alone requires jq, while producer dependencies and behavior are preserved.
+         compression: protected TDD/git evidence retained; corrected prior failures remain historical verification notes; no other sections changed and no further compression needed.
+         repair: direct orchestrator check found jq accepts non-JSON numeric extensions (leading-zero, plus-prefixed, incomplete fractional, NaN/Infinity); strict raw token coverage now rejects these as invalid-json anywhere in a record, including unrestricted optional nested fields. Valid integral decimal/exponent spellings remain accepted.
+         tdd: added during GREEN — malformed numeric token syntax in nested optional fields, with exact invalid-json diagnostics and counts; all four frozen functions pass.
+         verification-final: after strict JSON grammar repair, stable complete suite 562 passed, 0 failed, 2 configured hygiene skips; all scripts pass bash -n and git diff --check passes; shellcheck unavailable. Evidence: /tmp/orchestrail-lint-verified.log.
+         finalization-final: all 4 frozen tests GREEN; no weakened assertions or removed actual test functions; prior accidental fixture duplication removed with amendment record. Return plan T-02 -> done and architecture interface delta to orchestrator; shared files remain under its ownership.
+         compression-final: current completion recorded; prior repair history and protected TDD/git evidence retained; no further compression needed within owned block.
+         validation: independent pav-check DONE; all four acceptance criteria met: selectors and no-match/empty storage, safe ordered physical-line diagnostics, accurate examined/distinct/violation counts with honest coverage, zero exit and byte-preserving read-only operation.
+         validation: all four frozen lint functions independently pass; comparison with test-only commit 93c985c shows original names, cases, and assertions intact and only added coverage. Recorded fixture and numeric expectation amendments identify test defects; no unexplained skips or weakening.
+         validation: independent 86-case Decimal differential confirms exact numeric bounds and integrality; a runtime jq failure on the second physical line returns partial with one examined file/line and exactly one summary. Strict JSON, raw NUL, non-object, alias/type/enum/count, access-error, and final-no-newline cases pass.
+         validation: stable complete-suite artifact /tmp/orchestrail-lint-verified.log reports 562 passed, 0 failed, 2 configured hygiene skips; all scripts independently pass bash -n; shellcheck unavailable. Exact helper diff preserves producer implementation and optional-jq paths.
+         proposals: batch review — Do Now: none; Do Later: add a permanent mid-file jq runtime-failure fixture to the planned isolated acceptance harness, asserting retained examined counts and partial status after one successful line; independent direct check passes. Optional: none. Shared proposal section returned to orchestrator; nothing applied.
+         closure: orchestrated pav-close complete; return plan delta T-02 -> reviewed to the sole shared-plan writer. No child composite trigger applies. No implementation, tests, git, shared memory, plan, or historical logs changed.
+         compression: auto audit retains protected notes, test/git history, and earlier repair evidence; no further compression needed within owned block and no shared sections edited.
 
 T-03 | lint-aware-retrospective | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: Discovery artifacts created
@@ -172,7 +206,7 @@ adr: not triggered — the spec fixes the vocabulary and validation strategy, an
 ## Execution Report
 
 - T-01: reviewed — strict producer validation and safe persistence; all independent findings repaired.
-- T-02: not-started — read-only linter next.
+- T-02: reviewed — read-only lint with exact record validation and honest coverage.
 - T-03: not-started — lint-aware retrospective.
 - T-04: not-started — vocabulary documentation and drift gate.
 - T-05: not-started — isolated acceptance harness.
@@ -203,3 +237,19 @@ recorded_paths:
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/plan.md
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/state-archive.md
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
+
+### Read-only lint
+
+branch: feat/run-log-lint
+expected_parent: 610e0971decd554a61a658a0f9b8e89c930eee39
+allowed_scope: listed knowledge-base paths only
+recorded_paths:
+- .ai/memory/architecture.md
+- .ai/memory/state.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/plan.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
+
+## Improvement Proposals (T-02)
+
+### Do Later
+- Include the independently verified mid-file jq failure scenario in the planned acceptance harness, checking partial status and retained examined counts. This is assigned to the existing acceptance scope rather than deferred beyond the task.

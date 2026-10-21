@@ -23,6 +23,7 @@
 #
 #   scripts/log-step.sh path [--run <id>]     → print the log root, or one run's jsonl path
 #   scripts/log-step.sh active                → list runs that have not been closed
+#   scripts/log-step.sh lint [<run-id>|--all] → validate historical files without writing
 #   scripts/log-step.sh contract              → print the runtime vocabulary as key=value lines
 #
 # Never fails a pipeline: every error is a warning on stderr and exit 0.
@@ -772,6 +773,164 @@ cmd_active() {
   [ $any -eq 1 ] || echo "no active runs"
 }
 
+
+# Lint is a read-only consumer: no initialization or metadata lookup is needed.
+cmd_lint() {
+  local selector='' status=ok files=0 lines=0 invalid_lines=0 violations=0
+  local key contract='{' separator='' file record diagnostics issue encoded_lines line_number checked failed=0
+  local -a selected=()
+  local LC_ALL=C
+  lint_summary() {
+    printf '{"kind":"summary","status":"%s","files":%d,"lines":%d,"invalid_lines":%d,"violations":%d}\n' \
+      "$status" "$files" "$lines" "$invalid_lines" "$violations"
+  }
+  if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != --all ] && ! valid_run_id "$1"; }; then
+    warn 'lint argument invalid-selection'
+    status=unavailable; lint_summary; return 0
+  fi
+  [ "$#" -eq 0 ] || [ "$1" = --all ] || selector="$1"
+  if ! command -v jq >/dev/null 2>&1 || ! jq -n -e 'true' >/dev/null 2>&1; then
+    warn 'lint tooling unavailable'
+    status=unavailable; lint_summary; return 0
+  fi
+  if [ ! -e "$RUNS_DIR" ] && [ ! -L "$RUNS_DIR" ]; then
+    # A missing store is an empty corpus, unless a present ancestor cannot be searched.
+    local ancestor="$RUNS_DIR"
+    while [ ! -e "$ancestor" ] && [ "$ancestor" != / ]; do ancestor="${ancestor%/*}"; [ -n "$ancestor" ] || ancestor=/; done
+    if [ ! -d "$ancestor" ] || [ ! -x "$ancestor" ]; then
+      warn 'lint corpus unavailable'; status=unavailable
+    fi
+    lint_summary; return 0
+  fi
+  if [ ! -d "$RUNS_DIR" ] || [ ! -r "$RUNS_DIR" ] || [ ! -x "$RUNS_DIR" ]; then
+    warn 'lint corpus unavailable'; status=unavailable; lint_summary; return 0
+  fi
+  # Bash glob expansion follows LC_ALL=C and preserves arbitrary filename bytes.
+  if [ -n "$selector" ]; then
+    for file in "$RUNS_DIR"/*-"$selector".jsonl; do
+      [ -e "$file" ] || [ -L "$file" ] || continue
+      selected+=("$file")
+    done
+  else
+    for file in "$RUNS_DIR"/*.jsonl; do
+      [ -e "$file" ] || [ -L "$file" ] || continue
+      selected+=("$file")
+    done
+  fi
+  for key in "${!RUN_LOG_CONTRACT[@]}"; do
+    contract+="$separator\"$(json_escape "$key")\":\"$(json_escape "${RUN_LOG_CONTRACT[$key]}")\""
+    separator=,
+  done
+  contract+='}'
+  for file in "${selected[@]}"; do
+    if [ ! -f "$file" ] || [ ! -r "$file" ]; then
+      warn 'lint file unreadable'; failed=1; continue
+    fi
+    # Encode raw physical lines before Bash sees them: shell variables cannot retain NUL.
+    # A failed file read is never counted as an examined empty file.
+    if ! encoded_lines="$(jq -Rc '.' "$file" 2>/dev/null)"; then
+      warn 'lint file-check unavailable'; failed=1; continue
+    fi
+    files=$((files + 1)); line_number=0; checked=0
+    [ -n "$encoded_lines" ] || continue
+    while IFS= read -r record; do
+      line_number=$((line_number + 1))
+      if ! diagnostics="$(printf '%s' "$record" | jq -Rsc --arg file "$file" --argjson line "$line_number" --argjson contract "$contract" '
+        def issue($field; $code): {kind:"violation",file:$file,line:$line,field:$field,code:$code};
+        def field($row; $name; $expected_type; $required):
+          if ($row|has($name)|not) then
+            if $required then issue($name; "missing-field") else empty end
+          elif ($row[$name]|type) != $expected_type then issue($name; "invalid-type")
+          elif $name == "flow" and $row[$name] == "" then issue($name; "empty-flow")
+          else empty end;
+        # jq accepts some numeric extensions; require complete JSON token coverage.
+        def json_tokens:
+          [scan("\"(?:[^\"\\\\\u0000-\u001f]|\\\\(?:[\"\\\\/bfnrt]|u[0-9a-fA-F]{4}))*\"|-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\\[\\]:,]|[ \\t\\r\\n]+")];
+        # Preserve number tokens: jq can round or canonicalize exponent notation.
+        def numeric_lexemes:
+          reduce (json_tokens[] | select(test("^[ \\t\\r\\n]+$")|not)) as $token
+            ({depth:0, key:null, previous:null, values:{}};
+             (if $token == "{" or $token == "[" then .depth += 1
+              elif $token == "}" or $token == "]" then .depth -= 1
+              elif .depth == 1 and $token == ":" then .key = (.previous|fromjson)
+              elif .depth == 1 and .key != null and ($token|test("^-?[0-9]")) then
+                .values[.key] = $token | .key = null
+              elif .depth == 1 and $token == "," then .key = null
+              else . end) | .previous = $token)
+          | .values;
+        def bounded_exponent($text; $limit):
+          ($text // "0" | capture("^(?<sign>[+-]?)(?<digits>[0-9]+)$")) as $parts
+          | ($parts.digits | sub("^0+"; "") | if . == "" then "0" else . end) as $digits
+          | ($limit|tostring) as $bound
+          | (if ($digits|length) > ($bound|length) or (($digits|length) == ($bound|length) and $digits > $bound)
+             then $limit + 1 else ($digits|tonumber) end)
+            * (if $parts.sign == "-" then -1 else 1 end);
+        def valid_integer_value($literal):
+          ($literal | capture("^(?<sign>-?)(?<whole>[0-9]+)(?:\\.(?<fraction>[0-9]+))?(?:[eE](?<exponent>[+-]?[0-9]+))?$")) as $parts
+          | ($parts.whole + ($parts.fraction // "")) as $digits
+          | ($digits|sub("0+$"; "")) as $trimmed
+          | ($trimmed|sub("^0+"; "")) as $significant
+          | $contract["count.maximum"] as $maximum
+          | if $significant == "" then true
+            else (bounded_exponent($parts.exponent; (($digits|length) + ($maximum|length)))
+                  - ($parts.fraction // ""|length) + ($digits|length) - ($trimmed|length)) as $scale
+            | if $parts.sign == "-" or $scale < 0 or (($significant|length) + $scale) > ($maximum|length) then false
+              else ($significant + ("0" * $scale)) as $integer
+              | ($integer|length) < ($maximum|length) or $integer <= $maximum
+              end
+            end;
+        def integer($row; $literals; $name; $required):
+          field($row; $name; "number"; $required),
+          (if ($row|has($name)) and ($row[$name]|type) == "number" then
+             if (valid_integer_value($literals[$name])|not)
+             then issue($name; "invalid-integer") else empty end
+           else empty end);
+        (fromjson) as $raw
+        | (try (if ($raw | json_tokens | join("")) != $raw then {malformed:true}
+                else {value:($raw|fromjson), literals:($raw|numeric_lexemes)} end) catch {malformed:true}) as $parsed
+        | if $parsed.malformed then issue("record"; "invalid-json")
+          elif ($parsed.value|type) != "object" then issue("record"; "invalid-object")
+          else $parsed.value as $row
+          | field($row; "event"; "string"; true),
+            (if ($row.event|type) == "string" and (["run-start","step","run-end"]|index($row.event)|not)
+             then issue("event"; "invalid-enum") else empty end),
+            ("ts", "run_id", "pipeline", "flow" | field($row; .; "string"; true)),
+            integer($row; $parsed.literals; "seq"; true), integer($row; $parsed.literals; "duration_s"; false),
+            (if $row.event == "step" then field($row; "step"; "string"; true) else empty end),
+            (if $row.event == "step" or $row.event == "run-end" then field($row; "outcome"; "string"; true) else empty end),
+            ($contract | to_entries[] | select(.key|startswith(($row.event | if type == "string" then . else "" end) + "."))
+             | select(.key != "step.synthetic")
+             | (.key|split(".")[1]) as $name | .value as $allowed
+             | if ($row|has($name)) then
+                 if ($row[$name]|type) != "string" then
+                   if $name == "outcome" then empty else issue($name; "invalid-type") end
+                 elif ($allowed|split("|")|index($row[$name])|not) then issue($name; "invalid-enum")
+                 else empty end
+               else empty end),
+            ($contract["count.fields"]|split(" ")[] | integer($row; $parsed.literals; .; false))
+          end
+      ' 2>/dev/null)"; then
+        warn 'lint tooling unavailable'; failed=1
+        [ "$checked" -gt 0 ] || files=$((files - 1))
+        break
+      fi
+      checked=$((checked + 1)); lines=$((lines + 1))
+      if [ -n "$diagnostics" ]; then
+        invalid_lines=$((invalid_lines + 1))
+        while IFS= read -r issue; do
+          printf '%s\n' "$issue"
+          violations=$((violations + 1))
+        done <<< "$diagnostics"
+      fi
+    done <<< "$encoded_lines"
+  done
+  if [ "$failed" -eq 1 ]; then
+    if [ "$files" -gt 0 ]; then status=partial; else status=unavailable; fi
+  fi
+  lint_summary
+  return 0
+}
+
 # ── dispatch ──────────────────────────────────────────────────────────
 case "${1-}" in
   run-start) shift; cmd_run_start "$@" ;;
@@ -780,6 +939,7 @@ case "${1-}" in
   path)      shift; cmd_path "$@" ;;
   active)    shift; cmd_active "$@" ;;
   contract)  shift; cmd_contract "$@" ;;
+  lint)      shift; cmd_lint "$@" ;;
   ""|-h|--help|help)
     sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) die "unknown command: ${1-}" ;;
