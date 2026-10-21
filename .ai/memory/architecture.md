@@ -119,7 +119,7 @@ spec in .ai/specs/NN-slug.md
   (or /spec-run: same, plus Arbiter, stacked branches, test:/feat: commits, draft→ready PRs)
         │
         ▼
-scripts/log-step.sh ──▶ logs/runs/*.jsonl ──▶ /retro ──▶ recommended edits to this repository
+scripts/log-step.sh ──▶ logs/runs/*.jsonl ──▶ read-only lint ──▶ /retro usable observations ──▶ recommended edits to this repository
 ```
 
 ## Contract surface (what must stay consistent across files)
