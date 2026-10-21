@@ -733,22 +733,20 @@ write_digest() { # write_digest <run_id> <jsonl_path>
 
 # ── path / active ─────────────────────────────────────────────────────
 cmd_path() {
-  local run=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --run) run="${2-}"; shift 2 ;;
-      *) shift ;;
-    esac
-  done
-  if [ -n "$run" ]; then
-    if ! valid_run_id "$run"; then
-      reject_invocation path run invalid-id
-      return 0
-    fi
-    meta_get "$run" file || { reject_invocation path run not-found; return 0; }
-  else
+  if [ "$#" -eq 0 ]; then
     printf '%s\n' "$LOG_ROOT"
+    return 0
   fi
+  if [ "$#" -ne 2 ] || [ "$1" != '--run' ]; then
+    reject_invocation path argument invalid-option
+    return 0
+  fi
+  local run="$2"
+  if ! valid_run_id "$run"; then
+    reject_invocation path run invalid-id
+    return 0
+  fi
+  meta_get "$run" file || { reject_invocation path run not-found; return 0; }
 }
 
 cmd_contract() {
