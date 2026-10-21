@@ -14,7 +14,7 @@ parallelism. All owner decisions behind these specs are in ADR-0009.
 | 3 | 13a | [rules-workflows-audit](13a-rules-workflows-audit.md) | days | 01 | evidence for every rename; may amend 13 |
 | 4 | 13 | [model-only-harnesses-and-rule-naming](13-model-only-harnesses-and-rule-naming.md) | weeks | 01, 13a | drop Windsurf/Devin; `harness/` + capabilities; `<kind>-<subject>` rules; command renames |
 | 5 | 04 | [model-catalog-cache](04-model-catalog-cache.md) | hours | 13 | independent; removes up to 3 h per run |
-| 6 | 02 | [run-log-vocabulary-validation](02-run-log-vocabulary-validation.md) | hours | 01 | stabilise the log contract |
+| 6 | 02 | [run-log-vocabulary-validation — review ready](02-run-log-vocabulary-validation.md) | hours | 01 | stabilise the log contract |
 | 7 | 03 | [hook-based-logging](03-hook-based-logging.md) | days | 02, 13 | real timestamps via hooks |
 | 8 | 05 | [cost-and-duration-telemetry](05-cost-and-duration-telemetry.md) | days | 02, 03 | tokens, cost, anomaly warnings — no budgets |
 | 9 | 06 | [harness-git-rails](06-harness-git-rails.md) | days | 13, 05 | forbidden git operations become impossible |

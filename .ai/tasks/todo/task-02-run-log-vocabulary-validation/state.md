@@ -4,7 +4,7 @@ flow: full
 ## Phases
 - discovery: complete
 - execution: complete
-- validation: in-progress
+- validation: complete
 
 ## Task Analysis
 → archived to state-archive.md
@@ -271,7 +271,7 @@ T-08 | fix-run-log-input-boundaries | atomic-tests: green | atomic-execution: co
   base_branch: fix/path-argument-progress
   base_commit: 30df8979237dbb20728e7f404fcde242c47ba6df
   commits: 8a9c116 test: cover flag text and workflow access boundaries; 4986aee fix: preserve flag text and check workflow access
-  pr: none
+  pr: #20 draft
   last_action: DoD met — independent input and workflow-access boundary review complete; all criteria pass
   target_files: `scripts/log-step.sh`, `scripts/validate-contracts.sh`
   blocker: none
@@ -305,7 +305,7 @@ T-08 | fix-run-log-input-boundaries | atomic-tests: green | atomic-execution: co
 
 Use Variant 1. The spec requires writes and lint to use the same authoritative runtime definitions while a gate compares effective helper behavior with canonical documentation tables. Keeping the structured contract in the existing helper satisfies both requirements without a new module or runtime dependency. Expose the definitions in a stable machine-readable form for the existing validator to compare.
 
-adr: not triggered — the spec fixes the vocabulary and validation strategy, and this choice applies existing single-source and non-blocking principles without introducing a new system boundary.
+adr: .ai/adr/0011-task-02-run-log-contract.md (Accepted)
 
 ### Autonomous Decision
 
@@ -479,6 +479,22 @@ recorded_paths:
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/plan.md
 - .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
 
+### Integrated validation completion
+
+branch: fix/run-log-input-boundaries
+expected_parent: 3c4356ec9b47650c2450283bd457493b5ace84b8
+allowed_scope: listed knowledge-base paths only
+recorded_paths:
+- .ai/adr/0011-task-02-run-log-contract.md
+- .ai/adr/index.md
+- .ai/memory/progress.md
+- .ai/memory/state.md
+- .ai/specs/02-run-log-vocabulary-validation.md
+- .ai/specs/README.md
+- .ai/tasks/completed/task-01-git-source-of-truth/state.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/state-archive.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
+
 ## Improvement Proposals (T-02)
 
 ### Do Later
@@ -491,118 +507,93 @@ recorded_paths:
 
 ## Execution Finalization
 
-- All five leaf subtasks are reviewed; no blocked, deferred or unreached work and no composite reconciliation required.
+- All five original leaves and three fix leaves are reviewed; no blocked, deferred or unreached work and no composite reconciliation required.
 - Root file decisions: architecture updated for producer/lint/retrospective/drift gate and the isolated acceptance runner; architecture principles unchanged because existing single-source and nonblocking boundaries remain; project_state skipped because absent.
 - Compression audit: current progress and final aggregate evidence reconciled; protected git/TDD/arbiter records and archive references retained.
 - Task/spec paths remain stable through review readiness; archive relocation follows integration rather than being inferred from completion (pv-finalize completion marker and spec-run no-merge boundary).
 
 ## Contract Check
 
-Fresh independent verification of `65a6e68c3cdfa775a8ff7685e01203a3d83fe09c..30df897` on `fix/path-argument-progress`. The parent was validation-in-progress. The earlier critical stop is preserved as history by the sole shared-state writer; both original defects are now resolved.
+Final independent integrated verification of `65a6e68c3cdfa775a8ff7685e01203a3d83fe09c..3c4356e` on `fix/run-log-input-boundaries`. Validation remains in progress. Prior critical-pause history is preserved by the sole shared-state writer; no active critical pause remains.
 
-Validation context loaded: project architecture and memory state, architecture/coding/domain principles, ADR index, runbook, task contract and specification, `rules/tdd.md`, and `principles/testing-standards.md`. Required implementation surfaces read: `scripts/log-step.sh`, relevant added gate/producer/lint/retrospective/harness sections of `scripts/validate-contracts.sh`, `tests/log-step.sh`, `rules/run-log.md`, `workflows/retro.md`, and the `docs/USAGE.md` delta.
+Context loaded and retained across review iterations: architecture and memory state, architecture/coding/domain principles, ADR index, runbook, task/spec contracts, `rules/tdd.md`, and `principles/testing-standards.md`. Reviewed the whole implementation surfaces in the earlier integrated pass, then reread the current guard, final repair description, complete final source/test delta and frozen-test evidence. Surfaces include helper, canonical gate and smoke tests, executable acceptance runner, vocabulary documentation, retrospective loader/metric guidance and usage delta.
 
-Fresh evidence:
+### Evidence
 
-- `bash tests/log-step.sh`: exit 0, all 23 isolated checks pass; `/tmp/orchestrail-integrated-focused.log`.
-- `bash scripts/validate-contracts.sh --run-log-contract-only`: exit 0, `run-log contract: pass`. The focused harness independently executes bidirectional drift mutations, each of which must return nonzero with a field-specific explanation.
-- `bash -n scripts/log-step.sh scripts/validate-contracts.sh tests/log-step.sh`: exit 0.
-- Full-suite evidence `/tmp/orchestrail-path-full.log`: 574 passed, 0 failed, 2 configured hygiene skips. Inspected; the complete suite was not repeated in this review because the 23 relevant checks and drift gate were independently executed against unchanged source.
-- One extra isolated POSIX directory-access probe reproduced the acceptance gap described below.
+- Independently executed the actual `bash tests/log-step.sh` against final source: **25 passed, exit 0**, `/tmp/orchestrail-integrated-final-focused.log`.
+- Independently executed `bash scripts/validate-contracts.sh --run-log-contract-only`: pass. The actual harness also independently runs bidirectional mutation cases requiring nonzero field-specific failures.
+- Independently executed `bash -n scripts/log-step.sh scripts/validate-contracts.sh tests/log-step.sh` and `git diff --check`: pass.
+- Inspected final full-suite artifact `/tmp/input-boundary-full-green.log`: **576 passed, 0 failed, 2 configured private-hygiene skips**. Reused this evidence without repeating the complete suite. Current hashes match the source hashes recorded with that run: helper `b2a2bb34a2bcc6bce996a56754f6686eb8d5d0c91e8ebb9c513f6fb1395fda9c`; validator `9552f8889e72d8fe09fe7655dc0013f7f387a2117296cd3631800bcab38f8f12`.
+- Independently confirmed the complete final validator is byte-identical to frozen RED `8a9c116`; the final repair adds 162 test lines with zero removals from the preceding reviewed validator.
+- Permission checks executed as **UID 1000**, exercising actual directory read/search permission combinations. The fixture's root-only privilege-drop branch was reviewed but **not executed**; no root-run claim is made.
 
-All executed helper calls use temporary stores. This review neither read the real historical corpus nor changed project source, tests, shared state, git, installed skills, or deployment. Historical preservation is assessed from changed-file boundaries, operation ordering, and isolated checksum assertions, without claiming a real-corpus checksum audit.
+All helper invocations used disposable stores. No production/test/shared-state/git/deployment/installed-skill writes or actual historical-log reads occurred. Historical preservation is established within this boundary from aggregate changed-file scope, operation ordering and isolated checksum assertions, without claiming an actual historical-corpus checksum audit.
 
 ### Invariants
 
 | Invariant | Status |
 |-----------|--------|
-| A rejected event has no event-file or active-metadata side effects | PASS: complete producer argument validation precedes initialization, lookup-dependent writes, sequence increments and persistence. Producer/required-argument/repair tests compare full temporary-store hashes, including existing digests, and verify the next accepted sequence/duration. |
-| Logging error paths return zero and emit no success-shaped output | PASS: producer persistence/fallback tests pass, unknown dispatch uses a constant redacted diagnostic, and the bounded path grammar fixes the former loop. The two repair tests exercise absent/populated stores with timeouts, exact safe stderr and empty failure stdout. |
-| Runtime writes and lint use one effective vocabulary and mapping source | PASS: `RUN_LOG_CONTRACT` drives producer normalization, event-specific enums, counts and lint; the effective-definition mutation changes an enum and confirms both producer and lint honor it. |
-| Lint is read-only, and retrospective metrics include only usable observations | PASS: lint never initializes storage or writes files; each fixture invocation compares checksums. Retrospective intersects diagnostics with exact selected paths and excludes invalid lines; incomplete coverage conservatively admits no records to metrics. Counter/test denominators and physical unusable closes are tested. |
-| Existing historical logs remain byte-for-byte unchanged | PASS within the authorized review boundary: no historical-log path is changed in the aggregate diff; tests isolate stores and assert per-operation checksums; acceptance harness overrides inherited stores before helper calls. No historical repair/migration path was introduced. Real historical checksums were not read. |
-| The contract validator remains a gate whose drift failures return nonzero | PASS: canonical gate passes independently; mutation tests independently require nonzero for removed, extra, changed and duplicate documentation/runtime values and mappings, including overbroad prefix semantics. |
+| Rejected events have no event-file or active-metadata side effects | PASS: complete argument/enum/count validation precedes mutation. Temporary full-store hashes cover invalid producers and malformed queries; the next accepted event retains consecutive sequence and deterministic elapsed time. |
+| Logging error paths return zero with no success-shaped output | PASS: persistence/fallback tests and both original repair regressions pass bounded termination, zero status, exact safe stderr and empty failure stdout. |
+| Writes and lint use one effective vocabulary and mapping source | PASS: both consume helper-owned `RUN_LOG_CONTRACT`; effective enum mutation proves both consumers honor the same changed definition. |
+| Lint is read-only and retrospective metrics use only usable observations | PASS: per-operation fixture hashes remain unchanged. Exact selected-file intersection excludes invalid lines; incomplete checking admits no unverified rows into metrics and discloses limitations. |
+| Existing historical logs remain byte-for-byte unchanged | PASS within authorized boundary: aggregate diff excludes historical files, no migration/repair path exists, and fixtures plus inherited-store meta-tests assert preservation. Actual corpus was not read. |
+| Contract validator is a gate with nonzero drift failures | PASS: focused gate passes; removed/extra/modified/duplicate runtime or documentation entries fail with field-specific messages; overbroad prefix semantics fail even when both sides match. |
 
 ### Parent Acceptance Criteria
 
 | Criterion | Status |
 |-----------|--------|
-| 1. Strict producer enums/counts, exact aliases and provenance, rejection before state changes | PASS: producer enum/count/alias/required-argument tests cover canonical values, exact aliases, ordered existing-note provenance, zero/boundary values, malformed counts, duplicate/unknown/missing arguments, and unchanged storage. |
-| 2. Flow default, failed-start output and recoverable rejected closes | PASS: flow/persistence checks cover omitted/empty `unknown`, inherited unrestricted multiline flow, metadata text boundaries and legacy compatibility, failed-start empty stdout, rejected close preservation and later accepted close. |
-| 3. Dynamic helper workflow membership and advisory behavior | FAIL (important): `check_step_name` tests directory existence and readability but omits search permission. A readable directory without execute permission causes a current known workflow to receive the unknown-name warning instead of the required verification-unavailable warning. The valid event still persists. See reproduction below. |
-| 4. Lint selectors, safe ordered JSON diagnostics, exact summary and partial coverage | PASS: all four lint checks cover selectors, active/closed matching files, no-match/empty corpus, strict physical-line JSON, exact bounded integral forms, safe stable diagnostics and distinct invalid-line counts, missing/broken jq, inaccessible files/directories, broken links and mid-file checker failure; hashes remain unchanged. |
-| 5. Filtered retrospective diagnostics and honest usable metrics/close classification | PASS: executable loader tests exercise individual and combined filters plus limit, exact file intersection, invalid-line exclusions, optional-counter/test denominators, unavailable/partial/changing stores, lower bounds and invalid physical closes distinct from abandonment. Prose applies eligibility rules to all metric tables and retains recommendation-only behavior. |
-| 6. Exact documentation and bidirectional effective drift gate | PASS: canonical JSON tables match the shared export; all removed/extra/changed/duplicate values and mappings are tested on each side; equivalent overbroad prefix mutations still fail the semantic boundary probe. Presence rules, numeric syntax/bounds and lint contract are documented. |
-| 7. Executable isolated acceptance harness and historical preservation | PASS: executable runner copies source into a disposable checkout, sets temporary helper/log/workflow roots before invocation, runs each discovered check in a fresh errexit shell and cleans scratch on exit/signals. The focused 23-check run passes; the full-suite meta-test additionally verifies hostile inherited stores, failure propagation and interrupted cleanup. |
-| 8. Required acceptance commands and shell syntax pass | PASS: actual isolated harness and changed-script syntax independently pass; inspected fresh full-suite evidence is 574/0/2. No new source changes intervene. |
+| 1. Strict producer enums/counts, exact alias provenance, rejection before writes | PASS: all canonical enum values and required presence rules, aliases/lookalikes, existing-note order, count syntax/bounds, unknown/duplicate/missing options and storage invariance pass. Final parser preserves ordinary dash-leading payloads while reserving the known producer-option union. |
+| 2. Flow default, failed-start output and recoverable rejected closes | PASS: omitted/empty flow becomes inherited `unknown`; unrestricted ordinary text, multiline text and dash-leading labels persist across events; failed starts print no ID and rejected closes preserve later valid closure. |
+| 3. Dynamic helper workflow membership and advisory behavior | PASS: names derive from the current helper/override workflows and synthetic contract entries; unavailable verification now checks both read and search permission. Real 0700/0400/0100/0000/missing-directory cases preserve exact events and expected advisories. |
+| 4. Safe ordered read-only lint, selectors, accurate summary and partial coverage | PASS: four lint scenarios cover selection, active/closed files, no-match/empty stores, strict JSON and exact integral bounds, physical-line order, safe diagnostics, exact examined/distinct/violation counts and initial/mid-file tool/access failures; hashes remain unchanged. |
+| 5. Filtered retrospective diagnostics, usable metrics and honest close classification | PASS: executable scenarios cover all filters before limit, exact selected-path intersection, invalid-line exclusion, measured optional denominators, lower bounds, affected telemetry and invalid physical closes distinct from abandonment. Prose applies usable-only rules throughout. |
+| 6. Exact documentation and bidirectional effective drift gate | PASS: canonical structured tables match effective definitions; both-side removal/addition/modification/duplication and prefix-boundary semantics are tested. Presence, integer syntax, flow default, provenance and lint reporting are explicit. |
+| 7. Executable isolated acceptance harness and historical preservation | PASS: disposable checkout/helper/log/workflow roots override inherited choices before calls; fresh Bash processes preserve assertion failure. Meta-test checks hostile/absent inherited roots, failure propagation and signal cleanup. |
+| 8. Acceptance commands and modified-shell syntax pass | PASS: final actual harness passes 25 checks, focused gate/syntax/whitespace pass independently; inspected matching-source full suite is 576/0/2. |
 
 ### Specification Acceptance Criteria
 
 | Criterion | Status |
 |-----------|--------|
-| 1. Four outcome and three gate legacy cases with deterministic provenance | PASS: exact normalization tests cover every mapping, both aliases in one event, existing notes, unmapped lookalikes, whitespace/punctuation boundary cases and canonical no-provenance behavior. |
-| 2. Exact event-specific enums, pinned tests and bounded integer syntax | PASS: complete producer matrix and lint field matrix cover the prescribed values and rejected spellings; malformed arguments write nothing. |
-| 3. Missing/empty start flow becomes inherited `unknown` | PASS: flow tests cover omitted and explicit empty start flow across start, step and close, plus unrestricted nonempty flow preservation. |
-| 4. Invalid invocation warns once, exits zero, leaves accepted state unchanged | PASS: producer validation, required arguments and both dedicated repair regressions pass exact stderr/stdout/status and checksum assertions. The old unknown-command disclosure and missing-path loop are resolved. |
-| 5. Failed starts print no ID; rejected end can close later; errors do not block | PASS: persistence tests cover blocked/unwritable storage, no-jq fallback, missing event files, rejected then valid end and digest failure after a persisted close. |
-| 6. Current/synthetic/advisory step membership and unavailable directory warning | FAIL (important): unavailable membership is misclassified when the workflows directory has read permission but lacks search permission. Ordinary current/synthetic/unknown/missing-directory fixtures pass. |
-| 7. Read-only lint selectors, stable diagnostics and accurate summary | PASS: all four lint acceptance functions independently pass, including file/line ordering, distinct-invalid-line counts and coverage failures. |
-| 8. Filtered retrospective invalid-row reporting and usable denominators | PASS: all four retrospective executable scenarios independently pass; guidance states excluded/missing observation denominators and physical close rules. |
-| 9. Exact rule documentation and enum/mapping drift detection both ways | PASS: independent gate and all contract mutation scenarios pass; no separate lint vocabulary exists. |
-| 10. Executable isolated harness with specified behavior/checksum fixtures | PASS: actual 23-check runner passes, covers the enumerated scenario categories, never depends on the actual historical corpus and preserves fixture hashes. Add the unsearchable-directory case when repairing criterion 6. |
-| 11. Required harness/full-contract/syntax commands succeed without real-log dependence | PASS: harness and syntax independently pass; full command evidence is 574/0/2. The harness and relevant full-suite fixtures redirect helper/store choices into disposable paths. |
+| 1. Four outcome and three gate aliases with ordered raw provenance | PASS: exact aliases, both-field normalization, preexisting notes, byte-preserved context, boundary variants, unmapped lookalikes and canonical no-provenance cases pass. |
+| 2. Exact event-specific enums, pinned tests and bounded integer syntax | PASS: all canonical enums, malformed/unmapped values, explicit empty optional values, absent values, zero and maximum, negative/fractional/leading-zero/oversized values are covered. |
+| 3. Missing/empty flow becomes inherited `unknown` | PASS: start/step/end default tests pass; nonempty ordinary, multiline and dash-leading flow also remains exact. |
+| 4. Invalid calls warn once, exit zero and leave accepted state unchanged | PASS: complete producer rejection, malformed path and redacted unknown-command matrices compare exact diagnostics, stdout, bounded status and full-store hashes; sequence/duration regression passes. |
+| 5. Failed starts print no ID; rejected close can later succeed; writes never block | PASS: blocked storage, missing event files, broken jq, optional-jq fallback, rejected-then-valid closes and post-persistence digest failure cases pass. |
+| 6. Current/synthetic/advisory membership and inaccessible-directory warning | PASS: final real-permission fixture tests known/synthetic/unknown names across read/search combinations and missing directory; exact one-line unavailable messages accompany unchanged stored events. |
+| 7. Read-only lint selectors, stable diagnostics and accurate summary | PASS: no args, all, run ID, multiple matches, active/closed, no-match/empty, strict malformed JSON, field typing/enums, exact integral values, safe ordering/counts and partial/unavailable coverage pass. |
+| 8. Filtered retrospective invalid-row reporting and usable denominators | PASS: all four executable retrospective scenarios and reviewed metric eligibility guidance preserve invalid-row exclusion, lower bounds and unusable-close distinction. |
+| 9. Exact rule documentation and both-side enum/mapping drift detection | PASS: independent canonical gate and effective-definition/mutation scenarios pass, including semantic prefix probes and no independent lint vocabulary. |
+| 10. Executable isolated harness with specified cases and checksum preservation | PASS: actual 25-check harness includes both original critical regressions and final operand/permission regressions. Disposable stores, workflow fixtures and per-operation hashes avoid real-corpus dependence. |
+| 11. Harness/full-contract/syntax commands succeed without real-log dependence | PASS: actual final harness, syntax and canonical gate pass independently; matching-source full command evidence is 576/0/2, with isolated helper/store fixtures. |
 
 ### Off-limits
 
-Five parent bullets are represented as six checks by splitting the combined raw-diagnostics/single-source bullet.
+The five parent bullets are represented by six checks by splitting raw diagnostics from single-source vocabulary.
 
 | Constraint | Status |
 |------------|--------|
-| Do not rewrite historical logs or change checksums | PASS: aggregate file scope excludes logs; read-only operations and temporary fixtures preserve checksum snapshots. No actual historical logs were accessed in this review. |
-| Do not make writing depend on jq | PASS: shell-only JSON fallback remains; missing-jq writes persist correctly, while lint reports unavailable honestly. |
-| Do not let invalid events advance accepted sequence/timestamp/digest/active state | PASS: validation precedes writes and accepted-event progression; comprehensive full-store hashes and deterministic-clock regression pass. |
-| Do not echo arbitrary raw values in diagnostics | PASS: producer/parser messages use fixed field/reason tokens; lint serializes paths/coordinates without field values; unknown-command regression verifies raw control-character text never enters stderr. |
-| Do not introduce independent runtime vocabulary definitions | PASS: producer and lint consume `RUN_LOG_CONTRACT`; documentation is canonical comparable data and the gate compares its complete key/value set. |
-| Do not block callers or make retro automatically edit implementation | PASS: the two former critical failures are repaired; bounded argument parsing, zero-exit error paths and persistence tests pass. Retro still explicitly recommends and stops without applying changes. |
+| Do not rewrite historical logs or change checksums | PASS: no historical files changed in the aggregate diff or accessed by this review; temporary snapshot assertions protect read operations. |
+| Do not make writing depend on jq | PASS: shell JSON fallback remains and is exercised; only lint requires jq and reports unavailable checks honestly. |
+| Do not let invalid events advance sequence/timestamp/digest/active state | PASS: validation precedes mutation, full-store rejection hashes remain identical and deterministic accepted-event sequence/duration checks pass. |
+| Do not echo arbitrary raw values in diagnostics | PASS: fixed field/reason messages and constant unknown-command rejection; lint uses escaped paths/coordinates without raw field values. |
+| Do not introduce independent vocabulary definitions | PASS: shared runtime contract supplies writes/lint; canonical documentation is machine-compared rather than duplicated inside consumer logic. |
+| Do not block callers or make retrospective edit implementation automatically | PASS: bounded parser/error regressions pass zero exits; retrospective remains an explicit recommendation-and-stop workflow. |
 
-### Original Critical Failures Recheck
+### Finding Resolution
 
-- Unknown command redaction: RESOLVED. The current final dispatch emits `log-step: command invalid-command` regardless of input; the 28-case frozen regression passes.
-- Missing path operand loop: RESOLVED. The current parser validates complete argument cardinality before lookup and returns safely on missing operands; the 42-case frozen regression passes.
+| Prior finding | Final status |
+|---------------|--------------|
+| Critical: raw multiline unknown-command diagnostic | RESOLVED: constant redacted diagnostic; frozen 28-case absent/populated-store regression passes. |
+| Critical: `path --run` infinite loop | RESOLVED: bounded complete-argument grammar; frozen 42-case malformed-path regression passes. |
+| Important: readable but unsearchable workflow directory misclassified | RESOLVED: availability requires search permission; real UID-1000 permission/advisory/event matrix passes. |
+| Important: documented flags and dash-leading text rejected | RESOLVED: one event-option predicate distinguishes known helper-option tokens from ordinary operand text. Exact documented flag strings, dash-leading flow/free text, known-option nonconsumption and unknown option-position rejection pass. |
 
-### Remaining Acceptance Failure Reproduction
+Parser interpretation follows the recorded repair contract: exact known helper switches retain option semantics; ordinary other dash-leading operand text is accepted. Literal known-option encoding and a new escape interface were explicitly outside this repair scope.
 
-**important — unavailable workflow membership is reported as an unknown step**, `scripts/log-step.sh:251`.
-
-Reproduce as an ordinary user in isolated storage:
-
-```python
-from pathlib import Path
-import os, subprocess, tempfile
-with tempfile.TemporaryDirectory() as temporary:
-    root = Path(temporary)
-    workflows = root / 'home' / 'workflows'
-    workflows.mkdir(parents=True)
-    (workflows / 'known.md').write_text('Fixture workflow\n')
-    env = dict(os.environ, ORCHESTRAIL_HOME=str(workflows.parent),
-               ORCHESTRAIL_LOG_ROOT=str(root / 'store'))
-    helper = str(Path('scripts/log-step.sh').resolve())
-    run = subprocess.run(['bash', helper, 'run-start', '--pipeline', 'fixture'],
-                         env=env, capture_output=True, text=True).stdout.strip()
-    workflows.chmod(0o400)
-    try:
-        result = subprocess.run(['bash', helper, 'step', '--run', run,
-                                 '--step', 'known', '--outcome', 'ok'],
-                                env=env, capture_output=True, text=True)
-        print(result.returncode, repr(result.stdout), repr(result.stderr))
-    finally:
-        workflows.chmod(0o700)
-```
-
-Actual: exit 0, empty stdout, `log-step: step name is not in the current workflow list\n`; event persisted.
-Expected: exit 0, event persisted unchanged, exactly one `log-step: step-name verification unavailable\n` advisory because directory entries cannot be searched. Add `-x` to the directory availability condition and a regression fixture for readable-but-unsearchable workflow directories. The existing missing-directory test does not cover this permission combination.
-
-Step 1 (Contract Verification) complete: **29 PASS, 2 FAIL, 0 critical failures**, across 6 invariants, 8 parent criteria, 11 specification criteria and 6 off-limits checks. Both failed entries describe the same important defect. No critical stop is needed. Root must apply this delta and reconcile the historical `pause` field before code review begins.
+**Step 1 complete: 31 PASS, 0 FAIL, 0 critical failures** — 6 invariants, 8 parent acceptance criteria, 11 additional specification acceptance criteria, 6 off-limits checks. All four earlier findings resolved. No deferred findings remain.
 
 ## Issue List
 
@@ -635,79 +626,62 @@ Created: T-06-fix-redact-unknown-command, T-07-fix-path-argument-progress, T-08-
 
 ## Code Review
 
-Independent whole-change review of `65a6e68c3cdfa775a8ff7685e01203a3d83fe09c..30df897` on `fix/path-argument-progress`.
+Final independent whole-change review of `65a6e68c3cdfa775a8ff7685e01203a3d83fe09c..3c4356e` on `fix/run-log-input-boundaries`.
 
-Guard satisfied: the sole shared-state writer applied the fresh Contract Check, moved the original critical pause into Validation History, and left active invariants/off-limits passing before authorizing this step. Validation remains in progress. The decision remains the helper-owned structured contract, shared by writes and lint and compared with canonical documentation.
+Guard satisfied: validation is in progress; the active parent Contract Check contains no critical failure or unresolved pause. Fresh independent contract verification is complete with all 31 checks passing. Earlier failures and pause decisions remain historical records owned by the sole shared-state writer.
 
-Validation context loaded: architecture, memory state, architecture/coding/domain principles, ADR index, runbook, task/spec contracts, `rules/tdd.md` and `principles/testing-standards.md`. Reused the completed bootstrap without redundant rereads, then inspected the current active guard and source. No project writes, git changes, deployment, installed-skill changes or real-log access occurred.
+Validation context loaded: project architecture/state/principles/ADR index/runbook, task/spec contract, `rules/tdd.md` and `principles/testing-standards.md`. The chosen approach remains helper-owned structured runtime definitions shared by producer and lint, compared against canonical documentation. Review reused the previous complete source audit, reread current guards, and reviewed every final source/test delta and the final repair contract.
 
 ### Findings
 
-1. **important — documented flag telemetry prevents starting a run**, `scripts/log-step.sh:126`; affected documented callers include `rules/run-log.md:81` and `workflows/spec-run.md:41`.
+None. All four earlier findings are resolved; no critical, important, optional or deferred finding remains.
 
-   `parse_arguments` treats every operand beginning with `--` as a missing operand, regardless of which option receives it. The documented `--flags "--step-by-step"` and actual spec-run flag text therefore cause the entire otherwise valid run-start to be rejected. The same check rejects unrestricted nonempty flow labels such as `--custom-flow`, and similarly restricts other free text. This is a regression from the existing free-text interface; it can silently remove complete runs from telemetry for workflows that have flags in force.
+### Review Evidence
 
-   Reproduce with an absent temporary log root:
-
-   ```bash
-   scratch=$(mktemp -d)
-   ORCHESTRAIL_LOG_ROOT="$scratch/store" bash scripts/log-step.sh run-start \
-     --pipeline phase-discovery --flags '--step-by-step'
-   rm -rf "$scratch"
-   ```
-
-   Actual: exit 0, empty stdout, one `log-step: run-start flags missing-operand` warning and no store/run. Repeated independently with `--flags '--allow-pr --dry-run'` gives the same result. `--flow '--custom-flow'` similarly produces `log-step: run-start flow missing-operand` and no run.
-
-   Expected: documented flag text is retained as supplied and the start persists, with a usable ID; nonempty unrestricted flow labels are preserved through start/step/end. Missing operands must still be rejected without consuming the next helper option. Repair the argument grammar and its documented caller syntax together as needed, preserving supported callers and the rejection safety boundary. Add behavior tests for the exact documented flag examples and dash-leading free text; the existing missing-operand, unknown-argument and no-side-effect assertions must remain intact.
-
-2. **important — inaccessible workflow verification is misreported as unknown membership**, `scripts/log-step.sh:251`; missing regression in `scripts/validate-contracts.sh:2335`.
-
-   The directory check tests existence/read permission without testing search permission. With a readable but unsearchable workflows directory, Bash can list names but `-f` cannot inspect their entries. A current known workflow is then reported as an unknown step. The event is correctly persisted and the message remains safe, but the specified unavailable-verification behavior is violated. This is the same issue already recorded in parent acceptance criterion 3 and specification criterion 6, not an additional distinct contract defect.
-
-   Exact isolated reproduction as an ordinary user:
-
-   ```python
-   from pathlib import Path
-   import os, subprocess, tempfile
-   with tempfile.TemporaryDirectory() as temporary:
-       root = Path(temporary)
-       workflows = root / 'home' / 'workflows'
-       workflows.mkdir(parents=True)
-       (workflows / 'known.md').write_text('Fixture workflow\n')
-       env = dict(os.environ, ORCHESTRAIL_HOME=str(workflows.parent),
-                  ORCHESTRAIL_LOG_ROOT=str(root / 'store'))
-       helper = str(Path('scripts/log-step.sh').resolve())
-       run = subprocess.run(['bash', helper, 'run-start', '--pipeline', 'fixture'],
-                            env=env, capture_output=True, text=True).stdout.strip()
-       workflows.chmod(0o400)  # readable directory, no execute/search permission
-       try:
-           result = subprocess.run(['bash', helper, 'step', '--run', run,
-                                    '--step', 'known', '--outcome', 'ok'],
-                                   env=env, capture_output=True, text=True)
-           print(result.returncode, repr(result.stdout), repr(result.stderr))
-       finally:
-           workflows.chmod(0o700)
-   ```
-
-   Actual: exit 0, empty stdout, `log-step: step name is not in the current workflow list\n`; the step persists. Expected: one `log-step: step-name verification unavailable\n` warning and the same persisted step. Require directory search permission alongside readability and add a mode-0400 fixture; preserve known/synthetic/unknown/missing-directory cases.
-
-### Review Coverage
-
-- **Architecture and clarity:** one readonly `RUN_LOG_CONTRACT` drives normalization, enums and numeric bounds; lint receives those definitions rather than maintaining another vocabulary. Canonical table comparison is field-specific and bidirectional, with explicit prefix-boundary probes. Metadata escaping preserves text boundaries without evaluating caller values. No new runtime module/dependency was added to the producer.
-- **Security and errors:** safe eight-hex IDs precede metadata lookup; caller values are not sourced/evaluated; JSON strings escape controls; rejected complete producer arguments precede mutations. New dispatch redaction and bounded path parsing resolve the original critical defects. Lint reports paths through JSON and excludes raw field values. Read/write failures remain nonblocking, and partial OS writes/locking remain outside the requested redesign.
-- **Lint edge cases:** reviewed raw-physical-line handling, literal NUL detection, malformed JSON numeric extensions, exact numeric lexeme validation above jq precision, huge exponents, negative zero, final missing newline, empty/no-match corpora, inaccessible/broken selected paths, initial and mid-file tool failures, and distinct line/violation counts. The four executable lint scenarios pass independently with checksum assertions.
-- **Retrospective honesty:** reviewed exact selected-path intersection, all filters before filename limit, invalid-row exclusion, conservative exclusion of all unverified observations, known lower bounds, affected-run labels, usable counter/test/duration denominators, physical invalid close versus abandonment, unreadable close status and selection limitations. Guidance retains small-corpus warnings, raw-context restrictions, missing measurements and recommendation-only operation. The four executable scenarios pass independently.
-- **Test integrity:** all seven leaves have actual smoke tests; no unjustified `n-a` exemption exists. Independent frozen comparisons retain all original lines of the five producer functions from `6b7b548`, four lint functions from `93c985c`, three contract functions from `75703d6`, and the acceptance meta-test from `8d8cf60`. The retrospective frozen block from `f096c89` removes only `def load(**filters):`, replacing it with `def load(expect_mutation=False, **filters):` to add explicit intentional-mutation verification; no original assertion/case is removed. The current complete validator is byte-identical to the final repair RED commit `9af9998`; the preceding unknown-command regression remains present and unchanged alongside the additive path regression. Recorded unrelated fixture amendments explain actual fixture defects, and transient added numeric expectations were reconciled with mathematical JSON integrality without weakening frozen tests. No vacuous sole assertions, skip/xfail weakening, or repository mocks were found.
-- **Acceptance harness integrity:** dynamic test discovery includes the two repairs; fresh Bash processes keep assertion failure meaningful despite callers using conditionals; temporary checkout/store/workflows override inherited roots; cleanup covers success/failure/signals. The full-suite meta-test checks hostile inherited stores and intentionally masked failures. New findings expose missing behavior cases rather than removed tests.
+- **Correctness and public behavior:** complete arguments are checked before storage changes. Exact aliases preserve ordered raw provenance; event-specific enums, strict CLI counts and optional presence rules are tested. Final operand handling preserves documented `--flags "--step-by-step"`, `--flags "--allow-pr --dry-run"`, ordinary dash-leading flow and free text, while reserving exact known producer options as required by the recorded repair interpretation. Unknown option-position tokens still reject with unchanged storage. Read/search permission checks now distinguish unavailable workflow verification from genuinely unknown names without dropping valid events.
+- **Architecture and readability:** one readonly `RUN_LOG_CONTRACT` supplies runtime enums/mappings/bounds. Lint receives the same data; the canonical gate compares complete key/value sets and independently probes prefix semantics. `event_option_allowed` is reused for recognition and operand discrimination, avoiding a separate hand-maintained option union. Metadata uses reversible escaped values and direct assignment for trailing newlines, preserving legacy ordinary and earlier encoded records without interpreting text as metadata records.
+- **Security and failure behavior:** run IDs are validated before metadata-path lookup; caller text is never sourced/evaluated; JSON controls and diagnostic paths are escaped. Unknown-command rejection is constant/redacted and malformed path grammar terminates promptly. Persistence output is gated, rejected closes remain recoverable, and failed digest creation cannot erase an already persisted close. No new write-time jq dependency, historical migration or concurrency redesign was introduced.
+- **Lint edge cases:** reviewed strict token coverage, physical lines, literal NUL, malformed numeric extensions, exact integral lexemes beyond jq precision, huge exponents, negative zero, final missing newline, missing/no-match corpus, inaccessible/broken paths and initial/mid-file tooling failure. Ordered safe diagnostics, distinct invalid-line totals and honest examined coverage are exercised with immutable fixture snapshots.
+- **Retrospective honesty:** diagnostics intersect exact paths selected by all filters before limit; invalid lines never enter metric inputs. Partial/unavailable/changing corpora supply no unverified measurements and retain known lower bounds/limitations. Optional counters/tests use measured observations, missing measurements never imply zeros, and physical invalid closes remain distinct from abandonment. Small-corpus warnings, safe examples, selection limitations and recommendation-only behavior remain explicit.
+- **Frozen tests:** earlier integrated audit retained every original line of the original producer/lint/contract/harness frozen blocks. The retrospective block only changed the loader signature to support an explicit intentional-mutation assertion, retaining original assertions/cases. Independently confirmed the current full validator is byte-identical to final RED `8a9c116`, and the final repair adds 162 lines with zero removals to the preceding reviewed validator. Both new tests assert actual event contents/status/advisories and immutable rejection storage; no assertion weakening, skip/xfail, vacuous sole assertion, unjustified `n-a` exemption or repository mock was found. Recorded earlier fixture amendments explain actual test defects rather than implementation convenience.
+- **Isolation and permissions:** actual executable runner copies source into disposable checkout/log/workflow roots and starts fresh shells for meaningful assertion failure; meta-test covers hostile inherited roots, masked failure and interrupted cleanup. Final permission scenarios executed as UID 1000 and verify actual read/search outcomes before testing events. The root-only fixture privilege-drop branch was reviewed, not executed; no root-run claim is made.
 
 ### Verification
 
-- Independently ran the real `bash tests/log-step.sh`: **23 passed, exit 0**, evidence `/tmp/orchestrail-integrated-focused.log`.
-- Independently ran the canonical contract gate and changed-script syntax checks: passed.
-- Inspected unchanged-source full-suite evidence `/tmp/orchestrail-path-full.log`: **574 passed, 0 failed, 2 configured hygiene skips**. Full repeat was unnecessary after the focused rerun and no source edits.
-- Independently reproduced both remaining findings in temporary stores. Original disclosure/hang regressions pass within the actual isolated harness.
-- No real historical corpus was read. Preservation conclusions use changed-file scope, isolated full-store checksums and source ordering rather than claiming an actual historical checksum audit.
+- Independently ran the actual final harness: **25 passed, exit 0**, `/tmp/orchestrail-integrated-final-focused.log`.
+- Independently ran the focused canonical gate, changed-script shell syntax and whitespace checks: pass.
+- Reused inspected matching-source full-suite evidence `/tmp/input-boundary-full-green.log`: **576 passed, 0 failed, 2 configured private-hygiene skips**. Current helper and validator hashes match the hashes recorded with the final run. Root owns the final complete gate after metadata changes.
+- All four prior findings are permanently covered by passing regressions: redacted dispatch, bounded path grammar, documented/dash-leading operand preservation and actual read/search permission behavior.
+- No production/test/project/shared-state/git/deployment/installed-skill writes or actual historical-log reads occurred. Historical preservation conclusions use aggregate file scope, operation ordering and isolated checksums without claiming a real-corpus checksum audit. Shellcheck was unavailable in the recorded verification.
 
 ### Summary
 
-Step 2 (Code Review) complete: **2 findings — 0 critical, 2 important, 0 optional**. Both require repair before review readiness. The fresh Contract Check has one existing acceptance defect represented by two failed rows; finding 1 adds a separate producer compatibility/flow-contract failure discovered during code review. Neither introduces a critical invariant/off-limits failure, so the completed review can proceed to issue consolidation and approved repairs.
+**Step 2 complete: 0 findings — 0 critical, 0 important, 0 optional.** All four earlier findings are resolved. No deferred or unreviewed issue remains within the task contract. The implementation is ready for final issue consolidation and root-owned completion checks.
+
+## Deferred
+
+(none)
+
+## Validation Finalization
+
+- Contract verification and code review are complete; all four integrated findings were repaired in three independently reviewed fix leaves. No unresolved findings or questions remain.
+- Root file decisions: memory architecture updated for the effective runtime contract, lint/retrospective flow, drift gate and isolated acceptance runner; architecture principles skipped because existing boundaries were followed; project_state skipped because absent.
+- Completion retains the existing task/spec paths for review and integration; no archive relocation or merge is inferred.
+- Compression audit: superseded detailed contract/review reports archived; current aggregate evidence reconciled; every protected git, TDD, arbiter and archive record retained. Earlier review proposals are fulfilled by permanent acceptance fixtures.
+- Earlier test infrastructure amendment: lint and retrospective helpers gained per-operation checksum guards because earlier fixtures did not prove preservation after each read-only invocation. The retrospective wrapper gained an explicit expected-mutation argument so the intentional race fixture asserts the change; all frozen assertions remain intact.
+- ADR accepted and index updated: helper-owned vocabulary, validation before state changes, read-only historical evidence with usable metrics, and structured drift plus disposable acceptance checks. No further candidate ADR is outstanding.
+
+## Spec Sync
+sync: complete
+synced_at: 2026-10-21
+deltas: 0 (implemented-differently: 0, not-implemented: 0, implemented-beyond: 0)
+spec: .ai/specs/02-run-log-vocabulary-validation.md
+
+- All requirements are met as stated. The structured export is the chosen verification mechanism, not a divergent requirement. Validation defects were repaired rather than rewritten into weaker acceptance criteria. No readiness checklist exists to replace.
+
+## Final Acceptance
+
+- 2026-10-21: root reran the actual isolated harness after completion metadata: 25 passed, exit zero; evidence /tmp/orchestrail-final-focused.log.
+- Full repository gate after spec completion, exact ledger refresh and ADR creation: 576 passed, 0 failed, 2 configured hygiene skips, exit zero; evidence /tmp/orchestrail-final-full.log.
+- All scripts and test shell files pass bash -n; whitespace passes; task artifact validation passes 21 checks with zero failures/skips. Shellcheck is unavailable.
+- Independent integrated contract: 31 passed; code review: zero current findings. Four historical findings repaired, no deferred items.

@@ -6,12 +6,13 @@ of every session. Updated after every phase transition.
 
 ## Active Tasks
 
-task-02-run-log-vocabulary-validation | phase: validation | status: in-progress | note: all eight subtasks reviewed; all four integrated findings repaired; final integrated verification pending
+(none)
 
 Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11 → 12; 07 is backlog. The roadmap is in `specs/README.md`; each spec becomes a task via
 `/phase-discovery .ai/specs/<NN>-<slug>.md`.
 
 ## Done
+- [Run-log vocabulary validation](../tasks/todo/task-02-run-log-vocabulary-validation/state.md) | phase: validation | status: reviewed | note: strict producer, read-only lint, usable retrospective metrics, drift gate and isolated acceptance complete; PRs #13–#20 await final review readiness and owner integration
 - [task-00-sensitive-data-scrub](../tasks/completed/task-00-sensitive-data-scrub/state.md) | completed | note: PRs #2, #3, and #4 integrated in order; review fixes included; 542 checks pass as normal user and UID 0; source specification archived under specs/completed
 - [Git source of truth] | completed | note: versioned contracts, portable runtime paths, public materials, identity checks, and validation metadata are complete; checkout is renamed; PRs #5–#9 were merged into main; owner deferrals remain documented
 - [roadmap-decisions-2026-09] | completed | note: three clarification rounds (116 questions) answered by the owner; ADR-0009 records every decision; all 14 specs amended; question files removed
@@ -32,7 +33,5 @@ None.
 - All analysis, audit, and similar documents live under `docs/` (`principles/coding.md →
   Document placement`). The repository root holds only `CLAUDE.md`, scripts, and the
   source directories.
-- `validate-contracts.sh` passes 542/542 with the complete indexed knowledge base (2026-10-19); the manual sweep has zero unexpected matches/errors.
-- Run log contains 10 runs (4 spec-run, 6 bugfix). Four of them carry values outside the
-  `run-log` vocabulary; `/retro` results over this corpus are unreliable until
-  `specs/02-run-log-vocabulary-validation.md` lands.
+- `validate-contracts.sh` passes 576 checks with zero failures and two configured hygiene skips (2026-10-21). The complete knowledge base remains tracked.
+- Earlier inventory recorded 10 runs, four carrying noncanonical values. The reviewed helper can lint these without rewriting them; retrospective metrics exclude unusable observations. Existing historical logs were not read or changed by acceptance fixtures; integration remains pending.

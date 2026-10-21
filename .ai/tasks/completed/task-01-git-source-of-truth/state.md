@@ -169,7 +169,7 @@ Use the sequential feature stack. It keeps each independently verifiable outcome
 (none)
 
 ## Approved Identity Scan Exceptions
-- .ai/specs/02-run-log-vocabulary-validation.md:9 — preserve only the unchanged issue link in the current active source specification, within the existing owner-approved source category.
+- .ai/specs/02-run-log-vocabulary-validation.md:15 — preserve only the unchanged issue link in the current active source specification, within the existing owner-approved source category.
 - .ai/specs/completed/01-git-source-of-truth.md:22 — preserve only the active source criterion.
 - .ai/adr/0007-task-unknown-commit-ai-directory-in-this-repository.md:18 — preserve the historical repository-tracking decision.
 - .ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:69 — preserve the historical naming decision.
@@ -187,7 +187,7 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 
 | Path | Line | Expected token counts |
 |---|---:|---|
-| `.ai/specs/02-run-log-vocabulary-validation.md` | 9 | `agentic-workflows` × 1 |
+| `.ai/specs/02-run-log-vocabulary-validation.md` | 15 | `agentic-workflows` × 1 |
 | `.ai/specs/completed/01-git-source-of-truth.md` | 22 | `agentic_workflows` × 1; `agentic-workflows` × 1 |
 | `.ai/adr/0007-task-unknown-commit-ai-directory-in-this-repository.md` | 18 | `agentic_workflows` × 1 |
 | `.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md` | 69 | `agentic_workflows` × 1 |
