@@ -2122,6 +2122,168 @@ assert_one_redacted_warning() {
   [ -z "$raw_value" ] || ! grep -Fq -- "$raw_value" "$warning_file"
 }
 
+test_run_log_dash_leading_operands_preserve_text_and_reject_known_options() {
+  python3 - "$PWD/scripts/log-step.sh" <<'PYOPERANDS'
+from pathlib import Path
+import hashlib, json, os, re, shutil, subprocess, sys, tempfile
+with tempfile.TemporaryDirectory(prefix='operand boundaries ') as temporary:
+    fixture = Path(temporary)
+    home = fixture / 'helper home'
+    (home / 'scripts').mkdir(parents=True)
+    (home / 'workflows').mkdir()
+    (home / 'workflows/fixture-known.md').write_text('Fixture workflow\n')
+    helper = home / 'scripts/log-step.sh'
+    shutil.copyfile(sys.argv[1], helper)
+    store = fixture / 'log store'
+    env = dict(os.environ, ORCHESTRAIL_HOME=str(home), ORCHESTRAIL_LOG_ROOT=str(store))
+    def invoke(*args):
+        result = subprocess.run(['bash', str(helper), *args], env=env,
+                                capture_output=True, timeout=2)
+        assert result.returncode == 0, (args, result)
+        return result
+    def snapshot():
+        return (store.exists(), {str(p.relative_to(store)):
+                hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None
+                for p in store.rglob('*')})
+    def reject(args, warning):
+        before = snapshot()
+        result = invoke(*args)
+        assert result.stdout == b'' and result.stderr == warning.encode(), (args, result)
+        assert snapshot() == before, ('rejection changed storage', args)
+    known = ('--pipeline', '--project', '--task', '--spec', '--flow', '--flags',
+             '--run', '--step', '--outcome', '--stops', '--escalations', '--decisions',
+             '--questions', '--gate', '--tests', '--fix-tasks', '--promoted',
+             '--amendments', '--files', '--subtask', '--blocker', '--note')
+    for option in known:
+        reject(('run-start', '--pipeline', 'fixture', '--flags', option),
+               'log-step: run-start flags missing-operand\n')
+    reject(('run-start', '--pipeline', 'fixture', '--private-option', 'private text'),
+           'log-step: run-start argument invalid-option\n')
+    for flags in ('--step-by-step', '--allow-pr --dry-run'):
+        result = invoke('run-start', '--pipeline', '--custom-pipeline',
+                        '--project', '--custom-project', '--task', '--custom-task',
+                        '--spec', '--custom-spec', '--flow', '--custom-flow', '--flags', flags)
+        run = result.stdout.decode().strip()
+        assert re.fullmatch('[0-9a-f]{8}', run) and result.stderr == b'', ('documented flags rejected', flags, result)
+        file = next(p for p in (store / 'runs').glob('*.jsonl') if run in p.name)
+        file.with_suffix('.md').write_text('Existing digest fixture\n')
+        for option in known:
+            for event, prefix, field in (
+                    ('run-start', ('--pipeline', 'fixture', '--flags'), 'flags'),
+                    ('step', ('--run', run, '--step', 'fixture-known', '--outcome', 'ok', '--note'), 'note'),
+                    ('run-end', ('--run', run, '--outcome', 'completed', '--note'), 'note')):
+                reject((event, *prefix, option), f'log-step: {event} {field} missing-operand\n')
+        for event, prefix in (
+                ('run-start', ('--pipeline', 'fixture')),
+                ('step', ('--run', run, '--step', 'fixture-known', '--outcome', 'ok')),
+                ('run-end', ('--run', run, '--outcome', 'completed'))):
+            reject((event, *prefix, '--private-option', 'private text'),
+                   f'log-step: {event} argument invalid-option\n')
+        result = invoke('step', '--run', run, '--step', 'fixture-known', '--outcome', 'ok',
+                        '--note', '--custom-note', '--blocker', '--custom-blocker', '--subtask', '--custom-subtask')
+        assert result.stdout == b'' and result.stderr == b'', result
+        result = invoke('run-end', '--run', run, '--outcome', 'completed', '--note', '--custom-end-note')
+        assert result.stdout == b'' and result.stderr == b'', result
+        rows = [json.loads(line) for line in file.read_text().splitlines()]
+        assert [row['event'] for row in rows] == ['run-start', 'step', 'run-end'], rows
+        assert [row['seq'] for row in rows] == [0, 1, 2], rows
+        assert all(row['flow'] == '--custom-flow' and row['pipeline'] == '--custom-pipeline' for row in rows)
+        assert {key: rows[0][key] for key in ('project', 'task', 'spec', 'flags')} == {
+            'project': '--custom-project', 'task': '--custom-task', 'spec': '--custom-spec', 'flags': flags}
+        assert {key: rows[1][key] for key in ('note', 'blocker', 'subtask')} == {
+            'note': '--custom-note', 'blocker': '--custom-blocker', 'subtask': '--custom-subtask'}
+        assert rows[2]['note'] == '--custom-end-note'
+        assert not (store / '.active' / run).exists()
+PYOPERANDS
+}
+
+test_run_log_workflow_directory_permissions_report_verification_availability() {
+  python3 - "$PWD/scripts/log-step.sh" <<'PYPERMISSIONS'
+from pathlib import Path
+import json, os, re, shutil, subprocess, sys, tempfile, traceback
+# Use a direct temporary root so a privileged runner can drop all privileges
+# without requiring access through the acceptance runner's private ancestors.
+with tempfile.TemporaryDirectory(prefix='workflow permissions ', dir='/tmp') as temporary:
+    fixture = Path(temporary)
+    home = fixture / 'helper home'
+    (home / 'scripts').mkdir(parents=True)
+    workflows = home / 'workflows'
+    workflows.mkdir()
+    (workflows / 'fixture-known.md').write_text('Fixture workflow\n')
+    helper = home / 'scripts/log-step.sh'
+    shutil.copyfile(sys.argv[1], helper)
+    if os.geteuid() == 0:
+        for path in (fixture, *fixture.rglob('*')):
+            os.chown(path, 65534, 65534)
+    def exercise():
+        store = fixture / 'log store'
+        env = dict(os.environ, ORCHESTRAIL_HOME=str(home), ORCHESTRAIL_LOG_ROOT=str(store))
+        def invoke(*args):
+            result = subprocess.run(['bash', str(helper), *args], env=env,
+                                    capture_output=True, timeout=2, cwd=fixture)
+            assert result.returncode == 0, (args, result)
+            return result
+        result = invoke('run-start', '--pipeline', 'fixture', '--flow', 'custom flow')
+        run = result.stdout.decode().strip()
+        assert re.fullmatch('[0-9a-f]{8}', run) and result.stderr == b'', result
+        file = next((store / 'runs').glob('*.jsonl'))
+        expected_steps = []
+        try:
+            for mode, readable, searchable in ((0o700, True, True), (0o400, True, False),
+                                                (0o100, False, True), (0o000, False, False)):
+                workflows.chmod(mode)
+                probe = subprocess.run(['bash', '-c', '[ -r "$1" ]; r=$?; [ -x "$1" ]; x=$?; printf "%s %s" "$r" "$x"',
+                                        'permission-probe', str(workflows)], capture_output=True, cwd=fixture)
+                assert probe.returncode == 0 and probe.stdout == f'{int(not readable)} {int(not searchable)}'.encode(), (
+                    'fixture did not enforce actual read/search permissions', mode, probe)
+                for name in ('fixture-known', 'batch-gate', 'subtask', 'dry-run', 'unknown-workflow'):
+                    result = invoke('step', '--run', run, '--step', name, '--outcome', 'ok', '--note', 'exact note')
+                    warning = (b'log-step: step-name verification unavailable\n' if not (readable and searchable)
+                               else b'log-step: step name is not in the current workflow list\n' if name == 'unknown-workflow'
+                               else b'')
+                    assert result.stdout == b'' and result.stderr == warning, (oct(mode), name, result, warning)
+                    expected_steps.append(name)
+                    row = json.loads(file.read_text().splitlines()[-1])
+                    assert {key: row[key] for key in ('event', 'step', 'outcome', 'note', 'flow', 'seq')} == {
+                        'event': 'step', 'step': name, 'outcome': 'ok', 'note': 'exact note',
+                        'flow': 'custom flow', 'seq': len(expected_steps)}, row
+            workflows.chmod(0o700)
+            workflows.rename(home / 'unavailable workflows')
+            for name in ('fixture-known', 'dry-run', 'unknown-workflow'):
+                result = invoke('step', '--run', run, '--step', name, '--outcome', 'ok', '--note', 'exact note')
+                assert result.stdout == b'' and result.stderr == b'log-step: step-name verification unavailable\n', result
+                expected_steps.append(name)
+            rows = [json.loads(line) for line in file.read_text().splitlines()]
+            assert [row['step'] for row in rows[1:]] == expected_steps
+            assert [row['seq'] for row in rows] == list(range(len(rows)))
+            assert all(row['outcome'] == 'ok' and row['note'] == 'exact note' and row['flow'] == 'custom flow' for row in rows[1:])
+        finally:
+            if workflows.exists():
+                workflows.chmod(0o700)
+    if os.geteuid() == 0:
+        child = os.fork()
+        if child == 0:
+            try:
+                os.setgroups([])
+                os.setgid(65534)
+                os.setuid(65534)
+                exercise()
+            except BaseException:
+                traceback.print_exc()
+                os._exit(1)
+            os._exit(0)
+        _, status = os.waitpid(child, 0)
+        assert os.waitstatus_to_exitcode(status) == 0, 'unprivileged permission scenario failed'
+    else:
+        exercise()
+PYPERMISSIONS
+}
+
+check "LOGPRODUCER: dash-leading operands persist and known helper options remain options" \
+  "$(test_run_log_dash_leading_operands_preserve_text_and_reject_known_options && echo pass || echo 'operand boundaries rejected documented text or consumed known options')"
+check "LOGPRODUCER: workflow directory read and search permissions control verification" \
+  "$(test_run_log_workflow_directory_permissions_report_verification_availability && echo pass || echo 'directory permissions misclassified verification or changed the event')"
+
 test_run_log_start_rejects_invalid_argument_sets() (
   set -e
   local fixture helper failures=0 status label
