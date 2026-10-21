@@ -2745,6 +2745,78 @@ PYRUNLOG
   [ "$failures" -eq 0 ]
 )
 
+test_run_log_unknown_commands_are_redacted_and_preserve_storage() {
+  python3 - "$PWD/scripts/log-step.sh" <<'PYDISPATCH'
+from pathlib import Path
+import hashlib, os, re, shutil, subprocess, sys, tempfile
+with tempfile.TemporaryDirectory(prefix='unknown command ') as temporary:
+    fixture = Path(temporary)
+    home = fixture / 'helper home'
+    (home / 'scripts').mkdir(parents=True)
+    (home / 'workflows').mkdir()
+    (home / 'workflows/fixture-known.md').write_text('Fixture workflow\n')
+    helper = home / 'scripts/log-step.sh'
+    shutil.copyfile(sys.argv[1], helper)
+    store = fixture / 'log store'
+    env = dict(os.environ, ORCHESTRAIL_HOME=str(home), ORCHESTRAIL_LOG_ROOT=str(store))
+    def snapshot():
+        return (store.exists(), {str(p.relative_to(store)):
+                hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None
+                for p in store.rglob('*')})
+    def invoke(*args):
+        result = subprocess.run(['bash', str(helper), *args], env=env,
+                                capture_output=True, timeout=2)
+        assert result.returncode == 0, ('helper must remain nonblocking', args, result)
+        return result
+    failures = []
+    diagnostic = None
+    for populated in (False, True):
+        if populated:
+            result = invoke('run-start', '--pipeline', 'fixture-pipeline')
+            run = result.stdout.decode().strip()
+            assert re.fullmatch('[0-9a-f]{8}', run) and result.stderr == b'', result
+            event_file = next((store / 'runs').glob('*.jsonl'))
+            event_file.with_suffix('.md').write_text('Historical digest fixture\n')
+        before = snapshot()
+        help_output = invoke('--help').stdout
+        assert help_output, 'help must describe the helper'
+        for args in ((), ('',), ('-h',), ('--help',), ('help',)):
+            result = invoke(*args)
+            assert result.stdout == help_output and result.stderr == b'', (args, result)
+            assert snapshot() == before, ('help changed storage', args)
+        commands = ('private-command', '--private-command', '-private-command',
+                    'private-command\nsecond-line', 'private-command\rthird-line',
+                    'private-command\tfourth-line', '\x1b[31mprivate-command')
+        for command in commands:
+            for trailing in ((), ('--run', 'private-operand', '--run', '')):
+                result = invoke(command, *trailing)
+                safe = (result.stdout == b'' and
+                        re.fullmatch(rb'log-step: [a-z -]+\n', result.stderr) is not None and
+                        b'private' not in result.stderr and
+                        b'second-line' not in result.stderr and
+                        b'third-line' not in result.stderr and
+                        b'fourth-line' not in result.stderr)
+                if not safe:
+                    failures.append((populated, command, trailing, result))
+                if diagnostic is None:
+                    diagnostic = result.stderr
+                elif result.stderr != diagnostic:
+                    failures.append(('unknown-command diagnostic changed with caller text', command))
+                assert snapshot() == before, ('unknown command changed storage', command, trailing)
+        if populated:
+            for args in (('path',), ('path', '--run', run), ('active',), ('contract',)):
+                result = invoke(*args)
+                assert result.stdout and result.stderr == b'', (args, result)
+                assert snapshot() == before, ('read-only command changed storage', args)
+            result = invoke('step', '--run', run, '--step', 'fixture-known', '--outcome', 'ok')
+            assert result.stdout == b'' and result.stderr == b'', result
+            result = invoke('run-end', '--run', run, '--outcome', 'completed')
+            assert result.stdout == b'' and result.stderr == b'', result
+            assert not (store / '.active' / run).exists()
+    assert not failures, ('unknown-command diagnostics exposed caller text or control characters', failures)
+PYDISPATCH
+}
+
 test_run_log_required_arguments_and_rejected_timing_preserve_storage() {
   python3 - "$PWD/scripts/log-step.sh" <<'PYREQUIRED'
 from pathlib import Path
@@ -2813,6 +2885,9 @@ with tempfile.TemporaryDirectory(prefix='required arguments ') as temporary:
     assert not result.stdout and not result.stderr and not active.exists()
 PYREQUIRED
 }
+
+check "LOGPRODUCER: unknown commands emit one redacted warning without storage changes" \
+  "$(test_run_log_unknown_commands_are_redacted_and_preserve_storage && echo pass || echo 'unknown-command dispatch leaked caller text or changed storage')"
 
 check "LOGPRODUCER: mandatory arguments and rejected timing preserve storage" \
   "$(test_run_log_required_arguments_and_rejected_timing_preserve_storage && echo pass || echo 'required arguments, read-only queries, or accepted-event timing failed')"
