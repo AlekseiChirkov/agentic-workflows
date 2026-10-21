@@ -9,6 +9,7 @@
 | T-05 | Isolated acceptance harness    | fixture store → exercise branches → verify immutability | T-01, T-02, T-03, T-04 | reviewed |
 | T-06 | Redact unknown command errors | freeze disclosure → redact diagnostic → verify | T-05 | reviewed |
 | T-07 | Bound path argument parsing | freeze missing-operand hang → validate path args → verify | T-06 | reviewed |
+| T-08 | Repair input boundaries | preserve documented flag text → check workflow search permission → verify | T-07 | reviewed |
 
 ## Execution Strategy
 
