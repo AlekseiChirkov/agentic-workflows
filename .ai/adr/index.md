@@ -20,3 +20,4 @@ so that a contributor can find the *why* without reading every rule. ADR-0007 an
 | 0008 | Roadmap direction: move enforcement from prose into the harness before adding rules | Accepted | 2026-09-16 | [0008-task-unknown-enforcement-moves-to-harness.md](0008-task-unknown-enforcement-moves-to-harness.md) |
 | 0009 | Roadmap decisions of September 2026 (identity, harness abstraction, naming, composites, telemetry, profiles, order) | Accepted | 2026-09-17 | [0009-task-unknown-roadmap-decisions-2026-09.md](0009-task-unknown-roadmap-decisions-2026-09.md) |
 | 0010 | Public hygiene, complete knowledge-base preservation, and local publication | Accepted | 2026-10-19 | [0010-task-unknown-public-hygiene-and-local-publication.md](0010-task-unknown-public-hygiene-and-local-publication.md) |
+| 0011 | Run-log contract validation and usable retrospective evidence | Accepted | 2026-10-21 | [0011-task-02-run-log-contract.md](0011-task-02-run-log-contract.md) |

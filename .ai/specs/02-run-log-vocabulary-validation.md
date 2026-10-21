@@ -1,3 +1,9 @@
+---
+status: done
+completed_task: task-02-run-log-vocabulary-validation
+completed_at: 2026-10-21
+---
+
 # Enforce Run-Log Field Vocabulary and Validation in `log-step.sh`
 
 ## Goal
@@ -280,3 +286,8 @@ lint must use the same authoritative runtime definitions.
   clean corpus.
 - Test level: smoke. The in-repository executable
   `tests/log-step.sh` is the acceptance harness.
+
+## Change Log
+
+### 2026-10-21 — reconciled from completed run-log validation
+- No requirement deltas. All acceptance criteria are met; the four validation defects were repaired without changing their requirements. Source: task Contract Check, Code Review and reviewed fix records.

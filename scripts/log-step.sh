@@ -84,6 +84,15 @@ declare -A PARSED_ARGS=()
 PARSE_ERROR_FIELD=''
 PARSE_ERROR_CODE=''
 
+event_option_allowed() { # event_option_allowed <event> <option>
+  case "$1:$2" in
+      run-start:--pipeline|run-start:--project|run-start:--task|run-start:--spec|run-start:--flow|run-start:--flags|\
+      step:--run|step:--step|step:--outcome|step:--stops|step:--escalations|step:--decisions|step:--questions|step:--gate|step:--tests|step:--fix-tasks|step:--promoted|step:--amendments|step:--files|step:--subtask|step:--blocker|step:--note|\
+      run-end:--run|run-end:--outcome|run-end:--note) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 parse_arguments() { # parse_arguments <event> <option> <value> ...
   local event="$1" option key
   shift
@@ -92,18 +101,18 @@ parse_arguments() { # parse_arguments <event> <option> <value> ...
   PARSE_ERROR_CODE='invalid-option'
   while [ "$#" -gt 0 ]; do
     option="$1"
-    case "$event:$option" in
-      run-start:--pipeline|run-start:--project|run-start:--task|run-start:--spec|run-start:--flow|run-start:--flags|\
-      step:--run|step:--step|step:--outcome|step:--stops|step:--escalations|step:--decisions|step:--questions|step:--gate|step:--tests|step:--fix-tasks|step:--promoted|step:--amendments|step:--files|step:--subtask|step:--blocker|step:--note|\
-      run-end:--run|run-end:--outcome|run-end:--note) ;;
-      *) PARSE_ERROR_FIELD='argument'; PARSE_ERROR_CODE='invalid-option'; return 1 ;;
-    esac
+    if ! event_option_allowed "$event" "$option"; then
+      PARSE_ERROR_FIELD='argument'
+      PARSE_ERROR_CODE='invalid-option'
+      return 1
+    fi
     key="${option#--}"
     key="${key//-/_}"
     PARSE_ERROR_FIELD="$key"
     PARSE_ERROR_CODE='duplicate-option'
     [[ ${PARSED_ARGS[$key]+present} ]] && return 1
-    if [ "$#" -lt 2 ] || [[ "$2" == --* ]]; then
+    if [ "$#" -lt 2 ] || event_option_allowed run-start "$2" ||
+       event_option_allowed step "$2" || event_option_allowed run-end "$2"; then
       PARSE_ERROR_CODE='missing-operand'
       return 1
     fi
@@ -248,7 +257,7 @@ normalize_step_aliases() { # normalize_step_aliases <outcome> <gate> <note>
 check_step_name() { # check_step_name <step-name>
   local name="$1" source_root="${ORCHESTRAIL_HOME:-$REPO_ROOT}" workflows_dir file base
   workflows_dir="$source_root/workflows"
-  if [ ! -d "$workflows_dir" ] || [ ! -r "$workflows_dir" ]; then
+  if [ ! -d "$workflows_dir" ] || [ ! -r "$workflows_dir" ] || [ ! -x "$workflows_dir" ]; then
     warn 'step-name verification unavailable'
     return 0
   fi
