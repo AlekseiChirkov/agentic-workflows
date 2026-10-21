@@ -4,7 +4,7 @@
 
 After spec 01 the repository is public but still shaped for one machine: `sync.sh`
 overwrites the user's global files without asking, the Python/FastAPI/GCP standards are
-the default for everyone, client project names appear in the knowledge base, and there
+the default for everyone, public hygiene requires re-verification, and there
 is no example of a finished task or a contribution guide. Make Orchestrail installable
 by a stranger in fifteen minutes and technology-neutral at its core (ADR-0009,
 Decisions 1 and 6).
@@ -13,8 +13,8 @@ Decisions 1 and 6).
 
 - [ ] `install.sh` replaces `sync.sh` for external users: `--dry-run` lists every path it
       would write; a backup of an existing `~/.claude/CLAUDE.md` / `~/.codex/AGENTS.md`
-      is taken before overwrite; `--uninstall` removes every path listed in the skill
-      manifest and restores the backups; `sync.sh` remains the maintainer's deploy
+      is taken before overwrite; `--uninstall` removes only unchanged installer-owned paths in the skill
+      manifest and restores backups without overwriting later user modifications; `sync.sh` remains the maintainer's deploy
       command and calls the same code
 - [ ] `profiles/python-fastapi/` holds `principles/python-standards.md`,
       `principles/infra-standards.md`, the former `templates/stacks/python-fastapi.md`,
@@ -36,12 +36,15 @@ Decisions 1 and 6).
       shape standards, commit rules, how to run tests and the audit prompt
 - [ ] `docs/harness-matrix.md` generated from `harness/*/capabilities.md`
 - [ ] `--dry-run` for `/discovery` and `/bugfix`
-- [ ] The forbidden-token check from spec 00 still passes, and the denylist is extended
-      with anything introduced since (profile fragments, examples, README)
+- [ ] The forbidden-token check from spec 00 still passes with its local private pattern
+      source; new fixtures use synthetic identifiers, and private patterns are never
+      copied into the repository
 - [ ] English translations exist alongside every Russian document under `docs/analysis/`
 - [ ] Branch protection on `main` (PR required, no direct push); issue and PR templates
       under `.github/`; CI from spec 09
-- [ ] `VERSION` bumped to `1.0.0` and tagged when every criterion above holds
+- [ ] The release checklist verifies all criteria and the deferred Apache-2.0 copyright
+      holder wording from completed 01; `VERSION` becomes `1.0.0` and tagging/publication
+      occur only with explicit owner release authorization
 
 ## Out of Scope
 
@@ -50,9 +53,34 @@ Decisions 1 and 6).
 
 ## Notes
 
-- Scrubbing of client names was moved to spec 00 and completed before the first commit;
-  this spec only re-verifies it.
+- Scrubbing was completed in spec 00 under the amended publication/history decisions
+  of ADR-0010; this spec re-verifies the accepted scope without rewriting ancestry.
 - Decisions: ADR-0009 Decision 1 (publication, branch protection at release), Decision 6
   (installer, profiles, project-local fragments, `.ai/profile`, examples from fixture,
   translations, scrubbing, owner reviews PRs).
 - Depends on specs 01, 09, 10, 13.
+
+## Optimization integration — 2026-10-21
+
+- **REQ-01** THE SYSTEM SHALL document installed optional helpers, context fallbacks,
+  actual declared capabilities and disable/resume procedures without claiming planned
+  work is shipped. Model-driven examples/benchmarks require spec 09's explicit approval.
+- **REQ-02** THE SYSTEM SHALL explain fixed subscription billing versus API-equivalent
+  comparisons, unavailable usage/price dimensions and observed versus hypothetical
+  savings. It SHALL publish only anonymized synthetic examples, not local transcripts,
+  client task context, price credentials or private hygiene patterns.
+- **REQ-03** THE SYSTEM SHALL preserve user-edited files during install/uninstall,
+  report restore conflicts for owner resolution and test dry-run/backup/restore
+  deterministically. Release gates SHALL not initiate paid tests or authorize tagging.
+
+### Acceptance additions
+
+- [ ] **AC-01** (REQ-01, REQ-02) Documentation generated against minimal/full feature
+  manifests labels availability and economic evidence correctly; examples contain
+  synthetic data and no copied local session content.
+- [ ] **AC-02** (REQ-03) Install/uninstall fixtures preserve post-install user changes,
+  dry-run writes nothing and release validation cannot run a model or publish a tag.
+
+Dependencies remain 01, 09, 10 and 13. Documentation for optimization features is added
+as those features ship; this spec does not require pretending all planned features
+already exist. Owner approval of PRs and releases remains separate from this review.

@@ -1,39 +1,165 @@
-# Split rules into always-on contracts and on-demand reference
+# Compact instructions, explicit loads and concise reports
+
+## Source
+
+ADR-0009 Decision 6 and workstream 3 of the owner's 2026-10-21 optimization request.
+The previous unmeasured 40–60k bootstrap-token claim is withdrawn as a baseline.
+
+## Context & Problem
+
+Atomic bootstraps explicitly demand full context even within parent phases
+(`rules/phase-atomic-execution.md:10`, `rules/phase-atomic-validation.md:10`).
+This spec owns instruction/reference separation and output shape. Spec 14 owns
+consumer-project context selection and reuse; neither task may silently remove a
+mandatory invariant to satisfy a size target.
 
 ## Goal
 
-An atomic step can begin with 40–60k tokens of instructions before reading any code.
-Much of that is rationale, worked examples, and incident history a step does not need.
-Split each rule into a short contract that stays always-on and a reference part loaded
-only when cited, declare each workflow's rule dependencies, and measure the result
-(ADR-0009, Decision 6).
+Reduce repeated instructional prose and generated narration while retaining operative
+contracts, test evidence, findings, stop conditions and readable recovery instructions.
 
-## Acceptance Criteria
+## Scope
 
-- [ ] Each `rules/*.md` is ≤ 700 words; the always-on set (every rule with
-      `load: always`) totals ≤ 6 000 words; everything moved goes to
-      `rules/reference/<name>.md`, linked with one line "Rationale and examples:
-      `ref-<name> → ## <Section>`"
-- [ ] `sync.sh` deploys `rules/reference/*.md` as `ref-<name>` skills (`load: on-demand`)
-- [ ] Every workflow's front matter gains `loads:` listing the rules it needs; the
-      Context Bootstrap in each `bootstrap-*` rule cites that list instead of restating it
-- [ ] `measure-context.sh <workflow>` prints the word count of the workflow plus every
-      rule and reference it would load; the totals are recorded in `docs/reference/`
-- [ ] For `atomic-execution-implement` and `atomic-execution-tests` the measured total is
-      ≤ 50 % of the pre-change value
-- [ ] `validate-contracts.sh` enforces the word limits and that every moved section is
-      still reachable by its citations
-- [ ] Golden-run `flat` (spec 09) shows no behavioural change
+Rule/reference split, per-workflow load declarations, context-size tooling, concise
+workflow/role report schemas and structural regression checks.
 
 ## Out of Scope
 
-- Rewriting any contract's meaning
-- The `.ai/` bootstrap of consumer projects (`/context-pack`)
+Changing contract meaning, task-state storage or project context selection (14),
+tool-output truncation (17), cheaper models (04/18), and skipping validation (16).
+
+## Actors & Roles
+
+Maintainers keep one canonical contract; sync deploys on-demand reference; workflow
+authors declare loads; executors return concise evidence; validators verify the same
+acceptance obligations.
+
+## Terminology
+
+Always-on text is supplied every session. On-demand reference is loaded only when a
+condition/citation requires it. A load graph records dependencies and conditional edges;
+its unconditional closure is not every reachable reference.
+
+## Requirements
+
+- **REQ-01** THE SYSTEM SHALL keep each top-level rule at most 700 words and the
+  always-on set at most 6,000 words; the stricter bootstrap limit from 13 still applies.
+  Optional rationale, examples and incidents SHALL move to `rules/reference/<name>.md`
+  with stable section links; all operative requirements SHALL stay reachable and
+  mandatory conditions SHALL not become optional reference.
+- **REQ-02** WHEN syncing, THE SYSTEM SHALL deploy reference files as `ref-<name>`
+  on-demand skills with manifest-owned cleanup and preserve references after renames.
+- **REQ-03** THE SYSTEM SHALL add `loads:` to workflow front matter, identify mandatory
+  and conditional dependencies, and have bootstraps cite the declaration instead of
+  duplicating load lists. Missing conditional prerequisites SHALL trigger full relevant
+  loading or the original stop, never silent continuation.
+- **REQ-04** THE SYSTEM SHALL provide `scripts/measure-context.sh <workflow>`, resolving
+  mandatory loads once, detecting missing targets/cycles and reporting words/bytes,
+  always-on contribution, and conditional/worst-case closure separately. It SHALL
+  not call word counts token counts or assume that every reference is eagerly loaded.
+- **REQ-05** WHEN comparing `atomic-execution-implement` and
+  `atomic-execution-tests`, THE SYSTEM SHALL record a pre-change baseline with matching
+  source/deployed versions and reduce each mandatory instruction-word total to at most
+  50 percent of baseline without changing its obligations. If this is infeasible while
+  preserving contracts, the task SHALL surface the failed target for owner decision,
+  not hide missing requirements or silently weaken the gate.
+- **REQ-06** THE SYSTEM SHALL define concise RED, GREEN, review and final-report
+  projections carrying result, changed files/diff identity, relevant AC IDs, test
+  command/result/evidence reference, blockers, required decisions and next action.
+  Repeated step prose, full specs and already recorded histories SHALL not be echoed
+  by default; full artifacts SHALL remain accessible. Mandatory warnings and findings
+  SHALL never be suppressed to hit a length target.
+- **REQ-07** WHEN an output cap or compact schema is used, THE SYSTEM SHALL distinguish
+  a complete structured payload from a shortened human summary. It SHALL not truncate
+  state deltas, git instructions, errors, test failure details or acceptance evidence
+  in transit. Spec 15 owns checkpoint envelopes; 17 owns tool previews.
+- **REQ-08** THE SYSTEM SHALL enforce size/reachability/load and required-output-field
+  contracts, preserve canonical statuses/protected state and pass offline regression
+  assertions from 09. Shared index gates G1–G8 apply. Actual usage/cost comparisons
+  SHALL use 05/09 separately from instruction-word targets.
+
+## Data Model
+
+`loads:` references mandatory rules plus explicit conditional references with a
+condition. Discovery finalizes a machine-readable encoding compatible with 13's
+front matter and 10's renderer. Compact reports reference local full evidence by path,
+content hash and scope; no provider-specific report parser is required.
+
+## Contracts & Interfaces
+
+The existing workflow invocations and statuses remain. Removed prose must map to its
+new reference home; bootstrap command/prohibition text stays operative and exact.
+`measure-context.sh` returns a nonzero status for unresolved mandatory loads/cycles
+and emits a machine-readable option for offline gates; it invokes no models.
+
+## Non-Functional Requirements
+
+≤700 words per top-level rule, ≤6,000 always-on words, bootstrap ≤300 words under 13.
+Unique dependency traversal terminates on cycles with diagnostics. Output completeness
+is schema-based, not a forced prose-word cap that could drop critical findings.
+
+## Edge Cases & Failure Modes
+
+Cover empty/missing load lists, conditional profiles, duplicate/transitive dependencies,
+cycles, renamed sections, standalone child calls and long finding lists. A summary
+reference without its artifact is incomplete evidence and triggers retrieval/recheck.
+
+## Acceptance Criteria
+
+- [ ] **AC-01** (REQ-01, REQ-02) Word gates and reference resolution pass; a moved
+  prohibition or unmanifested destructive cleanup is rejected.
+- [ ] **AC-02** (REQ-03, REQ-04) Every workflow has valid loads; fixtures distinguish
+  mandatory and conditional closure, avoid double counting, and reject broken cycles.
+- [ ] **AC-03** (REQ-05) Both named workflows meet the recorded 50-percent instruction
+  target with a requirement-preservation map, or acceptance explicitly remains failed.
+- [ ] **AC-04** (REQ-06, REQ-07) RED/GREEN/review/final fixtures retain required fields
+  and full evidence; a large critical-finding payload is preserved despite summary caps.
+- [ ] **AC-05** (REQ-08) Offline flat/TDD/state assertions pass, documentation includes
+  disable/full-reference recovery, and no savings claim is inferred from word counts.
+  An approved release golden, when run, also preserves behavior.
+
+## Traceability
+
+| Requirement | Acceptance |
+|---|---|
+| REQ-01, REQ-02 | AC-01 |
+| REQ-03, REQ-04 | AC-02 |
+| REQ-05 | AC-03 |
+| REQ-06, REQ-07 | AC-04 |
+| REQ-08 | AC-05 |
+
+## Risks
+
+Over-compression can hide a stop or load condition. Keep a before/after obligation map,
+test standalone entry points, and preserve access to full reference. A shorter prompt
+can have worse cache behavior; only 05/09 can establish a financial result.
+
+## Assumptions
+
+Instruction-word reduction is a structural target, not a promised token/cost reduction.
+Optional reference may be expensive on unusual tasks and must be reported honestly.
+
+## Decisions
+
+Retain ADR-0009 size targets, on-demand references and post-rename implementation.
+No test-first, validation or protected-section rule is relaxed.
+
+## Clarifications
+
+2026-10-21: expanded to concise generated reports; task context and tool output stay
+owned by 14 and 17. Full model-driven goldens remain explicitly approved/release-only.
+
+## Open Questions
+
+No blocking question. Comparative task samples and quality margins are decided before
+paid evaluation under 09.
 
 ## Notes
 
-- Decisions: ADR-0009 Decision 6 (700 / 6 000 words, `rules/reference/` as `ref-*`
-  skills, `loads:` key, after spec 13).
-- Runs after spec 13 (renames) and needs spec 09 to prove no behavioural change.
-- First candidates to move: quick-flow worked examples, the 2026-07-22 incident
-  narrative, the TDD "why the order matters" section.
+Depends on 13 and 09. Suggested slices: baseline/load graph; rule split; deployment;
+report contracts; measurement/contract checks; regression and documentation.
+
+## Readiness Checklist
+
+Goal, exclusions, measurable targets, failure behavior and traceability are specified.
+Ready for Discovery; conditional loads must not be mistaken for optional correctness.

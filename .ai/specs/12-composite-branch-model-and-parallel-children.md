@@ -72,6 +72,42 @@ top-level stack model is unchanged.
   serialisation) and Decision 2 (`worktrees`, `concurrent-sub-agents` capabilities).
 - Clarifications 2026-09-17: the spec was renamed from
   `parallel-independent-subtasks`; the wave/integration-branch model was withdrawn.
-- Depends on specs 13 (capabilities), 09 (golden `composite` case), 02–03 (log fields).
+- Depends on 13, 09, 02, 03, 05, 14, 15, 16, 19 and 20; see the index dependency map.
 - Composite children still each pass the full atomic cycle (`atomic-tests: red` before
   GREEN); the two-commit rule applies per child on its temporary branch.
+
+## Optimization integration — 2026-10-21
+
+- **REQ-01** THE SYSTEM SHALL give each child an immutable 14 packet and fresh scoped
+  view, excluding sibling transcripts. Parent-owned 15 envelopes SHALL serialize every
+  shared-state delta; workers never edit shared state or publish stale receipts.
+- **REQ-02** THE SYSTEM SHALL attribute child requests/retries/reviews once under 05
+  and report parent wall time separately from summed worker time and cache writes.
+  Faster parallel completion SHALL not be described as lower token/API-equivalent cost.
+- **REQ-03** THE SYSTEM SHALL preserve per-child RED-before-implementation commits.
+  Before committing a merge back, it SHALL inspect overlap and integration evidence;
+  on the parent, merged integration checks SHALL run before composite acceptance.
+  A failed merge/check SHALL not silently create a reviewed composite.
+- **REQ-04** THE SYSTEM SHALL apply 16 to child and whole-composite impact, invalidate
+  receipts after relevant merge changes and apply 19's bounded policy only to an
+  isolated eligible child. An unsafe shared contract/critical finding SHALL halt new
+  dispatch, preserve other work and surface the owner decision, not fan out retries.
+- **REQ-05** THE SYSTEM SHALL obtain independence evidence from 20/its existing
+  classifier checks, preserve the exact no-overlap/no-shared-contract rules and obey
+  effort/availability floors. Missing concurrency capability SHALL retain the
+  sequential path or refuse explicitly requested unsupported parallelism.
+
+### Acceptance additions
+
+- [ ] **AC-01** (REQ-01, REQ-02) Two-child interleaved traces keep worker context isolated,
+  serialize parent writes and deduplicate request attribution without adding worker
+  durations to parent wall time.
+- [ ] **AC-02** (REQ-03, REQ-04) Integration-conflict, changed-interface and failed-check
+  fixtures preserve TDD history, invalidate stale green receipts and prevent composite
+  closure/new dispatch on unsafe shared failures.
+- [ ] **AC-03** (REQ-05) Unsupported/overlapping/shared-contract fixtures cannot run a
+  parallel wave. Sequential and parallel outputs match semantic assertions as well
+  as normalized artifact structure; paid goldens remain separately authorized.
+
+Parallelism is a latency option whose economics must be measured, not a prerequisite
+or promised token saving for any of the nine workstreams.

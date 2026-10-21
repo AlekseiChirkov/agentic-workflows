@@ -5,8 +5,8 @@
 `rules/git-flow.md` forbids `git add -A`, pushing to protected branches, force-push
 outside `/restack`, `reset --hard`, `clean`, branch deletion, `gh pr merge`, and staging
 anything under `.ai/`. All of it is prose. A `PreToolUse` hook and a permission deny-list
-make the operations fail in the harness, so a lapse in compliance cannot damage a
-repository (ADR-0009, Decision 5).
+make the operations fail in the harness, to enforce the covered command forms and reduce reliance on
+prompt compliance (ADR-0009, Decision 5).
 
 ## Acceptance Criteria
 
@@ -36,7 +36,7 @@ repository (ADR-0009, Decision 5).
 ## Out of Scope
 
 - RED-set protection (refusing test-file edits during GREEN) — a separate future spec
-- Enforcement on harnesses without hooks (Codex today)
+- Hook enforcement where the installed harness lacks the required capability
 
 ## Notes
 
@@ -44,4 +44,33 @@ repository (ADR-0009, Decision 5).
   branches, message patterns, `git ls-files` detection, stderr-only) and Decision 4
   (temporary child branch deletion).
 - Depends on spec 13 (`harness/`, registry) and follows spec 05 in the chain.
-- Parsing is conservative: block on match; never reason about quoting.
+- Parsing is conservative: inspect the actual executable/arguments and supported shell
+  forms; ambiguous or opaque commands must not receive a success-shaped allow verdict.
+
+## Optimization integration — 2026-10-21
+
+- **REQ-01** THE SYSTEM SHALL keep protected commands visible to hooks through optional
+  helpers, nested shells and tool-output capture. If equivalent inspection cannot be
+  guaranteed, the helper SHALL refuse wrapping the mutation and use direct native
+  execution subject to existing approvals.
+- **REQ-02** THE SYSTEM SHALL preserve stderr deny reasons and the nonzero deny status
+  through compact output. Repair/escalation SHALL not bypass git/commit-message rails,
+  explicit-path staging or the test-before-implementation commit order.
+- **REQ-03** THE SYSTEM SHALL distinguish a tracked source knowledge base from untracked
+  consumer metadata using the resolved repository/worktree identity; a cached result
+  from another repository SHALL not authorize staging here.
+- **REQ-04** THE SYSTEM SHALL test quoted/alternate command forms, wrappers and negative
+  cases offline. Claims about enforcement SHALL name actual harness capability and
+  limits; mere deny-pattern presence SHALL not be described as universal shell safety.
+
+### Acceptance additions
+
+- [ ] **AC-01** (REQ-01, REQ-02) Direct, wrapped and nested fixture commands preserve
+  the same deny outcome or the wrapper refuses; truncation never changes deny to allow.
+- [ ] **AC-02** (REQ-03, REQ-04) Switching repository/worktree invalidates inappropriate
+  metadata caches; tracked-source exceptions cannot leak to consumers, and command/
+  quoted-form fixtures document the actual supported enforcement surface.
+
+Dependencies stay 13 and 05. Specs 15/17/19 consume these rails and must not redefine
+or weaken them. Temporary-child deletion is permitted only under the ownership and
+already-merged proof required by 12, not an untrusted marker alone.
