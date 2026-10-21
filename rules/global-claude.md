@@ -102,3 +102,20 @@ In multi-repo projects, always load umbrella context before local:
 
 Principles in `.ai/principles/` extend or narrow `../.ai/principles/` — they do not
 replace unless explicitly stated. Local principles must note what they override and why.
+
+## AST-GREP STRUCTURAL SEARCH POLICY
+
+- Prefer AST-Grep for structural code searches.
+- Use it to locate functions, classes, methods, imports, exports, function calls, and specific syntax patterns.
+- Use ripgrep for plain text, documentation, comments, log messages, and configuration values.
+- Avoid reading entire large files when targeted search results and nearby context are sufficient.
+- Use targeted paths and language filters to limit irrelevant results and project-wide scans.
+- Inspect surrounding code before making changes.
+- Never run broad or destructive structural rewrites without first reviewing the affected matches and impact.
+- Respect project-specific AGENTS.md files. Prefer project-specific rules when they provide more relevant guidance.
+- Fall back to ripgrep when AST-Grep cannot represent the needed search reliably.
+- On this Linux host, run the shared CLI by its full name because /usr/bin/sg is the setgroups utility:
+  /home/scareface/Documents/projects/.tools/ast-grep/node_modules/.bin/ast-grep
+- Pass the shared configuration explicitly:
+  --config /home/scareface/Documents/projects/.config/ast-grep/sgconfig.yml
+- Prefer source directories and exclude generated directories with --globs when searching broadly.
