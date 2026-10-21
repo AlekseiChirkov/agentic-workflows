@@ -117,6 +117,93 @@ if [ "${1:-}" = --hygiene-only ]; then
   run_public_hygiene "$hygiene_root" "$hygiene_denylist"
   exit $?
 fi
+# Compare canonical Markdown JSON tables with the helper's effective shared export.
+validate_run_log_contract() {
+  python3 - "$REPO_ROOT" <<'PYRUNLOGCONTRACT'
+from pathlib import Path
+import json, re, subprocess, sys
+root = Path(sys.argv[1])
+errors = []
+def fail(field, reason):
+    errors.append(f'run-log contract {field}: {reason}')
+try:
+    text = (root/'rules/run-log.md').read_text()
+    output = subprocess.check_output(['bash', str(root/'scripts/log-step.sh'), 'contract'], text=True)
+    runtime = {}
+    for line in output.splitlines():
+        key, separator, value = line.partition('=')
+        if not separator or key in runtime:
+            fail(key, 'malformed or duplicate runtime definition')
+        runtime[key] = value
+    documented = {}
+    for heading in ('Runtime vocabulary', 'Legacy normalization'):
+        matches = list(re.finditer(r'^### '+re.escape(heading)+r'\s*$', text, re.M))
+        if len(matches) != 1:
+            fail(heading.lower(), 'missing or duplicate canonical table section')
+        elif not re.match(r'\s*\| Runtime key \| Canonical JSON value \|\n\|---\|---\|\n\| `',
+                          text[matches[0].end():]):
+            fail(heading.lower(), 'missing canonical table header or rows')
+    for line in text.splitlines():
+        match = re.fullmatch(r'\| `([^`]+)` \| ([^|]+) \|', line)
+        if not match:
+            continue
+        key, encoded = match.groups()
+        if key in documented:
+            fail(key, 'duplicate documentation row')
+        try:
+            value = json.loads(encoded)
+        except ValueError:
+            fail(key, 'invalid canonical JSON value'); continue
+        if not isinstance(value, (str, list)) or isinstance(value,list) and (
+                not value or not all(isinstance(item,str) and item for item in value)):
+            fail(key, 'expected exact string or nonempty string array'); continue
+        documented[key] = value
+    if not runtime:
+        fail('tables', 'empty runtime export')
+    for key in sorted(runtime.keys() | documented.keys()):
+        if key not in runtime:
+            fail(key, 'extra documentation value or missing runtime definition'); continue
+        if key not in documented:
+            fail(key, 'missing documentation value or extra runtime definition'); continue
+        raw, expected = runtime[key], documented[key]
+        is_set = key.startswith('step.') or key == 'run-end.outcome' or key == 'count.fields'
+        if isinstance(expected,list) != is_set:
+            fail(key, 'canonical value has the wrong JSON type'); continue
+        if isinstance(expected,list):
+            actual = raw.split(' ' if key == 'count.fields' else '|')
+            if len(expected) != len(set(expected)) or len(actual) != len(set(actual)):
+                fail(key, 'duplicate enum or count value')
+            if set(actual) != set(expected):
+                fail(key, 'runtime and documentation values differ')
+        elif raw != expected or not raw:
+            fail(key, 'runtime and documentation mapping or bound differ')
+    prefix_key = 'alias.gate.NEEDS_WORK_PREFIX'
+    if prefix_key in runtime:
+        # Check the documented boundary meaning independently of regex spelling.
+        samples = [('NEEDS WORK',False), ('NEEDS WORKING',False), ('NEEDS WORK_',False),
+                   ('needs work: text',False), ('XNEEDS WORK: text',False)]
+        samples += [('NEEDS WORK'+boundary+suffix,True)
+                    for boundary in (' ', '\t', '\n', '\r', '\v', '\f', ':', '-')
+                    for suffix in ('', 'review', 'review\ncontinued')]
+        probe = 'pattern=$1; shift; for value in "$@"; do if [[ "$value" =~ $pattern ]]; then echo yes; else echo no; fi; done'
+        result = subprocess.check_output(['bash','-c',probe,'contract-boundary',runtime[prefix_key],
+                                          *(value for value,_ in samples)],text=True).splitlines()
+        if result != ['yes' if accepted else 'no' for _,accepted in samples]:
+            fail(prefix_key, 'NEEDS WORK prefix boundary semantics differ')
+except (OSError, ValueError, subprocess.SubprocessError) as error:
+    fail('tables', f'cannot read canonical contract: {type(error).__name__}')
+if errors:
+    print('\n'.join(errors)); sys.exit(1)
+print('run-log contract: pass')
+PYRUNLOGCONTRACT
+}
+
+if [ "${1:-}" = --run-log-contract-only ]; then
+  [ "$#" -eq 1 ] || { echo 'Unexpected run-log contract argument' >&2; exit 1; }
+  validate_run_log_contract
+  exit $?
+fi
+
 if [ "$#" -gt 0 ]; then
   echo 'Usage: scripts/validate-contracts.sh [--hygiene-only [--root PATH] [--denylist PATH]]' >&2
   exit 1
@@ -1228,6 +1315,9 @@ check "SEED: no state.md seed carries a writerless ## Blocked section" \
 check "SEED: the Entry Format documents where a blocked task lives" \
   "$(tr '\n' ' ' < rules/workflow-reference.md 2>/dev/null | tr -s ' ' | grep -q 'There is no .## Blocked. section' && echo pass || echo 'workflow-reference Entry Format does not say where a blocked task is recorded, so dropping ## Blocked from the seed is undocumented')"
 
+check "LOG: canonical tables match effective runtime contract" \
+  "$(validate_run_log_contract >/dev/null && echo pass || validate_run_log_contract)"
+
 # ── Group 41: the quick-flow gate has no fuzzy condition ──────────────
 # quick-flow calls the gate "a checklist, not a judgement call", yet condition 1 read "roughly 3
 # files or fewer" in quick-flow and pv-classify-fixes and "≤ ~3 files" in workflow-globals — the
@@ -1909,6 +1999,114 @@ check "test_public_hygiene_repository_preserves_context_and_local_ignores" \
   "$(test_public_hygiene_repository_preserves_context_and_local_ignores && echo pass || echo 'repository context, local ignore policy, and private pattern storage are incomplete')"
 
 # ── End public hygiene smoke checks ─────────────────────────────────
+
+# ── Run-log contract smoke checks ───────────────────────────────────
+run_log_contract_smoke() {
+  python3 - "$REPO_ROOT" "$1" <<'PYCONTRACTTEST'
+from pathlib import Path
+import json, os, re, shutil, subprocess, sys, tempfile
+root, scenario = Path(sys.argv[1]), sys.argv[2]
+with tempfile.TemporaryDirectory(prefix='run-log-contract-') as temporary:
+    fixture = Path(temporary)
+    (fixture/'scripts').mkdir()
+    (fixture/'rules').mkdir()
+    for name in ('scripts/log-step.sh', 'scripts/validate-contracts.sh', 'rules/run-log.md'):
+        shutil.copy2(root/name, fixture/name)
+    helper = fixture/'scripts/log-step.sh'
+    rule = fixture/'rules/run-log.md'
+    original_helper, original_rule = helper.read_text(), rule.read_text()
+    def gate(field=None):
+        result = subprocess.run(['bash', str(fixture/'scripts/validate-contracts.sh'),
+                                 '--run-log-contract-only'], capture_output=True, text=True)
+        output = result.stdout + result.stderr
+        if field is None:
+            assert result.returncode == 0, output
+            assert 'run-log contract' in output.lower(), output
+        else:
+            assert result.returncode != 0, (field, output)
+            assert field in output, (field, output)
+    gate()
+    exported = subprocess.check_output(['bash',str(helper),'contract'], text=True)
+    contract = dict(line.split('=',1) for line in exported.splitlines())
+    rows = {}
+    for line in original_rule.splitlines():
+        match = re.fullmatch(r'\| `([^`]+)` \| (.+) \|', line)
+        if match:
+            try: rows[match[1]] = (line, json.loads(match[2]))
+            except json.JSONDecodeError: pass
+    assert set(rows) == set(contract), (set(rows),set(contract))
+    if scenario == 'tables':
+        for heading in ('## Field vocabulary','### Legacy normalization','## Validation and writes',
+                        '## Read-only lint'):
+            assert heading in original_rule, heading
+        for phrase in ('9007199254740991','pinned','unknown','invalid_lines','unavailable',
+                       '1.0','1e0','raw:','NEEDS WORKING'):
+            assert phrase in original_rule, phrase
+    elif scenario == 'mutations':
+        for key, (line, value) in rows.items():
+            alternatives = ([value[:-1], value+['unexpected'], ['unexpected']+value[1:], value+[value[0]]]
+                            if isinstance(value,list) else ['', value+'unexpected'])
+            for alternative in alternatives:
+                rule.write_text(original_rule.replace(line, f'| `{key}` | {json.dumps(alternative)} |',1))
+                gate(key)
+            rule.write_text(original_rule.replace(line+'\n','',1)); gate(key)
+            rule.write_text(original_rule.replace(line,line+'\n'+line,1)); gate(key)
+            rule.write_text(original_rule)
+            pattern = re.compile(r'(^  \['+re.escape(key)+r"\]=)'([^']*)'", re.M)
+            assert pattern.search(original_helper), key
+            raw = contract[key]
+            separator = ' ' if key == 'count.fields' else '|'
+            changed = ([separator.join(raw.split(separator)[:-1]), raw+separator+'unexpected',
+                        'unexpected'+separator+separator.join(raw.split(separator)[1:]), raw+separator+raw.split(separator)[0]]
+                       if isinstance(value,list) else ['', raw+'unexpected'])
+            for alternative in changed:
+                helper.write_text(pattern.sub(lambda m:m[1]+"'"+alternative+"'", original_helper, count=1))
+                gate(key)
+            helper.write_text(pattern.sub('',original_helper,count=1)); gate(key)
+            helper.write_text(original_helper)
+        rule.write_text(original_rule+'\n| `alias.gate.EXTRA` | "fail" |\n'); gate('alias.gate.EXTRA')
+        rule.write_text(original_rule)
+        helper.write_text(original_helper.replace('declare -Ar RUN_LOG_CONTRACT=(',
+                          "declare -Ar RUN_LOG_CONTRACT=(\n  [alias.gate.EXTRA]='fail'",1))
+        gate('alias.gate.EXTRA'); helper.write_text(original_helper)
+        rule.write_text(original_rule.replace('### Legacy normalization','### Missing normalization',1))
+        gate('normalization')
+    elif scenario == 'effective':
+        # Change the value exported by the actual shared definition; docs follow it.
+        key='step.tests'; line,value=rows[key]
+        helper.write_text(original_helper.replace("[step.tests]='red|green|n-a|failed|not-run|pinned'",
+                            "[step.tests]='red|green|n-a|failed|not-run|pinned|custom-test'",1))
+        rule.write_text(original_rule.replace(line,f'| `{key}` | {json.dumps(value+["custom-test"])} |',1))
+        gate()
+        environment=dict(os.environ, ORCHESTRAIL_LOG_ROOT=str(fixture/'store'), ORCHESTRAIL_HOME=str(root))
+        def invoke(*args):
+            return subprocess.run(['bash',str(helper),*args],env=environment,capture_output=True,text=True)
+        run=invoke('run-start','--pipeline','contract-probe').stdout.strip()
+        assert re.fullmatch('[0-9a-f]{8}',run),run
+        invoke('step','--run',run,'--step','dry-run','--outcome','ok','--tests','custom-test')
+        lint=invoke('lint','--all')
+        assert 'invalid-enum' not in lint.stdout,lint.stdout
+        assert any(json.loads(line).get('tests')=='custom-test'
+                   for file in (fixture/'store/runs').glob('*.jsonl') for line in file.read_text().splitlines())
+        helper.write_text(original_helper); rule.write_text(original_rule)
+        # Identical but overbroad regexes on both sides still violate the boundary contract.
+        key='alias.gate.NEEDS_WORK_PREFIX'; line,value=rows[key]
+        broad='^NEEDS WORK.*$'
+        helper.write_text(original_helper.replace(value,broad,1))
+        rule.write_text(original_rule.replace(line,f'| `{key}` | {json.dumps(broad)} |',1))
+        gate(key)
+PYCONTRACTTEST
+}
+test_run_log_contract_documents_effective_runtime_tables() { run_log_contract_smoke tables; }
+test_run_log_contract_rejects_bidirectional_vocabulary_drift() { run_log_contract_smoke mutations; }
+test_run_log_contract_checks_shared_definitions_and_prefix_boundary() { run_log_contract_smoke effective; }
+check "test_run_log_contract_documents_effective_runtime_tables" \
+  "$(test_run_log_contract_documents_effective_runtime_tables && echo pass || echo 'run-log contract tables are missing or incomplete')"
+check "test_run_log_contract_rejects_bidirectional_vocabulary_drift" \
+  "$(test_run_log_contract_rejects_bidirectional_vocabulary_drift && echo pass || echo 'run-log contract drift was not rejected by field')"
+check "test_run_log_contract_checks_shared_definitions_and_prefix_boundary" \
+  "$(test_run_log_contract_checks_shared_definitions_and_prefix_boundary && echo pass || echo 'effective definitions or prefix boundaries differ')"
+# ── End run-log contract smoke checks ───────────────────────────────
 
 # ── Run-log producer smoke checks ───────────────────────────────────
 prepare_run_log_fixture() {
@@ -2941,6 +3139,7 @@ import sys
 path = Path(sys.argv[1])
 for opening, closing in (
     ('# ── Run-log producer smoke checks', '# ── End run-log producer smoke checks'),
+    ('# ── Run-log contract smoke checks', '# ── End run-log contract smoke checks'),
     ('# ── Contract version smoke checks', '# ── End contract version smoke checks'),
     ('# ── Public package materials smoke checks', '# ── End public package materials smoke checks'),
     ('# ── Public identity smoke checks', '# ── End public identity smoke checks'),

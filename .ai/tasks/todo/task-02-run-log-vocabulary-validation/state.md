@@ -121,7 +121,7 @@ T-03 | lint-aware-retrospective | atomic-tests: green | atomic-execution: comple
   base_branch: feat/run-log-lint
   base_commit: 4e0b7f85b1eb94272caafdccc5afc3eea4062b87
   commits: f096c89 test: cover filtered lint coverage and usable metrics; a799dbc feat: report lint coverage and exclude unusable telemetry
-  pr: none
+  pr: #15 draft
   last_action: DoD met — independent lint-aware retrospective validation complete; filtered coverage, usable denominators, and physical close classification reviewed
   target_files: `workflows/retro.md`, `scripts/validate-contracts.sh`
   blocker: none
@@ -149,11 +149,32 @@ T-03 | lint-aware-retrospective | atomic-tests: green | atomic-execution: comple
          closure: orchestrated pav-close complete; return plan delta T-03 -> reviewed to sole shared-plan writer. No child composite trigger applies. No code, tests, git, shared memory, plan, historical logs, or deployment changes made by this review.
          compression: owned-block auto audit retained protected notes, TDD/git evidence, and all existing fields; no further compression needed; shared sections untouched.
 
-T-04 | vocabulary-docs-and-drift-gate | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: Discovery artifacts created
-  target_files: `rules/run-log.md`, `scripts/validate-contracts.sh`
+T-04 | vocabulary-docs-and-drift-gate | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  branch: feat/run-log-contract-gate
+  base_branch: feat/lint-aware-retrospective
+  base_commit: 7531deed32d9187912bbf616d4186925999b4f32
+  commits: 75703d6 test: cover contract documentation and bidirectional drift; 9aa0b36 feat: document the contract and reject vocabulary drift
+  pr: none
+  last_action: DoD met — independent contract documentation and bidirectional effective-runtime drift validation complete
+  target_files: `rules/run-log.md`, `scripts/validate-contracts.sh`, `docs/USAGE.md`
   blocker: none
   notes: Compares documentation with the shared effective runtime definitions.
+         tdd: contract/smoke — 3 tests, AC coverage 4/4; isolated validator group executed before implementation, all fail because --run-log-contract-only is not implemented.
+         tdd: red digest — AC-1 → test_run_log_contract_documents_effective_runtime_tables; AC-2/AC-4 → test_run_log_contract_checks_shared_definitions_and_prefix_boundary; AC-3 → test_run_log_contract_rejects_bidirectional_vocabulary_drift.
+         tdd: RED paused for orchestrator test-only commit; production files untouched.
+         implementation: canonical JSON Markdown tables compare bidirectionally with the effective runtime contract export; dedicated focused mode shares the default gate; duplicate/missing rows, values, table headers, types, and prefix boundary semantics fail by field.
+         verification: all 3 frozen focused checks pass, including exhaustive both-side mutations and real shared writer/lint enum consumption; no frozen test changes; stable full gate passed.
+         verification: final stable full suite 570 passed, 0 failed, 2 configured hygiene skips; all scripts pass bash -n; git diff --check passes; shellcheck unavailable; evidence /tmp/orchestrail-contract-gate-verified.log.
+         finalization: all four acceptance criteria pass the 3 frozen contract smoke functions; production helper, historical logs, retrospective behavior, and acceptance harness unchanged; VERSION remains 0.9.0.
+         architecture.md: return interface/count delta to orchestrator — validator now includes a structured effective runtime drift gate and --run-log-contract-only; stable count 570 with 2 configured hygiene skips. Shared architecture and plan are not written by implementer.
+         compression: own block retains protected TDD/git evidence and no stale progress; plan transition T-04 -> done returned to orchestrator under shared-file discipline.
+         validation: independent pav-check DONE; AC-1 complete human enum/alias/count/presence/default/write/lint contract matches specification; AC-2 canonical JSON tables compare with helper export and explicit prefix-boundary probes; AC-3 both-side missing/extra/modified values fail by field with nonzero status; AC-4 writes/lint share effective runtime definitions.
+         validation: all 3 frozen focused smoke functions independently pass; entire test block is byte-identical to test-only commit 75703d6, with no removed cases, weakened assertions, introduced skips, or unrecorded amendments. Tests use isolated temporary helpers and stores.
+         validation: independent extra probes reject duplicate sections, missing headers/sections/tables, invalid JSON and boolean/null/mixed-array values, empty/duplicate runtime exports, and unexpected focused arguments. Focused real gate passes; all scripts pass bash -n and git diff --check passes.
+         validation: stable full evidence /tmp/orchestrail-contract-gate-verified.log confirms 570 passed, 0 failed, 2 configured hygiene skips; default gate invokes the same comparison and preserves failure accounting. Delta contains only rule, validator, and usage wording; no helper, retrospective, historical-log, or acceptance-harness behavior changes.
+         proposals: pav-propose --batch complete — Do Now: none; Do Later: none; Optional: none. No improvements with a concrete measurable effect found.
+         closure: orchestrated pav-close complete; return plan delta T-04 -> reviewed to sole shared-plan writer. No composite trigger applies. No implementation, tests, git, shared memory, plan, historical logs, or deployment changes made by this review.
+         compression: owned-block auto audit retains all protected TDD/git evidence and current fields; no stale content requires compression and no shared sections edited.
 
 T-05 | isolated-acceptance-harness | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: Discovery artifacts created
@@ -235,7 +256,7 @@ adr: not triggered — the spec fixes the vocabulary and validation strategy, an
 - T-01: reviewed — strict producer validation and safe persistence; all independent findings repaired.
 - T-02: reviewed — read-only lint with exact record validation and honest coverage.
 - T-03: reviewed — filtered lint coverage, usable metric observations, and honest close classification.
-- T-04: not-started — vocabulary documentation and drift gate.
+- T-04: reviewed — canonical vocabulary documentation and bidirectional structured drift gate.
 - T-05: not-started — isolated acceptance harness.
 - Verification: 558 passed, 0 failed, 2 conditional hygiene skips; nine producer groups, shell syntax, and whitespace pass.
 - Run logging skipped because no configured executable shared helper was available.
@@ -280,6 +301,17 @@ recorded_paths:
 
 branch: feat/lint-aware-retrospective
 expected_parent: a799dbc094494ed3bd2a288f71c1ed035ec0d59c
+allowed_scope: listed knowledge-base paths only
+recorded_paths:
+- .ai/memory/architecture.md
+- .ai/memory/state.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/plan.md
+- .ai/tasks/todo/task-02-run-log-vocabulary-validation/state.md
+
+### Canonical contract gate
+
+branch: feat/run-log-contract-gate
+expected_parent: 9aa0b360813c4ec2aace663055c1b2127fa2e598
 allowed_scope: listed knowledge-base paths only
 recorded_paths:
 - .ai/memory/architecture.md
