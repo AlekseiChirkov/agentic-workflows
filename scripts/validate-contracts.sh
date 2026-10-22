@@ -658,7 +658,7 @@ check "ORCH: restack halts on conflict instead of auto-resolving" \
 
 # Safety rails
 check "ORCH: git add -A forbidden in git-flow" \
-  "$(grep -iE 'git add -A' rules/git-flow.md 2>/dev/null | grep -qi 'forbidden' && echo pass || echo 'git-flow.md must state git add -A is FORBIDDEN — a blanket add would commit .ai/ state onto every branch in the stack')"
+  "$(grep -iE 'git add -A' rules/git-flow.md 2>/dev/null | grep -qi 'forbidden' && echo pass || echo 'git-flow.md must state git add -A is FORBIDDEN — only intentional, authorized paths may be staged')"
 
 check "ORCH: spec-run repeats the blanket-add prohibition" \
   "$(grep -qi 'never .git add -A.\|never \`git add -A\`' workflows/spec-run.md 2>/dev/null && echo pass || echo 'spec-run.md must state explicit paths only, never git add -A')"
@@ -672,10 +672,8 @@ check "ORCH: spec-run never merges pull requests" \
 check "ORCH: git-flow forbids pushing to the base branch" \
   "$(grep -qi 'Forbidden, always' rules/git-flow.md 2>/dev/null && echo pass || echo 'git-flow.md missing absolute prohibitions table')"
 
-# Running the check is not the contract — refusing to start is. The probe survived a policy
-# downgraded from "stop" to "warn and continue", which would let pipeline state be committed.
-check "ORCH: preflight refuses when .ai/ is tracked" \
-  "$(tr '\n' ' ' < rules/git-flow.md 2>/dev/null | tr -s ' ' | grep -qE 'ls-files \.ai.{0,140}→ \*\*stop\*\*: .`?\.ai/`? is tracked' && echo pass || echo 'git-flow.md preflight probes whether .ai/ is tracked but no longer stops when it is — a blanket add would then commit pipeline state onto every branch in the stack')"
+check "ORCH: preflight accepts repository-owned tracked knowledge" \
+  "$(grep -qF 'Tracked knowledge and state are accepted' rules/git-flow.md 2>/dev/null && grep -qF 'Keep untracked consumer state excluded' rules/git-flow.md 2>/dev/null && echo pass || echo 'git-flow.md must accept tracked knowledge while keeping untracked consumer state local by default')"
 
 # Commit attribution policy
 check "ORCH: commits carry no AI authorship attribution" \
@@ -757,12 +755,12 @@ check "ORCH: PRs are promoted to ready after validation" \
 check "ORCH: RED gets its own commit" \
   "$(grep -qE '^\| .test: ' rules/git-flow.md 2>/dev/null && echo pass || echo 'git-flow.md missing the separate RED commit row — the evidence tests came first')"
 
-# Pipeline identifiers must not leak into anything committed
+# Planning identifiers stay out of product content and git metadata.
 check "ORCH: git-flow forbids pipeline identifiers in the repository" \
   "$(grep -q 'Pipeline identifiers stay out of the repository' rules/git-flow.md 2>/dev/null && echo pass || echo 'git-flow.md missing the section forbidding T-XX / spec / ADR / .ai references in committed content')"
 
-check "ORCH: the identifier ban is justified by the untracked .ai/ directory" \
-  "$(grep -qi 'dangling reference\|file that does not exist in the repository' rules/git-flow.md 2>/dev/null && echo pass || echo 'git-flow.md must explain the identifier ban as a dangling-reference problem, not a style preference')"
+check "ORCH: product content remains independent of planning records" \
+  "$(grep -qi 'dangling reference\|file that does not exist in the repository' rules/git-flow.md 2>/dev/null && echo pass || echo 'git-flow.md must explain why product content cannot depend on internal planning references')"
 
 check "ORCH: commit scope is a feature name, never a work-item id" \
   "$(grep -qi 'never a subtask, spec, or task identifier' rules/git-flow.md 2>/dev/null && echo pass || echo 'git-flow.md must forbid work-item ids as commit scope')"
@@ -832,7 +830,7 @@ for f in scripts/sync.sh scripts/setup-new-project.sh; do
 done
 
 check "ORCH: setup-new-project seeds .ai/ into .gitignore" \
-  "$(grep -q '"\.ai/"' scripts/setup-new-project.sh 2>/dev/null && echo pass || echo 'scripts/setup-new-project.sh does not add .ai/ to GITIGNORE_ENTRIES — pipeline state must never be committed')"
+  "$(grep -q '"\.ai/"' scripts/setup-new-project.sh 2>/dev/null && echo pass || echo 'scripts/setup-new-project.sh does not add .ai/ to GITIGNORE_ENTRIES — new consumers must keep local state ignored by default')"
 
 # Exercise the real per-project policy block without deploying global skills.
 test_sync_preserves_repository_knowledge_policy() (

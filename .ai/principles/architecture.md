@@ -60,9 +60,10 @@ justification. This repository applies it to itself at the `smoke` level via
 
 ### P8 — The pipeline is invisible to the repository it works on
 No subtask identifier, spec name, task directory, ADR number, `.ai/` path, workflow name,
-or tool attribution reaches a branch name, commit, code comment, or PR. `.ai/` is untracked
-in consumer projects. The traceability cost (mapping lives only in local `state.md`) is
-accepted and stated.
+or tool attribution reaches product content, a branch name, commit message, or PR.
+Knowledge records and workflow definitions may describe the process. Repository-owned
+tracking policy determines whether knowledge and state are shared; untracked consumer
+state remains local unless explicitly authorized.
 *Rationale:* a reader of the repository who never saw the pipeline must not meet dangling
 pointers.
 

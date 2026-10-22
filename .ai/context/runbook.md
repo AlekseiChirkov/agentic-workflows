@@ -93,7 +93,7 @@ Follow `.ai/principles/coding.md → Changing a contract`. Additionally:
 3. For an existing codebase run `/onboard-legacy-project` once.
 4. Multi-repo: `scripts/setup-umbrella.sh` at the root first, then `scripts/setup-all-repos.sh` or
    `scripts/setup-new-project.sh` per service.
-5. Confirm `.ai/` is in `.gitignore` and untracked: `git ls-files .ai | head -1` is empty.
+5. Respect repository-owned tracking policy. New consumers keep `.ai/` ignored by default; existing tracked knowledge is preserved and is not a preflight failure.
 
 ### Recover from a bad deploy
 - Deployed copies are disposable. Fix the source here, re-run `scripts/sync.sh`.

@@ -116,7 +116,8 @@ give different answers.
 13. A subtask ends `blocked`.
 14. The spec is multi-phase (two or more `## Phase N` markers).
 15. `--allow-pr` is passed but `gh auth status` fails at Step 7 rather than at preflight.
-16. `.ai/` is untracked but a `.gitignore` entry is missing.
+16. A repository tracks `.ai/` knowledge and state, while a consumer keeps its state
+    untracked. Verify preflight accepts both and sync preserves each tracking policy.
 17. A subtask's `target_files:` is empty when the orchestrator goes to stage the commit.
 18. The Arbiter cannot answer a class-A question with a citation.
 
