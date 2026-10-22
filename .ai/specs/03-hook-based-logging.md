@@ -164,7 +164,7 @@ This active directory is not a second historical store. After closure and a defi
   "expected_skill": "atomic-execution-tests",
   "skill_evidence": "structured-tool-call",
   "start_wall_ms": 1792656000000,
-  "start_mono_ns": 101000000000,
+  "start_mono_ns": "101000000000",
   "clock_domain": "host-boot-A",
   "status": "bound"
 }
