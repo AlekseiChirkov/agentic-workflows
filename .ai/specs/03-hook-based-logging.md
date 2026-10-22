@@ -82,20 +82,20 @@ Orchestrator ownership of shared `.ai/` remains unchanged. Correlation files are
 | ID | Requirement |
 |---|---|
 | **REQ-01** | The system **SHALL** correlate every automatically accepted step through explicit `run_id`, `session_id`, `agent_id` or `main`, `dispatch_id`, and `checkpoint_id`, never through project identity, active-run order, or timestamps alone. |
-| **REQ-02** | The adapter **SHALL** obtain `step` from a verified structured invoked-skill identifier; free-form model text **SHALL NOT** supply the name. |
+| **REQ-02** | The adapter **SHALL** obtain `step` from a verified structured invoked-skill identifier; free-form model text **SHALL NOT** supply the name. The producer **SHALL** persist `dispatch_id` and `delivery_id` as distinct fields on measured records, retaining the explicit run-to-dispatch chain after active state cleanup. |
 | **REQ-03** | The adapter **SHALL** accept `outcome` only from an unambiguous machine-readable marker bound to the checkpoint and valid under spec 02. Absence of a marker **SHALL NOT** default to `ok`. |
-| **REQ-04** | The system **SHALL** record the start boundary before step execution and the end at its correlated stop. Without a trustworthy start, measured duration **SHALL** be unavailable; `last_epoch` is not a substitute for skill start. |
-| **REQ-05** | Duplicate `Stop`/`SubagentStop` deliveries, repeated markers, or competing hook/prompt paths **SHALL NOT** create more than one accepted step for one checkpoint. |
+| **REQ-04** | The system **SHALL** capture both monotonic endpoints and a verified common clock domain, as well as wall-clock timestamps, for a measured interval. Without comparable monotonic endpoints or a trustworthy start, measured duration **SHALL** be unavailable; `last_epoch` is not a substitute for skill start. Wall-clock jumps **SHALL NOT** inflate monotonic elapsed time. |
+| **REQ-05** | Duplicate `Stop`/`SubagentStop` deliveries, repeated markers, or competing hook/prompt paths **SHALL NOT** create more than one accepted step for one checkpoint. `delivery_id` identifies a hook delivery (or a deterministic correlated fingerprint), never the dispatch; checkpoint identity, not delivery identity, enforces step deduplication. |
 | **REQ-06** | Ambiguous or absent correlation **SHALL NOT** mutate either of two concurrent runs or their metadata; the adapter **SHALL** emit safe attribution/coverage diagnostics. |
-| **REQ-07** | Active envelopes, checkpoint indices, receipts, and coverage state **SHALL** live outside the shared historical `runs/*.jsonl` store. The adapter **SHALL NOT** search that store to attribute an event. |
+| **REQ-07** | Active envelopes, checkpoint indices, receipts, and coverage state **SHALL** live outside the shared historical `runs/*.jsonl` store. The adapter **SHALL NOT** search that store to attribute an event. Accepted historical measured records **SHALL** retain `dispatch_id`, `delivery_id`, and their identity provenance after active state is removed. |
 | **REQ-08** | All spec 02 validation and no-mutation-on-invalid-input invariants **SHALL** hold before log, sequence, accepted receipt, or active metadata changes. |
 | **REQ-09** | Producer additions **SHALL** be backward compatible; legacy valid records **SHALL** remain valid under `lint`, with no new outcome values and no changes to specified legacy alias behavior. |
 | **REQ-10** | `sync.sh` **SHALL** merge only manifest-owned hook entries into user-level `~/.claude/settings.json`, preserving unrelated settings and supporting idempotent install/uninstall. |
-| **REQ-11** | Before reading the JSON payload or correlation data, the hook **SHALL** confirm that its physical current directory is within a project registered in `~/.config/orchestrail/projects`; otherwise it **SHALL** exit `0` immediately and silently. |
+| **REQ-11** | Before reading the JSON payload or correlation data, the hook **SHALL** confirm that its physical current directory is within a project registered in `~/.config/orchestrail/projects` **or** a securely verified Git linked worktree of such a project; otherwise it **SHALL** exit `0` immediately and silently. A worktree **SHALL** require trusted registered-repository membership, canonical path checks, and explicit dispatch authorization, never just `CLAUDE_PROJECT_DIR` or a matching worktree name. |
 | **REQ-12** | Recording selection **SHALL** depend on declared capability and actual per-boundary evidence. With `hooks: no`, prompt-driven recording continues and every new step includes literal `note: approximate`. `hooks: yes` alone **SHALL NOT** justify removing an unobserved step instruction. |
 | **REQ-13** | For single-session `/phase-*` runs, the adapter **MAY** recognize scoped structured skill calls on a best-effort basis. Multiple skills before one `Stop` **SHALL NOT** be treated as multiple proven completed boundaries. |
 | **REQ-14** | Before `run-end`, the orchestrator **SHALL** finalize the inventory of expected checkpoints. Missing inventory **SHALL** mean coverage unknown, never 100%. |
-| **REQ-15** | Sequential timing reports **SHALL** disclose nonoverlapping intervals, uncovered gaps, coverage, and the run-wall denominator. Nested/parallel reports **SHALL** distinguish inclusive, observed exclusive, covered union, worker sum, and overlap. |
+| **REQ-15** | Sequential timing reports **SHALL** disclose nonoverlapping intervals, uncovered gaps, coverage, and the run-wall denominator. Nested/parallel reports **SHALL** distinguish inclusive, observed exclusive, covered union, worker sum, and overlap. Elapsed step time **SHALL** use same-domain monotonic endpoints, with wall-clock discontinuities labeled independently; run wall time **SHALL** disclose its own clock reliability. |
 | **REQ-16** | Out-of-order events **SHALL NOT** create negative duration, backdate a start, or append a late step after an accepted `run-end`. |
 | **REQ-17** | Acceptance tests **SHALL** execute offline without model calls, real user registry/settings, or real historical run logs. |
 | **REQ-18** | `/retro` **SHALL** distinguish measured, approximate, unavailable, and lint-invalid observations, and disclose numerators, denominators, and exclusions. |
@@ -106,7 +106,7 @@ Orchestrator ownership of shared `.ai/` remains unchanged. Correlation files are
 
 ### 8.1. Registration and binding
 
-Following a successful prompt-driven `run-start`, and **before** work is dispatched, register a checkpoint with exact `run_id`, `session_id`, `checkpoint_id`, `dispatch_id`, real project root, expected skill, and target scope. `dispatch_id` must be an unpredictable opaque ID, **not** a timestamp. One main session may host multiple runs; the session alone can never select one without a checkpoint.
+Following a successful prompt-driven `run-start`, and **before** work is dispatched, register a checkpoint with exact `run_id`, `session_id`, `checkpoint_id`, `dispatch_id`, registered project root, **authorized execution worktree root**, expected skill, and target scope. The envelope's `project_realpath` identifies the registered main checkout; `worktree_realpath` identifies the authorized physical checkout and equals `project_realpath` when no linked worktree is used. `dispatch_id` must be an unpredictable opaque ID, **not** a timestamp. One main session may host multiple runs; the session alone can never select one without a checkpoint.
 
 Proposed commands (subcommand names become normative once implemented):
 
@@ -114,7 +114,8 @@ Proposed commands (subcommand names become normative once implemented):
 scripts/log-step-dispatch.sh prepare \
   --run 4305eda1 --session sess-A --checkpoint cp-red-001 \
   --dispatch d-6b3f9c52 --scope subagent \
-  --skill atomic-execution-tests --project "$PROJECT_ROOT"
+  --skill atomic-execution-tests --project "$PROJECT_ROOT" \
+  --worktree "$AUTHORIZED_WORKTREE_ROOT"
 
 scripts/log-step-dispatch.sh bind \
   --dispatch d-6b3f9c52 --agent agent-17
@@ -142,7 +143,7 @@ Store correlation data in owner-only directories (`0700`), for example:
     coverage.json
 ```
 
-Records must include `schema_version: 1`, all correlation IDs, canonical project root, `expected_skill`, optional `parent_checkpoint_id`, `start_wall_ms`, available `start_mono_ns` and `clock_domain`, status, provenance for identities/timestamps, and evidence of an observable boundary. Do not persist prompts, source code, tool outputs, full agent messages, credentials, or arbitrary transcript extracts. Validate ownership, identifiers, file permissions and canonical paths; reject symlinks escaping the state root. Read a transcript only from a harness-supplied path for the **already correlated** session/agent and only to the necessary bounded extent.
+Records must include `schema_version: 1`, all correlation IDs, canonical registered project root, an explicitly authorized `worktree_realpath`, `expected_skill`, optional `parent_checkpoint_id`, `start_wall_ms`, required `start_mono_ns` and verified `clock_domain` for measured steps, status, provenance for identities/timestamps, and evidence of an observable boundary. The correlated stop supplies `end_wall_ms`, `end_mono_ns` in the same clock domain, and a separate delivery identity; none can be inferred from a dispatch ID. Do not persist prompts, source code, tool outputs, full agent messages, credentials, or arbitrary transcript extracts. Validate ownership, identifiers, file permissions and canonical paths; reject symlinks escaping the state root. Read a transcript only from a harness-supplied path for the **already correlated** session/agent and only to the necessary bounded extent.
 
 This active directory is not a second historical store. After closure and a defined late-event retention window, it may be removed **after** coverage is persisted in the historical `run-end` record (or a separately specified safe historical summary). After a crash, absent receipts mean unknown coverage, not a complete run.
 
@@ -159,6 +160,7 @@ This active directory is not a second historical store. After closure and a defi
   "scope": "subagent",
   "agent_id": "agent-17",
   "project_realpath": "/synthetic/registered/project",
+  "worktree_realpath": "/synthetic/registered/project-linked-worktree",
   "expected_skill": "atomic-execution-tests",
   "skill_evidence": "structured-tool-call",
   "start_wall_ms": 1792656000000,
@@ -172,7 +174,7 @@ This active directory is not a second historical store. After closure and a defi
 
 ### 8.4. Identity and replay keys
 
-Logical event key: `(run_id, session_id, checkpoint_id)`. Track a delivered harness event separately as `(hook_event_name, agent_id|main, event_delivery_id|derived_fingerprint)`. If the harness lacks an event delivery ID, derive a deterministic fingerprint only from verified structured identities and the authenticated checkpoint report identity, never arbitrary narrative text.
+Logical accepted-step key: `(run_id, session_id, checkpoint_id)`. Persist `dispatch_id` separately to preserve its causal assignment, and persist `delivery_id` separately to identify the accepted hook delivery. For diagnostics, track a delivered harness event as `(hook_event_name, agent_id|main, delivery_id)`; `delivery_id` is either a genuine harness delivery identifier or a deterministic correlated fingerprint. If the harness lacks a delivery ID, construct the fingerprint from verified structured identities, the event type, and authenticated checkpoint report identity, never arbitrary narrative text or the dispatch ID by itself. Store `delivery_id_source: harness|derived`, use a cryptographic digest for a potentially sensitive raw delivery token, and reject conflicting reassignment of either `dispatch_id` or `checkpoint_id`. The full causal chain must be recoverable from accepted JSONL fields after ephemeral dispatch state is deleted.
 
 Each checkpoint can yield at most one accepted step across `hook` and `prompt` paths. A main-agent `Stop` must not close a subagent checkpoint. The first durably accepted outcome is final for that checkpoint; a conflicting later delivery emits a safe warning but does not replace it. Retries and continued agent work require a **new** checkpoint.
 
@@ -246,14 +248,17 @@ For fallback runs, retain any existing user note and append the **literal** text
 scripts/log-step.sh step \
   --run 4305eda1 --step atomic-execution-tests --outcome ok \
   --session-id sess-A --agent-id agent-17 \
-  --checkpoint-id cp-red-001 --event-id d-6b3f9c52 \
+  --dispatch-id d-6b3f9c52 --checkpoint-id cp-red-001 \
+  --delivery-id h-a8c314 --delivery-id-source derived \
   --started-at-ms 1792656000000 --ended-at-ms 1792656030000 \
+  --start-mono-ns 101000000000 --end-mono-ns 131000000000 \
+  --clock-domain host-boot-A \
   --measurement-source hook --outcome-source agent-report
 ```
 
-Validate new arguments as **one atomic unit**: required companion fields, strict identifier grammar, exact nonnegative decimal millisecond integers, `ended-at-ms >= started-at-ms`, compatible clock domain, envelope agreement, and allowed source enums. Never substitute current time for a missing start, convert a negative interval to zero, or use `last_epoch` as a measured start. Any incomplete or inconsistent measured set rejects the **entire** event before mutation.
+Validate new arguments as **one atomic unit**: required companion fields, strict identifier grammar, `--dispatch-id` and `--delivery-id` as **different identities**, `--delivery-id-source harness|derived`, exact nonnegative decimal wall-clock milliseconds and monotonic nanoseconds within a documented bounded integer grammar, `ended-at-ms >= started-at-ms` for an unambiguous wall timeline, `end-mono-ns >= start-mono-ns`, identical verified `clock_domain`, envelope agreement, and allowed source enums. Both monotonic endpoints and the clock domain are mandatory for `measurement-source=hook` measured durations. A wall-clock jump may produce `ended-at-ms < started-at-ms`; then mark the wall timeline unreliable rather than rejecting a valid same-domain monotonic duration, and omit any wall-derived ordering assertions. Never substitute current time for a missing start, convert a negative monotonic interval to zero, or use `last_epoch` as a measured start. Any incomplete or inconsistent required monotonic set rejects the **entire** measured event before mutation.
 
-An accepted measured record retains the existing required fields (`event`, `ts`, `seq`, `pipeline`, `flow`, `run_id`, `step`, `outcome`, `duration_s`) and adds optional `session_id`, `agent_id`, `checkpoint_id`, `event_id`, `start_ts`, `end_ts`, `duration_ms`, `measurement_source`, `outcome_source`, `timing_scope`, `parent_checkpoint_id`, and `coverage_status`. Use one documented rounding policy for compatibility: `duration_s = floor(duration_ms / 1000)`; use `duration_ms`, not rounded seconds, for exact short-span coverage calculations. Extend `lint` to check both fields and their mathematical consistency.
+An accepted measured record retains the existing required fields (`event`, `ts`, `seq`, `pipeline`, `flow`, `run_id`, `step`, `outcome`, `duration_s`) and adds conditionally required **measured-record** fields `session_id`, `agent_id`, `dispatch_id`, `checkpoint_id`, `delivery_id`, `delivery_id_source`, `start_wall_ms`, `end_wall_ms`, `start_mono_ns`, `end_mono_ns`, `clock_domain`, `duration_ms`, `measurement_source`, `outcome_source`; optional fields include `timing_scope`, `parent_checkpoint_id`, `coverage_status`, and `wall_timeline_status: consistent|skewed|unavailable`. The old ambiguous `event_id` field is **not** introduced. Compute `duration_ms = floor((end_mono_ns - start_mono_ns) / 1000000)` and `duration_s = floor((end_mono_ns - start_mono_ns) / 1000000000)` from the **same monotonic delta**. Persist both endpoints and their domain so `/retro` can verify this arithmetic after active state cleanup. Use the unrounded monotonic delta for exact interval boundaries when available, then milliseconds for legacy reporting; wall-clock differences never override it. Extend `lint` to check the new fields, their mathematical consistency and the conditional presence requirements. A wall jump produces `wall_timeline_status: skewed` and disables claims about wall-time placement, but does not invalidate otherwise comparable monotonic elapsed time.
 
 In spec 03, prefer a protected producer write path that verifies a correlated envelope/receipt when `measurement-source=hook`. The caller-supplied flag by itself does not upgrade an observation to trusted measured status.
 
@@ -261,7 +266,7 @@ In spec 03, prefer a protected producer write path that verifies a correlated en
 
 1. The hook prechecks project scope and payload. **The producer remains the final validation authority** and validates the complete supplied argument set before active metadata, accepted receipts, sequence, or history mutation.
 2. For a validated checkpoint, the **producer itself** acquires a bounded, per-run lock. `run-end` uses the same lock to serialize closure against late step events. Failure to acquire emits a warning and safely omits telemetry. Do not recursively acquire the producer's lock in its calling wrapper.
-3. Under that lock, reverify the active run, envelope, checkpoint ownership, receipt state, and absence of an accepted run close.
+3. Under that lock, reverify the active run, envelope, checkpoint ownership, dispatch identity, delivery identity/source, both monotonic endpoints with the same clock domain, authorized worktree, receipt state, and absence of an accepted run close.
 4. Reserve a once-only checkpoint key with race-safe exclusive creation (`O_EXCL` or equivalent). Competing deliveries observe `duplicate` and append nothing.
 5. Apply existing JSONL/sequence persistence checks, then mark the receipt accepted **only after** the write is confirmed. Unprovable success is `uncertain`, not accepted. Do not blindly replay a reserved key.
 6. If interrupted between reservation and acknowledgment, mark the checkpoint `uncertain` on the next attempt and report partial coverage. The hook cannot inspect historical JSONL to guess whether the append occurred.
@@ -316,13 +321,13 @@ Installation must verify the actual event names and usable fields on the target 
 
 In `hooks/log-step-hook.sh`, **before consuming stdin JSON**, running expensive tools, or reading envelopes:
 
-1. Resolve the physical working directory with `pwd -P`.
-2. Check existence/readability of the user registry `~/.config/orchestrail/projects`.
-3. Verify the physical directory equals a registered physical root or is a descendant with a **path-component boundary**, not a string-prefix coincidence.
-4. Reject any mismatch between a payload `cwd` and the selected registered project.
-5. Only then parse the hook payload and open the explicitly identified envelope.
+1. Resolve the physical hook working directory with `pwd -P`. Check that the registry `~/.config/orchestrail/projects` is present/readable. Canonicalize its registered roots, rejecting missing or untrusted paths. Do not read the hook's stdin payload or correlation envelopes yet.
+2. Fast path: permit the directory if it equals a registered physical root or is its descendant at a **path-component boundary**, never by naive string prefix.
+3. Linked-worktree path: if not on the fast path, resolve the candidate Git worktree top level and its physical path. Independently enumerate **Git's registered linked worktrees** with `git -C <trusted-registered-root> worktree list --porcelain -z` (or an equivalently machine-safe format). Require an exact canonical top-level path match in that trusted enumeration, the hook `pwd -P` to lie within that matched worktree, and an exact match between the candidate's resolved Git common directory and the trusted registered root's Git common directory. An unlisted checkout, a repository sharing a remote URL, a copied `.git` file, and a lookalike path are not authorized. Handle spaces, newlines, absent Git, malformed registry entries, and stale worktree listings by safely skipping; bound enumeration work to registered roots without scanning the filesystem.
+4. Only after either path is verified may the adapter read its bounded JSON payload. Canonicalize the payload `cwd` and require it to match the physical invocation directory (or a target-version-verified equivalent within the **same** authorized worktree). Validate that an optional `CLAUDE_PROJECT_DIR` points to the registered original root; it is a **hint**, never authority. In a linked worktree, `cwd` may name the worktree while `CLAUDE_PROJECT_DIR` names the original root; this valid difference must **not** cause rejection.
+5. After explicit envelope lookup, require `project_realpath` to equal the verified registered original root and `worktree_realpath` to equal the verified active checkout root. Reject mismatches and missing authorization before any log write. Worktree listing alone is **not** dispatch/run attribution.
 
-Reject symlink escapes and similarly prefixed sibling paths. An absent/unreadable registry or unmatched directory yields immediate silent exit `0` with no state changes or payload reads.
+Reject symlink escapes, fake/unlisted linked worktrees, and similarly prefixed sibling paths. An absent/unreadable registry or unmatched directory/worktree yields immediate silent exit `0` with no state changes or payload reads. Valid linked worktrees still need an envelope explicitly authorizing that checkout; do not treat `CLAUDE_PROJECT_DIR`, a common Git remote, or a Git common directory alone as run attribution.
 
 Bound processing time and input size with documented constants tested offline. Never read entire transcripts or fetch anything over the network. A missing dependency (for example, `python3` or JSON parser), corrupt envelope, or parse failure emits a safe warning **only after** project verification and returns `0`. Avoid stdout responses that could change hook behavior or recursively cause additional hook events.
 
@@ -356,9 +361,11 @@ For `hooks: no`, every newly produced `step` line must contain the literal `appr
 
 ### 13.1. Clock and measurement sources
 
-Prompt-driven `run-start`/`run-end` provide producer-stamped run boundaries. Measured checkpoints have distinct `start_wall_ms` and `end_wall_ms` from the envelope and correlated hook. Prefer a monotonic clock for elapsed-time arithmetic within one clock domain, retaining wall timestamps for timelines. Across devices, changed system clocks, or incomparable clock domains, measured duration is unavailable with `clock-unavailable`; silently equating clocks is forbidden.
+Prompt-driven `run-start`/`run-end` provide producer-stamped run boundaries. Each measured checkpoint **must** carry `start_wall_ms`, `end_wall_ms`, `start_mono_ns`, `end_mono_ns`, and a verified `clock_domain` identifying one comparable monotonic clock (for example, a host boot identity and clock type). The monotonic samples must be taken at the corresponding dispatch/start and correlated stop boundaries; do not use timestamps supplied by the agent's text. For a measured span, calculate elapsed duration **only** as the same-domain monotonic difference. A clock-domain mismatch, missing endpoint, or reversed monotonic endpoint makes measured timing `unavailable`, not zero or wall-derived.
 
-`duration_ms = end_ms - start_ms` only with compatible clock evidence and `end_ms >= start_ms`. `duration_s = floor(duration_ms / 1000)` is the legacy integer projection and must not be used as the numerator for short-span coverage. `wall_ms = run_end_ms - run_start_ms` applies only to a physically closed run with valid run boundaries. Elapsed observed time may include wait/scheduling; actual active model compute time is unavailable without separate signals.
+`duration_ns = end_mono_ns - start_mono_ns`, `duration_ms = floor(duration_ns / 1000000)` and `duration_s = floor(duration_ns / 1000000000)`. Preserve both raw monotonic endpoints and domain in the historical measured record. Use the monotonic delta (not independently rounded milliseconds or seconds) for overlap/gap comparisons among spans sharing that clock domain. Wall timestamps provide calendar placement only when reliable: if wall-clock movement differs from comparable monotonic movement by more than a documented tolerance (default fixture threshold **1000 ms**), label `wall_timeline_status: skewed` and omit exact wall-based placement. Even an otherwise correct monotonic duration cannot establish an exact position in a skewed wall-clock run timeline.
+
+For the **run wall** denominator, take producer-side monotonic readings at both prompt-driven boundaries when the installed runtime exposes a comparable domain, and persist `run_start_mono_ns`, `run_end_mono_ns`, `run_clock_domain`, and derived `run_wall_ms` on the accepted `run-end`. These are additive and must preserve legacy integer `run-end.duration_s` semantics; `/retro` prefers the reliable `run_wall_ms` for precise coverage ratios. When such comparable run endpoints are absent, existing producer-stamped epoch wall time is labeled `approximate` and a detected clock discontinuity makes the precise run-wall denominator `unavailable`; do not claim the 5% fixture target from unreliable wall time. Across devices/hosts or incompatible domains, the relevant difference and cross-span union are unavailable, not inferred. Observed elapsed intervals can include waiting/scheduling; active model compute time remains unavailable without a separate signal.
 
 ### 13.2. Disjoint metrics
 
@@ -381,7 +388,7 @@ Label gaps even if their combined duration is under 5%. A real sequential run wi
 
 ### 13.3. Hand-verifiable fixtures
 
-**Sequential:** `R = [0,100000)` ms; steps `[0,30000)`, `[30000,70000)`, `[70000,98000)`. Inclusive sum `98000` ms; coverage `98%`; gap `[98000,100000)` = `2000` ms; overlap `0`; difference `2%`, meeting the 5% fixture condition.
+**Sequential:** On one comparable monotonic domain, `R = [0,100000)` ms; steps `[0,30000)`, `[30000,70000)`, `[70000,98000)`. Inclusive sum `98000` ms; coverage `98%`; gap `[98000,100000)` = `2000` ms; overlap `0`; difference `2%`, meeting the 5% fixture condition. Add a forward wall-clock jump of `60000` ms during the second step: step duration stays `40000` ms from monotonic endpoints, while exact wall timeline is flagged skewed.
 
 **Nested:** Parent `[0,100000)`, child `[20000,60000)`. Parent inclusive `100 s`, child inclusive `40 s`, parent observed exclusive `60 s`. Inclusive sum `140 s` **is not** run wall `100 s`. Waiting without a distinct signal is unavailable.
 
@@ -391,7 +398,7 @@ Label gaps even if their combined duration is under 5%. A real sequential run wi
 
 ## 14. Coverage inventory, diagnostics, and retrospective
 
-Track **expected** checkpoints, not just delivered events. Each checkpoint carries minimal machine-readable status from `expected`, `observed`, `approximate`, `uncovered`, `ambiguous`, `duplicate`, `late`, `invalid`, or `uncertain`. These are **coverage metadata**, not new `step.outcome` values.
+Track **expected** checkpoints, not just delivered events. Each checkpoint carries minimal machine-readable status from `expected`, `observed`, `approximate`, `uncovered`, `ambiguous`, `duplicate`, `late`, `invalid`, or `uncertain`. These are **coverage metadata**, not new `step.outcome` values. The historical measured step retains separate `dispatch_id` and `delivery_id` fields, their delivery source, monotonic endpoints/domain, and wall timeline quality, so provenance and duration remain auditable after active metadata cleanup.
 
 At a minimum, persist the following additive object in an accepted `run-end`:
 
@@ -434,6 +441,11 @@ Emit one short warning per detected adapter problem, containing a stable code, f
 | Missing permissions, JSON parser, or other dependency | Exit `0`, safe warning, approximate/unavailable fallback |
 | Invalid `settings.json` | Preserve user bytes; hooks effectively unavailable |
 | Symlink escaping project or state root | Deny access and skip logging |
+| Valid Git-linked worktree of registered project | Verify trusted `git worktree list` membership, common Git directory, canonical `cwd`, and envelope's `worktree_realpath`; then permit |
+| Forged `CLAUDE_PROJECT_DIR` or unlisted/mismatched worktree | Never trust environment alone; immediate silent exit or coverage unavailable without mutation |
+| Missing/mismatched monotonic endpoint or domain | No measured duration, even if wall-clock times exist |
+| Wall clock jumps while monotonic clock remains stable | Persist correct monotonic elapsed duration and `wall_timeline_status: skewed`; exact wall placement unavailable |
+| Reused dispatch ID as hook delivery identity | Reject invalid identity contract; keep separate dispatch and delivery fields |
 | Crash during append/receipt update | Mark `uncertain`, never blindly append again |
 | Unsupported auxiliary hook on target version | Dependent boundary proof unavailable, never claim exact observation |
 
@@ -445,13 +457,13 @@ Use disposable `mktemp` directories and temporary `HOME`, `ORCHESTRAIL_HOME`, `O
 
 | Test | Fixture | Mandatory assertion |
 |---|---|---|
-| **T-01** | Registered/unregistered directories, path prefixes, symlinks | No reads or mutations outside registry; exit `0` |
+| **T-01** | Registered/unregistered directories, path prefixes/symlinks, valid linked worktree, unlisted worktree, copied `.git`, forged `CLAUDE_PROJECT_DIR`, and payload `cwd` differing from registered main root | Registered root and verified explicitly authorized linked worktree work; all unregistered/forged cases read no payload or mutate no log; exit `0` |
 | **T-02** | Interleaved runs A and B in one project, agents 1 and 2 | Exact run/checkpoint attribution; other run's bytes and metadata unchanged |
 | **T-03** | Foreign `run_id` in agent's final prose | Ignore text; correlate only using envelope |
 | **T-04** | Multiple active runs; no dispatch association | No automatic event; explicit attribution warning |
-| **T-05** | Duplicate `SubagentStop`, `Stop`, conflicting repeated outcome | One accepted `step`; no extra sequence/timestamp advance; duplicate diagnostic |
+| **T-05** | Duplicate `SubagentStop`, `Stop`, conflicting repeated outcome, distinct hook delivery IDs for one dispatch | One accepted `step`; no extra sequence/timestamp advance; historical record contains separate correct `dispatch_id` and accepted `delivery_id` even after active-state deletion |
 | **T-06** | Stop before start; late stop after `run-end` | No negative duration or post-close append; uncovered status |
-| **T-07** | Missing agent/session/marker/start/transcript | Correct partial/unavailable response; never mutate other run |
+| **T-07** | Missing agent/session/marker/start/transcript or either monotonic endpoint/clock domain | Correct partial/unavailable response; never mutate other run; wall-clock-only data cannot masquerade as measured |
 | **T-08** | One exact marker, two markers, `DONE` prose, bad outcome | Only a single valid strict marker is accepted |
 | **T-09** | Structured `Skill`, narrative skill mention, envelope mismatch | Structured name only; mismatch not attributed |
 | **T-10** | One skill in a main session with explicit envelope | `Stop` closes just that point; trusted source identified |
@@ -462,11 +474,11 @@ Use disposable `mktemp` directories and temporary `HOME`, `ORCHESTRAIL_HOME`, `O
 | **T-15** | Parallel agents with no common binding key | No "single pending agent" heuristic |
 | **T-16** | Parallel duplicate deliveries within a run | One receipt and one accepted sequence per checkpoint; serialized write |
 | **T-17** | Faults at reservation, append, acknowledgment, cleanup | `uncertain` where needed, at most one accepted event, exit `0` |
-| **T-18** | Invalid new step args, types, empties, duplicate flags | Spec 02 invariant: no log/`seq`/`last_epoch`/accepted-receipt mutation |
-| **T-19** | Legacy and new entries under `lint` | Backward compatibility; invalid new interval inconsistencies reported |
+| **T-18** | Invalid new step args, types, empties, duplicate flags, swapped `dispatch_id`/`delivery_id`, reversed monotonic endpoints, mismatched clock domains, and bounded integer overflow | Spec 02 invariant: no log/`seq`/`last_epoch`/accepted-receipt mutation |
+| **T-19** | Legacy and new entries under `lint`, including monotonic/wall jumps and persisted dispatch/delivery provenance | Backward compatibility; exact monotonic `duration_ms`/`duration_s` verified, missing or inconsistent new fields reported, stable duration with skewed wall timeline identified |
 | **T-20** | Reinstall/uninstall with unrelated hook entries and settings | Idempotent ownership-only edits; preserve other settings |
 | **T-21** | Corrupt settings JSON; concurrent manual settings edit | No overwrite; safe fallback |
-| **T-22** | Sequential fixture from §13.3 | 98% coverage, 2% gap, 0 overlap, within 5% |
+| **T-22** | Sequential fixture from §13.3, with comparable monotonic domains and a forward wall-clock jump | 98% coverage, 2% gap, 0 overlap, within 5% by monotonic run wall; a forward wall jump does not inflate measured elapsed time |
 | **T-23** | Nested fixture from §13.3 | Parent/child inclusive 100/40s, parent exclusive 60s, sum 140s vs wall 100s |
 | **T-24** | Parallel fixture from §13.3 | Worker sum 100s, union 50s, overlap 50s, wall 50s |
 | **T-25** | Four expected points: 2 observed, 1 approximate, 1 uncovered | 2/4 observed, `partial`; unknown inventory not called complete |
@@ -476,11 +488,11 @@ Snapshot/hash guards must verify that no test touched actual `logs/runs/`. Run t
 
 ## 17. Acceptance criteria
 
-- [ ] **AC-01 (REQ-01, 02, 03, 06, 07).** Interleaved two-run fixtures attribute by explicit envelopes. An ambiguous stop mutates neither run; invoked skill and reported outcome have verifiable sources.
+- [ ] **AC-01 (REQ-01, 02, 03, 06, 07).** Interleaved two-run fixtures attribute by explicit envelopes. An ambiguous stop mutates neither run; invoked skill and reported outcome have verifiable sources. An accepted historical step carries distinct `dispatch_id` and `delivery_id`, even after active correlation state is removed.
 - [ ] **AC-02 (REQ-05, 08, 09, 16).** Duplicates/races never produce two accepted events. Invalid data leaves `seq`, `last_epoch`, active metadata, and receipts unchanged. Late events never rewrite a closed run.
-- [ ] **AC-03 (REQ-10, 11, 19, 20).** `harness/claude/hooks.json` declares `SubagentStop` and `Stop`; the hook is inert outside registered projects; repeated installation and targeted uninstall preserve unrelated user settings.
+- [ ] **AC-03 (REQ-10, 11, 19, 20).** `harness/claude/hooks.json` declares `SubagentStop` and `Stop`; the hook is inert outside registered projects and securely validated, explicitly dispatched linked worktrees; repeated installation and targeted uninstall preserve unrelated user settings. A forged `CLAUDE_PROJECT_DIR` grants no access.
 - [ ] **AC-04 (REQ-04, 12, 13, 14).** Missing capability/payload and single-session multi-skill execution cannot report false complete coverage; every prompt fallback step includes `note: approximate`; orchestrator owns `run-start` and `run-end`.
-- [ ] **AC-05 (REQ-15, 18).** Sequential fixture reports 98% observed coverage and a labeled gap. Nested/parallel fixtures report inclusive, observed exclusive, union, worker sum, overlap, and wall time separately.
+- [ ] **AC-05 (REQ-04, 15, 18).** Sequential fixture reports 98% observed coverage and a labeled gap. Nested/parallel fixtures report inclusive, observed exclusive, union, worker sum, overlap, and wall time separately. Both monotonic endpoints and the common domain survive in measured history; a wall-clock jump does not inflate elapsed time.
 - [ ] **AC-06 (REQ-17, 19).** All offline fixtures and existing gates pass without model calls. Adapter errors always return `0` and do not access other logs.
 - [ ] **AC-07 (REQ-09, 14, 18).** `rules/run-log.md`, adapter contract, `lint`, `/retro`, and vocabulary validator agree. New run mode and coverage flags are validated; old valid rows remain valid and old histories are unchanged.
 - [ ] **AC-08 (REQ-12, 13).** Remove orchestrator per-step logging prompts **only** for boundaries demonstrably observed by fixtures. Unobserved `subtask`, `batch-gate`, `dry-run`, and internal boundaries keep approximate or uncovered treatment.
@@ -521,6 +533,9 @@ Local test-first commits are allowed under existing repository policy. This desi
 | Agent returns a syntactically correct but false outcome | Explicit `outcome_source: agent-report`; independent verification stays separate |
 | Crash between write and receipt | Prefer at-most-one accepted event and disclosed uncertainty to blind replay |
 | No shared monotonic clock across hosts | Duration unavailable, with explicit clock provenance |
+| System wall clock jumps while steps run | Monotonic endpoints determine elapsed time; wall timeline marked skewed and incompatible coverage denominators withheld |
+| Registered project uses sibling worktrees | Trust Git's linked-worktree inventory plus canonical paths and explicit per-dispatch worktree authorization; never trust `CLAUDE_PROJECT_DIR` alone |
+| Dispatch ID confused with delivered hook event identity | Distinct producer flags and persisted fields; acceptance deduplicates by run/session/checkpoint, not delivery ID |
 | Pre-/post-spec-13 skill names differ | Derive names from actual installed manifest, never invented aliases |
 | User-level settings are shared and user-owned | Ownership manifest, exact structural merge/removal, atomic write |
 | Retrospective confuses overlapping duration metrics | Distinct denominators and coverage, never sum overlapping spans as wall time |
@@ -530,9 +545,10 @@ Local test-first commits are allowed under existing repository policy. This desi
 These are **technical prerequisites to verify**, not permission to guess:
 
 1. Verify the installed Claude Code version and actual structured fields available for `Skill`, subagent startup, and binding a dispatch result to `agent_id`. Until proven, declare only partial coverage; fixture input supplies identities explicitly.
-2. Once spec 13 lands, enumerate deployed skill names from its actual manifest. Build the boundary map from that state, not from historical names in the present repository.
+2. Once spec 13 lands, enumerate deployed skill names from its actual manifest. Build the boundary map from that state, not from historical names in the present repository. Verify registered linked-worktree enumeration, canonical worktree roots, and matching dispatch envelope scopes under both sequential and `--parallel` operation.
 3. Reconcile the phrase "only `/retro` reads the shared log store" with the existing producer that reads its own file for append checking and digest generation. This spec prohibits **attribution/analytics reads** by the hook or live workflows while preserving existing producer operations. A literal no-read-anywhere interpretation requires a separate compatible digest decision.
 4. Coverage is persisted in the accepted closing `run-end` via `--coverage-from-dispatch`. A run without an accepted close therefore has no proven final inventory; `/retro` must say so. A separate live-incomplete-run coverage interface, if needed, requires an additive contract and must not be silently improvised.
+5. Specify monotonic clock acquisition for the supported operating systems and test that `clock_domain` denotes a genuinely shared monotonic timescale; absence of both comparable ends disables measured duration. Store independent producer-side run-boundary monotonic evidence if precise run wall coverage is claimed.
 
 **Readiness:** requirements, source evidence, per-boundary coverage, safe degradation, and model-free tests are specified. Implementation is gated by spec 13 and demonstrated identity binding on the target harness. No paid model execution is needed for the offline acceptance suite.
 
