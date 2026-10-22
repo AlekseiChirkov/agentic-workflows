@@ -20,10 +20,12 @@ proceed on a partial pass.
 
 1. `WORK_DIR` is a git repository (`git rev-parse --git-dir` succeeds).
 2. The working tree is clean — no staged, unstaged, or conflicted **tracked** changes.
-   Untracked files are permitted (`.ai/` is expected to be untracked, see below).
-3. `.ai/` is **not tracked**: `git ls-files .ai | head -1` returns nothing. If it returns
-   anything → **stop**: "`.ai/` is tracked in this repository. Pipeline state must never be
-   committed. Add `.ai/` to `.gitignore` and `git rm -r --cached .ai` before running."
+   Untracked files are permitted.
+3. **Respect repository-owned `.ai/` tracking policy.** Inspect `git ls-files .ai` and
+   repository instructions. Tracked knowledge and state are accepted; their presence is
+   not a preflight failure. Keep untracked consumer state excluded from commits unless
+   the user explicitly authorizes tracking it. Never require removing tracked knowledge
+   or changing the repository's ignore policy to start a run.
 4. The base branch exists and is checked out or resolvable.
 5. No existing branch collides with a branch this run would create — unless this is a resume
    (the branch is recorded in `state.md → branch:` for that T-XX).
@@ -126,9 +128,10 @@ bodies — see below.
 
 ### Pipeline identifiers stay out of the repository
 
-Nothing committed to the repository — commit messages, code, comments, docstrings, test
-names, configuration, documentation, branch names, or pull request text — may reference the
-pipeline's internal artifacts. Forbidden:
+Commit messages, product code, comments, docstrings, test names, configuration, product
+documentation, branch names, and pull request text must not reference internal planning
+artifacts. Knowledge-base records and workflow definitions may use the identifiers and paths
+needed to describe the process. Forbidden in product content and git metadata:
 
 - Subtask identifiers: `T-01`, `T-04b`, `T-09-fix-<slug>`, or any `T-NN` form
 - Spec identifiers: `spec-01`, `01-add-oauth`, or the spec file name
@@ -137,28 +140,29 @@ pipeline's internal artifacts. Forbidden:
   `plan.md`, `progress.md`, `project_state.md`, or any path under `.ai/`
 - Workflow and role names: `pae-implement`, `pav-check`, `spec-run`, `RED`, `Implementer`
 
-**Why this is a correctness rule, not a style preference.** `.ai/` is never committed. A code
-comment reading `// see ADR-0007` or `// per state.md` is a pointer to a file that does not
-exist in the repository — a dangling reference for every reader who was not present when it
-was written. If a decision matters to someone reading the code, state the decision itself in
-the code, not a citation of where it was recorded.
+**Why this is a correctness rule, not a style preference.** An internal planning reference
+can be a dangling reference when the knowledge base is local or no longer contains the
+original artifact. Product content must explain the decision itself so readers can understand
+it independently of the planning record. This remains true when the repository tracks its
+knowledge base.
 
 Permitted instead: feature and module names, the branch name, and a plain description of what
 changed and why.
 
-**Traceability trade-off, stated openly:** the mapping from a commit back to its subtask lives
-only in the untracked `state.md → branch:` field. It is available on the machine that ran the
-task and nowhere else. That is the deliberate cost of keeping the pipeline invisible to the
-repository.
+**Traceability:** the mapping from a commit back to its subtask lives in
+`state.md → branch:`. Its availability to collaborators follows the repository's tracking
+policy; it does not belong in commit or pull request text.
 
 **Staging — never blanket-add.** `git add -A`, `git add .`, `git add --all`, and
 `git commit -a` are **forbidden**. Stage an explicit path list, derived from
-`## Subtask Progress → target_files:` for the current T-XX. Rationale: pipeline state in
-`.ai/` is untracked-by-policy, and one blanket add would commit it, putting a divergent copy
-of `state.md` on every branch in the stack — the exact failure this design exists to avoid.
+`## Subtask Progress → target_files:` for the current T-XX, plus reviewed knowledge and state
+updates allowed by the repository's tracking policy. A blanket add can publish unrelated
+changes or local state that the repository has not chosen to track.
 
-Before each commit, verify no path under `.ai/` is staged. If any is → unstage it and record
-the incident in the subtask's `notes:`.
+Before each commit, inspect the staged paths and diff. Include `.ai/` paths only when they
+are intentional changes to tracked knowledge or state, or the user has explicitly authorized
+tracking them. Unstage unrelated or unauthorized paths and record the incident in the
+subtask's `notes:`. Preserve untracked consumer state as local-only by default.
 
 ---
 

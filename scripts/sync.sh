@@ -247,15 +247,14 @@ for devin_dir in $(find "$HOME" -maxdepth 6 -type d -name ".devin" \
     fi
   done
 
-  # 5. Ensure .ai/ is never committed (pipeline state is local-only by contract)
+  # 5. Preserve tracked knowledge; ignore untracked consumer state by default.
   if [ -d "$project_dir/.git" ]; then
     gi="$project_dir/.gitignore"
-    if ! grep -qE '^\.ai/?$' "$gi" 2>/dev/null; then
+    if [ -n "$(git -C "$project_dir" ls-files .ai 2>/dev/null | head -1)" ]; then
+      echo "    .ai/: preserving repository-owned tracking policy"
+    elif ! grep -qE '^\.ai/?$' "$gi" 2>/dev/null; then
       echo ".ai/" >> "$gi"
       echo "    .gitignore: added .ai/"
-    fi
-    if [ -n "$(git -C "$project_dir" ls-files .ai 2>/dev/null | head -1)" ]; then
-      echo "    WARNING: .ai/ is TRACKED in this repo — run: git -C '$project_dir' rm -r --cached .ai"
     fi
   fi
 
