@@ -834,8 +834,42 @@ done
 check "ORCH: setup-new-project seeds .ai/ into .gitignore" \
   "$(grep -q '"\.ai/"' scripts/setup-new-project.sh 2>/dev/null && echo pass || echo 'scripts/setup-new-project.sh does not add .ai/ to GITIGNORE_ENTRIES — pipeline state must never be committed')"
 
-check "ORCH: scripts/sync.sh backfills .ai/ into existing .gitignore" \
-  "$(grep -q 'added \.ai/' scripts/sync.sh 2>/dev/null && echo pass || echo 'scripts/sync.sh does not backfill .ai/ into existing project .gitignore files')"
+# Exercise the real per-project policy block without deploying global skills.
+test_sync_preserves_repository_knowledge_policy() (
+  local fixture project_dir policy output mode
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/knowledge-policy.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  policy="$(sed -n '/^  # 5\./,/^  PROJECTS_UPDATED=/p' scripts/sync.sh | sed '$d')"
+  [ -n "$policy" ] || return 1
+  for mode in tracked untracked; do
+    project_dir="$fixture/$mode"
+    mkdir -p "$project_dir/.ai" || return 1
+    git -C "$project_dir" init -q || return 1
+    printf '%s\n' 'Knowledge fixture' > "$project_dir/.ai/README.md"
+    printf '%s\n' 'local-cache/' > "$project_dir/.gitignore"
+    if [ "$mode" = tracked ]; then
+      git -C "$project_dir" add -- .ai/README.md || return 1
+    fi
+    output="$(eval "$policy")" || return 1
+    if [ "$mode" = tracked ]; then
+      cmp -s "$project_dir/.gitignore" <(printf '%s\n' 'local-cache/') || {
+        echo 'Sync changed ignore policy for tracked knowledge'; return 1;
+      }
+      if grep -q 'rm -r --cached' <<< "$output"; then
+        echo 'Sync tells a tracked knowledge repository to remove its files'; return 1
+      fi
+    else
+      grep -qxF '.ai/' "$project_dir/.gitignore" || {
+        echo 'Sync no longer supplies the ignore default for untracked state'; return 1;
+      }
+    fi
+    eval "$policy" >/dev/null || return 1
+    [ "$(grep -cxF '.ai/' "$project_dir/.gitignore")" -le 1 ] || return 1
+  done
+)
+
+check "ORCH: sync preserves tracked knowledge and ignores untracked state by default" \
+  "$(test_sync_preserves_repository_knowledge_policy && echo pass || echo 'sync must retain repository-owned tracking policy and idempotently ignore untracked consumer state')"
 
 # ── Group 19: Cross-file reference integrity ─────────────────────────
 # The reference tables were moved from workflow-globals to workflow-reference; ten workflows
