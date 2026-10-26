@@ -13,6 +13,9 @@ You are executing the **phase-pipeline** — a fully autonomous pipeline that ru
 This pipeline writes a run log. Follow the **`run-log`** rule in full — it defines the
 store, the field vocabulary, and the rule that logging never blocks a run.
 
+Apply `run-log → ## Workflow coverage and routing` at each boundary. Keep internal
+step logging instructions and add `--note approximate` to every ordinary prompt step.
+
 At Step 0, open **one** run for the whole pipeline:
 
 Open the run with `scripts/log-step.sh run-start` through the configured helper:
@@ -30,7 +33,7 @@ Do not open a second run when this pipeline invokes `/phase-discovery`,
 `/phase-execution`, or `/phase-validation` — pass `RUN_ID` down and keep every step in one
 file, so a pipeline run reads as a single timeline. Log a `step` line for each child
 workflow, and additionally one line per **pipeline override actually exercised**
-(`--step override:pv-issues --decisions 1`), because the whole point of measuring this
+(`--step override:pv-issues --decisions 1 --note approximate`), because the whole point of measuring this
 pipeline is learning which overrides fire and what they cost. Close with `run-end
 --outcome completed`, or `--outcome stopped` naming the declared stop that ended it.
 

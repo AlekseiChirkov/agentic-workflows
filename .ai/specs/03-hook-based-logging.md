@@ -350,6 +350,34 @@ intent in REQ-01 through REQ-05.
 
 ### Timing definitions
 
+- Resolve all recognizable start/end candidates before choosing a timing pair. Each
+  event kind must reduce to one usable normalized boundary; never choose first,
+  last or by sequence. Collapse duplicate copies only when `ts_ms` and all
+  substantive fields/presence agree, ignoring only generated `seq` and human-readable
+  `ts` variations and disclosing those variations/counts. Different close outcomes,
+  durations or context conflict even at the same endpoint.
+- Recognizable but unusable boundary rows, including lint-rejected boundaries or
+  missing/invalid `ts_ms`, supply exclusion-only evidence. They cannot provide an
+  endpoint or default metadata, and another valid copy does not erase their ambiguity.
+  Such a file has unavailable timing metrics; a physical unusable close is not proof
+  of abandonment. Unparseable rows cannot establish an event kind.
+- Inherited `pipeline`, `project`, `task` and `flow` come from the usable start and
+  must match end and candidate timing steps by presence and exact string value.
+  Producer lint supplies required field/flow eligibility; present optional project/task
+  labels must also be strings for timing attribution. Both boundaries may omit these
+  historical optional labels, leaving them unknown without a synthetic group/default.
+  A boundary mismatch invalidates the denominator; a step mismatch excludes its
+  checkpoint and dependent component. Omitted task differs from present empty task.
+- `spec`, `flags`, `contract_version` and `host` are start-only metadata. Preserve them
+  in duplicate-start equality; do not require them on other event kinds or infer a
+  current version. Recurrence elsewhere is opaque per-event metadata, never an
+  inheritance guarantee or an override of the start's labels.
+- Substantive JSON equality ignores object key order, preserves array order and
+  presence, and distinguishes booleans, numbers, strings and null. Finite numbers
+  compare by exact mathematical value (`1`, `1.0`, `1e0` agree, as do negative and
+  positive zero); strings never numeric-coerce. This applies to opaque extensions
+  without permitting otherwise lint-ineligible numbers. Avoid binary floats and
+  context-rounded Decimal arithmetic when normalizing comparisons.
 - Spans are half-open integer millisecond intervals `[start_ms,end_ms)`. A span must be
   fully within its run's valid `[run_start.ts_ms,run_end.ts_ms)` interval to contribute
   timing metrics; invalid or out-of-run spans are excluded and disclosed.
@@ -376,6 +404,12 @@ intent in REQ-01 through REQ-05.
 - A fully covered sequential fixture has no overlaps and differs from run wall time by
   at most five percent; any remaining gaps are listed. Approximate legacy/prompt events
   remain labelled approximate and do not acquire synthetic millisecond intervals.
+- Explicit approximation notes are exactly `approximate` or begin with the literal
+  case-sensitive prefix `approximate; `, preserving a short contextual clause or
+  producer provenance. Do not trim, case-fold or use substring matching; preserve
+  stored note bytes and never print note contents in timing diagnostics. Missing or
+  nonmatching markers do not establish precision: legacy/prompt observations still
+  have no measured hook interval.
 - Valid `step:"unknown"` session intervals contribute to observed run coverage but are
   excluded from named workflow-step timing summaries.
 - Checkpoints are unique by `(run_id,session_id,checkpoint_id)`, including across
@@ -411,6 +445,18 @@ intent in REQ-01 through REQ-05.
   exclusive/worker/active-exclusive/parallel metrics null. Parseable rejected legacy
   rows without correlation fields do not hide graph edges. Complete lint coverage
   and graph coverage are distinct; raw eligible interval metrics may remain available.
+- Fetch this checkout's `log-step.sh contract` once for the negative-evidence identity
+  pattern and correlation-field list, rather than copying producer vocabulary. Require
+  an unambiguous usable export. Rejected-row graph keys require the file's exact run
+  identity, full-match session/checkpoint strings and a full-match parent when present.
+  Ambiguous identity-bearing JSON keys cannot establish safe dependency scope.
+  Tombstones never supply actor, result, count or endpoint measurements.
+- Worker and named-step rosters derive only from individually eligible, nonconflicting
+  timing observations. Rejected-only, conflicting-only and out-of-run-only actors do
+  not create measured groups. Valid interval actors in quarantined components may
+  report unavailable worker duration. If no work component is eligible for exclusive
+  arithmetic, report unavailable rather than a plausible zero; genuine eligible
+  zero-length spans and observations with no work remain distinguishable.
 - Containment uses endpoint inequalities, including zero-length children at a
   parent's end. A zero-length parent contains only zero-length children at that same
   instant. Zero-length spans at run end are valid and measure zero; self-parenting

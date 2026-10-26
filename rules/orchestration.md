@@ -70,6 +70,13 @@ Receives: the path to one `T-XX/description.md`, the resolved `WORK_DIR`, and th
 is on. Loads `.ai/` context itself per the standalone-invocation rule. Receives **no**
 transcript from previous subtasks — the parent `state.md` is the handoff.
 
+The existing RED return may carry the provisional dispatch envelope supplied by
+`/spec-run → ## Step 4 → 4.2`. Return the canonical final marker only for an actual
+RED return, following `run-log → ## Workflow coverage and routing` and its native
+evidence contract. The Orchestrator resolves that checkpoint before its git handoff;
+the worker still owns no producer call. This adds no worker, pause or skill batch.
+Apply the same canonical rule to GREEN and validation returns and to Arbiter work.
+
 ### Validator
 
 A **separate agent** with no memory of how the implementation was produced. Runs

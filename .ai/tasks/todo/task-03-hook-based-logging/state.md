@@ -234,11 +234,35 @@ T-03 | Owned user hook installation | atomic-tests: green | atomic-execution: co
   commits: 94843ed7e3fd5285639f6a0e6074a7af89ba0d4f test(hooks): define owned installation and recovery, f7c673efcb90803b4915cd37deede4ac18383819 feat(hooks): install and recover owned user hooks, 3a3130c1413d0864b30d560e0366067f21f2404e test(hooks): cover interpreter support and Python standards, 2ec642806e1700eaa409af44704b291e6f629f53 fix(hooks): guard Python support and type installer transactions
   pr: #25 draft
 
-T-04 | Coverage-aware workflow logging | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: discovery complete
-  target_files:
+T-04 | Coverage-aware workflow logging | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: pav-close complete — DoD met; all three acceptance criteria independently verified with no critical or important findings
+  target_files: tests/hook-workflow-contract.sh, scripts/validate-contracts.sh, rules/run-log.md, rules/orchestration.md, workflows/spec-run.md, workflows/phase-pipeline.md, workflows/phase-discovery.md, workflows/phase-execution.md, workflows/phase-validation.md
   blocker: none
-  notes: tdd: integration and contract fixtures required before implementation
+  notes: tdd: integration + contract — three aggregate tests, AC coverage 3/3; documentation assertions supply RED; real public adapter/producer fixtures supply existing runtime regression evidence, not live model compliance
+         tdd: red digest — AC-1 → test_unavailable_hooks_keep_every_prompt_step_approximate; AC-2 → test_batches_and_absent_red_do_not_claim_named_coverage; AC-3 → test_dispatch_report_status_preserve_one_delivery_route
+         initial RED observation: bash scripts/validate-contracts.sh --hook-workflow-only; three tests failed only on missing workflow/rule integration before product edits; isolated native/session/config/state/project/log fixtures
+         added paths: tests/hook-workflow-contract.sh; scripts/validate-contracts.sh refined as a test runner target; no product controller
+         edge coverage: no envelope and unknown resume; accepted/pending/delivering lost receipt; fallback/fallback-attempted and failed ordinary persistence; wrong/missing status; missing private state; multiple/duplicate/wrapper Skills; none/no-RED; session unknown and missing native session
+         tdd: test amended — test_dispatch_report_status_preserve_one_delivery_route — owner-approved additive malformed receipt sequence coverage exposes a test-only controller predicate defect: it matched kind and identity but omitted positive bounded integer seq validation; all original assertions retained
+         tdd: receipt red digest — AC-3 → malformed_receipt_status: absent, zero, boolean, negative, fractional, string and over-runtime-maximum sequence on fresh real pending checkpoints; malformed observed zero sequence against accepted private state must not duplicate persistence; eight subcases fail before predicate correction
+         tdd: fixture repair — valid_receipt requires kind/tuple and type(seq) is int with 0 < seq <= maximum from public runtime contract; new malformed cases run after the original accepted-route counter baseline; every existing assertion retained
+         test fixture hashes: original cd4e34b60b7556dad1b1d08cf40ee0dfb85f64ef044924da632c53499c033945; receipt RED b34b7f7723143dc0ab724c6f8c98661ebc95cc45954e2e8b740b5d86e7517073; receipt GREEN ed29fc5f24fe6b057c5549d3a3d1d644ae9d1b209f736e3930dbc9a94c0eed6c; runner unchanged bd5f1f75765d72216c2316f61522c6ba40745f010c1f6feb2280480c87ef3ead
+
+         verification: three acceptance aggregates green (7.292 s), canonical run-log contract pass, full stable gate 589 passed / 0 failed / 2 configured hygiene skips; Bash syntax and embedded Python compile/annotations/helper limits pass; ShellCheck unavailable; whitespace clean; no deployment or historical-store reads
+         regression recovery: first full run canceled after the legacy writer-ownership phrase check failed; restored literal sub-agent never calls in product instructions, then one stable full run passed
+         architecture delta returned to Orchestrator: document canonical workflow coverage/routing and isolated workflow acceptance; no new executable product module or schema
+         finalization delta returned to Orchestrator: set this subtask plan status to done; validation remains not-started pending independent review; compressed only this leaf block and preserved every tdd digest/hash/git field
+         independent validation: AC-1 met by ordinary approximate-note/run-boundary assertions and unavailable-session fixtures; AC-2 met by native batch/duplicate/wrapper/unknown/absent-RED fixtures and retained internal approximate instructions; AC-3 met by concrete native-user dispatch/final report wiring, exact tuple/receipt checks and serialized one-route fixtures
+         independent TDD audit: immutable-base RED reproduced with all three aggregate tests failing on missing integration; original 45 assertions retained and seven added; all recorded fixture hashes match; receipt predicate amendment is documented and additive; no skipped, vacuous replacement or weakened frozen assertion found
+         independent verification: focused workflow gate 3 passed (7.075 s); canonical run-log contract passed; task gate 17 passed / 0 failed / 2 skips; one stable isolated full gate 589 passed / 0 failed / 2 configured hygiene skips; Bash syntax, in-memory Python compilation, annotations and function limits passed; ShellCheck unavailable; reviewed product remained unchanged
+         independent scope audit: explicit native evidence, canonical receipt sequence, missing/unknown resume and private-state handling conform; new heading targets resolve; no executable product controller, fabricated native retry or model timestamp introduced; synthetic composition and documentation assertions establish no live model compliance or live event-firing claim
+         batch improvement review: no concrete Do Now, Do Later or Optional proposals found; nothing applied
+         close delta returned to Orchestrator: set this subtask plan status to reviewed; compression audit kept the current leaf block and preserved all protected notes, test digests, target files and git fields; no composite trigger applies
+  branch: feat/coverage-aware-workflow-logging
+  base_branch: feat/user-hook-installation
+  base_commit: 4cf5c515d11b5730090923647e1def2d52129095
+  commits: 530b7b8a757d250ba42c640b1476fec830c56414 test(logging): define workflow checkpoint routing, 35ed85f53dbc8f9ea52642f8051346cb90c37f08 test(logging): reject malformed workflow acceptance receipts, c6c7f89dd9dbf61c74a6e900819389a8aa27744e feat(logging): route workflow checkpoints by accepted coverage
+  pr: #26 draft
 
 T-05 | Honest timing and end-to-end evidence | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: discovery complete
@@ -299,6 +323,17 @@ recorded_paths:
 
 branch: feat/hook-event-adapter
 expected_parent: b17ca232dbde31705a0b375890348059451be336
+allowed_scope: exactly the listed knowledge-base paths
+recorded_paths:
+- .ai/memory/architecture.md
+- .ai/specs/03-hook-based-logging.md
+- .ai/tasks/todo/task-03-hook-based-logging/plan.md
+- .ai/tasks/todo/task-03-hook-based-logging/state.md
+
+### Reviewed workflow coverage integration
+
+branch: feat/coverage-aware-workflow-logging
+expected_parent: c6c7f89dd9dbf61c74a6e900819389a8aa27744e
 allowed_scope: exactly the listed knowledge-base paths
 recorded_paths:
 - .ai/memory/architecture.md

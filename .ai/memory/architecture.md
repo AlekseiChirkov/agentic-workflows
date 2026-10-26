@@ -8,9 +8,10 @@ surface changes.
 
 ## Overview
 
-Orchestrail is a **file-based specification of an AI-assisted SDLC**. There is no
-runtime: every behaviour is an instruction that an LLM agent (Claude Code, Codex, or
-Windsurf/Devin) reads and follows. The repository is the single source of truth;
+Orchestrail is a **file-based specification of an AI-assisted SDLC**. Core workflow
+behaviour lives in instructions that an LLM agent (Claude Code, Codex, or
+Windsurf/Devin) reads and follows. Small local helpers provide validation, deployment
+and telemetry, including the Python installer engine. The repository is the single source of truth;
 `scripts/sync.sh` copies it into each harness's global configuration, and
 `scripts/setup-new-project.sh` seeds a target project with a `CLAUDE.md`/`AGENTS.md`, rule
 copies, skill symlinks, and a `.ai/` knowledge base. A task then moves through three
@@ -18,8 +19,8 @@ phases — Discovery, Execution, Validation — with all progress persisted in t
 project's `.ai/tasks/…/state.md`, and every orchestrated run appends telemetry to a
 central log store that `/retro` reads.
 
-Size at the time of writing: 38 workflows, 14 rules, 4 principles, and 8 shell scripts under `scripts/`,
-≈76 000 words of instructions with automated consistency and smoke checks.
+Current inventory: 38 workflows, 14 rules, 4 principles, 9 shell scripts and one Python
+engine under `scripts/`, with automated consistency and smoke checks.
 
 ## Components
 
@@ -36,7 +37,7 @@ prefix (five basenames collide with workflows). Key files:
 | `git-flow.md` | preflight, stacked branch model, two-commit rule, no-attribution rule, pipeline identifiers out of the repo, safety rails, recorded git fields |
 | `orchestration.md` | four roles (Orchestrator, Arbiter, Implementer, Validator), shared-file discipline (one writer per shared file), class A/B escalation, Discovery batch gate |
 | `quick-flow.md` | four-condition gate, what quick skips and still mandates, mid-flight promotion |
-| `run-log.md` | log store, three `scripts/log-step.sh` calls, field vocabulary, never-block rule |
+| `run-log.md` | log store, three `scripts/log-step.sh` calls, field vocabulary, never-block rule, canonical per-boundary capability/evidence routing and receipt-confirmed suppression; unobserved prompt boundaries remain approximate |
 | `language.md` | English in every project file |
 | `phase-*.md` (5) | per-phase Context Bootstrap (which `.ai/` files to load and in what order), Blocker Reconciliation |
 | `global-claude.md` | the content of `~/.claude/CLAUDE.md` — always-on essentials for Claude Code |
@@ -96,6 +97,8 @@ Project setup is the sole writer of the XDG configuration project registry. It r
 `tests/log-step-hook.sh` exercises native input, explicit dispatch correlation, exact report markers, bounded transcript evidence, private state and competing delivery routes in disposable home/config/state/project/log roots. Run it through `bash scripts/validate-contracts.sh --hook-adapter-only`; the default validator includes the same acceptance suite.
 
 `tests/hook-install.sh` covers owned installation/removal, lossless numeric settings, multiset quotas, malformed inputs, concurrent registration, interrupted replacement recovery and isolated multi-harness sync. The focused `--hook-install-only` mode and default validator run the same lifecycle acceptance suite without real-home deployment.
+
+`tests/hook-workflow-contract.sh` combines instruction-contract assertions with isolated public adapter/producer composition. The focused `--hook-workflow-only` mode and default validator check one-route delivery, canonical receipts, approximate unobserved boundaries and the existing test-definition return's dispatch/report handoff. These are synthetic fixtures; they do not claim live model compliance or event firing. The same worker, return points and GREEN/validation batches remain intact.
 
 ### Layer 6 — `logs/` (central telemetry store)
 `logs/runs/<ts>-<pipeline>-<id>.jsonl` + `.md` digest, `.active/` for open runs.
