@@ -589,6 +589,62 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
             self.assertIn('invalid-correlation', result.stderr)
             self.assertEqual(before, self.snapshot())
 
+    def test_hook_report_short_fence_candidates_keep_marker_in_code(self):
+        for delimiter, opening, candidate in [('`',4,3),('~',4,3),('`',5,4),('~',5,3)]:
+            with self.subTest(delimiter=delimiter, opening=opening, candidate=candidate):
+                identity, line = self.dispatch()
+                report = '\n'.join([delimiter * opening, delimiter * candidate,
+                                    self.report(identity, tests='red'), delimiter * opening])
+                self.rejected(identity, self.payload(identity, line, report=report))
+
+    def test_hook_report_nonclosing_fence_suffixes_and_tabs_keep_marker_in_code(self):
+        for delimiter in ('`','~'):
+            for candidate in (delimiter * 4 + ' trailing', delimiter * 4 + ('~' if delimiter == '`' else '`'),
+                              '\t' + delimiter * 4, '  \t' + delimiter * 4):
+                with self.subTest(delimiter=delimiter, candidate=candidate):
+                    identity, line = self.dispatch()
+                    report = '\n'.join([delimiter * 4, candidate,
+                                        self.report(identity, tests='red'), delimiter * 4])
+                    self.rejected(identity, self.payload(identity, line, report=report))
+
+    def test_hook_report_real_matching_or_longer_closers_allow_outside_marker(self):
+        for delimiter in ('`','~'):
+            for closing in (delimiter * 4, '   ' + delimiter * 6 + ' \t'):
+                with self.subTest(delimiter=delimiter, closing=closing):
+                    identity, line = self.dispatch()
+                    report = '\n'.join([delimiter * 4 + ' example', delimiter * 3,
+                                        'ordinary code', closing, self.report(identity, tests='red')])
+                    self.deliver(self.payload(identity, line, report=report))
+                    self.assertEqual(self.status(identity)['state'], 'accepted')
+                    self.assertEqual(self.events(identity['run_id'])[-1]['checkpoint_id'], identity['checkpoint_id'])
+
+    def test_hook_report_openers_respect_indentation_and_info_string_syntax(self):
+        cases = [('    ```python', False), ('\t~~~ example', False), ('  \t```', False),
+                 ('```invalid`info', False), ('   ```python', True), ('   ~~~any`info', True)]
+        for opener, fenced in cases:
+            with self.subTest(opener=opener, fenced=fenced):
+                identity, line = self.dispatch()
+                report = opener + '\n' + self.report(identity, tests='red')
+                data = self.payload(identity, line, report=report)
+                if fenced:
+                    self.rejected(identity, data)
+                else:
+                    self.deliver(data)
+                    self.assertEqual(self.status(identity)['state'], 'accepted')
+                    self.assertEqual(self.events(identity['run_id'])[-1]['checkpoint_id'], identity['checkpoint_id'])
+
+    def test_hook_report_line_separators_preserve_fence_and_marker_boundaries(self):
+        for separator in ('\r\n','\r'):
+            for delimiter in ('`','~'):
+                with self.subTest(separator=repr(separator), delimiter=delimiter):
+                    identity, line = self.dispatch()
+                    report = separator.join([delimiter * 4 + ' example', delimiter * 3,
+                                             'ordinary code', delimiter * 4,
+                                             self.report(identity, tests='red'), ''])
+                    self.deliver(self.payload(identity, line, report=report))
+                    self.assertEqual(self.status(identity)['state'], 'accepted')
+                    self.assertEqual(self.events(identity['run_id'])[-1]['checkpoint_id'], identity['checkpoint_id'])
+
     def test_hook_documented_dispatch_marker_and_ownership_contract(self):
         rule = (SOURCE / 'rules' / 'run-log.md').read_text()
         for token in ('ORCHESTRAIL_DISPATCH_V1', 'ORCHESTRAIL_REPORT_V1', 'last_assistant_message',
