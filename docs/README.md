@@ -5,7 +5,8 @@ Everything here is *about* the system; the system itself is `workflows/`, `rules
 `.ai/principles/coding.md → Document placement`.
 
 ## Manuals
-- [USAGE.md](USAGE.md) — operating manual: setup, project initialisation, daily workflow, command reference, status formats
+- [USAGE.md](USAGE.md) — operating manual: setup, project initialisation, daily workflow, command reference, status formats, hook coverage and exact retrospective timing
+- [Repository scripts](../scripts/README.md#exact-run-timing) — explicit-file timing invocation, dependencies and output semantics
 - [SPEC-RUN-QUICKSTART.md](SPEC-RUN-QUICKSTART.md) — operating procedure for `/spec-run`
 
 ## Audits (`audits/`)
