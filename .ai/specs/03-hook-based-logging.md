@@ -95,6 +95,23 @@ measurements. Remove step prompts only for boundaries demonstrably observed by h
 These choices make the accepted behavior executable. They do not change the product
 intent in REQ-01 through REQ-05.
 
+### Producer acceptance and private metadata
+
+- Validate cached acceptance as one complete JSON object with matching argument
+  object and a raw canonical positive sequence bounded by `9007199254740991`.
+  Malformed cache produces a safe diagnostic, no receipt and no storage mutation;
+  historical lint's mathematical integer compatibility remains unchanged.
+- Reject literal NUL in active metadata before Bash line reading can discard it.
+  This invalidates the active file before explicit lookup or delivery routing;
+  ordinary percent text, including literal `%00`, keeps its existing meaning.
+- Active metadata carrying correlation stays mode `0600` across every writer,
+  including subsequent ordinary steps. Establish private permissions before creating
+  a temporary replacement; event-log permissions and ordinary optional-jq support
+  remain unchanged.
+- A newly accepted correlated step retains the canonical advisory for an arbitrary
+  unrecognized step name. Intentional session `unknown` remains valid. Duplicate and
+  rejected delivery does not introduce a new name advisory.
+
 ### Dispatch and completion markers
 
 - A workflow calls `hooks/log-step-hook.sh dispatch` with the explicit run ID, a stable
@@ -617,6 +634,17 @@ the stated 10000-ms wall denominator and the corresponding observed/exclusive un
   and existing effects, outputs, diagnostics, locking and retry ownership.
 
 ## Change Log
+
+### 2026-10-26 — additional independent final review
+
+- Clarify existing producer guarantees for raw cached acceptance, private metadata
+  replacement across ordinary writes, and correlated name advisories. Initial per-PR
+  review found two important robustness/privacy defects and one advisory regression.
+  Independent repair review found an additional literal-NUL normalization defect;
+  separate test-first repairs preserve the requirements and historical lint rules.
+- The owner explicitly authorized independent validation of each published pull
+  request, autonomous repairs and merging the completed stack. Integration evidence
+  is recorded separately from the preceding completed validation checkpoint.
 
 ### 2026-10-26 — reconciled from task-03-hook-based-logging
 
