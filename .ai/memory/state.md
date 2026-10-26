@@ -10,7 +10,7 @@ Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) 
 `/phase-discovery .ai/specs/<NN>-<slug>.md`.
 
 ## Done
-- [Hook-based logging](../tasks/todo/task-03-hook-based-logging/state.md) | phase: validation | status: reviewed | note: six leaves and prerequisite reviewed; exact hooks/timing complete; PRs #22–#28 ready for review; owner integration pending
+- [Hook-based logging](../tasks/todo/task-03-hook-based-logging/state.md) | phase: validation | status: reviewed | note: seven leaves and prerequisite reviewed; separate final PR reviews and producer hardening complete; PRs #22–#29 merged in order; final validation 594/0/2
 - [Run-log vocabulary validation](../tasks/todo/task-02-run-log-vocabulary-validation/state.md) | phase: validation | status: reviewed | note: strict producer, read-only lint, usable retrospective metrics, drift gate and isolated acceptance complete; PRs #13–#20 are ready for review; owner integration remains pending
 - [task-00-sensitive-data-scrub](../tasks/completed/task-00-sensitive-data-scrub/state.md) | completed | note: PRs #2, #3, and #4 integrated in order; review fixes included; 542 checks pass as normal user and UID 0; source specification archived under specs/completed
 - [Git source of truth] | completed | note: versioned contracts, portable runtime paths, public materials, identity checks, and validation metadata are complete; checkout is renamed; PRs #5–#9 were merged into main; owner deferrals remain documented
@@ -22,6 +22,7 @@ Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) 
 None.
 
 ## Known conditions (read before starting any task)
+- On 2026-10-26 the owner explicitly authorized final per-PR validation, autonomous repairs and integration of the hook-logging delivery. PRs #22–#29 were merged with verified trees and merge commits; no direct main push, force push, rebase, branch deletion or real-settings deployment was used.
 - The initial commit contains private references. On 2026-10-19 the owner explicitly authorized publishing the reviewed stack with existing ancestry and approved scan exceptions retained; the earlier publication hold is superseded. History rewriting remains outside scope.
 - `.ai/` in this repository is **committed in full**, including `tasks/todo/` — the
   opposite of the pipeline's default for consumer projects (ADR-0007, accepted 2026-09-16).
@@ -32,5 +33,5 @@ None.
 - All analysis, audit, and similar documents live under `docs/` (`principles/coding.md →
   Document placement`). The repository root holds only `CLAUDE.md`, scripts, and the
   source directories.
-- `validate-contracts.sh` passes 591 checks with zero failures and two configured hygiene skips (2026-10-26). The complete knowledge base remains tracked.
+- `validate-contracts.sh` passes 594 checks with zero failures and two configured hygiene skips (2026-10-26). The complete knowledge base remains tracked.
 - Earlier inventory recorded 10 runs, four carrying noncanonical values. The reviewed helper can lint these without rewriting them; retrospective metrics exclude unusable observations. Existing historical logs were not read or changed by acceptance fixtures; integration remains pending.

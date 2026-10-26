@@ -10,6 +10,7 @@ Everything here is *about* the system; the system itself is `workflows/`, `rules
 - [SPEC-RUN-QUICKSTART.md](SPEC-RUN-QUICKSTART.md) — operating procedure for `/spec-run`
 
 ## Audits (`audits/`)
+- [2026-10-26-hook-logging-final-review.md](audits/2026-10-26-hook-logging-final-review.md) — independent per-PR reviews, producer repairs, complete validation and verified integration
 - [AUDIT-PROMPT.md](audits/AUDIT-PROMPT.md) — prompt for an independent audit of `/spec-run`
 - [2026-07-21-logic-audit-fixes.md](audits/2026-07-21-logic-audit-fixes.md) — the 20-finding logic audit and its fix spec
 
