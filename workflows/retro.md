@@ -191,7 +191,8 @@ denominators.
 Compute every metric below. A metric that cannot be computed because the field is absent is
 reported as **not measurable**, with the reason — never estimated, and never quietly dropped.
 
-Use **only** `usable_records` for every metric numerator, denominator, grouping key,
+For the legacy duration, count and outcome tables below, use **only** `usable_records`
+for every metric numerator, denominator, grouping key,
 duration, counter, and comparison window. Never rescan the physical JSONL files to fill
 missing metric values or normalize an excluded alias. Physical close presence in Corpus
 is the explicit exception: it describes file completeness, not a validated measurement.
@@ -260,6 +261,79 @@ jq '
        | select(.event == "run-end" and has("duration_s")) | .duration_s]}
 ' "$RETRO_DATA"
 ```
+
+### Measured hook intervals
+
+Run the timing helper from the same source checkout as `HELPER`, using the original
+explicit file paths in the loader's selected `files` array. Save its JSON to
+`RETRO_TIMING` outside the store. These are independent private byte snapshots checked
+by that checkout's producer linter; never feed the loader's jq-reserialized numeric
+records to the timing engine. Preserve the loader's filtering, eligibility, corpus and
+physical close classifications. Report selection limitations from Step 1 even when
+these explicit selected files can be examined independently.
+
+```bash
+# Exact timing inputs: selected original paths, with no implicit store discovery.
+: "${RETRO_DATA:?Set RETRO_DATA to the saved corpus JSON}"
+: "${RETRO_TIMING:?Set RETRO_TIMING to a temporary output path outside the store}"
+: "${HELPER:?Set HELPER to the source checkout scripts/log-step.sh}"
+mapfile -d '' -t timing_files < <(jq -j '.files[] | ., "\u0000"' "$RETRO_DATA")
+bash "$(dirname -- "$HELPER")/run-log-timing.sh" -- "${timing_files[@]}" > "$RETRO_TIMING"
+```
+
+Require Python 3.11 or newer and jq for timing. Missing dependencies, missing or
+ambiguous boundaries and unverified lint remain **not measurable** with their safe
+reason codes. Show timing coverage separately: selected files, examined physical LF
+lines, invalid lines, violation count and exact versus lower-bound counts. An `ok`
+lint status means complete checks; invalid observations still make affected run results
+partial. Global unavailable timing has `runs:null`; an unavailable run has
+`metrics:null`. Keep other eligible retrospective analyses usable.
+
+Read millisecond totals and endpoints as decimal strings. Ratios are exact
+`numerator_ms`/`denominator_ms` string pairs; use Python integer/Decimal arithmetic for
+any display rounding and label the rounding rule. Never send these totals through jq
+arithmetic. Each run's `wall_ms` comes from one unambiguous usable start/end pair;
+zero wall time has no ratio. Do not derive a wall denominator from step sums.
+
+| Timing measure | Meaning and denominator |
+|---|---|
+| `inclusive_work_span_ms` | Sum of individual work intervals; includes nesting and parallel spans. |
+| `work_union_ms` / `observed_union_ms` | Inclusive work union / union of work and explicit waiting. |
+| `exclusive_work_union_ms` | Union after subtracting all direct children, including waiting, in eligible graph components. |
+| `coverage_ratio` / `active_work_coverage_ratio` | Observed union / wall; exclusive active union / wall. |
+| `gaps` | Explicit half-open endpoint pairs in the observed-union complement. Gaps are not waiting. |
+| `inclusive_waiting_span_ms` / `waiting_union_ms` | Explicit waiting sum / union; waiting can overlap another actor's active span. |
+| `excess_work_span_ms` / `wall_overlap_ms` | Inclusive work multiplicity above its union / time covered by at least two raw spans. |
+| `parallel_worker_overlap_ms` | Time with exclusive work from at least two distinct session/actor pairs; union each actor first. |
+| Worker `exclusive_work_ms` | Additive exclusive work per session/actor, which can exceed wall when summed across workers. |
+| Named step totals | Inclusive and exclusive work spans by step; exclude `unknown` from named summaries. |
+
+Work spans measure elapsed activity, never CPU work. Checkpoint identity is scoped by
+run/session/checkpoint, regardless of actor. Identical normalized copies collapse once;
+report duplicate counts and generated timestamp/sequence variation counts. Conflicts
+exclude the whole key. Parent references, containment and cycles are resolved across
+all keys before exclusion, retaining invalid keys as non-measuring dependency evidence.
+A damaged connected component has unavailable exclusive/worker metrics; independent
+valid roots still provide partial measurements. Opaque rejected identity evidence
+makes the file's exclusive graph unverified while individually eligible raw intervals
+can remain measurable. A worker or named step containing any quarantined work span
+has an unavailable complete exclusive total. Overlapping checkpoints on one actor
+make its additive worker duration unavailable; valid segment unions and distinct-actor
+parallel overlap remain measurable. Explain partial totals using keyed run diagnostics.
+
+Label runs with `approximate:true` as **approximate**. Eligible prompt/legacy steps
+without a measured hook interval remain approximate even without an explicit note.
+The explicit note is exactly `approximate` or has the case-sensitive prefix
+`approximate; `; do not trim, case-fold or substring-match it. Preserve stored bytes
+and never print note contents. Rejected hook rows stay excluded and acquire no fallback
+interval. Gaps alone do not establish approximation, and `approximate:false` never
+proves full or named coverage. Unknown session spans can measure observed coverage
+without identifying a workflow step.
+
+A fully covered sequential run has no overlap and differs from wall time by at most
+five percent, checked with exact integers; list any gaps. Nested/parallel span sums
+and worker totals have their own denominators. Include eligible span/group counts,
+excluded observations, graph limitations and source labels with every timing table.
 
 **Throughput and cost**
 
@@ -352,7 +426,9 @@ selection/coverage limitations; the warning if below 5 runs>
 ## Metrics
 <the tables from Step 2, values filled with usable observation/run denominators,
 invalid/unverified exclusions, missing-field counts, and incomplete-run effects;
-not-measurable rows kept with their reason>
+not-measurable rows kept with their reason; measured hook interval tables include
+wall/union/exclusive/worker denominators, gaps, explicit waiting, overlap, exact ratios,
+approximate source labels and partial or unavailable graph/lint coverage>
 
 ## Findings
 Ranked by expected improvement, worst first.

@@ -4,7 +4,7 @@ flow: full
 
 ## Phases
 - discovery: complete
-- execution: in-progress
+- execution: complete
 - validation: not-started
 
 ## Task Analysis
@@ -21,15 +21,17 @@ flow: full
 - Hooks remain Bash/jq/flock; offline exact timing uses Python 3 standard library with existing jq-backed lint for eligibility. Unavailable dependencies disclose unavailable coverage without blocking work. No new paid or model-driven tests (source: existing runtime patterns; specification notes and REQ-05; Arbiter).
 - Installer and registry registration use Python 3 standard-library support; jq/flock availability gates install, while saved-state uninstall/recovery requires Python only. Exact settings numbers remain lossless and ownership equality is mathematical (source: full installer specification; Arbiter; installer lifecycle fixtures).
 - Offline timing uses an explicit-file Bash CLI and separate source-only Python engine. One file represents one run; distinct files claiming the same run identity are ambiguous. Complete producer lint on unchanged private copies gates all metrics, which use decimal-string durations and exact ratios (source: full timing specification; Arbiter; principles/code-quality.md single responsibility and scripts/install-hooks.sh source-relative delegation).
-- The owner requests full autonomous specification and implementation, including routine defect repairs, with analysis delegated for decisions. Full resolved interfaces are documented in the specification before their implementation (source: user, 2026-10-26; Arbiter).
+- The owner requests full autonomous specification and implementation, including routine defect repairs, with analysis delegated for decisions. Resolved interfaces and later implementation-driven clarifications are documented in the specification; the explicit amendment and TDD records preserve their chronology (source: user, 2026-10-26; Arbiter).
 - Resume accepts the recorded implementation tip or verified knowledge-only snapshots above it; each snapshot records its exact parent and changed paths instead of its own hash (source: ADR-0010 Decision 2; completed task-02 Knowledge Snapshots; Arbiter).
 - flow: full — gate: 1 fail (more than three files), 2 fail (correlation contract), 3 fail (shipped logging behavior), 4 pass (no database migration).
 
 ### Description Amendments
-- 2026-10-26: The owner requested a full autonomous specification. Resolved marker/native schema, receipt/fallback ownership, project selection, installation recovery and exact timing contracts were added to the specification before their corresponding components were implemented. Sources: owner instruction, existing roadmap decisions, cited Arbiter analyses and native documentation. No acceptance criterion was weakened.
+- 2026-10-26: The owner requested a full autonomous specification. Resolved marker/native schema, receipt/fallback ownership, project selection, installation recovery and exact timing contracts were documented in the specification. Parent/waiting semantics, fence and raw-number validation, and Python support/standards refinements also have explicit implementation-time or review-time records below. Sources: owner instruction, existing roadmap decisions, cited Arbiter analyses and native documentation. No acceptance criterion was weakened.
 - 2026-10-26: Independent adapter review exposed Markdown fence eligibility errors; raw-number analysis exposed rounding at explicit receipt/private-state validation boundaries. CommonMark lexical rules and fresh canonical integer encodings clarify the existing invalid-input contract. Separate failing regression commits precede the repair; historical lint compatibility remains unchanged.
 - 2026-10-26: Independent installer review found missing Python annotations and oversized product functions. Apply the repository default Python 3.11 minimum, typed stdlib sources and focused helpers; guard unsupported interpreters before engine startup. Add failing version-guard regressions before repair. Annotation-only fixture amendments preserve all executable assertions; any retained CLI-adapter signature exception is named and justified as code-quality permits. Sources: principles/python-standards.md, principles/code-quality.md and Arbiter; no functional acceptance criterion weakened.
 - 2026-10-26: Read-only cross-leaf standards audit found 52 newly introduced adapter fixture functions and 9 correlated producer fixture helpers needing annotations. Include annotation-only harmonization and a scoped regression in T-05's complete acceptance harness before its RED freeze; keep original test bodies and generated producer bytes intact. Explicitly justify the single long adapter recovery scenario and necessary CLI helper parameter shapes under code-quality. Baseline Python snippets and setup registry introduce no affected functions and remain outside this repair. Sources: Arbiter main-to-tip AST audit, python-standards and complete-harness acceptance criterion.
+
+- 2026-10-26: Independent timing review proposed two documentation precision corrections. Apply both under the owner's autonomous authorization: distinguish named Skill coverage from explicitly correlated session unknown, and document the native flock dependency. Expand T-05 to the capability declaration and additive workflow documentation tests. Existing runtime semantics and frozen assertions remain unchanged (sources: independent Validator and Arbiter).
 
 ## Open Questions (batch)
 None.
@@ -264,11 +266,50 @@ T-04 | Coverage-aware workflow logging | atomic-tests: green | atomic-execution:
   commits: 530b7b8a757d250ba42c640b1476fec830c56414 test(logging): define workflow checkpoint routing, 35ed85f53dbc8f9ea52642f8051346cb90c37f08 test(logging): reject malformed workflow acceptance receipts, c6c7f89dd9dbf61c74a6e900819389a8aa27744e feat(logging): route workflow checkpoints by accepted coverage
   pr: #26 draft
 
-T-05 | Honest timing and end-to-end evidence | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: discovery complete
-  target_files:
+T-05 | Honest timing and end-to-end evidence | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: pav-close complete — all five criteria independently verified; stable full gate 590/0/2 and final workflow 5/timing 51 pass; documentation proposals addressed; reviewed plan delta returned to root
+  target_files: tests/hook-timing.sh, tests/log-step-hook.sh, scripts/validate-contracts.sh, scripts/run-log-timing.sh, scripts/run-log-timing.py, workflows/retro.md, docs/USAGE.md, scripts/README.md, docs/README.md, harness/claude/capabilities.md, tests/hook-workflow-contract.sh
   blocker: none
   notes: tdd: integration and contract fixtures required before implementation
+         tdd: integration and contract — 51 groups, AC coverage 5/5; public explicit-file CLI, exact independent reference arithmetic, private lint snapshots, complete isolated two-run lifecycle
+         tdd: red digest — AC-1 → test_timing_sequential_complete_uses_exact_wall_denominator, test_timing_successive_actor_spans_preserve_gaps_without_waiting; AC-2 → test_timing_nested_reference_subtracts_waiting_from_direct_parent, test_timing_same_actor_overlap_retains_union_and_distinct_actor_parallelism, test_timing_invalid_component_reference_preserves_disconnected_root, test_timing_parallel_roots_allow_worker_sum_above_wall, test_timing_waiting_sum_and_union_are_independent_of_active_work, test_timing_unknown_session_span_contributes_only_observed_coverage, test_timing_large_integer_totals_and_ratios_are_lossless_strings, test_timing_historical_integral_lexemes_preserve_exact_endpoints, test_timing_zero_wall_and_endpoint_spans_have_unavailable_ratios, test_timing_zero_length_children_at_parent_end_remain_valid, test_timing_waiting_only_observations_establish_zero_active_work; AC-3 → test_timing_measured_span_approximation_markers_are_exact, test_timing_unmarked_legacy_and_missing_interval_remain_unmeasured, test_timing_invalid_producer_fields_exclude_entire_lines, test_timing_fractional_nonfinite_boolean_or_out_of_bounds_spans_are_excluded, test_timing_out_of_run_or_reversed_spans_do_not_create_groups, test_timing_duplicate_checkpoints_collapse_generated_variations, test_timing_conflicting_checkpoint_delivery_fields_exclude_entire_key, test_timing_duplicate_numeric_equality_uses_exact_mathematical_values, test_timing_boundaries_require_unique_substantive_equality, test_timing_identical_boundaries_collapse_only_generated_fields, test_timing_unusable_or_missing_boundaries_never_invent_denominators, test_timing_metadata_presence_and_exact_strings_control_attribution, test_timing_omitted_optional_metadata_and_start_only_labels_are_supported, test_timing_retro_docs_preserve_loader_and_describe_honest_measures; AC-4 → test_timing_python_and_introduced_fixtures_have_complete_annotations, test_timing_two_run_lifecycle_preserves_attribution_fallback_and_owned_settings; AC-5 → test_timing_zero_length_cycles_still_quarantine_exclusive_metrics, test_timing_parent_cycles_missing_or_cross_session_links_quarantine_components, test_timing_same_actor_and_step_partial_components_keep_totals_unavailable, test_timing_parent_containment_failure_keeps_raw_union_only, test_timing_rejected_child_tombstone_excludes_valid_parent_exclusive_time, test_timing_invalid_child_endpoint_quarantines_transitive_siblings, test_timing_conflicting_parent_declarations_quarantine_every_connected_component, test_timing_opaque_rejected_evidence_makes_exclusive_graph_unverified, test_timing_rejected_uncorrelated_legacy_rows_do_not_hide_graph_edges, test_timing_cross_file_and_intra_file_run_identity_conflicts_are_unavailable; edge → test_timing_explicit_files_deduplicate_paths_without_discovering_store, test_timing_same_basename_distinct_runs_remain_independent, test_timing_input_errors_never_look_like_clean_empty_corpus, test_timing_end_of_options_accepts_literal_dash_path, test_timing_missing_python_jq_and_unsupported_python_return_null, test_timing_incomplete_or_malformed_lint_never_authorizes_metrics, test_timing_invalid_lint_references_and_unique_counts_are_rejected, test_timing_known_lint_violations_remain_lower_bounds_when_summary_fails, test_timing_physical_lf_lines_and_unterminated_final_record_are_exact, test_timing_snapshot_mutation_or_inventory_change_invalidates_coverage, test_timing_snapshot_is_private_byte_exact_and_cleaned_after_lint, test_timing_contract_export_must_be_usable_and_fetched_once
+         tdd: red evidence — bash scripts/validate-contracts.sh --hook-timing-only exits 1; all 51 named groups fail with 125 expected missing timing CLI/engine/documentation assertions, zero errors; no product or documentation edits before RED
+         tdd: frozen test-name SHA256 — e7e45803e97eb102366912ea0317c65fccf95c1de483762b2794c902f798f4af
+         tdd: frozen test files SHA256 — tests/hook-timing.sh 53a34dde3c4e15523d174519453d64ada59050df5fb1bf4f20cefbbb55472850; tests/log-step-hook.sh f20e7ee99077d5ec7b12f57e70104d8204d70919b8b7f48bb65f65a7f95b4bfc; scripts/validate-contracts.sh 5ace1c74a127af5686381d36d0c77cbaa26486f7e70a6d371f73992babbd8d01
+         tdd: explicit annotation-only frozen-source amendment — adapter 52 functions and 11 class attributes plus correlated producer fixture 9 functions now have complete annotations; executable bodies, defaults, assertions and generated producer literal preserved; only future/type imports, type aliases, return/argument annotations and no-value class annotations added
+         tdd: annotation preservation evidence — narrow normalized full AST comparisons before the separately authorized partial-append addition: adapter 8edeb87064e4f8bb00239efd614947c42ee3a1a937229d4c1804e8b8ee66543d; correlated fixture 4b6902e7fc7e2e4f0dd4acfe305590450a8f2ef04bea52e9b9569e514bcffd5c; generated producer literal unchanged SHA256 da199fd99b9aa012cee5ab7212fe1656ee45b21e2f915342ae22e83af2822e91
+         code-quality exceptions — retained adapter call (4 parameters), dispatch (6), transcript (4) and payload (6) preserve frozen native fixture boundary shapes; correlated accepted (4) preserves exact receipt tuple and replay flag; contiguous corrupted-frozen-payload fixture (36 lines) retains the complete corruption matrix; no blanket waiver and every fresh timing function is at most 30 lines and 3 parameters including self
+         verification: amended adapter 38 checks pass; authorized correlated append regression passes after actual partial JSON bytes reach the event inode, live size exceeds original, snapshot rollback restores exact bytes, then sequence 1 accepts once and replay is duplicate; original pre-append failure assertions retained
+         verification: scripts/validate-contracts.sh, tests/log-step-hook.sh and tests/hook-timing.sh pass Bash syntax; Python fixture compilation stays in memory; no real HOME deployment, model invocation or historical-log reads; complete suite deferred until GREEN
+         tdd: first full gate — 588 passed, 2 failed, 2 optional skips; outer timing 51 passed. Nested history copied validator erased producer source required by the scoped annotation audit (IndexError in python_block); inserted usage documentation shifted the unchanged permitted clone token from line 251 to 254. No engine timing defect found; root refreshed the exact identity ledger line only.
+         tdd: test amended — test_contract_version_rule_history_warns_until_version_changes — root-approved fixture packaging correction preserves the copied producer definitions and PYCORRELATED heredoc byte-for-byte, suppressing only its 28 complete column-zero check/continuation invocation pairs with exact syntax/count/no-residual assertions; other five section removals and every original assertion remain unchanged
+         tdd: approved amendment SHA256 — scripts/validate-contracts.sh ce5dc8ac9fa65b7bb2f165bb38e0cf8f40766e91ce638c56d308ab340acf3329; original timing and adapter file hashes, all 51 timing test bodies and generated producer literal remain byte-identical
+         verification: copied-history packaging proof retains the exact producer source and excludes its nested execution; amended fixture compiles in memory, Bash syntax and whitespace pass; canonical contract and 17-check task validation pass; timing 51 and producer/lint/retro 35 pass; paused before the separate test-only commit and new stable full gate
+         tdd: green — all 51 frozen timing groups pass with unchanged names, count, bodies and assertions; timing/adapter file hashes match the original RED checkpoint and validator differs only by the separately approved, committed history-copy packaging amendment
+         verification: stable full validator after the fixture correction exits 0 — 590 passed, 0 failed, 2 configured hygiene skips; all three nested rule-history validators, public identity ledger and final hook aggregates pass; final evidence /tmp/timing-full-validation-final.txt
+         verification: scoped timing 51, producer/lint/retro 35, adapter 38, installation 39 and workflow 3 pass; canonical runtime contract passes; task metadata 17 passed, 0 failed, 2 skips; all scripts/hooks/tests pass per-file Bash syntax and introduced Python compiles in memory with mandatory hints, no Any, functions at most 30 lines and 3 parameters except individually recorded prior fixture cases; ShellCheck unavailable
+         verification: original retrospective corpus loader remains byte-identical SHA256 9d9153e6fa0ec1bcb775c52adde3a0df41aa9db3c8400fbe5dfc84954be326d4; snapshot privacy, LF counts, exact arithmetic, negative-only graph evidence and complete isolated registration/install/two-run/dedup/fallback/close/uninstall lifecycle pass without model invocation or real home/history access
+         acceptance: all five criteria verified through the frozen mapping — exact sequential coverage/gaps, independent nested/parallel/waiting arithmetic, honest approximate/incomplete exclusions, complete two-run lifecycle and invalid interval/parent graph handling; elapsed spans are never CPU claims
+         finalization: execution complete, validation not-started; root already updated architecture inventory/dataflow, provisional decision record and runbook dependencies/commands; plan remains in-progress until independent review as explicitly directed; no additional shared-file edits requested
+         tdd: documentation repair contract — two additive typed checks cover named versus unknown-session evidence/suppression in the capability profile and bounded usage section, plus native Bash/jq/flock dependencies versus ordinary optional-jq logging; all runtime behavior and the original 51 timing criteria remain unchanged
+         tdd: documentation repair red digest — AC-3/4 and approved documentation amendment → test_hook_documentation_distinguishes_named_and_unknown_session_coverage, test_hook_documentation_separates_native_and_legacy_dependencies
+         tdd: documentation repair red evidence — bash scripts/validate-contracts.sh --hook-workflow-only runs 5 groups: all original 3 pass, new 2 fail with 3 substantive missing-doc assertions and zero errors; no documentation or implementation edits before RED; source /tmp/workflow-documentation-red.txt
+         tdd: documentation repair freeze — tests/hook-workflow-contract.sh SHA256 952a5ab0204c6a11e0bee9b77f6f78cf2eecff6496c9377accf396d46b16f829; every preexisting workflow function and helper source is byte-identical to the previous 3-group harness; tests/hook-timing.sh remains SHA256 53a34dde3c4e15523d174519453d64ada59050df5fb1bf4f20cefbbb55472850
+         verification: both additive documentation methods have return annotations, at most 30 lines and 3 parameters; workflow Bash syntax and in-memory Python compilation pass; source work paused for separate test-only commit
+         tdd: documentation repair green — all 5 workflow groups pass (original 3 plus the 2 frozen additive checks); all 51 timing groups pass; canonical runtime contract passes. Supplemental test commit 30aa5fedc3fa53715a0709b2017f752e4b97202d is preserved; workflow test SHA256 remains 952a5ab0204c6a11e0bee9b77f6f78cf2eecff6496c9377accf396d46b16f829
+         verification: documentation-only implementation changes harness/claude/capabilities.md and the bounded hook coverage section in docs/USAGE.md — named coverage and receipt suppression require the matching named observation; fully correlated no-invocation session unknown remains observed without named coverage/suppression; native Bash/jq/flock dependencies are separated from ordinary optional-jq logging
+         verification: per-file Bash syntax, in-memory script and fixture Python compilation, documentation whitespace and frozen source hashes pass; timing engine, all original 51 timing tests, adapter source, approved validator and every workflow test remain unchanged. No second leaf full gate run, as directed; the final integrated task-wide gate and independent delta review follow the documentation commit
+         finalization: documentation repair execution complete; original full 590/0/2 evidence remains recorded and the supplemental RED/commit/GREEN trail is intact; plan and shared decision records remain root-owned; no additional shared deltas
+         validation: independent pav-check DONE — all five acceptance criteria met; no critical or important findings; exact boundary/metadata equality, integer interval arithmetic, negative-only graph evidence, partial actor/step null totals and private complete lint snapshots reviewed
+         validation: independent stable full isolated gate exited 0 — 590 passed, 0 failed, 2 configured hygiene skips; evidence /tmp/timing-independent-validation.txt; focused timing 51, producer/lint/retro 35, adapter 38, installation 39, workflow 3, canonical contract and task metadata 17/0/2 passed
+         validation: frozen timing/adapter hashes and approved validator amendment hash match; annotation-normalized executable AST digests independently reproduced, generated producer literals and original retrospective loader preserved; actual partial-append rollback plus one accepted retry and duplicate replay verified; Bash syntax and whitespace clean; ShellCheck unavailable
+         validation: supplementary documentation regressions independently RED at their test-only commit (2 tests, 3 expected assertion failures, no errors); final documentation-only delta passes workflow 5 and timing 51 plus canonical gate; original workflow fixture AST and all frozen source hashes preserved; no model invocation, real-home deployment or historical-log reads
+         validation proposals: both optional documentation precision proposals addressed by the separately reviewed documentation repair; no Do Now, Do Later or Optional proposals remain; the earlier actual-partial-append proposal is fulfilled by the preserved executable regression
+  branch: feat/run-log-timing
+  base_branch: feat/coverage-aware-workflow-logging
+  base_commit: 2ad00eda9d4371673c719ea4d40b1c8fdf74f03c
+  commits: 18513f7b1615c9d542653ad8c59bfde2e0a9ea28 test(timing): define exact interval and lifecycle analysis, fd81d62a5699315c13cfe3ba17bcf583f752a34f test(contracts): preserve audited sources in history fixtures, 571620dd5fe1ab50c3e775660b7fe9a9905611b0, 30aa5fedc3fa53715a0709b2017f752e4b97202d, 44d16576fe265755a21670fc57a6f348e16c8899 docs(hooks): clarify named coverage and native dependencies
+  pr: #27 draft
 
 adr: .ai/adr/0013-task-03-correlated-hook-logging.md (Provisional)
 
@@ -281,7 +322,7 @@ None.
 None.
 
 ### Optional
-- Strengthen the append-failure regression to inject failure during event output. Its current directory fixture rejects before append. Independent partial-append fault injection already verified rollback and exactly one accepted retry. Deferred as optional; all acceptance criteria are verified.
+- Addressed during the complete acceptance harness: retained the original early-failure scenario and added actual partial-output injection, proving event inode growth, byte-exact rollback, one accepted retry and duplicate replay. Independently verified during timing validation; no outstanding proposal remains.
 
 ## Knowledge Snapshots
 
@@ -340,3 +381,37 @@ recorded_paths:
 - .ai/specs/03-hook-based-logging.md
 - .ai/tasks/todo/task-03-hook-based-logging/plan.md
 - .ai/tasks/todo/task-03-hook-based-logging/state.md
+
+### Reviewed exact timing and completed execution
+
+branch: feat/run-log-timing
+expected_parent: 44d16576fe265755a21670fc57a6f348e16c8899
+allowed_scope: exactly the listed knowledge-base paths
+recorded_paths:
+- .ai/adr/0013-task-03-correlated-hook-logging.md
+- .ai/adr/index.md
+- .ai/context/runbook.md
+- .ai/memory/architecture.md
+- .ai/memory/state.md
+- .ai/specs/03-hook-based-logging.md
+- .ai/tasks/completed/task-01-git-source-of-truth/state.md
+- .ai/tasks/todo/task-03-hook-based-logging/T-05-retrospective-timing/description.md
+- .ai/tasks/todo/task-03-hook-based-logging/plan.md
+- .ai/tasks/todo/task-03-hook-based-logging/state.md
+
+## Execution Report
+
+| Subtask | Outcome | Evidence |
+|---|---|---|
+| T-01 | reviewed | Explicit producer identity, serialized receipts, rollback/retry and historical compatibility; independent review passed. |
+| T-02 | reviewed | Native dispatch/evidence, bounded diagnostics, frozen delivery, fallback and exact protocol validation; independent review passed. |
+| T-03 | reviewed | Lossless owned settings, prepared recovery, registration, capability/sync and Python guards; independent review passed. |
+| T-04 | reviewed | Coverage-aware routing at existing returns, approximate uncovered boundaries and receipt suppression; independent review passed. |
+| T-05 | reviewed | Exact snapshot-gated interval analysis, full isolated lifecycle, standards harmonization and documentation precision; independent review passed. |
+
+Skipped, blocked, deferred and not-reached subtasks: none. No composite rows exist.
+All recorded improvement proposals have been addressed; no Do Now work remains.
+
+Root file decisions: update architecture inventory/dataflow and runbook runtime/check commands; retain existing architectural principles because the implementation follows their additive-contract, explicit-state and honest-measurement decisions. Project inventory is absent, so skip it. Preserve the provisional decision record until task-level validation accepts it.
+
+Compression audit: corrected the blanket pre-implementation chronology and completed optional proposal status; preserved all protected sections, archive pointers, branch points, commits, frozen digests and amendment records. Remaining chronological verification lines are audit evidence, not active blockers.

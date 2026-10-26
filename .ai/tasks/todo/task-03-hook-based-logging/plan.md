@@ -8,7 +8,7 @@
 | T-02 | Explicit hook dispatch and completion |  | freeze regressions → implement component → verify | T-01 | reviewed |
 | T-03 | Owned user hook installation |  | freeze regressions → implement component → verify | T-02 | reviewed |
 | T-04 | Coverage-aware workflow logging | | freeze regressions → implement component → verify | T-03 | reviewed |
-| T-05 | Honest timing and end-to-end evidence | | freeze regressions → implement component → verify | T-04 | not-started |
+| T-05 | Honest timing and end-to-end evidence | | freeze regressions → implement component → verify | T-04 | reviewed |
 
 ## Execution Strategy
 Strictly sequential stacked branches, after the separately authorized knowledge tracking policy correction. Each leaf reaches reviewed before its successor starts. Implementer pauses at RED for a test-only commit; a separate Validator reads each diff. No parallel implementation.

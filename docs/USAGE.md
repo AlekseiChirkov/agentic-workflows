@@ -90,6 +90,9 @@ with explicit state on disk. The AI assistant is constrained by:
 │   ├── setup-all-repos.sh           initialize services under an umbrella
 │   ├── link-skills.sh               link global Claude skills into a project
 │   ├── log-step.sh                  write the append-only pipeline run log
+│   ├── install-hooks.sh             manage owned user hook entries
+│   ├── run-log-timing.sh            analyze explicit files with exact interval metrics
+│   ├── run-log-timing.py            source-only timing engine; Python standard library
 │   ├── validate-contracts.sh        check repository-wide workflow contracts
 │   └── validate-task.sh             check one task directory
 │
@@ -579,6 +582,58 @@ Path argument syntax:
 
 ---
 
+### Hook coverage and retrospective timing
+
+Project setup registers its canonical root in the user configuration registry. Install
+owned Claude hooks with `bash scripts/install-hooks.sh install --from <source-checkout>`;
+remove them with `bash scripts/install-hooks.sh uninstall`. Repeated installation is
+idempotent and removal preserves unrelated user settings. The hooks activate only in
+registered projects and do not discover runs from historical events. Configuration
+locations honor `HOME`, `XDG_CONFIG_HOME` and `XDG_STATE_HOME`.
+
+A controller dispatches an explicit run/session/actor/checkpoint envelope. Native
+completion must demonstrate that tuple and one canonical outcome report. Named workflow
+coverage requires exactly one native Skill invocation. An unambiguously correlated
+session with no Skill invocation may report `step: unknown`, providing observed coverage
+without named workflow coverage. Unknown session coverage cannot suppress a named prompt
+event. A matching accepted receipt for a named checkpoint suppresses only its corresponding
+prompt event.
+A pending checkpoint uses the adapter's serialized fallback once; uncertain correlated
+delivery retries its frozen payload. Boundaries without demonstrated native evidence,
+and harnesses without hooks, keep approximate prompt logging. Hook availability alone
+does not prove workflow coverage. Run start/end remain prompt-driven executable calls.
+
+Analyze selected run files from the checkout:
+
+```bash
+bash scripts/run-log-timing.sh -- /path/to/selected-run.jsonl /path/to/another-run.jsonl
+```
+
+The helper requires Python 3.11 or newer and jq, uses only the Python standard library,
+and installs no home scripts. It privately snapshots only those original files without
+changing them, reuses the same checkout's producer linter and verifies complete counts
+and unchanged bytes. It never accepts jq-reserialized event rows. Failures return safe
+structured unavailable results; known invalid observations remain disclosed exclusions.
+
+`wall_ms` is the exact run boundary difference. Inclusive work span sums, work union,
+observed work/waiting union, exclusive work union, uncovered gaps, explicit waiting,
+raw overlap and distinct-worker parallel overlap are separate measurements. Exclusive
+spans subtract all direct children, including waiting. Worker and named-step totals
+become unavailable when constituent work has invalid ancestry; independent valid
+components can still provide partial union coverage. Same-actor overlap invalidates
+that actor's additive total. Spans measure elapsed activity, never CPU work; gaps
+never imply waiting. Unknown session spans provide no named workflow-step summary.
+
+All millisecond values are decimal strings, with exact numerator/denominator ratio
+pairs. Keep them out of jq arithmetic. Zero wall time has no coverage ratio. Prompt
+and legacy steps remain approximate without invented intervals; explicit notes match
+exactly `approximate` or the case-sensitive prefix `approximate; `. Retrospectives
+label source approximation, invalid observations, gaps and partial or unavailable
+lint/graph coverage. See [script usage](../scripts/README.md#exact-run-timing) and
+[the retrospective workflow](../workflows/retro.md) for output and denominator details.
+
+---
+
 ## 8. Updating the System
 
 Edit only in `~/projects/orchestrail/`. Then re-sync.
@@ -644,6 +699,7 @@ Or re-run `scripts/setup-new-project.sh` after deleting the affected file.
 | `scripts/validate-contracts.sh`    | Contract checks across the three layers, including optional tracked-file public hygiene. Run by `scripts/sync.sh` before every deploy; any failure blocks deployment. |
 | `scripts/sync.sh`                  | Deploy source → Windsurf workflows + rules, Claude skills, `~/.claude/CLAUDE.md`. Source tree defaults to the repository root (the parent of `scripts/`); `--from <dir>` takes precedence over `ORCHESTRAIL_HOME`. |
 | `scripts/validate-task.sh`         | Applies the canonical contracts to ONE task directory's artifacts (`state.md`, `plan.md`, `description.md`) rather than to the workflow definitions. Run by `/pd-finalize` and `/pe-finalize`; exit 1 blocks the phase. |
+| `scripts/run-log-timing.sh` | Exact offline timing for explicit original run files; source-only Python engine, private validated snapshots and structured coverage. |
 | `scripts/log-step.sh`              | Append-only run log writer. Stamps its own timestamps and derives durations, so no duration is ever model-guessed. Exits 0 on every error path — logging never blocks a pipeline. |
 | `scripts/setup-new-project.sh`     | Initialize a project: `CLAUDE.md`, `AGENTS.md`, `.windsurf/rules/`, skill symlinks, `.gitignore`. |
 | `scripts/link-skills.sh`           | Workaround for Claude bug: symlink `~/.claude/skills/` into project `.claude/skills/`. |
