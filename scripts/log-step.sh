@@ -491,10 +491,21 @@ emit_json() {
   fi
 }
 
+# Bash line reads discard NUL bytes; reject them before interpreting metadata.
+metadata_has_no_nul() {
+  local metadata_probe metadata_status metadata_fd
+  { exec {metadata_fd}< "$1"; } 2>/dev/null || return 1
+  IFS= read -r -d '' metadata_probe <&"$metadata_fd" 2>/dev/null
+  metadata_status=$?
+  { exec {metadata_fd}<&-; } 2>/dev/null || return 1
+  [ "$metadata_status" -eq 1 ]
+}
+
 meta_read() { # meta_read <run_id> <key> <output-variable>
   valid_run_id "$1" || return 1
   local metadata_file="$ACTIVE_DIR/$1" metadata_header='' metadata_line metadata_value='' metadata_found=0 metadata_legacy_flow=0
   [ -f "$metadata_file" ] || return 1
+  metadata_has_no_nul "$metadata_file" || return 1
   {
     IFS= read -r metadata_header < "$metadata_file" || return 1
     while IFS= read -r metadata_line || [ -n "$metadata_line" ]; do
