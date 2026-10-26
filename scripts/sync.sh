@@ -48,11 +48,29 @@ echo ""
 echo "=== Syncing Orchestrail ==="
 echo ""
 
+# Hook installation is independent of the remaining deployment targets.
+HOOK_INSTALL_RESULT='{"reason":"installer-unavailable","status":"unavailable"}'
+if [ -f "$ROOT/scripts/install-hooks.sh" ]; then
+  HOOK_INSTALL_RESULT="$(bash "$ROOT/scripts/install-hooks.sh" install --from "$ROOT")" || \
+    HOOK_INSTALL_RESULT='{"reason":"installer-failed","status":"unavailable"}'
+fi
+
+append_logging_capabilities() {
+  local target="$1" harness="$2" result="$3"
+  printf '\n<!-- Logging capabilities -->\n' >> "$target"
+  if [ -f "$ROOT/harness/$harness/capabilities.md" ]; then
+    cat "$ROOT/harness/$harness/capabilities.md" >> "$target"
+  else
+    printf '%s\n' 'hooks: unknown' 'Unknown capability is unavailable; use note: approximate.' >> "$target"
+  fi
+  printf '\n## Current hook installation\n\ninstallation-result: %s\n' "$result" >> "$target"
+}
+
 # ── 1. Devin Desktop / Windsurf: global workflows (path unchanged) ──
 echo "[1/5] Devin Desktop / Windsurf global workflows"
 mkdir -p ~/.codeium/windsurf/global_workflows
 cp "$SRC"/*.md ~/.codeium/windsurf/global_workflows/
-echo "  $(ls $SRC/*.md | wc -l) workflows → ~/.codeium/windsurf/global_workflows/"
+echo "  $(ls "$SRC"/*.md | wc -l) workflows → ~/.codeium/windsurf/global_workflows/"
 
 # ── 2. Devin Desktop / Windsurf: global rules (path unchanged) ──
 echo "[2/5] Devin Desktop / Windsurf global rules"
@@ -80,6 +98,7 @@ echo "  $(ls ~/.claude/skills/ | wc -l) skills → ~/.claude/skills/"
 # Global CLAUDE.md — principles + standards for Claude Code
 GLOBAL_CLAUDE="$HOME/.claude/CLAUDE.md"
 cp "$RULES/global-claude.md" "$GLOBAL_CLAUDE"
+append_logging_capabilities "$GLOBAL_CLAUDE" claude "$HOOK_INSTALL_RESULT"
 echo "  updated: ~/.claude/CLAUDE.md"
 
 # ── 3b. Claude Code: principles as skills ─────────────────────────────
@@ -136,6 +155,7 @@ echo "[4c/5] Codex global AGENTS.md"
 if [ -f "$ROOT/templates/codex-global-AGENTS.md" ]; then
   mkdir -p ~/.codex
   cp "$ROOT/templates/codex-global-AGENTS.md" ~/.codex/AGENTS.md
+  append_logging_capabilities "$HOME/.codex/AGENTS.md" codex '{"reason":"no-native-adapter","status":"unavailable"}'
   echo "  updated: ~/.codex/AGENTS.md"
 else
   echo "  WARNING: templates/codex-global-AGENTS.md not found — global AGENTS.md not deployed"
@@ -174,10 +194,7 @@ fi
 echo "[5b/5] Per-project sync (rules, skills symlinks, workflow cleanup)"
 PROJECTS_UPDATED=0
 
-for devin_dir in $(find "$HOME" -maxdepth 6 -type d -name ".devin" \
-    -not -path "*/Trash/*" \
-    -not -path "*/node_modules/*" \
-    -not -path "*/.git/*" 2>/dev/null); do
+while IFS= read -r -d '' devin_dir; do
 
   project_dir="$(dirname "$devin_dir")"
   # Never treat the script directory or selected source tree as a target project.
@@ -259,7 +276,10 @@ for devin_dir in $(find "$HOME" -maxdepth 6 -type d -name ".devin" \
   fi
 
   PROJECTS_UPDATED=$((PROJECTS_UPDATED + 1))
-done
+done < <(find "$HOME" -maxdepth 6 -type d -name ".devin" \
+    -not -path "*/Trash/*" \
+    -not -path "*/node_modules/*" \
+    -not -path "*/.git/*" -print0 2>/dev/null)
 
 echo "  $PROJECTS_UPDATED projects updated"
 

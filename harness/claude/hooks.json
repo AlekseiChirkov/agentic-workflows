@@ -1,0 +1,22 @@
+{
+  "hooks": {
+    "Stop": [{
+      "hooks": [{
+        "type": "command",
+        "command": "bash",
+        "args": ["@ORCHESTRAIL_HOME@/hooks/log-step-hook.sh"],
+        "timeout": 10,
+        "onFailure": "continue"
+      }]
+    }],
+    "SubagentStop": [{
+      "hooks": [{
+        "type": "command",
+        "command": "bash",
+        "args": ["@ORCHESTRAIL_HOME@/hooks/log-step-hook.sh"],
+        "timeout": 10,
+        "onFailure": "continue"
+      }]
+    }]
+  }
+}

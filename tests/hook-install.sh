@@ -544,6 +544,44 @@ class HookInstallation(unittest.TestCase):
         self.call('uninstall', expected='uninstalled')
         self.assertFalse(any(g['hooks'] for groups in self.read_settings().get('hooks', {}).values() for g in groups))
 
+    def test_hook_uninstall_recovers_without_native_dependencies_but_requires_python(self):
+        alternate, prepared = self.prepare_upgrade('after')
+        shutil.rmtree(alternate)
+        without_python = self.root / 'without-uninstall-python'
+        without_python.mkdir()
+        for name in ('bash','dirname','jq','flock'):
+            (without_python / name).symlink_to(shutil.which(name))
+        before = self.snapshot()
+        self.call('uninstall', expected='unavailable', env=dict(self.env, PATH=str(without_python)))
+        self.assertEqual(before, self.snapshot())
+        without_native = self.root / 'without-native-runtime'
+        without_native.mkdir()
+        for name in ('bash','dirname','python3'):
+            (without_native / name).symlink_to(shutil.which(name))
+        self.call('uninstall', expected='uninstalled', env=dict(self.env, PATH=str(without_native)))
+        self.assert_user_settings_preserved({'user':'preserved'})
+
+    def test_hook_receipt_literal_null_is_invalid_and_nullable_next_recovers_absence(self):
+        self.write_settings({'user':'preserved'})
+        self.install()
+        valid = self.receipt.read_bytes()
+        self.receipt.write_text('null')
+        before = self.snapshot()
+        self.call('uninstall', expected='unavailable')
+        self.assertEqual(before, self.snapshot())
+        self.receipt.write_bytes(valid)
+        previous = json.loads(valid)
+        before_settings = self.settings.read_bytes()
+        self.call('uninstall', expected='uninstalled')
+        after_settings = self.settings.read_bytes()
+        prepared = {'schema_version':1,'state':'prepared','previous':previous,'next':None,
+                    'before':{'present':True,'sha256':hashlib.sha256(before_settings).hexdigest()},
+                    'after':{'present':True,'sha256':hashlib.sha256(after_settings).hexdigest()}}
+        self.receipt.write_text(json.dumps(prepared))
+        self.call('uninstall', expected='uninstalled')
+        self.assertFalse(self.receipt.exists())
+        self.assert_user_settings_preserved({'user':'preserved'})
+
     def test_hook_manifest_and_capabilities_describe_available_mechanism_and_partial_coverage(self):
         manifest = self.checkout / 'harness' / 'claude' / 'hooks.json'
         self.assertTrue(manifest.is_file(), 'portable native hook manifest must exist')
@@ -571,13 +609,34 @@ class HookInstallation(unittest.TestCase):
         self.assertEqual(first, self.registry.read_bytes())
         self.assertIn('.ai/', (self.project / '.gitignore').read_text())
         adapter = self.checkout / 'hooks' / 'log-step-hook.sh'
-        result = subprocess.run(['bash', str(adapter)], input='{}', cwd=self.root,
+        result = subprocess.run(['bash', str(adapter)], input=json.dumps({'cwd':str(self.root)}), cwd=self.root,
                                 env=self.env, text=True, capture_output=True)
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, '', ''))
-        result = subprocess.run(['bash', str(adapter)], input='{}', cwd=self.project,
+        result = subprocess.run(['bash', str(adapter)], input=json.dumps({'cwd':str(self.project)}), cwd=self.project,
                                 env=self.env, text=True, capture_output=True)
         self.assertEqual(result.returncode, 0)
         self.assertIn('coverage', result.stderr)
+
+    def test_hook_setup_trailing_newline_is_rejected_and_sibling_prefix_stays_inactive(self):
+        self.setup_project()
+        before = self.registry.read_bytes()
+        newline_project = self.root / 'trailing-newline\n'
+        newline_project.mkdir()
+        result = self.setup_project(cwd=newline_project)
+        self.assertIn('unavailable', result.stdout + result.stderr)
+        self.assertEqual(before, self.registry.read_bytes())
+        sibling = self.project.with_name(self.project.name + '-sibling')
+        sibling.mkdir()
+        adapter = self.checkout / 'hooks/log-step-hook.sh'
+        result = subprocess.run(['bash', str(adapter)], input=json.dumps({'cwd':str(sibling)}),
+                                cwd=self.project, env=self.env, text=True, capture_output=True)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, '', ''))
+        before = self.snapshot()
+        result = subprocess.run(['bash', str(adapter)], input='{}', cwd=sibling,
+                                env=self.env, text=True, capture_output=True)
+        self.assertEqual((result.returncode, result.stdout), (0, ''))
+        self.assertIn('invalid-native-input', result.stderr)
+        self.assertEqual(before, self.snapshot())
 
     def test_hook_setup_concurrent_registration_preserves_existing_roots(self):
         self.setup_project()
