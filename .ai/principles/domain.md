@@ -58,7 +58,7 @@ appears in a rule.
 7. `notes:` and `target_files:` are always written, even when empty; `atomic-tests:` is
    never removed or downgraded; git fields are touched only by `/spec-run` and `/restack`.
 8. No pipeline identifier and no tool attribution ever enters a consumer repository.
-9. `.ai/` is untracked in consumer projects; `/spec-run` refuses to start otherwise. This source repository is the explicit owner-authorized exception: preserve and track its complete knowledge base.
+9. Repository-owned `.ai/` tracking policy is authoritative. Tracked knowledge and state are accepted; untracked consumer state stays local unless the owner authorizes tracking. This source repository preserves and tracks its complete knowledge base.
 10. Logging never blocks a run; durations are never model-written.
 11. A rule or vocabulary is defined in exactly one place; every other mention cites it.
 12. A `none` test level and a `quick` tier are always justified in writing; an

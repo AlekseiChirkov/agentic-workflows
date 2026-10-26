@@ -170,6 +170,7 @@ class CreateOrderUseCase:
 - Circular imports (signal of wrong layer boundaries)
 - References to AI-pipeline artifacts in code, comments, docstrings, or test names —
   subtask ids (`T-04`), spec or task names, `ADR-0007`, `architecture.md`, `state.md`, or any
-  path under `.ai/`. That directory is never committed, so such a reference points at a file
-  the reader does not have. State the decision itself in the code instead of citing where it
-  was recorded.
+  path under `.ai/`. Knowledge-base tracking follows repository policy; product code must
+  remain understandable independently of planning records. State the decision itself in the
+  code instead of citing where it was recorded. Workflow definitions and knowledge-base
+  records may use the identifiers and paths needed to describe the process.

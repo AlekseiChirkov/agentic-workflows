@@ -13,9 +13,9 @@ use the quick tier instead (`rules/quick-flow.md`).
 
 | Check | How |
 |---|---|
-| Clean working tree (tracked files) | `git status` — untracked `.ai/` is fine and expected |
-| `.ai/` is **not** tracked | `git ls-files .ai \| head -1` returns nothing |
-| `.ai/` is in `.gitignore` | `grep -x '.ai/' .gitignore` |
+| Clean working tree (tracked files) | `git status` — untracked files are permitted |
+| Repository-owned `.ai/` policy | Inspect `git ls-files .ai` and repository instructions; tracked knowledge and state are accepted |
+| Local consumer state stays local | Keep untracked `.ai/` excluded from commits unless the user explicitly authorizes tracking it |
 | `test:` command is filled in | `.ai/context/runbook.md → ## Commands` — the TDD step stops without it |
 | Spec exists | `.ai/specs/<NN>-<slug>.md`, H1 title required, `## Acceptance Criteria` strongly recommended |
 | Only for `--allow-pr` | remote `origin` exists and `gh auth status` succeeds |
@@ -106,7 +106,8 @@ justification lives in `state.md`.
 
 Branch names and commit messages carry **no** pipeline identifiers and no authorship
 attribution — no subtask id, no spec or task directory name, no ADR or `.ai/` path. The mapping
-back to a subtask lives only in the untracked `state.md`.
+back to a subtask lives in `state.md`; its visibility follows repository tracking policy.
+Stage explicit paths, including intentional tracked knowledge updates when applicable.
 
 ---
 

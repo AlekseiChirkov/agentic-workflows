@@ -270,7 +270,8 @@ It then performs:
    `templates/codex-global-AGENTS.md`.
 5. Walk every project containing a `.devin/` directory: refresh its `.devin/rules/` and
    `.windsurf/rules/` copies, refresh `.claude/skills/` symlinks, delete local workflow
-   copies that shadow the global ones, and ensure `.ai/` is in `.gitignore`.
+   copies that shadow the global ones, and preserve repositories that track `.ai/`.
+   For untracked consumer state, add `.ai/` to `.gitignore` by default.
 
 Verify deployment:
 
@@ -303,7 +304,7 @@ The script (idempotent — safe to re-run):
 | 3    | Notes about `.windsurf/workflows/` — uses global workflows unless local override exists     |
 | 4    | `.claude/skills/<name>` symlinks pointing at `~/.claude/skills/<name>` (Claude Code workaround) |
 | 5    | `.ai/` knowledge base seeded from `templates/.ai/` (never overwrites existing files), then `AGENTS.md` for Codex from `templates/AGENTS.md` |
-| 6    | `.gitignore` entries: `.ai/` (pipeline state is never committed), `.claude/skills/`, `.env`, `*.pyc`, `__pycache__/` |
+| 6    | `.gitignore` entries: `.ai/` (default for new consumer projects; existing repository tracking policy is authoritative), `.claude/skills/`, `.env`, `*.pyc`, `__pycache__/` |
 
 ### Manual steps required after the script runs
 
@@ -567,8 +568,9 @@ Path argument syntax:
   `/phase-pipeline`.
 - **Orchestrated mode** — `/spec-run` runs a whole spec with context-bounded sub-agents, one
   stacked branch per subtask, strictly sequential. Contracts: `rules/orchestration.md`,
-  `rules/git-flow.md`. It never merges a PR, never pushes to the base branch, never commits
-  `.ai/`.
+  `rules/git-flow.md`. It never merges a PR or pushes to the base branch. Tracked `.ai/`
+  knowledge and state follow repository policy; untracked consumer state stays local unless
+  the user explicitly authorizes tracking it.
 - **Continue, never restart** — read `state.md` first, resume from last completed step.
 - **Wait for user on ambiguity** — present 2–3 options with trade-offs.
 - **Trust mechanism** — trivial → execute autonomously; non-trivial → stop and ask.

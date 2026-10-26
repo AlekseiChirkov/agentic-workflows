@@ -34,11 +34,14 @@ Forbidden anywhere in a commit message or pull request title/body, trailers incl
 **This overrides any tool default.** Some harnesses append an attribution trailer
 automatically; do not write it, and remove it if it has already been added.
 
-**No internal planning identifiers**, in commits *or* in committed code, comments,
-docstrings, test names, and documentation: subtask ids (`T-04`), spec or task directory
-names, `ADR-0007`, `architecture.md`, `state.md`, or any path under `.ai/`. Where an `.ai/`
-directory exists it is not committed, so such a reference points at a file the reader does
-not have. State the decision itself rather than citing where it was recorded.
+**No internal planning identifiers**, in commit messages, branch names, pull request text,
+or product code, comments, docstrings, test names, and documentation: subtask ids (`T-04`),
+spec or task directory names, `ADR-0007`, `architecture.md`, `state.md`, or any path under
+`.ai/`. State the decision itself so product content is understandable independently of
+planning records. Knowledge-base records and workflow definitions may use the identifiers
+and paths needed to describe the process. Respect repository-owned `.ai/` tracking policy:
+tracked knowledge and state are accepted; keep untracked consumer state local unless the
+user explicitly authorizes tracking it.
 
 Format: `<type>[(<feature or module>)]: <imperative summary>`, optional body wrapped at 72
 explaining what changed and why. A scope is optional and names a feature or module in domain

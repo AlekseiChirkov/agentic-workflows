@@ -149,8 +149,9 @@ Stack plan — <spec title>
 PRs: draft on creation, promoted to ready after validation | not created (no --allow-pr)
 ```
 
-Subtask identifiers appear in this plan and in `state.md` because both are local and
-untracked. They never reach a branch name, a commit, or pull request text — see
+Subtask identifiers appear in this plan and in `state.md`; whether those records are tracked
+follows repository policy. They never reach a branch name, a commit message, or pull request
+text — see
 `git-flow → ## Pipeline identifiers stay out of the repository`.
 
 ---
@@ -182,8 +183,8 @@ the halves:
 a. The agent runs `/pae-tests`, then **stops and reports**: the RED digest and the test files
    it wrote. At this point `target_files:` holds test files only.
 b. The orchestrator commits exactly those paths as `test: <what the tests assert>`. Stage
-   explicit paths — never `git add -A`. Verify nothing under `.ai/` is staged. Append the sha
-   to `commits:`.
+   explicit paths — never `git add -A`. Verify staged paths follow the repository-owned
+   tracking policy in `git-flow → ## Commits`. Append the sha to `commits:`.
 c. The orchestrator sends the **same** agent one message to continue. It runs
    `/pae-implement` → `/pae-finalize` in the context it already holds, so the GREEN step still
    reads the RED set it is satisfying — the reason tests and implementation share one agent
@@ -317,7 +318,8 @@ Summary
 - Never pushes to the base branch.
 - Never force-pushes — that lives only in `/restack`.
 - Never deletes a branch.
-- Never commits anything under `.ai/`.
+- Never commits untracked consumer state without explicit user authorization; tracked `.ai/`
+  knowledge and state follow repository policy.
 - Never runs `git add -A`, `git reset --hard`, or `git clean`.
 - Never writes a pipeline identifier into a branch name, a commit, or pull request text.
 - Never resolves a class-B ambiguity on the human's behalf.
