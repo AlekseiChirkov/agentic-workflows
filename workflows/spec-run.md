@@ -42,15 +42,18 @@ if [ -x "$LOG_HELPER" ]; then
 fi
 ```
 
-The Orchestrator owns every log call, exactly as it owns every shared file — a sub-agent
-never calls `scripts/log-step.sh`. This keeps the shared-file discipline in `orchestration` intact
-and keeps `seq` monotonic.
+The Orchestrator owns prompt log calls and adapter dispatch/status/fallback calls.
+Native hooks deliver their own correlated writes; a sub-agent never calls
+`scripts/log-step.sh` and returns its report marker. Follow `run-log → ## Workflow coverage and routing`
+for every boundary, including uncertain resumes and unavailable status.
 
 Log a `step` line after each of Steps 1–8, plus one per subtask inside the Step 4 loop
-(`--step subtask --subtask T-XX --tests <atomic-tests value> --gate <validator verdict>`).
-The batch gate gets its own line — `--step batch-gate --stops 1 --questions N` — because
+(`--step subtask --subtask T-XX --tests <atomic-tests value> --gate <validator verdict> --note approximate`).
+This approximate synthetic subtask aggregate is distinct from the named `pae-tests`
+RED row resolved in Step 4.2. Attach `--note approximate` to every ordinary step call.
+The batch gate gets its own line — `--step batch-gate --stops 1 --questions N --note approximate` — because
 the number of class-B questions per run is the single most useful number this pipeline
-produces. On `--dry-run`, log `run-start`, one `--step dry-run --outcome skipped` line, and
+produces. On `--dry-run`, log `run-start`, one `--step dry-run --outcome skipped --note approximate` line, and
 `run-end --outcome completed`; write nothing else. Close with `run-end --outcome
 completed`, `stopped`, or `failed`.
 
@@ -167,8 +170,32 @@ Immediately record in the subtask's `## Subtask Progress` block: `branch:`, `bas
 and `base_commit:` (the sha of the branch point — `git rev-parse HEAD` before any work).
 `base_commit` is written once and never recomputed.
 
-**4.2 Implementer — one agent, two checkpoints.** Spawn a fresh sub-agent with the model from
-Step 2. Give it: the path to `T-XX/description.md`, the resolved `WORK_DIR`, the branch name,
+**4.2 Implementer — one agent, two checkpoints.** Before the existing spawn, check native
+capability, current installation and native session identity as required by
+`run-log → ## Workflow coverage and routing`. Only when the profile/payload is supported,
+installation is available, `RUN_ID` is usable and `CLAUDE_CODE_SESSION_ID` is present,
+provisionally dispatch the expected `pae-tests` boundary. Assign one stable logical
+`actor_id` to this worker, retain it for the checkpoint, and invoke the readable adapter
+through Bash:
+
+```bash
+HOOK_ADAPTER="${ORCHESTRAIL_HOME:+$ORCHESTRAIL_HOME/hooks/log-step-hook.sh}"
+DISPATCH_LINE=""
+if [ -r "$HOOK_ADAPTER" ]; then
+  DISPATCH_LINE=$(bash "$HOOK_ADAPTER" dispatch --run "$RUN_ID" \
+    --agent-id "$actor_id" --boundary subagent --expected-skill pae-tests) || DISPATCH_LINE=""
+fi
+```
+
+Retain the original `ORCHESTRAIL_DISPATCH_V1` line unchanged in the native user input
+of the fresh sub-agent, together with the complete returned tuple in the current run
+context. Validate the returned envelope against the adapter contract before treating
+it as issued; if issuance is uncertain, use the canonical unknown-resume route. Never
+reconstruct or quote the line as assistant/tool output. A known unavailable dispatch
+that issued no envelope uses the canonical ordinary approximate path.
+
+Spawn the fresh sub-agent with the model from Step 2. Give it: the path to
+`T-XX/description.md`, the resolved `WORK_DIR`, the branch name,
 and the instruction to run `/pae-tests` → **report RED and wait** → `/pae-implement` →
 `/pae-finalize`. It loads `.ai/` context itself. Do **not** pass it the transcript of any
 previous subtask.
@@ -182,6 +209,18 @@ the halves:
 
 a. The agent runs `/pae-tests`, then **stops and reports**: the RED digest and the test files
    it wrote. At this point `target_files:` holds test files only.
+   When a provisional envelope was supplied and RED was actually established, append
+   one unindented canonical `ORCHESTRAIL_REPORT_V1` line outside code fences to this
+   final response. Use the exact retained tuple with `"outcome":"ok","tests":"red"`,
+   compact key-sorted JSON and no step or timestamp fields. Marker construction and
+   native evidence follow `run-log → ## Native hook adapter → ### Dispatch and native evidence`. A genuine unique
+   native `Skill` invocation of `pae-tests` remains required; the expected-skill flag
+   alone, a wrapper invocation, or reading the workflow file cannot establish coverage.
+   The orchestrator resolves status or serialized fallback before the git checkpoint,
+   using `run-log → ## Workflow coverage and routing`. Match the retained tuple and
+   acceptance receipt; suppress only this named RED row after acceptance. If no envelope
+   was ever issued, log `--step pae-tests --outcome ok --tests red --note approximate`.
+   Do not fabricate native events, poll, or delay the git handoff for telemetry.
 b. The orchestrator commits exactly those paths as `test: <what the tests assert>`. Stage
    explicit paths — never `git add -A`. Verify staged paths follow the repository-owned
    tracking policy in `git-flow → ## Commits`. Append the sha to `commits:`.
@@ -189,12 +228,15 @@ c. The orchestrator sends the **same** agent one message to continue. It runs
    `/pae-implement` → `/pae-finalize` in the context it already holds, so the GREEN step still
    reads the RED set it is satisfying — the reason tests and implementation share one agent
    (`orchestration → ### Implementer`).
+   The GREEN batch must never reuse the RED marker or envelope for its return; retain
+   approximate logging for `pae-implement`, `pae-finalize` and the existing aggregate.
 d. On the GREEN report, the orchestrator commits the implementation paths added to
    `target_files:` as `feat: <what was implemented>`, under the same staging rules, and appends
    that sha to `commits:`.
 
-When the test-level gate returned `none` (`atomic-tests: n-a`) there is no RED checkpoint and
-no `test:` commit — the agent runs straight through and the subtask gets a single
+When the test-level gate returned `none` (`atomic-tests: n-a`), emit no RED report and
+no RED timing row. Leave any provisional checkpoint uncovered: there is no RED checkpoint
+and no `test:` commit — the agent runs straight through and the subtask gets a single
 implementation commit, exactly as `git-flow → ## Commits` specifies for that case.
 
 Commit messages carry no authorship attribution of any kind, and no pipeline identifier —
@@ -206,6 +248,9 @@ attribution rule overrides any harness default that would append a trailer.
 `T-XX/description.md`, the test files, and the subtask diff (`git diff <base_commit>..HEAD`).
 Do **not** give it the Implementer's reasoning or report. Instruct it to run `/pav-check` →
 `/pav-propose --batch` → `/pav-close`.
+
+Keep the three-skill validation batch and its internal prompt steps approximate under
+`run-log → ## Workflow coverage and routing`.
 
 If the verdict is NEEDS WORK → the subtask does not close. Record the findings, leave the
 branch and commits intact, and **stop the run**: the stack is sequential and nothing above

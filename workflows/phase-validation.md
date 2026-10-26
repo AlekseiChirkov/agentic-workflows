@@ -19,6 +19,9 @@ as step 4a), `/pv-execute-fixes`, `/pv-finalize`.
 This pipeline writes a run log. Follow the **`run-log`** rule in full — it defines the
 store, the field vocabulary, and the rule that logging never blocks a run.
 
+Apply `run-log → ## Workflow coverage and routing` at each boundary. Keep internal
+step logging instructions and add `--note approximate` to every ordinary prompt step.
+
 At Step 0, open the run:
 
 Open the run with `scripts/log-step.sh run-start` through the configured helper:

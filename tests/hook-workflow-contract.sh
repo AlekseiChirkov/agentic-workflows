@@ -119,6 +119,15 @@ class WorkflowLogging(unittest.TestCase):
         self.command(self.adapter, ['fallback', '--checkpoint', str(identity['checkpoint_id']),
                                    '--step', 'pae-tests', '--outcome', 'ok', '--tests', 'red'])
 
+    def valid_receipt(self, receipt: object, retained: Record) -> bool:
+        if not isinstance(receipt, dict) or receipt.get('kind') != 'accepted':
+            return False
+        sequence = receipt.get('seq')
+        exported = self.command(self.helper, ['contract'])
+        maximum = int(dict(line.split('=', 1) for line in exported.splitlines())['count.maximum'])
+        return type(sequence) is int and 0 < sequence <= maximum and all(
+            receipt.get(key) == value for key, value in retained.items() if key != 'schema_version')
+
     def resolve(self, retained: Record, observed: Record | None) -> str:
         # Test-only controller: an issued envelope can only use its retained checkpoint.
         if observed is None or any(observed.get(key) != value for key, value in retained.items()):
@@ -127,8 +136,7 @@ class WorkflowLogging(unittest.TestCase):
         state = observed.get('state')
         if state == 'accepted':
             receipt = observed.get('receipt')
-            if isinstance(receipt, dict) and receipt.get('kind') == 'accepted' and all(
-                    receipt.get(k) == v for k, v in retained.items() if k != 'schema_version'):
+            if self.valid_receipt(receipt, retained):
                 return 'suppress'
             self.fallback(retained)
             return 'uncertain'
@@ -319,8 +327,8 @@ class WorkflowLogging(unittest.TestCase):
             self.assertEqual(self.steps(run)[0]['timing_source'], 'hook')
 
     def test_dispatch_report_status_preserve_one_delivery_route(self) -> None:
-        self.malformed_receipt_status()
         self.accepted_and_pending()
+        self.malformed_receipt_status()
         self.missing_private_and_owned_fallback()
         self.lost_receipt()
         self.failed_fallback()

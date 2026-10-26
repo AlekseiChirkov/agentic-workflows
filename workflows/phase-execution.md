@@ -18,6 +18,9 @@ To run a single step directly, call the child workflow:
 This pipeline writes a run log. Follow the **`run-log`** rule in full — it defines the
 store, the field vocabulary, and the rule that logging never blocks a run.
 
+Apply `run-log → ## Workflow coverage and routing` at each boundary. Keep internal
+step logging instructions and add `--note approximate` to every ordinary prompt step.
+
 At Step 0, open the run:
 
 Open the run with `scripts/log-step.sh run-start` through the configured helper:
@@ -32,7 +35,7 @@ fi
 ```
 
 Log one `step` line per subtask cycle rather than per inner workflow: after each subtask's
-atomic-execution → atomic-validation loop closes, write `--step pe-execute --subtask T-XX`
+atomic-execution → atomic-validation loop closes, write `--step pe-execute --subtask T-XX --note approximate`
 with `--tests` mirroring the leaf's `atomic-tests:` value, `--files` from its
 `target_files:` count, `--gate` from the atomic-validation verdict, and `--outcome blocked`
 plus `--blocker` when the subtask ends blocked. Log `pe-finalize` as its own step. Close

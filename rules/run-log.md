@@ -92,7 +92,7 @@ same task, which is itself a signal worth measuring.
 [ -n "$RUN_ID" ] && "$LOG_HELPER" step --run "$RUN_ID" \
   --step pd-analyze --outcome ok \
   --decisions 3 --questions 2 --stops 1 \
-  --note "resolved 3 ambiguities from principles" || true
+  --note "approximate; resolved 3 ambiguities from principles" || true
 ```
 
 Log the step **after it finishes**, whatever the outcome — a step that failed, blocked, or
@@ -112,6 +112,76 @@ stopped`. A run left without `run-end` shows up in `scripts/log-step.sh active` 
 `/retro` as an abandoned run — which is accurate, and deliberately visible.
 
 ---
+
+## Workflow coverage and routing
+
+Select coverage for each boundary independently. Mechanism support (`hooks: yes`),
+the current installation result, and demonstrated checkpoint coverage are separate
+facts. Read the harness capability declaration and current installation result;
+unknown capability, `hooks: no`, unsupported payload/profile, unavailable installation,
+or missing native session identity cannot establish a covered boundary. A supported
+usable mechanism permits provisional dispatch, not a precision claim. Run-start and run-end remain prompt-driven.
+
+Keep prompt instructions for every ordinary step and attach `--note approximate`
+(or a note beginning `approximate; ` when adding a short clause). This includes
+discovery, root work, arbitration and Arbiter decisions: all remain approximate.
+Internal skills in GREEN and validation batches, single-session `/phase-*` steps,
+pipeline overrides, batch gates, dry runs and synthetic subtask summaries also remain
+approximate unless that exact boundary independently meets the native evidence
+contract. Do not remove internal logging prompts because a generic Stop fired.
+Session `unknown` coverage never counts as named workflow-step coverage.
+
+Precisely observed named coverage requires the original dispatch in native user
+input, a matching canonical final report, exactly one genuine native Skill invocation,
+and a matching producer receipt. `expected_skill` is an assertion checked against
+native evidence; it supplies no invocation evidence itself. A wrapper, repeated Skill
+or multiple skills cannot establish one named interval. Never infer a skill or outcome
+from prose, infer identity from active history, or supply model-written timestamps.
+
+Before suppressing a prompt row, retain the original issued envelope and its complete
+`run_id`, `session_id`, `agent_id`, `checkpoint_id` tuple. Query the adapter once with
+`status --checkpoint ID` and match every tuple field and schema version to the retained
+envelope. For accepted status, also require the receipt's `kind:"accepted"`, matching
+four identity fields and positive integer sequence, as defined below. Exit zero and
+ordinary fallback output never prove persistence. Apply this table to that boundary:
+
+| Known boundary state | Workflow action |
+|---|---|
+| No envelope was ever issued | Write the ordinary step with `--note approximate`. |
+| Unknown resume knowledge about whether an envelope existed | Omit the row and disclose uncertain coverage. Never assume no envelope. |
+| `accepted` with a matching receipt | Suppress only the corresponding prompt row. |
+| Matching `pending` | Invoke serialized fallback once using the retained checkpoint. |
+| Matching `delivering` | Keep the frozen correlated payload route only; disclose uncertain acceptance. |
+| Matching `fallback` or `fallback-attempted` | Make no second attempt; ordinary persistence remains unacknowledged. |
+| Missing, malformed or wrong-tuple status | Use only serialized fallback for the retained checkpoint; if it cannot safely claim pending ownership, omit and disclose uncertainty. |
+| Missing or unavailable private state | Omit and disclose uncertainty; never write an ordinary replacement. |
+
+Once any envelope was issued, never call the ordinary producer directly for that
+boundary. Serialized fallback is the adapter's ownership decision, not a workflow
+guess based on missing status. Use its public command, with canonical result fields:
+
+```bash
+bash "$ORCHESTRAIL_HOME/hooks/log-step-hook.sh" status --checkpoint "$checkpoint_id"
+bash "$ORCHESTRAIL_HOME/hooks/log-step-hook.sh" fallback --checkpoint "$checkpoint_id" \
+  --step pae-tests --outcome ok --tests red
+```
+
+These are alternative actions selected by the table, not two unconditional calls.
+Delivering retries belong to the native adapter and reuse its frozen payload only.
+Never fabricate native input to retry a delivery, switch to ordinary logging after
+delivery starts, or wait/poll for telemetry before proceeding with the workflow.
+Report unavailable/uncertain coverage once without blocking work.
+
+The existing `/spec-run` RED return is the named-step candidate in this release.
+Its `pae-tests` row is distinct from the approximate synthetic subtask aggregate.
+Provisional dispatch does not guarantee a RED return: test-level `none` leaves it
+uncovered. GREEN combines two skills and validation combines three; neither batch,
+nor its internal steps, acquires named precision from the RED marker. Preserve their
+approximate prompts and never reuse that marker for a subsequent return.
+
+The isolated `--hook-workflow-only` fixtures compose the public adapter and producer
+and check these instructions. They demonstrate synthetic routing, not live model
+compliance or live event firing.
 
 ## Field vocabulary
 
@@ -262,7 +332,9 @@ Ordinary calls retain their existing since-last-write `duration_s` behavior.
 Acceptance order sets `seq`; earlier-ending intervals may arrive after later ones.
 
 Correlated writes require `jq`, `flock`, and the coreutils `truncate` command.
-Unavailable dependencies warn and return no receipt, allowing approximate fallback.
+Unavailable dependencies warn and return no receipt. Workflow fallback selection
+follows `run-log → ## Workflow coverage and routing`; a delivering checkpoint cannot
+switch routes merely because a receipt is unavailable.
 Legacy writes still work without jq; when flock is available, all step and close
 writers acquire the same bounded per-run lock on the existing event file. Active
 metadata is rechecked after locking. No historical content is read for correlation.
@@ -430,12 +502,8 @@ legacy route. Process death, state-write failure, or a lost receipt can leave
 persistence uncertain. Report that condition without inventing acceptance or
 attempting another route. A closed run rejects late delivery and is never reopened.
 
-Hook availability is distinct from step coverage. `hooks: yes` alone does not
-justify removing step prompts. Missing capability, unknown capability, incomplete
-native evidence, and unobserved internal transitions retain prompt-driven steps
-with `note:"approximate"`. Run start and run end remain prompt-driven. Precise
-coverage requires dispatch input, a report marker, unique invoked-skill evidence
-(or the permitted unknown session), and a matching producer receipt.
+Select prompt logging and suppressions through the canonical workflow contract:
+`run-log → ## Workflow coverage and routing`.
 
 `bash scripts/validate-contracts.sh --hook-adapter-only` runs the isolated native
 adapter fixtures, including concurrent delivery, exact attribution and fallback
