@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+# Exercise workflow prompt integration without invoking models or real user stores.
+if [ "${1:-}" = --hook-workflow-only ]; then
+  shift
+  exec bash "$REPO_ROOT/tests/hook-workflow-contract.sh" "$@"
+fi
+
 # Run user hook lifecycle acceptance without deploying to the current home.
 if [ "${1:-}" = --hook-install-only ]; then
   shift
@@ -4275,6 +4281,17 @@ test_native_hook_adapter_acceptance() {
 }
 check "test_native_hook_adapter_acceptance" \
   "$(test_native_hook_adapter_acceptance && echo pass || echo 'native hook dispatch, evidence and ownership fixtures must pass')"
+
+# ── Workflow hook coverage acceptance ──────────────────────────────
+test_workflow_hook_coverage_acceptance() {
+  local output
+  output="$(bash "$REPO_ROOT/tests/hook-workflow-contract.sh" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_workflow_hook_coverage_acceptance" \
+  "$(test_workflow_hook_coverage_acceptance && echo pass || echo 'workflow correlation, route ownership and approximate prompt contracts must pass')"
 
 # ── Tracked public hygiene ──────────────────────────────────────────
 test_user_hook_installation_acceptance() {
