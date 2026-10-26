@@ -93,11 +93,27 @@ save_record() {
   HOOK_TEMP=''
 }
 
+# Inspect original JSON tokens before jq can round a fractional/exponent number.
+# Fresh protocol numbers are bounded unsigned decimal integer tokens; quoted
+# strings remain whole tokens and cannot masquerade as numeric fields.
+canonical_integer_tokens() {
+  printf '%s' "$1" | jq -Rse '
+    def json_tokens:
+      [scan("\"(?:[^\"\\\\\u0000-\u001f]|\\\\(?:[\"\\\\/bfnrt]|u[0-9a-fA-F]{4}))*\"|-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\\[\\]:,]|[ \\t\\r\\n]+")];
+    . as $original | json_tokens as $tokens |
+    ($tokens | join("")) == $original and
+    all($tokens[] | select(test("^-?[0-9]"));
+      test("^(0|[1-9][0-9]*)\\z") and
+      (length < 16 or (length == 16 and . <= "9007199254740991")))
+  ' >/dev/null 2>&1
+}
+
 record_valid() {
-  jq -e '
+  canonical_integer_tokens "$RECORD" || return 1
+  jq -se '
     def id: type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\\z");
     def count: type == "number" and floor == . and . >= 0 and . <= 9007199254740991;
-    type == "object" and .schema_version == 1 and
+    length == 1 and (.[0] | type == "object" and .schema_version == 1 and
     (.run_id | type == "string" and test("^[a-f0-9]{8}\\z")) and
     ([.session_id,.agent_id,.checkpoint_id] | all(.[]; id)) and
     (.project | type == "string" and startswith("/")) and
@@ -129,7 +145,7 @@ record_valid() {
         .agent_id == $record.agent_id and .checkpoint_id == $record.checkpoint_id and
         (.seq | count and . > 0) and (.duplicate | type == "boolean")
        else true end)
-    else true end)
+    else true end))
   ' <<< "$RECORD" >/dev/null 2>&1
 }
 
@@ -214,14 +230,28 @@ fallback() {
 # Find exactly one unindented report outside Markdown fences. Canonical raw JSON
 # equality rejects duplicate keys as well as whitespace, unknown keys and aliases.
 parse_report() {
-  local message="$1" line fence='' prefix='ORCHESTRAIL_REPORT_V1 ' found=0 raw canonical
+  local message="$1" line fence='' fence_length=0 run suffix
+  local fence_pattern='^ {0,3}(`{3,}|~{3,})(.*)$'
+  local prefix='ORCHESTRAIL_REPORT_V1 ' found=0 raw canonical
+  # CommonMark line separators do not belong to the canonical marker bytes.
+  message="${message//$'\r\n'/$'\n'}"
+  message="${message//$'\r'/$'\n'}"
   while IFS= read -r line || [ -n "$line" ]; do
-    if [[ "$line" =~ ^[[:space:]]*\`\`\` ]]; then
-      if [ "$fence" = '`' ]; then fence=''; elif [ -z "$fence" ]; then fence='`'; fi
-      continue
-    fi
-    if [[ "$line" =~ ^[[:space:]]*~~~ ]]; then
-      if [ "$fence" = '~' ]; then fence=''; elif [ -z "$fence" ]; then fence='~'; fi
+    if [[ "$line" =~ $fence_pattern ]]; then
+      run="${BASH_REMATCH[1]}"
+      suffix="${BASH_REMATCH[2]}"
+      if [ -z "$fence" ]; then
+        # Backtick opener info cannot contain another backtick. Tilde info
+        # accepts either delimiter as ordinary text after the opening run.
+        if [ "${run:0:1}" != '`' ] || [[ "$suffix" != *'`'* ]]; then
+          fence="${run:0:1}"
+          fence_length="${#run}"
+        fi
+      elif [ "${run:0:1}" = "$fence" ] && [ "${#run}" -ge "$fence_length" ] &&
+           [[ "$suffix" =~ ^[[:blank:]]*$ ]]; then
+        fence=''
+        fence_length=0
+      fi
       continue
     fi
     if [ -z "$fence" ] && [[ "$line" = "$prefix"* ]]; then
@@ -231,6 +261,7 @@ parse_report() {
     fi
   done <<< "$message"
   [ "$found" -eq 1 ] || return 1
+  canonical_integer_tokens "$raw" || return 1
   canonical="$(jq -cS -e '
     def id: type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\\z");
     select(type == "object") |
@@ -283,6 +314,7 @@ transcript_skill() {
 }
 
 receipt_valid() {
+  canonical_integer_tokens "$1" || return 1
   jq -s -e --argjson record "$RECORD" '
     length == 1 and (.[0] |
       type == "object" and .kind == "accepted" and

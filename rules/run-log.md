@@ -322,7 +322,19 @@ agent's native input:
 ORCHESTRAIL_DISPATCH_V1 {"agent_id":"worker-a","checkpoint_id":"checkpoint-a","run_id":"a1b2c3d4","schema_version":1,"session_id":"session-a"}
 ```
 
-The final report contains exactly one unindented marker outside code fences:
+The final report contains exactly one unindented marker outside code fences.
+Recognize top-level CommonMark fences with zero to three ASCII spaces before a
+run of at least three backticks or tildes. Retain the opening character and full
+run length. Backtick opener info cannot contain backticks; tilde info is unrestricted.
+Only the same character repeated at least the opening length, followed solely by
+spaces or tabs, closes a fence. A leading tab or four spaces cannot open or close
+a top-level fence. Shorter runs, mixed delimiters and nonwhitespace closing suffixes
+leave its contents fenced. An unclosed fence extends to the end of the report.
+Treat LF, CRLF and lone CR as line separators without trimming marker/JSON content.
+This is a bounded lexical scanner; quote/list-prefixed content does not establish
+a top-level fence across an unprefixed report marker.
+
+An eligible report line has this form:
 
 ```text
 ORCHESTRAIL_REPORT_V1 {"agent_id":"worker-a","checkpoint_id":"checkpoint-a","outcome":"ok","run_id":"a1b2c3d4","schema_version":1,"session_id":"session-a","tests":"red"}
@@ -372,6 +384,17 @@ registry order and duplicate entries. Compare on path-component boundaries and
 support spaces. Unregistered projects exit immediately before reading transcripts,
 private correlation or run-log state. The selected root must equal dispatch
 metadata; a newly registered nested root cannot inherit a broader root's checkpoint.
+
+Fresh report/dispatch schema versions use the exact JSON integer token `1`.
+Private numeric values and acceptance receipt sequence numbers use canonical
+unsigned decimal integer tokens (`0` or a nonzero digit followed by digits), bounded
+by `count.maximum`. Validate original JSON tokens before numeric conversion;
+fractional, exponent, negative and negative-zero encodings are invalid even when
+jq would round them to an integer. Sequence numbers must also be positive.
+Quoted strings are never treated as numeric tokens. Historical lint retains its
+separate mathematical-integer compatibility; it does not broaden this fresh
+protocol. Invalid cached numeric encodings cannot forward delivery or return
+accepted status.
 
 Private schema-version `1` records live beneath
 `${XDG_STATE_HOME:-$HOME/.local/state}/orchestrail/hooks/`, with directory mode
