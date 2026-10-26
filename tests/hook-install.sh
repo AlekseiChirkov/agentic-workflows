@@ -4,6 +4,8 @@
 set -uo pipefail
 install_test_source="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 python3 - "$install_test_source" "$@" <<'PY'
+from __future__ import annotations
+import ast
 import concurrent.futures
 import copy
 from decimal import Decimal
@@ -13,16 +15,38 @@ import os
 from pathlib import Path
 import re
 import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
 import unittest
+from typing import TypeAlias, TypedDict, Unpack
 
 SOURCE = Path(sys.argv[1])
 SELECTED = sys.argv[2:]
 
+JsonValue: TypeAlias = str | int | float | Decimal | bool | None | list['JsonValue'] | dict[str, 'JsonValue']
+JsonObject: TypeAlias = dict[str, JsonValue]
+Environment: TypeAlias = dict[str, str]
+
+class InstallOptions(TypedDict, total=False):
+    expected: str
+    env: Environment
+    checkout: Path
+
 class HookInstallation(unittest.TestCase):
-    def setUp(self):
+    scratch: tempfile.TemporaryDirectory[str]
+    root: Path
+    checkout: Path
+    home: Path
+    config: Path
+    state: Path
+    project: Path
+    settings: Path
+    receipt: Path
+    registry: Path
+    env: Environment
+    def setUp(self) -> None:
         self.scratch = tempfile.TemporaryDirectory(prefix='hook installation ')
         self.addCleanup(self.scratch.cleanup)
         self.root = Path(self.scratch.name)
@@ -43,19 +67,19 @@ class HookInstallation(unittest.TestCase):
         for name in ('PYTHONPATH', 'PYTHONSTARTUP', 'BASH_ENV', 'ENV'):
             self.env.pop(name, None)
 
-    def copy_source(self, target):
+    def copy_source(self, target: Path) -> None:
         for folder in ('scripts', 'hooks', 'harness', 'rules', 'workflows', 'principles', 'templates'):
             if (SOURCE / folder).exists():
                 shutil.copytree(SOURCE / folder, target / folder)
 
-    def write_settings(self, value):
+    def write_settings(self, value: JsonObject) -> None:
         self.settings.parent.mkdir(parents=True, exist_ok=True)
         self.settings.write_text(json.dumps(value, ensure_ascii=False))
 
-    def read_settings(self):
+    def read_settings(self) -> JsonObject:
         return json.loads(self.settings.read_text(), parse_float=Decimal)
 
-    def assert_user_settings_preserved(self, expected):
+    def assert_user_settings_preserved(self, expected: JsonObject) -> None:
         actual = self.read_settings()
         # Receipts track handler/group provenance. An empty manifest event array
         # or hooks object can remain when that container was originally absent.
@@ -68,7 +92,7 @@ class HookInstallation(unittest.TestCase):
             del actual['hooks']
         self.assertEqual(expected, actual)
 
-    def raw_call(self, *args, env=None, checkout=None):
+    def raw_call(self, *args: str, env: Environment | None = None, checkout: Path | None = None) -> subprocess.CompletedProcess[str]:
         installer = (checkout or self.checkout) / 'scripts' / 'install-hooks.sh'
         # Absent capability is an empty result so RED asserts the missing protocol,
         # rather than a command-not-found or fixture error.
@@ -76,7 +100,7 @@ class HookInstallation(unittest.TestCase):
         return subprocess.run(command, cwd=self.project, env=env or self.env,
                               text=True, capture_output=True, timeout=15)
 
-    def call(self, *args, expected='installed', env=None, checkout=None):
+    def call(self, *args: str, expected: str = 'installed', env: Environment | None = None, checkout: Path | None = None) -> JsonObject:
         result = self.raw_call(*args, env=env, checkout=checkout)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(result.stdout.splitlines()), 1,
@@ -86,10 +110,10 @@ class HookInstallation(unittest.TestCase):
         self.assertLess(len(result.stderr.encode()), 4096, 'diagnostics must stay bounded')
         return data
 
-    def install(self, **kwargs):
+    def install(self, **kwargs: Unpack[InstallOptions]) -> JsonObject:
         return self.call('install', **kwargs)
 
-    def owned_groups(self):
+    def owned_groups(self) -> dict[str, list[JsonObject]]:
         value = self.read_settings()
         self.assertEqual(set(value['hooks']), {'Stop', 'SubagentStop'})
         for event, groups in value['hooks'].items():
@@ -97,18 +121,18 @@ class HookInstallation(unittest.TestCase):
             self.assertEqual(len(groups[0]['hooks']), 1, event)
         return value['hooks']
 
-    def snapshot(self):
+    def snapshot(self) -> tuple[bytes | None, ...]:
         return tuple(path.read_bytes() if path.exists() else None
                      for path in (self.settings, self.receipt, self.registry))
 
-    def setup_project(self, cwd=None, env=None):
+    def setup_project(self, cwd: Path | None = None, env: Environment | None = None) -> subprocess.CompletedProcess[str]:
         result = subprocess.run(['bash', str(self.checkout / 'scripts' / 'setup-new-project.sh')],
                                 cwd=cwd or self.project, env=env or self.env, input='2\n',
                                 text=True, capture_output=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
         return result
 
-    def sync(self):
+    def sync(self) -> subprocess.CompletedProcess[str]:
         # Replace only validation in this private source copy to avoid recursively
         # invoking these integration fixtures during the real deployment script.
         (self.checkout / 'scripts' / 'validate-contracts.sh').write_text('#!/bin/bash\nexit 0\n')
@@ -118,7 +142,7 @@ class HookInstallation(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return result
 
-    def prepare_upgrade(self, image='before'):
+    def prepare_upgrade(self, image: str = 'before') -> tuple[Path, JsonObject]:
         self.write_settings({'user':'preserved'})
         self.install()
         before_settings = self.settings.read_bytes()
@@ -138,13 +162,15 @@ class HookInstallation(unittest.TestCase):
         self.settings.write_bytes(before_settings if image == 'before' else after_settings)
         return alternate, prepared
 
-    def interrupt_replacement(self, destination):
+    def interrupt_replacement(self, destination: Path) -> Environment:
         faults = self.root / ('interrupt-' + destination.name)
         faults.mkdir()
         (faults / 'sitecustomize.py').write_text(
-            'import os\nfrom pathlib import Path\n'
-            'def wrap(original):\n'
-            '    def replacement(src, dst, *args, **kwargs):\n'
+            'from __future__ import annotations\nimport os\nfrom pathlib import Path\n'
+            'from typing import Callable, Concatenate, ParamSpec, TypeVar\n'
+            'P = ParamSpec("P")\nR = TypeVar("R")\nPathArg = str | os.PathLike[str]\n'
+            'def wrap(original: Callable[Concatenate[PathArg, PathArg, P], R]) -> Callable[Concatenate[PathArg, PathArg, P], R]:\n'
+            '    def replacement(src: PathArg, dst: PathArg, *args: P.args, **kwargs: P.kwargs) -> R:\n'
             '        result = original(src, dst, *args, **kwargs)\n'
             '        if Path(dst).resolve() == Path(os.environ["HOOK_TEST_DEST"]).resolve():\n'
             '            os._exit(91)\n'
@@ -153,7 +179,68 @@ class HookInstallation(unittest.TestCase):
             'os.replace = wrap(os.replace)\nos.rename = wrap(os.rename)\n')
         return dict(self.env, PYTHONPATH=str(faults), HOOK_TEST_DEST=str(destination))
 
-    def test_hook_install_repeated_lifecycle_preserves_unrelated_settings(self):
+    def interpreter_environment(self, usable: bool = True) -> Environment:
+        binaries = self.root / ('older-python' if usable else 'unusable-python')
+        binaries.mkdir()
+        interpreter = shutil.which('python3')
+        assert interpreter is not None
+        driver = ('import collections,runpy,sys\n'
+                  'sys.version_info=collections.namedtuple("Version","major minor micro releaselevel serial")(3,10,14,"final",0)\n'
+                  'arguments=sys.argv[1:]\nsys.argv=arguments\n'
+                  'if arguments[0] in ("--version","-V"):\n    print("Python 3.10.14")\n'
+                  'elif arguments[0]=="-c":\n    exec(arguments[1],{"__name__":"__main__"})\n'
+                  'else:\n    runpy.run_path(arguments[0],run_name="__main__")\n')
+        command = 'exec ' + shlex.quote(interpreter) + ' -c ' + shlex.quote(driver) + ' "$@"\n'
+        shim = binaries / 'python3'
+        shim.write_text('#!/bin/bash\n' + (command if usable else 'exit 81\n'))
+        shim.chmod(0o755)
+        return dict(self.env, PATH=str(binaries) + os.pathsep + self.env.get('PATH',''))
+
+    def test_hook_install_unsupported_python_preserves_settings_and_ownership(self) -> None:
+        self.write_settings({'user':'keep this number', 'value':9007199254740993})
+        before = self.snapshot()
+        data = self.call('install', expected='unavailable', env=self.interpreter_environment())
+        self.assertEqual(data['reason'], 'unsupported-python')
+        self.assertEqual(before, self.snapshot())
+
+    def test_hook_uninstall_unsupported_python_preserves_settings_and_ownership(self) -> None:
+        self.install()
+        before = self.snapshot()
+        data = self.call('uninstall', expected='unavailable', env=self.interpreter_environment())
+        self.assertEqual(data['reason'], 'unsupported-python')
+        self.assertEqual(before, self.snapshot())
+
+    def test_hook_unusable_python_reports_unsupported_before_either_operation(self) -> None:
+        self.install()
+        env = self.interpreter_environment(usable=False)
+        for operation in ('install', 'uninstall'):
+            with self.subTest(operation=operation):
+                before = self.snapshot()
+                data = self.call(operation, expected='unavailable', env=env)
+                self.assertEqual(data['reason'], 'unsupported-python')
+                self.assertEqual(before, self.snapshot())
+
+    def test_hook_installer_functions_follow_public_python_standards(self) -> None:
+        tree = ast.parse((self.checkout / 'scripts/install-hooks.py').read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                self.assertIsNotNone(node.returns, node.name + ' requires a return annotation')
+                parameters = [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]
+                parameters += [arg for arg in (node.args.vararg, node.args.kwarg) if arg is not None]
+                parameters = [arg for arg in parameters if arg.arg not in ('self', 'cls')]
+                for argument in parameters:
+                    self.assertIsNotNone(argument.annotation, node.name + '.' + argument.arg)
+                self.assertLessEqual((node.end_lineno or node.lineno) - node.lineno + 1, 30, node.name)
+                self.assertLessEqual(len(parameters), 3, node.name)
+            if isinstance(node, ast.ClassDef):
+                declared = {item.target.id for item in node.body
+                            if isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name)}
+                assigned = {target.attr for item in ast.walk(node) if isinstance(item, ast.Assign)
+                            for target in item.targets if isinstance(target, ast.Attribute)
+                            and isinstance(target.value, ast.Name) and target.value.id == 'self'}
+                self.assertFalse(assigned - declared, node.name + ' requires typed instance attributes')
+
+    def test_hook_install_repeated_lifecycle_preserves_unrelated_settings(self) -> None:
         original = {'theme': 'user', 'hooks': {'PreToolUse': [{'matcher':'Bash', 'hooks':[
             {'type':'command', 'command':'user-tool'}]}]}, 'custom': ['x', {'enabled':False}]}
         self.write_settings(original)
@@ -168,7 +255,7 @@ class HookInstallation(unittest.TestCase):
         self.assertEqual(first, self.snapshot())
         self.assertFalse(self.registry.exists(), 'installation must not activate a project')
 
-    def test_hook_install_preexisting_identical_entries_remain_unowned(self):
+    def test_hook_install_preexisting_identical_entries_remain_unowned(self) -> None:
         self.install()
         hooks = self.owned_groups()
         self.call('uninstall', expected='uninstalled')
@@ -178,7 +265,7 @@ class HookInstallation(unittest.TestCase):
         self.call('uninstall', expected='uninstalled')
         self.assertEqual(original, self.read_settings())
 
-    def test_hook_uninstall_changed_and_moved_entries_survive(self):
+    def test_hook_uninstall_changed_and_moved_entries_survive(self) -> None:
         self.install()
         value = self.read_settings()
         handler = value['hooks']['Stop'][0]['hooks'][0]
@@ -190,7 +277,7 @@ class HookInstallation(unittest.TestCase):
         self.call('uninstall', expected='uninstalled')
         self.assertEqual(value, self.read_settings())
 
-    def test_hook_uninstall_equal_copies_preserve_unowned_multiplicity_and_empty_groups(self):
+    def test_hook_uninstall_equal_copies_preserve_unowned_multiplicity_and_empty_groups(self) -> None:
         self.write_settings({'hooks': {'Stop':[{'matcher':'', 'hooks':[]}], 'PreToolUse':[]}})
         self.install()
         value = self.read_settings()
@@ -207,7 +294,7 @@ class HookInstallation(unittest.TestCase):
         self.assertIn({'matcher':'user-empty', 'hooks':[]}, after)
         self.assertEqual(len(after), len(value['hooks']['Stop']))
 
-    def test_hook_uninstall_removes_only_created_newly_empty_groups(self):
+    def test_hook_uninstall_removes_only_created_newly_empty_groups(self) -> None:
         self.install()
         value = self.read_settings()
         original_group = copy.deepcopy(value['hooks']['Stop'][0])
@@ -218,7 +305,7 @@ class HookInstallation(unittest.TestCase):
         groups = self.read_settings()['hooks']['Stop']
         self.assertEqual(groups, [original_group, {'hooks':[]}])
 
-    def test_hook_install_source_precedence_and_quoted_paths_use_literal_arguments(self):
+    def test_hook_install_source_precedence_and_quoted_paths_use_literal_arguments(self) -> None:
         alternate = self.root / 'alternate "quoted" source'
         self.copy_source(alternate)
         env = dict(self.env, ORCHESTRAIL_HOME=str(self.root / 'absent'))
@@ -241,7 +328,7 @@ class HookInstallation(unittest.TestCase):
         self.call('uninstall', expected='uninstalled')
         self.call('install', env=dict(self.env, ORCHESTRAIL_HOME=''))
 
-    def test_hook_install_invalid_cli_and_manifest_never_mutate_settings(self):
+    def test_hook_install_invalid_cli_and_manifest_never_mutate_settings(self) -> None:
         self.install()
         for args in ((), ('unknown',), ('install','--from'), ('uninstall','--from','x'),
                      ('install','--unexpected'), ('install','--from=')):
@@ -266,7 +353,7 @@ class HookInstallation(unittest.TestCase):
             self.call('install', expected='unavailable')
             self.assertEqual(before, self.snapshot())
 
-    def test_hook_install_upgrade_preserves_changed_old_handler(self):
+    def test_hook_install_upgrade_preserves_changed_old_handler(self) -> None:
         self.install()
         value = self.read_settings()
         changed = value['hooks']['Stop'][0]['hooks'][0]
@@ -283,7 +370,7 @@ class HookInstallation(unittest.TestCase):
         remaining = [h for g in self.read_settings()['hooks']['Stop'] for h in g['hooks']]
         self.assertEqual(remaining, [changed])
 
-    def test_hook_install_malformed_settings_preserve_exact_bytes(self):
+    def test_hook_install_malformed_settings_preserve_exact_bytes(self) -> None:
         for contents in ('{broken secret', '[]', '{"hooks":[]}', '{"hooks":{"Stop":[{"hooks":null}]}}',
                          '{"hooks":{"Stop":[{"hooks":[4]}]}}', '{"a":1,"a":2}'):
             with self.subTest(contents=contents):
@@ -293,7 +380,7 @@ class HookInstallation(unittest.TestCase):
                 self.call('install', expected='unavailable')
                 self.assertEqual(before, self.snapshot())
 
-    def test_hook_install_malformed_receipt_preserves_both_files(self):
+    def test_hook_install_malformed_receipt_preserves_both_files(self) -> None:
         self.install()
         for contents in ('{broken', '[]', '{}', '{"schema_version":1,"owned":"wrong"}'):
             with self.subTest(contents=contents):
@@ -304,7 +391,7 @@ class HookInstallation(unittest.TestCase):
                 self.call('uninstall', expected='unavailable')
                 self.assertEqual(before, self.snapshot())
 
-    def test_hook_receipt_control_numbers_cannot_gain_deletion_ownership(self):
+    def test_hook_receipt_control_numbers_cannot_gain_deletion_ownership(self) -> None:
         self.install()
         valid = json.loads(self.receipt.read_text())
         self.assertEqual(valid['state'], 'committed')
@@ -330,7 +417,7 @@ class HookInstallation(unittest.TestCase):
             self.call('uninstall', expected='unavailable')
             self.assertEqual(before, self.snapshot())
 
-    def test_hook_ownership_object_equality_ignores_key_order_and_numeric_spelling(self):
+    def test_hook_ownership_object_equality_ignores_key_order_and_numeric_spelling(self) -> None:
         self.install()
         value = self.read_settings()
         for groups in value['hooks'].values():
@@ -342,7 +429,7 @@ class HookInstallation(unittest.TestCase):
         self.call('uninstall', expected='uninstalled')
         self.assertFalse(any(g['hooks'] for groups in self.read_settings().get('hooks',{}).values() for g in groups))
 
-    def test_hook_ownership_omitted_fields_and_changed_argument_arrays_remain_unowned(self):
+    def test_hook_ownership_omitted_fields_and_changed_argument_arrays_remain_unowned(self) -> None:
         self.install()
         value = self.read_settings()
         value['hooks']['Stop'][0]['hooks'][0].pop('onFailure')
@@ -351,7 +438,7 @@ class HookInstallation(unittest.TestCase):
         self.call('uninstall', expected='uninstalled')
         self.assertEqual(self.read_settings(), value)
 
-    def test_hook_recovery_before_image_restores_previous_then_recomputes_install(self):
+    def test_hook_recovery_before_image_restores_previous_then_recomputes_install(self) -> None:
         alternate, prepared = self.prepare_upgrade('before')
         self.call('install', '--from', str(alternate))
         self.assertEqual(json.loads(self.receipt.read_text()), prepared['next'])
@@ -359,13 +446,13 @@ class HookInstallation(unittest.TestCase):
             self.assertEqual(groups[0]['hooks'][0]['args'], [str(alternate / 'hooks/log-step-hook.sh')])
         self.assertEqual(self.read_settings()['user'], 'preserved')
 
-    def test_hook_recovery_after_image_finalizes_then_recomputes_install(self):
+    def test_hook_recovery_after_image_finalizes_then_recomputes_install(self) -> None:
         alternate, prepared = self.prepare_upgrade('after')
         self.call('install', '--from', str(alternate))
         self.assertEqual(json.loads(self.receipt.read_text()), prepared['next'])
         self.assertEqual(self.read_settings()['user'], 'preserved')
 
-    def test_hook_recovery_external_edit_preserves_settings_and_prepared_receipt(self):
+    def test_hook_recovery_external_edit_preserves_settings_and_prepared_receipt(self) -> None:
         alternate, prepared = self.prepare_upgrade('after')
         value = self.read_settings()
         value['external'] = 'new user value'
@@ -376,7 +463,7 @@ class HookInstallation(unittest.TestCase):
         self.call('uninstall', expected='unavailable')
         self.assertEqual(before, self.snapshot())
 
-    def test_hook_recovery_uninstall_uses_saved_state_after_old_source_disappears(self):
+    def test_hook_recovery_uninstall_uses_saved_state_after_old_source_disappears(self) -> None:
         alternate, prepared = self.prepare_upgrade('after')
         shutil.rmtree(self.checkout)
         env = dict(self.env, ORCHESTRAIL_HOME=str(self.checkout))
@@ -386,7 +473,7 @@ class HookInstallation(unittest.TestCase):
             self.assertEqual(json.loads(self.receipt.read_text()),
                              {'schema_version':1, 'state':'committed', 'owned':[], 'created_groups':[]})
 
-    def test_hook_recovery_malformed_prepared_receipt_never_replaces_settings(self):
+    def test_hook_recovery_malformed_prepared_receipt_never_replaces_settings(self) -> None:
         alternate, prepared = self.prepare_upgrade('before')
         invalid_variants = []
         for field, replacement in (('before', {'present':True,'sha256':'bad'}),
@@ -401,7 +488,7 @@ class HookInstallation(unittest.TestCase):
             self.call('install', '--from', str(alternate), expected='unavailable')
             self.assertEqual(before, self.snapshot())
 
-    def test_hook_transaction_interruption_before_settings_recovers_absent_image(self):
+    def test_hook_transaction_interruption_before_settings_recovers_absent_image(self) -> None:
         self.install()
         self.call('uninstall', expected='uninstalled')
         self.settings.unlink()
@@ -422,7 +509,7 @@ class HookInstallation(unittest.TestCase):
         self.owned_groups()
         self.assertEqual(json.loads(self.receipt.read_text())['state'], 'committed')
 
-    def test_hook_transaction_interruption_after_settings_recovers_committed_image(self):
+    def test_hook_transaction_interruption_after_settings_recovers_committed_image(self) -> None:
         self.install()
         self.call('uninstall', expected='uninstalled')
         env = self.interrupt_replacement(self.settings)
@@ -436,7 +523,7 @@ class HookInstallation(unittest.TestCase):
             self.assertEqual(json.loads(self.receipt.read_text()),
                              {'schema_version':1, 'state':'committed', 'owned':[], 'created_groups':[]})
 
-    def test_hook_transaction_rechecks_before_image_after_preparing_ownership(self):
+    def test_hook_transaction_rechecks_before_image_after_preparing_ownership(self) -> None:
         self.install()
         alternate = self.root / 'upgrade source'
         self.copy_source(alternate)
@@ -445,9 +532,11 @@ class HookInstallation(unittest.TestCase):
         faults = self.root / 'concurrent-editor'
         faults.mkdir()
         (faults / 'sitecustomize.py').write_text(
-            'import os\nfrom pathlib import Path\n'
-            'def wrap(original):\n'
-            '    def replacement(src, dst, *args, **kwargs):\n'
+            'from __future__ import annotations\nimport os\nfrom pathlib import Path\n'
+            'from typing import Callable, Concatenate, ParamSpec, TypeVar\n'
+            'P = ParamSpec("P")\nR = TypeVar("R")\nPathArg = str | os.PathLike[str]\n'
+            'def wrap(original: Callable[Concatenate[PathArg, PathArg, P], R]) -> Callable[Concatenate[PathArg, PathArg, P], R]:\n'
+            '    def replacement(src: PathArg, dst: PathArg, *args: P.args, **kwargs: P.kwargs) -> R:\n'
             '        result = original(src, dst, *args, **kwargs)\n'
             '        if Path(dst).resolve() == Path(os.environ["HOOK_TEST_RECEIPT"]).resolve():\n'
             '            Path(os.environ["HOOK_TEST_SETTINGS"]).write_bytes(Path(os.environ["HOOK_TEST_EXTERNAL"]).read_bytes())\n'
@@ -464,16 +553,18 @@ class HookInstallation(unittest.TestCase):
         self.call('uninstall', expected='unavailable')
         self.assertEqual(before, self.snapshot())
 
-    def test_hook_transaction_replacement_failure_preserves_settings_and_allows_retry(self):
+    def test_hook_transaction_replacement_failure_preserves_settings_and_allows_retry(self) -> None:
         self.install()
         self.call('uninstall', expected='uninstalled')
         before = self.settings.read_bytes()
         faults = self.root / 'failed-replacement'
         faults.mkdir()
         (faults / 'sitecustomize.py').write_text(
-            'import os\nfrom pathlib import Path\n'
-            'def wrap(original):\n'
-            '    def replacement(src, dst, *args, **kwargs):\n'
+            'from __future__ import annotations\nimport os\nfrom pathlib import Path\n'
+            'from typing import Callable, Concatenate, ParamSpec, TypeVar\n'
+            'P = ParamSpec("P")\nR = TypeVar("R")\nPathArg = str | os.PathLike[str]\n'
+            'def wrap(original: Callable[Concatenate[PathArg, PathArg, P], R]) -> Callable[Concatenate[PathArg, PathArg, P], R]:\n'
+            '    def replacement(src: PathArg, dst: PathArg, *args: P.args, **kwargs: P.kwargs) -> R:\n'
             '        if Path(dst).resolve() == Path(os.environ["HOOK_TEST_SETTINGS"]).resolve():\n'
             '            raise OSError("fixture denies settings replacement")\n'
             '        return original(src, dst, *args, **kwargs)\n'
@@ -487,7 +578,7 @@ class HookInstallation(unittest.TestCase):
         self.install()
         self.owned_groups()
 
-    def test_hook_install_preserves_exact_json_numbers_and_strings(self):
+    def test_hook_install_preserves_exact_json_numbers_and_strings(self) -> None:
         self.settings.parent.mkdir(parents=True, exist_ok=True)
         original = ('{"large":9007199254740993,"precise":1.2345678901234567890123456789,'
                     '"huge":1e400,"tiny":1e-400,"zero":-0,"text":"1e400 \\u263a",'
@@ -509,7 +600,7 @@ class HookInstallation(unittest.TestCase):
         self.assert_user_settings_preserved(expected)
         self.assertNotIn('Infinity', self.settings.read_text())
 
-    def test_hook_install_missing_dependencies_report_unavailable_without_mutation(self):
+    def test_hook_install_missing_dependencies_report_unavailable_without_mutation(self) -> None:
         self.install()
         dependency_paths = {name: shutil.which(name) for name in ('python3', 'jq', 'flock')}
         for missing in dependency_paths:
@@ -529,9 +620,9 @@ class HookInstallation(unittest.TestCase):
                 self.call('install', expected='unavailable', env=dict(self.env, PATH=str(bins)))
                 self.assertEqual(before, self.snapshot())
 
-    def test_hook_install_concurrent_operations_are_serialized_and_parseable(self):
+    def test_hook_install_concurrent_operations_are_serialized_and_parseable(self) -> None:
         self.install()
-        def operation(index):
+        def operation(index: int) -> subprocess.CompletedProcess[str]:
             return self.raw_call('install' if index % 3 else 'uninstall')
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
             results = list(pool.map(operation, range(24)))
@@ -544,7 +635,7 @@ class HookInstallation(unittest.TestCase):
         self.call('uninstall', expected='uninstalled')
         self.assertFalse(any(g['hooks'] for groups in self.read_settings().get('hooks', {}).values() for g in groups))
 
-    def test_hook_uninstall_recovers_without_native_dependencies_but_requires_python(self):
+    def test_hook_uninstall_recovers_without_native_dependencies_but_requires_python(self) -> None:
         alternate, prepared = self.prepare_upgrade('after')
         shutil.rmtree(alternate)
         without_python = self.root / 'without-uninstall-python'
@@ -561,7 +652,7 @@ class HookInstallation(unittest.TestCase):
         self.call('uninstall', expected='uninstalled', env=dict(self.env, PATH=str(without_native)))
         self.assert_user_settings_preserved({'user':'preserved'})
 
-    def test_hook_receipt_literal_null_is_invalid_and_nullable_next_recovers_absence(self):
+    def test_hook_receipt_literal_null_is_invalid_and_nullable_next_recovers_absence(self) -> None:
         self.write_settings({'user':'preserved'})
         self.install()
         valid = self.receipt.read_bytes()
@@ -582,7 +673,7 @@ class HookInstallation(unittest.TestCase):
         self.assertFalse(self.receipt.exists())
         self.assert_user_settings_preserved({'user':'preserved'})
 
-    def test_hook_manifest_and_capabilities_describe_available_mechanism_and_partial_coverage(self):
+    def test_hook_manifest_and_capabilities_describe_available_mechanism_and_partial_coverage(self) -> None:
         manifest = self.checkout / 'harness' / 'claude' / 'hooks.json'
         self.assertTrue(manifest.is_file(), 'portable native hook manifest must exist')
         hooks = json.loads(manifest.read_text())['hooks']
@@ -598,7 +689,7 @@ class HookInstallation(unittest.TestCase):
         for token in ('hooks: no', 'approximate', 'release', 'coverage'):
             self.assertIn(token, codex)
 
-    def test_hook_setup_registers_canonical_roots_idempotently_and_adapter_gates(self):
+    def test_hook_setup_registers_canonical_roots_idempotently_and_adapter_gates(self) -> None:
         alias = self.root / 'alias'
         alias.symlink_to(self.project, target_is_directory=True)
         self.setup_project(cwd=alias)
@@ -617,7 +708,7 @@ class HookInstallation(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn('coverage', result.stderr)
 
-    def test_hook_setup_trailing_newline_is_rejected_and_sibling_prefix_stays_inactive(self):
+    def test_hook_setup_trailing_newline_is_rejected_and_sibling_prefix_stays_inactive(self) -> None:
         self.setup_project()
         before = self.registry.read_bytes()
         newline_project = self.root / 'trailing-newline\n'
@@ -638,7 +729,7 @@ class HookInstallation(unittest.TestCase):
         self.assertIn('invalid-native-input', result.stderr)
         self.assertEqual(before, self.snapshot())
 
-    def test_hook_setup_concurrent_registration_preserves_existing_roots(self):
+    def test_hook_setup_concurrent_registration_preserves_existing_roots(self) -> None:
         self.setup_project()
         self.assertTrue(self.registry.exists(), 'setup must publish the consumer registry')
         projects = [self.root / ('consumer ' + str(index)) for index in range(6)]
@@ -650,7 +741,7 @@ class HookInstallation(unittest.TestCase):
         self.assertEqual(set(self.registry.read_text().splitlines()), {str(p.resolve()) for p in [self.project, *projects]})
         self.assertEqual(len(self.registry.read_text().splitlines()), len(projects) + 1)
 
-    def test_hook_setup_default_config_location_preserves_custom_project_files(self):
+    def test_hook_setup_default_config_location_preserves_custom_project_files(self) -> None:
         (self.project / 'AGENTS.md').write_text('# Custom project guidance\n')
         (self.project / 'CLAUDE.md').write_text('# Custom Claude guidance\n')
         env = dict(self.env)
@@ -663,7 +754,7 @@ class HookInstallation(unittest.TestCase):
         self.assertEqual((self.project / 'AGENTS.md').read_text(), '# Custom project guidance\n')
         self.assertEqual((self.project / 'CLAUDE.md').read_text(), '# Custom Claude guidance\n')
 
-    def test_hook_setup_invalid_registry_or_newline_root_preserves_existing_entries(self):
+    def test_hook_setup_invalid_registry_or_newline_root_preserves_existing_entries(self) -> None:
         self.setup_project()
         self.assertTrue(self.registry.exists(), 'setup must publish the registry before rejection checks')
         for contents in ('relative/path\n', '\x00bad\n', '/valid\n\n'):
@@ -680,7 +771,7 @@ class HookInstallation(unittest.TestCase):
         self.assertEqual(before, self.registry.read_bytes())
         self.assertIn('unavailable', result.stdout + result.stderr)
 
-    def test_hook_sync_embeds_capabilities_once_and_preserves_all_deployment_targets(self):
+    def test_hook_sync_embeds_capabilities_once_and_preserves_all_deployment_targets(self) -> None:
         self.sync()
         claude_cap = self.checkout / 'harness' / 'claude' / 'capabilities.md'
         codex_cap = self.checkout / 'harness' / 'codex' / 'capabilities.md'
@@ -708,7 +799,7 @@ class HookInstallation(unittest.TestCase):
                 self.assertEqual(path.read_bytes(), (self.home / '.codeium/windsurf' / destination / path.name).read_bytes())
         self.assertFalse(self.registry.exists(), 'sync must not register the source or consumers implicitly')
 
-    def test_hook_sync_unavailable_installation_still_refreshes_consumer_projects(self):
+    def test_hook_sync_unavailable_installation_still_refreshes_consumer_projects(self) -> None:
         self.settings.parent.mkdir(parents=True)
         self.settings.write_text('{malformed')
         consumer = self.home / 'consumer'
