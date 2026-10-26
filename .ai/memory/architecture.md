@@ -83,12 +83,19 @@ root), `AGENTS.md` (Codex, per project), `codex-global-AGENTS.md` (→ `~/.codex
 | `scripts/link-skills.sh` | workaround: symlink global skills into a project's `.claude/skills/` |
 | `scripts/log-step.sh` | validates complete producer arguments and exact legacy aliases before append-only JSONL writes; optional-jq legacy fallback; sorted runtime `contract` export and read-only `lint` diagnostics/summary; executable integer `ts_ms` boundaries; optional correlated identities and spans use bounded per-run flock, private active-only deduplication and matching JSON acceptance receipts; jq is required for lint and correlated writes, with flock/truncate additionally required for correlated writes; exits 0 on every error |
 | `hooks/log-step-hook.sh` | Bash/jq/flock dispatch, status and serialized fallback; native Stop/SubagentStop adapter gates the most-specific registered project before private/transcript/log reads, validates canonical markers and native Skill evidence, freezes native/report-bound delivery for receipt-confirmed retries, and retains exclusive fallback ownership; private records under the XDG state directory contain no conversation text |
+| `scripts/install-hooks.sh`, `scripts/install-hooks.py` | Bash lifecycle entrypoint guards Python 3.11+ before a typed source-only standard-library engine loads; the engine preserves user settings numeric lexemes, tracks exact inserted handler/group multiset quotas, serializes installation and recovers prepared before/after settings replacements without overwriting external edits; Python is required for installation/removal, while jq/flock gate installation only |
+
+`harness/claude/hooks.json` contains the portable native hook fragment. Claude and Codex capability declarations under `harness/` distinguish mechanism support, current installation status and demonstrated checkpoint coverage. Sync rebuilds the existing global instruction bodies and appends each capability block and installation result once; installation unavailability does not interrupt the other deployment targets or consumer refresh.
+
+Project setup is the sole writer of the XDG configuration project registry. It registers physical canonical roots idempotently under a dedicated lock with atomic replacement, preserves existing entries and rejects newline paths. The hook adapter only reads this registry; sync does not register or prune project roots.
 
 ### Executable acceptance checks
 
 `tests/log-step.sh` copies the helper, canonical contract and workflows into a disposable checkout and runs the focused producer, lint, retrospective and drift checks in separate Bash processes. Explicit temporary log/workflow roots and per-operation checksums isolate fixtures from real logs; exit and signal traps clean up the temporary tree.
 
 `tests/log-step-hook.sh` exercises native input, explicit dispatch correlation, exact report markers, bounded transcript evidence, private state and competing delivery routes in disposable home/config/state/project/log roots. Run it through `bash scripts/validate-contracts.sh --hook-adapter-only`; the default validator includes the same acceptance suite.
+
+`tests/hook-install.sh` covers owned installation/removal, lossless numeric settings, multiset quotas, malformed inputs, concurrent registration, interrupted replacement recovery and isolated multi-harness sync. The focused `--hook-install-only` mode and default validator run the same lifecycle acceptance suite without real-home deployment.
 
 ### Layer 6 — `logs/` (central telemetry store)
 `logs/runs/<ts>-<pipeline>-<id>.jsonl` + `.md` digest, `.active/` for open runs.

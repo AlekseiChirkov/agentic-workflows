@@ -13,7 +13,7 @@ In scope: Retrospective analysis separates elapsed coverage from nested worker s
 
 Out of scope: cost/token schemas, git protection hooks, broad harness migration, historical telemetry mutation, automatic merges. Other leaves own their named components.
 
-Target files: workflows/retro.md, scripts/run-log-timing.sh, tests/hook-timing.sh, scripts/validate-contracts.sh, docs/USAGE.md, scripts/README.md, docs/README.md. Paths may be refined after inspecting existing patterns; report additions explicitly.
+Target files: workflows/retro.md, scripts/run-log-timing.sh, scripts/run-log-timing.py, tests/hook-timing.sh, scripts/validate-contracts.sh, tests/log-step-hook.sh, docs/USAGE.md, scripts/README.md, docs/README.md. The Bash launcher delegates to a source-only Python standard-library engine. Add a real partial-append retry regression to the existing correlated producer suite, retaining frozen checks. Harmonize annotations in task-introduced adapter/producer Python fixtures without changing executable bodies, assertions or generated producer bytes; add a scoped standards check. Paths may be refined after inspecting existing patterns; report additions explicitly.
 
 ## Steps
 1. Freeze deterministic sequential, gapped, waiting, nested and parallel timing fixtures with independent expected denominators and two-run end-to-end scenarios.

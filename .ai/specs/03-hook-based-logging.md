@@ -217,6 +217,10 @@ intent in REQ-01 through REQ-05.
   copies. Record created-group counts separately: remove only that many matching groups
   made empty by owned-handler removal in this operation. Never remove preexisting
   groups, already-empty groups or groups retaining user handlers.
+- Uninstall may retain introduced empty `hooks` or Stop/SubagentStop array containers;
+  their original absence is not part of handler/group ownership. Preserve preexisting
+  empty containers and all user values. Remove owned handlers and created selector
+  groups by quota rather than deleting unowned structural keys.
 - Settings and ownership replacements use a prepared transaction in the ownership
   sidecar under the installer lock. It contains previous/next ownership plus exact
   before/after settings digests and presence flags, without saving unrelated settings
@@ -236,12 +240,46 @@ intent in REQ-01 through REQ-05.
   reports `status:"installed"`, `"uninstalled"`, or `"unavailable"`. Recoverable
   installation failures warn safely without aborting other sync deployment; invalid
   CLI arguments can fail before mutation.
+- Installer JSON ownership and recovery use Python 3.11 or newer's standard library behind the
+  Bash entrypoint. Preserve arbitrary original settings number lexemes while comparing
+  numeric JSON values mathematically for exact object equality; never round settings
+  through binary floats. This explicit installer-only dependency avoids numeric-tag
+  transport and a second exact comparator in jq. Missing Python makes either operation
+  unavailable without settings/ownership mutation. Install additionally requires native
+  jq/flock dependencies; uninstall and saved-transaction recovery do not require those
+  executables or the old adapter source. Python supplies the installer lock. Hooks and
+  ordinary producer writes do not acquire a Python dependency.
+  The Bash entrypoint probes interpreter support before loading the engine; an older
+  or unusable interpreter reports unavailable with reason `unsupported-python`
+  without changing settings or ownership. Missing Python retains the existing
+  missing-dependency result. This minimum follows the repository Python standard.
+- Ownership sidecar version 1 has a committed form
+  `{schema_version:1,state:"committed",owned:[{event,selector,handler,count}],created_groups:[{event,selector,count}]}`.
+  Its prepared form is
+  `{schema_version:1,state:"prepared",previous:<committed-or-null>,next:<committed-or-null>,before:{present,sha256},after:{present,sha256}}`.
+  Null previous/next means an absent receipt; prepared states never nest. Presence
+  true requires a 64-character lowercase hexadecimal digest; false requires null.
+  Schema version and positive bounded counts use canonical integer tokens. Ownership
+  keys and created-group keys are unique within their respective arrays; reject
+  duplicate claims rather than multiplying deletion quotas. If a user reduced matching
+  occurrences, remove at most the saved quota still present and retire stale claims.
 - The portable native manifest contains only Stop/SubagentStop groups. Handlers use
   `type:"command"`, `command:"bash"`,
   `args:["@ORCHESTRAIL_HOME@/hooks/log-step-hook.sh"]`, `timeout:10`, and
   `onFailure:"continue"`. Replace only that exact permitted placeholder with the
   canonical absolute hook path, never using shell evaluation. Ownership stays out of
   native settings.
+  Official [command-handler fields](https://code.claude.com/docs/en/hooks#command-hook-fields)
+  and [exec-form behavior](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)
+  support this argument-vector form. Anthropic's changelog introduced `args` in
+  [2.1.139](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21139)
+  and `onFailure` in
+  [2.1.295](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21295),
+  before the selected 2.1.309 profile. `onFailure` is accepted but
+  [has no effect on Stop/SubagentStop](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails);
+  nonblocking behavior depends on the adapter's exit-zero/output contract and native
+  event semantics. Do not infer support for unknown or older runtime profiles, or
+  mistake isolated fixtures for live event-firing verification.
 - Capability declarations are `harness/claude/capabilities.md` and
   `harness/codex/capabilities.md`. Claude records the verified profile and isolated
   fixture evidence; Codex states that this release installs no native adapter there
@@ -276,6 +314,39 @@ intent in REQ-01 through REQ-05.
   unknown capability use that prompt-driven approximate path for every step. Run start
   and run end remain prompt-driven. A Stop event after run end is omitted and never
   reopens a run.
+- Workflow routing distinguishes a boundary for which no envelope was ever issued
+  from a known checkpoint. Only the former may write directly through the ordinary
+  producer with `note:"approximate"`. Lost resume knowledge is not proof that no
+  envelope existed; omit and disclose uncertainty instead of guessing.
+- After issuing an envelope, never write that boundary directly through the ordinary
+  producer. A matching accepted receipt suppresses the corresponding prompt event;
+  pending status uses serialized fallback once. Missing, malformed or wrong-tuple
+  status may invoke only the retained checkpoint's serialized fallback; if private
+  validation cannot safely claim pending ownership, omit and disclose uncertainty.
+  Delivering status keeps the correlated route, while fallback/fallback-attempted
+  allows no second attempt. Controllers never fabricate native input for retries or
+  infer persistence from exit zero or fallback output.
+- Without restructuring current batches, `spec-run`'s existing RED return is a
+  candidate for named coverage when it actually contains exactly one `pae-tests`
+  invocation and matching dispatch/report/receipt. A test-level-none path has no RED
+  return and no RED coverage. GREEN combines `pae-implement` and `pae-finalize`;
+  validation combines three skills. Those aggregates, internal skills, synthetic
+  subtask summaries, discovery/root work and arbitration retain approximate logging.
+  Session-unknown coverage never becomes named-step coverage.
+- Before the existing `spec-run` implementer spawn, usable native capability,
+  installation and session identity may provisionally dispatch the expected
+  `pae-tests` checkpoint. Retain the returned tuple and insert its original envelope
+  line unchanged in the native user input. Keep the same worker, existing RED pause,
+  git checkpoint and GREEN continuation. At an actual RED return, the worker appends
+  one canonical report marker to its final response (`outcome:"ok",tests:"red"`);
+  a genuine unique native Skill invocation remains required evidence. Resolve that
+  checkpoint through status/serialized fallback before the git handoff. The named
+  RED row is distinct from the approximate synthetic subtask aggregate.
+- The test classifier runs inside the worker, so provisional dispatch does not prove
+  a RED return will exist. A test-level-none path emits no RED report, claims no RED
+  timing row and leaves the provisional checkpoint uncovered. GREEN batches must not
+  reuse the RED marker. Missing actual Skill evidence, extra invocations or a wrapper
+  invocation cannot become precise coverage merely because expected-skill was supplied.
 
 ### Timing definitions
 
@@ -312,10 +383,38 @@ intent in REQ-01 through REQ-05.
   omitted `span_kind` normalizes to `work`. Conflicting observations exclude the
   entire checkpoint key. Resolve the complete graph before arithmetic; arrival order
   and sequence numbers never establish ancestry or interval chronology.
+- Repeated-checkpoint equality compares normalized producer delivery fields: actor,
+  step/result, explicit interval/source/boundary/parent/kind, and every present
+  caller-supplied result, context and count field from the producer contract. Presence
+  and string values remain exact; historical integral number forms normalize exactly.
+  Generated sequence and timestamp variations are disclosed but do not duplicate the
+  span. Pipeline/project/task/flow must agree with usable run metadata; conflicting
+  attribution excludes that checkpoint. Differing generated `duration_s` or unknown
+  extension fields also exclude the key with a disclosed envelope conflict.
 - Invalid intervals contribute no interval metrics. Otherwise valid intervals with
   invalid hierarchy relationships still contribute disclosed inclusive/union coverage,
   while their connected parent component is excluded from exclusive/worker metrics.
   Disconnected valid roots remain eligible, with partial graph coverage disclosed.
+- Resolve dependency components before discarding unusable checkpoint keys. Retain
+  missing, invalid or conflicting keys as non-measuring tombstones; for conflicting
+  observations retain every safely established parent declaration, never select a
+  winning copy. Any invalid endpoint, missing/conflicting parent, failed containment
+  or cycle excludes its entire transitive parent component from exclusive, worker,
+  active-exclusive and parallel calculations. A valid parent cannot silently treat
+  an invalid child as absent, nor may a child of an excluded key become a root.
+  Individually eligible intervals still contribute raw inclusive and union metrics.
+- A lint-rejected correlated row may supply independently checked identity/parent
+  fields only as negative dependency evidence, never as a timing observation or
+  positive metric group. This narrow exclusion-evidence exception prevents a rejected
+  child from inflating its parent's exclusive work. Unparseable rows or unusable
+  correlated identities make the file's exclusive graph coverage unverified and its
+  exclusive/worker/active-exclusive/parallel metrics null. Parseable rejected legacy
+  rows without correlation fields do not hide graph edges. Complete lint coverage
+  and graph coverage are distinct; raw eligible interval metrics may remain available.
+- Containment uses endpoint inequalities, including zero-length children at a
+  parent's end. A zero-length parent contains only zero-length children at that same
+  instant. Zero-length spans at run end are valid and measure zero; self-parenting
+  and cycles remain invalid regardless of length.
 - Successive checkpoints on one actor remain separate intervals, preserving gaps.
   Overlapping exclusive intervals from distinct checkpoints on the same
   `(session_id,agent_id)` make that actor's worker total unavailable; disclose the
@@ -329,8 +428,14 @@ intent in REQ-01 through REQ-05.
   wall time. Precise run ratios require one unambiguous valid start/end pair;
   conflicting boundaries invalidate the denominator. A zero wall duration gives an
   unavailable ratio. Zero-length spans remain valid.
-- The offline timing helper is a Bash wrapper using Python 3's standard library;
+- The offline timing helper is a Bash wrapper using Python 3.11 or newer's standard library;
   producer writes, hooks and ordinary logging retain their existing dependencies.
+  Keep the substantial snapshot, lint, interval and graph engine in source-only
+  `scripts/run-log-timing.py` beside the small Bash entrypoint. The wrapper handles
+  launch/dependency failure; Python owns argument parsing and analysis. No package
+  installation or user-home script deployment is required.
+  Probe the minimum interpreter version before engine startup; unsupported Python
+  produces structured unavailable/null metrics just like missing dependencies.
   It reads explicitly selected snapshots without mutation, parses historical integral
   JSON forms exactly with `decimal.Decimal`, and rejects booleans, non-finite values
   and out-of-bound endpoints before integer conversion. Arithmetic uses Python
@@ -354,3 +459,27 @@ intent in REQ-01 through REQ-05.
   therefore an offline eligibility dependency alongside Python; missing either
   dependency cannot produce clean-looking empty metrics. Temporary snapshots are
   private and cleaned up after analysis.
+- Timing CLI: `bash scripts/run-log-timing.sh [--] FILE...`, with `-h/--help`.
+  Inputs are explicit paths only; no implicit store discovery, stdin corpus or active
+  metadata reads. Deduplicate repeated canonical paths in caller order. Each input file
+  describes one run; inconsistent run identities within a file or distinct selected
+  files claiming the same run identity are ambiguous and unavailable for that run.
+  Missing inputs, invalid arguments and failed reads produce structured unavailable
+  results, never successful empty-corpus metrics.
+- Output is one version-1 JSON object with `status`, `coverage`, `runs` and
+  `diagnostics`. Coverage reports lint status, selected files, examined lines, invalid
+  lines, violation count and whether the invalid-line count is exact. Unavailable
+  corpus metrics and runs are null. A run reports its file, identity, status, metrics,
+  spans, workers, named-step summaries and reason-coded diagnostics; never emit raw
+  records, notes or conversation context. Millisecond endpoints and totals are decimal
+  strings; ratios use exact `numerator_ms` and `denominator_ms` strings, or null when
+  unavailable. Gaps use explicit endpoint pairs. Known exclusions produce partial
+  results; unverified lint makes all timing unavailable. Gaps alone do not imply an
+  invalid corpus or waiting.
+- Lint completeness checks count physical input lines by LF bytes only (empty files
+  have zero lines, a nonempty unterminated final line counts once). Require exactly
+  one final summary, no unknown diagnostic kinds, nonnegative integer nonboolean
+  controls, and exact file/line/violation/unique-invalid-line counts. Every violation
+  references a known snapshot file and an in-range physical line with nonempty field
+  and code. Verify unchanged snapshot inventory and bytes around lint; malformed or
+  incomplete diagnostics make coverage unavailable and known violations lower bounds.
