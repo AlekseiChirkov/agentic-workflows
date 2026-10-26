@@ -122,7 +122,7 @@ T-01 | Validated correlated event writes | atomic-tests: green | atomic-executio
   branch: feat/correlated-event-writes
   base_branch: fix/knowledge-base-tracking-policy
   base_commit: 9bb1358be2ee9d09f83520239ff30baa29c05906
-  commits: be65b3dc956a3e156ad95d4b3535765ea41b6746 test(logging): cover correlated events and precise intervals, a10aeb3e42d2c74448e11939186b82cb8e205794 feat(logging): accept correlated checkpoint intervals
+  commits: be65b3dc956a3e156ad95d4b3535765ea41b6746 test(logging): cover correlated events and precise intervals, a10aeb3e42d2c74448e11939186b82cb8e205794 feat(logging): accept correlated checkpoint intervals, d804b01b2b1cd6e82f1890fee3128ebd0655fd5f chore(logging): Reconcile specification ancestry
   pr: #23 ready
 
 T-02 | Explicit hook dispatch and completion | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
@@ -361,6 +361,28 @@ T-06 | Focused shell delivery functions | atomic-tests: green | atomic-execution
 
 adr: .ai/adr/0013-task-03-correlated-hook-logging.md (Accepted)
 
+T-07 | Private producer replay and metadata | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: DoD met — four acceptance criteria verified; independent repair PASS and fresh complete gate 594/0/2; metadata review and integration follow.
+  target_files: scripts/validate-contracts.sh, scripts/log-step.sh
+  blocker: none
+  notes: Arbiter selected raw canonical positive cached sequences, private creation before redirection, and advisories only for newly accepted arbitrary unknown names; preserve intentional session unknown and optional-jq ordinary logging.
+         tdd: red — cache accepts zero, exponent and string sequences; mixed ordinary writes widen metadata and temporary replacements under umasks 002/000; correlated arbitrary names and unavailable definitions lack advisory. All three new checks exit one for these assertions; original focused 35 checks pass and product source is unchanged.
+         fixture exception: run_private_producer_smoke has an exact 187-line ceiling and arity one. It hosts one frozen typed Python heredoc corpus with shared disposable public-command, receipt and byte/mode snapshot support. Each Python helper meets 30 lines and three parameters. Retaining complete cache/privacy/advisory lifecycles avoids arbitrary heredoc splitting; no fixture-wide exception is granted. Arbiter approved under code-quality's individually justified exception rule.
+         fixture amendment: the history-copy extraction count changes 28 to 31 solely because three check pairs were added. Exact pair shape and no-residual-check assertions remain intact; no original assertion changed.
+         tdd: green — producer 38/38, adapter 38/38, source quality 3/3, canonical, Bash syntax and whitespace checks pass. Raw cache validation includes a single fixed-schema object, duplicate/escaped duplicate-key rejection and unchanged conflicting-payload behavior. Historical exponent-form sequence lint remains compatible. Permission probes cover initial/ordinary/correlated metadata and temporary replacements under 002/000 with jq and no-jq, without event-mode changes. The frozen test commit remains unchanged.
+         validation: NEEDS_WORK at c42a663 — the three original repairs pass independent producer 38, adapter 38, quality 3, canonical, 37 malformed-cache probes, 24 private temporary replacements and rollback/concurrency/history probes. Literal NUL inside a raw sequence or after the JSON object is discarded by Bash before validation and still yields acceptance. All file bytes and modes remain unchanged, but malformed raw state must not establish acceptance.
+         decision: Arbiter confirms the fresh-cache invariant applies before line decoding. Reject the entire NUL-bearing active file before header/key parsing, so initial explicit file lookup stops safely rather than treating a corrupt cache entry as absent. Preserve literal percent text and legacy decoding; distinguish failed opening from normal EOF, and do not claim Bash EOF status proves error-free I/O. Extend this unpublished leaf with another separate regression commit then implementation commit.
+         tdd: added/red — four literal-NUL positions (after object, inside sequence, key and string value) independently yield duplicate acceptance on c42a663 with unchanged bytes/modes. Additive positive escaped-key, percent text, quote/backslash and newline replay controls pass. Commit cfa4f6f contains only these 17 test lines, before product repair; no existing assertion changes. The specifically named heredoc fixture ceiling is now 204 lines (187 plus 17), arity one, retaining the same single-corpus rationale and typed 30-line/three-parameter Python helpers.
+         tdd: NUL green — metadata_has_no_nul is eight lines/one parameter; meta_read is 24 lines/three parameters. Guard raw bytes before line parsing and reject a failed descriptor open; preserve existing percent decoding and avoid stronger OS read-error guarantees. Producer 38, adapter 38, quality 3, canonical, syntax, whitespace and 15 independent NUL/legacy probes pass. One existing adapter timeout under CPU contention passed unchanged both alone and on the full adapter rerun; no timeout or assertion was changed.
+         validation: PASS at da4e027 — independent producer 38, adapter 38, source quality 3 and canonical checks; 37 malformed-cache cases, 40 NUL-route checks, failed descriptor opening/exhaustion, 24 private replacements, mixed concurrency, historical lint and actual append/metadata rollback all pass. Exact original three RED cases and four NUL RED positions independently reproduced; all original assertions and 17 additive follow-up lines audited. The unchanged bounded-transcript timeout case and full adapter rerun pass; source remains immutable.
+         final validation: fresh complete isolated validator at da4e027 exits zero: 594 passed, 0 failed, 2 optional private-pattern skips. All original source/behavior assertions remain intact. This completes the cumulative criterion; no product issue remains. The clean detached checkout and 125-file non-knowledge manifest pin the validated source.
+  branch: fix/private-event-replay
+  base_branch: fix/hook-function-boundaries
+  base_commit: fa865f4363a9f2420984ee3b1249deed2f1fc4ec
+  commits: f8c85c478bfc84f6821d170bc1a3574212b690c5 test(logging): cover private replay and metadata permissions, c42a6632e680fddcef6810ff0be95aa857206814 fix(logging): validate private replay and preserve metadata modes, cfa4f6f45c492f1c746559f09b0b0515b4f7bc51 test(logging): reject NUL bytes before metadata decoding, da4e027b708d42cb6ae858d032c84ceb71b8fd5f fix(logging): reject NUL bytes before reading active metadata
+  pr: #29; branch published, promotion after the final knowledge delta review
+
+
 ## Improvement Proposals (T-01)
 
 ### Do Now
@@ -475,6 +497,17 @@ recorded_paths:
 - .ai/memory/state.md
 - .ai/tasks/todo/task-03-hook-based-logging/state.md
 
+### Independently verified private producer acceptance
+
+branch: fix/private-event-replay
+expected_parent: da4e027b708d42cb6ae858d032c84ceb71b8fd5f
+allowed_scope: exactly the listed knowledge-base paths
+recorded_paths:
+- .ai/specs/03-hook-based-logging.md
+- .ai/tasks/todo/task-03-hook-based-logging/plan.md
+- .ai/tasks/todo/task-03-hook-based-logging/state.md
+- .ai/tasks/todo/task-03-hook-based-logging/T-07-fix-private-event-replay/description.md
+
 ## Execution Report
 
 | Subtask | Outcome | Evidence |
@@ -564,6 +597,10 @@ Independent whole-stack review: 0 critical, 1 important, 0 optional findings. No
 ### Approved
 
 1. Decompose native and correlated shell delivery into focused functions and replace the six-parameter metadata API with a coherent context; record only individually justified existing predicate/lifecycle/fixture exceptions. Priority: important. Automatically approved under spec-run and the owner's autonomous implementation instruction. Resolved by independently reviewed T-06; both repair commits and the unchanged behavior evidence are recorded above.
+2. Reject nonpositive or noncanonical cached acceptance sequences before JSON normalization. Priority: important. Approved by the owner's additional final-review/repair instruction; T-07.
+3. Preserve private active metadata and temporary replacement permissions across ordinary writes. Priority: important. Approved by the owner's additional final-review/repair instruction; T-07.
+4. Restore the canonical advisory for newly accepted arbitrary unrecognized correlated step names. Priority: optional. Included under the owner's autonomous repair authorization; T-07.
+5. Reject literal NUL before Bash metadata reads can normalize malformed cache. Priority: important. Found by independent repair validation and approved under the same repair instruction; T-07.
 
 ### Deferred
 
@@ -571,14 +608,15 @@ Independent whole-stack review: 0 critical, 1 important, 0 optional findings. No
 
 ## Fix-Tasks
 fixes-created: complete
-fixes-count: 1
-Created: T-06-fix-hook-function-boundaries
+fixes-count: 2
+Created: T-06-fix-hook-function-boundaries, T-07-fix-private-event-replay
 
 ### Fix Classification
 
 | Issue | Severity | Gate 1 | Gate 2 | Gate 3 | Gate 4 | Grouping | Branch |
 |---|---|---|---|---|---|---|---|
 | #1 Focused shell delivery functions | important | fail: four product/test files | pass: no new invariant | pass: behavior preserved | pass: no schema/migration | dedicated | T-06-fix-hook-function-boundaries |
+| #2–#5 Private producer replay and metadata | important and optional | pass: two product/test files | pass: enforce existing invariants | fail: correct shipped behavior | pass: no schema/migration | dedicated | T-07-fix-private-event-replay |
 
 ## Deferred
 
@@ -621,3 +659,29 @@ base: main at immutable branch point 7477bacce34b58d3c683a4329b82778b0d330a7e
 Merge order is the table order. No merge, default-branch push, force push or branch deletion was performed. After a squash or rebase merge, use restack before integrating remaining branches. Recorded hashes are pre-merge. Remote main advanced independently to 6fbaf42cca979f132280b1b04698d41306331626 by adding the original specification; feature branch points remain unchanged.
 
 Verification limits: ShellCheck unavailable; two private-pattern scans explicitly skip because maintainer-local configuration is absent. Synthetic fixtures and official native documentation establish the supported profile; no live model invocation, event firing, real user-settings deployment or historical-corpus access is claimed.
+
+## Additional Final Review and Integration
+
+status: validated-awaiting-integration
+authorization: On 2026-10-26 the owner explicitly requested a fresh independent validator for every pull request, subagent repairs for findings, and merging all completed pull requests. This narrowly supersedes the earlier no-merge constraint for this delivery. Default-branch direct pushes, force pushes, branch deletion, deployment and historical attribution remain prohibited. The preceding completed validation remains an immutable checkpoint; this section records the additional review.
+
+Review isolation: one fresh validator per PR, detached cumulative source at fa865f4363a9f2420984ee3b1249deed2f1fc4ec, synthetic home/settings/log roots and independent reports outside the repository. Root owns shared records and git. Implementation remains sequential; read-only reviews use separate worktrees.
+
+| PR | New review status | Evidence |
+|---|---|---|
+| #22 | PASS | 69 focused assertions; two isolated sync runs; historical spaced-path behavior already fixed later. |
+| #23 | NEEDS_WORK, resolved by #29 | Original 35 producer checks and canonical gate passed; independent cache/privacy/advisory findings repaired and independently rechecked at da4e027. |
+| #24 | PASS | 38 adapter cases and 23 independent boundary probes; no remaining adapter finding. |
+| #25 | PASS | 39 installer, two native registry and eight independent edge groups; syntax, compile and whitespace checks. |
+| #26 | PASS | Five workflow acceptance groups and 15 independent CLI scenarios; all 45 original assertions retained. |
+| #27 | PASS | 51 timing groups, canonical gate, two documentation checks and 14 independent probes; frozen fixture and actual partial-output assurance verified. |
+| #28 | PASS | Source quality 3, producer 35 and adapter 38; actual 91-function Bash AST, exact RED, metadata bytes, frozen fixtures and task artifacts verified. |
+| #29 | PASS on fixed source | Separate repair validator; producer 38, adapter 38, quality 3, canonical and adversarial raw cache/NUL/privacy/rollback checks. Final cumulative validation 594/0/2. |
+
+Approved repair: T-07 addresses important malformed cached acceptance and private metadata mode regressions, plus the optional correlated step-name advisory. The owner's autonomous repair authorization includes all three. Source: independent PR23 report and Arbiter analysis citing specification fresh-number rules, canonical positive receipt contract and the universal step-name advisory. No acceptance criterion is weakened.
+
+The independent repair validator additionally found literal-NUL normalization before raw JSON validation. A separate failing regression commit precedes that repair. Its final PASS report resolves the preserved NEEDS_WORK checkpoint without overwriting it. All four additional final-review findings are addressed; a suggestion to clarify aggregate/internal row counts is an optional test readability improvement, not an established product defect.
+
+Final cumulative validation: completed with exit zero in a detached clean checkout at da4e027b708d42cb6ae858d032c84ceb71b8fd5f, after all scoped runtime suites finished: 594 passed, 0 failed, 2 optional private-pattern skips. The earlier in-progress c42a663 run was stopped and superseded after the NUL finding; it is not completion evidence. A 125-file non-knowledge source manifest pins the final gate input. Knowledge updates are reviewed and checked separately; no model, live hook firing, real settings or historical-corpus access is claimed.
+
+Ancestry repair: remote main 6fbaf42cca979f132280b1b04698d41306331626 differs from the original branch point only by the initial specification. PR23 conflicted only on that specification. Append merge d804b01b2b1cd6e82f1890fee3128ebd0655fd5f, with parents original producer head 6695f37ac3c6c3fe979f47fcdf84eadf6c475962 and remote main, retains the producer head's complete tree 4f27c0e23ea26106ff1863b8f709d56d3034115a unchanged. Ordinary fast-forward branch push only; no published commit was replaced. Independent PR23 review verified both parents and tree equality. Historical base_commit records remain unchanged. Root simulated all seven sequential merges before any remote merge: every merge is clean, each post-producer tree equals its original reviewed head, final tree ebebe6ef7689712cbd367e97d0976c77960e92a2 equals the reviewed cumulative tip. Actual merge trees must be checked against these predictions.

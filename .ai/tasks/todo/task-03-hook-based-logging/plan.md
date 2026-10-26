@@ -10,6 +10,7 @@
 | T-04 | Coverage-aware workflow logging | | freeze regressions → implement component → verify | T-03 | reviewed |
 | T-05 | Honest timing and end-to-end evidence | | freeze regressions → implement component → verify | T-04 | reviewed |
 | T-06 | Focused shell delivery functions | | pin behavior and failing size contract → extract → independently verify | T-05 | reviewed |
+| T-07 | Private producer replay and metadata | | freeze final-review regressions → repair → independently verify | T-06 | reviewed |
 
 ## Execution Strategy
 Strictly sequential stacked branches, after the separately authorized knowledge tracking policy correction. Each leaf reaches reviewed before its successor starts. Implementer pauses at RED for a test-only commit; a separate Validator reads each diff. No parallel implementation.

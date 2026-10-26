@@ -3642,6 +3642,221 @@ check "test_run_log_correlated_clock_fraction_preserves_leading_zeros" \
   "$(test_run_log_correlated_clock_fraction_preserves_leading_zeros && echo pass || echo 'clock fraction lost leading zeros')"
 check "test_run_log_correlated_waiting_and_parent_identity_are_explicit" \
   "$(test_run_log_correlated_waiting_and_parent_identity_are_explicit && echo pass || echo 'waiting and parent identity contract failed')"
+# Private producer regressions use disposable active metadata and public commands only.
+run_private_producer_smoke() {
+  python3 - "$REPO_ROOT" "$1" <<'PYPRIVATE'
+from pathlib import Path
+import json
+import os
+import re
+import shlex
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+root, scenario = Path(sys.argv[1]), sys.argv[2]
+with tempfile.TemporaryDirectory(prefix='private producer ') as temporary:
+    fixture = Path(temporary)
+    store = fixture/'store'
+    environment = dict(os.environ, ORCHESTRAIL_HOME=str(root), ORCHESTRAIL_LOG_ROOT=str(store))
+    helper = root/'scripts/log-step.sh'
+    def invoke(*args: str | int, env: dict[str, str] | None = None,
+               mask: int = 0o022) -> subprocess.CompletedProcess[str]:
+        result = subprocess.run(['bash',str(helper),*map(str,args)], env=env or environment,
+                                capture_output=True,text=True,umask=mask)
+        assert result.returncode == 0, result
+        return result
+    def start(mask: int = 0o022, env: dict[str, str] | None = None) -> str:
+        result = invoke('run-start','--pipeline','private-probe',mask=mask,env=env)
+        assert re.fullmatch('[0-9a-f]{8}\n',result.stdout) and not result.stderr, result
+        return result.stdout.strip()
+    def snapshot() -> dict[str, tuple[bytes, int]]:
+        return {str(path.relative_to(store)):(path.read_bytes(),stat.S_IMODE(path.stat().st_mode))
+                for path in store.rglob('*') if path.is_file()}
+    now = time.time_ns()//1_000_000
+    def arguments(run: str, checkpoint: str = 'checkpoint', **changes: object) -> list[str]:
+        fields = dict(run=run,step='dry-run',outcome='ok',session_id='session',agent_id='agent',
+                      checkpoint_id=checkpoint,span_start_ms=now-10,span_end_ms=now,
+                      timing_source='hook',boundary='subagent')
+        fields.update(changes)
+        return ['step',*[part for key,value in fields.items()
+                         for part in ('--'+key.replace('_','-'),str(value))]]
+    def identity(run: str, checkpoint: str = 'checkpoint', **changes: object) -> dict[str, object]:
+        expected = dict(kind='accepted',run_id=run,session_id='session',agent_id='agent',
+                        checkpoint_id=checkpoint,duplicate=False)
+        expected.update(changes)
+        return expected
+    def receipt(result: subprocess.CompletedProcess[str], expected: dict[str, object],
+                seq: int | None = None) -> dict[str, object]:
+        parsed = json.loads(result.stdout)
+        assert type(parsed['seq']) is int and 0 < parsed['seq'] <= 9007199254740991, parsed
+        expected = dict(expected,seq=parsed['seq'] if seq is None else seq)
+        assert parsed == expected, (parsed,expected)
+        return parsed
+    failures = []
+    if scenario == 'cache':
+        run = start()
+        first = invoke(*arguments(run))
+        receipt(first,identity(run),seq=1)
+        assert not first.stderr, first
+        active = store/'.active'/run
+        original = active.read_text()
+        key = 'accepted|session|checkpoint='
+        line = next(line for line in original.splitlines() if line.startswith(key))
+        encoded = line[len(key):]
+        cached = json.loads(encoded.replace('%0A','\n').replace('%25','%'))
+        def cache_text(seq: str) -> str:
+            return '{"arguments":'+json.dumps(cached['arguments'])+',"seq":'+seq+'}'
+        cases = [(label,cache_text(token)) for label,token in (
+            ('zero','0'),('exponent','1e0'),('negative','-1'),('fraction','1.5'),
+            ('rounded-fraction','1.00000000000000000001'),('string','"1"'),
+            ('boolean','true'),('null','null'),('array','[1]'),('overflow','9007199254740992'))]
+        valid = cache_text('1')
+        cases += [('multiple-objects',valid+' '+valid),('object-array','['+valid+']'),
+                  ('object-boolean','false'),('object-null','null'),('trailing-junk',valid+' cache-secret'),
+                  ('arguments-array','{"arguments":[],"seq":1}'),
+                  ('arguments-null','{"arguments":null,"seq":1}'),
+                  ('arguments-conflict',json.dumps(dict(cached,arguments=dict(cached['arguments'],outcome='failed')))),
+                  ('missing-sequence',json.dumps(dict(arguments=cached['arguments'])))]
+        cases += [('nul-after-object',valid+'\x00'),('nul-sequence',cache_text('1\x00')),
+                  ('nul-key',valid.replace('"seq"','"se\x00q"')),
+                  ('nul-string-value',valid.replace('dry-run','dry-\x00run'))]
+        for label,value in cases:
+            replacement = key+value.replace('%','%25').replace('\n','%0A')
+            active.write_text(original.replace(line,replacement))
+            before = snapshot()
+            result = invoke(*arguments(run))
+            safe_warning = (len(result.stderr.splitlines()) == 1 and
+                            re.fullmatch(r'log-step: [A-Za-z0-9 _-]+\n',result.stderr) is not None and
+                            not any(secret in result.stderr for secret in ('cache-secret',str(fixture),value)))
+            if result.stdout or not safe_warning or snapshot() != before:
+                failures.append((label,result.stdout,result.stderr,'unchanged',snapshot()==before))
+        for token in ('1','9007199254740991'):
+            value = cache_text(token)
+            active.write_text(original.replace(line,key+value))
+            before = snapshot()
+            result = invoke(*arguments(run))
+            receipt(result,identity(run,duplicate=True),seq=int(token))
+            assert not result.stderr and snapshot() == before, (token,result)
+        escaped_key = cache_text('1').replace('"seq"',r'"\u0073eq"')
+        active.write_text(original.replace(line,key+escaped_key))
+        before = snapshot()
+        result = invoke(*arguments(run))
+        receipt(result,identity(run,duplicate=True),seq=1)
+        assert not result.stderr and snapshot() == before, result
+        preserved = arguments(run,'escaped-values',note='literal%00%0A%25 and "\\u0000"\nbackslash\\')
+        result = invoke(*preserved)
+        receipt(result,identity(run,'escaped-values'),seq=2)
+        assert not result.stderr, result
+        before = snapshot()
+        result = invoke(*preserved)
+        receipt(result,identity(run,'escaped-values',duplicate=True),seq=2)
+        assert not result.stderr and snapshot() == before, result
+        assert not failures, ('invalid private accepted cache established acceptance or mutated storage',failures)
+    elif scenario == 'permissions':
+        commands = fixture/'commands'
+        commands.mkdir()
+        mode_log = fixture/'replacement modes'
+        real_mv = shutil.which('mv')
+        assert real_mv
+        (commands/'mv').write_text('#!/bin/bash\n'
+            'case "$2" in "$ORCHESTRAIL_LOG_ROOT"/.active/*)\n'
+            '  stat -c %a -- "$1" >> "$PRIVATE_MODE_LOG" ;;\nesac\n'
+            'exec '+shlex.quote(real_mv)+' "$@"\n')
+        (commands/'mv').chmod(0o755)
+        env = dict(environment,PATH=str(commands)+':'+os.environ['PATH'],PRIVATE_MODE_LOG=str(mode_log))
+        nojq = fixture/'without jq'
+        nojq.mkdir()
+        for utility in ('bash','dirname','mkdir','od','tr','date','cat','uname','touch','grep',
+                        'mv','sed','head','rm','wc','flock','stat'):
+            executable = str(commands/'mv') if utility == 'mv' else shutil.which(utility)
+            assert executable, utility
+            (nojq/utility).symlink_to(executable)
+        nojq_env = dict(env,PATH=str(nojq))
+        assert not shutil.which('jq',path=nojq_env['PATH'])
+        for mask in (0o002,0o000):
+            for legacy_env in (env,nojq_env):
+                run = start(mask=mask,env=legacy_env)
+                active = store/'.active'/run
+                event = Path(invoke('path','--run',run).stdout.strip())
+                event_mode = stat.S_IMODE(event.stat().st_mode)
+                def private(label: str) -> None:
+                    mode = stat.S_IMODE(active.stat().st_mode)
+                    if mode != 0o600:
+                        failures.append((oct(mask),'jq' if legacy_env is env else 'no-jq',label,oct(mode)))
+                    assert stat.S_IMODE(event.stat().st_mode) == event_mode, 'event permissions changed'
+                private('run-start')
+                for index in range(2):
+                    result = invoke(*arguments(run,'checkpoint-'+str(index)),env=env,mask=mask)
+                    receipt(result,identity(run,'checkpoint-'+str(index)))
+                    assert not result.stderr, result
+                    private('correlated')
+                    accepted_lines = [line for line in active.read_text().splitlines() if line.startswith('accepted|')]
+                    result = invoke('step','--run',run,'--step','dry-run','--outcome','ok',env=legacy_env,mask=mask)
+                    assert not result.stdout and not result.stderr, result
+                    private('ordinary')
+                    assert [line for line in active.read_text().splitlines() if line.startswith('accepted|')] == accepted_lines
+                records = [json.loads(line) for line in event.read_text().splitlines()]
+                assert [row['seq'] for row in records] == [0,1,2,3,4], records
+                assert len([row for row in records if 'checkpoint_id' in row]) == 2
+                before = snapshot()
+                result = invoke(*arguments(run,'checkpoint-0'),env=env,mask=mask)
+                receipt(result,identity(run,'checkpoint-0',duplicate=True),seq=1)
+                assert not result.stderr and snapshot() == before, result
+        replacement_modes = mode_log.read_text().splitlines()
+        assert replacement_modes, 'replacement permission probe did not observe writes'
+        failures.extend(('temporary replacement',mode) for mode in replacement_modes if mode != '600')
+        assert not failures, ('private metadata permissions widened',failures)
+    elif scenario == 'advisory':
+        run = start()
+        for name in ('pae-tests','dry-run','arbitrary-private-skill','unknown'):
+            changes = dict(step=name)
+            if name == 'unknown':
+                changes.update(boundary='session',agent_id='session')
+            result = invoke(*arguments(run,name,**changes))
+            receipt(result,identity(run,name,agent_id=changes.get('agent_id','agent')))
+            expected = 'log-step: step name is not in the current workflow list\n' if name == 'arbitrary-private-skill' else ''
+            if result.stderr != expected:
+                failures.append((name,result.stderr,expected))
+            before = snapshot()
+            replay = invoke(*arguments(run,name,**changes))
+            receipt(replay,identity(run,name,duplicate=True,agent_id=changes.get('agent_id','agent')))
+            assert not replay.stderr and snapshot() == before, replay
+            rejected = invoke(*arguments(run,name,**dict(changes,outcome='failed')))
+            assert not rejected.stdout and snapshot() == before, rejected
+            assert rejected.stderr == 'log-step: step checkpoint_id conflicting-delivery\n', rejected
+        event = Path(invoke('path','--run',run).stdout.strip())
+        records = [json.loads(line) for line in event.read_text().splitlines()]
+        assert [row['step'] for row in records[1:]] == ['pae-tests','dry-run','arbitrary-private-skill','unknown'], records
+        missing = dict(environment,ORCHESTRAIL_HOME=str(fixture/'missing workflows'))
+        result = invoke(*arguments(run,'unavailable',step='pae-tests'),env=missing)
+        receipt(result,identity(run,'unavailable'))
+        if result.stderr != 'log-step: step-name verification unavailable\n':
+            failures.append(('unavailable workflow definitions',result.stderr))
+        before = snapshot()
+        replay = invoke(*arguments(run,'unavailable',step='pae-tests'),env=missing)
+        receipt(replay,identity(run,'unavailable',duplicate=True))
+        assert not replay.stderr and snapshot() == before, replay
+        rejected = invoke(*arguments(run,'rejected',step='arbitrary-private-skill',outcome='invalid'))
+        assert not rejected.stdout and snapshot() == before, rejected
+        assert rejected.stderr == 'log-step: step outcome invalid-enum\n', rejected
+        assert not failures, ('new correlated acceptance skipped its step-name advisory',failures)
+    else:
+        raise AssertionError(scenario)
+PYPRIVATE
+}
+test_run_log_private_cache_requires_canonical_positive_sequence() { run_private_producer_smoke cache; }
+test_run_log_private_metadata_stays_private_across_ordinary_writes() { run_private_producer_smoke permissions; }
+test_run_log_correlated_new_acceptance_reports_step_name_advisory() { run_private_producer_smoke advisory; }
+check "test_run_log_private_cache_requires_canonical_positive_sequence" \
+  "$(test_run_log_private_cache_requires_canonical_positive_sequence && echo pass || echo 'invalid accepted cache established duplicate acceptance')"
+check "test_run_log_private_metadata_stays_private_across_ordinary_writes" \
+  "$(test_run_log_private_metadata_stays_private_across_ordinary_writes && echo pass || echo 'ordinary metadata replacement widened private permissions')"
+check "test_run_log_correlated_new_acceptance_reports_step_name_advisory" \
+  "$(test_run_log_correlated_new_acceptance_reports_step_name_advisory && echo pass || echo 'new correlated acceptance skipped a required advisory')"
+
 # ── End run-log producer smoke checks ───────────────────────────────
 
 # ── Retrospective executable corpus contract ──────────────────────────
@@ -4022,7 +4237,7 @@ for opening, closing in (
     if opening == '# ── Run-log producer smoke checks':
         block = ''.join(lines[start + 1:end])
         block, removed = re.subn(r'^check [^\n]*\\\n  "\$\([^\n]*\)"\n', '', block, flags=re.M)
-        assert removed == 28 and not re.search(r'^check ', block, re.M), 'unexpected producer check shape'
+        assert removed == 31 and not re.search(r'^check ', block, re.M), 'unexpected producer check shape'
         retained = [block]
     path.write_text(''.join(lines[:start] + retained + lines[end + 1:]))
 PYVERSION
