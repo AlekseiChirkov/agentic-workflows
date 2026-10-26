@@ -592,8 +592,12 @@ registered projects and do not discover runs from historical events. Configurati
 locations honor `HOME`, `XDG_CONFIG_HOME` and `XDG_STATE_HOME`.
 
 A controller dispatches an explicit run/session/actor/checkpoint envelope. Native
-completion must demonstrate that tuple, one skill invocation and one canonical outcome
-report. A matching accepted receipt suppresses the corresponding prompt event.
+completion must demonstrate that tuple and one canonical outcome report. Named workflow
+coverage requires exactly one native Skill invocation. An unambiguously correlated
+session with no Skill invocation may report `step: unknown`, providing observed coverage
+without named workflow coverage. Unknown session coverage cannot suppress a named prompt
+event. A matching accepted receipt for a named checkpoint suppresses only its corresponding
+prompt event.
 A pending checkpoint uses the adapter's serialized fallback once; uncertain correlated
 delivery retries its frozen payload. Boundaries without demonstrated native evidence,
 and harnesses without hooks, keep approximate prompt logging. Hook availability alone
