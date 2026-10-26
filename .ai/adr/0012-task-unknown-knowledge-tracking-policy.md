@@ -62,10 +62,10 @@ Repository tracking policy remains authoritative. Do not reintroduce refusal or 
 
 ## Verification
 
-The real synchronization fixture failed before the change and passes afterward. Independent review passed. Shell syntax and whitespace checks pass. The full suite passed 575 checks and exposed one stale archived-spec ledger path, now corrected; its focused recheck is pending.
+The real synchronization fixture failed before the change and passes afterward. Independent review passed. Shell syntax and whitespace checks pass. The full suite passed 575 checks and exposed one stale archived-spec ledger path, now corrected; its focused recheck passed.
 
 ## References
 
 - Task: owner-requested knowledge tracking correction.
-- Pull request: pending.
+- Pull request: [#22](https://github.com/AlekseiChirkov/agentic-workflows/pull/22).
 - Related documents: Git flow contract and knowledge tracking decision.

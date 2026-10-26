@@ -81,7 +81,7 @@ root), `AGENTS.md` (Codex, per project), `codex-global-AGENTS.md` (→ `~/.codex
 | `scripts/setup-new-project.sh` | seed a project (auto-detects umbrella `../.ai/`) |
 | `scripts/setup-umbrella.sh`, `scripts/setup-all-repos.sh` | multi-repo initialization |
 | `scripts/link-skills.sh` | workaround: symlink global skills into a project's `.claude/skills/` |
-| `scripts/log-step.sh` | validates complete producer arguments and exact legacy aliases before append-only JSONL writes; optional-jq fallback; sorted runtime `contract` export and read-only `lint [<run-id>|--all]` diagnostics/summary; jq required only for lint; stamps timestamps itself; exits 0 on every error |
+| `scripts/log-step.sh` | validates complete producer arguments and exact legacy aliases before append-only JSONL writes; optional-jq legacy fallback; sorted runtime `contract` export and read-only `lint` diagnostics/summary; executable integer `ts_ms` boundaries; optional correlated identities and spans use bounded per-run flock, private active-only deduplication and matching JSON acceptance receipts; jq is required for lint and correlated writes, with flock/truncate additionally required for correlated writes; exits 0 on every error |
 
 ### Executable acceptance checks
 
