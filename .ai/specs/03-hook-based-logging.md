@@ -637,6 +637,8 @@ the stated 10000-ms wall denominator and the corresponding observed/exclusive un
 
 ### 2026-10-26 — additional independent final review
 
+- Product PRs #22–#29 are integrated through main 8184bfe87a4c696e5c100032ebdf0f5fd8af64ee. Final complete validation: 594 passed, 0 failed, 2 optional private-pattern skips; all requirements retain their intent and no reconciliation delta remains.
+
 - Clarify existing producer guarantees for raw cached acceptance, private metadata
   replacement across ordinary writes, and correlated name advisories. Initial per-PR
   review found two important robustness/privacy defects and one advisory regression.

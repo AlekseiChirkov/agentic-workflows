@@ -43,7 +43,7 @@ None.
 - commits: be14570c80ad82db6ddd77b86e90e13f0e7aeb5d test(sync): preserve repository knowledge tracking policy, 9bb1358be2ee9d09f83520239ff30baa29c05906 fix: respect repository knowledge tracking policy
 - status: reviewed
 - tests: RED then GREEN for repository tracking policy; independent review PASS. Full validation: 575 pass, stale archived-spec ledger path corrected and focused recheck PASS, two optional hygiene skips.
-- pr: #22 ready; origin verified and branch published after destination checks
+- pr: #22 merged at 503f94a16133a7de8999b61a17785135cabbcb08
 
 ## Decomposition
 decomposition: complete
@@ -122,8 +122,8 @@ T-01 | Validated correlated event writes | atomic-tests: green | atomic-executio
   branch: feat/correlated-event-writes
   base_branch: fix/knowledge-base-tracking-policy
   base_commit: 9bb1358be2ee9d09f83520239ff30baa29c05906
-  commits: be65b3dc956a3e156ad95d4b3535765ea41b6746 test(logging): cover correlated events and precise intervals, a10aeb3e42d2c74448e11939186b82cb8e205794 feat(logging): accept correlated checkpoint intervals, d804b01b2b1cd6e82f1890fee3128ebd0655fd5f chore(logging): Reconcile specification ancestry
-  pr: #23 ready
+  commits: be65b3dc956a3e156ad95d4b3535765ea41b6746 test(logging): cover correlated events and precise intervals, a10aeb3e42d2c74448e11939186b82cb8e205794 feat(logging): accept correlated checkpoint intervals, d804b01b2b1cd6e82f1890fee3128ebd0655fd5f chore(logging): Reconcile specification ancestry, cd6abdb05d64ac97061cb35c5e08995ff89abe97 chore(logging): Reconcile merged tracking ancestry
+  pr: #23 merged at b44514ad58e7a183e518ec6d551e88dcb95e5697
 
 T-02 | Explicit hook dispatch and completion | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: DoD met — all six acceptance criteria independently verified; fence and exact-token repairs validated; 38 frozen adapter checks and full 587-check contract gate pass
@@ -168,7 +168,7 @@ T-02 | Explicit hook dispatch and completion | atomic-tests: green | atomic-exec
   base_branch: feat/correlated-event-writes
   base_commit: 6695f37ac3c6c3fe979f47fcdf84eadf6c475962
   commits: a40270437130e317d67266809ba1c669fc3ef29d test(hooks): define explicit checkpoint delivery behavior, 3ba0e22e03ad5451e7c3afab206dd0ad047a0694 feat(hooks): correlate native completion checkpoints, cb4cf524489ebf83acaa6e6ac1fd6463c1c71f8f test(hooks): cover fenced report eligibility, 9c0a0102d9dd8c7214522ec0ff049e8bf42cc713 test(hooks): reject noncanonical protocol numbers, b17ca232dbde31705a0b375890348059451be336 fix(hooks): validate report fences and exact protocol numbers
-  pr: #24 ready
+  pr: #24 merged at 17878020da1bdf8937cc85ae6733a4bdf81f155e
 
 T-03 | Owned user hook installation | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close complete — all acceptance criteria and Python standards reviewed; isolated 39-test lifecycle and 588-check full gate pass
@@ -234,7 +234,7 @@ T-03 | Owned user hook installation | atomic-tests: green | atomic-execution: co
   base_branch: feat/hook-event-adapter
   base_commit: 30f0819e8800f222a59d44211ec01682fa2bfbda
   commits: 94843ed7e3fd5285639f6a0e6074a7af89ba0d4f test(hooks): define owned installation and recovery, f7c673efcb90803b4915cd37deede4ac18383819 feat(hooks): install and recover owned user hooks, 3a3130c1413d0864b30d560e0366067f21f2404e test(hooks): cover interpreter support and Python standards, 2ec642806e1700eaa409af44704b291e6f629f53 fix(hooks): guard Python support and type installer transactions
-  pr: #25 ready
+  pr: #25 merged at b76f2bf4f2529d2d2e80d9e415c121c95a459009
 
 T-04 | Coverage-aware workflow logging | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close complete — DoD met; all three acceptance criteria independently verified with no critical or important findings
@@ -264,7 +264,7 @@ T-04 | Coverage-aware workflow logging | atomic-tests: green | atomic-execution:
   base_branch: feat/user-hook-installation
   base_commit: 4cf5c515d11b5730090923647e1def2d52129095
   commits: 530b7b8a757d250ba42c640b1476fec830c56414 test(logging): define workflow checkpoint routing, 35ed85f53dbc8f9ea52642f8051346cb90c37f08 test(logging): reject malformed workflow acceptance receipts, c6c7f89dd9dbf61c74a6e900819389a8aa27744e feat(logging): route workflow checkpoints by accepted coverage
-  pr: #26 ready
+  pr: #26 merged at 49f3ec91c68b4d0da672bfb27b1628eadb84a428
 
 T-05 | Honest timing and end-to-end evidence | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close complete — all five criteria independently verified; stable full gate 590/0/2 and final workflow 5/timing 51 pass; documentation proposals addressed; reviewed plan delta returned to root
@@ -309,7 +309,7 @@ T-05 | Honest timing and end-to-end evidence | atomic-tests: green | atomic-exec
   base_branch: feat/coverage-aware-workflow-logging
   base_commit: 2ad00eda9d4371673c719ea4d40b1c8fdf74f03c
   commits: 18513f7b1615c9d542653ad8c59bfde2e0a9ea28 test(timing): define exact interval and lifecycle analysis, fd81d62a5699315c13cfe3ba17bcf583f752a34f test(contracts): preserve audited sources in history fixtures, 571620dd5fe1ab50c3e775660b7fe9a9905611b0, 30aa5fedc3fa53715a0709b2017f752e4b97202d, 44d16576fe265755a21670fc57a6f348e16c8899 docs(hooks): clarify named coverage and native dependencies
-  pr: #27 ready
+  pr: #27 merged at 628dc40b8ab511e5893f7d5429a55221c6a1e985
 
 T-06 | Focused shell delivery functions | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: reviewed — all four acceptance criteria met; independent quality 3 and runtime 168 pass; worker full gate 591/0/2 verified against exact committed blobs
@@ -357,7 +357,7 @@ T-06 | Focused shell delivery functions | atomic-tests: green | atomic-execution
   base_branch: feat/run-log-timing
   base_commit: a9936d21f42aaf555dbcd67d70f334a1df38cb51
   commits: 4bc1d000d6d3767353e8ea6af833fd6b81f5da06, a1774f5dc9d5f5b3fd0a1ac67159523289a78453
-  pr: #28 ready
+  pr: #28 merged at 37eb3b4a20987c41bd97264b0dc570e7d173b14d
 
 adr: .ai/adr/0013-task-03-correlated-hook-logging.md (Accepted)
 
@@ -380,7 +380,7 @@ T-07 | Private producer replay and metadata | atomic-tests: green | atomic-execu
   base_branch: fix/hook-function-boundaries
   base_commit: fa865f4363a9f2420984ee3b1249deed2f1fc4ec
   commits: f8c85c478bfc84f6821d170bc1a3574212b690c5 test(logging): cover private replay and metadata permissions, c42a6632e680fddcef6810ff0be95aa857206814 fix(logging): validate private replay and preserve metadata modes, cfa4f6f45c492f1c746559f09b0b0515b4f7bc51 test(logging): reject NUL bytes before metadata decoding, da4e027b708d42cb6ae858d032c84ceb71b8fd5f fix(logging): reject NUL bytes before reading active metadata
-  pr: #29; branch published, promotion after the final knowledge delta review
+  pr: #29 merged at 8184bfe87a4c696e5c100032ebdf0f5fd8af64ee
 
 
 ## Improvement Proposals (T-01)
@@ -642,27 +642,29 @@ Final artifact checks: task validator 21 passed, 0 failed, 0 skipped; the existi
 
 ## Delivery Report
 
-status: ready-for-review
+status: integrated
+integrated_main: 8184bfe87a4c696e5c100032ebdf0f5fd8af64ee
 repository: Orchestrail
 base: main at immutable branch point 7477bacce34b58d3c683a4329b82778b0d330a7e
 
-| Order | PR | Branch | Base | Status |
+| Order | PR | Branch | Original base | Status |
 |---|---|---|---|---|
-| 1 | #22 | fix/knowledge-base-tracking-policy | main | ready |
-| 2 | #23 | feat/correlated-event-writes | fix/knowledge-base-tracking-policy | ready |
-| 3 | #24 | feat/hook-event-adapter | feat/correlated-event-writes | ready |
-| 4 | #25 | feat/user-hook-installation | feat/hook-event-adapter | ready |
-| 5 | #26 | feat/coverage-aware-workflow-logging | feat/user-hook-installation | ready |
-| 6 | #27 | feat/run-log-timing | feat/coverage-aware-workflow-logging | ready |
-| 7 | #28 | fix/hook-function-boundaries | feat/run-log-timing | ready |
+| 1 | #22 | fix/knowledge-base-tracking-policy | main | merged |
+| 2 | #23 | feat/correlated-event-writes | fix/knowledge-base-tracking-policy | merged |
+| 3 | #24 | feat/hook-event-adapter | feat/correlated-event-writes | merged |
+| 4 | #25 | feat/user-hook-installation | feat/hook-event-adapter | merged |
+| 5 | #26 | feat/coverage-aware-workflow-logging | feat/user-hook-installation | merged |
+| 6 | #27 | feat/run-log-timing | feat/coverage-aware-workflow-logging | merged |
+| 7 | #28 | fix/hook-function-boundaries | feat/run-log-timing | merged |
+| 8 | #29 | fix/private-event-replay | fix/hook-function-boundaries | merged |
 
-Merge order is the table order. No merge, default-branch push, force push or branch deletion was performed. After a squash or rebase merge, use restack before integrating remaining branches. Recorded hashes are pre-merge. Remote main advanced independently to 6fbaf42cca979f132280b1b04698d41306331626 by adding the original specification; feature branch points remain unchanged.
+Merge order is the table order. At initial publication, no merge, default-branch push, force push or branch deletion was performed. The later explicit integration authorization and actual merges are recorded below. After a squash or rebase merge, use restack before integrating remaining branches. Recorded hashes are pre-merge. Before integration, remote main had advanced independently to 6fbaf42cca979f132280b1b04698d41306331626 by adding the original specification; feature branch points remain unchanged.
 
 Verification limits: ShellCheck unavailable; two private-pattern scans explicitly skip because maintainer-local configuration is absent. Synthetic fixtures and official native documentation establish the supported profile; no live model invocation, event firing, real user-settings deployment or historical-corpus access is claimed.
 
 ## Additional Final Review and Integration
 
-status: validated-awaiting-integration
+status: complete
 authorization: On 2026-10-26 the owner explicitly requested a fresh independent validator for every pull request, subagent repairs for findings, and merging all completed pull requests. This narrowly supersedes the earlier no-merge constraint for this delivery. Default-branch direct pushes, force pushes, branch deletion, deployment and historical attribution remain prohibited. The preceding completed validation remains an immutable checkpoint; this section records the additional review.
 
 Review isolation: one fresh validator per PR, detached cumulative source at fa865f4363a9f2420984ee3b1249deed2f1fc4ec, synthetic home/settings/log roots and independent reports outside the repository. Root owns shared records and git. Implementation remains sequential; read-only reviews use separate worktrees.
@@ -684,4 +686,45 @@ The independent repair validator additionally found literal-NUL normalization be
 
 Final cumulative validation: completed with exit zero in a detached clean checkout at da4e027b708d42cb6ae858d032c84ceb71b8fd5f, after all scoped runtime suites finished: 594 passed, 0 failed, 2 optional private-pattern skips. The earlier in-progress c42a663 run was stopped and superseded after the NUL finding; it is not completion evidence. A 125-file non-knowledge source manifest pins the final gate input. Knowledge updates are reviewed and checked separately; no model, live hook firing, real settings or historical-corpus access is claimed.
 
-Ancestry repair: remote main 6fbaf42cca979f132280b1b04698d41306331626 differs from the original branch point only by the initial specification. PR23 conflicted only on that specification. Append merge d804b01b2b1cd6e82f1890fee3128ebd0655fd5f, with parents original producer head 6695f37ac3c6c3fe979f47fcdf84eadf6c475962 and remote main, retains the producer head's complete tree 4f27c0e23ea26106ff1863b8f709d56d3034115a unchanged. Ordinary fast-forward branch push only; no published commit was replaced. Independent PR23 review verified both parents and tree equality. Historical base_commit records remain unchanged. Root simulated all seven sequential merges before any remote merge: every merge is clean, each post-producer tree equals its original reviewed head, final tree ebebe6ef7689712cbd367e97d0976c77960e92a2 equals the reviewed cumulative tip. Actual merge trees must be checked against these predictions.
+Ancestry repair: remote main 6fbaf42cca979f132280b1b04698d41306331626 differs from the original branch point only by the initial specification. PR23 conflicted only on that specification. Append merge d804b01b2b1cd6e82f1890fee3128ebd0655fd5f, with parents original producer head 6695f37ac3c6c3fe979f47fcdf84eadf6c475962 and remote main, retains the producer head's complete tree 4f27c0e23ea26106ff1863b8f709d56d3034115a unchanged. Ordinary fast-forward branch push only; no published commit was replaced. Independent PR23 review verified both parents and tree equality. Historical base_commit records remain unchanged. Root simulated all seven sequential merges before any remote merge: every merge is clean, each post-producer tree equals its original reviewed head, final tree ebebe6ef7689712cbd367e97d0976c77960e92a2 equals the reviewed cumulative tip. These original predictions were subsequently checked against actual merge trees.
+
+
+### Confirmed product integration
+
+Product PRs #22–#29 are merged in dependency order. The final integrated main
+commit is 8184bfe87a4c696e5c100032ebdf0f5fd8af64ee; its tree
+270c243adf8e7a2b1ddbcd0c78a16a16acdea96d exactly equals the independently reviewed
+repair publication head 2de5ae3ea31dfa4fbb01b10973fcb68bc46d6362.
+Each fetched merge has the expected complete tree and exact parents: previous main,
+then its pinned reviewed head. All eight product heads are ancestors of main.
+
+After #22 merged, GitHub returned a conflict for #23 despite the clean local merge.
+The approved second ancestry-only sync cd6abdb05d64ac97061cb35c5e08995ff89abe97
+has parents d804b01b2b1cd6e82f1890fee3128ebd0655fd5f and actual main
+503f94a16133a7de8999b61a17785135cabbcb08. Its complete tree is still
+4f27c0e23ea26106ff1863b8f709d56d3034115a. Independent PR23 review verified
+parents/tree and fresh remote mergeability; remaining merges were simulated again
+before proceeding. No published commit or historical base_commit was rewritten.
+
+| PR | Pinned head | Verified merge |
+|---|---|---|
+| #22 | 9bb1358be2ee9d09f83520239ff30baa29c05906 | 503f94a16133a7de8999b61a17785135cabbcb08 |
+| #23 | cd6abdb05d64ac97061cb35c5e08995ff89abe97 | b44514ad58e7a183e518ec6d551e88dcb95e5697 |
+| #24 | 30f0819e8800f222a59d44211ec01682fa2bfbda | 17878020da1bdf8937cc85ae6733a4bdf81f155e |
+| #25 | 4cf5c515d11b5730090923647e1def2d52129095 | b76f2bf4f2529d2d2e80d9e415c121c95a459009 |
+| #26 | 2ad00eda9d4371673c719ea4d40b1c8fdf74f03c | 49f3ec91c68b4d0da672bfb27b1628eadb84a428 |
+| #27 | a9936d21f42aaf555dbcd67d70f334a1df38cb51 | 628dc40b8ab511e5893f7d5429a55221c6a1e985 |
+| #28 | fa865f4363a9f2420984ee3b1249deed2f1fc4ec | 37eb3b4a20987c41bd97264b0dc570e7d173b14d |
+| #29 | 2de5ae3ea31dfa4fbb01b10973fcb68bc46d6362 | 8184bfe87a4c696e5c100032ebdf0f5fd8af64ee |
+
+All seven leaves and the tracking prerequisite are reviewed. The fresh complete
+594/0/2 result and 21/0/0 task validation supersede the original completion counts
+for current acceptance. All four additional findings are fixed and independently
+verified. Root file decisions: retain the accepted design and principles; no new
+component or schema requires an inventory change. The specification records the
+hardening refinements without requirement deltas.
+
+The final documentation change records product integration through #29 only; it
+does not claim its own future merge. Its source comparison, identity preservation,
+metadata validation and separate review complete the delivery record. No runtime
+source, tests or canonical contract changes are part of that documentation update.
