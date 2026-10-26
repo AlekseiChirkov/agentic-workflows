@@ -289,6 +289,158 @@ crash-proof exactly-once storage: process death, disk failure during rollback, o
 partial operating-system writes can leave uncertain persistence. Do not infer a
 receipt from such failures or repair history during attribution.
 
+## Native hook adapter
+
+`hooks/log-step-hook.sh` consumes the `claude-stop-v1` profile. It exits zero on
+all paths, emits at most one reason-coded coverage warning, and returns no blocking
+decision. Missing jq or flock makes precise coverage unavailable. The source
+checkout resolves through nonempty `ORCHESTRAIL_HOME`, otherwise through the
+adapter's parent directory; ordinary producer calls keep their existing behavior.
+
+### Dispatch and native evidence
+
+Before a checkpoint starts, call:
+
+```bash
+bash "$ORCHESTRAIL_HOME/hooks/log-step-hook.sh" dispatch \
+  --run "$RUN_ID" --agent-id "$actor_id" --boundary subagent \
+  --expected-skill pae-tests
+```
+
+Dispatch requires an explicit run ID and `CLAUDE_CODE_SESSION_ID`, generates a
+unique checkpoint ID, and stamps its start time with an executable millisecond
+clock. A session boundary uses `--boundary session` and an actor ID equal to the
+session ID. A subagent boundary uses a stable caller-supplied actor ID; the native
+subagent's ID need not equal this dispatch actor. Optional
+`--parent-checkpoint-id` and `--span-kind work|waiting` preserve explicit parent and
+waiting semantics. No model supplies a measured timestamp or discovers a recent run.
+
+Dispatch prints exactly one compact key-sorted line. Include it unchanged in the
+agent's native input:
+
+```text
+ORCHESTRAIL_DISPATCH_V1 {"agent_id":"worker-a","checkpoint_id":"checkpoint-a","run_id":"a1b2c3d4","schema_version":1,"session_id":"session-a"}
+```
+
+The final report contains exactly one unindented marker outside code fences.
+Recognize top-level CommonMark fences with zero to three ASCII spaces before a
+run of at least three backticks or tildes. Retain the opening character and full
+run length. Backtick opener info cannot contain backticks; tilde info is unrestricted.
+Only the same character repeated at least the opening length, followed solely by
+spaces or tabs, closes a fence. A leading tab or four spaces cannot open or close
+a top-level fence. Shorter runs, mixed delimiters and nonwhitespace closing suffixes
+leave its contents fenced. An unclosed fence extends to the end of the report.
+Treat LF, CRLF and lone CR as line separators without trimming marker/JSON content.
+This is a bounded lexical scanner; quote/list-prefixed content does not establish
+a top-level fence across an unprefixed report marker.
+
+An eligible report line has this form:
+
+```text
+ORCHESTRAIL_REPORT_V1 {"agent_id":"worker-a","checkpoint_id":"checkpoint-a","outcome":"ok","run_id":"a1b2c3d4","schema_version":1,"session_id":"session-a","tests":"red"}
+```
+
+Require schema version `1`, the complete exact dispatch tuple and canonical
+`step.outcome`. Optional `tests` and `gate` use the existing runtime vocabulary.
+Compare the original JSON bytes to compact key-sorted serialization; unknown or
+duplicate keys, noncanonical encoding, multiple reports, or mismatched identities
+reject the delivery without changing pending ownership. Report markers cannot set
+a step name or timestamp. RED success uses `outcome:"ok", tests:"red"`; GREEN
+success uses `outcome:"ok", tests:"green"`; validation PASS uses
+`outcome:"ok", gate:"pass"`; NEEDS WORK uses
+`outcome:"failed", gate:"needs-work"`. Narrative prose never establishes outcome.
+
+Native `Stop` input requires nonempty strings `hook_event_name`, `session_id`,
+`cwd`, `transcript_path`, and `last_assistant_message`. `SubagentStop` additionally
+requires `agent_id` and `agent_transcript_path`. Read the report from
+`last_assistant_message`; the transcript may not yet contain the final response.
+Only the native subagent transcript establishes subagent evidence. The native
+session must equal the recorded session; `Stop` matches only session boundaries
+and `SubagentStop` matches only subagent boundaries.
+
+Find the matching dispatch line only in native `type:"user"` records, in
+`message.content` text or direct `type:"text"` blocks. Quoted assistant output,
+tool results, and arbitrary JSON fields do not establish dispatch input. Consider
+only later native assistant `tool_use` objects with `name:"Skill"`, nonempty `id`
+and `input.skill`. Repeated representations of an invocation ID must agree;
+distinct IDs count separately, even when they name the same skill. Exactly one
+eligible invocation establishes its skill name; check any expected skill. Multiple
+invocations remain uncovered, preserving approximate logging for internal steps.
+A session with a complete unambiguous tuple may use `step:"unknown"` when no
+invocation is observable; a subagent without a unique invocation is omitted.
+
+Native JSON input is bounded to 1048576 bytes, a report marker to 4096 bytes, and
+the transcript tail to 16777216 bytes. Oversized, malformed, missing or conflicting
+input emits one bounded safe coverage warning and never mutates accepted events.
+A dispatch outside the bounded tail cannot establish coverage. The native hook
+handler timeout is ten seconds; handlers use `onFailure:"continue"`.
+
+### Project activation and private ownership
+
+Canonical registered roots are one per line in
+`${XDG_CONFIG_HOME:-$HOME/.config}/orchestrail/projects`. Resolve dispatch and native
+`cwd` against the most-specific canonical registered ancestor, independent of
+registry order and duplicate entries. Compare on path-component boundaries and
+support spaces. Unregistered projects exit immediately before reading transcripts,
+private correlation or run-log state. The selected root must equal dispatch
+metadata; a newly registered nested root cannot inherit a broader root's checkpoint.
+
+Fresh report/dispatch schema versions use the exact JSON integer token `1`.
+Private numeric values and acceptance receipt sequence numbers use canonical
+unsigned decimal integer tokens (`0` or a nonzero digit followed by digits), bounded
+by `count.maximum`. Validate original JSON tokens before numeric conversion;
+fractional, exponent, negative and negative-zero encodings are invalid even when
+jq would round them to an integer. Sequence numbers must also be positive.
+Quoted strings are never treated as numeric tokens. Historical lint retains its
+separate mathematical-integer compatibility; it does not broaden this fresh
+protocol. Invalid cached numeric encodings cannot forward delivery or return
+accepted status.
+
+Private schema-version `1` records live beneath
+`${XDG_STATE_HOME:-$HOME/.local/state}/orchestrail/hooks/`, with directory mode
+`0700` and file mode `0600`. Store only explicit identity, project, start time,
+expected skill, optional parent/waiting semantics, ownership, the frozen normalized
+producer payload and any matching receipt. Never store conversation text. Revalidate cached payload identities, start, boundary,
+kind, parent, result and end against the dispatch record before retry; validate any
+accepted receipt before returning status. Corrupted state never selects another run.
+Do not read historical event lines to attribute a completion.
+
+`status --checkpoint ID` reads only this private correlation state and returns one
+JSON object containing `state`, the dispatch tuple and a `receipt` only for
+`accepted`. State transitions are serialized under the checkpoint lock:
+
+- `pending` → `delivering`: freeze the first validated completion timestamp and
+  complete normalized producer payload before attempting a correlated write.
+- `delivering` → `accepted`: require a single acceptance receipt matching every
+  tuple field and a positive integer sequence. Exit zero does not prove acceptance.
+  Every retry forwards the identical frozen payload, including its original end
+  timestamp; missing or mismatched receipts leave acceptance uncertain. Durable
+  retries require the original native agent binding and unchanged outcome/tests/gate.
+  Reject contradictory reports without forwarding. The first validated transcript
+  evidence is retained by ownership, so an aged or rotated transcript is not rescanned.
+- `pending` → `fallback` → `fallback-attempted`: validate all fallback arguments,
+  claim ownership, then attempt one ordinary step with `note:"approximate"`.
+  Late hooks cannot append after the claim. Ordinary persistence offers no receipt,
+  so fallback never describes itself as accepted and is never attempted twice.
+
+Use `fallback --checkpoint ID --step NAME --outcome VALUE` with optional `--tests`
+and `--gate` when precise coverage is unavailable before delivery starts. Once
+`delivering` begins, retry only the frozen correlated payload; never switch to a
+legacy route. Process death, state-write failure, or a lost receipt can leave
+persistence uncertain. Report that condition without inventing acceptance or
+attempting another route. A closed run rejects late delivery and is never reopened.
+
+Hook availability is distinct from step coverage. `hooks: yes` alone does not
+justify removing step prompts. Missing capability, unknown capability, incomplete
+native evidence, and unobserved internal transitions retain prompt-driven steps
+with `note:"approximate"`. Run start and run end remain prompt-driven. Precise
+coverage requires dispatch input, a report marker, unique invoked-skill evidence
+(or the permitted unknown session), and a matching producer receipt.
+
+`bash scripts/validate-contracts.sh --hook-adapter-only` runs the isolated native
+adapter fixtures, including concurrent delivery, exact attribution and fallback
+ownership, without touching real settings or logs.
+
 ## Read-only lint
 
 Invoke `scripts/log-step.sh lint [<run-id>|--all]`. No argument means `--all`.
