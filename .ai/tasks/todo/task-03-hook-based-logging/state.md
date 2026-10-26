@@ -5,7 +5,7 @@ flow: full
 ## Phases
 - discovery: complete
 - execution: complete
-- validation: not-started
+- validation: complete
 
 ## Task Analysis
 
@@ -311,7 +311,55 @@ T-05 | Honest timing and end-to-end evidence | atomic-tests: green | atomic-exec
   commits: 18513f7b1615c9d542653ad8c59bfde2e0a9ea28 test(timing): define exact interval and lifecycle analysis, fd81d62a5699315c13cfe3ba17bcf583f752a34f test(contracts): preserve audited sources in history fixtures, 571620dd5fe1ab50c3e775660b7fe9a9905611b0, 30aa5fedc3fa53715a0709b2017f752e4b97202d, 44d16576fe265755a21670fc57a6f348e16c8899 docs(hooks): clarify named coverage and native dependencies
   pr: #27 draft
 
-adr: .ai/adr/0013-task-03-correlated-hook-logging.md (Provisional)
+T-06 | Focused shell delivery functions | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: reviewed — all four acceptance criteria met; independent quality 3 and runtime 168 pass; worker full gate 591/0/2 verified against exact committed blobs
+  target_files: tests/hook-shell-quality.sh, scripts/validate-contracts.sh, hooks/log-step-hook.sh, scripts/log-step.sh
+  blocker: none
+  notes: tdd: contract and integration tests must precede behavior-preserving extraction; preserve every prior frozen assertion and output/effect ordering
+         decision: split adapter dispatch, report scan/validation, transcript read/evidence and completion phases; split producer correlation validation, serializers, step context/replay/staging/emission/commit; replace six metadata arguments with a coherent context of at most three parameters (source: independent task review and Arbiter structural audit)
+         code-quality exception: hooks/log-step-hook.sh record_valid is a 40-line single jq cross-field cached-record predicate; preserve tuple, frozen-payload and accepted-receipt consistency in one invocation rather than scatter the authoritative predicate or add deployed query dependencies
+         code-quality exception: scripts/log-step.sh cmd_run_start is 92 lines (baseline 91) and cmd_run_end is 64 (baseline 62); preserve the established CLI persistence lifecycles and effect/output ordering, whose task additions are limited to executable clocks and serialization
+         code-quality exception: scripts/log-step.sh cmd_lint is 186 lines (baseline 155); additions are correlated declarative predicates in the existing raw-number-aware jq filter, preserving one authoritative eligibility and line-diagnostic transaction
+         code-quality exception: scripts/validate-contracts.sh validate_run_log_contract (79) and run_log_contract_smoke (96) preserve same-sized baseline single Python heredocs with contract-key additions; run_correlated_event_smoke (223) hosts separately typed audited scenario functions in one frozen Python program
+         code-quality exception: scripts/validate-contracts.sh test_sync_preserves_repository_knowledge_policy (32) preserves one disposable tracked/untracked lifecycle, cleanup and idempotence assertions; test_contract_version_rule_history_warns_until_version_changes (66, baseline 59) preserves the three VERSION states, audited copied producer source and frozen assertions
+         code-quality exception: adapter main/options and existing producer cmd_* accept the public CLI argv vector; retain that interface rather than reinterpret option tokens as domain parameters. No general shell, jq, test or parameter-limit waiver is granted
+         tdd: contract + integration — three new aggregate tests failing as expected, AC coverage 4/4; test command bash scripts/validate-contracts.sh --hook-shell-quality-only; unchanged sources pinned with adapter 38, producer 35, installer 39, workflow 5 and timing 51 passing tests
+         tdd: red digest — AC-1 → test_native_shell_functions_meet_focused_limits, test_correlated_shell_functions_meet_focused_limits; AC-2 → test_native_hook_adapter_acceptance (38 unchanged fixture tests); AC-3 → test_hook_metadata_api_uses_at_most_three_parameters, producer acceptance (35 unchanged fixture tests); AC-4 → test_user_hook_installation_acceptance (39), test_workflow_hook_coverage_acceptance (5), test_hook_timing_acceptance (51), canonical run-log contract and shell syntax checks
+         tdd: observed RED — adapter dispatch 31, parse_report 47, transcript_skill 33 and completion 77 physical lines; producer validate_hook_args 38, emit_json 33 and cmd_step 143 physical lines; stage_hook_metadata has six positional parameters; all exceed the explicit 30-line/three-parameter limits
+         tdd: source guard — standard-library lexical masking excludes comments, quoted strings and heredoc data; Bash syntax-only endpoint probes retain physical LOC and nested declarations; numeric expansions include braced/default forms; duplicates, missing declarations and unparseable syntax fail closed. Predicate/lifecycle ceilings remain exactly record_valid 40, cmd_run_start 92, cmd_run_end 64 and cmd_lint 186 with arity checks retained. Three independently verified unchanged baseline exclusions are function-fingerprinted.
+         tdd: frozen test digest — tests/hook-shell-quality.sh SHA256 2f932dd99619b6ddfbc46bec67d006100a24c2885f89e4a909dbbc64fbeaf4ff; 3 test methods and 16 fully annotated Python functions, each at most 30 lines and three parameters including self; new validator acceptance wrapper is 7 lines with no positional parameters
+         tdd: preserved fixture hashes — tests/log-step-hook.sh f20e7ee99077d5ec7b12f57e70104d8204d70919b8b7f48bb65f65a7f95b4bfc; tests/log-step.sh 0c0a2911a61c15e1cc734bc2abd220359dda62a3a81b4d68529823097ad2a40d; tests/hook-install.sh 8a1d2b65c2cd9cc83877eb9d2c2b29e2a79363ae1e6f4f74c3379e7d3eac58a0; tests/hook-workflow-contract.sh 952a5ab0204c6a11e0bee9b77f6f78cf2eecff6496c9377accf396d46b16f829; tests/hook-timing.sh 53a34dde3c4e15523d174519453d64ada59050df5fb1bf4f20cefbbb55472850
+         tdd: product sources untouched at RED — hooks/log-step-hook.sh SHA256 7c1daa03d48f7d973ee5a6daa5ce722bc5d531b9f7a06ec52ca78be4eeb840e1; scripts/log-step.sh eb8fe3d58840c632ca4f49e8b508e3ad757e0f9941d824ab0db72171763cf0a6; validator changes add only the focused test route and default acceptance wrapper, preserving every existing fixture body
+         arbiter: coherent private step state without a newer Bash requirement → cmd_step owns one invocation-local associative step_context with fixed descriptive keys; extracted helpers mutate it only by direct current-shell calls, never subshells. No global context, nameref or eval (source: scripts/log-step.sh baseline associative arrays and meta_read printf-v output-variable contract; principles/code-quality.md; full specification Shell implementation constraints).
+         arbiter: correlated metadata transport → stage_hook_metadata(run,path,context_json) carries STRING fields last_epoch,seq,delivery_key,delivery; delivery retains its exact existing compact JSON bytes as a string. Build only after existing correlated jq validation and never persist the internal transport object (source: scripts/log-step.sh stage_hook_metadata and meta_encode; resolved specification Shell implementation constraints).
+         tdd: verification boundary — focused RED, all five unchanged runtime suites and Bash syntax observed; a redundant full validator begun before extraction was stopped at the orchestrator's request, with the complete integrated gate reserved for stable GREEN. No model calls, real-home deployment or historical telemetry reads.
+         arbiter: adapter phase state → scan_report owns local fence/fence_length updated directly by update_report_fence(run,suffix); completion owns its existing local native scalars, mutated by documented direct helpers. No new adapter globals or context framework; fallback/accepted terminate and delivering checks frozen evidence without transcript scans (source: hooks/log-step-hook.sh existing parse_report/completion local ownership; principles/code-quality.md; Arbiter review).
+         implementation: cohesive adapter dispatch/report/fence/transcript/native binding/frozen retry phases and producer validation/serialization/replay/clock/labels/staging/append/commit phases complete. All source checks and unchanged 38/35/39/5/51 runtime suites pass; the diagnostic fixture caught a private commit failure escaping the public exit-zero boundary, corrected without changing any fixture. Midpoint tripwire passed: one existing delivery component and unchanged acceptance scope.
+         tdd: green digest — same three RED test names pass, without amendment, deletion, renaming or weakened assertions: test_native_shell_functions_meet_focused_limits; test_correlated_shell_functions_meet_focused_limits; test_hook_metadata_api_uses_at_most_three_parameters. All original fixture files and validator wiring remain byte-identical to their RED hashes.
+         acceptance: AC-1 source checks pass, independently audited with AST-Grep across 91 product function definitions; repaired adapter dispatch/parse_report/transcript_skill/completion measure 23/18/9/18 physical lines and producer validate_hook_args/emit_json/cmd_step measure 9/8/17. Metadata staging uses three parameters and 25 lines; fresh functions satisfy 30 lines and three parameters. Named exception ceilings remain 40/92/64/186 and all three fingerprinted baseline bodies remain unchanged; no line compression or blanket waiver.
+         acceptance: AC-2 adapter 38/38 and AC-3 producer 35/35 frozen runtime tests pass after final extraction, including lexical/native attribution, cached raw numeric rejection, unknown-session rules, frozen retries, fallback ownership, optional-jq legacy output, exact clock formatting, replay serialization, actual partial append rollback and metadata replacement failure. The public producer continues to return zero on rejection and persistence errors.
+         acceptance: AC-4 installer 39/39, workflow 5/5 and timing 51/51 pass; canonical run-log contract passes; Bash syntax passes for every scripts/hooks/tests shell file; all 32 embedded Python programs compile; all 16 focused guard functions are annotated and within 30 lines/three parameters. Shellcheck is unavailable on this host. Task artifacts pass 20 checks with no failures and one expected incomplete-spec-reconciliation skip.
+         verification: one stable complete bash scripts/validate-contracts.sh invocation passed 591 checks, failed 0 and skipped 2 unavailable local private-pattern scans. Output /tmp/hooks-shell-final-validation.txt SHA256 3d57a61e8eb3d5f99f2958fba0b09f53f7e0807dd5c91f88ec4c36b16588fc16; exit status 0 in /tmp/hooks-shell-final-validation.status. Its existing copied-history fixture passed all three VERSION states without Git or AST-Grep dependencies in the source guard.
+         verification: exact nine-blob product/test manifest /tmp/hooks-shell-final-source-manifest.sha256 SHA256 bdcb046aba36c71f01e77aba7d040b02b87e920952d70118617db2910074e5a7; every entry verified before/after the complete gate. Adapter final SHA256 82d62af33ffef9b11f4c55244d77e1ea5bf800988754f4d37e9baaf003fd6586; producer final SHA256 92c28d4bd2b5094a67e7477de310322a479162795fb36f7f199c44041568f684; validator remains 990ee27a47a9bca852fa857c42501cf2b253c8fbe877b8aff7d552657d460060 and quality test remains 2f932dd99619b6ddfbc46bec67d006100a24c2885f89e4a909dbbc64fbeaf4ff. No product/test file changed during or after this gate.
+         implementation contract: direct completion phases read/gate stdin into owner-local raw/path plus existing PROJECT; bind_native_fields reads raw and writes owner-local kind/session/path/message/native_agent; bind_completion_record reads message/session/kind and writes owner-local state plus existing REPORT/RECORD. Frozen validation reads existing records/report/native actor; skill resolution reads native path/boundary/session and updates existing SKILL; freeze updates only existing RECORD and its private persisted record. Producer phases use only cmd_step-owned step_context and existing validated PARSED_ARGS; mutating phases remain direct current-shell calls.
+         finalize: implementation and tests are complete; atomic validation remains not-started for independent review. Orchestrated mode applies: plan status remains in-progress as directed, and shared memory/progress files are returned as proposed deltas rather than modified. No model invocation, real-home deployment, historical telemetry access, new runtime dependency, newer Bash minimum, changed schema or changed persistence claim.
+         architecture.md: proposed orchestrator delta — document tests/hook-shell-quality.sh under executable acceptance checks: syntax-only Bash/standard-library inspection enforces focused function size and argument limits, bounded named exceptions and fingerprinted unchanged baseline exclusions; focused --hook-shell-quality-only and default validator run the same contract. Existing adapter/producer public interfaces and deployment descriptions require no change.
+         implementation paths: GREEN product edits are limited to hooks/log-step-hook.sh and scripts/log-step.sh; tests/hook-shell-quality.sh and scripts/validate-contracts.sh were committed at RED and remain frozen. The two product blobs remain unchanged after the passing integrated gate.
+         independent validation: pav-check DONE; all four acceptance criteria met with no critical or important findings. Source review confirms cohesive phase extraction without line compression, invocation-local associative producer state and direct caller-owned adapter state, no shadowing of output variables, unchanged Bash minimum and ordinary optional-jq serialization, exact four-string metadata transport, native project gating before private/transcript access, terminal-state and frozen-retry ordering, append rollback and receipt-after-commit semantics.
+         independent validation: real Bash AST audit covers 91 product function definitions; all selected functions satisfy 30 physical lines and three domain parameters, with only the recorded 40/92/64/186 ceilings and unchanged fingerprinted baseline bodies excluded. The new seven-line validator wrapper has no positional parameters; the source inspector executes only Bash syntax probes and standard-library Python, without sourcing product code or requiring Git/AST-Grep at runtime.
+         independent validation: frozen source contract independently reproduces all three expected RED failures against the exact base sources, and passes all three methods against the committed product. Test-only commit precedes product commit; the new guard and validator wiring are byte-identical to RED, all five original runtime fixture files are byte-identical to the base, and no amendment, skip, weakened assertion or frozen digest mismatch exists.
+         independent validation: reviewer independently ran quality 3/3, adapter 38/38, producer 35/35, installer 39/39, workflow 5/5 and timing 51/51; canonical contract, all scripts/hooks/tests Bash syntax, changed-source whitespace and task metadata 20/0/1 pass. All 32 embedded programs in the validator and fixtures compile in memory; the additional setup program also compiles. All 16 quality-inspector Python functions are annotated and within 30 lines/three parameters. Shellcheck is unavailable.
+         independent validation: reviewer verified the worker's complete gate artifact, rather than executing a duplicate full gate: exact recorded output/status/manifest hashes match, all nine manifest entries match committed tip a1774f5dc9d5f5b3fd0a1ac67159523289a78453 and current files, and output contains 591 unique passes, zero failures, two configured hygiene skips and terminal success with exit status zero. No source/evidence mismatch, incomplete coverage or runtime finding requires another full run.
+         independent validation: initial redirected invocations failed before assertions with transient host quota errors; plain reruns of every scoped suite completed successfully. No unrelated temporary files were deleted. Verification used disposable fixture roots, with no model calls, live deployment, user settings access or historical telemetry reads.
+         independent improvements: pav-propose --batch complete; no concrete Do Now, Do Later or Optional proposals identified.
+         independent close: pav-close complete in orchestrated mode; return plan transition T-06 to reviewed for the orchestrator. No composite trigger applies. Own-block compression audit retained all existing protected notes, digests and git fields; shared-file compression and task-level status updates belong to the orchestrator.
+  branch: fix/hook-function-boundaries
+  base_branch: feat/run-log-timing
+  base_commit: a9936d21f42aaf555dbcd67d70f334a1df38cb51
+  commits: 4bc1d000d6d3767353e8ea6af833fd6b81f5da06, a1774f5dc9d5f5b3fd0a1ac67159523289a78453
+  pr: #28 draft
+
+adr: .ai/adr/0013-task-03-correlated-hook-logging.md (Accepted)
 
 ## Improvement Proposals (T-01)
 
@@ -399,6 +447,24 @@ recorded_paths:
 - .ai/tasks/todo/task-03-hook-based-logging/plan.md
 - .ai/tasks/todo/task-03-hook-based-logging/state.md
 
+### Validated correlated hooks and exact timing
+
+branch: fix/hook-function-boundaries
+expected_parent: a1774f5dc9d5f5b3fd0a1ac67159523289a78453
+allowed_scope: exactly the listed knowledge-base paths
+recorded_paths:
+- .ai/adr/0013-task-03-correlated-hook-logging.md
+- .ai/adr/index.md
+- .ai/context/runbook.md
+- .ai/memory/architecture.md
+- .ai/memory/progress.md
+- .ai/memory/state.md
+- .ai/specs/03-hook-based-logging.md
+- .ai/specs/README.md
+- .ai/tasks/todo/task-03-hook-based-logging/plan.md
+- .ai/tasks/todo/task-03-hook-based-logging/state.md
+- .ai/tasks/todo/task-03-hook-based-logging/T-06-fix-hook-function-boundaries/description.md
+
 ## Execution Report
 
 | Subtask | Outcome | Evidence |
@@ -408,6 +474,7 @@ recorded_paths:
 | T-03 | reviewed | Lossless owned settings, prepared recovery, registration, capability/sync and Python guards; independent review passed. |
 | T-04 | reviewed | Coverage-aware routing at existing returns, approximate uncovered boundaries and receipt suppression; independent review passed. |
 | T-05 | reviewed | Exact snapshot-gated interval analysis, full isolated lifecycle, standards harmonization and documentation precision; independent review passed. |
+| T-06 | reviewed | Approved validation repair: focused shell phases, coherent metadata context and bounded source contract; independent review passed. |
 
 Skipped, blocked, deferred and not-reached subtasks: none. No composite rows exist.
 All recorded improvement proposals have been addressed; no Do Now work remains.
@@ -415,3 +482,132 @@ All recorded improvement proposals have been addressed; no Do Now work remains.
 Root file decisions: update architecture inventory/dataflow and runbook runtime/check commands; retain existing architectural principles because the implementation follows their additive-contract, explicit-state and honest-measurement decisions. Project inventory is absent, so skip it. Preserve the provisional decision record until task-level validation accepts it.
 
 Compression audit: corrected the blanket pre-implementation chronology and completed optional proposal status; preserved all protected sections, archive pointers, branch points, commits, frozen digests and amendment records. Remaining chronological verification lines are audit evidence, not active blockers.
+
+## Contract Check
+
+### Invariants
+
+| Invariant | Status |
+|---|---|
+| Invalid input is rejected before sequence, timestamps, accepted identity or metadata change; diagnostics remain safe and exit zero. | PASS: complete producer validation and native/raw-marker checks precede mutation; rejection fixtures preserve accepted state. |
+| Runtime vocabulary and canonical rule remain synchronized; legacy events and prompt calls remain valid. | PASS: additive exported hook fields match canonical tables; bidirectional gate, historical lint and optional-jq compatibility pass. |
+| Accepted hooks have explicit unique correlation and executable intervals; unknown is restricted to unambiguous sessions. | PASS: exact tuples, executable clocks, serialized ownership and matching receipts govern delivery; unknown requires a session boundary and session actor. |
+| Structured markers provide canonical outcome, never narrative inference or model duration. | PASS: canonical unfenced report parsing supplies outcome/optional tests/gate; native Skill evidence supplies the step and executable clocks supply times. |
+| Only manifest-owned settings entries may be merged or removed. | PASS: exact occurrence and created-group quotas preserve unowned copies and changed handlers; numeric tokens and unmatched recovery images survive. |
+| Hook availability never substitutes for demonstrated boundary coverage. | PASS: mechanism, installation and accepted coverage remain distinct; named suppression requires matching native evidence and receipt. |
+
+### Acceptance Criteria
+
+| Criterion | Status |
+|---|---|
+| Stop/SubagentStop manifest, invoked skills, exact reports, explicit dispatch and registered projects. | PASS: both handlers call the adapter; the most-specific registered root gates access; native user dispatch and unique Skill evidence establish attribution. |
+| Interleaved runs, duplicate/out-of-order delivery and malformed/ambiguous inputs preserve attribution and uniqueness. | PASS: fixtures cover explicit two-run identities, concurrent replay, out-of-order parents, rejection, frozen retry and one-route fallback. |
+| User installation/removal is idempotent, preserves unrelated settings and supports spaced paths. | PASS: sync invokes the user installer; ownership, argument vectors, concurrent lifecycle and interrupted recovery fixtures cover these cases. |
+| Uncovered/unavailable steps retain approximate prompts and retrospective labels. | PASS: all five orchestrators use canonical approximate routing; internal batches remain approximate; timing and retrospective label eligible approximate sources. |
+| Sequential coverage meets five percent tolerance; nested/parallel timing separates spans, wall coverage, gaps, overlap and waiting. | PASS: exact 10000/10000 sequential reference and independent integer half-open formulas distinguish sums, unions, exclusive work and waiting; invalid graph totals are disclosed. |
+| Existing producer/lint, complete contract and isolated hook fixtures pass without real-log changes. | PASS: final stable complete gate reports 591 passed, 0 failed and 2 optional hygiene skips. A fresh reviewer verified its exact committed source manifest/artifact and independently ran quality 3 plus all runtime 168 checks; disposable roots preserve real settings/history. |
+
+### Off-limits
+
+| Constraint | Status |
+|---|---|
+| No historical-log attribution or telemetry rewriting. | PASS: adapter uses explicit native/private evidence and producer active metadata; offline consumers and fixtures remain read-only/disposable. |
+| No guessed or newest active run. | PASS: no newest-run selection exists; explicit dispatch identity survives receipt/fallback selection. |
+| No unowned settings overwrite. | PASS: exact owned occurrence quotas preserve user entries, changed handlers and unmatched prepared images. |
+| No default-branch push, merge, force-push or branch deletion. | PASS: only additive feature-branch pushes and draft creation were performed; independent validation made no git mutations. |
+| No cost/token schema or git-rail implementation. | PASS: additions concern correlation/timing only; the separately authorized tracking prerequisite preserves existing staging and git prohibitions. |
+
+### Specification coverage
+
+| Source requirement | Status / evidence |
+|---|---|
+| Original AC: native manifest, invoked skill, canonical outcome and explicit attribution | PASS: native transcript/report parser, dispatch and receipt tuple validation. |
+| Original AC: idempotent user sync installation and registered activation | PASS: installer/registry/lifecycle fixtures preserve user settings. |
+| Original AC: best-effort session skill and explicitly correlated unknown | PASS: unique invocation evidence, session-only unknown and bounded diagnostics. |
+| Original AC: prompt run boundaries and evidence-based suppression | PASS: all five orchestrators preserve internal prompts; only a matching named receipt suppresses its row. |
+| Original AC: hooks-no approximate path and retrospective labels | PASS: Codex hooks:no and exact approximation marker/prefix routing are explicit. |
+| Original AC: sequential/nested/parallel denominators | PASS: exact independent reference fixtures separate inclusive/exclusive/worker and wall measures. |
+| Original AC: both canonical paths and capability selection | PASS: canonical workflow routing, native adapter and correlated interval sections define the selection. |
+| Added AC-01 | PASS: interleaved/concurrent identity, replay, ambiguity and no-mutation assertions. |
+| Added AC-02 | PASS: owned installation/recovery and unavailable/missing evidence routing. |
+| Added AC-03 | PASS: wall denominators, exclusive graph eligibility, worker totals and overlap fixtures. |
+| REQ-01 | PASS: explicit identity, bounded serialization, accepted receipts and additive validation/lint. |
+| REQ-02 | PASS: no prose outcome or guessed attribution; missing evidence warns/omits; uncertainty never proves acceptance. |
+| REQ-03 | PASS: private active correlation is separate from history; lint/timing remain read-only consumers. |
+| REQ-04 | PASS: manifest ownership, canonical registry and capability/installation/coverage distinctions. |
+| REQ-05 | PASS: deterministic no-model concurrency, duplicate/out-of-order, missing/unknown/unavailable and exact interval fixtures. |
+
+Independent contract validation: 32 mapped checks PASS, 0 FAIL, no pending execution evidence and no critical failures. The 17 parent-contract checks and 15 source-specification checks are all verified. Current native profile fields were additionally checked against official command-hook, SubagentStop and environment documentation. Evidence remains documentation plus synthetic fixtures, not live firing or model compliance.
+
+## Code Review
+
+### Findings
+
+1. Important — shell function standards. Adapter dispatch (31 lines), parse_report (47), transcript_skill (33), completion (77), and producer validate_hook_args (38), emit_json (33), cmd_step (143) require real decomposition. stage_hook_metadata takes six positional arguments and needs a coherent context. Named cohesive predicate, minimally extended baseline lifecycle and frozen-fixture exceptions require explicit notes.
+
+### Summary
+
+Independent whole-stack review: 0 critical, 1 important, 0 optional findings. No functional, architectural, security, edge-case, interface or test-integrity finding. Initial integrated full gate: 590 passed, 0 failed, 2 optional hygiene skips. The sole important finding is resolved by reviewed T-06; final full gate: 591 passed, 0 failed, 2 optional hygiene skips. A fresh reviewer independently ran quality 3 and all runtime 168 checks, inspected the actual Bash AST and frozen sources, and verified the worker full-gate artifact against identical committed blobs. No unresolved findings remain.
+
+## Issue List
+
+### Approved
+
+1. Decompose native and correlated shell delivery into focused functions and replace the six-parameter metadata API with a coherent context; record only individually justified existing predicate/lifecycle/fixture exceptions. Priority: important. Automatically approved under spec-run and the owner's autonomous implementation instruction. Resolved by independently reviewed T-06; both repair commits and the unchanged behavior evidence are recorded above.
+
+### Deferred
+
+(none)
+
+## Fix-Tasks
+fixes-created: complete
+fixes-count: 1
+Created: T-06-fix-hook-function-boundaries
+
+### Fix Classification
+
+| Issue | Severity | Gate 1 | Gate 2 | Gate 3 | Gate 4 | Grouping | Branch |
+|---|---|---|---|---|---|---|---|
+| #1 Focused shell delivery functions | important | fail: four product/test files | pass: no new invariant | pass: behavior preserved | pass: no schema/migration | dedicated | T-06-fix-hook-function-boundaries |
+
+## Deferred
+
+(none)
+
+## Spec Sync
+sync: complete
+synced_at: 2026-10-26
+deltas: 0 (implemented-differently: 0, not-implemented: 0, implemented-beyond: 0)
+spec: .ai/specs/03-hook-based-logging.md
+
+All five source requirements and ten original/additional acceptance criteria retain their intent. The resolved interfaces and explicitly recorded implementation/review refinements are already in the specification. The standards repair changes private structure only; no failed criterion was weakened or reclassified as a delta. Sources: Task Analysis assumptions/amendments, T-06 decision and TDD notes, approved issue #1, Contract Check, final Code Review and reviewed plan.
+
+## Finalization
+
+All six leaves are reviewed; the separately authorized prerequisite is reviewed. One important task-review finding was fixed and independently verified; no critical, optional, deferred or open question remains. Parent contract verification is 17/17 and original specification mapping is 15/15. Final cumulative behavior is supported by quality 3, runtime 168, canonical/syntax/annotation/whitespace checks and the verified 591/0/2 complete gate. The fresh repair reviewer ran scoped suites and verified the worker full artifact; it did not repeat the default full invocation.
+
+Root-file decisions: architecture and runbook updated for delivered modules, runtime requirements, coverage routing, exact timing and source acceptance. Existing architectural principles remain valid and are retained; this implementation enforces their explicit-state, additive-contract and honest-measurement rules. Project inventory is absent and skipped. Existing provisional decision record accepted in place, with its index updated; no new ADR was allocated.
+
+Compression audit: all protected sections, archive pointers, assumption/amendment chronology, branch points, commit records, named exceptions and TDD digests are retained. Intermediate verification notes identify their original checkpoints. No required audit evidence was removed; minimal compression was appropriate.
+
+Final artifact checks: task validator 21 passed, 0 failed, 0 skipped; the existing exact public identity ledger passed after final knowledge edits. The nine product/test blobs remain identical to the verified full gate.
+
+## Delivery Report
+
+status: awaiting-review-promotion
+repository: Orchestrail
+base: main at immutable branch point 7477bacce34b58d3c683a4329b82778b0d330a7e
+
+| Order | PR | Branch | Base | Status |
+|---|---|---|---|---|
+| 1 | #22 | fix/knowledge-base-tracking-policy | main | draft |
+| 2 | #23 | feat/correlated-event-writes | fix/knowledge-base-tracking-policy | draft |
+| 3 | #24 | feat/hook-event-adapter | feat/correlated-event-writes | draft |
+| 4 | #25 | feat/user-hook-installation | feat/hook-event-adapter | draft |
+| 5 | #26 | feat/coverage-aware-workflow-logging | feat/user-hook-installation | draft |
+| 6 | #27 | feat/run-log-timing | feat/coverage-aware-workflow-logging | draft |
+| 7 | #28 | fix/hook-function-boundaries | feat/run-log-timing | draft |
+
+Merge order is the table order. No merge, default-branch push, force push or branch deletion was performed. After a squash or rebase merge, use restack before integrating remaining branches. Recorded hashes are pre-merge. Remote main advanced independently to 6fbaf42cca979f132280b1b04698d41306331626 by adding the original specification; feature branch points remain unchanged.
+
+Verification limits: ShellCheck unavailable; two private-pattern scans explicitly skip because maintainer-local configuration is absent. Synthetic fixtures and official native documentation establish the supported profile; no live model invocation, event firing, real user-settings deployment or historical-corpus access is claimed.

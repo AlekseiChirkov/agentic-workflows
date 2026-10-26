@@ -2,7 +2,7 @@
 
 ## Status
 
-Provisional
+Accepted
 
 ## Date
 
@@ -11,7 +11,8 @@ Provisional
 ## Related Task
 
 - Task: [Hook-based logging](../tasks/todo/task-03-hook-based-logging/state.md).
-- Related files: `scripts/log-step.sh:554`, `workflows/spec-run.md:169`, `scripts/sync.sh:70`.
+- Related files: `scripts/log-step.sh`, `hooks/log-step-hook.sh`, `scripts/install-hooks.py`, `scripts/run-log-timing.py`, `workflows/spec-run.md` and `scripts/sync.sh`.
+- Related pull requests: #22, #23, #24, #25, #26, #27 and #28.
 
 ## Summary
 
@@ -26,13 +27,13 @@ The producer currently measures time since the previous accepted write. Batched 
 ### Decision 1: Extend the producer and isolate active correlation
 
 **What was decided:**
-Use executable clock stamps and explicit run/session/agent/checkpoint identity, optional parent/waiting semantics, serialized accepted-event metadata and an acceptance receipt. Keep correlation state separate from historical logs. Extend the existing Bash producer and shared validation contract additively.
+Use executable clock stamps and explicit run/session/agent/checkpoint identity, optional parent/waiting semantics, serialized accepted-event metadata and an acceptance receipt. Keep correlation state separate from historical logs. Extend the existing Bash producer and shared validation contract additively. Private step phases share one invocation-local associative context; native phases retain their existing caller-local state. Correlated metadata staging transports four exact string values in one internal JSON context, without persisting that object or changing event schema.
 
 **Why:**
 Forwarding ordinary completion calls cannot distinguish concurrent or overlapping work, and exit zero intentionally does not imply persistence.
 
 **Alternatives:**
-Newest-active-run selection can cross-attribute concurrent runs. Narrative outcome inference fabricates results. A separate service adds deployment and runtime complexity without solving a further current requirement.
+Newest-active-run selection can cross-attribute concurrent runs. Narrative outcome inference fabricates results. A separate service adds deployment and runtime complexity without solving a further current requirement. Namerefs would raise the Bash requirement; JSON/jq on the ordinary helper path would break optional-jq compatibility. Neither is introduced.
 
 **Consequences:**
 Hook-only dependencies may be unavailable without blocking work. Legacy prompt calls retain their existing behavior. Ordinary duplicate delivery is serialized; partial filesystem write limitations are disclosed rather than claiming crash-proof exactly-once behavior.
@@ -180,10 +181,12 @@ The full harness migration and usage/cost normalization remain separate. Keep ex
 
 ## Verification
 
-Not yet verified — decision recorded before implementation completed.
+All original leaves and the focused shell standards repair passed independent review. Parent contract: 17 passes; source specification mapping: 15 passes; no failures or deferred items. Final complete isolated validator: 591 passed, 0 failed, 2 explicitly skipped private-pattern scans because no local patterns are configured. The repair reviewer independently ran source quality 3 and all 168 unchanged runtime checks, canonical contract, Bash syntax, Python compilation/annotations, task artifacts and whitespace; it verified the full-gate artifact against nine identical committed blobs rather than claiming another default-full invocation. Frozen tests, producer literal and retrospective loader preservation were audited.
+
+One important function-size/parameter finding was repaired through a separate test-first branch. Actual Bash structural inspection covered 91 functions; new helpers satisfy the limits, named predicate/lifecycle exceptions remain bounded and unchanged baseline exclusions are fingerprinted. ShellCheck is unavailable. Fixtures use disposable home/config/state/project/log roots; no live model/event invocation, real settings deployment or historical-corpus access was performed.
 
 ## References
 
 - Task: hook-based logging.
-- Pull request: pending.
+- Pull requests: #22, #23, #24, #25, #26, #27 and #28.
 - Related documents: run-log contract, current logging decisions, roadmap decisions on user hooks and capabilities.

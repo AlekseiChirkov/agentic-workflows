@@ -6,6 +6,10 @@ newest first. Entries before 2026-09-16 are reconstructed from file contents, ru
 and the audit spec — dates are those recorded in the sources.
 
 ## Log
+- **2026-10-26 — Hook logging specification reconciled.** All five requirements and ten source acceptance criteria remain fulfilled; zero implemented-differently, not-implemented or implemented-beyond deltas. Completion metadata is recorded without changing requirement intent.
+
+- **2026-10-26 — Hook logging implementation validated.** Explicit identities/receipts, native correlation, owned user settings recovery, coverage-aware fallback and exact offline timing are complete. Six leaves and the tracking-policy prerequisite are independently reviewed; one important shell standards finding was repaired. Final full gate: 591 passed, 0 failed, 2 optional hygiene skips; contract mapping: 32 passes. Existing decision record accepted in place. PRs #22–#28 are published; review promotion follows. No automatic merge or real-home deployment.
+
 - **2026-10-21 — Run-log validation completed.** Producer validation, exact legacy normalization, read-only lint, usable retrospective metrics, structured drift checks and isolated acceptance are reviewed. Four integrated findings were repaired in three fix leaves. Verification: 25 focused checks; full suite 576 passed, 0 failed, 2 configured hygiene skips. Specification reconciled with zero requirement deltas; ADR-0011 accepted. PRs #13–#20 remain stacked for owner review and integration.
 
 - **2026-10-20 — Local hygiene configuration and merge authorization.** The tracked pattern file remains deleted; exact scans now read maintainer-local patterns, and the full suite reports two explicit skips when they are unavailable. Validation: 551 checks passed with local patterns; 549 passed and 2 skipped without them. The owner authorized merging the reviewed changes while preserving existing history.
