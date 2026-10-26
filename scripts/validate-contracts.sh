@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+# Run native hook acceptance independently of deployment and historical stores.
+if [ "${1:-}" = --hook-adapter-only ]; then
+  shift
+  exec bash "$REPO_ROOT/tests/log-step-hook.sh" "$@"
+fi
+
 # Resolve private patterns from an explicit local override or user config. Keep the
 # pattern file outside the repository so it does not publish the identifiers it guards.
 hygiene_patterns_path() {
