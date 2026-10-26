@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+# Run user hook lifecycle acceptance without deploying to the current home.
+if [ "${1:-}" = --hook-install-only ]; then
+  shift
+  exec bash "$REPO_ROOT/tests/hook-install.sh" "$@"
+fi
+
 # Run native hook acceptance independently of deployment and historical stores.
 if [ "${1:-}" = --hook-adapter-only ]; then
   shift
@@ -4271,6 +4277,16 @@ check "test_native_hook_adapter_acceptance" \
   "$(test_native_hook_adapter_acceptance && echo pass || echo 'native hook dispatch, evidence and ownership fixtures must pass')"
 
 # ── Tracked public hygiene ──────────────────────────────────────────
+test_user_hook_installation_acceptance() {
+  local output
+  output="$(bash "$REPO_ROOT/tests/hook-install.sh" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 20
+    return 1
+  }
+}
+check "test_user_hook_installation_acceptance" \
+  "$(test_user_hook_installation_acceptance && echo pass || echo 'owned user hook lifecycle and isolated deployment fixtures must pass')"
+
 hygiene_tracked_tree_result() {
   local pattern_file pattern_status=0
   pattern_file="$(hygiene_patterns_path)" || pattern_status=$?
