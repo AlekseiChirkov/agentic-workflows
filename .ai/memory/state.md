@@ -10,7 +10,7 @@ Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) 
 `/phase-discovery .ai/specs/<NN>-<slug>.md`.
 
 ## Done
-- [Hook-based logging](../tasks/todo/task-03-hook-based-logging/state.md) | phase: validation | status: reviewed | note: six leaves and prerequisite reviewed; exact hooks/timing complete; PRs #22–#28 published, review promotion pending
+- [Hook-based logging](../tasks/todo/task-03-hook-based-logging/state.md) | phase: validation | status: reviewed | note: six leaves and prerequisite reviewed; exact hooks/timing complete; PRs #22–#28 ready for review; owner integration pending
 - [Run-log vocabulary validation](../tasks/todo/task-02-run-log-vocabulary-validation/state.md) | phase: validation | status: reviewed | note: strict producer, read-only lint, usable retrospective metrics, drift gate and isolated acceptance complete; PRs #13–#20 are ready for review; owner integration remains pending
 - [task-00-sensitive-data-scrub](../tasks/completed/task-00-sensitive-data-scrub/state.md) | completed | note: PRs #2, #3, and #4 integrated in order; review fixes included; 542 checks pass as normal user and UID 0; source specification archived under specs/completed
 - [Git source of truth] | completed | note: versioned contracts, portable runtime paths, public materials, identity checks, and validation metadata are complete; checkout is renamed; PRs #5–#9 were merged into main; owner deferrals remain documented

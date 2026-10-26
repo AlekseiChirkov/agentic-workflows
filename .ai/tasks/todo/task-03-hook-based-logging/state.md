@@ -43,7 +43,7 @@ None.
 - commits: be14570c80ad82db6ddd77b86e90e13f0e7aeb5d test(sync): preserve repository knowledge tracking policy, 9bb1358be2ee9d09f83520239ff30baa29c05906 fix: respect repository knowledge tracking policy
 - status: reviewed
 - tests: RED then GREEN for repository tracking policy; independent review PASS. Full validation: 575 pass, stale archived-spec ledger path corrected and focused recheck PASS, two optional hygiene skips.
-- pr: #22 draft; origin verified and branch published after destination checks
+- pr: #22 ready; origin verified and branch published after destination checks
 
 ## Decomposition
 decomposition: complete
@@ -123,7 +123,7 @@ T-01 | Validated correlated event writes | atomic-tests: green | atomic-executio
   base_branch: fix/knowledge-base-tracking-policy
   base_commit: 9bb1358be2ee9d09f83520239ff30baa29c05906
   commits: be65b3dc956a3e156ad95d4b3535765ea41b6746 test(logging): cover correlated events and precise intervals, a10aeb3e42d2c74448e11939186b82cb8e205794 feat(logging): accept correlated checkpoint intervals
-  pr: #23 draft
+  pr: #23 ready
 
 T-02 | Explicit hook dispatch and completion | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: DoD met — all six acceptance criteria independently verified; fence and exact-token repairs validated; 38 frozen adapter checks and full 587-check contract gate pass
@@ -168,7 +168,7 @@ T-02 | Explicit hook dispatch and completion | atomic-tests: green | atomic-exec
   base_branch: feat/correlated-event-writes
   base_commit: 6695f37ac3c6c3fe979f47fcdf84eadf6c475962
   commits: a40270437130e317d67266809ba1c669fc3ef29d test(hooks): define explicit checkpoint delivery behavior, 3ba0e22e03ad5451e7c3afab206dd0ad047a0694 feat(hooks): correlate native completion checkpoints, cb4cf524489ebf83acaa6e6ac1fd6463c1c71f8f test(hooks): cover fenced report eligibility, 9c0a0102d9dd8c7214522ec0ff049e8bf42cc713 test(hooks): reject noncanonical protocol numbers, b17ca232dbde31705a0b375890348059451be336 fix(hooks): validate report fences and exact protocol numbers
-  pr: #24 draft
+  pr: #24 ready
 
 T-03 | Owned user hook installation | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close complete — all acceptance criteria and Python standards reviewed; isolated 39-test lifecycle and 588-check full gate pass
@@ -234,7 +234,7 @@ T-03 | Owned user hook installation | atomic-tests: green | atomic-execution: co
   base_branch: feat/hook-event-adapter
   base_commit: 30f0819e8800f222a59d44211ec01682fa2bfbda
   commits: 94843ed7e3fd5285639f6a0e6074a7af89ba0d4f test(hooks): define owned installation and recovery, f7c673efcb90803b4915cd37deede4ac18383819 feat(hooks): install and recover owned user hooks, 3a3130c1413d0864b30d560e0366067f21f2404e test(hooks): cover interpreter support and Python standards, 2ec642806e1700eaa409af44704b291e6f629f53 fix(hooks): guard Python support and type installer transactions
-  pr: #25 draft
+  pr: #25 ready
 
 T-04 | Coverage-aware workflow logging | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close complete — DoD met; all three acceptance criteria independently verified with no critical or important findings
@@ -264,7 +264,7 @@ T-04 | Coverage-aware workflow logging | atomic-tests: green | atomic-execution:
   base_branch: feat/user-hook-installation
   base_commit: 4cf5c515d11b5730090923647e1def2d52129095
   commits: 530b7b8a757d250ba42c640b1476fec830c56414 test(logging): define workflow checkpoint routing, 35ed85f53dbc8f9ea52642f8051346cb90c37f08 test(logging): reject malformed workflow acceptance receipts, c6c7f89dd9dbf61c74a6e900819389a8aa27744e feat(logging): route workflow checkpoints by accepted coverage
-  pr: #26 draft
+  pr: #26 ready
 
 T-05 | Honest timing and end-to-end evidence | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close complete — all five criteria independently verified; stable full gate 590/0/2 and final workflow 5/timing 51 pass; documentation proposals addressed; reviewed plan delta returned to root
@@ -309,7 +309,7 @@ T-05 | Honest timing and end-to-end evidence | atomic-tests: green | atomic-exec
   base_branch: feat/coverage-aware-workflow-logging
   base_commit: 2ad00eda9d4371673c719ea4d40b1c8fdf74f03c
   commits: 18513f7b1615c9d542653ad8c59bfde2e0a9ea28 test(timing): define exact interval and lifecycle analysis, fd81d62a5699315c13cfe3ba17bcf583f752a34f test(contracts): preserve audited sources in history fixtures, 571620dd5fe1ab50c3e775660b7fe9a9905611b0, 30aa5fedc3fa53715a0709b2017f752e4b97202d, 44d16576fe265755a21670fc57a6f348e16c8899 docs(hooks): clarify named coverage and native dependencies
-  pr: #27 draft
+  pr: #27 ready
 
 T-06 | Focused shell delivery functions | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: reviewed — all four acceptance criteria met; independent quality 3 and runtime 168 pass; worker full gate 591/0/2 verified against exact committed blobs
@@ -357,7 +357,7 @@ T-06 | Focused shell delivery functions | atomic-tests: green | atomic-execution
   base_branch: feat/run-log-timing
   base_commit: a9936d21f42aaf555dbcd67d70f334a1df38cb51
   commits: 4bc1d000d6d3767353e8ea6af833fd6b81f5da06, a1774f5dc9d5f5b3fd0a1ac67159523289a78453
-  pr: #28 draft
+  pr: #28 ready
 
 adr: .ai/adr/0013-task-03-correlated-hook-logging.md (Accepted)
 
@@ -464,6 +464,16 @@ recorded_paths:
 - .ai/tasks/todo/task-03-hook-based-logging/plan.md
 - .ai/tasks/todo/task-03-hook-based-logging/state.md
 - .ai/tasks/todo/task-03-hook-based-logging/T-06-fix-hook-function-boundaries/description.md
+
+### Published review-ready hook logging stack
+
+branch: fix/hook-function-boundaries
+expected_parent: 04e97a015ec2517ca84766bc900da397bf80ea5b
+allowed_scope: exactly the listed knowledge-base paths
+recorded_paths:
+- .ai/memory/progress.md
+- .ai/memory/state.md
+- .ai/tasks/todo/task-03-hook-based-logging/state.md
 
 ## Execution Report
 
@@ -594,19 +604,19 @@ Final artifact checks: task validator 21 passed, 0 failed, 0 skipped; the existi
 
 ## Delivery Report
 
-status: awaiting-review-promotion
+status: ready-for-review
 repository: Orchestrail
 base: main at immutable branch point 7477bacce34b58d3c683a4329b82778b0d330a7e
 
 | Order | PR | Branch | Base | Status |
 |---|---|---|---|---|
-| 1 | #22 | fix/knowledge-base-tracking-policy | main | draft |
-| 2 | #23 | feat/correlated-event-writes | fix/knowledge-base-tracking-policy | draft |
-| 3 | #24 | feat/hook-event-adapter | feat/correlated-event-writes | draft |
-| 4 | #25 | feat/user-hook-installation | feat/hook-event-adapter | draft |
-| 5 | #26 | feat/coverage-aware-workflow-logging | feat/user-hook-installation | draft |
-| 6 | #27 | feat/run-log-timing | feat/coverage-aware-workflow-logging | draft |
-| 7 | #28 | fix/hook-function-boundaries | feat/run-log-timing | draft |
+| 1 | #22 | fix/knowledge-base-tracking-policy | main | ready |
+| 2 | #23 | feat/correlated-event-writes | fix/knowledge-base-tracking-policy | ready |
+| 3 | #24 | feat/hook-event-adapter | feat/correlated-event-writes | ready |
+| 4 | #25 | feat/user-hook-installation | feat/hook-event-adapter | ready |
+| 5 | #26 | feat/coverage-aware-workflow-logging | feat/user-hook-installation | ready |
+| 6 | #27 | feat/run-log-timing | feat/coverage-aware-workflow-logging | ready |
+| 7 | #28 | fix/hook-function-boundaries | feat/run-log-timing | ready |
 
 Merge order is the table order. No merge, default-branch push, force push or branch deletion was performed. After a squash or rebase merge, use restack before integrating remaining branches. Recorded hashes are pre-merge. Remote main advanced independently to 6fbaf42cca979f132280b1b04698d41306331626 by adding the original specification; feature branch points remain unchanged.
 
