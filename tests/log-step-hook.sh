@@ -645,6 +645,104 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
                     self.assertEqual(self.status(identity)['state'], 'accepted')
                     self.assertEqual(self.events(identity['run_id'])[-1]['checkpoint_id'], identity['checkpoint_id'])
 
+    def test_hook_raw_fractional_or_exponent_receipt_sequence_leaves_delivery_uncertain(self):
+        real_helper = self.helper.read_bytes()
+        for token in ('1.0000000000000001','1e0','1.0','1e-9999','-0'):
+            with self.subTest(token=token):
+                self.helper.write_bytes(real_helper)
+                identity, line = self.dispatch()
+                receipt = dict(identity, kind='accepted', seq=1, duplicate=False)
+                self.env['HOOK_TEST_RECEIPT'] = compact(receipt).replace('"seq":1', '"seq":' + token)
+                self.helper.write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$HOOK_TEST_RECEIPT"\n')
+                result = self.deliver(self.payload(identity, line))
+                self.assertIn('acceptance-uncertain', result.stderr)
+                self.assertEqual(self.status(identity)['state'], 'delivering')
+                self.assertNotIn('receipt', self.status(identity))
+        self.helper.write_bytes(real_helper)
+
+    def test_hook_raw_noncanonical_cached_receipt_sequence_never_returns_acceptance(self):
+        identity, line = self.dispatch()
+        self.deliver(self.payload(identity, line))
+        self.assertEqual(self.status(identity)['state'], 'accepted')
+        record = self.state / 'orchestrail' / 'hooks' / (identity['checkpoint_id'] + '.json')
+        metadata = json.loads(record.read_text())
+        metadata['receipt']['seq'] = 1
+        baseline = compact(metadata)
+        before = self.snapshot()
+        for token in ('1.0000000000000001','1e0','1.0','1e-9999','-0'):
+            with self.subTest(token=token):
+                record.write_text(baseline.replace('"seq":1', '"seq":' + token))
+                result = self.call('status','--checkpoint',identity['checkpoint_id'])
+                self.assertEqual(result.stdout, '')
+                self.assertIn('invalid-correlation', result.stderr)
+                self.assertEqual(before, self.snapshot())
+
+    def test_hook_raw_noncanonical_cached_start_never_forwards_frozen_payload(self):
+        real_helper = self.helper.read_bytes()
+        for encoding in ('fraction','exponent','decimal','underflow'):
+            with self.subTest(encoding=encoding):
+                self.helper.write_bytes(real_helper)
+                identity, line = self.dispatch()
+                data = self.payload(identity, line)
+                self.helper.write_text('#!/usr/bin/env bash\nexit 0\n')
+                self.deliver(data)
+                self.assertEqual(self.status(identity)['state'], 'delivering')
+                self.helper.write_bytes(real_helper)
+                record = self.state / 'orchestrail' / 'hooks' / (identity['checkpoint_id'] + '.json')
+                metadata = json.loads(record.read_text())
+                number = str(metadata['span_start_ms'])
+                token = {'fraction':number + '.00001','exponent':number + 'e0',
+                         'decimal':number + '.0','underflow':'1e-9999'}[encoding]
+                # Both copies must be lexically checked before jq can round them
+                # into an apparently matching dispatch and frozen start time.
+                raw = compact(metadata).replace('"span_start_ms":' + number,
+                                                '"span_start_ms":' + token)
+                record.write_text(raw)
+                before = self.snapshot()
+                result = self.deliver(data)
+                self.assertIn('invalid-correlation', result.stderr)
+                self.assertEqual(before, self.snapshot())
+                self.assertEqual(record.read_text(), raw)
+
+    def test_hook_raw_noncanonical_cached_end_never_forwards_frozen_payload(self):
+        real_helper = self.helper.read_bytes()
+        for encoding in ('fraction','exponent','decimal'):
+            with self.subTest(encoding=encoding):
+                self.helper.write_bytes(real_helper)
+                identity, line = self.dispatch()
+                data = self.payload(identity, line)
+                self.helper.write_text('#!/usr/bin/env bash\nexit 0\n')
+                self.deliver(data)
+                self.assertEqual(self.status(identity)['state'], 'delivering')
+                self.helper.write_bytes(real_helper)
+                record = self.state / 'orchestrail' / 'hooks' / (identity['checkpoint_id'] + '.json')
+                metadata = json.loads(record.read_text())
+                number = str(metadata['payload']['span_end_ms'])
+                token = {'fraction':number + '.00001','exponent':number + 'e0','decimal':number + '.0'}[encoding]
+                raw = compact(metadata).replace('"span_end_ms":' + number, '"span_end_ms":' + token)
+                record.write_text(raw)
+                before = self.snapshot()
+                result = self.deliver(data)
+                self.assertIn('invalid-correlation', result.stderr)
+                self.assertEqual(before, self.snapshot())
+                self.assertEqual(record.read_text(), raw)
+
+    def test_hook_fresh_schema_version_requires_exact_integer_token(self):
+        for token in ('1.0','1e0'):
+            with self.subTest(interface='report', token=token):
+                identity, line = self.dispatch()
+                report = self.report(identity, tests='red').replace('"schema_version":1', '"schema_version":' + token)
+                self.rejected(identity, self.payload(identity, line, report=report))
+            with self.subTest(interface='private status', token=token):
+                identity, line = self.dispatch()
+                record = self.state / 'orchestrail' / 'hooks' / (identity['checkpoint_id'] + '.json')
+                record.write_text(record.read_text().replace('"schema_version":1', '"schema_version":' + token))
+                before = self.snapshot()
+                result = self.call('status','--checkpoint',identity['checkpoint_id'])
+                self.assertEqual(result.stdout, '')
+                self.assertIn('invalid-correlation', result.stderr)
+                self.assertEqual(before, self.snapshot())
+
     def test_hook_documented_dispatch_marker_and_ownership_contract(self):
         rule = (SOURCE / 'rules' / 'run-log.md').read_text()
         for token in ('ORCHESTRAIL_DISPATCH_V1', 'ORCHESTRAIL_REPORT_V1', 'last_assistant_message',
