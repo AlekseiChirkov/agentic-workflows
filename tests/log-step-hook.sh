@@ -4,6 +4,7 @@
 set -uo pipefail
 hook_test_source="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 python3 - "$hook_test_source" "$@" <<'PY'
+from __future__ import annotations
 import concurrent.futures
 import hashlib
 import json
@@ -16,15 +17,31 @@ import sys
 import tempfile
 import unittest
 import uuid
+from typing import TypeAlias
+
+Record: TypeAlias = dict[str, object]
+Environment: TypeAlias = dict[str, str]
 
 SOURCE = Path(sys.argv[1])
 SELECTED = sys.argv[2:]
 
-def compact(value):
+def compact(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
 
 class HookContract(unittest.TestCase):
-    def setUp(self):
+    scratch: tempfile.TemporaryDirectory[str]
+    root: Path
+    checkout: Path
+    project: Path
+    home: Path
+    config: Path
+    state: Path
+    logs: Path
+    adapter: Path
+    helper: Path
+    env: Environment
+
+    def setUp(self) -> None:
         self.scratch = tempfile.TemporaryDirectory(prefix='hook acceptance ')
         self.addCleanup(self.scratch.cleanup)
         self.root = Path(self.scratch.name)
@@ -53,13 +70,13 @@ class HookContract(unittest.TestCase):
         self.adapter = self.checkout / 'hooks' / 'log-step-hook.sh'
         self.helper = self.checkout / 'scripts' / 'log-step.sh'
 
-    def producer(self, *args):
+    def producer(self, *args: str) -> str:
         result = subprocess.run(['bash', str(self.helper), *args], env=self.env,
                                 cwd=self.project, text=True, capture_output=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         return result.stdout.strip()
 
-    def call(self, *args, payload=None, env=None):
+    def call(self, *args: str, payload: str | None = None, env: Environment | None = None) -> subprocess.CompletedProcess[str]:
         # A not-yet-defined adapter is an absent capability, represented by no
         # marker; assertions below fail on missing behavior, never command 127.
         command = ['bash', str(self.adapter), *args] if self.adapter.exists() else ['bash', '-c', ':']
@@ -69,12 +86,12 @@ class HookContract(unittest.TestCase):
         self.assertLess(len(result.stderr.encode()), 4096, 'diagnostic leaked input or was unbounded')
         return result
 
-    def start(self):
+    def start(self) -> str:
         run = self.producer('run-start', '--pipeline', 'phase-execution')
         self.assertRegex(run, r'^[a-f0-9]{8}$')
         return run
 
-    def dispatch(self, run=None, boundary='subagent', skill='pae-tests', actor=None, extra=()):
+    def dispatch(self, run: str | None = None, boundary: str = 'subagent', skill: str | None = 'pae-tests', actor: str | None = None, extra: tuple[str, ...] = ()) -> tuple[Record, str]:
         run = run or self.start()
         actor = actor or (self.env['CLAUDE_CODE_SESSION_ID'] if boundary == 'session' else 'actor-' + uuid.uuid4().hex)
         args = ['dispatch', '--run', run, '--agent-id', actor, '--boundary', boundary]
@@ -94,23 +111,23 @@ class HookContract(unittest.TestCase):
         self.assertEqual(identity['schema_version'], 1)
         return identity, text
 
-    def status(self, identity):
+    def status(self, identity: Record) -> Record:
         result = self.call('status', '--checkpoint', identity['checkpoint_id'])
         self.assertTrue(result.stdout.strip(), 'status must disclose private checkpoint ownership')
         return json.loads(result.stdout)
 
-    def events(self, run):
+    def events(self, run: str) -> list[Record]:
         path = self.producer('path', '--run', run)
         return [json.loads(line) for line in Path(path).read_text().splitlines()]
 
-    def snapshot(self):
+    def snapshot(self) -> dict[str, str]:
         return {str(p.relative_to(self.logs)): hashlib.sha256(p.read_bytes()).hexdigest()
                 for p in self.logs.rglob('*') if p.is_file()}
 
-    def report(self, identity, **fields):
+    def report(self, identity: Record, **fields: object) -> str:
         return 'ORCHESTRAIL_REPORT_V1 ' + compact(dict(identity, outcome='ok', **fields))
 
-    def transcript(self, dispatch, skills=('pae-tests',), input_record=True):
+    def transcript(self, dispatch: str, skills: tuple[str, ...] = ('pae-tests',), input_record: bool = True) -> Path:
         path = self.root / ('transcript-' + uuid.uuid4().hex + '.jsonl')
         records = [{'type': 'user' if input_record else 'assistant',
                     'message': {'role': 'user' if input_record else 'assistant', 'content': dispatch}}]
@@ -120,7 +137,7 @@ class HookContract(unittest.TestCase):
         path.write_text(''.join(compact(r) + '\n' for r in records))
         return path
 
-    def payload(self, identity, dispatch, boundary='subagent', skills=('pae-tests',), report=None):
+    def payload(self, identity: Record, dispatch: str, boundary: str = 'subagent', skills: tuple[str, ...] = ('pae-tests',), report: str | None = None) -> Record:
         transcript = self.transcript(dispatch, skills)
         data = {'hook_event_name':'SubagentStop' if boundary == 'subagent' else 'Stop',
                 'session_id':identity['session_id'], 'cwd':str(self.project),
@@ -132,17 +149,17 @@ class HookContract(unittest.TestCase):
             data['transcript_path'] = str(transcript)
         return data
 
-    def deliver(self, data):
+    def deliver(self, data: Record) -> subprocess.CompletedProcess[str]:
         return self.call(payload=compact(data))
 
-    def rejected(self, identity, data):
+    def rejected(self, identity: Record, data: Record) -> None:
         before = self.snapshot()
         result = self.deliver(data)
         self.assertRegex(result.stderr, r'coverage[^\n]*[a-z]+[-_][a-z]+', 'rejection needs a safe reason code')
         self.assertEqual(self.snapshot(), before, 'rejected input mutated event state')
         self.assertEqual(self.status(identity)['state'], 'pending')
 
-    def test_hook_dispatch_private_correlation_is_explicit(self):
+    def test_hook_dispatch_private_correlation_is_explicit(self) -> None:
         identity, line = self.dispatch()
         status = self.status(identity)
         self.assertEqual(status['state'], 'pending')
@@ -157,7 +174,7 @@ class HookContract(unittest.TestCase):
         self.assertIn('coverage', result.stderr)
         self.assertEqual(before, self.snapshot())
 
-    def test_hook_interleaved_runs_preserve_exact_identity(self):
+    def test_hook_interleaved_runs_preserve_exact_identity(self) -> None:
         first, line_a = self.dispatch()
         second, line_b = self.dispatch(boundary='session', skill='pae-implement')
         self.deliver(self.payload(second, line_b, 'session', ('pae-implement',), self.report(second, tests='green')))
@@ -171,7 +188,7 @@ class HookContract(unittest.TestCase):
             self.assertEqual(steps[0]['timing_source'], 'hook')
             self.assertLessEqual(steps[0]['span_start_ms'], steps[0]['span_end_ms'])
 
-    def test_hook_concurrent_duplicate_deliveries_append_once(self):
+    def test_hook_concurrent_duplicate_deliveries_append_once(self) -> None:
         identity, line = self.dispatch()
         payload = self.payload(identity, line)
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
@@ -180,7 +197,7 @@ class HookContract(unittest.TestCase):
         self.assertEqual(len(steps), 1)
         self.assertEqual(self.status(identity)['state'], 'accepted')
 
-    def test_hook_closed_run_delivery_never_reopens(self):
+    def test_hook_closed_run_delivery_never_reopens(self) -> None:
         identity, line = self.dispatch()
         payload = self.payload(identity, line)
         self.producer('run-end', '--run', identity['run_id'], '--outcome', 'completed')
@@ -190,7 +207,7 @@ class HookContract(unittest.TestCase):
         self.assertEqual(before, self.snapshot())
         self.assertNotEqual(self.status(identity)['state'], 'accepted')
 
-    def test_hook_missing_and_conflicting_native_fields_preserve_pending(self):
+    def test_hook_missing_and_conflicting_native_fields_preserve_pending(self) -> None:
         identity, line = self.dispatch()
         original = self.payload(identity, line)
         for key in ('session_id','cwd','transcript_path','last_assistant_message','agent_id','agent_transcript_path','hook_event_name'):
@@ -205,7 +222,7 @@ class HookContract(unittest.TestCase):
         registry.write_text(registry.read_text() + str(wrong_project) + '\n')
         self.rejected(identity, dict(original, cwd=str(wrong_project)))
 
-    def test_hook_inactive_project_gates_before_transcript_and_state_reads(self):
+    def test_hook_inactive_project_gates_before_transcript_and_state_reads(self) -> None:
         identity, line = self.dispatch()
         original = self.payload(identity, line)
         # FIFOs would hang on any attempted transcript read; component sibling
@@ -223,7 +240,7 @@ class HookContract(unittest.TestCase):
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(state_before, {str(p): p.read_bytes() for p in self.state.rglob('*') if p.is_file()})
 
-    def test_hook_session_unknown_and_unique_skill_remain_distinct(self):
+    def test_hook_session_unknown_and_unique_skill_remain_distinct(self) -> None:
         identity, line = self.dispatch(boundary='session', skill=None)
         self.deliver(self.payload(identity, line, 'session', ()))
         self.assertEqual(self.events(identity['run_id'])[-1]['step'], 'unknown')
@@ -233,7 +250,7 @@ class HookContract(unittest.TestCase):
         third, line_c = self.dispatch(skill=None)
         self.rejected(third, self.payload(third, line_c, skills=()))
 
-    def test_hook_native_schema_and_input_limits_warn_safely(self):
+    def test_hook_native_schema_and_input_limits_warn_safely(self) -> None:
         identity, line = self.dispatch()
         before = self.snapshot()
         for raw in ('', '{', 'null', '[]', compact({'cwd':str(self.project)}), ' ' * (1048576 + 1)):
@@ -247,7 +264,7 @@ class HookContract(unittest.TestCase):
         self.deliver(self.payload(identity, line))
         self.assertEqual(self.status(identity)['state'], 'accepted')
 
-    def test_hook_bounded_transcript_tail_requires_dispatch_input(self):
+    def test_hook_bounded_transcript_tail_requires_dispatch_input(self) -> None:
         identity, line = self.dispatch()
         payload = self.payload(identity, line)
         path = Path(payload['agent_transcript_path'])
@@ -255,7 +272,7 @@ class HookContract(unittest.TestCase):
             stream.write(compact({'type':'assistant','message':{'content':'x' * (16 * 1024 * 1024)}}) + '\n')
         self.rejected(identity, payload)
 
-    def test_hook_accepted_status_blocks_fallback_and_returns_receipt(self):
+    def test_hook_accepted_status_blocks_fallback_and_returns_receipt(self) -> None:
         identity, line = self.dispatch()
         self.deliver(self.payload(identity, line))
         status = self.status(identity)
@@ -269,7 +286,7 @@ class HookContract(unittest.TestCase):
         self.call('fallback', '--checkpoint', identity['checkpoint_id'], '--step', 'pae-tests', '--outcome', 'ok')
         self.assertEqual(before, self.snapshot())
 
-    def test_hook_fallback_first_owns_route_even_when_legacy_write_fails(self):
+    def test_hook_fallback_first_owns_route_even_when_legacy_write_fails(self) -> None:
         identity, line = self.dispatch()
         self.call('fallback', '--checkpoint', identity['checkpoint_id'], '--step', 'pae-tests', '--outcome', 'ok', '--tests', 'red')
         self.assertEqual(self.status(identity)['state'], 'fallback-attempted')
@@ -287,7 +304,7 @@ class HookContract(unittest.TestCase):
         self.assertEqual(self.status(failed)['state'], 'fallback-attempted')
         self.assertNotIn('receipt', self.status(failed))
 
-    def test_hook_frozen_retry_requires_matching_receipt(self):
+    def test_hook_frozen_retry_requires_matching_receipt(self) -> None:
         identity, line = self.dispatch()
         payload = self.payload(identity, line)
         real_helper = self.helper.read_bytes()
@@ -314,7 +331,7 @@ INNER
         event = self.events(identity['run_id'])[-1]
         self.assertEqual(str(event['span_end_ms']), calls[0][calls[0].index('--span-end-ms') + 1])
 
-    def test_hook_marker_canonicality_and_exact_tuple_reject_ambiguity(self):
+    def test_hook_marker_canonicality_and_exact_tuple_reject_ambiguity(self) -> None:
         identity, line = self.dispatch()
         canonical = self.report(identity)
         body = canonical.split(' ', 1)[1]
@@ -333,7 +350,7 @@ INNER
         self.deliver(self.payload(identity, line))
         self.assertEqual(self.status(identity)['state'], 'accepted')
 
-    def test_hook_native_evidence_uses_input_and_unique_invocation_ids(self):
+    def test_hook_native_evidence_uses_input_and_unique_invocation_ids(self) -> None:
         identity, line = self.dispatch()
         original = self.payload(identity, line)
         path = Path(original['agent_transcript_path'])
@@ -363,7 +380,7 @@ INNER
         path.write_text('\n'.join(rows + [compact(changed)]) + '\n')
         self.rejected(conflicting, data)
 
-    def test_hook_registered_roots_choose_most_specific_and_reject_changed_owner(self):
+    def test_hook_registered_roots_choose_most_specific_and_reject_changed_owner(self) -> None:
         nested = self.project / 'nested project'
         nested.mkdir()
         registry = self.config / 'orchestrail' / 'projects'
@@ -385,7 +402,7 @@ INNER
         self.project = broader
         self.assertEqual(self.status(changed)['state'], 'pending')
 
-    def test_hook_invalid_fallback_arguments_leave_pending_and_unmutated(self):
+    def test_hook_invalid_fallback_arguments_leave_pending_and_unmutated(self) -> None:
         identity, line = self.dispatch()
         before = self.snapshot()
         variants = [('--step','pae-tests','--outcome','success'),
@@ -401,7 +418,7 @@ INNER
         self.deliver(self.payload(identity, line))
         self.assertEqual(self.status(identity)['state'], 'accepted')
 
-    def test_hook_fallback_and_native_delivery_concurrently_choose_one_route(self):
+    def test_hook_fallback_and_native_delivery_concurrently_choose_one_route(self) -> None:
         identity, line = self.dispatch()
         data = self.payload(identity, line)
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
@@ -420,7 +437,7 @@ INNER
             self.assertEqual(steps[0]['note'], 'approximate')
             self.assertNotIn('receipt', status)
 
-    def test_hook_missing_hook_dependencies_leave_store_unchanged(self):
+    def test_hook_missing_hook_dependencies_leave_store_unchanged(self) -> None:
         identity, line = self.dispatch()
         data = self.payload(identity, line)
         directory = self.root / 'limited commands'
@@ -435,7 +452,7 @@ INNER
         self.assertEqual(before, self.snapshot())
         self.assertEqual(self.status(identity)['state'], 'pending')
 
-    def test_hook_byte_limits_and_native_identity_preserve_exact_bytes(self):
+    def test_hook_byte_limits_and_native_identity_preserve_exact_bytes(self) -> None:
         identity, line = self.dispatch()
         original = self.payload(identity, line)
         raw = compact(original)
@@ -450,7 +467,7 @@ INNER
         self.rejected(identity, dict(original, session_id=identity['session_id'] + '\n'))
         self.rejected(identity, dict(original, last_assistant_message=self.report(identity) + '\x00'))
 
-    def test_hook_predispatch_and_tool_result_evidence_do_not_count(self):
+    def test_hook_predispatch_and_tool_result_evidence_do_not_count(self) -> None:
         identity, line = self.dispatch()
         data = self.payload(identity, line)
         path = Path(data['agent_transcript_path'])
@@ -468,7 +485,7 @@ INNER
         self.deliver(data)
         self.assertEqual(self.status(identity)['state'], 'accepted')
 
-    def test_hook_explicit_waiting_and_parent_survive_out_of_order_delivery(self):
+    def test_hook_explicit_waiting_and_parent_survive_out_of_order_delivery(self) -> None:
         parent, parent_line = self.dispatch()
         child, child_line = self.dispatch(run=parent['run_id'],
             extra=('--parent-checkpoint-id', parent['checkpoint_id'], '--span-kind','waiting'))
@@ -481,7 +498,7 @@ INNER
         self.assertEqual(steps[0]['span_kind'], 'waiting')
         self.assertEqual(steps[1]['checkpoint_id'], parent['checkpoint_id'])
 
-    def test_hook_missing_start_time_rejects_before_delivery(self):
+    def test_hook_missing_start_time_rejects_before_delivery(self) -> None:
         identity, line = self.dispatch()
         record = self.state / 'orchestrail' / 'hooks' / (identity['checkpoint_id'] + '.json')
         metadata = json.loads(record.read_text())
@@ -492,7 +509,7 @@ INNER
         self.assertIn('invalid-correlation', result.stderr)
         self.assertEqual(before, self.snapshot())
 
-    def test_hook_receipt_must_be_one_matching_object_with_integer_sequence(self):
+    def test_hook_receipt_must_be_one_matching_object_with_integer_sequence(self) -> None:
         identity, line = self.dispatch()
         data = self.payload(identity, line)
         real_helper = self.helper.read_bytes()
@@ -510,7 +527,7 @@ INNER
         self.deliver(data)
         self.assertEqual(self.status(identity)['state'], 'accepted')
 
-    def test_hook_delivering_retries_survive_rotation_and_reject_changed_report_or_actor(self):
+    def test_hook_delivering_retries_survive_rotation_and_reject_changed_report_or_actor(self) -> None:
         identity, line = self.dispatch()
         data = self.payload(identity, line)
         real_helper = self.helper.read_bytes()
@@ -535,7 +552,7 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
         self.assertEqual(self.status(identity)['state'], 'accepted')
         self.assertEqual(self.events(identity['run_id'])[-1]['tests'], 'red')
 
-    def test_hook_unicode_json_byte_limit_is_not_character_limit(self):
+    def test_hook_unicode_json_byte_limit_is_not_character_limit(self) -> None:
         identity, line = self.dispatch()
         data = self.payload(identity, line)
         data['native_extension'] = '\u00e9' * 524288
@@ -548,11 +565,11 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
         self.assertEqual(before, self.snapshot())
         self.assertEqual(self.status(identity)['state'], 'pending')
 
-    def test_hook_skill_name_suffix_is_rejected_without_normalization(self):
+    def test_hook_skill_name_suffix_is_rejected_without_normalization(self) -> None:
         identity, line = self.dispatch()
         self.rejected(identity, self.payload(identity, line, skills=('pae-tests\n',)))
 
-    def test_hook_corrupted_frozen_payload_or_receipt_never_changes_run_attribution(self):
+    def test_hook_corrupted_frozen_payload_or_receipt_never_changes_run_attribution(self) -> None:
         identity, line = self.dispatch()
         other = self.start()
         data = self.payload(identity, line)
@@ -589,7 +606,7 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
             self.assertIn('invalid-correlation', result.stderr)
             self.assertEqual(before, self.snapshot())
 
-    def test_hook_report_short_fence_candidates_keep_marker_in_code(self):
+    def test_hook_report_short_fence_candidates_keep_marker_in_code(self) -> None:
         for delimiter, opening, candidate in [('`',4,3),('~',4,3),('`',5,4),('~',5,3)]:
             with self.subTest(delimiter=delimiter, opening=opening, candidate=candidate):
                 identity, line = self.dispatch()
@@ -597,7 +614,7 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
                                     self.report(identity, tests='red'), delimiter * opening])
                 self.rejected(identity, self.payload(identity, line, report=report))
 
-    def test_hook_report_nonclosing_fence_suffixes_and_tabs_keep_marker_in_code(self):
+    def test_hook_report_nonclosing_fence_suffixes_and_tabs_keep_marker_in_code(self) -> None:
         for delimiter in ('`','~'):
             for candidate in (delimiter * 4 + ' trailing', delimiter * 4 + ('~' if delimiter == '`' else '`'),
                               '\t' + delimiter * 4, '  \t' + delimiter * 4):
@@ -607,7 +624,7 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
                                         self.report(identity, tests='red'), delimiter * 4])
                     self.rejected(identity, self.payload(identity, line, report=report))
 
-    def test_hook_report_real_matching_or_longer_closers_allow_outside_marker(self):
+    def test_hook_report_real_matching_or_longer_closers_allow_outside_marker(self) -> None:
         for delimiter in ('`','~'):
             for closing in (delimiter * 4, '   ' + delimiter * 6 + ' \t'):
                 with self.subTest(delimiter=delimiter, closing=closing):
@@ -618,7 +635,7 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
                     self.assertEqual(self.status(identity)['state'], 'accepted')
                     self.assertEqual(self.events(identity['run_id'])[-1]['checkpoint_id'], identity['checkpoint_id'])
 
-    def test_hook_report_openers_respect_indentation_and_info_string_syntax(self):
+    def test_hook_report_openers_respect_indentation_and_info_string_syntax(self) -> None:
         cases = [('    ```python', False), ('\t~~~ example', False), ('  \t```', False),
                  ('```invalid`info', False), ('   ```python', True), ('   ~~~any`info', True)]
         for opener, fenced in cases:
@@ -633,7 +650,7 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
                     self.assertEqual(self.status(identity)['state'], 'accepted')
                     self.assertEqual(self.events(identity['run_id'])[-1]['checkpoint_id'], identity['checkpoint_id'])
 
-    def test_hook_report_line_separators_preserve_fence_and_marker_boundaries(self):
+    def test_hook_report_line_separators_preserve_fence_and_marker_boundaries(self) -> None:
         for separator in ('\r\n','\r'):
             for delimiter in ('`','~'):
                 with self.subTest(separator=repr(separator), delimiter=delimiter):
@@ -645,7 +662,7 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
                     self.assertEqual(self.status(identity)['state'], 'accepted')
                     self.assertEqual(self.events(identity['run_id'])[-1]['checkpoint_id'], identity['checkpoint_id'])
 
-    def test_hook_raw_fractional_or_exponent_receipt_sequence_leaves_delivery_uncertain(self):
+    def test_hook_raw_fractional_or_exponent_receipt_sequence_leaves_delivery_uncertain(self) -> None:
         real_helper = self.helper.read_bytes()
         for token in ('1.0000000000000001','1e0','1.0','1e-9999','-0'):
             with self.subTest(token=token):
@@ -660,7 +677,7 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
                 self.assertNotIn('receipt', self.status(identity))
         self.helper.write_bytes(real_helper)
 
-    def test_hook_raw_noncanonical_cached_receipt_sequence_never_returns_acceptance(self):
+    def test_hook_raw_noncanonical_cached_receipt_sequence_never_returns_acceptance(self) -> None:
         identity, line = self.dispatch()
         self.deliver(self.payload(identity, line))
         self.assertEqual(self.status(identity)['state'], 'accepted')
@@ -677,7 +694,7 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
                 self.assertIn('invalid-correlation', result.stderr)
                 self.assertEqual(before, self.snapshot())
 
-    def test_hook_raw_noncanonical_cached_start_never_forwards_frozen_payload(self):
+    def test_hook_raw_noncanonical_cached_start_never_forwards_frozen_payload(self) -> None:
         real_helper = self.helper.read_bytes()
         for encoding in ('fraction','exponent','decimal','underflow'):
             with self.subTest(encoding=encoding):
@@ -704,7 +721,7 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
                 self.assertEqual(before, self.snapshot())
                 self.assertEqual(record.read_text(), raw)
 
-    def test_hook_raw_noncanonical_cached_end_never_forwards_frozen_payload(self):
+    def test_hook_raw_noncanonical_cached_end_never_forwards_frozen_payload(self) -> None:
         real_helper = self.helper.read_bytes()
         for encoding in ('fraction','exponent','decimal'):
             with self.subTest(encoding=encoding):
@@ -727,7 +744,7 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
                 self.assertEqual(before, self.snapshot())
                 self.assertEqual(record.read_text(), raw)
 
-    def test_hook_fresh_schema_version_requires_exact_integer_token(self):
+    def test_hook_fresh_schema_version_requires_exact_integer_token(self) -> None:
         for token in ('1.0','1e0'):
             with self.subTest(interface='report', token=token):
                 identity, line = self.dispatch()
@@ -743,7 +760,7 @@ printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
                 self.assertIn('invalid-correlation', result.stderr)
                 self.assertEqual(before, self.snapshot())
 
-    def test_hook_documented_dispatch_marker_and_ownership_contract(self):
+    def test_hook_documented_dispatch_marker_and_ownership_contract(self) -> None:
         rule = (SOURCE / 'rules' / 'run-log.md').read_text()
         for token in ('ORCHESTRAIL_DISPATCH_V1', 'ORCHESTRAIL_REPORT_V1', 'last_assistant_message',
                       'agent_transcript_path', 'fallback-attempted', 'delivering', 'status --checkpoint',

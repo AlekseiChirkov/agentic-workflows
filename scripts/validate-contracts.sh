@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+# Run exact timing and complete lifecycle fixtures in disposable roots.
+if [ "${1:-}" = --hook-timing-only ]; then
+  shift
+  exec bash "$REPO_ROOT/tests/hook-timing.sh" "$@"
+fi
+
 # Exercise workflow prompt integration without invoking models or real user stores.
 if [ "${1:-}" = --hook-workflow-only ]; then
   shift
@@ -3378,6 +3384,7 @@ check "Run-log lint reports unavailable and partial checks" \
 # Correlated event checks use only disposable stores, including injected I/O failures.
 run_correlated_event_smoke() {
   python3 - "$REPO_ROOT" "$1" <<'PYCORRELATED'
+from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import json, os, re, shlex, shutil, subprocess, sys, tempfile, time, uuid
@@ -3387,31 +3394,31 @@ with tempfile.TemporaryDirectory(prefix='correlated events ') as temporary:
     store = fixture/'private store'
     environment = dict(os.environ, ORCHESTRAIL_LOG_ROOT=str(store), ORCHESTRAIL_HOME=str(root))
     helper = root/'scripts/log-step.sh'
-    def invoke(*args, env=None):
+    def invoke(*args: object, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         result = subprocess.run(['bash',str(helper),*map(str,args)], env=env or environment,
                                 capture_output=True,text=True)
         assert result.returncode == 0, result
         return result
-    def start():
+    def start() -> str:
         result = invoke('run-start','--pipeline','correlation-probe')
         assert re.fullmatch('[0-9a-f]{8}\n',result.stdout), result
         return result.stdout.strip()
-    def path(run):
+    def path(run: str) -> Path:
         return Path(invoke('path','--run',run).stdout.strip())
-    def rows(run):
+    def rows(run: str) -> list[dict[str, object]]:
         return [json.loads(line) for line in path(run).read_text().splitlines()]
-    def snapshot():
+    def snapshot() -> dict[str, bytes]:
         return {str(p.relative_to(store)):p.read_bytes() for p in store.rglob('*') if p.is_file()}
     session, agent = uuid.uuid4().hex, uuid.uuid4().hex
     now = time.time_ns() // 1_000_000
-    def arguments(run, checkpoint, **changes):
+    def arguments(run: str, checkpoint: str, **changes: object) -> list[str]:
         fields = dict(run=run,step='dry-run',outcome='ok',session_id=session,agent_id=agent,
                       checkpoint_id=checkpoint,span_start_ms=str(now-20000),span_end_ms=str(now-10000),
                       timing_source='hook',boundary='subagent')
         fields.update(changes)
         return ['step',*[part for key,value in fields.items() if value is not None
                          for part in ('--'+key.replace('_','-'),str(value))]]
-    def accepted(result, run, checkpoint, duplicate=False):
+    def accepted(result: subprocess.CompletedProcess[str], run: str, checkpoint: str, duplicate: bool = False) -> dict[str, object]:
         assert result.stdout.strip(), ('missing accepted receipt',result.stderr)
         receipt = json.loads(result.stdout)
         assert receipt == dict(kind='accepted',run_id=run,session_id=session,agent_id=agent,
@@ -3419,7 +3426,7 @@ with tempfile.TemporaryDirectory(prefix='correlated events ') as temporary:
         assert isinstance(receipt['seq'],int) and receipt['seq'] > 0, receipt
         assert not result.stderr, result.stderr
         return receipt
-    def reject(result, before):
+    def reject(result: subprocess.CompletedProcess[str], before: dict[str, bytes]) -> None:
         assert not result.stdout, result.stdout
         assert len(result.stderr.splitlines()) == 1 and result.stderr.startswith('log-step:'), result.stderr
         assert snapshot() == before, 'rejected delivery changed active state or events'
@@ -3560,6 +3567,24 @@ with tempfile.TemporaryDirectory(prefix='correlated events ') as temporary:
         assert receipt['seq']==1
         accepted(invoke(*arguments(run,checkpoint)),run,checkpoint,True)
         assert len(rows(run))==2,rows(run)
+        if scenario=='append_retry':
+            # Fail inside emit_json after real bytes reached the event inode.
+            partial_run=start(); partial_checkpoint=uuid.uuid4().hex
+            partial_file=path(partial_run); original_size=partial_file.stat().st_size
+            shim=fixture/'partial commands'; shim.mkdir()
+            real_jq=shutil.which('jq'); assert real_jq
+            (shim/'jq').write_text('#!/bin/bash\nif [ "${1:-}" = -Rn ] && [[ "$*" = *from_entries* ]]; then\n  input="$(cat)"\n  if printf \'%s\\n\' "$input" | grep -q \'^event=step$\'; then\n    printf \'{"partial":\'\n    wc -c < "$CORRELATION_EVENT_FILE" > "$CORRELATION_PARTIAL_SIZE"\n    exit 1\n  fi\n  printf \'%s\\n\' "$input" | '+shlex.quote(real_jq)+' "$@"\n  exit $?\nfi\nexec '+shlex.quote(real_jq)+' "$@"\n')
+            (shim/'jq').chmod(0o755)
+            size_probe=fixture/'observed partial size'
+            env=dict(environment,PATH=str(shim)+':'+os.environ['PATH'],
+                     CORRELATION_EVENT_FILE=str(partial_file),CORRELATION_PARTIAL_SIZE=str(size_probe))
+            before=snapshot()
+            reject(invoke(*arguments(partial_run,partial_checkpoint),env=env),before)
+            assert int(size_probe.read_text())>original_size, 'failure occurred before actual append'
+            receipt=accepted(invoke(*arguments(partial_run,partial_checkpoint)),partial_run,partial_checkpoint)
+            assert receipt['seq']==1
+            accepted(invoke(*arguments(partial_run,partial_checkpoint)),partial_run,partial_checkpoint,True)
+            assert len(rows(partial_run))==2,rows(partial_run)
     elif scenario=='contract':
         contract=dict(line.split('=',1) for line in invoke('contract').stdout.splitlines())
         for key in ('hook.required','hook.identity_pattern','hook.timing_source','hook.boundary'):
@@ -3567,7 +3592,7 @@ with tempfile.TemporaryDirectory(prefix='correlated events ') as temporary:
         checkout=fixture/'checkout'
         for name in ('scripts/log-step.sh','scripts/validate-contracts.sh','rules/run-log.md'):
             target=checkout/name; target.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(root/name,target)
-        def gate():
+        def gate() -> subprocess.CompletedProcess[str]:
             return subprocess.run(['bash',str(checkout/'scripts/validate-contracts.sh'),
                                    '--run-log-contract-only'],capture_output=True,text=True)
         assert gate().returncode==0
@@ -4292,6 +4317,17 @@ test_workflow_hook_coverage_acceptance() {
 }
 check "test_workflow_hook_coverage_acceptance" \
   "$(test_workflow_hook_coverage_acceptance && echo pass || echo 'workflow correlation, route ownership and approximate prompt contracts must pass')"
+
+# ── Exact retrospective timing acceptance ────────────────────────────
+test_hook_timing_acceptance() {
+  local output
+  output="$(bash "$REPO_ROOT/tests/hook-timing.sh" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_hook_timing_acceptance" \
+  "$(test_hook_timing_acceptance && echo pass || echo 'exact timing, lint coverage and isolated lifecycle fixtures must pass')"
 
 # ── Tracked public hygiene ──────────────────────────────────────────
 test_user_hook_installation_acceptance() {
