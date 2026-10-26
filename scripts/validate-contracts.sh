@@ -3720,6 +3720,9 @@ with tempfile.TemporaryDirectory(prefix='private producer ') as temporary:
                   ('arguments-null','{"arguments":null,"seq":1}'),
                   ('arguments-conflict',json.dumps(dict(cached,arguments=dict(cached['arguments'],outcome='failed')))),
                   ('missing-sequence',json.dumps(dict(arguments=cached['arguments'])))]
+        cases += [('nul-after-object',valid+'\x00'),('nul-sequence',cache_text('1\x00')),
+                  ('nul-key',valid.replace('"seq"','"se\x00q"')),
+                  ('nul-string-value',valid.replace('dry-run','dry-\x00run'))]
         for label,value in cases:
             replacement = key+value.replace('%','%25').replace('\n','%0A')
             active.write_text(original.replace(line,replacement))
@@ -3737,6 +3740,20 @@ with tempfile.TemporaryDirectory(prefix='private producer ') as temporary:
             result = invoke(*arguments(run))
             receipt(result,identity(run,duplicate=True),seq=int(token))
             assert not result.stderr and snapshot() == before, (token,result)
+        escaped_key = cache_text('1').replace('"seq"',r'"\u0073eq"')
+        active.write_text(original.replace(line,key+escaped_key))
+        before = snapshot()
+        result = invoke(*arguments(run))
+        receipt(result,identity(run,duplicate=True),seq=1)
+        assert not result.stderr and snapshot() == before, result
+        preserved = arguments(run,'escaped-values',note='literal%00%0A%25 and "\\u0000"\nbackslash\\')
+        result = invoke(*preserved)
+        receipt(result,identity(run,'escaped-values'),seq=2)
+        assert not result.stderr, result
+        before = snapshot()
+        result = invoke(*preserved)
+        receipt(result,identity(run,'escaped-values',duplicate=True),seq=2)
+        assert not result.stderr and snapshot() == before, result
         assert not failures, ('invalid private accepted cache established acceptance or mutated storage',failures)
     elif scenario == 'permissions':
         commands = fixture/'commands'
