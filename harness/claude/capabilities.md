@@ -17,5 +17,5 @@ logging with `note: approximate`; unobserved boundaries also retain that path. R
 end remain prompt driven. Uncertain delivery retries only its frozen correlated
 payload and cannot claim a second logging route.
 
-Installation requires Bash, Python 3, jq and flock. Python is used by the installer;
+Installation requires Bash, Python 3.11 or newer, jq and flock. Python is used by the installer;
 native hooks and ordinary logging retain their existing Bash/jq dependencies.

@@ -5,7 +5,11 @@ Called by install-hooks.sh. Settings numbers retain their original JSON tokens;
 ownership control numbers are independently validated before they affect quotas.
 """
 
+from __future__ import annotations
+
 import copy
+from collections.abc import Hashable
+from dataclasses import dataclass
 import fcntl
 import hashlib
 import json
@@ -16,10 +20,12 @@ import stat
 import sys
 import tempfile
 import time
+from typing import NoReturn, TypeAlias, cast
 
 
 EVENTS = ('Stop', 'SubagentStop')
 MAX_COUNT = 9007199254740991
+NumericKey: TypeAlias = tuple[bool, str, int]
 if hasattr(sys, 'set_int_max_str_digits'):
     sys.set_int_max_str_digits(0)
 
@@ -31,10 +37,12 @@ class Unavailable(Exception):
 class Number:
     """A JSON numeric lexeme, with exact mathematical comparison."""
 
-    def __init__(self, token):
+    token: str
+
+    def __init__(self, token: str) -> None:
         self.token = token
 
-    def key(self):
+    def key(self) -> NumericKey:
         mantissa, _, exponent = self.token.lower().partition('e')
         negative = mantissa.startswith('-')
         mantissa = mantissa.lstrip('-')
@@ -47,8 +55,37 @@ class Number:
         return (negative, trimmed, power)
 
 
-def pairs_unique(pairs):
-    result = {}
+JsonValue: TypeAlias = Number | str | int | bool | None | list['JsonValue'] | dict[str, 'JsonValue']
+JsonObject: TypeAlias = dict[str, JsonValue]
+JsonKey: TypeAlias = tuple[str, Hashable]
+Hooks: TypeAlias = dict[str, list[JsonObject]]
+QuotaKey: TypeAlias = tuple[Hashable, ...]
+
+
+@dataclass(frozen=True)
+class Installation:
+    operation: str
+    source: str
+    settings_path: Path
+    receipt_path: Path
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    settings_data: bytes | None
+    settings: JsonObject
+    receipt: JsonObject | None
+
+
+@dataclass(frozen=True)
+class Update:
+    previous: Snapshot
+    settings_data: bytes | None
+    receipt: JsonObject
+
+
+def pairs_unique(pairs: list[tuple[str, JsonValue]]) -> JsonObject:
+    result: JsonObject = {}
     for key, value in pairs:
         if key in result:
             raise ValueError('duplicate key')
@@ -56,19 +93,19 @@ def pairs_unique(pairs):
     return result
 
 
-def reject_constant(_token):
+def reject_constant(_token: str) -> NoReturn:
     raise ValueError('non-JSON number')
 
 
-def decode(data, reason):
+def decode(data: bytes, reason: str) -> JsonValue:
     try:
-        return json.loads(data, parse_int=Number, parse_float=Number,
-                          parse_constant=reject_constant, object_pairs_hook=pairs_unique)
+        return cast(JsonValue, json.loads(data, parse_int=Number, parse_float=Number,
+                                         parse_constant=reject_constant, object_pairs_hook=pairs_unique))
     except (ValueError, UnicodeError, RecursionError):
         raise Unavailable(reason) from None
 
 
-def encode(value):
+def encode(value: JsonValue) -> str:
     """Serialize without sending existing numbers through binary floats."""
     if isinstance(value, Number):
         return value.token
@@ -82,7 +119,7 @@ def encode(value):
     raise Unavailable('invalid-json-value')
 
 
-def key(value):
+def key(value: JsonValue) -> JsonKey:
     if isinstance(value, Number):
         return ('number', value.key())
     if type(value) is int:
@@ -94,16 +131,16 @@ def key(value):
     return (type(value).__name__, value)
 
 
-def equal(left, right):
+def equal(left: JsonValue, right: JsonValue) -> bool:
     return key(left) == key(right)
 
 
-def require(condition, reason='invalid-ownership'):
+def require(condition: bool, reason: str = 'invalid-ownership') -> None:
     if not condition:
         raise Unavailable(reason)
 
 
-def control(value, version=False):
+def control(value: JsonValue, version: bool = False) -> int:
     token = value.token if isinstance(value, Number) else str(value) if type(value) is int else ''
     if version:
         require(token == '1')
@@ -114,76 +151,80 @@ def control(value, version=False):
     return parsed
 
 
-def fields(value, names):
+def fields(value: JsonValue, names: tuple[str, ...]) -> JsonObject:
     require(isinstance(value, dict) and set(value) == set(names))
+    return cast(JsonObject, value)
 
 
-def selector(group):
+def selector(group: JsonObject) -> JsonObject:
     return {name: value for name, value in group.items() if name != 'hooks'}
 
 
-def validate_settings(settings):
+def validate_settings(settings: JsonValue) -> None:
     require(isinstance(settings, dict), 'invalid-settings')
-    if 'hooks' not in settings:
+    record = cast(JsonObject, settings)
+    if 'hooks' not in record:
         return
-    require(isinstance(settings['hooks'], dict), 'invalid-settings')
-    for groups in settings['hooks'].values():
+    require(isinstance(record['hooks'], dict), 'invalid-settings')
+    for groups in cast(JsonObject, record['hooks']).values():
         require(isinstance(groups, list), 'invalid-settings')
-        for group in groups:
+        for group in cast(list[JsonValue], groups):
             require(isinstance(group, dict) and isinstance(group.get('hooks'), list), 'invalid-settings')
-            require(all(isinstance(handler, dict) for handler in group['hooks']), 'invalid-settings')
+            handlers = cast(list[JsonValue], cast(JsonObject, group)['hooks'])
+            require(all(isinstance(handler, dict) for handler in handlers), 'invalid-settings')
 
 
-def validate_committed(receipt):
+def validate_committed(receipt: JsonValue) -> None:
     if receipt is None:
         return
-    fields(receipt, ('schema_version', 'state', 'owned', 'created_groups'))
-    control(receipt['schema_version'], version=True)
-    require(receipt['state'] == 'committed')
+    record = fields(receipt, ('schema_version', 'state', 'owned', 'created_groups'))
+    control(record['schema_version'], version=True)
+    require(record['state'] == 'committed')
     for name in ('owned', 'created_groups'):
-        require(isinstance(receipt[name], list))
-        seen = set()
-        for claim in receipt[name]:
+        require(isinstance(record[name], list))
+        seen: set[QuotaKey] = set()
+        for raw_claim in cast(list[JsonValue], record[name]):
             names = ('event', 'selector', 'handler', 'count') if name == 'owned' else ('event', 'selector', 'count')
-            fields(claim, names)
+            claim = fields(raw_claim, names)
             require(claim['event'] in EVENTS and isinstance(claim['selector'], dict))
-            require('hooks' not in claim['selector'])
+            require('hooks' not in cast(JsonObject, claim['selector']))
             if name == 'owned':
                 require(isinstance(claim['handler'], dict))
             control(claim['count'])
-            identity = (claim['event'], key(claim['selector']))
+            identity: QuotaKey = (cast(str, claim['event']), key(claim['selector']))
             if name == 'owned':
                 identity += (key(claim['handler']),)
             require(identity not in seen)
             seen.add(identity)
 
 
-def validate_image(image):
-    fields(image, ('present', 'sha256'))
-    require(type(image['present']) is bool)
-    if image['present']:
-        require(isinstance(image['sha256'], str) and
-                re.fullmatch(r'[0-9a-f]{64}', image['sha256']) is not None)
+def validate_image(image_value: JsonValue) -> None:
+    record = fields(image_value, ('present', 'sha256'))
+    require(type(record['present']) is bool)
+    if record['present']:
+        digest = record['sha256']
+        require(isinstance(digest, str) and re.fullmatch(r'[0-9a-f]{64}', digest) is not None)
     else:
-        require(image['sha256'] is None)
+        require(record['sha256'] is None)
 
 
-def validate_receipt(receipt):
+def validate_receipt(receipt: JsonValue) -> None:
     if receipt is None:
         return
     require(isinstance(receipt, dict))
-    if receipt.get('state') != 'prepared':
-        validate_committed(receipt)
+    record = cast(JsonObject, receipt)
+    if record.get('state') != 'prepared':
+        validate_committed(record)
         return
-    fields(receipt, ('schema_version', 'state', 'previous', 'next', 'before', 'after'))
-    control(receipt['schema_version'], version=True)
-    validate_committed(receipt['previous'])
-    validate_committed(receipt['next'])
-    validate_image(receipt['before'])
-    validate_image(receipt['after'])
+    fields(record, ('schema_version', 'state', 'previous', 'next', 'before', 'after'))
+    control(record['schema_version'], version=True)
+    validate_committed(record['previous'])
+    validate_committed(record['next'])
+    validate_image(record['before'])
+    validate_image(record['after'])
 
 
-def read_bytes(path):
+def read_bytes(path: Path) -> bytes | None:
     require(not path.is_symlink(), 'unsafe-settings-path')
     try:
         return path.read_bytes()
@@ -191,12 +232,12 @@ def read_bytes(path):
         return None
 
 
-def image(data):
+def image(data: bytes | None) -> JsonObject:
     return {'present':data is not None,
             'sha256':hashlib.sha256(data).hexdigest() if data is not None else None}
 
 
-def stage(path, data, mode=0o600):
+def stage(path: Path, data: bytes, mode: int = 0o600) -> Path:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     descriptor, filename = tempfile.mkstemp(prefix='.' + path.name + '.', dir=path.parent)
     temporary = Path(filename)
@@ -212,7 +253,7 @@ def stage(path, data, mode=0o600):
         raise
 
 
-def replace_receipt(path, value):
+def replace_receipt(path: Path, value: JsonObject | None) -> None:
     if value is None:
         path.unlink(missing_ok=True)
         return
@@ -223,85 +264,103 @@ def replace_receipt(path, value):
         temporary.unlink(missing_ok=True)
 
 
-def empty_receipt():
+def empty_receipt() -> JsonObject:
     return {'schema_version':1, 'state':'committed', 'owned':[], 'created_groups':[]}
 
 
-def remove_owned(settings, receipt):
+def remove_group_handlers(group: JsonObject, event: str, quotas: dict[QuotaKey, int]) -> bool:
+    group_key = (event, key(selector(group)))
+    handlers: list[JsonValue] = []
+    removed = False
+    for handler in cast(list[JsonValue], group['hooks']):
+        identity = group_key + (key(handler),)
+        if quotas.get(identity, 0) > 0:
+            quotas[identity] -= 1
+            removed = True
+        else:
+            handlers.append(handler)
+    group['hooks'] = handlers
+    return removed
+
+
+def remove_owned(settings: JsonObject, receipt: JsonObject | None) -> None:
     if receipt is None:
         return
-    hooks = settings.get('hooks', {})
-    quotas = {(claim['event'], key(claim['selector']), key(claim['handler'])):control(claim['count'])
-              for claim in receipt['owned']}
-    group_quotas = {(claim['event'], key(claim['selector'])):control(claim['count'])
-                    for claim in receipt['created_groups']}
+    hooks = cast(Hooks, settings.get('hooks', {}))
+    quotas: dict[QuotaKey, int] = {
+        (cast(str, claim['event']), key(claim['selector']), key(claim['handler'])):control(claim['count'])
+        for claim in cast(list[JsonObject], receipt['owned'])}
+    group_quotas: dict[QuotaKey, int] = {
+        (cast(str, claim['event']), key(claim['selector'])):control(claim['count'])
+        for claim in cast(list[JsonObject], receipt['created_groups'])}
     for event, groups in hooks.items():
         retained = []
         for group in groups:
             group_key = (event, key(selector(group)))
-            handlers = []
-            removed = False
-            for handler in group['hooks']:
-                identity = group_key + (key(handler),)
-                if quotas.get(identity, 0) > 0:
-                    quotas[identity] -= 1
-                    removed = True
-                else:
-                    handlers.append(handler)
-            group['hooks'] = handlers
-            if removed and not handlers and group_quotas.get(group_key, 0) > 0:
+            removed = remove_group_handlers(group, event, quotas)
+            if removed and not group['hooks'] and group_quotas.get(group_key, 0) > 0:
                 group_quotas[group_key] -= 1
             else:
                 retained.append(group)
         hooks[event] = retained
 
 
-def load_manifest(source):
+def validate_manifest_group(group: JsonValue, expected: JsonObject) -> JsonObject:
+    require(isinstance(group, dict) and isinstance(group.get('hooks'), list), 'invalid-manifest')
+    record = cast(JsonObject, group)
+    handlers = cast(list[JsonValue], record['hooks'])
+    require(len(handlers) == 1 and equal(handlers[0], expected), 'invalid-manifest')
+    return record
+
+
+def load_manifest(source: str) -> Hooks:
     try:
-        source = Path(source).resolve(strict=True)
-        require(source.is_dir() and (source / 'hooks/log-step-hook.sh').is_file() and
-                (source / 'scripts/log-step.sh').is_file(), 'invalid-source')
-        document = decode((source / 'harness/claude/hooks.json').read_bytes(), 'invalid-manifest')
+        source_path = Path(source).resolve(strict=True)
+        require(source_path.is_dir() and (source_path / 'hooks/log-step-hook.sh').is_file() and
+                (source_path / 'scripts/log-step.sh').is_file(), 'invalid-source')
+        document = decode((source_path / 'harness/claude/hooks.json').read_bytes(), 'invalid-manifest')
     except (OSError, ValueError):
         raise Unavailable('invalid-source') from None
     require(isinstance(document, dict) and set(document) == {'hooks'}, 'invalid-manifest')
-    hooks = document['hooks']
-    require(isinstance(hooks, dict) and set(hooks) == set(EVENTS), 'invalid-manifest')
-    expected = {'type':'command', 'command':'bash', 'args':['@ORCHESTRAIL_HOME@/hooks/log-step-hook.sh'],
-                'timeout':10, 'onFailure':'continue'}
+    hooks_value = cast(JsonObject, document)['hooks']
+    require(isinstance(hooks_value, dict) and set(hooks_value) == set(EVENTS), 'invalid-manifest')
+    hooks = cast(Hooks, hooks_value)
+    expected: JsonObject = {'type':'command', 'command':'bash', 'args':['@ORCHESTRAIL_HOME@/hooks/log-step-hook.sh'],
+                            'timeout':10, 'onFailure':'continue'}
     for groups in hooks.values():
         require(isinstance(groups, list) and len(groups) == 1, 'invalid-manifest')
-        group = groups[0]
-        require(isinstance(group, dict) and isinstance(group.get('hooks'), list) and
-                len(group['hooks']) == 1 and equal(group['hooks'][0], expected), 'invalid-manifest')
-        group['hooks'][0]['args'] = [str(source / 'hooks/log-step-hook.sh')]
+        group = validate_manifest_group(groups[0], expected)
+        handler = cast(list[JsonObject], group['hooks'])[0]
+        handler['args'] = [str(source_path / 'hooks/log-step-hook.sh')]
     return hooks
 
 
-def insert_manifest(settings, manifest):
+def insert_manifest(settings: JsonObject, manifest: Hooks) -> JsonObject:
     receipt = empty_receipt()
-    hooks = settings.setdefault('hooks', {})
+    owned = cast(list[JsonObject], receipt['owned'])
+    created = cast(list[JsonObject], receipt['created_groups'])
+    hooks = cast(Hooks, settings.setdefault('hooks', {}))
     for event, manifest_groups in manifest.items():
         groups = hooks.setdefault(event, [])
         for desired in manifest_groups:
             desired_selector = selector(desired)
             matching = [group for group in groups if equal(selector(group), desired_selector)]
-            for handler in desired['hooks']:
-                if any(equal(existing, handler) for group in matching for existing in group['hooks']):
+            for handler in cast(list[JsonValue], desired['hooks']):
+                if any(equal(existing, handler) for group in matching for existing in cast(list[JsonValue], group['hooks'])):
                     continue
                 if not matching:
                     group = copy.deepcopy(desired_selector)
                     group['hooks'] = []
                     groups.append(group)
                     matching.append(group)
-                    receipt['created_groups'].append({'event':event, 'selector':copy.deepcopy(desired_selector), 'count':1})
-                matching[0]['hooks'].append(copy.deepcopy(handler))
-                receipt['owned'].append({'event':event, 'selector':copy.deepcopy(desired_selector),
-                                         'handler':copy.deepcopy(handler), 'count':1})
+                    created.append({'event':event, 'selector':copy.deepcopy(desired_selector), 'count':1})
+                cast(list[JsonValue], matching[0]['hooks']).append(copy.deepcopy(handler))
+                owned.append({'event':event, 'selector':copy.deepcopy(desired_selector),
+                              'handler':copy.deepcopy(handler), 'count':1})
     return receipt
 
 
-def acquire_lock(path):
+def acquire_lock(path: Path) -> int:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     require(not path.is_symlink(), 'unsafe-lock-path')
     descriptor = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
@@ -320,75 +379,114 @@ def acquire_lock(path):
         raise
 
 
-def apply(operation, source, settings_path, receipt_path):
-    settings_data = read_bytes(settings_path)
+def read_settings(path: Path) -> tuple[bytes | None, JsonObject]:
+    settings_data = read_bytes(path)
     settings = decode(settings_data, 'invalid-settings') if settings_data is not None else {}
     validate_settings(settings)
-    receipt_data = read_bytes(receipt_path)
+    return settings_data, cast(JsonObject, settings)
+
+
+def load_snapshot(installation: Installation) -> Snapshot:
+    settings_data, settings = read_settings(installation.settings_path)
+    receipt_data = read_bytes(installation.receipt_path)
     receipt = decode(receipt_data, 'invalid-ownership') if receipt_data is not None else None
     if receipt_data is not None:
         require(isinstance(receipt, dict))
     validate_receipt(receipt)
+    return Snapshot(settings_data, settings, cast(JsonObject | None, receipt))
 
-    if receipt is not None and receipt['state'] == 'prepared':
-        current_image = image(settings_data)
-        if equal(current_image, receipt['before']):
-            recovered = receipt['previous']
-        elif equal(current_image, receipt['after']):
-            recovered = receipt['next']
-        else:
-            raise Unavailable('settings-changed-during-transaction')
-        replace_receipt(receipt_path, recovered)
-        receipt = recovered
-        # Recovery never rewrites settings; refresh them before the new operation.
-        settings_data = read_bytes(settings_path)
-        settings = decode(settings_data, 'invalid-settings') if settings_data is not None else {}
-        validate_settings(settings)
 
-    result = copy.deepcopy(settings)
-    remove_owned(result, receipt)
-    next_receipt = insert_manifest(result, load_manifest(source)) if operation == 'install' else empty_receipt()
+def recover_snapshot(installation: Installation, snapshot: Snapshot) -> Snapshot:
+    receipt = snapshot.receipt
+    if receipt is None or receipt['state'] != 'prepared':
+        return snapshot
+    current_image = image(snapshot.settings_data)
+    if equal(current_image, receipt['before']):
+        recovered = receipt['previous']
+    elif equal(current_image, receipt['after']):
+        recovered = receipt['next']
+    else:
+        raise Unavailable('settings-changed-during-transaction')
+    recovered_receipt = cast(JsonObject | None, recovered)
+    replace_receipt(installation.receipt_path, recovered_receipt)
+    # Recovery never rewrites settings; refresh them before the new operation.
+    settings_data, settings = read_settings(installation.settings_path)
+    return Snapshot(settings_data, settings, recovered_receipt)
+
+
+def plan_update(installation: Installation, snapshot: Snapshot) -> Update | None:
+    result = copy.deepcopy(snapshot.settings)
+    remove_owned(result, snapshot.receipt)
+    next_receipt = (insert_manifest(result, load_manifest(installation.source))
+                    if installation.operation == 'install' else empty_receipt())
     validate_settings(result)
     validate_committed(next_receipt)
-    if equal(result, settings) and (equal(next_receipt, receipt) or
-                                   (receipt is None and operation == 'uninstall')):
-        return
-
+    if equal(result, snapshot.settings) and (equal(next_receipt, snapshot.receipt) or
+                                           (snapshot.receipt is None and installation.operation == 'uninstall')):
+        return None
     # Keep exact bytes if only ownership changes or numbers are spelled differently.
-    next_data = settings_data if equal(result, settings) else (encode(result) + '\n').encode('ascii')
-    settings_temporary = None
-    ownership_temporary = None
+    next_data = snapshot.settings_data if equal(result, snapshot.settings) else (encode(result) + '\n').encode('ascii')
+    return Update(snapshot, next_data, next_receipt)
+
+
+def stage_settings(installation: Installation, update: Update) -> Path | None:
+    if update.settings_data is None:
+        return None
+    mode = (stat.S_IMODE(installation.settings_path.stat().st_mode)
+            if update.previous.settings_data is not None else 0o600)
+    return stage(installation.settings_path, update.settings_data, mode)
+
+
+def build_prepared_receipt(update: Update) -> JsonObject:
+    prepared: JsonObject = {'schema_version':1, 'state':'prepared', 'previous':update.previous.receipt,
+                            'next':update.receipt, 'before':image(update.previous.settings_data),
+                            'after':image(update.settings_data)}
+    validate_receipt(prepared)
+    return prepared
+
+
+def replace_settings(path: Path, temporary: Path | None) -> None:
+    if temporary is not None:
+        os.replace(temporary, path)
+    else:
+        path.unlink(missing_ok=True)
+
+
+def commit_update(installation: Installation, update: Update) -> None:
+    settings_temporary: Path | None = None
+    ownership_temporary: Path | None = None
     try:
-        if next_data is not None:
-            mode = stat.S_IMODE(settings_path.stat().st_mode) if settings_data is not None else 0o600
-            settings_temporary = stage(settings_path, next_data, mode)
-        ownership_temporary = stage(receipt_path, (encode(next_receipt) + '\n').encode('ascii'))
-        prepared = {'schema_version':1, 'state':'prepared', 'previous':receipt, 'next':next_receipt,
-                    'before':image(settings_data), 'after':image(next_data)}
-        validate_receipt(prepared)
-        replace_receipt(receipt_path, prepared)
-        require(equal(image(read_bytes(settings_path)), prepared['before']), 'settings-changed-during-transaction')
-        if settings_temporary is not None:
-            os.replace(settings_temporary, settings_path)
-        else:
-            settings_path.unlink(missing_ok=True)
-        os.replace(ownership_temporary, receipt_path)
+        settings_temporary = stage_settings(installation, update)
+        ownership_temporary = stage(installation.receipt_path, (encode(update.receipt) + '\n').encode('ascii'))
+        prepared = build_prepared_receipt(update)
+        replace_receipt(installation.receipt_path, prepared)
+        require(equal(image(read_bytes(installation.settings_path)), prepared['before']),
+                'settings-changed-during-transaction')
+        replace_settings(installation.settings_path, settings_temporary)
+        os.replace(ownership_temporary, installation.receipt_path)
     finally:
         for temporary in (settings_temporary, ownership_temporary):
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
 
 
-def main():
+def apply(installation: Installation) -> None:
+    snapshot = recover_snapshot(installation, load_snapshot(installation))
+    update = plan_update(installation, snapshot)
+    if update is not None:
+        commit_update(installation, update)
+
+
+def main() -> None:
     operation, source = sys.argv[1:]
-    lock = None
+    lock: int | None = None
     try:
         home = Path(os.environ['HOME'])
         config = Path(os.environ.get('XDG_CONFIG_HOME') or home / '.config').absolute()
         settings = home.absolute() / '.claude/settings.json'
         receipt = config / 'orchestrail/hooks-installed.json'
         lock = acquire_lock(config / 'orchestrail/hooks-installed.lock')
-        apply(operation, source, settings, receipt)
+        apply(Installation(operation, source, settings, receipt))
         output = {'status':'installed' if operation == 'install' else 'uninstalled'}
     except Unavailable as error:
         output = {'status':'unavailable', 'reason':str(error)}

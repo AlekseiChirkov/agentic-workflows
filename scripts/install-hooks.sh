@@ -42,6 +42,12 @@ for dependency in "${dependencies[@]}"; do
   fi
 done
 
+if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1; then
+  printf '%s\n' 'orchestrail hooks unavailable: unsupported-python' >&2
+  printf '%s\n' '{"reason":"unsupported-python","status":"unavailable"}'
+  exit 0
+fi
+
 python3 "$script_dir/install-hooks.py" "$operation" "$source_tree"
 result=$?
 if [ "$result" -ne 0 ]; then
