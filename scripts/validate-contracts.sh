@@ -4259,6 +4259,17 @@ check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
   "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
 # ── End public identity smoke checks ────────────────────────────────
 
+# ── Native hook adapter acceptance ──────────────────────────────────
+test_native_hook_adapter_acceptance() {
+  local output
+  output="$(bash "$REPO_ROOT/tests/log-step-hook.sh" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 20
+    return 1
+  }
+}
+check "test_native_hook_adapter_acceptance" \
+  "$(test_native_hook_adapter_acceptance && echo pass || echo 'native hook dispatch, evidence and ownership fixtures must pass')"
+
 # ── Tracked public hygiene ──────────────────────────────────────────
 hygiene_tracked_tree_result() {
   local pattern_file pattern_status=0

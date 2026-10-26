@@ -363,6 +363,232 @@ INNER
         path.write_text('\n'.join(rows + [compact(changed)]) + '\n')
         self.rejected(conflicting, data)
 
+    def test_hook_registered_roots_choose_most_specific_and_reject_changed_owner(self):
+        nested = self.project / 'nested project'
+        nested.mkdir()
+        registry = self.config / 'orchestrail' / 'projects'
+        registry.write_text(str(nested) + '\n' + str(self.project) + '\n' + str(nested) + '\n')
+        self.project = nested
+        identity, line = self.dispatch()
+        self.deliver(self.payload(identity, line))
+        self.assertEqual(self.status(identity)['state'], 'accepted')
+        broader = nested.parent
+        self.project = broader
+        registry.write_text(str(broader) + '\n')
+        changed, changed_line = self.dispatch()
+        self.project = nested
+        registry.write_text(str(broader) + '\n' + str(nested) + '\n')
+        before = self.snapshot()
+        result = self.deliver(self.payload(changed, changed_line))
+        self.assertIn('project-mismatch', result.stderr)
+        self.assertEqual(before, self.snapshot())
+        self.project = broader
+        self.assertEqual(self.status(changed)['state'], 'pending')
+
+    def test_hook_invalid_fallback_arguments_leave_pending_and_unmutated(self):
+        identity, line = self.dispatch()
+        before = self.snapshot()
+        variants = [('--step','pae-tests','--outcome','success'),
+                    ('--step','pae-tests','--outcome','ok','--gate','unknown'),
+                    ('--step','pae-tests','--outcome','ok','--tests',''),
+                    ('--step','pae-tests','--outcome','ok','--outcome','failed'),
+                    ('--step','pae-tests','--outcome','ok','--note','arbitrary')]
+        for args in variants:
+            result = self.call('fallback','--checkpoint',identity['checkpoint_id'],*args)
+            self.assertIn('coverage', result.stderr)
+            self.assertEqual(self.status(identity)['state'], 'pending')
+            self.assertEqual(before, self.snapshot())
+        self.deliver(self.payload(identity, line))
+        self.assertEqual(self.status(identity)['state'], 'accepted')
+
+    def test_hook_fallback_and_native_delivery_concurrently_choose_one_route(self):
+        identity, line = self.dispatch()
+        data = self.payload(identity, line)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            a = pool.submit(self.deliver, data)
+            b = pool.submit(self.call, 'fallback','--checkpoint',identity['checkpoint_id'],
+                            '--step','pae-tests','--outcome','ok')
+            a.result()
+            b.result()
+        status = self.status(identity)
+        self.assertIn(status['state'], ('accepted','fallback-attempted'))
+        steps = [e for e in self.events(identity['run_id']) if e['event'] == 'step']
+        self.assertEqual(len(steps), 1)
+        if status['state'] == 'accepted':
+            self.assertEqual(steps[0]['timing_source'], 'hook')
+        else:
+            self.assertEqual(steps[0]['note'], 'approximate')
+            self.assertNotIn('receipt', status)
+
+    def test_hook_missing_hook_dependencies_leave_store_unchanged(self):
+        identity, line = self.dispatch()
+        data = self.payload(identity, line)
+        directory = self.root / 'limited commands'
+        directory.mkdir()
+        for name in ('bash','dirname'):
+            (directory / name).symlink_to(shutil.which(name))
+        env = dict(self.env, PATH=str(directory))
+        before = self.snapshot()
+        result = self.call(payload=compact(data), env=env)
+        self.assertEqual(result.stdout, '')
+        self.assertIn('dependency-unavailable', result.stderr)
+        self.assertEqual(before, self.snapshot())
+        self.assertEqual(self.status(identity)['state'], 'pending')
+
+    def test_hook_byte_limits_and_native_identity_preserve_exact_bytes(self):
+        identity, line = self.dispatch()
+        original = self.payload(identity, line)
+        raw = compact(original)
+        before = self.snapshot()
+        variants = [raw + '\n' * (1048577 - len(raw)),
+                    raw.replace(',"session_id"', ',\x00"session_id"')]
+        for payload in variants:
+            result = self.call(payload=payload)
+            self.assertIn('coverage', result.stderr)
+            self.assertEqual(before, self.snapshot())
+            self.assertEqual(self.status(identity)['state'], 'pending')
+        self.rejected(identity, dict(original, session_id=identity['session_id'] + '\n'))
+        self.rejected(identity, dict(original, last_assistant_message=self.report(identity) + '\x00'))
+
+    def test_hook_predispatch_and_tool_result_evidence_do_not_count(self):
+        identity, line = self.dispatch()
+        data = self.payload(identity, line)
+        path = Path(data['agent_transcript_path'])
+        rows = path.read_text().splitlines()
+        # A prior invocation cannot establish this checkpoint; a tool_result's
+        # text never becomes the checkpoint's native input envelope.
+        path.write_text('\n'.join([rows[1], rows[0]]) + '\n')
+        self.rejected(identity, data)
+        input_row = {'type':'user','message':{'role':'user','content':[
+            {'type':'tool_result','tool_use_id':'old','content':line}]}}
+        path.write_text(compact(input_row) + '\n' + rows[1] + '\n')
+        self.rejected(identity, data)
+        block = {'type':'user','message':{'role':'user','content':[{'type':'text','text':line}]}}
+        path.write_text(compact(block) + '\n' + rows[1] + '\n')
+        self.deliver(data)
+        self.assertEqual(self.status(identity)['state'], 'accepted')
+
+    def test_hook_explicit_waiting_and_parent_survive_out_of_order_delivery(self):
+        parent, parent_line = self.dispatch()
+        child, child_line = self.dispatch(run=parent['run_id'],
+            extra=('--parent-checkpoint-id', parent['checkpoint_id'], '--span-kind','waiting'))
+        self.deliver(self.payload(child, child_line))
+        self.deliver(self.payload(parent, parent_line))
+        steps = [e for e in self.events(parent['run_id']) if e['event'] == 'step']
+        self.assertEqual(len(steps), 2)
+        self.assertEqual(steps[0]['checkpoint_id'], child['checkpoint_id'])
+        self.assertEqual(steps[0]['parent_checkpoint_id'], parent['checkpoint_id'])
+        self.assertEqual(steps[0]['span_kind'], 'waiting')
+        self.assertEqual(steps[1]['checkpoint_id'], parent['checkpoint_id'])
+
+    def test_hook_missing_start_time_rejects_before_delivery(self):
+        identity, line = self.dispatch()
+        record = self.state / 'orchestrail' / 'hooks' / (identity['checkpoint_id'] + '.json')
+        metadata = json.loads(record.read_text())
+        metadata.pop('span_start_ms')
+        record.write_text(compact(metadata))
+        before = self.snapshot()
+        result = self.deliver(self.payload(identity, line))
+        self.assertIn('invalid-correlation', result.stderr)
+        self.assertEqual(before, self.snapshot())
+
+    def test_hook_receipt_must_be_one_matching_object_with_integer_sequence(self):
+        identity, line = self.dispatch()
+        data = self.payload(identity, line)
+        real_helper = self.helper.read_bytes()
+        self.helper.write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$HOOK_TEST_RECEIPT"\n')
+        receipt = dict(identity, kind='accepted', seq=1, duplicate=False)
+        variants = [compact(dict(receipt,seq=0)),compact(dict(receipt,seq=True)),
+                    compact(dict(receipt,agent_id='different')),compact(receipt) + '\n' + compact(receipt),
+                    '', '{}']
+        for value in variants:
+            self.env['HOOK_TEST_RECEIPT'] = value
+            result = self.deliver(data)
+            self.assertIn('acceptance-uncertain', result.stderr)
+            self.assertEqual(self.status(identity)['state'], 'delivering')
+        self.helper.write_bytes(real_helper)
+        self.deliver(data)
+        self.assertEqual(self.status(identity)['state'], 'accepted')
+
+    def test_hook_delivering_retries_survive_rotation_and_reject_changed_report_or_actor(self):
+        identity, line = self.dispatch()
+        data = self.payload(identity, line)
+        real_helper = self.helper.read_bytes()
+        captures = self.root / 'retry-calls'
+        self.env['HOOK_TEST_CAPTURE'] = str(captures)
+        self.helper.write_text('''#!/usr/bin/env bash
+printf 'called\\n' >> "$HOOK_TEST_CAPTURE"
+''')
+        self.deliver(data)
+        self.assertEqual(self.status(identity)['state'], 'delivering')
+        Path(data['agent_transcript_path']).unlink()
+        self.assertEqual(captures.read_text().splitlines(), ['called'])
+        for changed in [dict(data, agent_id='other-native'),
+                        dict(data, last_assistant_message=self.report(identity, tests='green')),
+                        dict(data, last_assistant_message=self.report(identity))]:
+            result = self.deliver(changed)
+            self.assertIn('conflicting-delivery', result.stderr)
+            self.assertEqual(self.status(identity)['state'], 'delivering')
+            self.assertEqual(captures.read_text().splitlines(), ['called'])
+        self.helper.write_bytes(real_helper)
+        self.deliver(data)
+        self.assertEqual(self.status(identity)['state'], 'accepted')
+        self.assertEqual(self.events(identity['run_id'])[-1]['tests'], 'red')
+
+    def test_hook_unicode_json_byte_limit_is_not_character_limit(self):
+        identity, line = self.dispatch()
+        data = self.payload(identity, line)
+        data['native_extension'] = '\u00e9' * 524288
+        raw = compact(data)
+        self.assertLess(len(raw), 1048576)
+        self.assertGreater(len(raw.encode()), 1048576)
+        before = self.snapshot()
+        result = self.call(payload=raw)
+        self.assertIn('input-too-large', result.stderr)
+        self.assertEqual(before, self.snapshot())
+        self.assertEqual(self.status(identity)['state'], 'pending')
+
+    def test_hook_skill_name_suffix_is_rejected_without_normalization(self):
+        identity, line = self.dispatch()
+        self.rejected(identity, self.payload(identity, line, skills=('pae-tests\n',)))
+
+    def test_hook_corrupted_frozen_payload_or_receipt_never_changes_run_attribution(self):
+        identity, line = self.dispatch()
+        other = self.start()
+        data = self.payload(identity, line)
+        real_helper = self.helper.read_bytes()
+        self.helper.write_text('#!/usr/bin/env bash\nexit 0\n')
+        self.deliver(data)
+        self.assertEqual(self.status(identity)['state'], 'delivering')
+        self.helper.write_bytes(real_helper)
+        record = self.state / 'orchestrail' / 'hooks' / (identity['checkpoint_id'] + '.json')
+        frozen = json.loads(record.read_text())
+        before = self.snapshot()
+        alterations = [('run_id',other), ('session_id','different'), ('agent_id','different'),
+                       ('checkpoint_id','different'), ('span_start_ms',0), ('span_end_ms',-1),
+                       ('boundary','session'), ('span_kind','waiting'), ('parent_checkpoint_id','different'),
+                       ('outcome','success'), ('tests','invalid'), ('gate','invalid'), ('step','pd-analyze')]
+        for field, value in alterations:
+            metadata = json.loads(compact(frozen))
+            metadata['payload'][field] = value
+            record.write_text(compact(metadata))
+            result = self.deliver(data)
+            self.assertIn('invalid-correlation', result.stderr, field)
+            self.assertEqual(before, self.snapshot(), field)
+        record.write_text(compact(frozen))
+        self.deliver(data)
+        self.assertEqual(self.status(identity)['state'], 'accepted')
+        accepted = json.loads(record.read_text())
+        before = self.snapshot()
+        for field, value in [('run_id',other),('seq',True),('seq',0)]:
+            metadata = json.loads(compact(accepted))
+            metadata['receipt'][field] = value
+            record.write_text(compact(metadata))
+            result = self.call('status','--checkpoint',identity['checkpoint_id'])
+            self.assertEqual(result.stdout, '')
+            self.assertIn('invalid-correlation', result.stderr)
+            self.assertEqual(before, self.snapshot())
+
     def test_hook_documented_dispatch_marker_and_ownership_contract(self):
         rule = (SOURCE / 'rules' / 'run-log.md').read_text()
         for token in ('ORCHESTRAIL_DISPATCH_V1', 'ORCHESTRAIL_REPORT_V1', 'last_assistant_message',
