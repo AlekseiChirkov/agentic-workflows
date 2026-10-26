@@ -127,6 +127,11 @@ both directions, rejects duplicate rows and values, and checks prefix boundaries
 |---|---|
 | `count.fields` | ["stops", "escalations", "decisions", "questions", "fix_tasks", "amendments", "files"] |
 | `count.maximum` | "9007199254740991" |
+| `hook.required` | ["session_id", "agent_id", "checkpoint_id", "span_start_ms", "span_end_ms", "timing_source", "boundary"] |
+| `hook.identity_pattern` | "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" |
+| `hook.timing_source` | ["hook"] |
+| `hook.boundary` | ["session", "subagent"] |
+| `hook.span_kind` | ["work", "waiting"] |
 | `run-end.outcome` | ["completed", "stopped", "failed", "abandoned"] |
 | `step.gate` | ["pass", "fail", "n-a", "needs-work", "ready"] |
 | `step.outcome` | ["ok", "blocked", "failed", "skipped", "deferred"] |
@@ -210,9 +215,79 @@ persisting the closing JSONL line; a digest failure warns without undoing that c
 
 All helper paths exit zero. Failed operations emit no success-shaped stdout.
 `run-start` prints its run ID only after start persistence and usable metadata;
-successful `step` and `run-end` print nothing. Filesystem failures warn once and
+successful legacy `step` and `run-end` print nothing. Correlated steps use the
+receipt contract below. Filesystem failures warn once and
 remain non-blocking; transactional rollback of partial operating-system writes is
 not required. Existing `path` and `active` behavior remains available.
+
+## Correlated hook intervals
+
+Use the ordinary `step` command with all fields in `hook.required` together:
+
+```bash
+bash "$ORCHESTRAIL_HOME/scripts/log-step.sh" step --run "$run_id" \
+  --step "$skill" --outcome ok --session-id "$session_id" --agent-id "$agent_id" \
+  --checkpoint-id "$checkpoint_id" --span-start-ms "$started_ms" --span-end-ms "$ended_ms" \
+  --timing-source hook --boundary subagent
+```
+
+The CLI uses hyphens; stored JSON uses the underscore names in `hook.required`.
+All identity strings must match `hook.identity_pattern` (1–128 ASCII letters,
+digits, dots, underscores, colons or hyphens, starting with a letter or digit).
+Any correlation field, including either optional field below, requires the entire
+required set. The explicit run ID always selects active metadata; never select a
+newest run or read historical events to discover attribution.
+
+- `--span-start-ms` and `--span-end-ms` are executable clock stamps in Unix
+  milliseconds, using the same canonical decimal syntax and inclusive bound as
+  counts. End must be at least start; zero-length intervals are valid. The adapter
+  stamps dispatch and completion; a model must never supply measured times.
+- `--boundary session|subagent` names the observed boundary. `--step unknown` is
+  permitted only for `session` with `agent_id` equal to `session_id`; the adapter
+  must first establish that this session has one unambiguous active attribution.
+- `--parent-checkpoint-id` optionally identifies a parent in the same run and
+  session. A checkpoint is unique within that run/session, including across agents.
+  Self-parenting is invalid. Parent completion may arrive later; the producer does
+  not invent or require a historical parent event.
+- `--span-kind work|waiting` optionally classifies observed elapsed activity or
+  explicit waiting, defaulting to `work` on a correlated event. Work is elapsed
+  activity, never CPU usage. Missing historical `span_kind` means `work` only when
+  an otherwise valid correlated interval is present; gaps alone never imply waiting.
+
+Every new event carries executable `ts_ms` in Unix milliseconds alongside legacy
+`ts`. Start and end `ts_ms` supply precise run boundaries. Historical records may
+omit it. Explicit span endpoints are authoritative for interval arithmetic;
+correlated `duration_s` is their nonnegative difference rounded down to seconds.
+Ordinary calls retain their existing since-last-write `duration_s` behavior.
+Acceptance order sets `seq`; earlier-ending intervals may arrive after later ones.
+
+Correlated writes require `jq`, `flock`, and the coreutils `truncate` command.
+Unavailable dependencies warn and return no receipt, allowing approximate fallback.
+Legacy writes still work without jq; when flock is available, all step and close
+writers acquire the same bounded per-run lock on the existing event file. Active
+metadata is rechecked after locking. No historical content is read for correlation.
+
+A successful correlated write prints exactly one JSON receipt, for example:
+
+```json
+{"kind":"accepted","run_id":"a1b2c3d4","session_id":"session-a","agent_id":"worker-a","checkpoint_id":"checkpoint-a","seq":1,"duplicate":false}
+```
+
+Match all four identity fields and a positive integer `seq` before treating a
+checkpoint as accepted. Exit zero alone never proves acceptance. An identical retry
+returns the original sequence with `duplicate:true` and appends nothing. A changed
+normalized payload, including a different agent for the same run/session/checkpoint,
+warns with no receipt or mutation. Equivalent omitted and explicit `span_kind work`
+values are the same delivery. Deduplication reads only private active metadata and
+lasts while the run remains active; delivery after close is rejected.
+
+Validate before mutation, prepare complete receipt metadata, append the event under
+the lock, then replace active metadata atomically before printing the receipt. A
+recoverable append or metadata replacement failure emits no receipt and rolls back
+that attempt's appended bytes so ordinary retry can persist one event. This is not
+crash-proof exactly-once storage: process death, disk failure during rollback, or
+partial operating-system writes can leave uncertain persistence. Do not infer a
+receipt from such failures or repair history during attribution.
 
 ## Read-only lint
 
@@ -225,15 +300,20 @@ Never rewrite JSONL, digests, or metadata, and never create an absent log store.
 Every line must contain exactly one JSON object. Validate `event`; common `ts`,
 `run_id`, `seq`, `pipeline`, `flow`; step `step` and `outcome`; run-end `outcome`;
 and any supplied enum/count from the vocabulary tables. Required flow is nonempty.
-Counts, sequence, and duration must be mathematical nonnegative JSON integers within
-the bound; other optional fields retain their current meanings. Recognizable legacy
-aliases are violations, not normalized historical data.
+Counts, sequence, duration, optional `ts_ms` and any span endpoints must be
+mathematical nonnegative JSON integers within the bound. When any correlation field
+is present, require the complete `hook.required` set on a step and validate identity
+strings, interval order, hook enums, self-parenting and unknown-step attribution.
+Historical records may omit all correlation fields and `ts_ms`. Other optional
+fields retain their current meanings. Recognizable legacy aliases are violations,
+not normalized historical data.
 
 Stdout is newline-delimited JSON with one object per field violation:
 `{"kind":"violation","file":"<path>","line":2,"field":"tests","code":"invalid-enum"}`.
 Keys are stable and raw values never appear. Codes are `invalid-json`,
 `invalid-object`, `missing-field`, `invalid-type`, `invalid-enum`,
-`invalid-integer`, and `empty-flow`.
+`invalid-integer`, `empty-flow`, `invalid-correlation`, `invalid-id`,
+`invalid-interval`, `self-parent`, and `ambiguous-unknown`.
 
 Every invocation ends with exactly one summary object:
 `{"kind":"summary","status":"ok","files":2,"lines":9,"invalid_lines":1,"violations":2}`.
@@ -241,8 +321,8 @@ Every invocation ends with exactly one summary object:
 `files` and `lines` count examined files and lines, excluding unreadable attempts.
 Status is `ok`, `partial`, or `unavailable`; an empty corpus is `ok` with zeros.
 Missing jq or unreadable files warn on stderr and report `unavailable` or `partial`,
-never an apparently clean unchecked corpus. Lint requires jq; writing still supports
-the optional-jq fallback. Lint exits zero even with violations.
+never an apparently clean unchecked corpus. Lint requires jq; ordinary legacy
+writes still support the optional-jq fallback. Lint exits zero even with violations.
 
 `bash scripts/validate-contracts.sh --run-log-contract-only` checks the canonical
 runtime tables without running unrelated smoke tests. The default validator includes

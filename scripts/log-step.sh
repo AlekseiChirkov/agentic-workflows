@@ -41,6 +41,11 @@ METADATA_FORMAT='# run-log-metadata percent-v1'
 # count field list, or exact alias mappings; consumers can inspect this structure
 # through the contract command without maintaining a second vocabulary.
 declare -Ar RUN_LOG_CONTRACT=(
+  [hook.required]='session_id agent_id checkpoint_id span_start_ms span_end_ms timing_source boundary'
+  [hook.identity_pattern]='^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
+  [hook.timing_source]='hook'
+  [hook.boundary]='session|subagent'
+  [hook.span_kind]='work|waiting'
   [step.outcome]='ok|blocked|failed|skipped|deferred'
   [step.gate]='pass|fail|n-a|needs-work|ready'
   [step.tests]='red|green|n-a|failed|not-run|pinned'
@@ -87,7 +92,7 @@ PARSE_ERROR_CODE=''
 event_option_allowed() { # event_option_allowed <event> <option>
   case "$1:$2" in
       run-start:--pipeline|run-start:--project|run-start:--task|run-start:--spec|run-start:--flow|run-start:--flags|\
-      step:--run|step:--step|step:--outcome|step:--stops|step:--escalations|step:--decisions|step:--questions|step:--gate|step:--tests|step:--fix-tasks|step:--promoted|step:--amendments|step:--files|step:--subtask|step:--blocker|step:--note|\
+      step:--run|step:--step|step:--outcome|step:--stops|step:--escalations|step:--decisions|step:--questions|step:--gate|step:--tests|step:--fix-tasks|step:--promoted|step:--amendments|step:--files|step:--subtask|step:--blocker|step:--note|step:--session-id|step:--agent-id|step:--checkpoint-id|step:--parent-checkpoint-id|step:--span-start-ms|step:--span-end-ms|step:--timing-source|step:--boundary|step:--span-kind|\
       run-end:--run|run-end:--outcome|run-end:--note) return 0 ;;
     *) return 1 ;;
   esac
@@ -193,7 +198,102 @@ validate_step_args() {
       return 1
     fi
   done
-  return 0
+  validate_hook_args
+}
+
+# The tuple is explicit; accepted deliveries live only in active metadata.
+is_correlated_step() {
+  local field
+  for field in ${RUN_LOG_CONTRACT[hook.required]} parent_checkpoint_id span_kind; do
+    has_parsed_arg "$field" && return 0
+  done
+  return 1
+}
+
+valid_hook_identity() {
+  local pattern="${RUN_LOG_CONTRACT[hook.identity_pattern]}"
+  [[ "$1" =~ $pattern ]]
+}
+
+validate_hook_args() {
+  is_correlated_step || return 0
+  local field
+  for field in ${RUN_LOG_CONTRACT[hook.required]}; do
+    if ! has_parsed_arg "$field"; then
+      reject_invocation step "$field" missing-required; return 1
+    fi
+  done
+  for field in session_id agent_id checkpoint_id parent_checkpoint_id; do
+    if has_parsed_arg "$field" && ! valid_hook_identity "${PARSED_ARGS[$field]}"; then
+      reject_invocation step "$field" invalid-id; return 1
+    fi
+  done
+  for field in span_start_ms span_end_ms; do
+    if ! valid_count "${PARSED_ARGS[$field]}"; then
+      reject_invocation step "$field" invalid-integer; return 1
+    fi
+  done
+  if [ "${PARSED_ARGS[span_end_ms]}" -lt "${PARSED_ARGS[span_start_ms]}" ]; then
+    reject_invocation step span_end_ms invalid-interval; return 1
+  fi
+  validate_enum_arg step timing_source hook.timing_source yes || return 1
+  validate_enum_arg step boundary hook.boundary yes || return 1
+  validate_enum_arg step span_kind hook.span_kind no || return 1
+  if [ "${PARSED_ARGS[step]}" = unknown ] &&
+     { [ "${PARSED_ARGS[boundary]}" != session ] ||
+       [ "${PARSED_ARGS[agent_id]}" != "${PARSED_ARGS[session_id]}" ]; }; then
+    reject_invocation step step ambiguous-unknown; return 1
+  fi
+  if has_parsed_arg parent_checkpoint_id &&
+     [ "${PARSED_ARGS[parent_checkpoint_id]}" = "${PARSED_ARGS[checkpoint_id]}" ]; then
+    reject_invocation step parent_checkpoint_id self-parent; return 1
+  fi
+  if ! command -v jq >/dev/null 2>&1 || ! command -v flock >/dev/null 2>&1 ||
+     ! command -v truncate >/dev/null 2>&1; then
+    reject_invocation step correlation dependencies-unavailable; return 1
+  fi
+}
+
+# Use the existing append-only event inode as a stable per-run lock. Replacing
+# metadata does not replace this inode. Never inspect event contents for identity.
+lock_run() { # lock_run <event> <run> <event-path>
+  if command -v flock >/dev/null 2>&1; then
+    if ! { exec {RUN_LOCK_FD}>> "$3"; } 2>/dev/null ||
+       ! flock -x -w 5 "$RUN_LOCK_FD" 2>/dev/null; then
+      reject_invocation "$1" run lock-unavailable; return 1
+    fi
+  fi
+  [ -f "$ACTIVE_DIR/$2" ] || { reject_invocation "$1" run not-found; return 1; }
+}
+
+hook_receipt() { # hook_receipt <run> <sequence> <duplicate>
+  jq -cn --arg run "${1}" --arg session "${PARSED_ARGS[session_id]}" \
+    --arg agent "${PARSED_ARGS[agent_id]}" --arg checkpoint "${PARSED_ARGS[checkpoint_id]}" \
+    --argjson seq "$2" --argjson duplicate "$3" \
+    '{kind:"accepted",run_id:$run,session_id:$session,agent_id:$agent,
+      checkpoint_id:$checkpoint,seq:$seq,duplicate:$duplicate}'
+}
+
+stage_hook_metadata() { # stage_hook_metadata <run> <path> <epoch> <seq> <delivery-key> <delivery>
+  local header line key value
+  IFS= read -r header < "$ACTIVE_DIR/$1" || return 1
+  (
+    printf '%s\n' "$METADATA_FORMAT" || exit 1
+    while IFS= read -r line || [ -n "$line" ]; do
+      [[ "$line" == *=* ]] || continue
+      key="${line%%=*}"
+      case "$key" in seq|last_epoch) continue ;; esac
+      [ "$key" != "$5" ] || continue
+      value="${line#*=}"
+      if [ "$header" != "$METADATA_FORMAT" ]; then
+        meta_read "$1" "$key" value || exit 1
+        value="$(meta_encode "$value")" || exit 1
+      fi
+      printf '%s=%s\n' "$key" "$value" || exit 1
+    done < "$ACTIVE_DIR/$1"
+    printf 'last_epoch=%s\nseq=%s\n' "$3" "$4" || exit 1
+    printf '%s=%s\n' "$5" "$(meta_encode "$6")" || exit 1
+  ) > "$2"
 }
 
 validate_end_args() {
@@ -277,6 +377,13 @@ NORMALIZED_NOTE=''
 
 now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 now_epoch() { date -u +%s; }
+now_millis() {
+  # Keep the full fractional field before dropping micro/nanoseconds: some date
+  # implementations lose leading zeros when formatting a reduced-width %3N.
+  local clock_stamp
+  clock_stamp="$(date -u +%s%N)" || return 1
+  printf '%s\n' "${clock_stamp%??????}"
+}
 
 ensure_store() {
   mkdir -p "$RUNS_DIR" "$ACTIVE_DIR" 2>/dev/null || return 1
@@ -337,7 +444,7 @@ emit_json() {
        | {key: .[0:$i], value: (("\"" + .[$i+1:] + "\"") | fromjson)}]
       | from_entries
       | with_entries(
-          if (.key | IN("seq","duration_s","stops","escalations","decisions","questions","fix_tasks","amendments","files"))
+          if (.key | IN("ts_ms","span_start_ms","span_end_ms","seq","duration_s","stops","escalations","decisions","questions","fix_tasks","amendments","files"))
              and (.value | type == "string" and test("^(0|[1-9][0-9]*)$"))
           then .value |= tonumber else . end)
     '
@@ -350,7 +457,7 @@ emit_json() {
       [ $first -eq 1 ] || printf ','
       first=0
       case "$key" in
-        seq|duration_s|stops|escalations|decisions|questions|fix_tasks|amendments|files)
+        ts_ms|span_start_ms|span_end_ms|seq|duration_s|stops|escalations|decisions|questions|fix_tasks|amendments|files)
           if [[ "$val" =~ ^(0|[1-9][0-9]*)$ ]]; then
             printf '"%s":%s' "$key" "$val"; continue
           fi ;;
@@ -493,6 +600,7 @@ cmd_run_start() {
   if ! (
     {
       json_kv ts "$ts"
+      json_kv ts_ms "$(now_millis)"
       json_kv run_id "$run_id"
       json_kv event run-start
       [ -z "$contract_version" ] || json_kv contract_version "$contract_version"
@@ -551,6 +659,27 @@ cmd_step() {
   local file last seq dur event_epoch ts pipeline project task flow before_size after_size
   file="$(meta_get "$run" file)" || { reject_invocation step run not-found; return 0; }
   [ -n "$file" ] && [ -f "$file" ] || { reject_invocation step run not-found; return 0; }
+  lock_run step "$run" "$file" || return 0
+  local correlated=0 delivery_key='' payload='' previous='' delivery='' pending='' receipt='' field
+  if is_correlated_step; then
+    correlated=1
+    delivery_key="accepted|${PARSED_ARGS[session_id]}|${PARSED_ARGS[checkpoint_id]}"
+    PARSED_ARGS[span_kind]="${PARSED_ARGS[span_kind]-work}"
+    payload="$(for field in "${!PARSED_ARGS[@]}"; do json_kv "$field" "${PARSED_ARGS[$field]}"; done | emit_json | jq -Sc .)" || {
+      warn 'step correlation tooling unavailable'; return 0;
+    }
+    if meta_read "$run" "$delivery_key" previous; then
+      if ! printf '%s' "$previous" | jq -e --argjson payload "$payload" '.arguments == $payload' >/dev/null 2>&1; then
+        reject_invocation step checkpoint_id conflicting-delivery; return 0
+      fi
+      seq="$(printf '%s' "$previous" | jq -er '.seq' 2>/dev/null)" || {
+        warn 'step accepted metadata unavailable'; return 0;
+      }
+      valid_count "$seq" || { warn 'step accepted metadata unavailable'; return 0; }
+      hook_receipt "$run" "$seq" true 2>/dev/null || warn 'step receipt unavailable'
+      return 0
+    fi
+  fi
   before_size="$( (wc -c < "$file") 2>/dev/null)" || { warn 'step event storage unavailable'; return 0; }
   last="$(meta_get "$run" last_epoch)"
   seq="$(meta_get "$run" seq)"
@@ -559,6 +688,9 @@ cmd_step() {
   seq=$((seq + 1))
   event_epoch="$(now_epoch)"
   dur=$((event_epoch - last))
+  if [ "$correlated" -eq 1 ]; then
+    dur=$(( (PARSED_ARGS[span_end_ms] - PARSED_ARGS[span_start_ms]) / 1000 ))
+  fi
   [ "$dur" -ge 0 ] || dur=0
   ts="$(now_iso)"
   meta_read "$run" pipeline pipeline || pipeline=''
@@ -567,9 +699,20 @@ cmd_step() {
   meta_read "$run" flow flow || flow=''
   [ -n "$flow" ] || flow='unknown'
 
+  if [ "$correlated" -eq 1 ]; then
+    pending="$ACTIVE_DIR/$run.pending.$$"
+    (umask 077; : > "$pending") 2>/dev/null || { warn 'step metadata persistence failed'; return 0; }
+    delivery="$(jq -cn --argjson arguments "$payload" --argjson seq "$seq" '{arguments:$arguments,seq:$seq}')" &&
+    receipt="$(hook_receipt "$run" "$seq" false)" &&
+    stage_hook_metadata "$run" "$pending" "$event_epoch" "$seq" "$delivery_key" "$delivery" 2>/dev/null || {
+      rm -f "$pending" 2>/dev/null
+      warn 'step metadata persistence failed'; return 0;
+    }
+  fi
   if ! (
     {
       json_kv ts "$ts"
+      json_kv ts_ms "$(now_millis)"
       json_kv run_id "$run"
       json_kv event step
       json_kv seq "$seq"
@@ -577,6 +720,11 @@ cmd_step() {
       json_kv step "$step"
       json_kv outcome "$outcome"
       json_kv duration_s "$dur"
+      if [ "$correlated" -eq 1 ]; then
+        for field in ${RUN_LOG_CONTRACT[hook.required]} parent_checkpoint_id span_kind; do
+          has_parsed_arg "$field" && json_kv "$field" "${PARSED_ARGS[$field]}"
+        done
+      fi
       json_kv project "$project"
       [ -z "$task" ] || json_kv task "$task"
       json_kv flow "$flow"
@@ -596,12 +744,23 @@ cmd_step() {
       true
     } | emit_json >> "$file"
   ) 2>/dev/null; then
+    if [ "$correlated" -eq 1 ]; then truncate -s "$before_size" "$file" 2>/dev/null; rm -f "$pending" 2>/dev/null; fi
     warn 'step event persistence failed'
     return 0
   fi
-  after_size="$( (wc -c < "$file") 2>/dev/null)" || { warn 'step event persistence failed'; return 0; }
+  after_size="$( (wc -c < "$file") 2>/dev/null)" || after_size=0
   if [ "$after_size" -le "$before_size" ]; then
+    if [ "$correlated" -eq 1 ]; then truncate -s "$before_size" "$file" 2>/dev/null; rm -f "$pending" 2>/dev/null; fi
     warn 'step event persistence failed'
+    return 0
+  fi
+  if [ "$correlated" -eq 1 ]; then
+    if ! mv "$pending" "$ACTIVE_DIR/$run" 2>/dev/null; then
+      truncate -s "$before_size" "$file" 2>/dev/null
+      rm -f "$pending" 2>/dev/null
+      warn 'step metadata persistence failed'; return 0
+    fi
+    printf '%s\n' "$receipt"
     return 0
   fi
   if ! meta_set "$run" last_epoch "$event_epoch" ||
@@ -629,7 +788,8 @@ cmd_run_end() {
     reject_invocation run-end run not-found
     return 0
   }
-  [ -n "$file" ] || { reject_invocation run-end run not-found; return 0; }
+  [ -n "$file" ] && [ -f "$file" ] || { reject_invocation run-end run not-found; return 0; }
+  lock_run run-end "$run" "$file" || return 0
 
   local started total seq pipeline project task flow before_size after_size
   started="$(meta_get "$run" started_epoch)"
@@ -649,6 +809,7 @@ cmd_run_end() {
   if ! (
     {
       json_kv ts "$(now_iso)"
+      json_kv ts_ms "$(now_millis)"
       json_kv run_id "$run"
       json_kv event run-end
       json_kv seq "$seq"
@@ -914,6 +1075,37 @@ cmd_lint() {
                  elif ($allowed|split("|")|index($row[$name])|not) then issue($name; "invalid-enum")
                  else empty end
                else empty end),
+            integer($row; $parsed.literals; "ts_ms"; false),
+            (if ([$contract["hook.required"]|split(" ")[]] + ["parent_checkpoint_id", "span_kind"]
+                 | any(. as $name | $row|has($name))) then
+               (if $row.event != "step" then issue("event"; "invalid-correlation") else empty end),
+               ($contract["hook.required"]|split(" ")[] | . as $name
+                | if ($name == "span_start_ms" or $name == "span_end_ms")
+                  then integer($row; $parsed.literals; $name; true)
+                  else field($row; $name; "string"; true) end),
+               ("session_id", "agent_id", "checkpoint_id", "parent_checkpoint_id" | . as $name
+                | if ($row|has($name)) then
+                    if ($row[$name]|type) != "string" then
+                      if $name == "parent_checkpoint_id" then issue($name; "invalid-type") else empty end
+                    elif ($row[$name] | . as $identity
+                          | [match($contract["hook.identity_pattern"]).string] != [$identity])
+                    then issue($name; "invalid-id") else empty end
+                  else empty end),
+               ("timing_source", "boundary", "span_kind" | . as $name
+                | if ($row|has($name)) then
+                    if ($row[$name]|type) != "string" then
+                      if $name == "span_kind" then issue($name; "invalid-type") else empty end
+                    elif ($contract["hook."+$name]|split("|")|index($row[$name])|not)
+                    then issue($name; "invalid-enum") else empty end
+                  else empty end),
+               (if ($row.span_start_ms|type) == "number" and ($row.span_end_ms|type) == "number"
+                   and $row.span_end_ms < $row.span_start_ms
+                then issue("span_end_ms"; "invalid-interval") else empty end),
+               (if $row.parent_checkpoint_id != null and $row.parent_checkpoint_id == $row.checkpoint_id
+                then issue("parent_checkpoint_id"; "self-parent") else empty end),
+               (if $row.step == "unknown" and ($row.boundary != "session" or $row.agent_id != $row.session_id)
+                then issue("step"; "ambiguous-unknown") else empty end)
+             else empty end),
             ($contract["count.fields"]|split(" ")[] | integer($row; $parsed.literals; .; false))
           end
       ' 2>/dev/null)"; then
