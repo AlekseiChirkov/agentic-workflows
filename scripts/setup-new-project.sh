@@ -261,6 +261,68 @@ for entry in "${GITIGNORE_ENTRIES[@]}"; do
   fi
 done
 
+# Project setup is the sole writer of the activation registry. Resolve the physical
+# cwd inside Python so command substitution cannot strip a trailing newline path.
+if command -v python3 >/dev/null 2>&1; then
+  python3 - <<'PY' || echo 'WARNING: project registration unavailable' >&2
+import fcntl
+import os
+from pathlib import Path
+import sys
+import tempfile
+import time
+
+lock = None
+temporary = None
+try:
+    project = os.getcwd()
+    if '\n' in project or '\r' in project or '\x00' in project:
+        raise ValueError('unsupported-project-path')
+    config = Path(os.environ.get('XDG_CONFIG_HOME') or Path(os.environ['HOME']) / '.config')
+    registry = config / 'orchestrail/projects'
+    registry.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    lock_path = registry.with_name('projects.lock')
+    if registry.is_symlink() or lock_path.is_symlink():
+        raise ValueError('unsafe-registry-path')
+    lock = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    deadline = time.monotonic() + 5
+    while True:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            break
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                raise ValueError('registry-busy') from None
+            time.sleep(0.025)
+    data = registry.read_bytes() if registry.exists() else b''
+    text = data.decode('utf-8')
+    roots = text.split('\n') if text else []
+    if roots and roots[-1] == '':
+        roots.pop()
+    if any(not root or '\r' in root or '\x00' in root or not os.path.isabs(root) or
+           os.path.realpath(root) != root for root in roots):
+        raise ValueError('invalid-registry')
+    if project not in roots:
+        roots.append(project)
+        descriptor, filename = tempfile.mkstemp(prefix='.projects.', dir=registry.parent)
+        temporary = Path(filename)
+        with os.fdopen(descriptor, 'wb') as stream:
+            stream.write(('\n'.join(roots) + '\n').encode('utf-8'))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, registry)
+except (OSError, ValueError, UnicodeError, KeyError):
+    print('WARNING: project registration unavailable; existing entries preserved', file=sys.stderr)
+finally:
+    if temporary is not None:
+        temporary.unlink(missing_ok=True)
+    if lock is not None:
+        os.close(lock)
+PY
+else
+  echo 'WARNING: project registration unavailable: missing Python 3' >&2
+fi
+
 # ── SUMMARY ───────────────────────────────────────────────────────────
 echo ""
 echo "=== Done ==="
