@@ -292,7 +292,34 @@ class WorkflowLogging(unittest.TestCase):
         self.assertEqual((self.direct_calls, self.fallback_calls), counts)
         self.assertEqual(self.steps(run), [], 'failed ordinary persistence cannot take a second route')
 
+    def malformed_receipt_status(self) -> None:
+        exported = self.command(self.helper, ['contract'])
+        maximum = int(dict(line.split('=', 1) for line in exported.splitlines())['count.maximum'])
+        for sequence in (None, 0, True, -1, 1.5, '1', maximum + 1):
+            with self.subTest(malformed_receipt_sequence=sequence):
+                run = self.start()
+                identity, _ = self.dispatch(run)
+                receipt = {key: value for key, value in identity.items() if key != 'schema_version'}
+                receipt['kind'] = 'accepted'
+                if sequence is not None:
+                    receipt['seq'] = sequence
+                observed = dict(identity, state='accepted', receipt=receipt)
+                self.assertEqual(self.resolve(identity, observed), 'uncertain')
+                self.assertEqual(len(self.steps(run)), 1)
+                self.assert_approximate(run)
+                self.assertEqual(cast(Record, self.status(identity))['state'], 'fallback-attempted')
+        with self.subTest(malformed_receipt_sequence='accepted-private-zero'):
+            run = self.start()
+            envelope = self.dispatch(run)
+            self.native(self.payload(envelope, ('pae-tests',)))
+            observed = cast(Record, self.status(envelope[0]))
+            cast(Record, observed['receipt'])['seq'] = 0
+            self.assertEqual(self.resolve(envelope[0], observed), 'uncertain')
+            self.assertEqual(len(self.steps(run)), 1, 'malformed observation cannot duplicate accepted data')
+            self.assertEqual(self.steps(run)[0]['timing_source'], 'hook')
+
     def test_dispatch_report_status_preserve_one_delivery_route(self) -> None:
+        self.malformed_receipt_status()
         self.accepted_and_pending()
         self.missing_private_and_owned_fallback()
         self.lost_receipt()
