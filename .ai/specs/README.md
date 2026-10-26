@@ -63,7 +63,7 @@ script names in historical context identify their earlier locations.
 | 1 | [13a — audit](13a-rules-workflows-audit.md) | 01 | Refresh actual inventory; identify duplicated loads and ownership |
 | 2 | [13 — harnesses/naming](13-model-only-harnesses-and-rule-naming.md) | 01, 13a | Preserve IDs; capability-based behavior and current script paths |
 | 3 | [04 — catalog](04-model-catalog-cache.md) | 13 | Availability, consistent scoring and cached catalog |
-| 4 | [03 — logging](03-hook-based-logging.md) | 02, 13 | Explicit correlation, deduplication and nested time semantics |
+| Done | [03 — logging](03-hook-based-logging.md) | 02, 13 | Reviewed explicit correlation, owned hooks and exact timing; minimal hook scaffold only, wider harness migration remains pending |
 | 5 | [05 — telemetry](05-cost-and-duration-telemetry.md) | 02, 03 | Expanded workstream 1 |
 | 6 | [06 — git rails](06-harness-git-rails.md) | 13, 05 | Enforcement remains effective through helpers and repairs |
 | 7 | [09 — regression/evaluation](09-golden-run-tests.md) | 01, 13, 05, 06 | Offline checks, paid goldens, independent quality comparisons |

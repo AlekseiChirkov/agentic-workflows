@@ -166,19 +166,28 @@ load_record() {
   [ "$(jq -r .project <<< "$RECORD")" = "$PROJECT" ] || { warn project-mismatch; return 1; }
 }
 
+validate_dispatch_identity() {
+  local run="$1" actor="$2" session="$3"
+  run_ok "$run" && identity_ok "$actor" && identity_ok "$session" || { warn missing-dispatch-identity; return 1; }
+  case "${OPT[--boundary]-}" in
+    session) [ "$actor" = "$session" ] || { warn session-actor-mismatch; return 1; } ;;
+    subagent) ;;
+    *) warn invalid-boundary; return 1 ;;
+  esac
+  if [ "${OPT[--expected-skill]+present}" = present ]; then
+    identity_ok "${OPT[--expected-skill]}" || { warn invalid-expected-skill; return 1; }
+  fi
+  if [ "${OPT[--parent-checkpoint-id]+present}" = present ]; then
+    identity_ok "${OPT[--parent-checkpoint-id]}" || { warn invalid-parent; return 1; }
+  fi
+  case "${OPT[--span-kind]-work}" in work|waiting) ;; *) warn invalid-span-kind; return 1 ;; esac
+}
+
 dispatch() {
   local run="${OPT[--run]-}" actor="${OPT[--agent-id]-}" boundary="${OPT[--boundary]-}"
   local session="${CLAUDE_CODE_SESSION_ID:-}" checkpoint started marker
   PROJECT="$(project_for "$PWD")" || return 0
-  run_ok "$run" && identity_ok "$actor" && identity_ok "$session" || { warn missing-dispatch-identity; return; }
-  case "$boundary" in session) [ "$actor" = "$session" ] || { warn session-actor-mismatch; return; } ;; subagent) ;; *) warn invalid-boundary; return ;; esac
-  if [ "${OPT[--expected-skill]+present}" = present ]; then
-    identity_ok "${OPT[--expected-skill]}" || { warn invalid-expected-skill; return; }
-  fi
-  if [ "${OPT[--parent-checkpoint-id]+present}" = present ]; then
-    identity_ok "${OPT[--parent-checkpoint-id]}" || { warn invalid-parent; return; }
-  fi
-  case "${OPT[--span-kind]-work}" in work|waiting) ;; *) warn invalid-span-kind; return ;; esac
+  validate_dispatch_identity "$run" "$actor" "$session" || return
   started="$(clock_ms)" || { warn clock-unavailable; return; }
   [ ! -L "$HOOK_STATE" ] && mkdir -p -- "$HOOK_STATE" && chmod 700 "$HOOK_STATE" || { warn state-unavailable; return; }
   # mktemp creates a unique private lock before publishing the corresponding record.
@@ -229,29 +238,16 @@ fallback() {
 
 # Find exactly one unindented report outside Markdown fences. Canonical raw JSON
 # equality rejects duplicate keys as well as whitespace, unknown keys and aliases.
-parse_report() {
-  local message="$1" line fence='' fence_length=0 run suffix
+scan_report() {
+  local message="$1" line fence='' fence_length=0
   local fence_pattern='^ {0,3}(`{3,}|~{3,})(.*)$'
-  local prefix='ORCHESTRAIL_REPORT_V1 ' found=0 raw canonical
+  local prefix='ORCHESTRAIL_REPORT_V1 ' found=0 raw
   # CommonMark line separators do not belong to the canonical marker bytes.
   message="${message//$'\r\n'/$'\n'}"
   message="${message//$'\r'/$'\n'}"
   while IFS= read -r line || [ -n "$line" ]; do
     if [[ "$line" =~ $fence_pattern ]]; then
-      run="${BASH_REMATCH[1]}"
-      suffix="${BASH_REMATCH[2]}"
-      if [ -z "$fence" ]; then
-        # Backtick opener info cannot contain another backtick. Tilde info
-        # accepts either delimiter as ordinary text after the opening run.
-        if [ "${run:0:1}" != '`' ] || [[ "$suffix" != *'`'* ]]; then
-          fence="${run:0:1}"
-          fence_length="${#run}"
-        fi
-      elif [ "${run:0:1}" = "$fence" ] && [ "${#run}" -ge "$fence_length" ] &&
-           [[ "$suffix" =~ ^[[:blank:]]*$ ]]; then
-        fence=''
-        fence_length=0
-      fi
+      update_report_fence "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
       continue
     fi
     if [ -z "$fence" ] && [[ "$line" = "$prefix"* ]]; then
@@ -261,6 +257,29 @@ parse_report() {
     fi
   done <<< "$message"
   [ "$found" -eq 1 ] || return 1
+  printf '%s' "$raw"
+}
+
+# Called directly by scan_report; fence state belongs to that scan invocation.
+update_report_fence() {
+  local run="$1" suffix="$2"
+  if [ -z "$fence" ]; then
+    # Backtick opener info cannot contain another backtick. Tilde info
+    # accepts either delimiter as ordinary text after the opening run.
+    if [ "${run:0:1}" != '`' ] || [[ "$suffix" != *'`'* ]]; then
+      fence="${run:0:1}"
+      fence_length="${#run}"
+    fi
+  elif [ "${run:0:1}" = "$fence" ] && [ "${#run}" -ge "$fence_length" ] &&
+       [[ "$suffix" =~ ^[[:blank:]]*$ ]]; then
+    fence=''
+    fence_length=0
+  fi
+}
+
+parse_report() {
+  local raw canonical
+  raw="$(scan_report "$1")" || return 1
   canonical_integer_tokens "$raw" || return 1
   canonical="$(jq -cS -e '
     def id: type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\\z");
@@ -284,10 +303,20 @@ transcript_skill() {
   [ -f "$path" ] && [ -r "$path" ] || return 1
   size="$(stat -c %s -- "$path" 2>/dev/null)" || return 1
   [[ "$size" =~ ^[0-9]+$ ]] || return 1
-  evidence="$(tail -c 16777216 -- "$path" | {
-    if [ "$size" -gt 16777216 ]; then IFS= read -r _ || true; fi
+  evidence="$(bounded_transcript_tail "$path" "$size" | native_skill_evidence "$dispatch")" || return 1
+  SKILL="$(jq -r .step <<< "$evidence")" || return 1
+  identity_ok "$SKILL"
+}
+
+bounded_transcript_tail() {
+  tail -c 16777216 -- "$1" | {
+    if [ "$2" -gt 16777216 ]; then IFS= read -r _ || true; fi
     cat
-  } | jq -Rsc -e --arg dispatch "$dispatch" '
+  }
+}
+
+native_skill_evidence() {
+  jq -Rsc -e --arg dispatch "$1" '
     def input_text:
       select(.type == "user" and (.message | type == "object") and (.message.role // "user") == "user") |
       .message.content | if type == "string" then . elif type == "array" then .[] | select(.type == "text") | .text | select(type == "string") else empty end;
@@ -308,9 +337,7 @@ transcript_skill() {
         end
       end
     end
-  ' 2>/dev/null)" || return 1
-  SKILL="$(jq -r .step <<< "$evidence")" || return 1
-  identity_ok "$SKILL"
+  ' 2>/dev/null
 }
 
 receipt_valid() {
@@ -341,80 +368,108 @@ forward_payload() {
   save_record || { warn acceptance-uncertain; return; }
 }
 
-completion() {
-  local raw kind session path message dispatch state ended payload native_agent
+# Completion phases run directly in the owning completion invocation. Read/gate
+# writes raw/path; native binding writes kind/session/path/message/native_agent;
+# correlation binding writes state. Existing record/report globals retain ownership.
+read_native_input() {
   raw=''
   # read preserves trailing newlines. A NUL terminates early and is rejected;
   # command substitution would silently discard both kinds of bytes.
   if IFS= read -r -d '' -n 1048577 raw; then
     if [ "${#raw}" -ge 1048577 ]; then warn input-too-large; else warn malformed-input; fi
-    return
+    return 1
   fi
-  [ "${#raw}" -le 1048576 ] || { warn input-too-large; return; }
-  jq -s -e 'length == 1 and (.[0] | type == "object")' <<< "$raw" >/dev/null 2>&1 || { warn malformed-input; return; }
+  [ "${#raw}" -le 1048576 ] || { warn input-too-large; return 1; }
+  jq -s -e 'length == 1 and (.[0] | type == "object")' <<< "$raw" >/dev/null 2>&1 || { warn malformed-input; return 1; }
   # Only cwd is inspected before the registry gate. Unregistered native events
   # exit without opening any correlation file, transcript or producer state.
-  path="$(jq -er '.cwd | select(type == "string" and length > 0 and (test("[\u0000\r\n]") | not))' <<< "$raw" 2>/dev/null)" || { warn invalid-native-input; return; }
-  PROJECT="$(project_for "$path")" || return 0
+  path="$(jq -er '.cwd | select(type == "string" and length > 0 and (test("[\u0000\r\n]") | not))' <<< "$raw" 2>/dev/null)" || { warn invalid-native-input; return 1; }
+  PROJECT="$(project_for "$path")" || return 1
+}
+
+bind_native_fields() {
   jq -e '
     def text: type == "string" and length > 0;
     ([.hook_event_name,.session_id,.cwd,.transcript_path,.last_assistant_message] | all(.[]; text)) and
     (.session_id | test("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\\z")) and
     (.transcript_path | test("[\u0000\r\n]") | not) and
     (.last_assistant_message | contains("\u0000") | not)
-  ' <<< "$raw" >/dev/null 2>&1 || { warn invalid-native-input; return; }
+  ' <<< "$raw" >/dev/null 2>&1 || { warn invalid-native-input; return 1; }
   kind="$(jq -r .hook_event_name <<< "$raw")"
   session="$(jq -r .session_id <<< "$raw")"
   case "$kind" in
     Stop) kind=session; native_agent="$session"; path="$(jq -r .transcript_path <<< "$raw")" ;;
     SubagentStop)
-      jq -e '[.agent_id,.agent_transcript_path] | all(.[]; type == "string" and length > 0 and (test("[\u0000\r\n]") | not))' <<< "$raw" >/dev/null || { warn invalid-native-input; return; }
+      jq -e '[.agent_id,.agent_transcript_path] | all(.[]; type == "string" and length > 0 and (test("[\u0000\r\n]") | not))' <<< "$raw" >/dev/null || { warn invalid-native-input; return 1; }
       kind=subagent; native_agent="$(jq -r .agent_id <<< "$raw")"; path="$(jq -r .agent_transcript_path <<< "$raw")" ;;
-    *) warn invalid-native-event; return ;;
+    *) warn invalid-native-event; return 1 ;;
   esac
   message="$(jq -r .last_assistant_message <<< "$raw")"
-  parse_report "$message" || { warn invalid-report-marker; return; }
-  [ "$(jq -r .session_id <<< "$REPORT")" = "$session" ] || { warn session-mismatch; return; }
-  load_record "$(jq -r .checkpoint_id <<< "$REPORT")" || return
+}
+
+bind_completion_record() {
+  parse_report "$message" || { warn invalid-report-marker; return 1; }
+  [ "$(jq -r .session_id <<< "$REPORT")" = "$session" ] || { warn session-mismatch; return 1; }
+  load_record "$(jq -r .checkpoint_id <<< "$REPORT")" || return 1
   jq -e --argjson report "$REPORT" --arg boundary "$kind" '
     .boundary == $boundary and
     .run_id == $report.run_id and .session_id == $report.session_id and
     .agent_id == $report.agent_id and .checkpoint_id == $report.checkpoint_id
-  ' <<< "$RECORD" >/dev/null || { warn correlation-mismatch; return; }
+  ' <<< "$RECORD" >/dev/null || { warn correlation-mismatch; return 1; }
   state="$(jq -r .state <<< "$RECORD")"
+}
+
+# First validated evidence is durable. Retry checks never rescan a transcript or
+# change a frozen native actor/report; this helper reads the existing record only.
+validate_frozen_completion() {
+  jq -e --arg native "$1" --argjson report "$REPORT" '
+    def result_fields: {outcome} + (if has("tests") then {tests} else {} end) +
+      (if has("gate") then {gate} else {} end);
+    .native_agent_id == $native and (.payload | result_fields) == ($report | result_fields)
+  ' <<< "$RECORD" >/dev/null || { warn conflicting-delivery; return 1; }
+}
+
+resolve_completion_skill() {
+  local path="$1" kind="$2" session="$3" dispatch
+  dispatch="ORCHESTRAIL_DISPATCH_V1 $(jq -cS '{agent_id,checkpoint_id,run_id,schema_version,session_id}' <<< "$RECORD")"
+  transcript_skill "$path" "$dispatch" || { warn transcript-evidence; return 1; }
+  if [ "$SKILL" = unknown ]; then
+    [ "$kind" = session ] && [ "$(jq -r .agent_id <<< "$RECORD")" = "$session" ] || { warn missing-skill; return 1; }
+  elif jq -e 'has("expected_skill")' <<< "$RECORD" >/dev/null; then
+    [ "$(jq -r .expected_skill <<< "$RECORD")" = "$SKILL" ] || { warn skill-mismatch; return 1; }
+  fi
+}
+
+freeze_completion() {
+  local native_agent="$1" ended payload
+  ended="$(clock_ms)" || { warn clock-unavailable; return 1; }
+  [ "$ended" -ge "$(jq -r .span_start_ms <<< "$RECORD")" ] || { warn clock-reversed; return 1; }
+  payload="$(jq -cS --argjson report "$REPORT" --arg step "$SKILL" --argjson ended "$ended" '
+    {run_id,session_id,agent_id,checkpoint_id,span_start_ms,boundary,span_kind} +
+    {step:$step,outcome:$report.outcome,span_end_ms:$ended,timing_source:"hook"} +
+    (if has("parent_checkpoint_id") then {parent_checkpoint_id} else {} end) +
+    ($report | {tests,gate} | with_entries(select(.value != null)))
+  ' <<< "$RECORD")" || { warn invalid-correlation; return 1; }
+  RECORD="$(jq -cS --argjson payload "$payload" --arg native "$native_agent" \
+    '.state="delivering" | .payload=$payload | .native_agent_id=$native' <<< "$RECORD")" || { warn state-unavailable; return 1; }
+  save_record || { warn state-unavailable; return 1; }
+}
+
+completion() {
+  local raw kind session path message state native_agent
+  read_native_input || return
+  bind_native_fields || return
+  bind_completion_record || return
   case "$state" in
     fallback|fallback-attempted) return ;;
     delivering|accepted)
-      # First validated evidence is durable. A rotated transcript cannot prevent
-      # retry, while a contradictory report or different native actor cannot
-      # change or forward the already frozen completion.
-      jq -e --arg native "$native_agent" --argjson report "$REPORT" '
-        def result_fields: {outcome} + (if has("tests") then {tests} else {} end) +
-          (if has("gate") then {gate} else {} end);
-        .native_agent_id == $native and (.payload | result_fields) == ($report | result_fields)
-      ' <<< "$RECORD" >/dev/null || { warn conflicting-delivery; return; }
+      validate_frozen_completion "$native_agent" || return
       if [ "$state" = delivering ]; then forward_payload; fi
       return ;;
   esac
-  dispatch="ORCHESTRAIL_DISPATCH_V1 $(jq -cS '{agent_id,checkpoint_id,run_id,schema_version,session_id}' <<< "$RECORD")"
-  transcript_skill "$path" "$dispatch" || { warn transcript-evidence; return; }
-  if [ "$SKILL" = unknown ]; then
-    [ "$kind" = session ] && [ "$(jq -r .agent_id <<< "$RECORD")" = "$session" ] || { warn missing-skill; return; }
-  elif jq -e 'has("expected_skill")' <<< "$RECORD" >/dev/null; then
-    [ "$(jq -r .expected_skill <<< "$RECORD")" = "$SKILL" ] || { warn skill-mismatch; return; }
-  fi
+  resolve_completion_skill "$path" "$kind" "$session" || return
   if [ "$state" = pending ]; then
-    ended="$(clock_ms)" || { warn clock-unavailable; return; }
-    [ "$ended" -ge "$(jq -r .span_start_ms <<< "$RECORD")" ] || { warn clock-reversed; return; }
-    payload="$(jq -cS --argjson report "$REPORT" --arg step "$SKILL" --argjson ended "$ended" '
-      {run_id,session_id,agent_id,checkpoint_id,span_start_ms,boundary,span_kind} +
-      {step:$step,outcome:$report.outcome,span_end_ms:$ended,timing_source:"hook"} +
-      (if has("parent_checkpoint_id") then {parent_checkpoint_id} else {} end) +
-      ($report | {tests,gate} | with_entries(select(.value != null)))
-    ' <<< "$RECORD")" || { warn invalid-correlation; return; }
-    RECORD="$(jq -cS --argjson payload "$payload" --arg native "$native_agent" \
-      '.state="delivering" | .payload=$payload | .native_agent_id=$native' <<< "$RECORD")" || { warn state-unavailable; return; }
-    save_record || { warn state-unavailable; return; }
+    freeze_completion "$native_agent" || return
   fi
   forward_payload
 }

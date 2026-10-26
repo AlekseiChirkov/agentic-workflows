@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+# Inspect focused shell delivery boundaries without reading runtime stores.
+if [ "${1:-}" = --hook-shell-quality-only ]; then
+  shift
+  exec bash "$REPO_ROOT/tests/hook-shell-quality.sh" "$@"
+fi
+
 # Run exact timing and complete lifecycle fixtures in disposable roots.
 if [ "${1:-}" = --hook-timing-only ]; then
   shift
@@ -4304,6 +4310,16 @@ check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
 # ── End public identity smoke checks ────────────────────────────────
 
 # ── Native hook adapter acceptance ──────────────────────────────────
+test_hook_shell_quality_acceptance() {
+  local output
+  output="$(bash "$REPO_ROOT/tests/hook-shell-quality.sh" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_hook_shell_quality_acceptance" \
+  "$(test_hook_shell_quality_acceptance && echo pass || echo 'focused shell delivery functions must meet size and parameter limits')"
+
 test_native_hook_adapter_acceptance() {
   local output
   output="$(bash "$REPO_ROOT/tests/log-step-hook.sh" 2>&1)" || {

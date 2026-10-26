@@ -103,6 +103,8 @@ Project setup is the sole writer of the XDG configuration project registry. It r
 
 `tests/hook-timing.sh` checks exact interval arithmetic, graph quarantine, historical/approximate exclusions, strict snapshot/lint completeness and a two-run installation-to-removal lifecycle. The focused `--hook-timing-only` mode and default validator run the same isolated acceptance suite. The correlated producer fixture also proves actual partial output is rolled back before one accepted retry. Existing adapter/producer fixture bodies retain their behavior after mandatory annotation harmonization.
 
+`tests/hook-shell-quality.sh` uses syntax-only Bash and standard-library inspection to enforce focused native/producer function size and positional APIs. Named predicate/lifecycle exceptions have measured ceilings; unchanged baseline exclusions are fingerprinted. The focused `--hook-shell-quality-only` mode and default validator run the same contract without executing inspected source or requiring AST-Grep.
+
 ### Layer 6 — `logs/` (central telemetry store)
 `logs/runs/<ts>-<pipeline>-<id>.jsonl` + `.md` digest, `.active/` for open runs.
 Cross-project by design; gitignored; read only by `/retro`.

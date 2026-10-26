@@ -18,8 +18,11 @@ Notes:
 - `scripts/validate-task.sh <task-dir>` checks one task's artifacts; run it manually when working
   on a task under `.ai/tasks/`.
 - Focused hook suites use `scripts/validate-contracts.sh --hook-adapter-only`,
-  `--hook-install-only`, `--hook-workflow-only` and `--hook-timing-only`. They use
-  disposable home/config/state/project/log roots rather than real user settings.
+  `--hook-install-only`, `--hook-workflow-only`, `--hook-timing-only` and
+  `--hook-shell-quality-only`. Runtime scenarios use disposable
+  home/config/state/project/log roots rather than real user settings. The shell
+  source contract uses syntax-only inspection, bounded named exceptions and
+  fingerprinted unchanged baseline functions; it has no AST-Grep runtime dependency.
 - Installer and offline timing engines require Python 3.11 or newer, using only the
   standard library. Timing also requires jq-backed producer lint. Native hooks retain
   Bash/jq/flock dependencies; saved-state uninstall does not require jq/flock.

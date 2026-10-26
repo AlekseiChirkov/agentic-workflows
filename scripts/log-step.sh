@@ -215,8 +215,7 @@ valid_hook_identity() {
   [[ "$1" =~ $pattern ]]
 }
 
-validate_hook_args() {
-  is_correlated_step || return 0
+validate_hook_identity_fields() {
   local field
   for field in ${RUN_LOG_CONTRACT[hook.required]}; do
     if ! has_parsed_arg "$field"; then
@@ -228,6 +227,10 @@ validate_hook_args() {
       reject_invocation step "$field" invalid-id; return 1
     fi
   done
+}
+
+validate_hook_span_fields() {
+  local field
   for field in span_start_ms span_end_ms; do
     if ! valid_count "${PARSED_ARGS[$field]}"; then
       reject_invocation step "$field" invalid-integer; return 1
@@ -248,6 +251,12 @@ validate_hook_args() {
      [ "${PARSED_ARGS[parent_checkpoint_id]}" = "${PARSED_ARGS[checkpoint_id]}" ]; then
     reject_invocation step parent_checkpoint_id self-parent; return 1
   fi
+}
+
+validate_hook_args() {
+  is_correlated_step || return 0
+  validate_hook_identity_fields || return 1
+  validate_hook_span_fields || return 1
   if ! command -v jq >/dev/null 2>&1 || ! command -v flock >/dev/null 2>&1 ||
      ! command -v truncate >/dev/null 2>&1; then
     reject_invocation step correlation dependencies-unavailable; return 1
@@ -274,8 +283,12 @@ hook_receipt() { # hook_receipt <run> <sequence> <duplicate>
       checkpoint_id:$checkpoint,seq:$seq,duplicate:$duplicate}'
 }
 
-stage_hook_metadata() { # stage_hook_metadata <run> <path> <epoch> <seq> <delivery-key> <delivery>
-  local header line key value
+stage_hook_metadata() { # stage_hook_metadata <run> <path> <context-json>
+  local header line key value last_epoch seq delivery_key delivery
+  last_epoch="$(jq -r .last_epoch <<< "$3")" || return 1
+  seq="$(jq -r .seq <<< "$3")" || return 1
+  delivery_key="$(jq -r .delivery_key <<< "$3")" || return 1
+  delivery="$(jq -r .delivery <<< "$3")" || return 1
   IFS= read -r header < "$ACTIVE_DIR/$1" || return 1
   (
     printf '%s\n' "$METADATA_FORMAT" || exit 1
@@ -283,7 +296,7 @@ stage_hook_metadata() { # stage_hook_metadata <run> <path> <epoch> <seq> <delive
       [[ "$line" == *=* ]] || continue
       key="${line%%=*}"
       case "$key" in seq|last_epoch) continue ;; esac
-      [ "$key" != "$5" ] || continue
+      [ "$key" != "$delivery_key" ] || continue
       value="${line#*=}"
       if [ "$header" != "$METADATA_FORMAT" ]; then
         meta_read "$1" "$key" value || exit 1
@@ -291,8 +304,8 @@ stage_hook_metadata() { # stage_hook_metadata <run> <path> <epoch> <seq> <delive
       fi
       printf '%s=%s\n' "$key" "$value" || exit 1
     done < "$ACTIVE_DIR/$1"
-    printf 'last_epoch=%s\nseq=%s\n' "$3" "$4" || exit 1
-    printf '%s=%s\n' "$5" "$(meta_encode "$6")" || exit 1
+    printf 'last_epoch=%s\nseq=%s\n' "$last_epoch" "$seq" || exit 1
+    printf '%s=%s\n' "$delivery_key" "$(meta_encode "$delivery")" || exit 1
   ) > "$2"
 }
 
@@ -434,10 +447,8 @@ json_kv() { # json_kv <key> <value>
   printf '%s=%s\n' "$1" "$escaped"
 }
 
-emit_json() {
-  # Reads KEY=JSON-ESCAPED-VALUE pairs on stdin and emits one JSON object.
-  if command -v jq >/dev/null 2>&1; then
-    jq -Rn -c '
+emit_json_jq() {
+  jq -Rn -c '
       [inputs
        | select(length > 0)
        | (index("=")) as $i
@@ -447,24 +458,36 @@ emit_json() {
           if (.key | IN("ts_ms","span_start_ms","span_end_ms","seq","duration_s","stops","escalations","decisions","questions","fix_tasks","amendments","files"))
              and (.value | type == "string" and test("^(0|[1-9][0-9]*)$"))
           then .value |= tonumber else . end)
-    '
+  '
+}
+
+emit_json_legacy() {
+  local first=1 line key val
+  printf '{'
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    key="${line%%=*}"
+    val="${line#*=}"
+    [ $first -eq 1 ] || printf ','
+    first=0
+    case "$key" in
+      ts_ms|span_start_ms|span_end_ms|seq|duration_s|stops|escalations|decisions|questions|fix_tasks|amendments|files)
+        if [[ "$val" =~ ^(0|[1-9][0-9]*)$ ]]; then
+          printf '"%s":%s' "$key" "$val"
+          continue
+        fi ;;
+    esac
+    printf '"%s":"%s"' "$key" "$val"
+  done
+  printf '}\n'
+}
+
+emit_json() {
+  # Reads KEY=JSON-ESCAPED-VALUE pairs on stdin and emits one JSON object.
+  if command -v jq >/dev/null 2>&1; then
+    emit_json_jq
   else
-    local first=1 line key val
-    printf '{'
-    while IFS= read -r line; do
-      [ -z "$line" ] && continue
-      key="${line%%=*}"; val="${line#*=}"
-      [ $first -eq 1 ] || printf ','
-      first=0
-      case "$key" in
-        ts_ms|span_start_ms|span_end_ms|seq|duration_s|stops|escalations|decisions|questions|fix_tasks|amendments|files)
-          if [[ "$val" =~ ^(0|[1-9][0-9]*)$ ]]; then
-            printf '"%s":%s' "$key" "$val"; continue
-          fi ;;
-      esac
-      printf '"%s":"%s"' "$key" "$val"
-    done
-    printf '}\n'
+    emit_json_legacy
   fi
 }
 
@@ -628,59 +651,58 @@ cmd_run_start() {
 }
 
 # ── step ──────────────────────────────────────────────────────────────
-cmd_step() {
-  local run="" step="" outcome="" stops="" esc="" dec="" q="" gate="" tests=""
-  local fixt="" promoted="" amend="" files="" subtask="" blocker="" note=""
-  if ! parse_arguments step "$@"; then
-    reject_invocation step "$PARSE_ERROR_FIELD" "$PARSE_ERROR_CODE"
-    return 0
-  fi
+# Private step phases read and update cmd_step's invocation-local step_context.
+# Call mutating phases directly: subshells and pipelines cannot update their owner.
+# Storage, replay, clock, inherited labels and staged receipt fields use fixed keys;
+# PARSED_ARGS remains the validated public options, including normalized aliases.
+normalize_step_arguments() {
   normalize_step_aliases "${PARSED_ARGS[outcome]-}" "${PARSED_ARGS[gate]-}" "${PARSED_ARGS[note]-}"
   if has_parsed_arg outcome; then PARSED_ARGS[outcome]="$NORMALIZED_OUTCOME"; fi
   if has_parsed_arg gate; then PARSED_ARGS[gate]="$NORMALIZED_GATE"; fi
   if has_parsed_arg note || [ -n "$NORMALIZED_NOTE" ]; then PARSED_ARGS[note]="$NORMALIZED_NOTE"; fi
-  run="${PARSED_ARGS[run]-}"
-  step="${PARSED_ARGS[step]-}"
-  outcome="${PARSED_ARGS[outcome]-}"
-  stops="${PARSED_ARGS[stops]-}"
-  esc="${PARSED_ARGS[escalations]-}"
-  dec="${PARSED_ARGS[decisions]-}"
-  q="${PARSED_ARGS[questions]-}"
-  gate="${PARSED_ARGS[gate]-}"
-  tests="${PARSED_ARGS[tests]-}"
-  fixt="${PARSED_ARGS[fix_tasks]-}"
-  promoted="${PARSED_ARGS[promoted]-}"
-  amend="${PARSED_ARGS[amendments]-}"
-  files="${PARSED_ARGS[files]-}"
-  subtask="${PARSED_ARGS[subtask]-}"
-  blocker="${PARSED_ARGS[blocker]-}"
-  note="${PARSED_ARGS[note]-}"
-  if ! validate_step_args; then return 0; fi
-  local file last seq dur event_epoch ts pipeline project task flow before_size after_size
-  file="$(meta_get "$run" file)" || { reject_invocation step run not-found; return 0; }
-  [ -n "$file" ] && [ -f "$file" ] || { reject_invocation step run not-found; return 0; }
-  lock_run step "$run" "$file" || return 0
-  local correlated=0 delivery_key='' payload='' previous='' delivery='' pending='' receipt='' field
-  if is_correlated_step; then
-    correlated=1
-    delivery_key="accepted|${PARSED_ARGS[session_id]}|${PARSED_ARGS[checkpoint_id]}"
-    PARSED_ARGS[span_kind]="${PARSED_ARGS[span_kind]-work}"
-    payload="$(for field in "${!PARSED_ARGS[@]}"; do json_kv "$field" "${PARSED_ARGS[$field]}"; done | emit_json | jq -Sc .)" || {
-      warn 'step correlation tooling unavailable'; return 0;
-    }
-    if meta_read "$run" "$delivery_key" previous; then
-      if ! printf '%s' "$previous" | jq -e --argjson payload "$payload" '.arguments == $payload' >/dev/null 2>&1; then
-        reject_invocation step checkpoint_id conflicting-delivery; return 0
-      fi
-      seq="$(printf '%s' "$previous" | jq -er '.seq' 2>/dev/null)" || {
-        warn 'step accepted metadata unavailable'; return 0;
-      }
-      valid_count "$seq" || { warn 'step accepted metadata unavailable'; return 0; }
-      hook_receipt "$run" "$seq" true 2>/dev/null || warn 'step receipt unavailable'
-      return 0
-    fi
+}
+
+prepare_step_storage() {
+  local run="${step_context[run]}" file
+  file="$(meta_get "$run" file)" || { reject_invocation step run not-found; return 1; }
+  [ -n "$file" ] && [ -f "$file" ] || { reject_invocation step run not-found; return 1; }
+  lock_run step "$run" "$file" || return 1
+  step_context[file]="$file"
+}
+
+replay_step_delivery() {
+  local previous="$1" run="${step_context[run]}" payload="${step_context[payload]}" seq
+  if ! printf '%s' "$previous" | jq -e --argjson payload "$payload" '.arguments == $payload' >/dev/null 2>&1; then
+    reject_invocation step checkpoint_id conflicting-delivery; return 1
   fi
-  before_size="$( (wc -c < "$file") 2>/dev/null)" || { warn 'step event storage unavailable'; return 0; }
+  seq="$(printf '%s' "$previous" | jq -er '.seq' 2>/dev/null)" || {
+    warn 'step accepted metadata unavailable'; return 1;
+  }
+  valid_count "$seq" || { warn 'step accepted metadata unavailable'; return 1; }
+  hook_receipt "$run" "$seq" true 2>/dev/null || warn 'step receipt unavailable'
+}
+
+prepare_step_delivery() {
+  local run="${step_context[run]}" delivery_key payload previous field
+  step_context[correlated]=0
+  if ! is_correlated_step; then return 0; fi
+  step_context[correlated]=1
+  delivery_key="accepted|${PARSED_ARGS[session_id]}|${PARSED_ARGS[checkpoint_id]}"
+  PARSED_ARGS[span_kind]="${PARSED_ARGS[span_kind]-work}"
+  payload="$(for field in "${!PARSED_ARGS[@]}"; do json_kv "$field" "${PARSED_ARGS[$field]}"; done | emit_json | jq -Sc .)" || {
+    warn 'step correlation tooling unavailable'; return 1;
+  }
+  step_context[delivery_key]="$delivery_key"
+  step_context[payload]="$payload"
+  if meta_read "$run" "$delivery_key" previous; then
+    replay_step_delivery "$previous"
+    return 1
+  fi
+}
+
+read_step_clock() {
+  local run="${step_context[run]}" file="${step_context[file]}" last seq dur event_epoch ts before_size
+  before_size="$( (wc -c < "$file") 2>/dev/null)" || { warn 'step event storage unavailable'; return 1; }
   last="$(meta_get "$run" last_epoch)"
   seq="$(meta_get "$run" seq)"
   valid_count "$last" || last="$(now_epoch)"
@@ -688,88 +710,141 @@ cmd_step() {
   seq=$((seq + 1))
   event_epoch="$(now_epoch)"
   dur=$((event_epoch - last))
-  if [ "$correlated" -eq 1 ]; then
+  if [ "${step_context[correlated]}" -eq 1 ]; then
     dur=$(( (PARSED_ARGS[span_end_ms] - PARSED_ARGS[span_start_ms]) / 1000 ))
   fi
   [ "$dur" -ge 0 ] || dur=0
   ts="$(now_iso)"
+  step_context[before_size]="$before_size"
+  step_context[seq]="$seq"
+  step_context[event_epoch]="$event_epoch"
+  step_context[duration_s]="$dur"
+  step_context[ts]="$ts"
+}
+
+read_step_metadata() {
+  local run="${step_context[run]}" pipeline project task flow
   meta_read "$run" pipeline pipeline || pipeline=''
   meta_read "$run" project project || project=''
   meta_read "$run" task task || task=''
   meta_read "$run" flow flow || flow=''
   [ -n "$flow" ] || flow='unknown'
+  step_context[pipeline]="$pipeline"
+  step_context[project]="$project"
+  step_context[task]="$task"
+  step_context[flow]="$flow"
+}
 
-  if [ "$correlated" -eq 1 ]; then
-    pending="$ACTIVE_DIR/$run.pending.$$"
-    (umask 077; : > "$pending") 2>/dev/null || { warn 'step metadata persistence failed'; return 0; }
-    delivery="$(jq -cn --argjson arguments "$payload" --argjson seq "$seq" '{arguments:$arguments,seq:$seq}')" &&
-    receipt="$(hook_receipt "$run" "$seq" false)" &&
-    stage_hook_metadata "$run" "$pending" "$event_epoch" "$seq" "$delivery_key" "$delivery" 2>/dev/null || {
-      rm -f "$pending" 2>/dev/null
-      warn 'step metadata persistence failed'; return 0;
-    }
+stage_step_delivery() {
+  [ "${step_context[correlated]}" -eq 1 ] || return 0
+  local run="${step_context[run]}" pending delivery receipt context_json
+  pending="$ACTIVE_DIR/$run.pending.$$"
+  step_context[pending]="$pending"
+  (umask 077; : > "$pending") 2>/dev/null || { warn 'step metadata persistence failed'; return 1; }
+  delivery="$(jq -cn --argjson arguments "${step_context[payload]}" --argjson seq "${step_context[seq]}" '{arguments:$arguments,seq:$seq}')" &&
+  receipt="$(hook_receipt "$run" "${step_context[seq]}" false)" &&
+  context_json="$(jq -cn --arg last_epoch "${step_context[event_epoch]}" --arg seq "${step_context[seq]}" \
+    --arg delivery_key "${step_context[delivery_key]}" --arg delivery "$delivery" \
+    '{last_epoch:$last_epoch,seq:$seq,delivery_key:$delivery_key,delivery:$delivery}')" &&
+  stage_hook_metadata "$run" "$pending" "$context_json" 2>/dev/null || {
+    rm -f "$pending" 2>/dev/null
+    warn 'step metadata persistence failed'; return 1;
+  }
+  step_context[receipt]="$receipt"
+}
+
+emit_step_core_fields() {
+  local field
+  json_kv ts "${step_context[ts]}"
+  json_kv ts_ms "$(now_millis)"
+  json_kv run_id "${step_context[run]}"
+  json_kv event step
+  json_kv seq "${step_context[seq]}"
+  json_kv pipeline "${step_context[pipeline]}"
+  json_kv step "${PARSED_ARGS[step]-}"
+  json_kv outcome "${PARSED_ARGS[outcome]-}"
+  json_kv duration_s "${step_context[duration_s]}"
+  if [ "${step_context[correlated]}" -eq 1 ]; then
+    for field in ${RUN_LOG_CONTRACT[hook.required]} parent_checkpoint_id span_kind; do
+      has_parsed_arg "$field" && json_kv "$field" "${PARSED_ARGS[$field]}"
+    done
   fi
+}
+
+emit_step_optional_fields() {
+  local field
+  json_kv project "${step_context[project]}"
+  [ -z "${step_context[task]}" ] || json_kv task "${step_context[task]}"
+  json_kv flow "${step_context[flow]}"
+  for field in subtask stops escalations decisions questions gate tests fix_tasks promoted amendments files blocker note; do
+    [ -z "${PARSED_ARGS[$field]-}" ] || json_kv "$field" "${PARSED_ARGS[$field]}"
+  done
+  true
+}
+
+rollback_step_append() {
+  if [ "${step_context[correlated]}" -eq 1 ]; then
+    truncate -s "${step_context[before_size]}" "${step_context[file]}" 2>/dev/null
+    rm -f "${step_context[pending]}" 2>/dev/null
+  fi
+}
+
+append_step_event() {
+  local file="${step_context[file]}" before_size="${step_context[before_size]}" after_size
   if ! (
     {
-      json_kv ts "$ts"
-      json_kv ts_ms "$(now_millis)"
-      json_kv run_id "$run"
-      json_kv event step
-      json_kv seq "$seq"
-      json_kv pipeline "$pipeline"
-      json_kv step "$step"
-      json_kv outcome "$outcome"
-      json_kv duration_s "$dur"
-      if [ "$correlated" -eq 1 ]; then
-        for field in ${RUN_LOG_CONTRACT[hook.required]} parent_checkpoint_id span_kind; do
-          has_parsed_arg "$field" && json_kv "$field" "${PARSED_ARGS[$field]}"
-        done
-      fi
-      json_kv project "$project"
-      [ -z "$task" ] || json_kv task "$task"
-      json_kv flow "$flow"
-      [ -z "$subtask" ] || json_kv subtask "$subtask"
-      [ -z "$stops" ] || json_kv stops "$stops"
-      [ -z "$esc" ] || json_kv escalations "$esc"
-      [ -z "$dec" ] || json_kv decisions "$dec"
-      [ -z "$q" ] || json_kv questions "$q"
-      [ -z "$gate" ] || json_kv gate "$gate"
-      [ -z "$tests" ] || json_kv tests "$tests"
-      [ -z "$fixt" ] || json_kv fix_tasks "$fixt"
-      [ -z "$promoted" ] || json_kv promoted "$promoted"
-      [ -z "$amend" ] || json_kv amendments "$amend"
-      [ -z "$files" ] || json_kv files "$files"
-      [ -z "$blocker" ] || json_kv blocker "$blocker"
-      [ -z "$note" ] || json_kv note "$note"
-      true
+      emit_step_core_fields
+      emit_step_optional_fields
     } | emit_json >> "$file"
   ) 2>/dev/null; then
-    if [ "$correlated" -eq 1 ]; then truncate -s "$before_size" "$file" 2>/dev/null; rm -f "$pending" 2>/dev/null; fi
+    rollback_step_append
     warn 'step event persistence failed'
-    return 0
+    return 1
   fi
   after_size="$( (wc -c < "$file") 2>/dev/null)" || after_size=0
   if [ "$after_size" -le "$before_size" ]; then
-    if [ "$correlated" -eq 1 ]; then truncate -s "$before_size" "$file" 2>/dev/null; rm -f "$pending" 2>/dev/null; fi
+    rollback_step_append
     warn 'step event persistence failed'
-    return 0
+    return 1
   fi
-  if [ "$correlated" -eq 1 ]; then
+}
+
+commit_step_metadata() {
+  local run="${step_context[run]}" pending="${step_context[pending]-}"
+  if [ "${step_context[correlated]}" -eq 1 ]; then
     if ! mv "$pending" "$ACTIVE_DIR/$run" 2>/dev/null; then
-      truncate -s "$before_size" "$file" 2>/dev/null
+      truncate -s "${step_context[before_size]}" "${step_context[file]}" 2>/dev/null
       rm -f "$pending" 2>/dev/null
-      warn 'step metadata persistence failed'; return 0
+      warn 'step metadata persistence failed'; return 1
     fi
-    printf '%s\n' "$receipt"
+    printf '%s\n' "${step_context[receipt]}"
     return 0
   fi
-  if ! meta_set "$run" last_epoch "$event_epoch" ||
-     ! meta_set "$run" seq "$seq" ||
-     ! meta_set "$run" flow "$flow"; then
+  if ! meta_set "$run" last_epoch "${step_context[event_epoch]}" ||
+     ! meta_set "$run" seq "${step_context[seq]}" ||
+     ! meta_set "$run" flow "${step_context[flow]}"; then
     warn 'step metadata persistence failed'
+    return 1
+  fi
+  check_step_name "${PARSED_ARGS[step]-}"
+}
+
+cmd_step() {
+  local -A step_context=()
+  if ! parse_arguments step "$@"; then
+    reject_invocation step "$PARSE_ERROR_FIELD" "$PARSE_ERROR_CODE"
     return 0
   fi
-  check_step_name "$step"
+  normalize_step_arguments
+  step_context[run]="${PARSED_ARGS[run]-}"
+  if ! validate_step_args; then return 0; fi
+  prepare_step_storage || return 0
+  prepare_step_delivery || return 0
+  read_step_clock || return 0
+  read_step_metadata
+  stage_step_delivery || return 0
+  append_step_event || return 0
+  commit_step_metadata || return 0
 }
 
 # ── run-end ───────────────────────────────────────────────────────────
