@@ -22,4 +22,4 @@ so that a contributor can find the *why* without reading every rule. ADR-0007 an
 | 0010 | Public hygiene, complete knowledge-base preservation, and local publication | Accepted | 2026-10-19 | [0010-task-unknown-public-hygiene-and-local-publication.md](0010-task-unknown-public-hygiene-and-local-publication.md) |
 | 0011 | Run-log contract validation and usable retrospective evidence | Accepted | 2026-10-21 | [0011-task-02-run-log-contract.md](0011-task-02-run-log-contract.md) |
 | 0012 | Respect repository-owned knowledge tracking policy | Accepted | 2026-10-22 | [0012-task-unknown-knowledge-tracking-policy.md](0012-task-unknown-knowledge-tracking-policy.md) |
-| 0013 | Explicitly correlated hooks and coverage-aware timing | Provisional | 2026-10-22 | [0013-task-03-correlated-hook-logging.md](0013-task-03-correlated-hook-logging.md) |
+| 0013 | Explicitly correlated hooks and coverage-aware timing | Provisional | 2026-10-26 | [0013-task-03-correlated-hook-logging.md](0013-task-03-correlated-hook-logging.md) |

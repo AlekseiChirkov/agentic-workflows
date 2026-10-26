@@ -19,8 +19,8 @@ phases — Discovery, Execution, Validation — with all progress persisted in t
 project's `.ai/tasks/…/state.md`, and every orchestrated run appends telemetry to a
 central log store that `/retro` reads.
 
-Current inventory: 38 workflows, 14 rules, 4 principles, 9 shell scripts and one Python
-engine under `scripts/`, with automated consistency and smoke checks.
+Current inventory: 38 workflows, 14 rules, 4 principles, 10 shell scripts and two Python
+engines under `scripts/`, with automated consistency and smoke checks.
 
 ## Components
 
@@ -85,6 +85,7 @@ root), `AGENTS.md` (Codex, per project), `codex-global-AGENTS.md` (→ `~/.codex
 | `scripts/log-step.sh` | validates complete producer arguments and exact legacy aliases before append-only JSONL writes; optional-jq legacy fallback; sorted runtime `contract` export and read-only `lint` diagnostics/summary; executable integer `ts_ms` boundaries; optional correlated identities and spans use bounded per-run flock, private active-only deduplication and matching JSON acceptance receipts; jq is required for lint and correlated writes, with flock/truncate additionally required for correlated writes; exits 0 on every error |
 | `hooks/log-step-hook.sh` | Bash/jq/flock dispatch, status and serialized fallback; native Stop/SubagentStop adapter gates the most-specific registered project before private/transcript/log reads, validates canonical markers and native Skill evidence, freezes native/report-bound delivery for receipt-confirmed retries, and retains exclusive fallback ownership; private records under the XDG state directory contain no conversation text |
 | `scripts/install-hooks.sh`, `scripts/install-hooks.py` | Bash lifecycle entrypoint guards Python 3.11+ before a typed source-only standard-library engine loads; the engine preserves user settings numeric lexemes, tracks exact inserted handler/group multiset quotas, serializes installation and recovers prepared before/after settings replacements without overwriting external edits; Python is required for installation/removal, while jq/flock gate installation only |
+| `scripts/run-log-timing.sh`, `scripts/run-log-timing.py` | Explicit-file offline Bash launcher and typed Python 3.11+ standard-library engine; private unchanged snapshots and complete canonical producer lint gate exact integer interval/graph analysis, decimal-string totals and exact ratios; jq is required for eligibility, unavailable inputs/dependencies never become measured zeros |
 
 `harness/claude/hooks.json` contains the portable native hook fragment. Claude and Codex capability declarations under `harness/` distinguish mechanism support, current installation status and demonstrated checkpoint coverage. Sync rebuilds the existing global instruction bodies and appends each capability block and installation result once; installation unavailability does not interrupt the other deployment targets or consumer refresh.
 
@@ -99,6 +100,8 @@ Project setup is the sole writer of the XDG configuration project registry. It r
 `tests/hook-install.sh` covers owned installation/removal, lossless numeric settings, multiset quotas, malformed inputs, concurrent registration, interrupted replacement recovery and isolated multi-harness sync. The focused `--hook-install-only` mode and default validator run the same lifecycle acceptance suite without real-home deployment.
 
 `tests/hook-workflow-contract.sh` combines instruction-contract assertions with isolated public adapter/producer composition. The focused `--hook-workflow-only` mode and default validator check one-route delivery, canonical receipts, approximate unobserved boundaries and the existing test-definition return's dispatch/report handoff. These are synthetic fixtures; they do not claim live model compliance or event firing. The same worker, return points and GREEN/validation batches remain intact.
+
+`tests/hook-timing.sh` checks exact interval arithmetic, graph quarantine, historical/approximate exclusions, strict snapshot/lint completeness and a two-run installation-to-removal lifecycle. The focused `--hook-timing-only` mode and default validator run the same isolated acceptance suite. The correlated producer fixture also proves actual partial output is rolled back before one accepted retry. Existing adapter/producer fixture bodies retain their behavior after mandatory annotation harmonization.
 
 ### Layer 6 — `logs/` (central telemetry store)
 `logs/runs/<ts>-<pipeline>-<id>.jsonl` + `.md` digest, `.active/` for open runs.

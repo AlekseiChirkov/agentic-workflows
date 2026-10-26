@@ -179,7 +179,7 @@ Use the sequential feature stack. It keeps each independently verifiable outcome
 - docs/analysis/2026-09-16-comparative-analysis-tldr.ru.md:1,40 — preserve the historical comparison record.
 - docs/analysis/2026-09-16-comparative-analysis.ru.md:1,14,117,225,263,429,444 — preserve the historical analysis record.
 - docs/audits/2026-07-21-logic-audit-fixes.md:1,8,568 — preserve the historical audit record.
-- docs/USAGE.md:251 — permit one public-slug token only inside the live clone URL; the clone destination and every other checkout reference use `~/projects/orchestrail`.
+- docs/USAGE.md:254 — permit one public-slug token only inside the live clone URL; the clone destination and every other checkout reference use `~/projects/orchestrail`.
 
 ### Exact Identity Match Ledger
 
@@ -202,7 +202,7 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 | `docs/analysis/2026-09-16-comparative-analysis.ru.md` | 1, 14, 117, 225, 263, 444 | `agentic_workflows` × 1 per line |
 | `docs/analysis/2026-09-16-comparative-analysis.ru.md` | 429 | `AGENTIC_WORKFLOWS` × 1 |
 | `docs/audits/2026-07-21-logic-audit-fixes.md` | 1, 8, 568 | `agentic_workflows` × 1 per line |
-| `docs/USAGE.md` | 251 | `agentic-workflows` × 1 |
+| `docs/USAGE.md` | 254 | `agentic-workflows` × 1 |
 
 ### Root File Decisions
 - `.ai/memory/architecture.md`: updated during Discovery for repository identity, configuration roots, and version metadata; the validator count was synchronized during validation.

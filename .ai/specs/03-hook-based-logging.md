@@ -505,6 +505,57 @@ intent in REQ-01 through REQ-05.
   therefore an offline eligibility dependency alongside Python; missing either
   dependency cannot produce clean-looking empty metrics. Temporary snapshots are
   private and cleaned up after analysis.
+
+#### Reference interval fixtures
+
+All examples use run `[0,10000)` in one session. Nested: actor A work `[0,10000)`,
+child B work `[2000,8000)`, and B's waiting child `[4000,6000)`. Same actor overlap:
+A work `[0,6000)` and `[4000,10000)`, B work `[5000,7000)`, all roots. Invalid
+component: I work `[0,4000)` references a missing parent; J work `[1000,3000)` is
+I's child; independent root R work `[6000,10000)` has waiting child `[7000,8000)`.
+
+| Millisecond measure | Nested | Same actor overlap | Invalid component |
+|---|---:|---:|---:|
+| Inclusive work sum | 16000 | 14000 | 10000 |
+| Work/observed union | 10000 | 10000 | 8000 |
+| Exclusive work union | 8000 | 10000 | 3000 |
+| Excess work span | 6000 | 4000 | 2000 |
+| Wall overlap | 6000 | 3000 | 3000 |
+| Parallel worker overlap | 0 | 2000 | 0 |
+| Waiting sum/union | 2000 | 0 | 1000 |
+
+Nested worker totals are A=4000 and B=4000. Overlapping A's additive worker total
+is unavailable; B=2000. Invalid-component I/J totals are unavailable; R=3000.
+Only the invalid-component example has an uncovered gap: `[4000,6000)`. Ratios use
+the stated 10000-ms wall denominator and the corresponding observed/exclusive union.
+
+#### Offline interface and lint coverage
+
+- Per-run `metrics` keys are `wall_ms`, `inclusive_work_span_ms`, `work_union_ms`,
+  `observed_union_ms`, `exclusive_work_union_ms`, `excess_work_span_ms`,
+  `wall_overlap_ms`, `parallel_worker_overlap_ms`, `inclusive_waiting_span_ms`,
+  `waiting_union_ms`, `coverage_ratio`, `active_work_coverage_ratio` and `gaps`.
+  Do not introduce synonymous aliases. Worker records use `session_id`, `agent_id`
+  and `exclusive_work_ms`. Named-step records use `step`, `inclusive_work_span_ms`
+  and `exclusive_work_span_ms`; these are work summaries and exclude `unknown`.
+  Group eligibility and partial-result reasons live in run status/diagnostics rather
+  than additional group subtotal/status fields. Span records expose
+  normalized identity, parent/kind/source/boundary, decimal-string endpoints,
+  `inclusive_ms`, `exclusive_ms` and `exclusive_segments` (endpoint pairs or null).
+- If any otherwise timing-eligible work span for an actor belongs to a quarantined
+  component, that actor's complete `exclusive_work_ms` is null, even with another
+  valid root. Named-step `exclusive_work_span_ms` is likewise null if any constituent
+  work span is quarantined; its valid raw inclusive sum remains available. Opaque
+  file graph coverage also nulls these totals. Publish no additive subtotals as totals.
+  Valid per-span segments and eligible global union/parallel metrics remain partial
+  observations. Same-actor overlap alone does not erase known named-step exclusive
+  span sums; it invalidates the actor's additive worker total separately.
+- Each run exposes `approximate`: true when any lint-eligible prompt/legacy step
+  lacks measured hook interval evidence, or an eligible step carries the exact
+  approximation note/prefix. Gaps alone do not set this flag. Rejected hook rows
+  remain exclusions, not synthetic approximate intervals. False means no eligible
+  approximate observation was found; it never proves complete or named coverage,
+  including when no eligible steps exist. Run status and coverage remain separate.
 - Timing CLI: `bash scripts/run-log-timing.sh [--] FILE...`, with `-h/--help`.
   Inputs are explicit paths only; no implicit store discovery, stdin corpus or active
   metadata reads. Deduplicate repeated canonical paths in caller order. Each input file
@@ -513,9 +564,19 @@ intent in REQ-01 through REQ-05.
   Missing inputs, invalid arguments and failed reads produce structured unavailable
   results, never successful empty-corpus metrics.
 - Output is one version-1 JSON object with `status`, `coverage`, `runs` and
-  `diagnostics`. Coverage reports lint status, selected files, examined lines, invalid
-  lines, violation count and whether the invalid-line count is exact. Unavailable
-  corpus metrics and runs are null. A run reports its file, identity, status, metrics,
+  `diagnostics`, plus `schema_version:1`. There is no top-level `metrics` field.
+  Coverage keys are `lint_status` (`ok`, `partial`, `unavailable`), `selected_files`
+  (unique canonical input count, or null before selection), `examined_lines` (integer
+  or null), `invalid_lines` and `violations` (nonnegative integers), and
+  `invalid_lines_exact` (boolean). `lint_status:"ok"` requires an actual ok summary
+  plus complete independent verification, including when known violations exist;
+  those exclusions instead make corpus/affected-run status partial. Preserve
+  `lint_status:"partial"` only for well-formed actual partial lint evidence; it cannot
+  establish complete coverage. Missing, malformed, inconsistent or failed evidence is
+  `lint_status:"unavailable"`, even if it purported to be ok. Unverified lint makes
+  corpus status unavailable, with null examined lines and inexact known-lower-bound
+  violation counts. Corpus-level failure uses `runs:null`; per-run failure uses
+  that run's `metrics:null` and makes the corpus status partial. A run reports its file, identity, status, metrics,
   spans, workers, named-step summaries and reason-coded diagnostics; never emit raw
   records, notes or conversation context. Millisecond endpoints and totals are decimal
   strings; ratios use exact `numerator_ms` and `denominator_ms` strings, or null when

@@ -6,8 +6,8 @@ are read by `/pae-implement` and `/bugfix` for the automated verification step.
 
 ## Commands
 test:      bash scripts/validate-contracts.sh
-lint:      for f in scripts/*.sh; do bash -n "$f" || exit 1; done; command -v shellcheck >/dev/null && shellcheck -S warning scripts/*.sh || true
-typecheck: (none — markdown and bash only)
+lint:      for f in scripts/*.sh hooks/*.sh tests/*.sh; do bash -n "$f" || exit 1; done; command -v shellcheck >/dev/null && shellcheck -S warning scripts/*.sh hooks/*.sh tests/*.sh || true
+typecheck: (none — no standalone checker configured; focused acceptance checks mandatory Python annotations)
 build:     bash scripts/sync.sh --from "$(pwd)"
 
 Notes:
@@ -17,6 +17,12 @@ Notes:
   artifact. Use `scripts/sync.sh --from <dir>` when working on a copy outside the canonical path.
 - `scripts/validate-task.sh <task-dir>` checks one task's artifacts; run it manually when working
   on a task under `.ai/tasks/`.
+- Focused hook suites use `scripts/validate-contracts.sh --hook-adapter-only`,
+  `--hook-install-only`, `--hook-workflow-only` and `--hook-timing-only`. They use
+  disposable home/config/state/project/log roots rather than real user settings.
+- Installer and offline timing engines require Python 3.11 or newer, using only the
+  standard library. Timing also requires jq-backed producer lint. Native hooks retain
+  Bash/jq/flock dependencies; saved-state uninstall does not require jq/flock.
 
 ## Local configuration
 
@@ -82,7 +88,9 @@ Follow `.ai/principles/coding.md → Changing a contract`. Additionally:
 
 ### Run a retro
 1. `ls logs/runs/*.jsonl | wc -l` — below 5 the findings are anecdotes.
-2. `/retro [--since <date>] [--pipeline <name>]` in an agent session. Requires `jq`.
+2. `/retro [--since <date>] [--pipeline <name>]` in an agent session. Requires `jq`;
+   exact interval analysis additionally uses Python 3.11+. The offline timing helper
+   accepts only explicitly selected files and never discovers or repairs history.
 3. The report lands in `logs/retro-<date>.md`. Findings that name a file become specs.
 4. `bash scripts/log-step.sh active` lists runs never closed with `run-end`.
 
