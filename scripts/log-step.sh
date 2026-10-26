@@ -528,7 +528,8 @@ meta_encode() { # meta_encode <value>
   printf '%s' "$encoded_value"
 }
 
-meta_set() { # meta_set <run_id> <key> <value>
+meta_set() ( # meta_set <run_id> <key> <value>
+  umask 077
   valid_run_id "$1" || return 1
   local f="$ACTIVE_DIR/$1"
   touch "$f" 2>/dev/null || return 1
@@ -554,7 +555,7 @@ meta_set() { # meta_set <run_id> <key> <value>
     return 1
   fi
   if ! mv "$tmp" "$f" 2>/dev/null; then rm -f "$tmp" 2>/dev/null; return 1; fi
-}
+)
 
 # ── run-start ─────────────────────────────────────────────────────────
 cmd_run_start() {
@@ -670,15 +671,36 @@ prepare_step_storage() {
   step_context[file]="$file"
 }
 
+# Check the original number tokens before JSON parsing can normalize them.
+read_step_delivery_sequence() {
+  printf '%s' "$1" | jq -Rser '
+    def json_tokens:
+      [scan("\"(?:[^\"\\\\\u0000-\u001f]|\\\\(?:[\"\\\\/bfnrt]|u[0-9a-fA-F]{4}))*\"|-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\\[\\]:,]|[ \\t\\r\\n]+")];
+    . as $original | json_tokens as $tokens |
+    select(($tokens | join("")) == $original) |
+    select(all($tokens[] | select(test("^-?[0-9]"));
+      test("^(0|[1-9][0-9]*)\\z") and
+      (length < 16 or (length == 16 and . <= "9007199254740991")))) |
+    ($tokens | map(select(test("^[ \\t\\r\\n]+$") | not))) as $compact |
+    [$compact | range(0; length - 1) as $index |
+      select(.[$index + 1] == ":") | .[$index] | fromjson] as $keys |
+    select(($keys | length) == ($keys | unique | length)) |
+    fromjson |
+    select(type == "object" and keys == ["arguments", "seq"] and
+      (.arguments | type == "object") and
+      (.seq | type == "number" and . > 0 and . <= 9007199254740991)) |
+    .seq
+  ' 2>/dev/null
+}
+
 replay_step_delivery() {
   local previous="$1" run="${step_context[run]}" payload="${step_context[payload]}" seq
+  seq="$(read_step_delivery_sequence "$previous")" || {
+    warn 'step accepted metadata unavailable'; return 1;
+  }
   if ! printf '%s' "$previous" | jq -e --argjson payload "$payload" '.arguments == $payload' >/dev/null 2>&1; then
     reject_invocation step checkpoint_id conflicting-delivery; return 1
   fi
-  seq="$(printf '%s' "$previous" | jq -er '.seq' 2>/dev/null)" || {
-    warn 'step accepted metadata unavailable'; return 1;
-  }
-  valid_count "$seq" || { warn 'step accepted metadata unavailable'; return 1; }
   hook_receipt "$run" "$seq" true 2>/dev/null || warn 'step receipt unavailable'
 }
 
@@ -818,6 +840,7 @@ commit_step_metadata() {
       warn 'step metadata persistence failed'; return 1
     fi
     printf '%s\n' "${step_context[receipt]}"
+    [ "${PARSED_ARGS[step]-}" = unknown ] || check_step_name "${PARSED_ARGS[step]-}"
     return 0
   fi
   if ! meta_set "$run" last_epoch "${step_context[event_epoch]}" ||
