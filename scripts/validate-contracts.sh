@@ -3998,6 +3998,7 @@ test_contract_version_rule_history_warns_until_version_changes() (
   tar --exclude=.git --exclude=logs -cf - . | tar -xf - -C "$fixture" || return 1
   python3 - "$fixture/scripts/validate-contracts.sh" <<'PYVERSION' || return 1
 from pathlib import Path
+import re
 import sys
 path = Path(sys.argv[1])
 for opening, closing in (
@@ -4011,7 +4012,13 @@ for opening, closing in (
     lines = path.read_text().splitlines(keepends=True)
     start = next(i for i, line in enumerate(lines) if line.startswith(opening))
     end = next(i for i in range(start + 1, len(lines)) if lines[i].startswith(closing))
-    path.write_text(''.join(lines[:start] + lines[end + 1:]))
+    retained = []
+    if opening == '# ── Run-log producer smoke checks':
+        block = ''.join(lines[start + 1:end])
+        block, removed = re.subn(r'^check [^\n]*\\\n  "\$\([^\n]*\)"\n', '', block, flags=re.M)
+        assert removed == 28 and not re.search(r'^check ', block, re.M), 'unexpected producer check shape'
+        retained = [block]
+    path.write_text(''.join(lines[:start] + retained + lines[end + 1:]))
 PYVERSION
   cd "$fixture" || return 1
   git init -q || return 1
