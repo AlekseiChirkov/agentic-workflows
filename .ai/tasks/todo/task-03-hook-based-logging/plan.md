@@ -5,7 +5,7 @@
 | ID | Name | Model | Key Steps (summary) | Depends On | Status |
 |---|---|---|---|---|---|
 | T-01 | Validated correlated event writes |  | freeze regressions → implement component → verify | — | reviewed |
-| T-02 | Explicit hook dispatch and completion |  | freeze regressions → implement component → verify | T-01 | not-started |
+| T-02 | Explicit hook dispatch and completion |  | freeze regressions → implement component → verify | T-01 | reviewed |
 | T-03 | Owned user hook installation |  | freeze regressions → implement component → verify | T-02 | not-started |
 | T-04 | Coverage-aware workflow logging | | freeze regressions → implement component → verify | T-03 | not-started |
 | T-05 | Honest timing and end-to-end evidence | | freeze regressions → implement component → verify | T-04 | not-started |

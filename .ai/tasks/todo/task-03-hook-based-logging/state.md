@@ -18,10 +18,14 @@ flow: full
 - Hook availability is distinct from boundary coverage. Batched sub-agent skills and single-session internal transitions retain prompt logging unless explicitly observable (source: specification REQ-04; workflows/spec-run.md dispatch shape; Arbiter).
 - Extend the existing producer additively; never replace its validated vocabularies, optional-jq legacy path or read-only lint guarantees (source: ADR-0011).
 - Correlation state is private active metadata outside historical logs; explicit run/session/agent/checkpoint identity and an accepted-write receipt govern attribution and retries (source: specification REQ-01/03; Arbiter).
-- Runtime remains Bash with jq for hooks and flock for serialization; unavailable hook dependencies select nonblocking approximate fallback. No new paid or model-driven tests (source: existing Bash/jq runtime; specification notes and REQ-05).
+- Hooks remain Bash/jq/flock; offline exact timing uses Python 3 standard library with existing jq-backed lint for eligibility. Unavailable dependencies disclose unavailable coverage without blocking work. No new paid or model-driven tests (source: existing runtime patterns; specification notes and REQ-05; Arbiter).
 - The owner requests full autonomous specification and implementation, including routine defect repairs, with analysis delegated for decisions. Full resolved interfaces are documented in the specification before their implementation (source: user, 2026-10-26; Arbiter).
 - Resume accepts the recorded implementation tip or verified knowledge-only snapshots above it; each snapshot records its exact parent and changed paths instead of its own hash (source: ADR-0010 Decision 2; completed task-02 Knowledge Snapshots; Arbiter).
 - flow: full — gate: 1 fail (more than three files), 2 fail (correlation contract), 3 fail (shipped logging behavior), 4 pass (no database migration).
+
+### Description Amendments
+- 2026-10-26: The owner requested a full autonomous specification. Resolved marker/native schema, receipt/fallback ownership, project selection, installation recovery and exact timing contracts were added to the specification before their corresponding components were implemented. Sources: owner instruction, existing roadmap decisions, cited Arbiter analyses and native documentation. No acceptance criterion was weakened.
+- 2026-10-26: Independent adapter review exposed Markdown fence eligibility errors; raw-number analysis exposed rounding at explicit receipt/private-state validation boundaries. CommonMark lexical rules and fresh canonical integer encodings clarify the existing invalid-input contract. Separate failing regression commits precede the repair; historical lint compatibility remains unchanged.
 
 ## Open Questions (batch)
 None.
@@ -115,11 +119,50 @@ T-01 | Validated correlated event writes | atomic-tests: green | atomic-executio
   commits: be65b3dc956a3e156ad95d4b3535765ea41b6746 test(logging): cover correlated events and precise intervals, a10aeb3e42d2c74448e11939186b82cb8e205794 feat(logging): accept correlated checkpoint intervals
   pr: #23 draft
 
-T-02 | Explicit hook dispatch and completion | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: discovery complete
-  target_files:
+T-02 | Explicit hook dispatch and completion | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: DoD met — all six acceptance criteria independently verified; fence and exact-token repairs validated; 38 frozen adapter checks and full 587-check contract gate pass
+  target_files: hooks/log-step-hook.sh, tests/log-step-hook.sh, rules/run-log.md, scripts/validate-contracts.sh
   blocker: none
-  notes: tdd: integration and contract fixtures required before implementation
+  notes: tdd: integration and contract — 15 tests, AC coverage 6/6; isolated HOME, XDG config/state, checkout and log roots
+         tdd: red digest — AC-1 → test_hook_interleaved_runs_preserve_exact_identity, test_hook_concurrent_duplicate_deliveries_append_once, test_hook_closed_run_delivery_never_reopens; AC-2 → test_hook_dispatch_private_correlation_is_explicit, test_hook_missing_and_conflicting_native_fields_preserve_pending, test_hook_inactive_project_gates_before_transcript_and_state_reads; AC-3 → test_hook_session_unknown_and_unique_skill_remain_distinct; AC-4 → test_hook_native_schema_and_input_limits_warn_safely, test_hook_bounded_transcript_tail_requires_dispatch_input; AC-5 → test_hook_accepted_status_blocks_fallback_and_returns_receipt, test_hook_fallback_first_owns_route_even_when_legacy_write_fails, test_hook_frozen_retry_requires_matching_receipt; AC-6 → test_hook_marker_canonicality_and_exact_tuple_reject_ambiguity, test_hook_native_evidence_uses_input_and_unique_invocation_ids; shared contract → test_hook_documented_dispatch_marker_and_ownership_contract
+         tdd: red evidence — bash scripts/validate-contracts.sh --hook-adapter-only exits 1: 14 explicit canonical dispatch-marker assertions fail; canonical rule test fails on missing ORCHESTRAIL_DISPATCH_V1; no fixture/import/syntax failures
+         tdd: frozen test sha256 — a617509fa241ae4e3fd422032a07ee9c35d11817d963e2d11628c98d75d6ab94
+         tdd: baseline coverage — later scenario assertions are frozen but cannot execute until missing dispatch is implemented; documentation independently fails against existing rule
+         tdd: added — 13 independent edge checks cover nested registry, invalid fallback, route concurrency, dependencies, exact input bytes, native evidence, parent/waiting, missing start, strict receipts, rotated retries, Unicode bounds, skill suffixes and corrupted cached attribution
+         tdd: green — all 15 frozen test names and bodies unchanged; 28 adapter checks pass, 35 isolated producer/lint/retro checks pass; full validator 587 passed, 0 failed, 2 optional hygiene skips; canonical runtime gate, individual scripts/hooks/tests shell syntax and whitespace checks pass
+         acceptance: all 6 criteria pass through executable isolated fixtures; cached corruption never cross-attributes; durable retries retain native/report binding; process death or lost receipt remains explicitly uncertain
+         verification: ShellCheck unavailable; real-home deployment intentionally omitted; full validation includes isolated deployment coverage; real settings and historical logs untouched
+         architecture.md: adapter component and new focused validator mode proposed to orchestrator; plan transition T-02 → done and shared compression are orchestrator-owned
+         validation: NEEDS WORK — acceptance criteria 2/4/6 incomplete for ineligible fenced report markers; important defect at hooks/log-step-hook.sh:217-223 tracks only delimiter character, ignoring opening length and valid closing syntax
+         validation: isolated native delivery with a four-backtick opener, three-backtick line, canonical report and four-backtick closer emits no warning, appends one precise event and reaches accepted while the report remains inside code; same result for four/three tildes and a closing candidate with trailing text
+         validation: inverse fence case rejects an eligible marker after the actual four-backtick close; add regressions covering fence lengths, invalid closing suffixes and genuine outside reports before repair
+         validation: all 15 frozen RED tests and their fixture methods remain structurally unchanged; initial test digest matches a617509fa241ae4e3fd422032a07ee9c35d11817d963e2d11628c98d75d6ab94; 13 additive checks audited
+         validation: focused adapter 28 checks, producer/lint/retro 35 checks, canonical runtime contract, task artifacts 17 checks, shell syntax and committed whitespace pass; ShellCheck unavailable; no real-home deployment; full validator started but not relied on after reproducible rejection failure
+         validation: step 1 stopped on NEEDS WORK; no improvement or close step executed; no plan transition or architecture delta
+         tdd: repair red digest — AC-2/4/6 → test_hook_report_short_fence_candidates_keep_marker_in_code, test_hook_report_nonclosing_fence_suffixes_and_tabs_keep_marker_in_code, test_hook_report_real_matching_or_longer_closers_allow_outside_marker, test_hook_report_openers_respect_indentation_and_info_string_syntax, test_hook_report_line_separators_preserve_fence_and_marker_boundaries
+         tdd: repair red evidence — canonical validator --hook-adapter-only with five named groups exits 1; all five groups fail, with 24 substantive subcase assertion failures across 26 cases: fenced examples append or genuine outside markers remain pending; no fixture/import/syntax errors
+         tdd: repair frozen set — all 28 existing test names and bodies unchanged; five additive repair groups; fixture SHA256 8d1cd100b6e7c0fee7b2d39a22ad29336a5901c8a08ada4558027211398ab2fc
+         repair decision: bounded top-level CommonMark lexical fences retain character and run length; opening/closing indentation 0–3 ASCII spaces, no leading tab; backtick info excludes backticks, closing suffix only spaces/tabs; LF/CRLF/lone CR are separators without trimming JSON; Arbiter cites CommonMark sections 2.1, 2.2 and 4.5
+         tdd: numeric repair red digest — AC-2/4/5/6 → test_hook_raw_fractional_or_exponent_receipt_sequence_leaves_delivery_uncertain, test_hook_raw_noncanonical_cached_receipt_sequence_never_returns_acceptance, test_hook_raw_noncanonical_cached_start_never_forwards_frozen_payload, test_hook_raw_noncanonical_cached_end_never_forwards_frozen_payload, test_hook_fresh_schema_version_requires_exact_integer_token
+         tdd: numeric repair red evidence — five named groups through canonical --hook-adapter-only exit 1 with substantive acceptance/status/forwarding failures; raw fractional or exponent encodings round into apparently integral seq/start/end/schema values; no fixture/import/syntax failures
+         tdd: numeric repair frozen set — all 33 existing test names and bodies unchanged; five additive numeric groups; fixture SHA256 afd5a5019a207c3c3eb6324eb6b3c331fa6489f8e2b6da186e27032829cf43e5
+         repair: fence GREEN — all 33 frozen checks pass; producer 35 checks and full validator 587 passed, 0 failed, 2 optional skips; later exact-token defect requires new RED before completion
+         tdd: repair green — all 38 frozen tests unchanged byte for byte from the numeric RED checkpoint; fence and numeric regression groups pass; producer/lint/retro 35 checks pass; stable full validator 587 passed, 0 failed, 2 optional hygiene skips
+         verification: repaired source passes canonical runtime contract, per-file scripts/hooks/tests shell syntax and whitespace checks; ShellCheck unavailable; real-home deployment omitted and real settings/logs untouched
+         acceptance: repaired AC-2/4/5/6 verified by ten added regression groups; complete original AC mapping retained; fenced examples cannot supply outcomes and raw fractional/exponent numeric encodings cannot authorize cached delivery or acceptance
+         finalization: atomic execution complete; validation remains failed until independent recheck; no new component or export; plan transition T-02 → done and shared architecture/decision verification remain orchestrator-owned
+         validation: recheck DONE at b17ca232 — all six acceptance criteria met; initial fence finding resolved; no critical or important findings remain
+         validation: original 15, expanded 28, fence 33 and numeric 38 frozen test stages retain every test and fixture method byte for byte; final fixture SHA256 afd5a5019a207c3c3eb6324eb6b3c331fa6489f8e2b6da186e27032829cf43e5 matches the numeric RED checkpoint
+         validation: independent shorter-fence and invalid-suffix probes now warn and preserve pending state and logs; real outside reports and quote/list container-boundary controls accept correctly
+         validation: independent raw receipt probes reject rounded fractions, exponent and underflow forms, negative zero and above-maximum integers; canonical positive integers through the exact maximum accept; quoted numeric text stays a string; malformed private numbers and concatenated records cannot forward or return acceptance
+         validation: repaired adapter 38 checks and producer/lint/retro 35 checks pass; stable full gate 587 passed, 0 failed, 2 optional hygiene skips; runtime contract, task artifacts 17 checks, per-file shell syntax and committed whitespace pass
+         validation: ShellCheck unavailable; no real-home deployment or historical-log access; documented process-death and lost-receipt uncertainty remains an explicit persistence limitation
+         validation: pav-propose batch complete — no proposals; pav-close complete in orchestrated mode; plan delta T-02 → reviewed returned to orchestrator; protected audit retained and shared compression remains orchestrator-owned
+  branch: feat/hook-event-adapter
+  base_branch: feat/correlated-event-writes
+  base_commit: 6695f37ac3c6c3fe979f47fcdf84eadf6c475962
+  commits: a40270437130e317d67266809ba1c669fc3ef29d test(hooks): define explicit checkpoint delivery behavior, 3ba0e22e03ad5451e7c3afab206dd0ad047a0694 feat(hooks): correlate native completion checkpoints, cb4cf524489ebf83acaa6e6ac1fd6463c1c71f8f test(hooks): cover fenced report eligibility, 9c0a0102d9dd8c7214522ec0ff049e8bf42cc713 test(hooks): reject noncanonical protocol numbers, b17ca232dbde31705a0b375890348059451be336 fix(hooks): validate report fences and exact protocol numbers
+  pr: #24 draft
 
 T-03 | Owned user hook installation | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: discovery complete
@@ -174,4 +217,15 @@ recorded_paths:
 - .ai/tasks/todo/task-03-hook-based-logging/T-05-retrospective-timing/description.md
 - .ai/tasks/todo/task-03-hook-based-logging/plan.md
 - .ai/tasks/todo/task-03-hook-based-logging/state-archive.md
+- .ai/tasks/todo/task-03-hook-based-logging/state.md
+
+### Reviewed native completion adapter
+
+branch: feat/hook-event-adapter
+expected_parent: b17ca232dbde31705a0b375890348059451be336
+allowed_scope: exactly the listed knowledge-base paths
+recorded_paths:
+- .ai/memory/architecture.md
+- .ai/specs/03-hook-based-logging.md
+- .ai/tasks/todo/task-03-hook-based-logging/plan.md
 - .ai/tasks/todo/task-03-hook-based-logging/state.md

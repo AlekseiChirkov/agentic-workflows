@@ -82,10 +82,13 @@ root), `AGENTS.md` (Codex, per project), `codex-global-AGENTS.md` (→ `~/.codex
 | `scripts/setup-umbrella.sh`, `scripts/setup-all-repos.sh` | multi-repo initialization |
 | `scripts/link-skills.sh` | workaround: symlink global skills into a project's `.claude/skills/` |
 | `scripts/log-step.sh` | validates complete producer arguments and exact legacy aliases before append-only JSONL writes; optional-jq legacy fallback; sorted runtime `contract` export and read-only `lint` diagnostics/summary; executable integer `ts_ms` boundaries; optional correlated identities and spans use bounded per-run flock, private active-only deduplication and matching JSON acceptance receipts; jq is required for lint and correlated writes, with flock/truncate additionally required for correlated writes; exits 0 on every error |
+| `hooks/log-step-hook.sh` | Bash/jq/flock dispatch, status and serialized fallback; native Stop/SubagentStop adapter gates the most-specific registered project before private/transcript/log reads, validates canonical markers and native Skill evidence, freezes native/report-bound delivery for receipt-confirmed retries, and retains exclusive fallback ownership; private records under the XDG state directory contain no conversation text |
 
 ### Executable acceptance checks
 
 `tests/log-step.sh` copies the helper, canonical contract and workflows into a disposable checkout and runs the focused producer, lint, retrospective and drift checks in separate Bash processes. Explicit temporary log/workflow roots and per-operation checksums isolate fixtures from real logs; exit and signal traps clean up the temporary tree.
+
+`tests/log-step-hook.sh` exercises native input, explicit dispatch correlation, exact report markers, bounded transcript evidence, private state and competing delivery routes in disposable home/config/state/project/log roots. Run it through `bash scripts/validate-contracts.sh --hook-adapter-only`; the default validator includes the same acceptance suite.
 
 ### Layer 6 — `logs/` (central telemetry store)
 `logs/runs/<ts>-<pipeline>-<id>.jsonl` + `.md` digest, `.active/` for open runs.
