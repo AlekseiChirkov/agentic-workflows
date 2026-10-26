@@ -351,6 +351,29 @@ class WorkflowLogging(unittest.TestCase):
                      r'(?is)(?:never|not).{0,80}fabricat.{0,80}native'))
 
 
+    def test_hook_documentation_distinguishes_named_and_unknown_session_coverage(self) -> None:
+        usage = (SOURCE / 'docs/USAGE.md').read_text()
+        usage = usage.split('### Hook coverage and retrospective timing\n', 1)[1].split('\n## ', 1)[0]
+        capability = (SOURCE / 'harness/claude/capabilities.md').read_text()
+        for name, content in (('capabilities', capability), ('usage', usage)):
+            with self.subTest(document=name):
+                text = ' '.join(content.split())
+                self.assertIn('Named workflow coverage requires exactly one native Skill invocation', text)
+                self.assertRegex(text, r'unambiguously correlated session with no (?:native )?Skill invocation '
+                                      r'may report `step: unknown`')
+                self.assertIn('observed coverage without named workflow coverage', text)
+                self.assertIn('Unknown session coverage cannot suppress a named prompt event', text)
+                self.assertIn('A matching accepted receipt for a named checkpoint suppresses only '
+                              'its corresponding prompt event', text)
+
+    def test_hook_documentation_separates_native_and_legacy_dependencies(self) -> None:
+        content = (SOURCE / 'harness/claude/capabilities.md').read_text()
+        text = ' '.join(content.split())
+        self.assertIn('Native hooks require Bash, jq and flock', text)
+        self.assertIn('Ordinary writes retain their existing legacy dependencies, including optional jq', text)
+        self.assertIn('Python is used by the installer', text)
+
+
 suite = unittest.TestSuite(WorkflowLogging(name) for name in sys.argv[2:]) if len(sys.argv) > 2 else unittest.defaultTestLoader.loadTestsFromTestCase(WorkflowLogging)
 raise SystemExit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())
 PY
