@@ -166,11 +166,11 @@ try:
         if key not in documented:
             fail(key, 'missing documentation value or extra runtime definition'); continue
         raw, expected = runtime[key], documented[key]
-        is_set = key.startswith('step.') or key == 'run-end.outcome' or key == 'count.fields'
+        is_set = key.startswith('step.') or key == 'run-end.outcome' or key in ('count.fields', 'hook.required', 'hook.boundary', 'hook.timing_source', 'hook.span_kind')
         if isinstance(expected,list) != is_set:
             fail(key, 'canonical value has the wrong JSON type'); continue
         if isinstance(expected,list):
-            actual = raw.split(' ' if key == 'count.fields' else '|')
+            actual = raw.split(' ' if key in ('count.fields', 'hook.required') else '|')
             if len(expected) != len(set(expected)) or len(actual) != len(set(actual)):
                 fail(key, 'duplicate enum or count value')
             if set(actual) != set(expected):
@@ -2087,7 +2087,7 @@ with tempfile.TemporaryDirectory(prefix='run-log-contract-') as temporary:
             pattern = re.compile(r'(^  \['+re.escape(key)+r"\]=)'([^']*)'", re.M)
             assert pattern.search(original_helper), key
             raw = contract[key]
-            separator = ' ' if key == 'count.fields' else '|'
+            separator = ' ' if key in ('count.fields', 'hook.required') else '|'
             changed = ([separator.join(raw.split(separator)[:-1]), raw+separator+'unexpected',
                         'unexpected'+separator+separator.join(raw.split(separator)[1:]), raw+separator+raw.split(separator)[0]]
                        if isinstance(value,list) else ['', raw+'unexpected'])
@@ -3357,6 +3357,242 @@ check "Run-log lint validates fields and shared vocabulary" \
 check "Run-log lint reports unavailable and partial checks" \
   "$(test_run_log_lint_reports_unavailable_and_partial_checks && echo pass || echo 'lint availability status or examined counts failed')"
 
+# Correlated event checks use only disposable stores, including injected I/O failures.
+run_correlated_event_smoke() {
+  python3 - "$REPO_ROOT" "$1" <<'PYCORRELATED'
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+import json, os, re, shlex, shutil, subprocess, sys, tempfile, time, uuid
+root, scenario = Path(sys.argv[1]), sys.argv[2]
+with tempfile.TemporaryDirectory(prefix='correlated events ') as temporary:
+    fixture = Path(temporary)
+    store = fixture/'private store'
+    environment = dict(os.environ, ORCHESTRAIL_LOG_ROOT=str(store), ORCHESTRAIL_HOME=str(root))
+    helper = root/'scripts/log-step.sh'
+    def invoke(*args, env=None):
+        result = subprocess.run(['bash',str(helper),*map(str,args)], env=env or environment,
+                                capture_output=True,text=True)
+        assert result.returncode == 0, result
+        return result
+    def start():
+        result = invoke('run-start','--pipeline','correlation-probe')
+        assert re.fullmatch('[0-9a-f]{8}\n',result.stdout), result
+        return result.stdout.strip()
+    def path(run):
+        return Path(invoke('path','--run',run).stdout.strip())
+    def rows(run):
+        return [json.loads(line) for line in path(run).read_text().splitlines()]
+    def snapshot():
+        return {str(p.relative_to(store)):p.read_bytes() for p in store.rglob('*') if p.is_file()}
+    session, agent = uuid.uuid4().hex, uuid.uuid4().hex
+    now = time.time_ns() // 1_000_000
+    def arguments(run, checkpoint, **changes):
+        fields = dict(run=run,step='dry-run',outcome='ok',session_id=session,agent_id=agent,
+                      checkpoint_id=checkpoint,span_start_ms=str(now-20000),span_end_ms=str(now-10000),
+                      timing_source='hook',boundary='subagent')
+        fields.update(changes)
+        return ['step',*[part for key,value in fields.items() if value is not None
+                         for part in ('--'+key.replace('_','-'),str(value))]]
+    def accepted(result, run, checkpoint, duplicate=False):
+        assert result.stdout.strip(), ('missing accepted receipt',result.stderr)
+        receipt = json.loads(result.stdout)
+        assert receipt == dict(kind='accepted',run_id=run,session_id=session,agent_id=agent,
+                               checkpoint_id=checkpoint,seq=receipt['seq'],duplicate=duplicate), receipt
+        assert isinstance(receipt['seq'],int) and receipt['seq'] > 0, receipt
+        assert not result.stderr, result.stderr
+        return receipt
+    def reject(result, before):
+        assert not result.stdout, result.stdout
+        assert len(result.stderr.splitlines()) == 1 and result.stderr.startswith('log-step:'), result.stderr
+        assert snapshot() == before, 'rejected delivery changed active state or events'
+    run = start()
+    checkpoint = uuid.uuid4().hex
+    if scenario == 'concurrent':
+        other = start()
+        deliveries = [(run,uuid.uuid4().hex),(other,uuid.uuid4().hex),(run,uuid.uuid4().hex)]
+        # Duplicate each identity concurrently; one new acceptance and one replay per identity.
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            results = list(pool.map(lambda pair: invoke(*arguments(*pair)),deliveries*2))
+        for pair in deliveries:
+            receipts = [json.loads(r.stdout) for p,r in zip(deliveries*2,results) if p==pair and r.stdout]
+            assert len(receipts)==2, ('missing concurrent receipts',results)
+            assert sorted(r['duplicate'] for r in receipts)==[False,True],receipts
+            assert len({r['seq'] for r in receipts})==1,receipts
+        for selected in (run,other):
+            records=rows(selected)
+            assert [r['seq'] for r in records]==list(range(len(records))),records
+            assert {r['checkpoint_id'] for r in records[1:]}=={c for r,c in deliveries if r==selected}
+            assert all(r['run_id']==selected for r in records)
+    elif scenario == 'duplicates':
+        original = accepted(invoke(*arguments(run,checkpoint)),run,checkpoint)
+        before=snapshot()
+        replay=accepted(invoke(*arguments(run,checkpoint)),run,checkpoint,True)
+        assert replay['seq']==original['seq'] and snapshot()==before
+        reject(invoke(*arguments(run,checkpoint,outcome='failed')),before)
+        earlier=uuid.uuid4().hex
+        accepted(invoke(*arguments(run,earlier,span_start_ms=now-40000,span_end_ms=now-30000)),run,earlier)
+        assert [r['checkpoint_id'] for r in rows(run)[1:]]==[checkpoint,earlier]
+        assert [r['duration_s'] for r in rows(run)[1:]]==[10,10]
+    elif scenario == 'invalid':
+        accepted(invoke(*arguments(run,checkpoint)),run,checkpoint)
+        before=snapshot()
+        bad_cases=[dict(session_id=None),dict(agent_id=''),dict(checkpoint_id='../secret'),
+                   dict(session_id='private\nsecret'),dict(span_start_ms='-1'),dict(span_start_ms='01'),
+                   dict(span_end_ms=str(now-21000)),dict(span_end_ms='9007199254740992'),
+                   dict(span_end_ms=None),dict(span_start_ms='1.5'),dict(timing_source='inferred'),
+                   dict(boundary='guess'),dict(parent_checkpoint_id=''),dict(step='unknown'),
+                   dict(outcome='secret'),dict(stops='-1')]
+        for changes in bad_cases:
+            reject(invoke(*arguments(run,uuid.uuid4().hex,**changes)),before)
+        later=uuid.uuid4().hex
+        receipt=accepted(invoke(*arguments(run,later,span_start_ms=now,span_end_ms=now)),run,later)
+        assert receipt['seq']==2 and rows(run)[-1]['duration_s']==0
+    elif scenario == 'boundaries':
+        first=rows(run)[0]
+        assert isinstance(first.get('ts_ms'),int), ('missing executable millisecond run boundary',first)
+        assert abs(first['ts_ms']-now)<5000,first
+        receipt=accepted(invoke(*arguments(run,checkpoint,span_start_ms=now-125,span_end_ms=now)),run,checkpoint)
+        record=rows(run)[-1]
+        assert record['span_end_ms']-record['span_start_ms']==125,record
+        assert record['duration_s']==0,record
+        event_file=path(run)
+        invoke('run-end','--run',run,'--outcome','completed')
+        last=json.loads(event_file.read_text().splitlines()[-1])
+        assert isinstance(last.get('ts_ms'),int) and last['ts_ms']>=first['ts_ms'],last
+        assert 'span_start_ms' not in first and 'span_start_ms' not in last
+    elif scenario == 'clock_format':
+        # Exercise executable Unix clock stamps at a fraction with leading zeros.
+        # Some coreutils versions format %3N as 650 for 006500000 nanoseconds.
+        shim=fixture/'clock commands'; shim.mkdir()
+        real_date=shutil.which('date'); assert real_date
+        (shim/'date').write_text('#!/bin/bash\nexec '+shlex.quote(real_date)+
+                                ' --date @1700000000.006500000 "$@"\n')
+        (shim/'date').chmod(0o755)
+        environment=dict(environment,PATH=str(shim)+':'+os.environ['PATH'])
+        pinned=start()
+        event_file=path(pinned)
+        invoke('step','--run',pinned,'--step','dry-run','--outcome','ok')
+        invoke('run-end','--run',pinned,'--outcome','completed')
+        stamps=[json.loads(line)['ts_ms'] for line in event_file.read_text().splitlines()]
+        assert stamps==[1700000000006]*3,stamps
+    elif scenario == 'waiting':
+        accepted(invoke(*arguments(run,checkpoint)),run,checkpoint)
+        assert rows(run)[-1]['span_kind']=='work'
+        child=uuid.uuid4().hex
+        accepted(invoke(*arguments(run,child,span_kind='waiting',parent_checkpoint_id=checkpoint)),run,child)
+        assert rows(run)[-1]['span_kind']=='waiting' and rows(run)[-1]['parent_checkpoint_id']==checkpoint
+        before=snapshot()
+        reject(invoke(*arguments(run,uuid.uuid4().hex,span_kind='guessed')),before)
+        reject(invoke(*arguments(run,child,parent_checkpoint_id=child)),before)
+        reject(invoke(*arguments(run,checkpoint,agent_id=uuid.uuid4().hex)),before)
+        unknown=uuid.uuid4().hex
+        result=invoke(*arguments(run,unknown,step='unknown',boundary='session',agent_id=session))
+        receipt=json.loads(result.stdout)
+        assert receipt['kind']=='accepted' and receipt['agent_id']==session and not result.stderr,result
+        diagnostics=[json.loads(line) for line in invoke('lint','--all').stdout.splitlines()]
+        assert diagnostics[-1]['invalid_lines']==0,diagnostics
+    elif scenario == 'lint':
+        accepted(invoke(*arguments(run,checkpoint)),run,checkpoint)
+        legacy=invoke('step','--run',run,'--step','dry-run','--outcome','ok')
+        assert not legacy.stdout and not legacy.stderr
+        historical=rows(run)
+        assert 'checkpoint_id' not in historical[-1]
+        before=snapshot()
+        result=invoke('lint','--all')
+        diagnostics=[json.loads(line) for line in result.stdout.splitlines()]
+        assert diagnostics[-1]['invalid_lines']==0,diagnostics
+        assert snapshot()==before
+        # New optional fields must be linted together; old records remain valid.
+        malformed=dict(historical[1],span_end_ms=now-21000)
+        with path(run).open('a') as stream: stream.write(json.dumps(malformed)+'\n')
+        malformed=dict(historical[1]); del malformed['session_id']
+        with path(run).open('a') as stream: stream.write(json.dumps(malformed)+'\n')
+        before=snapshot()
+        diagnostics=[json.loads(line) for line in invoke('lint','--all').stdout.splitlines()]
+        assert diagnostics[-1]['invalid_lines']==2,diagnostics
+        assert snapshot()==before
+        # jq regex end anchors can match before a final newline; require the
+        # entire historical identity to match the producer's ASCII contract.
+        malformed=dict(historical[1],session_id=session+'\n')
+        with path(run).open('a') as stream: stream.write(json.dumps(malformed)+'\n')
+        before=snapshot()
+        diagnostics=[json.loads(line) for line in invoke('lint','--all').stdout.splitlines()]
+        assert diagnostics[-1]['invalid_lines']==3,diagnostics
+        assert snapshot()==before
+    elif scenario in ('append_retry','metadata_retry'):
+        event_file=path(run)
+        original=event_file.read_bytes()
+        env=environment
+        if scenario=='append_retry':
+            event_file.unlink(); event_file.mkdir()
+        else:
+            shim=fixture/'commands'; shim.mkdir()
+            real_mv=shutil.which('mv')
+            (shim/'mv').write_text('#!/bin/bash\nfor arg in "$@"; do\n'
+                '  [ "$arg" != "$CORRELATION_DENY_DEST" ] || exit 1\ndone\n'
+                'exec '+str(real_mv)+' "$@"\n')
+            (shim/'mv').chmod(0o755)
+            env=dict(environment,PATH=str(shim)+':'+os.environ['PATH'],
+                     CORRELATION_DENY_DEST=str(store/'.active'/run))
+        before=snapshot()
+        reject(invoke(*arguments(run,checkpoint),env=env),before)
+        if scenario=='append_retry':
+            event_file.rmdir(); event_file.write_bytes(original)
+        receipt=accepted(invoke(*arguments(run,checkpoint)),run,checkpoint)
+        assert receipt['seq']==1
+        accepted(invoke(*arguments(run,checkpoint)),run,checkpoint,True)
+        assert len(rows(run))==2,rows(run)
+    elif scenario=='contract':
+        contract=dict(line.split('=',1) for line in invoke('contract').stdout.splitlines())
+        for key in ('hook.required','hook.identity_pattern','hook.timing_source','hook.boundary'):
+            assert key in contract, ('missing additive runtime contract',key)
+        checkout=fixture/'checkout'
+        for name in ('scripts/log-step.sh','scripts/validate-contracts.sh','rules/run-log.md'):
+            target=checkout/name; target.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(root/name,target)
+        def gate():
+            return subprocess.run(['bash',str(checkout/'scripts/validate-contracts.sh'),
+                                   '--run-log-contract-only'],capture_output=True,text=True)
+        assert gate().returncode==0
+        rule=checkout/'rules/run-log.md'; original=rule.read_text()
+        rule.write_text(re.sub(r'^\| `hook.required` .*\n','',original,flags=re.M))
+        result=gate(); assert result.returncode!=0 and 'hook.required' in result.stdout,result
+        rule.write_text(original)
+        copied=checkout/'scripts/log-step.sh'
+        copied.write_text(re.sub(r'^  \[hook.required\].*\n','',copied.read_text(),flags=re.M))
+        result=gate(); assert result.returncode!=0 and 'hook.required' in result.stdout,result
+PYCORRELATED
+}
+test_run_log_correlated_concurrent_runs_preserve_identity() { run_correlated_event_smoke concurrent; }
+test_run_log_correlated_duplicates_and_out_of_order_are_idempotent() { run_correlated_event_smoke duplicates; }
+test_run_log_correlated_invalid_fields_preserve_accepted_state() { run_correlated_event_smoke invalid; }
+test_run_log_correlated_lint_accepts_legacy_and_rejects_invalid_spans() { run_correlated_event_smoke lint; }
+test_run_log_correlated_append_failure_allows_retry() { run_correlated_event_smoke append_retry; }
+test_run_log_correlated_metadata_failure_allows_retry() { run_correlated_event_smoke metadata_retry; }
+test_run_log_correlated_waiting_and_parent_identity_are_explicit() { run_correlated_event_smoke waiting; }
+test_run_log_correlated_clock_boundaries_preserve_milliseconds() { run_correlated_event_smoke boundaries; }
+test_run_log_correlated_clock_fraction_preserves_leading_zeros() { run_correlated_event_smoke clock_format; }
+test_run_log_correlated_contract_detects_bidirectional_drift() { run_correlated_event_smoke contract; }
+check "test_run_log_correlated_concurrent_runs_preserve_identity" \
+  "$(test_run_log_correlated_concurrent_runs_preserve_identity && echo pass || echo 'concurrent correlated attribution failed')"
+check "test_run_log_correlated_duplicates_and_out_of_order_are_idempotent" \
+  "$(test_run_log_correlated_duplicates_and_out_of_order_are_idempotent && echo pass || echo 'correlated retry or out-of-order delivery failed')"
+check "test_run_log_correlated_invalid_fields_preserve_accepted_state" \
+  "$(test_run_log_correlated_invalid_fields_preserve_accepted_state && echo pass || echo 'invalid correlation changed accepted state')"
+check "test_run_log_correlated_lint_accepts_legacy_and_rejects_invalid_spans" \
+  "$(test_run_log_correlated_lint_accepts_legacy_and_rejects_invalid_spans && echo pass || echo 'correlated lint compatibility failed')"
+check "test_run_log_correlated_append_failure_allows_retry" \
+  "$(test_run_log_correlated_append_failure_allows_retry && echo pass || echo 'append failure lost a checkpoint')"
+check "test_run_log_correlated_metadata_failure_allows_retry" \
+  "$(test_run_log_correlated_metadata_failure_allows_retry && echo pass || echo 'metadata failure lost or duplicated a checkpoint')"
+check "test_run_log_correlated_contract_detects_bidirectional_drift" \
+  "$(test_run_log_correlated_contract_detects_bidirectional_drift && echo pass || echo 'correlated schema drift was not detected')"
+
+check "test_run_log_correlated_clock_boundaries_preserve_milliseconds" \
+  "$(test_run_log_correlated_clock_boundaries_preserve_milliseconds && echo pass || echo 'millisecond run boundaries missing')"
+check "test_run_log_correlated_clock_fraction_preserves_leading_zeros" \
+  "$(test_run_log_correlated_clock_fraction_preserves_leading_zeros && echo pass || echo 'clock fraction lost leading zeros')"
+check "test_run_log_correlated_waiting_and_parent_identity_are_explicit" \
+  "$(test_run_log_correlated_waiting_and_parent_identity_are_explicit && echo pass || echo 'waiting and parent identity contract failed')"
 # ── End run-log producer smoke checks ───────────────────────────────
 
 # ── Retrospective executable corpus contract ──────────────────────────

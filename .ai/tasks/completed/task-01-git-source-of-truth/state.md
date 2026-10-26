@@ -193,6 +193,7 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 | `.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md` | 69 | `agentic_workflows` × 1 |
 | `.ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md` | 105 | `agentic-workflows` × 1 |
 | `.ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md` | 107 | `agentic-workflows` × 3 |
+| `.ai/adr/0012-task-unknown-knowledge-tracking-policy.md` | 70 | `agentic-workflows` × 1 |
 | `.ai/memory/progress.md` | 4 | `agentic_workflows` × 1 |
 | `.ai/tasks/completed/task-00-sensitive-data-scrub/state.md` | 357 | `agentic-workflows` × 1 |
 | `.ai/tasks/completed/task-00-sensitive-data-scrub/state.md` | 359 | `agentic-workflows` × 3 |
