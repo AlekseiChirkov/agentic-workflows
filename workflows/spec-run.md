@@ -281,8 +281,9 @@ messages. Verify the recorded digest/commits before skipping an interrupted chec
 A characterization (`pinned`) checkpoint uses the same test-first commit handoff without
 claiming RED or emitting a named RED marker; follow `tdd` for its evidence.
 
-**4.3 Validator.** Spawn a **separate** session-default role worker without a model
-override after checking fresh worker capabilities, permissions and restrictions.
+**4.3 Validator.** Spawn a **separate** sub-agent as a session-default role worker
+without a model override after checking fresh worker capabilities, permissions and
+restrictions.
 Never inherit the Implementer's model or resolve its leaf plan model for this role.
 Keep unknown default identity unknown; successful spawning does not identify execution.
 Unavailable worker spawning stops the run. Give it: the path to the same
