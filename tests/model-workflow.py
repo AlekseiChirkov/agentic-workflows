@@ -21,6 +21,8 @@ PRESERVERS = ("pd-decompose", "pd-design", "pd-finalize")
 DERIVED = ("docs/USAGE.md", "docs/SPEC-RUN-QUICKSTART.md", "docs/README.md",
            "workflows/PIPELINE.md")
 HELPERS = ("model-catalog.py", "model_selection.py", "model_plan.py")
+GUIDE_CALLERS = ("workflows/pd-select-model.md", *(f"workflows/{name}.md" for name in EXECUTORS),
+                "rules/workflow-reference.md")
 
 
 def reachability_errors(root: Path) -> list[str]:
@@ -40,6 +42,33 @@ def reachability_errors(root: Path) -> list[str]:
         if not path.is_file() or "MODEL-CATALOG.md" not in path.read_text():
             errors.append(f"unreachable catalog guide: {relative}")
     return errors
+
+
+def installed_caller_fixtures(directory: Path) -> list[Path]:
+    sync = (ROOT / "scripts/sync.sh").read_text()
+    harnesses = sorted(set(re.findall(
+        r'cp "\$file" ~/(\.(?:claude|codex))/skills/\$(?:name|skill_name)/SKILL\.md', sync)))
+    if harnesses != [".claude", ".codex"]:
+        raise ValueError("fixture requires the actual Claude and Codex skill-copy layout")
+    installed = []
+    for harness in harnesses:
+        for relative in GUIDE_CALLERS:
+            source = ROOT / relative
+            name = ("rule-" if relative.startswith("rules/") else "") + source.stem
+            target = directory / harness / "skills" / name / "SKILL.md"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
+            installed.append(target)
+    return installed
+
+
+def guidance_source_fixture(directory: Path) -> Path:
+    source = directory / "verified source checkout"
+    for relative in (GUIDE, *(f"scripts/{helper}" for helper in HELPERS)):
+        target = source / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / relative, target)
+    return source
 
 
 class WorkflowContractTests(unittest.TestCase):
@@ -89,6 +118,25 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertTrue(reports, "CLI example must emit inspectable JSON scenario reports")
         self.assertEqual(len(reports), len({report["example"] for report in reports}))
         return {report["example"]: report for report in reports}
+
+    def guidance_preflight(self, rule: Path) -> str:
+        blocks = re.findall(r"^```bash model-catalog-guidance\n(.*?)^```\s*$",
+                            rule.read_text(), re.M | re.S)
+        self.assertEqual(len(blocks), 1,
+                         "installed callers need one executable canonical source-guidance preflight")
+        return blocks[0]
+
+    def run_guidance(self, script: str, context: tuple[Path, dict[str, str]]) -> subprocess.CompletedProcess[str]:
+        directory, settings = context
+        environment = dict(os.environ, HOME=str(directory / "home"),
+                           XDG_CONFIG_HOME=str(directory / "config"),
+                           XDG_STATE_HOME=str(directory / "state"),
+                           ORCHESTRAIL_LOG_ROOT=str(directory / "logs"))
+        for name in ("ORCHESTRAIL_HOME", "SOURCE_ROOT"):
+            environment.pop(name, None)
+        environment.update(settings)
+        return subprocess.run(["bash", "-eu", "-c", script], cwd=directory, env=environment,
+                              capture_output=True, text=True, check=False, timeout=10)
 
     def test_selector_cached_single_bulk_contract_is_compact_and_reachable(self) -> None:
         text = self.read("workflows/pd-select-model.md")
@@ -163,6 +211,97 @@ class WorkflowContractTests(unittest.TestCase):
                          "the orchestrator must not implement inline when model override is unavailable")
         self.patterns(selection, (r"spawn.*(?:default|override)", r"worker.*unavailable.*stop",
                                   r"(?:never|do not).*inline"))
+
+    def test_quickstart_unavailable_override_requires_authorized_default_worker_or_stop(self) -> None:
+        text = self.read("docs/SPEC-RUN-QUICKSTART.md")
+        self.assertFalse("report inline execution" in text,
+                         "the derived procedure must preserve the Orchestrator's fresh-worker boundary")
+        self.patterns(text, (r"(?:fresh|separate).*default.*worker",
+                             r"(?:missing/empty|no explicit).*model.*(?:intent|request)",
+                             r"explicitly authorized.*independently suitable.*fallback.*verified default",
+                             r"unknown.*default.*(?:without claiming|no).*selection",
+                             r"worker.*(?:unavailable|cannot).*stop", r"(?:never|do not).*inline"))
+
+    def test_installed_callers_resolve_guide_from_the_verified_helper_source_root(self) -> None:
+        reference = r"(?:\$(?:\{SOURCE_ROOT\}|SOURCE_ROOT)|<source-root>)/docs/MODEL-CATALOG\.md"
+        with tempfile.TemporaryDirectory(prefix="installed-model-guidance-") as temporary:
+            directory = Path(temporary)
+            source = guidance_source_fixture(directory)
+            installed = installed_caller_fixtures(directory / "home")
+            self.assertEqual(len(installed), 10)
+            for skill in installed:
+                with self.subTest(skill=str(skill.relative_to(directory))):
+                    self.assertFalse((skill.parent / "../docs/MODEL-CATALOG.md").is_file(),
+                                     "sync does not package a shared docs directory beside skill directories")
+                    content = skill.read_text()
+                    self.assertTrue(re.search(reference, content) is not None,
+                                    "installed instructions must name the guide under the helper source root")
+                    self.patterns(content, (r"(?:verified|configured).*source.*root",
+                                           r"same.*(?:root.*helper|helper.*root)"))
+                    self.assertTrue((source / "docs/MODEL-CATALOG.md").is_file())
+                    self.assertTrue((source / "scripts/model-catalog.py").is_file())
+
+    def test_installed_guidance_preflight_uses_configured_or_known_source_not_cwd(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="source-guidance-") as temporary:
+            directory = Path(temporary)
+            source = guidance_source_fixture(directory)
+            decoy = directory / "misleading project"
+            shutil.copytree(source, decoy)
+            installed = installed_caller_fixtures(directory / "home")
+            rule = next(path for path in installed if path.parent.name == "rule-workflow-reference")
+            script = self.guidance_preflight(rule)
+            self.patterns(rule.read_text(), (r"(?:never|do not).*CWD", r"schema.*rubric"))
+            for settings in ({"ORCHESTRAIL_HOME": str(source), "SOURCE_ROOT": str(decoy)},
+                             {"SOURCE_ROOT": str(source)}):
+                with self.subTest(settings=settings):
+                    result = self.run_guidance(script, (decoy, settings))
+                    self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                    self.assertIn("guidance: available", result.stdout)
+                    self.assertIn(f"helper: {source}/scripts/model-catalog.py", result.stdout)
+                    self.assertIn(f"guide: {source}/docs/MODEL-CATALOG.md", result.stdout)
+                    self.assertNotIn(str(decoy), result.stdout)
+
+    def test_installed_guidance_missing_root_guide_schema_or_rubric_preserves_inputs(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="missing-guidance-") as temporary:
+            directory = Path(temporary)
+            source = guidance_source_fixture(directory)
+            decoy = directory / "misleading project"
+            shutil.copytree(source, decoy)
+            installed = installed_caller_fixtures(directory / "home")
+            script = self.guidance_preflight(next(path for path in installed
+                                                 if path.parent.name == "rule-workflow-reference"))
+            guide = source / GUIDE
+            original = guide.read_text()
+            protected = {name: source / name for name in ("plan.md", "catalog.md", "session.txt")}
+            for path in protected.values():
+                path.write_bytes(b"Preserve fictional input bytes.\n")
+            cases = (({}, original), ({"SOURCE_ROOT": str(source)}, None),
+                     ({"SOURCE_ROOT": str(source)}, original.replace("## Schema and public operations", "## Removed")),
+                     ({"SOURCE_ROOT": str(source)}, original.replace("## Quality rubric, traits and uncertainty", "## Removed")))
+            for settings, content in cases:
+                with self.subTest(settings=settings, missing=content is None):
+                    guide.unlink(missing_ok=True) if content is None else guide.write_text(content)
+                    result = self.run_guidance(script, (decoy, settings))
+                    self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+                    self.assertIn("selection unavailable", result.stdout.lower())
+                    self.assertIn("preserve", result.stdout.lower())
+                    self.assertNotIn("guidance: available", result.stdout)
+                    for path in protected.values():
+                        self.assertEqual(path.read_bytes(), b"Preserve fictional input bytes.\n")
+            self.patterns(self.canonical(), (r"(?:missing|absent).*guid(?:e|ance).*unavailable",
+                                            r"(?:never|do not).*infer.*(?:score|rubric|schema|candidate)"))
+
+    def test_spec_run_leaf_model_intent_excludes_arbiter_and_independent_validator_defaults(self) -> None:
+        text = self.read("workflows/spec-run.md")
+        selection = text.split("## Step 2 — Model selection", 1)[1].split("\n---", 1)[0]
+        self.assertFalse("Before each model request or worker spawn" in selection,
+                         "plan-row resolution cannot apply to every worker role")
+        self.patterns(selection, (r"leaf execution workers.*Implementer", r"recreat",
+                                  r"Arbiter.*before Step 2.*(?:no leaf|no plan row)",
+                                  r"Validator.*(?:never|do not|must not).*inherit",
+                                  r"(?:task-wide|default-role).*session.default.*capabilit"))
+        validator = text.split("**4.3 Validator.**", 1)[1].split("\n---", 1)[0]
+        self.patterns(validator, (r"session.default", r"(?:never|do not|must not).*inherit.*model"))
 
     def test_discovery_and_quickstart_readers_preserve_optional_columns_and_staleness(self) -> None:
         for reader in PRESERVERS:
