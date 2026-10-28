@@ -38,6 +38,22 @@ standalone, perform the full bootstrap, set `execution: in-progress`, and resume
      do not run dependent rows while their prerequisites remain unmet.
    - Require its description's `## Steps` and `## Acceptance Criteria`; if absent →
      **stop**: "Incomplete subtask description. Run `/pd-decompose` + `/pd-finalize`."
+   - Before requesting a model or executing the atomic cycle, apply
+     `workflow-reference → ### Model columns and resolution`. Read the active optional
+     `Model (Claude)` / `Model (Codex)` column, legacy `Model`, or session default by
+     that precedence. Run the configured helper's
+     `--resolve-plan <plan> --provider <provider> --row <row-id> --resolution <resolution.json>`
+     using [the catalog guide](../docs/MODEL-CATALOG.md); keep `execution: null`.
+     Supply fresh invocation support from actual permitted tools, permissions and
+     restrictions, plus the task requirements and owner limits. Show requested,
+     resolved and actual identities and rejection reasons. Unsupported explicit
+     requests need an authorized eligible fallback or **stop**. Missing Python 3.11,
+     helpers or catalog means selection unavailable: preserve the current session;
+     never bypass explicit request eligibility. Without switching capability, run
+     inline in the same session only when the verified current identity satisfies
+     the request/fallback, or when no explicit request requires a switch, and note it.
+     Actual stays unknown without a separate matching current execution receipt
+     with caller provenance; a successful spawn alone proves no execution identity.
    - If atomic execution or its finalization is incomplete, call
      `/phase-atomic-execution <description-path>`. Execution complete with plan `done` and
      recorded finalization skips that call and resumes validation; an interrupted

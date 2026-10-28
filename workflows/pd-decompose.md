@@ -138,8 +138,11 @@ use applies the `phase-discovery` bootstrap.
    | T-XX | leaf | S1=N, S2=1, S3=N, S4=false, S5=1 | <evidence> |
    ```
 
-   Preserve an existing `Model` column and its values (after `Name`); do not
-   assign models here. Preserve row Status on a confirmed rerun. Do not remove,
+   Preserve optional model columns and their values, including `Model (Claude)`,
+   `Model (Codex)` and legacy `Model`, under
+   `workflow-reference → ### Model columns and resolution`; do not assign models
+   here or migrate populated legacy cells implicitly. Preserve composite model
+   cells as blank. Preserve row Status on a confirmed rerun. Do not remove,
    rename or change the type of a subtask with recorded progress; report a
    reconciliation blocker instead. Reconcile unstarted rows and flag any stale
    model recommendation when their scope changes.

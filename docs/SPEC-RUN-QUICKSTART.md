@@ -45,7 +45,7 @@ Without `--allow-pr`, no `git push` and no `gh` command runs at any point.
 |---|---|
 | 0 | Preflight; if the task directory exists, work out the resume point and reconcile recorded branches against the actual repository |
 | 1 | Discovery (`pd-analyze` → `pd-decompose` → `pd-design` → `pd-finalize`), autonomous. The Arbiter is spawned here and kept alive for the whole run. **→ the batch gate, see below** |
-| 2 | `/pd-select-model` in bulk mode fills the `Model` column in `plan.md` |
+| 2 | `/pd-select-model` in bulk mode recommends from the local catalog and updates optional `Model (Claude)` / `Model (Codex)` columns in `plan.md` |
 | 3 | Resolve execution order and print the branch stack before touching anything |
 | 4 | Per subtask: cut the branch → Implementer writes RED tests → **orchestrator commits `test:`** → same agent implements GREEN → orchestrator commits `feat:` → a **separate** Validator reviews → draft PR |
 | 5 | Task-level validation on the stack tip (`/phase-validation`) |
@@ -55,6 +55,17 @@ Without `--allow-pr`, no `git push` and no `gh` command runs at any point.
 
 Execution is strictly sequential — one subtask at a time. Sub-agents exist to bound context,
 not to parallelise.
+
+Before each model request, resolve the active provider's plan cell using fresh support
+and permission evidence. Legacy `Model` and missing columns remain supported; an
+empty present provider cell means session default. Unsupported explicit requests
+require an authorized eligible fallback or stop. Without switching capability, keep
+the current session and report inline execution only when that satisfies the request
+or permitted default path. Display requested, resolved and actual identities; actual
+stays unknown until a separate matching current execution receipt is available.
+Missing helper/Python/catalog evidence preserves the session and cannot waive explicit
+request eligibility. See [MODEL-CATALOG.md](MODEL-CATALOG.md) for dependency checks,
+explicit `--refresh`, rollback and offline examples.
 
 ---
 

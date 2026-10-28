@@ -8,6 +8,7 @@ Everything here is *about* the system; the system itself is `workflows/`, `rules
 - [USAGE.md](USAGE.md) — operating manual: setup, project initialisation, daily workflow, command reference, status formats, hook coverage and exact retrospective timing
 - [Repository scripts](../scripts/README.md#exact-run-timing) — explicit-file timing invocation, dependencies and output semantics
 - [SPEC-RUN-QUICKSTART.md](SPEC-RUN-QUICKSTART.md) — operating procedure for `/spec-run`
+- [MODEL-CATALOG.md](MODEL-CATALOG.md) — optional cached selection, explicit refresh/rollback, provider-column compatibility and offline helper examples
 
 ## Audits (`audits/`)
 

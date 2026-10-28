@@ -115,10 +115,30 @@ leaf, silently promote the tier or implement code in the Orchestrator.
 
 ## Step 2 — Model selection
 
-Run `/pd-select-model <task-directory>` in bulk mode. It writes the `Model` column into
-`plan.md → ## Subtasks`. Use that column when spawning the Implementer for each subtask.
+Run `/pd-select-model <task-directory>` in bulk mode. It writes the optional
+`Model (Claude)` / `Model (Codex)` columns in `plan.md → ## Subtasks`, preserving
+legacy `Model` values through explicit migration. Read the active provider column,
+legacy fallback and session default under
+`workflow-reference → ### Model columns and resolution`.
 
-If the column is absent or a row is blank, spawn with the session default and note it.
+Before each model request or worker spawn, including a recreated worker, run
+`model-catalog.py --resolve-plan <plan> --provider <provider> --row <row-id> --resolution <resolution.json>`
+using the configured source helper and the input schema in
+[the catalog guide](../docs/MODEL-CATALOG.md). Keep `execution: null` during resolution.
+Observe support afresh for that invocation from the actual permitted tools, current
+permissions and restrictions; catalog age and logging support do not establish it.
+Display requested, resolved and actual identities and any eligibility/fallback reasons.
+An unsupported explicit request needs an authorized eligible fallback or a stop.
+Missing Python 3.11/helper/catalog evidence means selection unavailable: preserve the
+current session configuration, never bypass explicit request eligibility. When model
+overrides are unavailable but workers can spawn, use a default worker without an override
+only for missing/empty model intent or an explicitly authorized independently suitable
+fallback matching its verified default. Never turn an unsupported explicit request into
+an unverified default. With no explicit request, unknown default identity/support permits
+an ordinary default worker without claiming model selection; report that path visibly.
+If worker spawning is unavailable, **stop**; never implement inline in the Orchestrator.
+Actual remains unknown until separate matching current execution evidence supplies a
+receipt with caller provenance; successful spawning alone is insufficient.
 
 ---
 
@@ -137,9 +157,9 @@ Print the plan before executing:
 ```
 Stack plan — <spec title>
   <base>
-  └── feat/oauth-token-schema      model: <model>   (T-01)
-      └── feat/oauth-token-service model: <model>   (T-02, depends T-01)
-          └── feat/oauth-login-route  model: <model>   (T-03a, child of composite T-03)
+  └── feat/oauth-token-schema      requested: <model/default>   (T-01)
+      └── feat/oauth-token-service requested: <model/default>   (T-02, depends T-01)
+          └── feat/oauth-login-route  requested: <model/default>   (T-03a, child of composite T-03)
 PRs: draft on creation, promoted to ready after validation | not created (no --allow-pr)
 ```
 
@@ -194,7 +214,11 @@ it as issued; if issuance is uncertain, use the canonical unknown-resume route. 
 reconstruct or quote the line as assistant/tool output. A known unavailable dispatch
 that issued no envelope uses the canonical ordinary approximate path.
 
-Spawn the fresh sub-agent with the model from Step 2. Give it: the path to
+Immediately before spawning, apply Step 2's resolution with current invocation evidence.
+Request only its eligible resolved identity; on a stop do not spawn. When model overrides
+are unavailable, use Step 2's permitted default-worker path without an override.
+Unavailable worker spawning stops execution; never replace the worker with inline implementation.
+Give the fresh sub-agent: the path to
 `T-XX/description.md`, the resolved `WORK_DIR`, the branch name,
 and the instruction to run `/pae-tests` → **report RED and wait** → `/pae-implement` →
 `/pae-finalize`. It loads `.ai/` context itself. Do **not** pass it the transcript of any

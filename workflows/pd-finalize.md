@@ -33,8 +33,11 @@ where later steps refer to Solution Design. Full flow runs all steps.
 1. Review full-flow consistency:
    - Task state has Task Analysis, complete Decomposition, and Solution Design/Decision.
    - `plan.md → ## Subtasks` has ID, Name, Key Steps (summary), Depends On, Status,
-     plus Type/Slice/Repo/Model columns where applicable. IDs are unique, dependencies
-     resolve without cycles, and execution order respects them.
+     plus Type/Slice/Repo where applicable. Preserve optional provider model columns
+     `Model (Claude)` / `Model (Codex)` and legacy `Model` under
+     `workflow-reference → ### Model columns and resolution`, including composite
+     blanks and intentional active-provider defaults; missing columns are valid.
+     IDs are unique, dependencies resolve without cycles, and execution order respects them.
    - Descriptions and `## Subtask Progress` match every plan row, including composites
      and their children; type, child order, target files and chosen scope agree.
 2. Verify each listed description:

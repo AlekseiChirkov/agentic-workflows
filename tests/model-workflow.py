@@ -114,6 +114,16 @@ class WorkflowContractTests(unittest.TestCase):
                              r"preserv.*session", r"explicit.*request.*(?:eligib|verif)",
                              r"(?:must not|never|do not).*bypass", r"(?:no|never).*historical.*(?:log|store)"))
 
+    def test_selector_explicit_refresh_recovers_catalog_before_selection_availability_guard(self) -> None:
+        text = self.read("workflows/pd-select-model.md")
+        dependency_guard = text.split("### Step 0", 1)[1].split("Catalog:", 1)[0]
+        self.assertNotIn("invalid catalog", dependency_guard,
+                         "invalid catalog must not return before explicitly authorized repair")
+        self.assertNotIn("absent current support", dependency_guard,
+                         "refresh research must remain possible without selectable current support")
+        self.patterns(text, (r"--refresh.*(?:missing|invalid).*catalog.*(?:initialize|repair|recover)",
+                             r"refresh research.*does not require.*(?:support|selectable)"))
+
     def test_canonical_model_columns_define_empty_precedence_and_explicit_migration(self) -> None:
         text = self.canonical()
         self.patterns(text, (r"Model \(Claude\)", r"Model \(Codex\)", r"legacy.*`Model`",
@@ -145,6 +155,14 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertTrue(REFERENCE in text, f"{reader} must reach the canonical model contract")
                 self.patterns(text, (r"--resolve-plan", r"(?:before|prior to).*(?:spawn|request|execut)",
                                      r"(?:same|current).*session", r"requested.*resolved.*actual"))
+
+    def test_spec_run_unavailable_model_override_preserves_worker_role_boundaries(self) -> None:
+        text = self.read("workflows/spec-run.md")
+        selection = text.split("## Step 2 — Model selection", 1)[1].split("\n---", 1)[0]
+        self.assertNotIn("continue in the same session", selection,
+                         "the orchestrator must not implement inline when model override is unavailable")
+        self.patterns(selection, (r"spawn.*(?:default|override)", r"worker.*unavailable.*stop",
+                                  r"(?:never|do not).*inline"))
 
     def test_discovery_and_quickstart_readers_preserve_optional_columns_and_staleness(self) -> None:
         for reader in PRESERVERS:

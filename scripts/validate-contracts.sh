@@ -864,20 +864,15 @@ check "ORCH: pv-create-fixes calls the classifier" \
 check "ORCH: Fix Classification subsection permitted in workflow-globals" \
   "$(grep -q 'Fix Classification' rules/workflow-globals.md 2>/dev/null && echo pass || echo 'workflow-globals.md ## Fix-Tasks format does not permit the ### Fix Classification subsection')"
 
-# Model column
-# Naming the words "Model column" is not the contract — /spec-run Step 2 reads a persisted
-# value, so bulk mode must be stated to WRITE it, and no step may forbid writing it outright.
-# Step 5 said "chat only — do NOT add a Model column to plan.md" while the header said bulk
-# mode writes it; a bare substring check passed against that flat contradiction.
+# Optional model columns
+# Bulk selection persists explicit provider decisions through the compatible updater;
+# single recommendations remain chat-only. Legacy Model reading stays canonical.
 PDSM_FLAT="$(tr '\n' ' ' < workflows/pd-select-model.md 2>/dev/null | tr -s ' ' || true)"
-check "ORCH: pd-select-model writes the Model column in bulk mode" \
-  "$(printf '%s' "$PDSM_FLAT" | grep -qE 'Bulk mode: writes the .Model. column into .plan\.md|Bulk mode — write the .Model. column into .plan\.md' && echo pass || echo 'pd-select-model.md does not state that bulk mode writes the Model column into plan.md — /spec-run Step 2 then reads a column nothing produces')"
+check "ORCH: pd-select-model persists explicit optional model columns in bulk mode" \
+  "$(printf '%s' "$PDSM_FLAT" | grep -qF 'Bulk mode writes only explicit' && printf '%s' "$PDSM_FLAT" | grep -qF 'Model (Claude)' && printf '%s' "$PDSM_FLAT" | grep -qF 'Model (Codex)' && printf '%s' "$PDSM_FLAT" | grep -qF -- '--update-plan PLAN --updates UPDATES.json' && echo pass || echo 'bulk selection must persist explicit provider-column decisions through the compatible plan updater')"
 
-# Any prohibition on writing the column must be scoped to single-subtask mode; an unscoped one
-# contradicts the bulk-mode output contract and strands /spec-run Step 2.
-PDSM_BAN="$(printf '%s' "$PDSM_FLAT" | grep -oE '.{0,70}[Dd]o NOT\*{0,2},? add a .Model. column' || true)"
-check "ORCH: pd-select-model scopes the no-column rule to single-subtask mode" \
-  "$(if [ -z "$PDSM_BAN" ]; then echo pass; elif printf '%s' "$PDSM_BAN" | grep -qi 'single-subtask mode'; then echo pass; else echo 'pd-select-model.md forbids adding the Model column without scoping the prohibition to single-subtask mode, contradicting its own bulk-mode output contract'; fi)"
+check "ORCH: pd-select-model keeps single recommendations chat-only" \
+  "$(printf '%s' "$PDSM_FLAT" | grep -qF 'Single mode stays chat-only for recommendations.' && echo pass || echo 'single recommendations must not overwrite persisted bulk model decisions')"
 
 check "ORCH: pd-select-model no longer claims it writes no files" \
   "$(grep -q 'writes \*\*no files at all\*\*' workflows/pd-select-model.md 2>/dev/null && echo 'pd-select-model.md still claims it writes no files — contradicts the Model column' || echo pass)"

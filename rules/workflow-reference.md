@@ -94,6 +94,57 @@ Amendments are a permanent record — never delete them from `state.md`.
 
 ## Parent `plan.md` Table Format
 
+### Model columns and resolution
+
+Optional model columns: `Model (Claude)` maps to provider `anthropic`; `Model (Codex)`
+maps to `openai`. Read columns by header, never position. A legacy `Model` cell applies
+to the active provider only when its provider column is absent. A present empty provider
+cell overrides legacy and requests the session default. Missing model columns also use
+the session default visibly. Preserve unknown columns, statuses, row order, unrelated
+Markdown and composite blank cells.
+
+Bulk updates use `--update-plan PLAN --updates UPDATES.json`. When adding columns to a
+populated legacy table, supply an explicit value or intentional `null` for every newly
+added provider on every populated legacy row. Never infer that one legacy ID works for
+both providers or silently clear an existing request. A changed scope makes any populated
+model cell stale; rerun bulk selection before requesting a model for that scope.
+
+Before any model-specific request, resolve the leaf through this contract:
+
+1. Observe fresh support for this invocation from the actual exposed model-selection
+   tool, its accepted identifiers, context limits, tool permissions and restrictions,
+   plus current owner constraints. Set `harness.date` to today and retain an observation
+   reference. A same-day date alone does not establish invocation-specific provenance.
+   Catalog TTL is not proof of support. Provider names are not proof of support.
+   Logging capability files are not proof of support. Unknown availability, context or
+   tools cannot authorize a request; filter support, context, tools, owner limits,
+   independent quality and traits before considering economics.
+2. Read the active provider with `--read-plan PLAN --provider PROVIDER`. Resolve with
+   `--catalog CATALOG --today YYYY-MM-DD --resolve-plan PLAN --provider PROVIDER
+   --row ID --resolution REQUEST.json`. The resolution input contains `selection`,
+   `fallback` and `execution`; the helper derives the requested ID from the plan.
+   Use `execution: null` during recommendation and resolution. The complete schemas
+   and runnable fictional examples are in [the catalog guide](../docs/MODEL-CATALOG.md).
+3. Display requested, resolved and actual identities, status and reasons separately.
+   An unsupported explicit request requires an independently eligible declared fallback
+   that is authorized, or a visible stop. The helper never substitutes an undeclared
+   model or executes one. Missing helper/Python/catalog/support reports selection
+   unavailable and preserves session configuration. Never bypass explicit-request
+   eligibility because selection is unavailable: independently establish eligibility
+   and an authorized fallback, or stop before model-specific execution. With no explicit
+   request, ordinary work may remain in the same session without claiming selection.
+4. Request only the authorized resolved identity when the current tool can select it.
+   An inline executor cannot switch its own model by editing a plan; retain the current
+   session visibly. Actual remains unknown (`null`) without a separate current execution
+   receipt matching the authorized resolved provider/ID and this execution context.
+   The caller owns receipt provenance; helper checks of date/reference/identity do not
+   authenticate an observation. Successful spawn alone is insufficient, as are plan
+   cells, recommendations, tool arguments and dispatch acceptance. Never create a receipt
+   from those inputs. A later observed receipt may be supplied separately; do not read
+   historical stores directly to infer actual identity or calibrate estimates.
+
+### Base table example
+
 ```
 ## Subtasks
 
