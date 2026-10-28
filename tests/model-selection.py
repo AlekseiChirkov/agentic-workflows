@@ -398,5 +398,14 @@ class SelectionContractTests(unittest.TestCase):
             self.assertEqual(json.loads(malformed.stdout)["status"], "unavailable")
 
 
+    def test_request_dated_harness_snapshot_cannot_authorize_current_selection(self) -> None:
+        api = self.api()
+        for age in (1, 14, 31, 365):
+            request = fixture_request()
+            request["harness"]["date"] = (TODAY - timedelta(days=age)).isoformat()
+            with self.subTest(age=age), self.assertRaises(ValueError):
+                self.select(api, fixture_catalog(), request)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
