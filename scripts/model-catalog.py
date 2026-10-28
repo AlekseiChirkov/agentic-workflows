@@ -24,6 +24,9 @@ import sys
 import tempfile
 from typing import Any
 
+# Any represents heterogeneous JSON values and report dictionaries at this boundary.
+# Runtime schema checks reject unexpected fields and types before catalog use.
+
 TIERS = ("light", "standard", "frontier")
 TRAITS = ("creative", "heavy-reasoning", "mechanical")
 PROVIDERS = ("anthropic", "openai")

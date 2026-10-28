@@ -17,6 +17,9 @@ import unittest
 from unittest.mock import patch
 import urllib.request
 
+# Any allows fixtures to carry deliberately invalid JSON field types into validation.
+# The runpy API namespace also mixes callable exports, exception classes and constants.
+
 ROOT = Path(__file__).resolve().parents[1]
 HELPER = ROOT / "scripts/model-catalog.py"
 TODAY = date(2032, 6, 15)
