@@ -56,16 +56,16 @@ def fixture_markdown(payload: dict[str, Any]) -> str:
              "|---|---|---|---|"]
     for tier in TIERS:
         entries = sorted((model for model in payload.get("models", [])
-                          if model.get("tier") == tier), key=lambda model: model["id"])
+                          if model.get("tier") == tier), key=lambda model: model.get("id", "<missing>"))
         cells = []
         for provider in ("anthropic", "openai"):
-            cells.append(", ".join(model["id"] for model in entries
-                                   if model["provider"] == provider) or "-")
+            cells.append(", ".join(model.get("id", "<missing>") for model in entries
+                                   if model.get("provider") == provider) or "-")
         costs = []
         for model in entries:
             snapshot = model.get("price_snapshot")
             value = snapshot.get("relative_cost") if isinstance(snapshot, dict) else None
-            costs.append(f"{model['id']}={format(value, 'g') if isinstance(value, (int, float)) else 'unknown'}")
+            costs.append(f"{model.get('id', '<missing>')}={format(value, 'g') if isinstance(value, (int, float)) else 'unknown'}")
         lines.append(f"| {tier} | {cells[0]} | {cells[1]} | {'; '.join(costs) or 'unknown'} |")
     return "\n".join(lines) + "\n"
 
@@ -240,6 +240,26 @@ class CatalogContractTests(unittest.TestCase):
         self.assertIsNone(validated["models"][0]["capability_evidence"])
         self.assertEqual(validated["models"][0]["availability"], "unknown")
 
+    def test_oversized_price_reports_unavailable_and_preserves_failed_refresh(self) -> None:
+        api = self.api()
+        payload = fixture_payload()
+        payload["models"][0]["price_snapshot"] = {
+            "reference": "fixture-prices:oversized", "date": TODAY.isoformat(), "relative_cost": 1}
+        document = fixture_markdown(payload).replace('"relative_cost": 1', '"relative_cost": ' + "1" + "0" * 400)
+        with self.assertRaises(api["CatalogError"]):
+            api["validate_catalog"](document, TODAY)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            catalog, candidate = root / "catalog.md", root / "candidate.md"
+            catalog.write_text(fixture_markdown(fixture_payload()))
+            candidate.write_text(document)
+            before = catalog.read_bytes()
+            self.assertEqual(api["inspect_catalog"](candidate, TODAY)["status"], "unavailable")
+            report = api["refresh_catalog"](catalog, candidate, TODAY)
+            self.assertFalse(report["refreshed"])
+            self.assertTrue(report["errors"])
+            self.assertEqual(catalog.read_bytes(), before)
+
     def test_equal_relative_cost_preserves_independently_evidenced_quality(self) -> None:
         api = self.api()
         payload = fixture_payload()
@@ -337,6 +357,35 @@ class CatalogContractTests(unittest.TestCase):
             self.assertTrue(report["errors"])
             self.assertEqual(catalog.read_bytes(), before)
             self.assertEqual(set(root.iterdir()), {catalog, candidate})
+
+    def test_windows_newline_candidate_is_inspected_and_installed_consistently(self) -> None:
+        api = self.api()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            catalog, candidate = root / "catalog.md", root / "candidate.md"
+            document = fixture_markdown(fixture_payload()).replace("\n", "\r\n").encode()
+            candidate.write_bytes(document)
+            self.assertEqual(api["validate_catalog"](document.decode(), TODAY), fixture_payload())
+            self.assertEqual(api["inspect_catalog"](candidate, TODAY)["status"], "fresh")
+            report = api["refresh_catalog"](catalog, candidate, TODAY)
+            self.assertTrue(report["refreshed"])
+            self.assertEqual(catalog.read_bytes(), document)
+
+    def test_failed_temporary_cleanup_reports_error_and_preserves_previous_catalog(self) -> None:
+        api = self.api()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            catalog, candidate = root / "catalog.md", root / "candidate.md"
+            catalog.write_text(fixture_markdown(fixture_payload(30)))
+            candidate.write_text(fixture_markdown(fixture_payload()))
+            before = catalog.read_bytes()
+            with patch.object(os, "replace", side_effect=PermissionError("fixture replacement denied")), \
+                    patch.object(Path, "unlink", side_effect=PermissionError("fixture cleanup denied")):
+                report = api["refresh_catalog"](catalog, candidate, TODAY)
+            self.assertFalse(report["refreshed"])
+            self.assertEqual(report["status"], "dated")
+            self.assertEqual(catalog.read_bytes(), before)
+            self.assertTrue(any("cleanup" in error.lower() for error in report["errors"]))
 
     def test_refresh_creates_missing_directory_only_after_candidate_validation(self) -> None:
         api = self.api()
