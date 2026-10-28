@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Validate and inspect an optional local Markdown catalog without network access.
 
-CLI: model-catalog.py [--catalog PATH] [--today YYYY-MM-DD] [--refresh CANDIDATE]
+CLI: model-catalog.py [--catalog PATH] [--today YYYY-MM-DD]
+                     [--refresh CANDIDATE | --select REQUEST.json]
 JSON reports use exit 0 for a usable catalog/successful refresh and 2 otherwise.
 Only explicit refresh writes configuration; the candidate is supplied by its owner.
 
@@ -20,6 +21,7 @@ import math
 import os
 from pathlib import Path
 import re
+import runpy
 import sys
 import tempfile
 from typing import Any
@@ -258,18 +260,46 @@ def default_catalog_path() -> Path:
     return root / "orchestrail" / "model-catalog.md"
 
 
+def select_catalog(path: Path, request_path: Path, today: date) -> dict[str, Any]:
+    """Read explicit offline selection inputs and return a recommendation, never execute it."""
+    inspected = inspect_catalog(path, today)
+    unavailable = {"status": "unavailable", "selected": None, "session_action": "preserve",
+                   "errors": inspected["errors"], "notice": inspected["notice"]}
+    if not inspected["selection_available"]:
+        return unavailable
+    try:
+        request = json.loads(Path(request_path).read_text(encoding="utf-8"),
+                             object_pairs_hook=_unique_object, parse_constant=_reject_constant)
+        selector = runpy.run_path(str(Path(__file__).with_name("model_selection.py")),
+                                  run_name="local_model_selection")
+        report = selector["select_model"](inspected["catalog"], request, today)
+    except (OSError, UnicodeError, ValueError, RecursionError) as error:
+        unavailable["errors"] = [str(error)]
+        return unavailable
+    report.update(catalog_status=inspected["status"], notice=inspected["notice"],
+                  session_action="preserve", errors=[])
+    return report
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalog", type=Path, default=default_catalog_path())
     parser.add_argument("--today", default=date.today().isoformat(), metavar="YYYY-MM-DD")
-    parser.add_argument("--refresh", type=Path, metavar="CANDIDATE",
-                        help="explicitly validate and atomically install this offline candidate")
+    operation = parser.add_mutually_exclusive_group()
+    operation.add_argument("--refresh", type=Path, metavar="CANDIDATE",
+                           help="explicitly validate and atomically install this offline candidate")
+    operation.add_argument("--select", type=Path, metavar="REQUEST.json",
+                           help="recommend from explicit offline task and current harness evidence")
     arguments = parser.parse_args(argv)
     try:
         today = date.fromisoformat(arguments.today)
         _date(arguments.today, today, "--today")
     except (ValueError, CatalogError):
         parser.error("--today requires an ISO YYYY-MM-DD calendar date")
+    if arguments.select is not None:
+        report = select_catalog(arguments.catalog, arguments.select, today)
+        print(json.dumps(report, sort_keys=True, allow_nan=False))
+        return 0 if report["status"] == "selected" else 2
     report = (refresh_catalog(arguments.catalog, arguments.refresh, today)
               if arguments.refresh is not None else inspect_catalog(arguments.catalog, today))
     print(json.dumps(report, sort_keys=True, allow_nan=False))
