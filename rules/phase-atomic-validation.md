@@ -7,13 +7,17 @@ description: Context loading rules for atomic-validation — load when running /
 
 ## Context Bootstrap
 
-This phase runs inside a parent validation context OR standalone. Always load full context regardless.
+This phase runs inside a parent context or standalone. Reuse sources already loaded
+in this session for the same resolved project only while their content remains available
+and current. Reload changed sources and missing phase-specific context. Standalone and
+fresh sub-agent invocations perform the full bootstrap; another agent's receipt alone
+does not provide context.
 
 **Step 0 — Resolve paths first:**
 Read `T-XX/description.md → ## Context → working_dir:` before loading any context.
 - If `working_dir:` present: `WORK_DIR = <resolved absolute path>`, `AI_DIR = WORK_DIR/.ai`
-- If absent: `WORK_DIR = <current directory>`, `AI_DIR = .ai`
-- Umbrella: if `<AI_DIR>/../.ai/` exists → load umbrella FIRST, then `AI_DIR` (local overrides)
+- If absent: `WORK_DIR = <absolute invocation directory>`, `AI_DIR = WORK_DIR/.ai`
+- Umbrella: if `<WORK_DIR>/../.ai/` exists → load umbrella FIRST, then `AI_DIR` (local overrides)
 
 Report before continuing: "WORK_DIR=<path>, AI_DIR=<path>"
 

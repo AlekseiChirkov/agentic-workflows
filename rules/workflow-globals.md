@@ -33,8 +33,13 @@ and `templates/codex-global-AGENTS.md` (→ `~/.codex/AGENTS.md`), which those a
 every session. The `rule-*` skills carry the full contracts those summaries point at.
 
 Rules define the exact load order, what to extract, and phase-specific behaviors.
-**Standalone invocation rule:** when a child workflow runs without its parent orchestrator (e.g., `/pav-check` without `/phase-atomic-validation`), it must run the full bootstrap as if no parent loaded context. Never assume context was pre-loaded.
-**Context Pack (optional optimisation).** `/context-pack` assembles bootstrap sources 1–7 —
+**Standalone invocation rule:** when a child workflow runs without its parent orchestrator (e.g., `/pav-check` without `/phase-atomic-validation`), it must run the full bootstrap as if no parent loaded context. Never assume context was pre-loaded. Within one parent invocation, reuse available,
+unchanged context for the same resolved project; load missing sources and recheck changed
+ones. A fresh worker bootstraps independently. This is source reuse, not permission to
+replace required content with an unverified receipt.
+## Context Pack
+
+**Optional optimisation.** `/context-pack` assembles the shared bootstrap sources —
 the three `principles/`, `memory/architecture.md`, `memory/state.md`, `adr/index.md`, and
 `context/runbook.md` — into one verified `.ai/context-pack.md`. A step may read the pack
 **instead of** those seven files, on one precondition: it confirmed the pack fresh against
@@ -42,13 +47,13 @@ its own manifest (path, size, mtime of every source) in the same session. Stale,
 unverified → read the sources directly. The substitution never covers a conditional load
 (`integrations.md`, `environment.md`), a full ADR body, or `progress.md`; those are read from
 source, packed or not. The pack is a cache with a freshness check, never a source of truth,
-and no workflow may write to it.
+and only `/context-pack` may write to it.
 
 **Umbrella-first rule:** in multi-repo projects, check if `../.ai/` exists. If yes, load umbrella before local `.ai/` — local overrides umbrella.
 
 ---
 
-**Never auto-advance between phases.** After completing a phase (`/phase-discovery`, `/phase-execution`, `/phase-validation`), STOP completely. Do NOT invoke the next phase command. Display the next command as plain text for the user to run manually. Phase transitions are always initiated by the user, never by Claude.
+**Never auto-advance between phases.** After completing a phase (`/phase-discovery`, `/phase-execution`, `/phase-validation`), STOP completely. Do NOT invoke the next phase command. Display the next command as plain text for the user to run manually. Phase transitions are initiated by the user, except `/phase-pipeline` and `/spec-run`, which advance only through the phases authorized by their invocation.
 
 **Continue, never restart.** Before any workflow, read state files. If progress exists — continue from stopping point. Never restart from scratch.
 
@@ -61,6 +66,8 @@ and no workflow may write to it.
 | `/phase-pipeline` | always | never |
 | `/phase-discovery` (+ `/pd-analyze`, `/pd-decompose`, `/pd-design`, `/pd-finalize`) | default | `--step-by-step` passed |
 | `/pav-propose` | `--batch` passed | default |
+| `/compress-state` | `--auto` passed | default |
+| `/spec-draft`, `/spec-sync`, `/bugfix` | `--auto-mode` passed | default |
 | `/spec-run` (+ `/restack`) | always, except the Discovery batch gate | never — the batch gate is its only planned stop |
 
 `/phase-pipeline` additionally overrides these named steps, and only these — the full table with
@@ -74,14 +81,19 @@ lists every step it deliberately does **not** override:
 | `/pe-execute`, `/pv-execute-fixes` — "wait for user's choice" on an ambiguity | resolve via the Autonomous Decision Protocol; a *blocker* still stops |
 | `/phase-composite-validation` step 2 — approve/defer prompt on integration failures | approve `critical` + `important`, defer `optional`, and record that the split was automatic |
 
-**`--batch` — one meaning, everywhere.** `--batch` is `/pav-propose`'s flag, passed down
+`/spec-run` additionally defers the `/pe-finalize` batched proposal decision without
+prompting: retain pending proposals and report them at delivery; apply none.
+
+**`--batch` — proposal behavior.** `--batch` is `/pav-propose`'s flag, passed down
 unchanged by `/phase-atomic-validation`, `/pe-execute`, `/pv-execute-fixes`, `/spec-run`, and
 `/phase-pipeline`. It means: **record every proposal, prompt for nothing, apply nothing.** No
 caller may redefine it — in particular, no autonomous mode may read it as
 apply-without-asking. A workflow that wants the `Do Now` items applied applies them at a step of
 its own and declares that step as an override (`/phase-pipeline` → `/pe-finalize` step 5).
+`/pae-tests --batch` is output-only: suppress duplicate digest display while recording
+the same evidence. It never adds or removes a review gate, skips RED or applies proposals.
 
-No mode override ever suspends: **Never auto-advance between phases**, Guard confirmations that would overwrite existing artifacts, or the escalation conditions in the Autonomous Decision Protocol. A mode override does not license silent decisions — it licenses *unblocked* decisions, and every one must be written down.
+Only `/phase-pipeline` and `/spec-run` suspend **Never auto-advance between phases** within their own run. No mode override ever suspends Guard confirmations that would overwrite existing artifacts, or the escalation conditions in the Autonomous Decision Protocol. A mode override does not license silent decisions — it licenses *unblocked* decisions, and every one must be written down.
 
 **Trust mechanism in execution.**
 - Trivial task (clear plan, no dependencies, no ambiguity) → execute autonomously without stopping.

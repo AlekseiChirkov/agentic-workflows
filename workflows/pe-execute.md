@@ -18,79 +18,74 @@ Task directory = provided argument (trailing slash optional).
 
 ---
 
+## Context Bootstrap
+
+Load the `phase-execution` rule (`## Context Bootstrap`) before code reads or writes. When invoked
+standalone, perform the full bootstrap, set `execution: in-progress`, and resume recorded work.
+`flow: quick` → **stop**: "Quick tasks execute inline in `/phase-execution`; there are no atomic subtasks."
+
 ## Instructions
 
-Read `plan.md` in the task directory. Detect the plan format:
-- If `Type` column is absent → flat-only task; use simple sequential iteration (same as before).
-- If `Type` column is present → task uses composites or slicing; use DAG-aware iteration below.
+1. Read `plan.md → ## Subtasks`, its `Depends On` column, `## Execution Strategy`,
+   and parent `state.md → ## Subtask Progress`. Missing `Type` means leaf.
+   Execute strictly sequentially in topological dependency order; break ties using the
+   execution strategy, then table order. A dependency is ready when a leaf is `done` or
+   `reviewed`; a composite also requires `integration-validation: complete`.
+   A dependency cycle or unknown dependency → **stop**: "Invalid dependency graph: <rows>. Repair the plan before executing."
 
-**Topological DAG iteration (used when `Type` column is present or when `## Execution Strategy` specifies ordering beyond simple sequence):**
+2. For each ready leaf:
+   - `reviewed` → record and skip. `blocked` / `deferred` → record the reason and skip;
+     do not run dependent rows while their prerequisites remain unmet.
+   - Require its description's `## Steps` and `## Acceptance Criteria`; if absent →
+     **stop**: "Incomplete subtask description. Run `/pd-decompose` + `/pd-finalize`."
+   - If atomic execution or its finalization is incomplete, call
+     `/phase-atomic-execution <description-path>`. Execution complete with plan `done` and
+     recorded finalization skips that call and resumes validation; an interrupted
+     implementation-to-finalization boundary must finish `/pae-finalize` first.
+   - Only after execution succeeds, call `/phase-atomic-validation <description-path> --batch`.
+     `--batch` records proposals, prompts for nothing, and applies nothing.
+   - On a stopped or failed child, persist its outcome and propagate the stop; do not run
+     its successor or finalize the phase. Respect declared autonomous decision overrides;
+     they never waive blockers, Guard confirmations, or the TDD gate.
+   - After `reviewed`, run `/compress-state --auto` on the parent state.
 
-Build a dependency graph from `## Subtasks → Depends On`. Resolve execution order:
-1. Respect topological dependency order (a row is ready only when all its `Depends On` entries are `done` or `reviewed`).
-2. Within the topological order, also honor the ordering policy from `## Execution Strategy` (e.g. "by capability slice; producer before consumer").
-3. Process rows in the resulting order.
+3. Never execute composite rows atomically. Verify that every `children:` entry has a plan
+   row and leaf block; a mismatch → **stop**: "Composite children mismatch. Re-run `/pd-decompose`."
+   `/pav-close` step 5 owns the integration-validation trigger after the final child closes.
+   Re-read the plan and state after each cycle so newly created fix siblings enter this loop.
+   Process new ready leaves before treating the composite as stalled. Do not invoke an
+   already-complete composite check a second time.
 
-For each row in execution order:
+4. After leaf processing, reconcile each composite:
+   - `integration-validation: complete` → `composite-reviewed`.
+   - `rollup: blocked` or failed integration with no runnable approved fix → `composite-blocked`.
+   - All children reviewed but integration not started → the trigger never fired. Record
+     the composite as `composite-stalled`; `/pe-finalize` requires integration validation.
+   - Otherwise record why it was not reached. Independent siblings may continue only
+     when their dependency chains remain ready.
 
-1. **Composite rows (`Type: composite`):**
-   - Do NOT call atomic-execution on the composite itself.
-   - Verify all child rows (listed in `children:` of the composite block in `state.md → ## Subtask Progress`) are present in `plan.md`. If any child row is missing → **stop**: "Composite T-XX children mismatch. Re-run `/pd-decompose` to regenerate."
-   - Skip the composite row and continue iterating — children will appear later in topological order.
-   - After all children reach `reviewed`, do **not** call `/phase-composite-validation` from
-     here — `/pav-close` step 5 owns that trigger and fires it when the last child closes (see
-     step 2e). A second invocation hits `phase-composite-validation` Step 0.3
-     ("Integration validation already complete. Re-running will overwrite. Confirm? (yes/no)"),
-     which stops an unattended `/phase-pipeline` or `/spec-run` run.
-   - **Verify the outcome instead.** Read `integration-validation:` in the composite block of
-     `state.md → ## Subtask Progress`:
-     - `complete` → the composite is `reviewed`; record `composite-reviewed`.
-     - `failed` → the integration fix cycle is open; record `composite-blocked` and continue.
-     - still `not-started` → the trigger never fired. Record the composite as
-       `composite-stalled` in the `## Execution Report` and continue with the remaining rows;
-       `/pe-finalize` step 2b reconciles it and tells the user to run
-       `/phase-composite-validation` manually.
-
-2. **Leaf rows (`Type: leaf` or no `Type` column — backward compat):**
-   a. **Check status**: if `done` / `reviewed` → skip. If `blocked` / `deferred` → skip, record in report.
-   b. **Check dependencies**: if any dependency is not `done` or `reviewed` → skip, record: "Skipped T-XX: dependency T-YY not complete."
-   c. Verify `T-XX/description.md` contains `## Steps` and `## Acceptance Criteria`. If missing → **stop**: "T-XX/description.md is incomplete. Run `/pd-decompose` + `/pd-finalize` to regenerate."
-   d. **Run atomic cycle**:
-      - Call `/phase-atomic-execution <path-to-T-XX/description.md>`
-      - Call `/phase-atomic-validation <path-to-T-XX/description.md> --batch`
-   e. After validation completes, `pav-close` automatically triggers composite rollup and composite validation if this is the last reviewed child (handled inside `pav-close`). No additional action needed here.
-
-3. **Blocked composite (D7):** If a composite's `rollup:` is `blocked`, do NOT attempt its composite validation. Record the composite as `blocked` in the Execution Report. Whether sibling children of the blocked child also halt is determined by whether their `Depends On` chain passes through the blocked child. The existing dependency check (step 2b) enforces this automatically.
-
-Before calling atomic-execution for any leaf, verify `T-XX/description.md` contains `## Steps` and `## Acceptance Criteria`. If missing → **stop** and report: "T-XX/description.md is incomplete. Run `/pd-decompose` + `/pd-finalize` to regenerate."
-
-At any blocker or ambiguous situation in any atomic workflow:
-- Stop immediately.
-- Describe the problem clearly and concretely.
-- Propose 2–3 solution options with trade-offs.
-- Wait for user's choice.
-- Continue only after receiving an answer.
-
-After each completed leaf subtask (status `reviewed`), run `/compress-state --auto` on the parent task's `state.md` (T-XX directories have no `state.md`).
+At an ambiguity, follow `workflow-globals` and the active caller's declared override.
+Without such an override, describe the issue, offer 2–3 options with trade-offs, and wait for
+user's choice. At a blocker, persist the blocker and stop.
 
 ## Execution Report persistence
 
-After processing each subtask (including skipped, blocked, deferred), append its outcome to the `## Execution Report` section in the task-level `state.md`. Create the section if it does not exist. Format — one line per subtask:
+After every processed, skipped, blocked, or deferred row, upsert one line by subtask ID in
+parent `state.md → ## Execution Report`; never append a duplicate on resume:
 
 ```
 ## Execution Report
-- T-01: done — <one-line summary>
-- T-02: reviewed — <one-line summary>
-- T-03: blocked — <reason>
-- T-04: deferred — deferred by user decision
-- T-05: not-reached — execution finished before this subtask
-- T-06: composite-reviewed — all children reviewed, integration validation passed
-- T-06a: reviewed — <one-line summary>
-- T-06b: reviewed — <one-line summary>
+- T-01: reviewed — <result>
+- T-02: blocked — <reason>
+- T-03: deferred — <recorded decision>
+- T-04: not-reached — <unmet dependency>
+- T-05: composite-reviewed — children reviewed, integration passed
+- T-05a: reviewed — <result>
 ```
 
-For composites: record one line for the composite itself (`composite-reviewed` / `composite-blocked` / `composite-stalled` / `not-reached`) AND one line per child. This gives a complete audit trail.
+Use `done`, `reviewed`, `blocked`, `deferred`, `not-reached`, `composite-reviewed`,
+`composite-blocked`, or `composite-stalled` as applicable. Include composite rows and children.
+This file, not conversation memory, supplies `/pe-finalize`.
 
-If a T-XX entry for the current subtask already exists in the section (for example on re-run) — overwrite the line in place. Do not keep duplicates.
-
-This file-based record is the source of truth for `/pe-finalize`. Do not rely on session memory.
+Report: "Step 1 (Execute Subtasks) complete. <N> reviewed, <M> skipped."
+This is a progress marker; return to the caller without starting another phase.

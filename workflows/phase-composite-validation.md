@@ -13,7 +13,22 @@ Parent task directory = one level above the composite task directory.
 
 ---
 
-## Step 0 — Guard
+## Context Bootstrap
+
+Load the `phase-atomic-validation` rule (`## Context Bootstrap`) for the composite's `working_dir:`
+before code reads or writes. Resolve that path relative to its description directory;
+keep parent task paths absolute. Resolve each child's `target_files:` against that child's
+own `working_dir:` so multi-repo integration reads the correct files. Run relevant tests
+and lint from the corresponding service runbooks; report unavailable checks.
+
+**Orchestrated mode (`/spec-run`) — do not write the shared files.** Return the composite
+block, plan rows, Integration Issues, fix-sibling artifacts, and compression as deltas for
+the orchestrator (`orchestration → ## Shared-file discipline`). The Validator's own leaf
+block exemption never covers its composite. In other modes apply the edits below.
+
+## Guard
+
+Step 0 — Prerequisites
 
 1. Read the composite `description.md`. Verify `## Context` contains `type: composite` and `children:` list.
    If not → **stop**: "This is not a composite description.md. Use `/phase-atomic-validation` for leaf subtasks."
@@ -23,7 +38,7 @@ Parent task directory = one level above the composite task directory.
 
 3. Check `integration-validation` field in the composite block:
    - If `integration-validation: complete` → **stop**: "Integration validation already complete. Re-running will overwrite. Confirm? (yes/no)" Wait for explicit confirmation.
-   - If `integration-validation: in-progress` → continue from last completed step.
+   - If `integration-validation: in-progress` or `failed` → rerun the integration check against current evidence; reuse recorded decisions and existing fix siblings rather than recreating them.
    - If `integration-validation: not-started` or absent → start from step 1.
 
 4. Verify all children are individually reviewed:
@@ -42,17 +57,11 @@ Update composite block in parent `state.md`: set `integration-validation: in-pro
 3. Collect all `target_files:` from every child's leaf block in `## Subtask Progress`. Union of all files changed by any child = the integration surface.
 4. Read the changed files.
 
-**Integration checks to perform:**
-- Each integration-level Acceptance Criterion from `## Acceptance Criteria`: met / not met / partial. Mark `[INCOMPLETE]` if not fully met.
-- **Cross-component coherence:** the outputs of child A are correctly consumed by child B (e.g. the producer component emits data in the format the consumer component correctly parses and processes, if cross-repo; or component A's output is correctly used by component B if same-repo).
-- **No invariant violations** across the combined work of all children.
-- **No off-limits violations** across the combined work.
-- **Interface contracts**: integration-level contracts (e.g. shared IR format, shared API, shared data schema) are satisfied end-to-end.
-
-**Bug detection (integration-scope only):**
-- **Interface mismatches**: child A produces data in a shape child B cannot consume.
-- **Seam failures**: the join between children's work has an untested edge case.
-- **Missing integration glue**: a component assumed another component would handle something that neither actually did.
+Check each integration Acceptance Criterion with executable evidence; mark partial/unmet
+ones `[INCOMPLETE]`. Verify producer/consumer outputs agree across component/repo boundaries,
+shared API/schema contracts work end-to-end, and combined changes preserve Invariants /
+Off-limits. Report interface mismatches, untested seams, and missing integration glue with
+reproduction, affected files, and `critical` / `important` / `optional` severity.
 
 **Verdict:**
 - **DONE**: all integration AC met, no critical or important integration bugs.
@@ -62,22 +71,12 @@ Update composite block in parent `state.md`: set `integration-validation: in-pro
 
 ## Step 2 — Verdict and close / fix
 
-**Orchestrated mode (`/spec-run`) — do not write the shared files.** This workflow is reached
-from `/pav-close` step 5 inside the **Validator** sub-agent, and everything the verdict
-produces is shared: `plan.md`, the `[composite]` block, `## Integration Issues (T-XX)`, and any
-D8 fix sibling with its directory, its `plan.md` row, and its leaf block. Report each of them
-as a delta and let the orchestrator apply it; these files have exactly one writer
-(`orchestration → ## Shared-file discipline`, which names this workflow explicitly). The
-composite's block is **not** the Validator's own progress block — the carve-out for "its own
-`## Subtask Progress` block" does not reach a composite's rollup row. In every other mode, make
-the edits here. State which mode applies in the step 4 report.
-
 **If DONE:**
 
 1. Update composite block in parent `state.md`:
    - Set `integration-validation: complete`.
    - Set `rollup: done` (confirming complete execution + validation).
-   - Update `last_action: integration validation passed — <one-line summary of what was validated>`.
+   - Append `integration validation passed — <evidence summary>` to `notes:`; preserve the classifier rationale.
    - Set `blocker: none`.
 
 2. Update parent `plan.md`: set composite row `Status` to `reviewed`.
@@ -93,11 +92,9 @@ the edits here. State which mode applies in the step 4 report.
    - Set `integration-validation: failed`.
    - In `notes:` list the specific integration Acceptance Criteria that were not met plus critical/important bug summary.
    - Set `rollup: in-progress` (composite is not done yet).
-   - Keep composite row in `plan.md` at `done` (children are done; composite is not yet reviewed).
+   - Keep composite row in `plan.md` at `done` while no approved fix is pending; use `in-progress` once a fix sibling exists.
 
-2. **Present the failures and record an approve/defer decision.** This mirrors `/pv-issues`
-   steps 3–5: in this system a finding becomes work only by an explicit, recorded decision, and
-   step 3 below cannot evaluate "each approved fix" unless that decision exists.
+2. **Present failures and record approve/defer decisions** before creating any fix work.
 
    a. Compile the integration failures as a numbered list, in the same shape `/pv-issues` uses:
       ```
@@ -109,8 +106,7 @@ the edits here. State which mode applies in the step 4 report.
    b. **Interactive mode (default):** present the list and **wait for the user's decision** —
       which failures to fix now, which to defer.
    c. **Autonomous mode** (`/phase-pipeline`, `/spec-run`): do not wait. Approve every
-      `critical` and `important` failure, defer every `optional` one — the same rule those
-      workflows apply to `/pv-issues`. Record that the split was automatic.
+      `critical` and `important` failure, defer every `optional` one. Record the automatic split.
    d. Write the decision to the parent `state.md` before creating any directory:
       ```
       ## Integration Issues (T-XX)
@@ -128,12 +124,20 @@ the edits here. State which mode applies in the step 4 report.
 3. **D8 — Create a fix sibling:** for each item under `### Approved` in step 2d, determine the next available sibling letter after the highest existing child letter. In orchestrated mode this whole step is returned as a delta, not performed — see the clause above; the orchestrator creates the directory and writes the rows:
    - Existing children T-04a, T-04b, T-04c → next letter is `d`.
    - Create directory `T-04d-fix-<slug>/` with a `description.md` following the standard six-section template (Goal, Context, Scope, Steps, Acceptance Criteria, Test Plan). The fix targets the integration failure. Its `## Test Plan` scenarios are derived from the integration failure itself — the test that reproduces the failure is the RED test `/pae-tests` will write.
-   - Add T-04d to the composite's `children:` list in the composite block.
+   - Reuse an existing sibling already assigned to this approved issue on resume.
+   - Add T-04d to the composite's `children:` list in the composite block and description;
+     preserve matching lists as the source of membership.
    - Add T-04d to `plan.md → ## Subtasks` table with `Type: leaf` and `Status: not-started`.
-   - Add a leaf block for T-04d in `state.md → ## Subtask Progress`.
+   - If `## Fix-Tasks` already exists, append each new sibling once to `Created:` and update `fixes-count:`; preserve existing entries/classification.
+   - Add a canonical leaf block with `atomic-tests: not-started`, empty `target_files:` / `notes:`, and `blocker: none` in `state.md → ## Subtask Progress`.
    - **Revert the composite's `integration-validation` field to `not-started`** in the composite block (the composite is not reviewed until the fix closes and integration validation re-runs).
    - Update `plan.md` composite row `Status` back to `in-progress`.
 
-4. Report: "Integration validation NEEDS WORK. <N> failure(s) approved, <M> deferred. Fix sibling T-04d-fix-<slug> created. Run `/phase-atomic-execution` for T-04d, then re-run `/phase-composite-validation`." State whether the approve/defer split was made by the user or automatically, and whether the writes were applied here or returned as deltas for the orchestrator.
+4. Report failures, approved/deferred counts, and actual sibling paths (or "none").
+   State who made the decision and whether writes were applied or returned as deltas.
+   In an active execution loop, return new sibling work to the caller; standalone, display
+   `/phase-atomic-execution <fix-description>` followed by the integration recheck.
+   Do not claim a sibling was created when all failures were deferred.
 
-**Stop. Do not auto-advance.**
+**Stop. Do not auto-advance.** Return to an active caller as a progress marker; the caller
+may schedule approved siblings within its current phase.

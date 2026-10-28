@@ -9,14 +9,13 @@ Called by: `/phase-atomic-validation` as Step 2. Only runs if verdict is DONE.
 - **Interactive** (default, no flag): prompt user for "Do Now" items before applying.
 - **Batch** (`--batch`): record all proposals to `state.md` without prompting or applying. "Do Now" items are tagged for post-execution review by `/pe-finalize`.
 
-`--batch` has exactly one meaning, fixed in `workflow-globals → Workflow-declared mode
-overrides`: **record everything, prompt for nothing, apply nothing.** Every caller that passes
-it down — `/phase-atomic-validation`, `/pe-execute`, `/pv-execute-fixes`, `/spec-run`,
-`/phase-pipeline` — gets that behaviour and no other. A caller that wants the `Do Now` items
-applied applies them in a step of its own (`/phase-pipeline` does so at `/pe-finalize` step 5);
-it may not reinterpret this flag as apply-without-asking.
+Canonical proposal semantics: `workflow-globals → Workflow-declared mode overrides`.
+`--batch` means record every proposal, prompt for nothing, apply nothing. `/pe-finalize`
+step 5 owns later application when selected; no caller may reinterpret the flag.
 
 Atomic task directory = parent directory of the provided `description.md`.
+Parent task directory = one level above.
+Load the `phase-atomic-validation` rule (`## Context Bootstrap`) before code reads or writes, including standalone invocation.
 
 ---
 
@@ -32,11 +31,14 @@ Atomic task directory = parent directory of the provided `description.md`.
 
 Read parent `state.md → ## Subtask Progress` block for this T-XX.
 If `atomic-validation: failed` → **stop**: "Verdict is NEEDS WORK. Fix issues first."
-Verify `last_action` was set to `pav-check DONE` by `/pav-check`.
+If `last_action` is not `pav-check DONE` → **stop**: "Run `/pav-check` successfully before proposing improvements."
 
 ---
 
 ## Instructions
+
+Under `/spec-run`, return the shared proposal section as a delta; only the orchestrator
+writes it. Your own leaf block remains writable.
 
 1. Read files changed during execution from parent `## Subtask Progress → T-XX → target_files:` with focus on quality.
 2. Identify improvements with concrete measurable effect:
@@ -44,7 +46,9 @@ Verify `last_action` was set to `pav-check DONE` by `/pav-check`.
    - **Duplication**: repeated code worth extracting.
    - **Performance**: with justification (what, where, why slow).
    - **Readability**: renaming, condition simplification.
-   - **Robustness**: unhandled edge cases visible from implementation.
+   - **Robustness**: opportunities beyond the satisfied contract.
+   A newly discovered correctness defect returns to `/pav-check` as NEEDS WORK; do not
+   disguise it as a discretionary improvement.
 
 3. Categorize:
    - **Do Now**: high effect, low risk, within parent `## Solution Design → ### Scope → #### In`.
@@ -53,36 +57,37 @@ Verify `last_action` was set to `pav-check DONE` by `/pav-check`.
    If improvement is outside `## Solution Design → ### Scope → #### In` → automatically **Do Later**, regardless of effect.
    If no improvements found → no proposals section is written.
 
-4. If **Do Now** items exist:
-   - **Interactive mode** (no `--batch`): present to user and ask: "Apply improvements now or close task?" **Wait for approval.** Apply only approved Do Now items.
-   - **Batch mode** (`--batch`): do NOT prompt and do NOT apply. Record all Do Now items to `state.md` and continue immediately. Print: "Batch mode: N Do Now proposal(s) recorded for T-XX — will surface after execution phase."
-
-5. If proposals are non-empty, append to parent `state.md` a section `## Improvement Proposals (T-XX)`:
+4. Before prompting/applying, upsert one `## Improvement Proposals (T-XX)` section
+   when proposals exist; preserve existing decisions and mark applied/declined items so a
+   resume cannot apply them twice:
 
 ```
 ## Improvement Proposals (T-XX)
 
 ### Do Now
-<list or "None">
+<items or "None">
 
 ### Do Later
-<list or "None">
+<items or "None">
 
 ### Optional
-<list or "None">
+<items or "None">
 ```
 
-If any `Do Later` / `Optional` items exist, also mirror them as a one-line summary into the `notes:` field of the T-XX `## Subtask Progress` block.
+   No proposals → no section. Mirror Do Later / Optional summaries in leaf `notes:`.
+
+5. Handle unresolved Do Now items:
+   - **Interactive:** present the persisted list, ask which to apply, and wait for approval.
+     Apply only approved items within scope, follow the TDD gate for changed behaviour,
+     preserve frozen tests, update `target_files:`, and rerun tests/lint and AC verification.
+     A failed check → record `atomic-validation: failed` and stop; do not close.
+   - **Batch:** do NOT prompt and do NOT apply. Report the count recorded for later review.
 
 6. Update the parent `state.md → ## Subtask Progress` block for this T-XX: set
    `last_action: pav-propose done`, mirroring the `pav-check DONE` marker `/pav-check` writes.
-   Preserve `notes:`, `target_files:`, and `atomic-tests:` unchanged.
+   Preserve the cumulative `target_files:`, `atomic-tests:`, and all existing/TDD notes.
 
-   **Write this line in every mode** — interactive and `--batch` alike — and **whether or not
-   any proposals were found.** It is the only record that step 2 finished: step 5 writes
-   `## Improvement Proposals (T-XX)` only when proposals are non-empty, and
-   `atomic-validation: complete` is not set until `/pav-close`. Without this marker,
-   `phase-atomic-validation` Step 0 cannot tell a run interrupted before step 2 from one
-   interrupted after it, and would silently re-run the wrong step.
+   **Write this line in every mode**, including zero proposals, only after all approved
+   work and checks finish. It is the resume marker `/phase-atomic-validation` reads.
 
-7. Report: "Step 2 (Improvements) complete."
+7. Report: "Step 2 (Improvements) complete." This is a progress marker for `/pav-close`.

@@ -22,7 +22,8 @@ Parent task directory = one level above.
 
 Read parent `state.md → ## Subtask Progress` block for this T-XX.
 If `atomic-validation: failed` → **stop**: "Cannot close: verdict is NEEDS WORK."
-Verify `last_action` was set to `pav-propose done` by `/pav-propose`.
+If `last_action` is not `pav-propose done` → **stop**: "Complete `/pav-propose` before closure."
+Load the `phase-atomic-validation` rule (`## Context Bootstrap`) before project writes, including standalone invocation.
 
 ---
 
@@ -47,21 +48,24 @@ Before updating plan.md in step 2, load `workflow-reference` for the Status Tran
 
 3. Do NOT write to `T-XX/state.md` — it does not exist in the new structure.
 
-4. Run `/compress-state --auto` on the parent task's `state.md`.
+4. Run `/compress-state --auto` on the parent task's `state.md`; under `/spec-run`, return this shared edit as a delta.
 
 5. **Composite integration-validation trigger (only when this T-XX is a leaf child of a composite).**
 
-   Detect: if the current subtask ID matches the pattern `T-\d+[a-z]` (letter suffix), it **may** be a child OR a Type 3 leaf — verify below by checking for an actual parent composite block in `state.md`; do not treat the ID pattern alone as proof of childhood. Derive candidate parent composite ID by removing the letter suffix (e.g. `T-04b` → candidate `T-04`).
-
-   If the parent composite block exists in `state.md → ## Subtask Progress`:
+   Find a composite block whose actual `children:` list contains this leaf. No membership
+   → skip step 5. Do not infer membership or derive a parent from ID spelling; Type 3
+   leaves and promoted letter-suffixed parents can use overlapping ID forms.
+   For the matched composite:
    a. Read all sibling children listed in `children:` of the composite block.
    b. Check their atomic-validation status in `## Subtask Progress`.
    c. If ALL siblings have `atomic-validation: complete`:
       - Verify the composite's `description.md` exists (`T-04-<slug>/description.md`) and contains `## Acceptance Criteria`.
-      - If yes → call `/phase-composite-validation <path-to-composite-description.md>`.
+      - If already `integration-validation: complete`, preserve the result; do not retrigger.
+      - If yes and validation is not already complete → call `/phase-composite-validation <path-to-composite-description.md>`.
+        Under `/spec-run`, return shared updates and any new sibling creation as deltas.
       - If no → **stop**: "Composite T-04 has no description.md or missing ## Acceptance Criteria. Re-run `/pd-decompose` to regenerate."
    d. If NOT all siblings are complete → do not trigger yet; report "Waiting for siblings: T-04c (not yet reviewed)."
 
-   If this subtask ID does NOT match the child pattern → skip step 5 without error.
 
-6. Report: "Task T-XX closed. Status: reviewed. Parent `plan.md` and `## Subtask Progress` updated."
+6. Report: "Task T-XX closed. Status: reviewed. Parent `plan.md` and `## Subtask Progress` updated (or returned as deltas)."
+This is a progress marker; return composite failures to the caller before continuing.

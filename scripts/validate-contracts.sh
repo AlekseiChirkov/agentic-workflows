@@ -1166,8 +1166,8 @@ FIXNAME_BAD="$(grep -rnE 'T-[0-9A-Za-z]+-fixes' workflows/ rules/ templates/ doc
 check "FIXNAME: no fix-task name uses the unexecutable 'fixes' form" \
   "$([ -z "$FIXNAME_BAD" ] && echo pass || echo "a T-NN-fixes form survives and matches no downstream reader: $(printf '%s' "$FIXNAME_BAD" | head -3 | tr '\n' ' ')")"
 
-check "FIXNAME: pv-execute-fixes discovers fix-tasks by the T-XX-fix-* glob" \
-  "$(grep -q 'T-XX-fix-\*' workflows/pv-execute-fixes.md 2>/dev/null && echo pass || echo 'pv-execute-fixes.md no longer states the T-XX-fix-* discovery glob the classifier and creator are named against')"
+check "FIXNAME: pv-execute-fixes uses the authoritative Created list for both fix forms" \
+  "$(grep -q 'Created:' workflows/pv-execute-fixes.md && grep -q 'T-XX-fix-<slug>' workflows/pv-execute-fixes.md && grep -q 'T-XXc-fix-<slug>' workflows/pv-execute-fixes.md && echo pass || echo 'fix execution must read Created: and support top-level plus composite fix siblings')"
 
 check "FIXNAME: workflow-globals Created: format uses the same shape" \
   "$(grep -qE '^Created: T-XX-fix-<slug>' rules/workflow-globals.md 2>/dev/null && echo pass || echo 'workflow-globals ## Fix-Tasks Created: format no longer uses the T-XX-fix-<slug> shape that pv-execute-fixes globs for')"
@@ -1494,7 +1494,7 @@ check "SHARED: orchestration names phase-composite-validation in the delta-retur
 check "SHARED: the composite block is excluded from the own-progress-block carve-out" \
   "$(tr '\n' ' ' < rules/orchestration.md 2>/dev/null | tr -s ' ' | grep -q 'composite.s rollup row is not' && echo pass || echo 'orchestration no longer states that a composite rollup row is not any single sub-agent own row — the carve-out would then appear to license the Validator writing it')"
 
-# ── Group 46: the spec file has exactly one permitted write ───────────
+# ── Group 46: the spec file has controlled completion and reconciliation writes ───────────
 # workflow-reference calls the spec immutable and says "Do NOT edit the spec file directly",
 # while /pv-finalize step 2.5 prepends completion frontmatter to it. Either the write is a
 # named carve-out or the two files contradict each other; a reader cannot obey both.
@@ -1503,7 +1503,7 @@ SPEC_WRITER="$(grep -q 'Mark spec as complete' workflows/pv-finalize.md 2>/dev/n
 check "SPEC: the completion-marker write is a named carve-out from immutability" \
   "$([ "$SPEC_WRITER" = no ] && echo pass || (printf '%s' "$WFR_FLAT" | grep -q 'completion marker, not a change to the task statement' && echo pass || echo 'pv-finalize step 2.5 writes to the spec file while workflow-reference calls the spec immutable and forbids editing it directly, with no carve-out naming the completion marker'))"
 
-check "SPEC: the amendment prohibition still excludes only the completion marker" \
+check "SPEC: active-work amendments preserve the source spec outside controlled exceptions" \
   "$(printf '%s' "$WFR_FLAT" | grep -q 'Do NOT edit the spec file directly. (The completion frontmatter written by ./pv-finalize. step 2.5 is not an amendment' && echo pass || echo 'workflow-reference Amendment procedure no longer scopes its prohibition against the one write pv-finalize performs')"
 
 check "SPEC: content changes still go to state.md, not the spec" \
@@ -4523,6 +4523,10 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
 check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
   "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
 # ── End public identity smoke checks ────────────────────────────────
+
+# Workflow entry points and bootstrap contracts are checked without model calls.
+check "test_workflow_instruction_contracts" \
+  "$(python3 "$REPO_ROOT/tests/workflow-instructions.py" && echo pass || echo 'workflow entry points, bootstrap and mode contracts must be consistent')"
 
 # ── Native hook adapter acceptance ──────────────────────────────────
 test_hook_shell_quality_acceptance() {

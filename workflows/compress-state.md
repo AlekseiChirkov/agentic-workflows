@@ -2,82 +2,53 @@
 description: Clean and compress state files — remove stale content, keep only what is current and accurate
 ---
 
-Invocation: `/compress-state [path]`
-Examples:
-- `/compress-state` — compress `.ai/memory/state.md` (default)
-- `/compress-state .ai/tasks/todo/task-01-add-oauth/state.md` — compress specific file
-- `/compress-state --auto .ai/tasks/todo/task-01-add-oauth/state.md` — skip confirmation
+Invocation: `/compress-state [path] [--auto]`
+Default target: `.ai/memory/state.md`. Resolve relative paths from the current project root.
+`--auto` skips the compression-plan confirmation, not preservation or evidence checks.
 
----
+## Guard
 
-## Step 0 — Read Input
-
-1. Determine target file:
-   - If path provided → use it.
-   - Otherwise → `.ai/memory/state.md`.
-2. Read target file fully.
-3. If target is `.ai/memory/state.md` → also read all `state.md` files in task directories for context.
-4. If target file does not exist → report and **stop**.
-
----
+1. Read the target fully. If missing → **stop**: "No state file at `<path>`."
+2. Load `workflow-reference → ## Protected Sections Contract` before classifying content.
+   Protected content takes precedence over every compression instruction below.
+3. For project memory, inspect active task state referenced by its entries. Read other task
+   state only when needed to resolve a specific claim; do not load all completed tasks.
 
 ## Step 1 — Audit Content
 
-Classify each section:
+Classify unprotected content using evidence from current state and referenced artifacts:
 
-1. **Current** — describes active state, decisions, constraints. Keep unchanged.
-2. **Stale** — describes what already changed: old decisions, completed phases, removed components. Mark `[STALE]`.
-3. **Duplicate** — already present elsewhere in the same file without added value. Mark `[DUPLICATE]`.
-4. **Inaccurate** — contradicts actual state. Mark `[INACCURATE]`.
-5. **Verbose** — intermediate reasoning where only the conclusion matters. Mark `[VERBOSE]`.
+| Class | Treatment |
+|---|---|
+| Current | Keep |
+| Stale | Remove only if no longer needed to resume or interpret current state |
+| Duplicate | Keep one authoritative occurrence |
+| Inaccurate | Correct only when the replacement is verified |
+| Verbose | Keep the conclusion, constraints, and unresolved decisions |
 
-Output list of all findings. If none: "File is current, no compression needed."
-
----
+Do not treat completion as proof of staleness. Preserve unresolved or conflicting claims
+and report their uncertainty. Classification labels are working notes, not edits to disk.
+If nothing can be improved → report "File is current; no compression needed." and **stop**.
 
 ## Step 2 — Confirm Changes
 
-Output plan: what will be removed, shortened, corrected, or kept.
-
-If `--auto` flag is present → proceed to Step 3 immediately without waiting.
-Otherwise → **wait for user confirmation**.
-
----
+Report a concise plan of removals, corrections, and reductions. Proceed with `--auto` or
+existing explicit authorization; otherwise wait for confirmation before writing.
 
 ## Step 3 — Apply Compression
 
-Load `workflow-reference` for the Protected Sections Contract before applying compression.
+Apply only the audited changes. Keep machine-read headers, marker syntax, field names,
+and current phase status. Do not add scope or derive new decisions.
 
-1. **Remove** `[STALE]` and `[DUPLICATE]` sections.
-2. **Correct** `[INACCURATE]` sections to match actual state.
-3. **Shorten** `[VERBOSE]` sections: keep conclusions, remove reasoning path.
-4. **Preserve structure**: do not rename section headers used by other workflows.
-5. **Do not add** new content — only clean and compress.
-
-Protected sections and fields are defined in `workflow-reference → ## Protected Sections Contract`. Never remove, rename, or summarize any of them. This includes composite-specific protected lines: `[composite]` prefix, `children:`, `rollup:`, and `integration-validation:` fields — never strip these from composite blocks.
-
-Additionally, lines of the form `→ archived to state-archive.md` must never
-be removed, compressed, or treated as stale. These are live references to
-`state-archive.md` — removing them breaks the archive contract.
-
-The git audit trail in orchestrated mode is protected the same way: the `branch:`,
-`base_branch:`, `base_commit:`, `commits:`, and `pr:` fields in leaf blocks, and any `notes:`
-line beginning with `arbiter:`. `base_commit` in particular cannot be recomputed once the
-parent branch has been squash-merged and deleted — compressing it away makes `/restack`
-impossible and strands the branch stack.
-
-The TDD audit trail is likewise protected: the `atomic-tests:` field in leaf blocks, the
-`## TDD (quick)` section in quick-tier `state.md` files, and any `notes:` line beginning with
-`tdd:` (test level, `none` justification, test amendment records). These record decisions
-that `/pav-check` and `/pv-review` audit later — a compressed-away justification reads as an
-unjustified skip.
-
-The rationale: these sections are contracts read by orchestrators to determine continuation points. Inside a protected section, stale bullet points may be shortened, but headers and marker lines must remain verbatim.
-
----
+The canonical Protected Sections Contract governs, including archive pointers
+(`→ archived to state-archive.md`), `atomic-tests:`, `tdd:` evidence, composite blocks,
+and the git fields including `base_commit:`. Never remove, rewrite, or summarize these
+as a compression operation. Shorten prose inside a protected section only when that
+contract explicitly permits it.
 
 ## Step 4 — Verify Result
 
-1. Confirm all sections referenced by workflows are still present.
-2. Output statistics: lines before/after, what was removed/shortened/corrected.
-3. If reduction < 10% → note: "Minimal compression — file was already in good shape."
+Compare protected content before/after; it must remain intact. Confirm all continuation
+markers and referenced sections still exist. Report line counts before/after and a short
+list of changes. If reduction is below 10%, report "Minimal compression; little redundant
+content." Then **stop**.

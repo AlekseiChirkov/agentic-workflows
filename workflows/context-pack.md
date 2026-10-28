@@ -1,149 +1,100 @@
 ---
-description: Build one verified, reusable context pack from the .ai/ knowledge base so every step stops re-reading the same seven files
+description: Utility — build or check a manifest-verified cache of shared project context
 ---
 
 Invocation: `/context-pack [--refresh] [--check] [--task <task-directory>]`
-Examples:
-- `/context-pack` — build or reuse the pack for this repository
-- `/context-pack --refresh` — rebuild unconditionally
-- `/context-pack --check` — report freshness only, write nothing
 
----
+The pack is a derived cache, never a source of truth. Canonical reader permission:
+`workflow-globals → ## Context Pack`.
 
-## Why this exists
+## Guard
 
-Every phase and child workflow opens the same knowledge base — principles, architecture,
-state, ADR index, runbook — and the load list is restated in more than a dozen workflow
-files. That costs context on every single step and, worse, lets the lists drift apart: a
-change to the load order has to be made in fourteen places or it is not made at all.
+Resolve `WORK_DIR` from the supplied task's `working_dir:` or the owning project root;
+set `AI_DIR=<WORK_DIR>/.ai`. Read existing task state before writing. Without `--task`,
+use the current project. Load `<WORK_DIR>/../.ai` before local context when present;
+local overrides umbrella. Require the local knowledge base; never create one implicitly.
 
-The pack is one assembled, **verified-fresh** document that a step may read instead of the
-individual files. It is a cache, not a new source of truth.
+`--check` is read-only, including when combined with `--refresh`. An unchanged fresh
+pack is reused unless refresh was requested. Only this workflow writes the pack.
 
----
+## Sources
 
-## The rule that keeps this safe
+Use these shared sources in the phase's required order; retain provenance and source
+boundaries rather than claiming every phase has an identical numbered bootstrap list.
 
-**A stale pack is never used.** The pack carries a manifest of every source file with its
-size and modification time. A reader compares the manifest against the filesystem before
-trusting a single line of it. Any mismatch — a changed file, a new file, a deleted one —
-and the pack is rebuilt or bypassed. There is no "probably still fine".
+| Source under each applicable `.ai/` | Keep |
+|---|---|
+| `principles/architecture.md` | Binding constraints, boundaries, off-limits |
+| `principles/coding.md` | Naming, standards, forbidden patterns |
+| `principles/domain.md` | Domain vocabulary and invariants |
+| `memory/architecture.md` | Components, interfaces, data flow |
+| `memory/state.md` | Current tasks and blockers |
+| `adr/index.md` | Complete index table |
+| `context/runbook.md` | `## Commands` verbatim |
 
-This matters because the failure mode of a stale cache here is not a slow step, it is an
-agent implementing against a principle that was changed yesterday. Freshness is checked, not
-assumed.
+Commands, prohibitions, off-limits lists and the ADR index are verbatim. Condense other
+prose only if every operative rule remains. Label umbrella/local content and overrides;
+never silently discard an umbrella constraint without an applicable local override.
 
----
+**Never packed:** `context/integrations.md`, `context/environment.md`, full ADR bodies,
+and `memory/progress.md`. Readers load conditional context, relevant ADRs and resume
+history directly. A missing optional source is recorded as absent, not invented.
 
-## What goes in
+## Step 1 — Check freshness
 
-Sources, in the canonical bootstrap order. In a multi-repo project the umbrella `../.ai/` is
-read first and the local `.ai/` second, with local overriding — the pack records both and
-marks which value won.
+1. Enumerate the expected source set, including umbrella presence and absent files.
+2. Read `AI_DIR/context-pack.md`'s `<!-- manifest -->` block if present. Compare source
+   paths, byte sizes and high-resolution mtimes against the filesystem. Check the exact
+   source set so additions, deletions and umbrella changes invalidate the pack.
+3. Return `fresh`, `stale` (name mismatches), or `absent`. A missing/malformed manifest
+   is stale. Never trust stale or unverified content.
+4. With `--check`, report and **stop** without writes. Otherwise reuse a fresh pack
+   unless `--refresh`; rebuilding a stale/absent cache is authorized by this invocation.
 
-| # | Source | What is extracted |
-|---|---|---|
-| 1 | `.ai/principles/architecture.md` | Binding constraints, layer rules, off-limits |
-| 2 | `.ai/principles/coding.md` | Naming, forbidden patterns, standards |
-| 3 | `.ai/principles/domain.md` | Ubiquitous language, domain invariants |
-| 4 | `.ai/memory/architecture.md` | Components, boundaries, data flow |
-| 5 | `.ai/memory/state.md` | Active tasks, in-flight work, blockers |
-| 6 | `.ai/adr/index.md` | The index table — full ADR bodies are never packed |
-| 7 | `.ai/context/runbook.md` | `## Commands` verbatim — test, lint, build, run |
-
-**Never packed:** `.ai/context/integrations.md` and `.ai/context/environment.md` — both are
-conditional loads that depend on what the task touches, and packing them unconditionally
-reintroduces the cost the pack exists to remove. `.ai/memory/progress.md` is not packed
-either; it is a narrative log, read only when resuming.
-
-**Verbatim, not summarised, for:** `runbook.md → ## Commands`, every forbidden-pattern and
-off-limits list, and the ADR index table. A summarised command is a wrong command, and a
-paraphrased prohibition is not a prohibition. Everything else may be condensed to its
-operative content — drop prose, examples, and rationale; keep every rule.
-
----
-
-## Step 1 — Freshness check
-
-1. Resolve `AI_DIR` exactly as the phase rules do; note whether `../.ai/` exists.
-2. If `.ai/context-pack.md` exists, read its `<!-- manifest -->` block and compare every
-   entry against the filesystem: path, byte size, and mtime.
-3. Verdict:
-   - **Fresh** — every entry matches and no source has appeared or disappeared.
-   - **Stale** — any mismatch. Name which file, and how it differs.
-   - **Absent** — no pack.
-
-With `--check` → report the verdict and the reason, write nothing, **stop**.
-Without `--refresh`, a **fresh** pack is reused: report "Context pack is fresh (built
-`<timestamp>`)" and **stop**.
-
----
+A same-session check does not cover subsequent source edits: recheck before reuse after
+any relevant mutation. Metadata verification is the current cache contract; content-hash
+receipts and stable/dynamic packet separation are separate planned improvements.
 
 ## Step 2 — Build
 
-Write `.ai/context-pack.md`:
+Read the enumerated sources, then write a temporary pack beside `AI_DIR/context-pack.md`:
 
 ```markdown
-<!-- Generated by /context-pack. Do not edit by hand — regenerate instead. -->
+<!-- Generated by /context-pack; refresh instead of editing. -->
 <!-- manifest
-path=.ai/principles/architecture.md size=4211 mtime=2026-08-20T11:03:04Z
-path=.ai/principles/coding.md size=8140 mtime=2026-08-19T09:41:55Z
-...
-umbrella=../.ai (present|absent)
-built=2026-08-26T14:03:11Z
+path=<source-path> size=<bytes> mtime=<high-resolution-UTC-time>
+path=<absent-source-path> absent=true
+umbrella=<resolved-path> present=<true|false>
+built=<UTC-timestamp>
 -->
 
 # Context Pack
 
 ## Binding Constraints
-<architecture principles: rules only>
-
+<source-tagged operative architecture principles>
 ## Coding Standards
-<coding principles: naming, forbidden patterns — forbidden lists verbatim>
-
+<standards and verbatim forbidden lists>
 ## Domain
-<ubiquitous language and domain invariants>
-
+<vocabulary and invariants>
 ## System Architecture
-<components, boundaries, data flow>
-
+<components, interfaces, data flow>
 ## Current State
-<active tasks, in-flight work, blockers>
-
+<current tasks and blockers>
 ## Decisions Index
-<the ADR index table, verbatim>
-
+<verbatim source-tagged index tables>
 ## Commands
-<runbook ## Commands, verbatim>
-
+<verbatim source-tagged command sections>
 ## Not In This Pack
-- .ai/context/integrations.md — conditional load, read it when the task touches an external service
-- .ai/context/environment.md — conditional load, read it when the task touches envs, secrets, or infra
-- .ai/memory/progress.md — read it only when resuming interrupted work
-- .ai/adr/<NNNN>-*.md — full ADR bodies; read one when the index line is not conclusive
+<conditional context, full ADRs and progress history with source retrieval paths>
 ```
 
-The closing section is mandatory. A cache that does not state its own boundaries invites a
-reader to conclude that what is missing does not exist.
-
-Add `.ai/context-pack.md` to the project's `.gitignore` if `.ai/` is not already ignored
-there. The pack is derived, machine-local, and must never be reviewed as if it were a source.
-
----
+Recheck source metadata before replacing the cache; if anything changed while reading,
+discard the temporary pack and report stale inputs. Preserve the existing cache until a
+complete replacement is verified. Ignore the derived cache through `.gitignore` only
+when it is not already covered; preserve repository tracking policy for source knowledge.
 
 ## Step 3 — Report
 
-Print the verdict from Step 1, the number of sources packed, the pack's size against the
-combined size of its sources, and the path.
-
-Then **stop**. This workflow reads code no further, changes no phase, and starts nothing.
-
----
-
-## For workflow authors
-
-A step is permitted to substitute the pack for sources 1–7 of its bootstrap list **only**
-when it has confirmed freshness in the same session. The substitution is an optimisation
-with one precondition and no exceptions — see `workflow-globals → ## Context Pack`. Steps
-that need a conditional load, a full ADR body, or `progress.md` read those files directly,
-packed or not.
+Report verdict, rebuilt/reused status, source count, cache/source bytes and pack path.
+Call these size diagnostics, not measured token or cost savings. Then **stop**; do not
+advance a phase or read implementation source.

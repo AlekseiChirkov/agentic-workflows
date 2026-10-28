@@ -19,30 +19,25 @@ written. The governing contract is the `tdd` rule.
 
 ## Context Bootstrap
 
-Follow `phase-atomic-execution` rules — ## Context Bootstrap.
+Load the `phase-atomic-execution` rule (`## Context Bootstrap`) before reading implementation files or
+writing project files; run the full bootstrap when invoked standalone. The rule owns
+the load order, umbrella precedence, conditional sources, and reporting.
 
-**Resolve paths first:** Read `T-XX/description.md → ## Context → working_dir:`.
-- If `working_dir:` present: `WORK_DIR = <resolved absolute path>`, `AI_DIR = WORK_DIR/.ai`
-- If absent: `WORK_DIR = <current directory>`, `AI_DIR = .ai`
-- Umbrella: if `AI_DIR/../.ai/` exists → load umbrella first, then `AI_DIR` (local overrides)
-
-Report: "WORK_DIR=<path>, AI_DIR=<path>"
-
-Load in order, skip missing files:
-
-1. `AI_DIR/memory/architecture.md` — component boundaries, integration points
-2. `AI_DIR/memory/state.md` — current task status, active blockers
-3. `AI_DIR/principles/architecture.md` — patterns to enforce
-4. `AI_DIR/principles/coding.md` — style, naming, error-handling, forbidden patterns
-5. `AI_DIR/principles/domain.md` — domain rules, terminology
-6. `AI_DIR/adr/index.md` — decisions that constrain this implementation
-7. `AI_DIR/context/runbook.md` — test/lint/build commands (required for both the TDD RED step and Final Verification)
-
-Report: "Atomic execution context loaded from AI_DIR=<path>: [files read]"
+Resolve the description and parent task paths before changing directories. Resolve
+`working_dir:` from `description.md → ## Context` relative to the atomic task directory;
+if absent, use the invocation directory. Set `WORK_DIR` to that absolute directory
+and `AI_DIR = WORK_DIR/.ai`. The umbrella is `WORK_DIR/../.ai`.
+Keep task-artifact paths absolute; run code reads, writes, and commands in `WORK_DIR`.
 
 ---
 
-## Step 0 — State Check
+Under `/spec-run`, follow `orchestration → ## Shared-file discipline`: write only this
+leaf's progress block and code/tests. Return architecture, composite, plan, and compression
+updates as deltas for the orchestrator; this applies to every child in the cycle.
+
+## Guard
+
+Step 0 — State Check
 
 Read parent `state.md` (one level above the atomic task directory) and `T-XX/description.md`.
 
@@ -50,16 +45,19 @@ Read parent `state.md` (one level above the atomic task directory) and `T-XX/des
 - Verify `T-XX/description.md` contains both `## Steps` and `## Acceptance Criteria`. If either is missing → **stop**: "description.md is incomplete (missing ## Steps or ## Acceptance Criteria). Run `/pd-decompose` + `/pd-finalize` to regenerate."
 - Look up this T-XX block in parent `state.md → ## Subtask Progress`:
   - If block is missing → treat as `atomic-execution: not-started` (will be created).
-  - If `atomic-execution: complete` → report: "Atomic execution already complete." **Stop.**
+  - If `atomic-execution: complete` and finalization is recorded (`pae-finalize done` or
+    legacy plan `done`/`reviewed`) → report completion and return to the caller.
+  - If execution complete but finalization is not recorded → resume `/pae-finalize`;
+    do not rerun tests or implementation.
   - If `atomic-execution: blocked` → run **Blocker Reconciliation** (`phase-atomic-execution` rules). If the blocker is a dependency/status blocker whose prerequisites are all satisfied → clear it automatically, record the reconciliation in `last_action`/`notes`, and continue. Otherwise (non-status blocker, or a prerequisite still unmet) → report the blocker and ask "Is it resolved? (yes/no)". **Wait.**
   - If `atomic-execution: in-progress` → continue from `last_action` (may require re-running last step for idempotency).
   - If `atomic-execution: not-started` → start from step 1 of `## Steps`.
 
 **TDD entry point.** Read `atomic-tests:` from the same block (see the `tdd` rule for the
-value set). It selects where this cycle resumes:
+value set). Unless the Guard already selected finalization, it selects the resume step:
   - `not-started`, or the field is absent **and** `atomic-execution: not-started` → start at `/pae-tests`.
   - Field absent **and** `atomic-execution: in-progress` → pre-TDD task already underway. Do not retroactively demand RED. Append to `notes:` — `pre-TDD task, TDD step skipped` — and resume at `/pae-implement`.
-  - `red` → RED already reached; resume at `/pae-implement`.
+  - `red` or `pinned` → frozen tests already established; resume at `/pae-implement`.
   - `n-a` → gate returned `none` with a recorded justification; resume at `/pae-implement`.
   - `green` → implementation already passed its tests; resume at `/pae-finalize`.
   - `failed` → RED could not be established. Report the recorded reason and **wait** — do not implement against a test set that never went red.
@@ -70,18 +68,25 @@ T-XX directories no longer contain their own `state.md` or `plan.md`. All progre
 
 ## Execution
 
-Update parent `state.md → ## Subtask Progress` block for this T-XX: set `atomic-execution: in-progress`.
+For a new leaf, create its canonical progress block with `atomic-tests: not-started` before
+setting `atomic-execution: in-progress`; this prevents a new task from being mistaken for a
+legacy pre-TDD resume. Preserve all existing test evidence and git fields.
+Do not execute descriptions marked `type: composite`; run their leaf children instead.
 
 Run child workflows in order, skipping steps already satisfied per the TDD entry point above:
 1. Call `/pae-tests <path-to-atomic-description>` — RED: classify test level, write failing tests from `## Acceptance Criteria`, observe them fail
 2. Call `/pae-implement <path-to-atomic-description>` — GREEN: execute steps from `## Steps` until the RED tests pass, then refactor + verify
 3. Call `/pae-finalize <path-to-atomic-description>` — Update parent state/plan
 
-Step 1 is skipped only when `atomic-tests:` is already `red`, `n-a`, or `green`, or when this
+Step 1 is skipped only when `atomic-tests:` is already `red`, `pinned`, `n-a`, or `green`, or when this
 is a pre-TDD task resumed mid-execution. It is never skipped to save time.
+
+Stop the cycle whenever a child stops or fails; never run the next child on an unresolved gate.
 
 After completion, report:
 - TDD level and RED→GREEN result (tests written, tests passing).
 - Steps completed.
 - Verification result.
 - Next: `/phase-atomic-validation <path>`.
+
+This is a progress marker for an active caller, not a phase handoff.

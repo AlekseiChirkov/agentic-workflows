@@ -24,18 +24,9 @@ Task directory = provided argument (trailing slash optional).
 
 ## Context Bootstrap
 
-Follow `phase-validation` rules — ## Context Bootstrap. Load in order, skip missing files.
-In multi-repo projects: load umbrella (`../.ai/`) first, then local (`.ai/`) — local overrides.
-
-1. `.ai/memory/architecture.md` — system invariants, integration contracts
-2. `.ai/memory/state.md` — what was executed, task progress
-3. `.ai/principles/architecture.md` — patterns the implementation must conform to
-4. `.ai/principles/coding.md` — code standards (deviations = findings)
-5. `.ai/principles/domain.md` — domain correctness rules
-6. `.ai/adr/index.md` — past decisions (violations = critical findings)
-7. `.ai/context/runbook.md` — test/lint commands
-
-Report: "Validation context loaded: [files read]". Then read implementation files.
+Load the `phase-validation` rule (`## Context Bootstrap`) before reading implementation files or
+writing project files; run the full bootstrap when invoked standalone. The rule owns
+the load order, umbrella precedence, conditional sources, and reporting.
 
 ---
 
@@ -46,7 +37,9 @@ Report: "Validation context loaded: [files read]". Then read implementation file
    `### Invariants`, and `### Acceptance Criteria`, and `## TDD (quick)` holds the test record
    the test-coverage findings below are judged against.
    If `### Critical Failures Decision: continue-marked` is recorded in `## Contract Check` — carry every failed Invariant/Off-limits entry into `### Findings` as a `critical` item (prefixed with `contract:`).
-2. Read all files changed by T-XX subtasks from parent `state.md → ## Subtask Progress → T-XX → target_files:` for each T-XX subtask.
+2. Read the same task-owned file set `/pv-contract` used, including tests. For full tasks,
+   union cumulative `target_files:` and resolve each subtask's `working_dir:`; for quick
+   tasks, use the persisted inline file list. Do not infer quick tasks have leaf blocks.
 3. Review for:
    - **Readability and clarity** — naming, structure, comments where needed.
    - **Architectural consistency** — implementation matches chosen approach.
@@ -60,10 +53,11 @@ Report: "Validation context loaded: [files read]". Then read implementation file
        "existing tests cover it") → `important`.
      - A test amendment recorded during GREEN whose stated reason blames the implementation
        rather than the test → `critical`: the contract was bent to fit the code.
-     - Acceptance Criteria with no corresponding test → `important`.
+     - Testable Acceptance Criteria with no corresponding test → `important`; justified
+       `n-a` and recorded legacy exemptions are audited against their exemption instead.
      - Tests that assert implementation details rather than behaviour, use `Mock()` for
        repository interfaces, or whose only assertion is vacuous → `important`.
-4. Write to `state.md`:
+4. Upsert one `## Code Review` section in `state.md`, retaining prior resolution evidence:
 
 ```
 ## Code Review
@@ -76,3 +70,4 @@ Report: "Validation context loaded: [files read]". Then read implementation file
 ```
 
 5. Report: "Step 2 (Code Review) complete. N findings (X critical, Y important, Z optional)."
+Return to the caller; this is a progress marker.

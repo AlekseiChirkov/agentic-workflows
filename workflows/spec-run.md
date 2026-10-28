@@ -3,23 +3,20 @@ description: Orchestrator — carry one spec from Discovery to review-ready pull
 ---
 
 Invocation: `/spec-run <path-to-spec> [--allow-pr] [--dry-run]`
-Examples:
-- `/spec-run .ai/specs/01-add-oauth.md` — full run, all work stays local
-- `/spec-run .ai/specs/01-add-oauth.md --allow-pr` — also push branches and open draft PRs
-- `/spec-run .ai/specs/01-add-oauth.md --dry-run` — print the plan, change nothing
+You are the **Orchestrator**. Load `orchestration` and `git-flow` before Step 0.
+They own roles, shared-file discipline, escalation and git rails.
 
-You are the **Orchestrator**. Load `orchestration` and `git-flow` in full before Step 0 —
-they define the roles, the escalation protocol, and every git rail this workflow obeys.
+- `--allow-pr` authorizes pushes and draft PRs; without it run no push or `gh` command.
+- `--dry-run` reports preflight, existing plan and proposed stack without project writes,
+  branches, commits, PRs or Discovery. Best-effort telemetry is its only write exception.
+- One repository per invocation; split cross-repository work into separate specs.
 
-**Flags:**
-- `--allow-pr` — authorizes pushing branches and opening draft pull requests. Without it, no
-  `git push` and no `gh` command runs at any point; the stack exists only locally.
-- `--dry-run` — prints preflight results, the resolved subtask order, and the branch stack
-  that would be created. Creates no branch, writes no commit, opens no PR. Discovery is not
-  run; if Discovery has not happened yet, the plan is reported as "unknown until Discovery".
+## Guard
 
-Single repository only. A spec covers exactly one repo — cross-repo work is split into
-separate specs.
+Require an existing spec, supported worker messaging, and passing git preflight. Read
+state before mutation. Resume completed checkpoints rather than recreating their branches
+or commits. Existing class-B questions must be answered before execution; an overwrite
+still needs explicit authorization. A completed run with no remaining PR promotion stops.
 
 ---
 
@@ -28,16 +25,14 @@ separate specs.
 This pipeline writes a run log. Follow the **`run-log`** rule in full — it defines the
 store, the field vocabulary, and the rule that logging never blocks a run.
 
-At Step 0, after preflight passes and the resume point is known, open the run:
-
-Open the run with `scripts/log-step.sh run-start` through the configured helper:
+After Step 0 resolves the task and resume point, open the run with `scripts/log-step.sh run-start` through the configured helper:
 
 ```bash
 LOG_HELPER="${ORCHESTRAIL_HOME:+$ORCHESTRAIL_HOME/scripts/log-step.sh}"
 RUN_ID=""
 if [ -x "$LOG_HELPER" ]; then
   RUN_ID=$("$LOG_HELPER" run-start --pipeline spec-run \
-  --project "$(pwd)" --task <task-directory> --spec <spec-path> \
+  --project "$WORK_DIR" --task <task-directory> --spec <spec-path> \
   --flags "<--allow-pr / --dry-run as passed>") || RUN_ID=""
 fi
 ```
@@ -47,61 +42,56 @@ Native hooks deliver their own correlated writes; a sub-agent never calls
 `scripts/log-step.sh` and returns its report marker. Follow `run-log → ## Workflow coverage and routing`
 for every boundary, including uncertain resumes and unavailable status.
 
-Log a `step` line after each of Steps 1–8, plus one per subtask inside the Step 4 loop
-(`--step subtask --subtask T-XX --tests <atomic-tests value> --gate <validator verdict> --note approximate`).
-This approximate synthetic subtask aggregate is distinct from the named `pae-tests`
-RED row resolved in Step 4.2. Attach `--note approximate` to every ordinary step call.
-The batch gate gets its own line — `--step batch-gate --stops 1 --questions N --note approximate` — because
-the number of class-B questions per run is the single most useful number this pipeline
-produces. On `--dry-run`, log `run-start`, one `--step dry-run --outcome skipped --note approximate` line, and
-`run-end --outcome completed`; write nothing else. Close with `run-end --outcome
-completed`, `stopped`, or `failed`.
-
-Logging is best-effort: if `$LOG_HELPER` is missing or a call fails,
-continue unchanged and mention it once in the final report. Never stop, retry, or ask the
-user because of a log write.
+Log each executed numbered step once, plus one synthetic aggregate per subtask
+(`--step subtask --subtask T-XX --tests <atomic-tests> --gate <verdict> --note approximate`).
+This aggregate is distinct from the named RED row in Step 4.2. Ordinary prompt steps use
+`--note approximate`. Log an actual batch stop as
+`--step batch-gate --stops 1 --questions N --note approximate`; do not count an empty gate as a stop.
+Dry-run logs only `run-start`, `--step dry-run --outcome skipped --note approximate`,
+and `run-end --outcome completed`. Close other runs as `completed`, `stopped` or `failed`.
+Missing helpers or log failures never block work; mention unavailable logging once.
 
 ---
 
 ## Step 0 — Preflight and resume
 
-1. Run the full preflight checklist from `git-flow → ## Preflight`. Any failure → report
-   which check failed and **stop**.
-2. Resolve the task directory from the spec path exactly as `/phase-discovery` does
-   (`task-` + spec basename, plus `-p<N>` for multi-phase specs).
-3. If the task directory exists, read `state.md` and determine the resume point:
-   - `## Phases → discovery` not `complete` → resume at Step 1.
-   - discovery complete, some subtasks not `reviewed` → resume at Step 4, at the first
-     subtask that is not `reviewed`.
-   - all subtasks `reviewed`, `validation` not complete → resume at Step 5.
-   - everything complete → report and stop.
-4. **Reconcile git against state.** For each subtask with a recorded `branch:`, verify the
-   branch still exists and its tip matches the last sha in `commits:`. Report any divergence
-   and **stop** — a branch that moved underneath the recorded state means someone worked on it
-   manually, and continuing would silently build on an unknown base.
-5. Report the resume point, the flags in force, and whether PRs will be opened.
-
-If `--dry-run` → print preflight result and the plan from Step 3 (or "unknown until
-Discovery"), then **stop**.
+1. Resolve the project `WORK_DIR` and run `git-flow → ## Preflight (mandatory, before any branch is created)`. Report any failure
+   and **stop**. Dry-run performs read-only checks and reads an existing plan if available;
+   otherwise report "unknown until Discovery" and stop after closing telemetry.
+2. Run `phase-discovery` Step 0 in full for resolution only, adopting its working directory, task path,
+   multi-phase selection and collision guards. Resolution itself writes nothing; let
+   Discovery initialize a fresh task once.
+3. If resolution found a new task without state, start at Step 1. Otherwise read
+   `state.md` and reconcile recorded branches and commit tips. A missing branch or
+   unexpected tip requires explicit reconciliation; never infer that missing means merged.
+   Clean-tree preflight also applies on resume. Uncommitted tracked work, including
+   tracked task bookkeeping, stops before mutation: report exact paths and the pending
+   checkpoint for user reconciliation. Never stash or commit it merely to clear this gate.
+4. Resolve pending `## Open Questions (batch)` before resuming any execution. Preserve
+   answered assumptions, and reconsider unstarted design/decomposition if answers change
+   them. Conflicts with already built work stop for a recorded decision.
+5. Resume the earliest unfinished checkpoint:
+   - Discovery incomplete: Step 1.
+   - Discovery complete, model/stack setup missing: Steps 2–3.
+   - Unreviewed leaves: Step 4 at the first one, at its existing atomic/git checkpoint.
+   - Leaves reviewed, execution finalization missing: `/pe-finalize` before Step 5.
+   - Execution complete, Validation incomplete: Step 5, including its pending fixes.
+   - Validation complete: Step 7 if authorized PR promotion is outstanding; otherwise report.
+6. Report the resume point and flags. Restore the Arbiter from current artifacts on a new
+   session; do not assume a previous worker or its in-memory dispatch envelope survived.
 
 ---
 
 ## Step 1 — Discovery, with the batch gate
 
-Run Discovery in its autonomous mode by invoking the child workflows in order —
-`/pd-analyze`, `/pd-decompose`, `/pd-design`, `/pd-finalize` — passing the task directory.
-Do not pass `--step-by-step`.
+Pass the resolved `--phase N` for multi-phase specs so the child keeps the selected
+phase. Run `/phase-discovery` in autonomous **orchestrated** mode, allowing normal initialization
+for a fresh task and resuming existing Discovery artifacts otherwise. It owns child sequencing and quick/full routing; never pass `--step-by-step`.
+Spawn the **Arbiter** after task artifacts exist, before execution; give it current spec,
+state, plan and relevant project context. Retain it by message for this session.
 
-Two orchestrated-mode differences, both defined in `orchestration → ## Escalation protocol`:
-
-- **Class A** ambiguities are resolved as usual and recorded in
-  `## Task Analysis → ### Assumptions` with their source.
-- **Class B** ambiguities are **not** resolved. `/pd-analyze` collects them into
-  `state.md → ## Open Questions (batch)`.
-
-Spawn the **Arbiter** before Discovery finishes and keep it alive for the whole run. Give it
-the spec, `state.md`, `plan.md`, and the full `.ai/` context. Address it by message for the
-rest of the run rather than re-spawning it.
+`orchestration → ## Escalation protocol` governs Discovery: resolve class A with cited
+sources; collect class B in `## Open Questions (batch)`. No worker may infer missing intent.
 
 ### The batch gate — the only planned human stop
 
@@ -115,10 +105,11 @@ After `/pd-finalize`, read `## Open Questions (batch)`.
 Write the human's answers into `### Assumptions` (one line each, source: `user`), clear
 `## Open Questions (batch)`, and only then continue.
 
-This gate runs before any branch is created — that is the whole point of harvesting class-B
-ambiguities during Discovery. Nothing has been built yet, so an answer that changes the
-design costs nothing but a re-run of decomposition. The same answer arriving during Execution
-would invalidate every branch already stacked on top of the wrong assumption.
+The batch gate runs before any branch is created. After answers, reconcile any affected
+unstarted plan, descriptions and design before continuing; skip no unresolved questions
+on resume. If `flow: quick`, this branch-per-leaf workflow has no leaf plan: **stop** and
+report `/phase-pipeline <task-directory>` as the supported inline route. Do not invent a
+leaf, silently promote the tier or implement code in the Orchestrator.
 
 ---
 
@@ -138,7 +129,7 @@ topological order over `Depends On`, honouring any ordering policy in `## Execut
 Composite rows are containers — they get no branch and no agent; their children appear in the
 order as ordinary leaves.
 
-Derive the branch stack per `git-flow → ## Branch model`: subtask N branches from the tip of
+Derive the branch stack per `git-flow → ## Branch model — the stack`: subtask N branches from the tip of
 subtask N-1, with subtask 1 branching from the repository default branch.
 
 Print the plan before executing:
@@ -155,20 +146,29 @@ PRs: draft on creation, promoted to ready after validation | not created (no --a
 Subtask identifiers appear in this plan and in `state.md`; whether those records are tracked
 follows repository policy. They never reach a branch name, a commit message, or pull request
 text — see
-`git-flow → ## Pipeline identifiers stay out of the repository`.
+`git-flow → ### Pipeline identifiers stay out of the repository`.
 
 ---
 
 ## Step 4 — Subtask loop
 
-For each subtask in order. Never start N+1 before N is `reviewed`.
+For each pending leaf in order. Never start N+1 before N is `reviewed`. On resume,
+reuse its branch and skip completed checkpoints: existing RED resumes at its test commit,
+GREEN with execution complete resumes at finalization/implementation commit, and `done`
+resumes at Validator. Recreate a lost worker from current artifacts; never rewrite RED to
+recover conversation memory. Apply returned shared-file deltas after each checkpoint,
+before another worker or composite check depends on them. Re-read the plan and recompute
+the pending dependency order after each delta: approved integration siblings are runnable
+work, not entries to leave behind in the originally printed stack. Update remaining stack
+positions and PR totals; preserve already created branch points.
 
 **4.1 Branch.** Derive the branch name from the subtask's `## Goal` as `<type>/<feature-slug>`
-in domain language — never from its identifier (`git-flow → ## Branch model`). Create it from
-the current tip and check it out.
+in domain language — never from its identifier (`git-flow → ## Branch model — the stack`). For a new leaf, create it from
+the previous reviewed leaf's tip (default branch for the first) and check it out.
+For a resumed leaf, check out its reconciled existing branch.
 Immediately record in the subtask's `## Subtask Progress` block: `branch:`, `base_branch:`,
 and `base_commit:` (the sha of the branch point — `git rev-parse HEAD` before any work).
-`base_commit` is written once and never recomputed.
+`base_commit` is written once and never recomputed. Do not rewrite it on resume.
 
 **4.2 Implementer — one agent, two checkpoints.** Before the existing spawn, check native
 capability, current installation and native session identity as required by
@@ -200,12 +200,8 @@ and the instruction to run `/pae-tests` → **report RED and wait** → `/pae-im
 `/pae-finalize`. It loads `.ai/` context itself. Do **not** pass it the transcript of any
 previous subtask.
 
-**The RED checkpoint is what makes the two-commit rule achievable.** `git-flow → ## Commits`
-requires a test-only `test:` commit, and that commit can only be created while no
-implementation file has been written yet. An agent that reports once, after GREEN, has already
-put implementation and tests in the working tree together. So the Implementer stops in the
-middle, and the orchestrator — which owns git (`orchestration → ## Roles`) — commits between
-the halves:
+The Implementer reports before implementation so the Orchestrator can create the
+required test-only commit. Workers never run git:
 
 a. The agent runs `/pae-tests`, then **stops and reports**: the RED digest and the test files
    it wrote. At this point `target_files:` holds test files only.
@@ -239,10 +235,10 @@ no RED timing row. Leave any provisional checkpoint uncovered: there is no RED c
 and no `test:` commit — the agent runs straight through and the subtask gets a single
 implementation commit, exactly as `git-flow → ## Commits` specifies for that case.
 
-Commit messages carry no authorship attribution of any kind, and no pipeline identifier —
-no `T-XX`, no spec or task directory name, no ADR or `.ai/` path. See
-`git-flow → ## Commits` and `## Pipeline identifiers stay out of the repository`. The
-attribution rule overrides any harness default that would append a trailer.
+Follow `git-flow → ## Commits` for explicit staging, repository tracking policy and
+messages. Verify the recorded digest/commits before skipping an interrupted checkpoint.
+A characterization (`pinned`) checkpoint uses the same test-first commit handoff without
+claiming RED or emitting a named RED marker; follow `tdd` for its evidence.
 
 **4.3 Validator.** Spawn a **separate** sub-agent. Give it: the path to the same
 `T-XX/description.md`, the test files, and the subtask diff (`git diff <base_commit>..HEAD`).
@@ -267,36 +263,35 @@ the stack position and the dependency warning. Record `pr:` in the block.
 
 A subtask that is `blocked` or whose validation `failed` gets no PR.
 
-**4.6 Shared state.** Apply any deltas the sub-agents returned for `architecture.md`,
-`.ai/memory/state.md`, or `.ai/project_state.md` — the sub-agents do not write these
-themselves (`orchestration → ## Shared-file discipline`). Verify the subtask's progress block
-is structurally intact. Run `/compress-state --auto` on the task `state.md`.
+**4.6 Shared state.** Apply returned plan, composite and knowledge deltas per
+`orchestration → ## Shared-file discipline`; verify each progress block is intact.
+Compress task state with `/compress-state --auto`. After all leaves are reviewed, run
+`/pe-finalize` once to record Execution completion and collect batched proposals before
+Task-level Validation. In this mode, retain batched proposals pending and report them
+at delivery; apply none and request no new proposal choice. This named override is
+registered in `workflow-globals`. The Orchestrator delegates approved code work to an Implementer.
 
 ---
 
 ## Step 5 — Task-level validation
 
-Runs on the stack tip, which holds the whole task. Invoke `/phase-validation <task-directory>`
-and let it run its children in order.
+Run `/phase-validation <task-directory>` on the stack tip. Its children own issue
+collection, fix creation/classification, fix execution and finalization; do not rerun those
+steps separately afterward. Inside this invocation:
 
-Orchestrated-mode behaviour for its two interactive steps:
-- `/pv-issues` — do not wait. Approve every `critical` and `important` issue as a fix-task;
-  defer every `optional` one. Record the split in `## Issue List`.
-- `/pav-propose` — runs with `--batch` inside the fix cycle.
-
-`/pv-contract`'s critical-failure gate is **not** overridden: a violated invariant or an
-Off-limits breach stops the run and waits, per `orchestration`.
-
----
+- `/pv-issues`: approve `critical`/`important`, defer `optional`, and record the split.
+- `/pav-propose`: pass `--batch`; record proposals and apply nothing.
+- `/pv-contract`: preserve the critical-failure gate; failed Invariant/Off-limits stops.
+- `/spec-sync`: pass `--auto-mode` after validation checks; failed criteria remain defects.
 
 ## Step 6 — Fix-tasks
 
-`/pv-create-fixes` calls `/pv-classify-fixes` to decide branch grouping: fixes that clear the
-`quick-flow` gate share one fix branch and one PR; fixes that breach it get their own.
-
-Fix branches extend the stack from its tip and follow the same loop as Step 4 — Implementer,
-Validator, commits, draft PR. Their commit type is `fix:` and their branch is named after the
-defect being fixed, in domain language.
+This is a callback **during Step 5**, not a second fix pass. `/pv-create-fixes` calls
+`/pv-classify-fixes`: gate-qualified fixes share a branch/PR; others get dedicated branches.
+The Orchestrator applies shared deltas and runs Step 4's Implementer/Validator/commit
+handoffs for each group before `/pv-finalize`. Shared groups execute leaves sequentially
+on their recorded branch; only dedicated groups create another branch. Use domain-named
+`fix:` branches/messages and test-first commits under `git-flow`.
 
 ---
 
@@ -312,48 +307,14 @@ stack cannot shift while later subtasks are still being built.
 
 ## Step 8 — Final report
 
-```
-═══ SPEC RUN COMPLETE ═══════════════════════════════════════
-Spec:  <spec path>
-Task:  <task directory>
-Repo:  <repo>            Base: <base branch>
+Report the spec/task/repo/base, final outcomes and delivered behavior. For each leaf or
+fix group include status, branch, base and `base_commit`, commit hashes, tests and PR URL
+(or local-only). Include contract/review results, deferred findings, proposals and open
+questions. Mark hashes as pre-merge. List the required merge order and the dependency
+warning: later PRs include predecessors. After squash/rebase integration, `/restack`
+repairs remaining branches; the human chooses merge timing and strategy.
 
-Subtasks
-  T-01 <name>            reviewed
-    branch:  feat/oauth-token-schema
-    base:    <base branch> @ <base_commit>
-    commits: <sha> test: cover token schema validation rules
-             <sha> feat: add token schema with expiry validation
-    tests:   unit — 7 tests, AC 4/4
-    PR:      #141 ready — base <base branch>
-  T-02 <name>            reviewed
-    branch:  feat/oauth-token-service
-    base:    feat/oauth-token-schema @ <base_commit>
-    ...
-
-Merge order (fixed by code dependencies)
-  1. #141  feat/oauth-token-schema   → <base branch>
-  2. #142  feat/oauth-token-service  → retargets to <base branch> once #141 merges
-  3. #143  feat/oauth-login-route    …
-  Each PR contains its predecessors' commits and cannot reach <base branch>
-  without them. Merge strategy is yours — merge commit, rebase, or squash all
-  work. After a squash or rebase merge, run `/restack <task-directory>` to
-  replay the remaining branches onto the new base.
-
-  Commit hashes above are pre-merge and will not survive a squash or rebase merge.
-
-Validation
-  Contract:  <N> pass, <M> fail
-  Review:    <N> findings — <N_fix> fixed, <N_defer> deferred
-  Deferred:  <list or none>
-
-Open questions (unresolved)
-  <list, or "none">
-
-Summary
-  <what the task delivered, in prose>
-═════════════════════════════════════════════════════════════
-```
+If blocked, report the exact checkpoint and resume command; never label it complete.
 
 ---
 

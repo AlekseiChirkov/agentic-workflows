@@ -5,7 +5,7 @@ description: Workflow process reference — load when using any /phase-* or chil
 
 # Workflow Process Reference
 
-Canonical status formats (`## Phases`, subtask statuses) live in `workflow-globals` (always-on). This file holds extended rationale and examples only.
+Canonical status formats (`## Phases`, subtask statuses) live in `workflow-globals` (always-on). This file owns file responsibilities, protection, amendments and decision protocols; it also provides extended examples.
 
 ## File Responsibility
 
@@ -20,12 +20,14 @@ Task specification lives in `.ai/specs/<NN>-<slug>.md` — immutable after creat
 The task directory contains no top-level `description.md`. To read the original task
 statement, follow `spec_path:` in `state.md`.
 
-**One carve-out, and only one:** `/pv-finalize` step 2.5 prepends a `status: done` /
-`completed_task:` / `completed_at:` frontmatter block when validation completes. That is a
-completion marker, not a change to the task statement — it adds no requirement, removes none,
-and is skipped when a frontmatter block already exists. Everything below the frontmatter stays
-immutable, and every *content* change still goes through the Description Amendment procedure
-below rather than into the spec file.
+**Controlled exceptions:** `/pv-finalize` prepares `status: done`, `completed_task:`
+and `completed_at:` in step 2.5 and merges them into existing frontmatter only after
+successful final checks and reconciliation. This is a completion marker, not a change to the task statement. Preserve unrelated frontmatter fields;
+existing frontmatter alone does not mean completion. `/spec-sync` may reconcile content
+at verified finalization, after Validation, or under explicit user authorization.
+Failed acceptance criteria remain defects and must never be weakened by reconciliation.
+During implementation, requirement changes use the Description Amendment procedure on
+subtask descriptions; they do not silently alter the source spec.
 
 **Subtask directory (`T-XX-<slug>/`):**
 
@@ -71,7 +73,9 @@ The spec file (`.ai/specs/<NN>-<slug>.md`) may be amended after creation only wh
 **Amendment procedure:**
 
 Do NOT edit the spec file directly. (The completion frontmatter written by `/pv-finalize`
-step 2.5 is not an amendment and is not covered by this prohibition.)
+step 2.5 is not an amendment and is not covered by this prohibition.) Post-validation
+`/spec-sync` and explicit owner-authorized reconciliation are controlled content-edit
+exceptions under File Responsibility; neither may weaken a failed criterion.
 Add a `### Description Amendments` section to the task-level `state.md`:
 
 ```
@@ -394,19 +398,32 @@ Called by `pd-decompose` after producing the initial candidate list. The AI deci
 
 ### Classification rules (evaluated in order)
 
-1. **Default → leaf.** Every candidate starts as a leaf.
-2. **Leaf-health invariant (mandatory nesting).** A leaf MUST have S5 = 1 AND S2 = 1 (one coherent AC set, one testable component). If a candidate fails either condition, nesting is *required* — skip to rule 3.
-3. **Type 2 — nest into composite** when: S2 ≥ 2 AND S5 ≥ 2.
-   - Split T-XX into T-XXa, T-XXb, … (one per independently-testable component).
-   - T-XX becomes a composite; each child is a leaf.
-   - Depth-2 cap: if a child is still oversize (still fails leaf-health invariant), redistribute its steps across more sibling children (add T-XXd, T-XXe, …) — never nest a third tier.
-   - If a child's step count would fall below 3, merge it into the nearest sibling.
-4. **Type 3 — vertical re-slice** takes priority over Type 2 when evaluated over a *pair* of candidate subtasks. Evaluate pairs when: both subtasks have S4 = true and reference the same shared frozen contract. Apply Type 3 when all three D6 conditions hold:
-   - Both tracks are individually large enough to warrant decomposition (each has S1 > 8 or S2 ≥ 2).
-   - The shared contract is frozen and defines the interface between the two tracks.
-   - S3 ≥ 2 shared capabilities exist along which to slice.
-   When Type 3 applies: dissolve both original subtasks and emit per-capability leaf pairs. **Before creating capability slices, identify work shared across ALL capabilities** (shared contract definition, schema setup, common infrastructure) and assign it to a single shared leaf that all capability-pair leaves depend on — do NOT duplicate shared work into individual slices. For each shared capability, create a producer role leaf and a consumer role leaf; derive which track produces the shared contract and which consumes it from the task — the direction is NOT fixed. The consumer leaf depends on the producer leaf (`Depends On` edge: consumer → producer). ID assignment: let `base = min(AA, BB)`; capability `i` → `T-(base+i-1)a` (producer) and `T-(base+i-1)b` (consumer). Verify no ID in T-base…T-(base+N-1) collides with an existing non-dissolved subtask; shift `base` upward by 1 until the full range is free.
-5. **Borderline → bias-to-leaf.** If signals are ambiguous (e.g. S2 = 1.5, S5 = 1), keep the candidate as a leaf. A wrong leaf call is caught cheaply at runtime (tripwire); over-nesting is harder to undo.
+S1, S2, S3 and S5 are nonnegative integer counts; S4 is boolean. Resolve uncertain
+component/criteria groupings before classification. Apply these steps in order:
+
+1. **Type 3 — vertical re-slice pairs first.** Consider pairs whose S4 is true and
+   that reference the same shared frozen contract. Re-slice only when each track has
+   S1 > 8 or S2 ≥ 2, the contract defines their interface, and S3 ≥ 2 shared capabilities
+   provide a split. This takes priority over Type 2 nesting.
+   - Extract work shared across ALL capabilities into one prerequisite leaf; never
+     duplicate contract/schema/common infrastructure work into each capability.
+   - When Type 3 applies, emit a producer leaf and consumer leaf per capability; derive those roles
+     from the contract, not client/server labels. Consumer Depends On producer.
+   - Let `base = min(AA, BB)`. Capability i gets `T-(base+i-1)a` (producer) and
+     `T-(base+i-1)b` (consumer). Shift `base` upward by 1 until the full range is free
+     of colliding IDs belonging to non-dissolved subtasks. Record capability names in plan Slice.
+2. **Leaf-health invariant.** Classify remaining candidates, including generated slices:
+   a leaf requires S2 = 1 AND S5 = 1. Size uncertainty alone does not force nesting.
+3. **Type 2 — nest into composite** when S2 ≥ 2 AND S5 ≥ 2. Create sibling child
+   directories T-XXa, T-XXb, …, each with one component and one coherent AC cluster;
+   the parent owns integration-level criteria.
+4. **Mismatched clusters.** If only S2 or S5 exceeds 1, align criteria with testable
+   components and recount. Merge genuinely inseparable work; otherwise split criteria
+   and steps into coherent siblings. Never retain an unhealthy leaf.
+5. **Depth-2 cap.** A composite's children are leaves. Redistribute an unhealthy child
+   across more sibling children rather than nesting a third tier. Merge undersized work
+   only when it remains one testable component; preserve acceptance coverage and the
+   Decomposition Rules below.
 
 ### Runtime self-correction (tripwire)
 
@@ -422,7 +439,7 @@ Then invoke the **Composite Promotion Protocol**:
 4. Update `plan.md`: change the T-XX row `Type` to `composite`; add child rows (T-XXa, T-XXb, …) with `Type: leaf`.
 5. Update `state.md → ## Subtask Progress`: replace the leaf block with a composite block; add leaf blocks for each child.
 6. Depth-2 cap holds — do not promote a child of a composite.
-7. Continue execution with the first child (T-XXa).
+7. Stop after recording the promotion and preserve existing test evidence. In orchestrated mode, return shared-artifact deltas instead of writing them. Report the proposed first child (T-XXa) and wait for the required promotion decision; do not start it automatically.
 
 ### Decision record format (written to `plan.md → ## Decomposition Decisions`)
 
@@ -451,12 +468,12 @@ Criteria for a valid subtask:
 
 Decomposition limits:
 - Target 8 subtasks per task (soft guidance, not a hard limit)
-- If natural decomposition produces more than 8 — pause before merging:
-  Present the full proposed decomposition to the user and offer two options:
-  1. Merge: combine smallest related subtasks to reach ≤ 8 (AI proposes specific merges)
-  2. Split: treat this as two separate tasks (AI proposes split boundary)
-  Wait for explicit user decision. Do not merge automatically.
-- If a candidate subtask has fewer than 3 steps — absorb it into its closest neighbor
+- If natural decomposition produces more than 8, compare coherent merges with splitting the task. In `--step-by-step` mode, present both options and wait for explicit user decision. In autonomous Discovery, use the Autonomous Decision Protocol and record the choice; do not merge unrelated components merely to reach 8.
+- If a candidate has fewer than 3 steps, merge it only with a coherent neighbor that
+  preserves one testable component and one AC cluster. If no such merge exists, re-slice
+  the boundaries through the Autonomous Decision Protocol. If the minimum and leaf-health
+  constraints cannot both hold, stop and report that conflict for an explicit decision.
+  Never pad steps or merge independent components solely to reach the minimum.
 
 These rules apply strictly during `/pd-decompose` and must be enforced before `/pd-finalize` runs.
 
@@ -474,8 +491,7 @@ All projects using these workflows MUST define the following in `.ai/`:
 
 ### .ai/specs/ — spec files (required for new workflow)
 - `<NN>-<kebab-name>.md` — one file per task. H1 required. Numeric prefix must be unique.
-- Immutable after creation (except via the Description Amendment procedure, and the completion
-  frontmatter `/pv-finalize` step 2.5 prepends — see `## File Responsibility`).
+- Immutable during implementation except for explicit owner-authorized edits. Post-validation reconciliation and completion metadata follow `## File Responsibility`.
 - Consumed by `phase-discovery` to create the task directory.
 - Naming standard: `<NN>-<kebab-name>.md` where NN is zero-padded two digits (01, 02...).
 
@@ -485,8 +501,10 @@ All projects using these workflows MUST define the following in `.ai/`:
 - `typecheck:` — command for type checking (optional)
 - `build:` — command to build (optional)
 
-`test:` is **required** for the TDD step: `/pae-tests` stops when it is missing or still a
-placeholder, because RED cannot be observed without a way to run tests.
+`test:` is **required** for testable work: `/pae-tests` stops when it is missing or still a
+placeholder, because RED cannot be observed without a runner. Classify the level first;
+independently justified `none` retains its manual evidence and needs no runner. Never
+select `none` because a command is missing.
 
 ### .ai/principles/coding.md — ## Standards (optional but recommended)
 - `architecture:` — key patterns, e.g. "repository pattern, no business logic in routers"

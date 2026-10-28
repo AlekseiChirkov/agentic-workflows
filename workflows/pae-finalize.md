@@ -12,88 +12,57 @@ Parent task directory = one level above.
 
 ## Guard
 
-1. Read parent `state.md`. Locate the `## Subtask Progress` block for this T-XX.
-2. If block has `atomic-execution: complete` → ask: "This subtask is already complete. Confirm re-run? (yes/no)" Wait for explicit confirmation before proceeding. Do NOT block unconditionally.
-3. Otherwise → continue.
+Read the description and parent progress block before writing. `atomic-execution: complete`
+is the expected successful input from `/pae-implement`, not evidence that finalization ran.
+Missing state, execution not complete, or `blocker:` other than `none` → **stop**:
+"Complete `/pae-implement` successfully before finalizing."
+
+`atomic-tests:` must be `green` or justified `n-a`; absent is allowed only with the recorded
+pre-TDD exemption. Any other value → **stop**: "Implementation has not reached GREEN."
+If the plan is already `done`/`reviewed` and the finalization result is recorded, ask for
+explicit confirmation before replacing it. Do not prompt on the first successful call.
 
 ---
 
-## Pre-check
+## Context Bootstrap
 
-Read parent `state.md → ## Subtask Progress` block for this T-XX.
-If `atomic-execution: complete` is NOT present in the block → **stop**: "pae-implement must complete successfully before pae-finalize can run."
-
-Check `atomic-tests:` in the same block. It must be `green` or `n-a` — those are the only
-values consistent with a completed execution. If it is `red`, `failed`, or `not-started`
-while `atomic-execution: complete` → **stop**: "Inconsistent state: execution is complete but
-`atomic-tests: <value>`. `/pae-implement` did not reach GREEN. Re-run it before finalizing."
-If the field is absent → pre-TDD task; continue without it.
-
----
+Resolve `working_dir:` relative to the atomic task directory (absent → invocation directory),
+set absolute `WORK_DIR` / `AI_DIR`, and load `phase-atomic-execution → ## Context Bootstrap`
+before project writes. Keep description/state/plan paths absolute.
 
 ## Instructions
 
-Before updating plan.md in step 2, load `workflow-reference` for the Status Translation Table.
+Use the Status Translation Table in workflow-reference before changing plan statuses.
+Under `/spec-run`, write only this leaf's progress block; return all plan, architecture,
+composite, and compression changes as deltas under `orchestration → ## Shared-file discipline`.
 
-After atomic-execution completes for T-XX:
+1. Preserve the successful leaf block: `atomic-execution: complete`, `blocker: none`.
+   Preserve `atomic-tests:` as set by `/pae-tests` / `/pae-implement` (`green` or `n-a`).
+   Never remove or downgrade it. Preserve cumulative `target_files:` and all `notes:` /
+   `tdd:` evidence and git fields. Never create atomic `state.md` or `plan.md` files.
 
-0. **Working directory resolution** (same as `/pae-implement`).
-   Read `T-XX/description.md → ## Context` for `working_dir:` field.
-   - If present: `WORK_DIR = <resolved path>`, `AI_DIR = WORK_DIR/.ai`.
-   - If absent: `WORK_DIR = <current directory>`, `AI_DIR = .ai`.
+2. Check `AI_DIR/memory/architecture.md` for modules/interfaces in `target_files:`.
+   Add a missing module's purpose, key exports, and layer; update a changed interface in
+   place. No interface change or missing architecture file → skip. Append the outcome
+   to `notes:`; in orchestrated mode distinguish a proposed delta from an applied update.
 
-1. Update parent `state.md → ## Subtask Progress` block for this T-XX:
-   - Set `atomic-execution: complete`.
-   - Fill `last_action:` with a one-line summary of what was implemented.
-   - Set `blocker: none` (or describe if execution finished in a blocked state).
-   - Preserve `atomic-tests:` as set by `/pae-tests` / `/pae-implement` (`green` or `n-a`). Never remove or downgrade it.
-   - Preserve `notes:` if already set by `/pae-tests` or `/pae-implement` — including the `tdd:` lines (level, justification, test amendments).
-   - Preserve `target_files:` as set by `/pae-tests` and `/pae-implement` — test files included.
+3. Update parent `plan.md`: this leaf's `Status` becomes `done`.
+   **Orchestrated mode (`/spec-run`) — do not write the file.** Return `T-XX → done`
+   as a delta for the orchestrator instead.
 
-1b. Architecture self-update check.
-    Read `.ai/memory/architecture.md` (path resolved via AI_DIR from step 0).
-    For each module created or significantly modified in this subtask
-    (derived from `target_files:` set by /pae-implement):
-    - If the module is NOT described in `architecture.md` → add a one-paragraph
-      entry: module name, purpose, key exports, which layer it lives in.
-    - If the module IS described but its interface changed → update that entry in place.
-    - If no new modules and no interface changes → skip without error.
-    Write "architecture.md updated: <module list>" or "architecture.md: no update needed"
-    to the `notes:` field in the Subtask Progress block (append, do not overwrite existing notes).
-    If `architecture.md` does not exist → skip without error.
+4. **Incremental composite rollup.** Find actual membership in a composite block's
+   `children:` list; a letter-suffixed ID alone is not proof (Type 3 leaves share that form).
+   No membership → skip. Otherwise inspect every sibling's atomic execution:
+   any blocked → `rollup: blocked`; all complete → `rollup: done`; otherwise `in-progress`.
+   Update the composite plan row to the matching status (`done`, `blocked`, `in-progress`),
+   preserving `reviewed` when integration already passed and no child has reopened.
+   Copy a blocking child's reason into `blocker:`; otherwise set `none`.
+   In `/spec-run`, return these composite/plan updates as deltas.
 
-2. Update parent `plan.md`: set the `Status` column for this T-XX row to `done`.
-   (Translation: atomic-execution `complete` → plan.md `done` — per Status Translation Table in workflow-reference)
+5. Run `/compress-state --auto` on parent state (or request the shared edit from the
+   orchestrator). After all finalization actions, set
+   `last_action: pae-finalize done — <implementation summary>` in this leaf's block.
 
-   **Orchestrated mode (`/spec-run`) — do not write the file.** Running as the Implementer
-   sub-agent, report the transition (`T-XX → done`) as a delta and let the orchestrator apply
-   it; `plan.md` has exactly one writer (`orchestration → ## Shared-file discipline`). In every
-   other mode, make the edit here. State which mode applies in the step 5 report.
-
-3. Do NOT write to `T-XX/state.md` or `T-XX/plan.md` — those files do not exist in the new structure.
-
-4. Run `/compress-state --auto` on the parent task's `state.md`.
-
-5. Report: "Atomic execution complete for T-XX (TDD: <level>, <N> tests green). Parent `## Subtask Progress` and `plan.md` updated. Next: `/phase-atomic-validation <path>`."
-
-6. **Incremental composite rollup (only when this T-XX is a leaf child of a composite).**
-
-   Detect: if the current subtask ID matches the pattern `T-\d+[a-z]` (letter suffix), it **may** be a child OR a Type 3 leaf — verify below by checking for an actual parent composite block in `state.md`; do not treat the ID pattern alone as proof of childhood. Derive candidate parent composite ID by removing the letter suffix (e.g. `T-04a` → candidate `T-04`).
-
-   If the parent composite block exists in `state.md → ## Subtask Progress`:
-   a. Read all sibling children listed in `children:` of the composite block.
-   b. Check their atomic-execution status in `## Subtask Progress`.
-   c. Compute new rollup:
-      - If any child has `atomic-execution: blocked` → `rollup: blocked`.
-      - Else if all children have `atomic-execution: complete` → `rollup: done`.
-      - Else → `rollup: in-progress`.
-   d. Update the composite block's `rollup:` field in `state.md`.
-   e. Update `plan.md` composite row `Status`:
-      - `rollup: done` → `Status: done`
-      - `rollup: blocked` → `Status: blocked`
-      - `rollup: in-progress` → `Status: in-progress`
-   f. Update composite's `blocker:` field:
-      - `rollup: blocked` → copy the blocking child's `blocker:` description.
-      - Otherwise → `blocker: none`.
-
-   If this subtask ID does NOT match the child pattern → skip step 6 without error.
+6. Report execution, TDD mode/level, verification, and which updates were applied or
+   returned as deltas. Display `/phase-atomic-validation <path>` as the next atomic step.
+   This is a progress marker for an active caller, not a handoff.

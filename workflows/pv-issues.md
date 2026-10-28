@@ -20,18 +20,13 @@ Task directory = provided argument (trailing slash optional).
 
 ## Instructions
 
-Severity from code review findings maps directly to issue priority (same vocabulary):
-
-| Code Review Severity | Issue Priority |
-|----------------------|----------------|
-| critical             | critical       |
-| important            | important      |
-| optional             | optional       |
-
-Use these labels verbatim when converting `## Code Review → ### Findings` into `## Issue List` items.
+Load the `phase-validation` rule (`## Context Bootstrap`) before writes when standalone.
+Code-review severity maps directly to issue priority: `critical`, `important`, `optional`.
 
 1. Read `state.md` — extract `## Contract Check` and `## Code Review`.
-2. Compile all findings into a single numbered list. For each item:
+2. Deduplicate the contract/review findings into one stable numbered list; preserve issue
+   numbers and decisions on resume. Invariant/Off-limits failures are `critical`;
+   unmet Acceptance Criteria are at least `important`. For each item:
 
 ```
 [N]. <Task name>
@@ -42,7 +37,10 @@ Use these labels verbatim when converting `## Code Review → ### Findings` into
 
 3. Present the full list to the user.
 4. **Wait for user's response**: which tasks to fix now, which to defer.
-5. Write to `state.md`:
+   Under `/phase-pipeline` or `/spec-run`, use their declared override: approve critical /
+   important, defer optional, and record that the split was automatic. An empty issue list
+   needs no decision: write `None` to both subsections and continue.
+5. Upsert in `state.md`, preserving prior resolved decisions:
 
 ```
 ## Issue List
@@ -55,3 +53,4 @@ Use these labels verbatim when converting `## Code Review → ### Findings` into
 ```
 
 6. Report: "Step 3 (Issue List) complete. N approved for fix, M deferred."
+Return to the caller; this is a progress marker.

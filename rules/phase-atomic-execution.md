@@ -7,13 +7,17 @@ description: Context loading rules for atomic-execution — load when running /p
 
 ## Context Bootstrap
 
-This phase runs inside a parent execution context OR standalone. Always load full context regardless.
+This phase runs inside a parent context or standalone. Reuse sources already loaded
+in this session for the same resolved project only while their content remains available
+and current. Reload changed sources and missing phase-specific context. Standalone and
+fresh sub-agent invocations perform the full bootstrap; another agent's receipt alone
+does not provide context.
 
 **Step 0 — Resolve paths first:**
 Read `T-XX/description.md → ## Context → working_dir:` before loading any context.
 - If `working_dir:` present: `WORK_DIR = <resolved absolute path>`, `AI_DIR = WORK_DIR/.ai`
-- If absent: `WORK_DIR = <current directory>`, `AI_DIR = .ai`
-- Umbrella: if `<AI_DIR>/../.ai/` exists → load umbrella FIRST, then `AI_DIR` (local overrides)
+- If absent: `WORK_DIR = <absolute invocation directory>`, `AI_DIR = WORK_DIR/.ai`
+- Umbrella: if `<WORK_DIR>/../.ai/` exists → load umbrella FIRST, then `AI_DIR` (local overrides)
 
 Report before continuing: "WORK_DIR=<path>, AI_DIR=<path>"
 
@@ -37,7 +41,7 @@ After loading: state which scope constraints apply (from `description.md` + load
 
 - The cycle is test-first: `/pae-tests` (RED) → `/pae-implement` (GREEN) → `/pae-finalize`. See the `tdd` rule.
 - `principles/coding.md` must be loaded before writing any code — tests included. If missing → note "No coding principles" in `notes:` and flag it.
-- `context/runbook.md` must be available before the TDD step. A missing or placeholder `test:` command **stops** `/pae-tests` — it is not a "skip and note" case, because RED cannot be observed without it. A missing `lint:` before Final Verification is still a "note and continue" case.
+- Classify the test level before requiring a command. For testable work, a missing or placeholder `test:` **stops** `/pae-tests`; it never implies level `none`. Independently justified `none` may proceed without a test runner, retaining manual evidence. Missing `lint:` is reported, never claimed as a passing check.
 - Read target files (from `T-XX/description.md → ## Scope → Target files`) AFTER context is loaded, not before.
 - Out-of-scope discovery → stop immediately, report, wait for user decision.
 - Update parent `## Subtask Progress` after every step.

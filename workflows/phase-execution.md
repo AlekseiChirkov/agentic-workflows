@@ -21,16 +21,15 @@ store, the field vocabulary, and the rule that logging never blocks a run.
 Apply `run-log → ## Workflow coverage and routing` at each boundary. Keep internal
 step logging instructions and add `--note approximate` to every ordinary prompt step.
 
-At Step 0, open the run:
-
-Open the run with `scripts/log-step.sh run-start` through the configured helper:
+At Step 0, preserve an inherited `RUN_ID`; otherwise open an owned run with `scripts/log-step.sh run-start` through the configured helper:
 
 ```bash
 LOG_HELPER="${ORCHESTRAIL_HOME:+$ORCHESTRAIL_HOME/scripts/log-step.sh}"
-RUN_ID=""
-if [ -x "$LOG_HELPER" ]; then
+PHASE_OWNS_RUN=false
+if [ -z "${RUN_ID:-}" ] && [ -x "$LOG_HELPER" ]; then
   RUN_ID=$("$LOG_HELPER" run-start --pipeline phase-execution \
   --project "$(pwd)" --task <task-directory> --flow <quick|full>) || RUN_ID=""
+  [ -z "$RUN_ID" ] || PHASE_OWNS_RUN=true
 fi
 ```
 
@@ -38,8 +37,10 @@ Log one `step` line per subtask cycle rather than per inner workflow: after each
 atomic-execution → atomic-validation loop closes, write `--step pe-execute --subtask T-XX --note approximate`
 with `--tests` mirroring the leaf's `atomic-tests:` value, `--files` from its
 `target_files:` count, `--gate` from the atomic-validation verdict, and `--outcome blocked`
-plus `--blocker` when the subtask ends blocked. Log `pe-finalize` as its own step. Close
-with `run-end`.
+plus `--blocker` when the subtask ends blocked. Log `pe-finalize` as its own step.
+
+Close with `run-end` only when `PHASE_OWNS_RUN=true`; an inherited run stays open for
+its owner. Do not open a second run for `/phase-pipeline` or `/spec-run`.
 
 Logging is best-effort: if `$LOG_HELPER` is missing or a call fails,
 continue unchanged and mention it once in the final report. Never stop, retry, or ask the
@@ -49,67 +50,56 @@ user because of a log write.
 
 ## Context Bootstrap
 
-Follow `phase-execution` rules — ## Context Bootstrap. Load in order, skip missing files.
-In multi-repo projects: load umbrella (`../.ai/`) first, then local (`.ai/`) — local overrides.
-
-1. `.ai/memory/architecture.md` — component boundaries, integration points
-2. `.ai/memory/state.md` — current task status, active blockers
-3. `.ai/principles/architecture.md` — patterns to enforce, boundaries not to cross
-4. `.ai/principles/coding.md` — code style, naming, error-handling, forbidden patterns
-5. `.ai/principles/domain.md` — domain rules, terminology, business constraints
-6. `.ai/adr/index.md` — past decisions that constrain current implementation
-7. `.ai/context/runbook.md` — test/lint/build commands (required for Final Verification)
-
-Report: "Execution context loaded: [files read]"
+Load the `phase-execution` rule (`## Context Bootstrap`) before reading implementation files or
+writing project files; run the full bootstrap when invoked standalone. The rule owns
+the load order, umbrella precedence, conditional sources, and reporting.
 
 ---
 
-## Step 0 — State Check
+## Guard
 
-Read `state.md` and `plan.md` in the task directory. Read `## Subtask Progress` blocks (one per T-XX) from the parent `state.md`.
+Step 0 — State Check
 
-- If `state.md` is not found in the task directory → report: "state.md not found. Run `/phase-discovery` first." **Stop.**
-- If `discovery` is not `complete` → report: "Discovery not complete. Run `/phase-discovery` first." **Stop.**
-- If `execution: complete` → report: "Execution already complete. Re-running will overwrite existing artifacts. Confirm to proceed? (yes/no)" Wait for explicit confirmation before continuing.
-- If `execution: in-progress` → find first incomplete subtask, continue from it.
-- If `execution: not-started` → start from first subtask per `plan.md` order.
+Resolve the task directory to an absolute path. Read its `state.md` before writing anything.
 
-Output status summary:
-- Completed (`done` / `reviewed`): list.
-- Skipped (`blocked` / `deferred`): list with reasons.
-- Pending: list — will be executed.
+- Missing state → **stop**: "state.md not found. Run `/phase-discovery` first."
+- `discovery` is not `complete` → **stop**: "Discovery not complete. Run `/phase-discovery` first."
+- `execution: complete` → ask for explicit confirmation before replacing completed artifacts.
+- Otherwise resume from recorded progress; absent `flow:` means `full`.
 
-If no pending subtasks → suggest `/phase-validation`. **Stop.**
+For `flow: full`, require `plan.md`, read its dependency order and `## Subtask Progress`,
+and report reviewed, pending, blocked, and deferred rows with reasons. A `done` leaf still
+needs atomic validation. If no pending cycles remain, run `/pe-finalize` to reconcile and
+close Execution; do not bypass finalization or start Validation.
+
+For `flow: quick`, there are no subtasks or required `plan.md`; require
+`## Contract (quick)` and inspect `## TDD (quick)` for the resume point.
+
+Open the run only after resolving the flow and prerequisites. Set `execution: in-progress`.
 
 ---
 
 ## Execution
 
-Update `## Phases` in `state.md`: set `execution: in-progress`.
+**Full tier:**
+1. Call `/pe-execute <task-directory>`.
+2. Call `/pe-finalize <task-directory>` only after the execution loop returns successfully.
 
-**Flow-tier branch (read `flow:` from `state.md`).** If `flow: quick`, there are no T-XX
-subtasks and no `plan.md` subtask list; ignore the "no pending subtasks" stop in Step 0.
-Run the inline TDD step first — the quick tier has no `/pae-tests` invocation, but RED before
-GREEN is mandatory: classify the level with the `tdd` gate, write the failing tests against
-`## Contract (quick) → ### Acceptance Criteria`, observe them fail for the expected reason, and
-record the result under `## TDD (quick)` (format and the `level: none` justification rules are
-in `quick-flow → The quick path`). Only then implement against the `## Contract (quick)`
-section and the spec's steps, honouring its `### Off-limits` and `### Invariants`, keeping the
-RED set frozen, and recording `green-observed:` before running `/pe-finalize`. **Mid-flight escalation:**
-if implementation breaches any gate condition — a fourth file becomes necessary, a new
-invariant surfaces, a shipped-pipeline behaviour must change, or a migration is required —
-STOP, promote to `full` per the `quick-flow` rule (set `flow: full`, add a
-`## Flow Escalation` line with the reason, ensure a task directory exists, and run
-`/pd-decompose` on the remaining work), and continue on the full path. Never silently finish
-a quick task after a breach. If `flow: full`, run the steps below unchanged.
+**Quick tier:** Run the inline TDD step first; follow `quick-flow → ## The quick path — what changes` and the `tdd` rule.
+Against the inline Acceptance Criteria, classify the test level, observe RED before
+implementation (or record the justified `none` gate), and persist `## TDD (quick)`.
+Implement within the inline contract, keep the test set frozen, run affected regression
+and configured verification commands, and record GREEN plus the cumulative changed-file list.
+For justified `none` without a suite, record actual manual/AC verification as completion;
+never infer the exemption from missing tooling.
+Resume existing evidence rather than rewriting tests after code exists. Then call `/pe-finalize`.
+If any quick gate fails, stop implementation and promote per
+`quick-flow → ## Mid-flight escalation (quick → full)` before continuing.
 
-Run child workflows in order:
-1. Call `/pe-execute <task-directory>` — Execute all pending subtasks
-2. Call `/pe-finalize <task-directory>` — Summary report + finalization
+Close the owned run on completion or a stop, with the actual outcome. An inherited run
+remains owned by its caller. Report completed/skipped work, verification, and artifact paths.
+Display: "Execution complete. Run `/phase-validation <task-directory>` to start validation."
 
-After all steps complete, report to the user (display as text — do NOT invoke):
-- Number of completed subtasks.
-- Path to `plan.md` with updated statuses.
-- "Execution complete. Run `/phase-validation <task-directory>` to start validation."
-
-**STOP. Do not run `/phase-validation` automatically.**
+**STOP. Do not run `/phase-validation` automatically.** A caller with an explicit
+cross-phase override owns its next phase. Child completion messages are progress markers,
+not handoffs.

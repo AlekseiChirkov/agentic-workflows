@@ -5,154 +5,105 @@ description: Discovery Step 4 — Finalize discovery, verify consistency, compre
 Invocation: `/pd-finalize <task-directory> [--step-by-step]`
 Called by: `/phase-discovery` as Step 4.
 
-Task directory = provided argument (trailing slash optional).
-
-**Mode.** `--step-by-step` is accepted for symmetry with the other Discovery
-steps; it does not change this workflow's behavior, since Step 4 ends the phase
-and already stops at the final report. Consistency failures in step 1 stop in
-both modes — they mean an earlier step must be re-run.
-
----
+Resolve artifacts inside the task directory. `--step-by-step` affects the closing
+digest only; consistency failures stop in every mode. Reuse parent context;
+standalone use applies the `phase-discovery` bootstrap.
 
 ## Guard
 
-1. Read `state.md` in the task directory.
-2. Check `## Phases → discovery`. If `complete` → **stop**: "Discovery phase is already complete. Re-running will overwrite existing artifacts. Confirm to proceed? (yes/no)" Wait for explicit confirmation.
-3. Check `## Solution Design` with `### Decision` present in `state.md`. If missing → **stop**: "Step 3 (/pd-design) must be completed first. Run /pd-design <path>."
-   **Exception — `flow: quick`.** The quick tier skips `/pd-decompose` and `/pd-design` by
-   design (`quick-flow → The quick path`), so `## Solution Design` is never written and its
-   absence is not a failure. When the top-of-file `flow:` field reads `quick`, skip this check
-   and verify `## Contract (quick)` with `### Off-limits` / `### Invariants` /
-   `### Acceptance Criteria` is present instead — if *that* is missing → **stop**: "Quick task
-   has no `## Contract (quick)`. Run `/pd-analyze <path>` to write it."
-4. Otherwise → continue.
-
----
+1. Missing/unreadable `state.md` or `## Task Analysis` → **stop**: run `/pd-analyze`.
+2. `discovery: complete` → **stop** for explicit overwrite confirmation unless
+   the parent already obtained it for this exact rerun.
+3. Require `## Solution Design` with `### Decision` for full flow.
+   **Exception — `flow: quick`.** Verify `## Contract (quick)` instead, with
+   `### Off-limits`, `### Invariants` and `### Acceptance Criteria`.
+   Missing required contract/design → **stop**: rerun the applicable analysis/design step.
 
 ## Instructions
 
-Load `workflow-reference` for the Protected Sections Contract and .ai/memory/state.md Entry Format
-before starting steps 5 and 6.
+Load `workflow-reference → ## Protected Sections Contract` and its memory/project
+state update formats once. Preserve unrelated content and progress.
 
-**Flow-tier branch (read `flow:` from `state.md`).** If `flow: quick`, there is no `plan.md`,
-no T-XX directory, and no `## Solution Design`: **skip steps 1, 2 and 4b entirely** and verify
-instead that `state.md` carries `## Contract (quick)` with all three sub-sections and that its
-`### Acceptance Criteria` entries are binary and observable (the same testability standard
-step 2 item 7 applies to a subtask criterion). A criterion that cannot be turned into a
-pass/fail assertion fails the check — **stop** and return to `/pd-analyze`. Steps 3, 4, 4a, 5,
-6, 7 and 8 run unchanged, reading `## Contract (quick)` wherever they would read
-`## Solution Design`. If `flow: full`, run every step below unchanged.
+**Quick branch:** skip steps 1, 2 and 4b; verify the inline quick contract's
+criteria are binary and observable, and the recorded four-condition gate still
+passes. Missing/untestable criteria → **stop** and return to `/pd-analyze`.
+A failed quick gate requires promotion under `quick-flow`. Use the inline contract
+where later steps refer to Solution Design. Full flow runs all steps.
 
-1. Review all artifacts in the task directory for consistency:
-   - `state.md` has sections: `## Task Analysis`, `## Solution Design` with `### Decision`.
-   - `plan.md` has `## Subtasks` table with columns: `ID`, `Name`, `Key Steps (summary)`, `Depends On`, `Status`, with correct dependencies.
-   - Each `T-XX-*/description.md` is consistent with the chosen architecture from `## Solution Design`.
+1. Review full-flow consistency:
+   - Task state has Task Analysis, complete Decomposition, and Solution Design/Decision.
+   - `plan.md → ## Subtasks` has ID, Name, Key Steps (summary), Depends On, Status,
+     plus Type/Slice/Repo/Model columns where applicable. IDs are unique, dependencies
+     resolve without cycles, and execution order respects them.
+   - Descriptions and `## Subtask Progress` match every plan row, including composites
+     and their children; type, child order, target files and chosen scope agree.
+2. Verify each listed description:
+   - It exists and contains all six sections: `## Goal`, `## Context`, `## Scope`,
+     `## Steps`, `## Acceptance Criteria`, `## Test Plan`.
+   - Scope has nonempty In scope, Out of scope and Target files; constraints and
+     Off-limits match the task design.
+   - Leaves have 3–15 numbered implementation steps, one testable component and
+     one coherent criteria cluster. For `type: composite`, Steps references at
+     least two existing leaf children listed in Context; numbered step limits
+     do not apply. Children meet all leaf checks and never contain another composite.
+   - At least two criteria are binary, observable pass/fail assertions with exact
+     results. Composite criteria verify combined output rather than repeat child checks.
+   - Test Plan names applicable unit/integration/contract/smoke/none levels and at
+     least one observable scenario per criterion. `none` explains why each other
+     level is inapplicable; difficulty, size, framework absence, deferral or existing
+     coverage do not justify it. Composites use integration and/or contract scenarios
+     across children.
+   - Each T-XX directory contains only `description.md`.
 
-2. **Per-subtask verification.** Before marking `discovery: complete`, verify for each T-XX listed in `plan.md`:
-   1. `T-XX-*/description.md` exists.
-   2. It contains all six sections: `## Goal`, `## Context`, `## Scope`, `## Steps`, `## Acceptance Criteria`, `## Test Plan`.
-   3. `## Scope` contains both `In scope:` and `Out of scope:` entries (not blank).
-   4. `## Steps` check — **two variants:**
-      - **Leaf** (no `type: composite` in `## Context`): `## Steps` must have between 3 and 15 numbered implementation steps.
-      - **Composite** (`## Context` contains `type: composite`): `## Steps` may contain only child references (e.g. "See children: T-04a, T-04b, T-04c.") — the step-count rule does NOT apply. Verify instead that `## Context` contains `children:` listing at least 2 children.
-   5. `## Acceptance Criteria` has at least 2 checkable conditions.
-      - For composites: these MUST be integration-level criteria (verifiable across the combined output of all children), not a restatement of individual children's criteria.
-   6. `## Test Plan` check — verify all four:
-      a. `Level:` is present and holds one of `unit` / `integration` / `contract` / `smoke` /
-         `none` (or a combination). An empty or missing `Level:` fails the check.
-      b. Every Acceptance Criterion from item 5 appears as at least one scenario. An
-         uncovered criterion fails the check — the criterion is not testable as written.
-      c. When `Level: none` — the justification line is present and names which of
-         unit/integration/contract/smoke was considered and why each is inapplicable.
-         Reject "hard to test", "no framework", "small change", "will add later", and
-         "existing tests cover it": these are not justifications.
-      d. For composites — `Level:` is `integration` or `contract`, and scenarios exercise the
-         children together rather than restating individual children's tests.
-   7. **Acceptance Criteria testability.** Each criterion is binary and observable — it states
-      a condition and an exact expected result, not "works correctly" / "functions as
-      expected". A criterion that cannot be turned into a pass/fail assertion fails the check.
-   8. No extra files (`state.md`, `plan.md`) exist in the T-XX directory.
-
-   If any T-XX fails this check — **stop** and return to `/pd-decompose` for that specific subtask before proceeding. Report the failing T-XX and which check did not pass.
-
-   Additionally, for any composite T-XX: verify each child listed in `children:` has its own directory and `description.md` that passes all leaf checks (1–8 above). If a child fails → stop and return to `/pd-decompose`.
-
-3. **Artifact conformance check.** Run the contract validator against the task
-   directory:
+   Any inconsistency → **stop**, identify the file/check and return to design or
+   decomposition as appropriate. Do not rewrite recorded progress to make it agree.
+3. Run the task artifact validator when the configured source helper is available:
 
    ```bash
-   bash "${ORCHESTRAIL_HOME:?Set ORCHESTRAIL_HOME}/scripts/validate-task.sh" <task-directory> --phase discovery
+   if [ -n "${ORCHESTRAIL_HOME:-}" ] && [ -x "$ORCHESTRAIL_HOME/scripts/validate-task.sh" ]; then
+     bash "$ORCHESTRAIL_HOME/scripts/validate-task.sh" <task-directory> --phase discovery
+   fi
    ```
 
-   It applies the canonical contracts — `## Phases` vocabulary, the `flow:` tier, the
-   six-section `description.md`, the `## Subtask Progress` block format, the required-even-
-   when-empty fields, and the TDD audit trail — to the artifacts this phase produced, rather
-   than to the workflow definitions. The manual review above says what to look for; this says
-   whether it is actually there.
+   Exit 0 → continue; nonzero → fix reported artifacts within scope and rerun.
+   Unresolvable failures **stop** finalization. Missing configuration/helper →
+   report once and continue with manual checks.
+4. Run `/compress-state --auto <task-directory>/state.md`, preserving canonical
+   markers, decisions, assumptions, progress and all other protected content.
 
-   - **Exit 0** → continue.
-   - **Exit 1** → fix every reported failure, then re-run until it passes. A malformed
-     artifact is cheap to fix now and expensive later: the next phase parses these files and
-     will either misread them or stop.
-   - **Script missing or not executable** → report that in one line and continue. The
-     validator is a check, not a gate that can block work on its own absence.
+4a. In `## Phases`, set `discovery: complete` before archiving; `/pd-archive` requires it.
 
-4. Run `/compress-state --auto` on `state.md` in the task directory.
-
-4a. Update `## Phases` in `state.md`: set `discovery: complete`.
-    This is written **before** step 4b, not at the end: `/pd-archive`'s Guard stops unless
-    `discovery: complete` is already present, so archiving is unreachable if the marker is
-    written later. Steps 5–6 below do not depend on the phase status.
-
-4b. Run `/pd-archive <task-directory>` to archive verbose Discovery content
-    and reduce Execution-phase context load.
-    If `state-archive.md` already exists in the task directory (resume case)
-    — skip without error.
-    **`flow: quick` — skip this step.** A quick task has no `### Variants` and no
-    `### Rejected` to archive, and `quick-flow → The quick path` lists `/pd-archive` among the
-    steps the tier skips.
-
-5. Update state files — mandatory:
-
-   **`.ai/memory/state.md`** — upsert task entry using the format from `workflow-reference → ## .ai/memory/state.md Entry Format`:
-   `[task-id] | phase: discovery | status: complete | note: plan ready, <N> subtasks`
-   When `active_phase:` is present, task-id = the phased directory name
-   (`task-<basename>-p<N>`), per the entry format in `rules/workflow-reference.md`.
-
-   **Multi-phase only** — when `active_phase: N` is present in `state.md`:
-   - In `.ai/memory/state.md → ## Deferred`, add one line per phase K where K > N
-     (upsert — do not duplicate if the line already exists):
-     `- <basename> phase <K>/<M> | deferred | reason: later phase of <basename>, starts after phase <N> validation complete`
-   - In `plan.md` (task-level), prepend the following banner as the very first line:
-     `> Scope: Phase <N> of <M>. Phases <N+1>–<M> deferred (see state.md → ## Spec Phases).`
-
-   **`.ai/project_state.md`** — update per rules in `workflow-reference → ## .ai/project_state.md Update Rules`:
-   - Add entry to `## In-flight work`: planned modules, endpoints, architecture changes from `## Solution Design → ### Decision`. Code does not yet exist.
-   - If file does not exist — skip without error.
-
-6. Update root files — for each file, explicitly state your decision (update / skip) and the reason:
-
-   | File | Update when | Surgical edit: only |
-   |------|-------------|---------------------|
-   | `.ai/memory/architecture.md` | Chosen architecture introduces new modules, components, or changes to existing structure | affected architecture sections |
-   | `.ai/principles/architecture.md` | New architectural decisions, constraints, or off-limits were established that are not already documented | corresponding decision/constraint sections |
-
-   **Update principle:** surgical edits only — change only what Discovery directly determined. Do not rewrite unrelated sections. If a file does not exist — skip without error.
-
-7. Verify `## Phases → discovery: complete` is present in `state.md` (written in step 4a).
-   If a later step overwrote it, restore it.
-8. Report to user (display as text — do NOT invoke):
-   - Path to `state.md` — full analysis and chosen solution.
-   - Path to `plan.md` — subtask list with dependencies (omit on `flow: quick`, which has no
-     `plan.md`; report the path to `## Contract (quick)` in `state.md` instead).
-   - "Discovery complete. Run `/phase-execution <task-directory>` to start execution."
-   - **If Discovery ran autonomously** (no `--step-by-step`) — a review digest:
-     chosen architecture in one line, the `### Autonomous Decision` winner and
-     total score, and every entry from `## Task Analysis → ### Assumptions`.
-     Close with: "Decisions were made autonomously. Re-run with `--step-by-step`
-     to review each step interactively."
-   - **Multi-phase only** — if `active_phase: N` is present and N < spec_phase_count:
-     "Phase <N> discovery complete. After Phase <N> validation completes, run
-     `/phase-discovery <spec_path> --phase <N+1>` to begin the next phase."
+4b. **`flow: quick` — skip this step.** For full flow:
+    Run `/pd-archive <task-directory>`. If an archive already exists and all source
+    bodies are pointers to it, verify it is readable and retain it. If fresh inline
+    bodies coexist with an old archive, apply `/pd-archive`'s overwrite Guard;
+    do not silently retain stale analysis. Failed archiving → restore
+    `discovery: in-progress`, report the blocker and **stop**.
+5. Upsert persistent planning state using `workflow-reference` formats:
+   - `.ai/memory/state.md`: `[task-id] | phase: discovery | status: complete |
+     note: plan ready, <N> subtasks`; for quick flow use `quick contract ready`
+     rather than a subtask count. Use the full phased directory basename when present.
+   - Multi-phase: upsert later undiscovered phases in `## Deferred` with their
+     phase number, title and prerequisite validation; preserve already started or
+     completed entries. On full flow only, prepend/update one `plan.md` scope banner
+     identifying the active phase and actual remaining deferred phases. Omit a
+     deferred range when none remains.
+   - `.ai/project_state.md`, if present: update `## In-flight work` with planned
+     changes from the decision. Describe them as planned; code does not exist yet.
+6. For each file below, report update/skip and reason; edit only relevant sections:
+   - `.ai/memory/architecture.md`: record planned structural changes with an
+     explicit planned/in-flight label, preserving the current implemented snapshot.
+   - `.ai/principles/architecture.md`: add only newly established durable constraints
+     or decisions, not every implementation choice. Missing files are skipped.
+7. Verify `discovery: complete` remains, archive pointers resolve, and no required
+   artifact or protected field disappeared. Keep execution/validation statuses unchanged.
+8. Emit the single final report (the parent reuses it):
+   - Task `state.md` and full-flow `plan.md`; for quick flow, inline contract location.
+   - Chosen approach; in autonomous mode, winner/score when present and every
+     `### Assumptions` entry. Read assumptions and Autonomous Decision from state. For quick flow, mark architecture scoring
+     inapplicable. Mention unresolved batch questions so `/spec-run` can apply its gate.
+   - `Discovery complete. Run /phase-execution <task-directory> to start execution.`
+   - Multi-phase: after this phase validates, show the command for the next actual
+     phase number, if any. Do not invent N+1 when phase numbering has gaps.
 
 **STOP. Do not run `/phase-execution` automatically.**

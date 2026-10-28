@@ -22,16 +22,15 @@ store, the field vocabulary, and the rule that logging never blocks a run.
 Apply `run-log → ## Workflow coverage and routing` at each boundary. Keep internal
 step logging instructions and add `--note approximate` to every ordinary prompt step.
 
-At Step 0, open the run:
-
-Open the run with `scripts/log-step.sh run-start` through the configured helper:
+At Step 0, preserve an inherited `RUN_ID`; otherwise open an owned run with `scripts/log-step.sh run-start` through the configured helper:
 
 ```bash
 LOG_HELPER="${ORCHESTRAIL_HOME:+$ORCHESTRAIL_HOME/scripts/log-step.sh}"
-RUN_ID=""
-if [ -x "$LOG_HELPER" ]; then
+PHASE_OWNS_RUN=false
+if [ -z "${RUN_ID:-}" ] && [ -x "$LOG_HELPER" ]; then
   RUN_ID=$("$LOG_HELPER" run-start --pipeline phase-validation \
   --project "$(pwd)" --task <task-directory> --flow <quick|full>) || RUN_ID=""
+  [ -z "$RUN_ID" ] || PHASE_OWNS_RUN=true
 fi
 ```
 
@@ -39,8 +38,10 @@ Log one `step` line after each of `pv-contract`, `pv-review`, `pv-issues`,
 `pv-classify-fixes`, `pv-create-fixes`, `pv-execute-fixes`, and `pv-finalize`. Carry
 `--gate pass|fail` from `pv-contract` and `pv-review`, `--fix-tasks` from
 `pv-create-fixes`, `--stops 1` on the `pv-issues` approve/defer prompt when a human
-answered it, and `--decisions` when `/phase-pipeline` answered it instead. Close with
-`run-end`.
+answered it, and `--decisions` when `/phase-pipeline` answered it instead.
+
+Close with `run-end` only when `PHASE_OWNS_RUN=true`; an inherited run stays open for
+its owner. Do not open a second run for `/phase-pipeline` or `/spec-run`.
 
 Logging is best-effort: if `$LOG_HELPER` is missing or a call fails,
 continue unchanged and mention it once in the final report. Never stop, retry, or ask the
@@ -50,60 +51,56 @@ user because of a log write.
 
 ## Context Bootstrap
 
-Follow `phase-validation` rules — ## Context Bootstrap. Load in order, skip missing files.
-In multi-repo projects: load umbrella (`../.ai/`) first, then local (`.ai/`) — local overrides.
-
-1. `.ai/memory/architecture.md` — system-level invariants, integration contracts
-2. `.ai/memory/state.md` — what was executed, task progress
-3. `.ai/principles/architecture.md` — patterns the implementation must conform to
-4. `.ai/principles/coding.md` — code standards (deviations = findings)
-5. `.ai/principles/domain.md` — domain correctness rules
-6. `.ai/adr/index.md` — past decisions (violations = critical findings)
-7. `.ai/context/runbook.md` — commands to run tests/lint during validation
-
-Report: "Validation context loaded: [files read]"
+Load the `phase-validation` rule (`## Context Bootstrap`) before reading implementation files or
+writing project files; run the full bootstrap when invoked standalone. The rule owns
+the load order, umbrella precedence, conditional sources, and reporting.
 
 ---
 
-## Step 0 — State Check
+## Guard
 
-Read `state.md` in the task directory. Check `## Phases`:
+Step 0 — State Check
 
-- If `state.md` is not found in the task directory → report: "state.md not found. Run `/phase-execution` first." **Stop.**
-- If `execution` is not `complete` → report: "Execution not complete. Run `/phase-execution` first." **Stop.**
-- If `validation: complete` → report: "Validation already complete. Re-running will overwrite existing artifacts. Confirm to proceed? (yes/no)" Wait for explicit confirmation before continuing.
-- If `validation: in-progress` → determine last completed step:
-  - `## Contract Check` present → Step 1 done.
-  - `## Code Review` present → Steps 1–2 done.
-  - `## Issue List` present → Steps 1–3 done.
-  - Fix-task directories (T-XX-fix-*) with `description.md` exist → Steps 1–4 done.
-  - All fix-tasks have status `reviewed` → Steps 1–5 done.
-  - Output: `Validation partially complete. Continuing from Step N.`
-- If `validation: not-started` → start from Step 1.
+Resolve the task directory absolutely and read `state.md → ## Phases` before writing.
+Missing state or execution not `complete` → **stop**: "Complete `/phase-execution` first."
+Validation complete → ask for explicit confirmation before replacing completed artifacts.
+Absent `flow:` means `full`.
+
+On resume, use persisted outputs, not directory existence:
+- `## Contract Check` → contract check ran; enforce its critical-failure decision before review.
+- `## Code Review` → review ran.
+- `## Issue List` with both decision subsections → issue decisions recorded.
+- `## Fix-Tasks` with `fixes-created: complete`, valid Created list, and every approved
+  issue assigned → fix creation finished. Newly approved unassigned issues resume step 4
+  in append mode; never discard completed fixes.
+- `fixes-count: 0`, or every listed fix is `reviewed` → fix execution finished.
+A partial/malformed output resumes its writer. Never infer "all fixes reviewed" from an
+empty directory glob. Report the selected resume step; set `validation: in-progress`.
+Open an owned run only after prerequisites and flow are known.
 
 ---
 
 ## Execution
 
-Update `## Phases` in `state.md`: set `validation: in-progress`.
+Run sequentially, skipping only completed steps whose evidence remains valid:
 
-**Flow-tier branch (read `flow:` from `state.md`).** If `flow: quick`: run Step 1
-(`/pv-contract`, against the `## Contract (quick)` section) and Step 2 (`/pv-review`)
-**unchanged — both are mandatory**. Then **skip Steps 4–5** (`/pv-create-fixes` /
-`/pv-execute-fixes` as separate atomic cycles): apply any review findings **inline** in this
-phase, re-run `/pv-review` on the fix, and record the outcome under `## Code Review`. Still
-run Step 3 (`/pv-issues`) to surface findings for the user's decision, and Step 6
-(`/pv-finalize`). The ADR trigger is unchanged: if a reader-relevant decision was made, write
-the ADR. See the `quick-flow` rule. If `flow: full`, run all steps below unchanged.
+1. `/pv-contract <task-directory>`.
+2. `/pv-review <task-directory>`.
+3. `/pv-issues <task-directory>` — record approval/deferral before applying findings.
+4. `/pv-create-fixes <task-directory>` — full tier only; it calls `/pv-classify-fixes`.
+5. `/pv-execute-fixes <task-directory>` — full tier only, skipped when `fixes-count: 0`.
+6. `/pv-finalize <task-directory>` — after approved work and final checks succeed.
 
-Run child workflows in order, skipping completed steps:
+For `flow: quick`, steps 1–3 remain mandatory against `## Contract (quick)`.
+Skip separate fix-task steps 4–5. Apply only approved findings inline, run the TDD gate
+before changed behaviour, keep frozen tests, and rerun both `/pv-contract` and `/pv-review`.
+Preserve the original issue decisions and record which approved items are resolved.
+New findings return to the decision step. If a quick gate fails, promote per `quick-flow`;
+do not silently expand inline scope. The ADR trigger remains unchanged.
 
-1. Call `/pv-contract <task-directory>` — Contract verification
-2. Call `/pv-review <task-directory>` — Code review
-3. Call `/pv-issues <task-directory>` — Issue list for user (waits for decision)
-4. Call `/pv-create-fixes <task-directory>` — Create fix-task directories.
-   After it returns, re-read `state.md` and inspect `## Fix-Tasks`. If `fixes-count: 0` is present in `## Fix-Tasks` — skip Step 5 and jump to Step 6.
-5. Call `/pv-execute-fixes <task-directory>` — Execute fix-tasks via atomic cycles (skipped when 0 fix-tasks were created).
-6. Call `/pv-finalize <task-directory>` — Finalization + compress
+Any child stop/failure propagates; do not advance using an incomplete result. On a full
+fix cycle, recheck the affected contract and review findings before finalization without
+recreating already-recorded fix directories. Persist unresolved/deferred results.
 
-After all steps, report final status including any deferred tasks.
+Close only the run this invocation owns. Report verification, fixes, deferrals, and final
+status. Child completion is a progress marker, not an extra user handoff.

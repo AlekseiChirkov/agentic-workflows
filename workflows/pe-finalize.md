@@ -17,120 +17,87 @@ Task directory = provided argument (trailing slash optional).
 
 ---
 
+## Context Bootstrap
+
+Load the `phase-execution` rule (`## Context Bootstrap`) before project writes, including standalone
+runs. Resolve task paths absolutely; use each description's `working_dir:` for service files.
+
 ## Instructions
 
-Load `workflow-reference` for .ai/memory/state.md Entry Format and
-.ai/project_state.md Update Rules before starting step 3.
+Load `workflow-reference` for the status translations, memory entry format, and project-state
+update rules. Keep `execution: in-progress` until the work and checks below finish.
 
-**Flow-tier branch (read `flow:` from `state.md`).** If `flow: quick`, there are no T-XX
-subtasks, no `plan.md`, and no `## Execution Report` — `/pe-execute` never runs on this tier
-(`quick-flow → The quick path`). Skip steps 1, 2, 2b and the `plan.md` update in step 3, and
-read the execution outcome from `## TDD (quick)` (`green-observed:`) plus the files the quick
-task changed. If `green-observed:` is absent or does not read `yes` → **stop**: "Quick task
-has no recorded GREEN. Finish the inline TDD step before finalizing." Everything else in
-step 3 onward runs unchanged. If `flow: full`, run every step below unchanged.
+**Quick branch.** If `flow: quick`, there are no T-XX subtasks or required `plan.md` /
+`## Execution Report`. Skip steps 1–2b and subtask/proposal processing. Read the outcome and
+changed-file list from `## TDD (quick)`. Missing `green-observed: yes` → **stop**:
+"Quick task has no recorded GREEN. Finish the inline TDD step before finalizing."
+For justified `none`, `green-observed: yes` records completed applicable/manual verification,
+not a claim that nonexistent tests passed; retain the exemption and evidence.
 
-1. Read the `## Execution Report` section from the task-level `state.md` (populated by `/pe-execute`). If the section is missing → **stop**: "Execution report not found. `/pe-execute` was not completed." Do not continue.
+1. Read `## Execution Report`; if absent on `full` → **stop**:
+   "Execution report not found. Complete `/pe-execute` first."
+   Summarize completed, blocked, deferred, and not-reached rows. Compare every plan row
+   with its progress block; report unexplained missing work instead of assuming completion.
 
-2. Compile summary report from `## Execution Report`:
-   - List of completed subtasks (status `done` or `reviewed`).
-   - List of skipped subtasks (`blocked` / `deferred`) with reasons.
-   - Any subtasks from `plan.md` that are missing from the report (not reached).
+2. Reconcile plan statuses with atomic progress and the report using
+   `workflow-reference → ## Status Translation Table`. Never write report-only labels such
+   as `composite-reviewed` into the plan's `Status` column.
 
-2b. **Final composite status reconciliation** (skip if no composite rows exist in `plan.md`).
+2b. **Final composite status reconciliation.** For each composite, read its block and children:
+   - All children `reviewed` and integration complete → plan `reviewed`, rollup `done`.
+   - All children `reviewed` and integration not started/in progress → record
+     `composite-stalled`; **stop**: "Run `/phase-composite-validation` for <composite> before finalizing."
+   - `integration-validation: failed` → keep the composite unreviewed; **stop**:
+     "Complete the integration fix cycle before finalizing Execution."
+   - Blocked or not-reached children → record the reason and reconcile `rollup: blocked`.
+     An explicitly deferred or externally blocked row may remain skipped; an approved,
+     runnable fix may not be relabeled skipped to close the phase.
 
-   For each composite row in `plan.md`:
-   a. Read the composite block `[composite] T-XX …` from `state.md → ## Subtask Progress`.
-   b. Read all children listed in `children:` and check their status.
-   c. Apply consistency rules:
-      - If all children are `reviewed` AND `integration-validation: complete` → composite must be `reviewed`. Correct if not.
-      - If all children are `reviewed` AND `integration-validation: not-started` → flag as inconsistency: "Composite T-XX children all reviewed but integration validation was never triggered. Run `/phase-composite-validation`." Record in Execution Report as `composite-stalled`.
-      - If all children are `reviewed` AND `integration-validation: failed` → composite stays `in-progress`; composite validation fix cycle must complete before `pe-finalize` can set `execution: complete`. **Stop** and report to user.
-      - If any child is `not-reached` or `blocked` → composite is `blocked`; update composite block `rollup: blocked` and `plan.md Status: blocked`.
-   d. Ensure the `## Execution Report` line for the composite reflects its actual final status.
+3. Prepare factual updates from implemented work:
+   - `.ai/memory/state.md`: use `phase: execution | status: complete` only after step 6.
+   - `.ai/project_state.md`: update affected module/HTTP entries and remove the task from
+     `## In-flight work`; skip a missing file.
+   - `.ai/memory/architecture.md`: update changed modules, interfaces, flows, or dependencies.
+   - `.ai/principles/architecture.md`: update only decisions actually adopted; do not
+     rewrite principles to conceal an unapproved deviation.
+   Make surgical edits and report update/skip with a reason for each knowledge file.
 
-3. Update the following files explicitly:
+4. Identify the artifact validator at
+   `${ORCHESTRAIL_HOME}/scripts/validate-task.sh`. Run it in step 6 after proposal processing,
+   so it checks the final artifacts once. Missing/unconfigured helper → report and continue;
+   an available validator's reported artifact failures must be repaired.
 
-   **Task-level `state.md` (in the task directory):**
-   - Set `execution: complete` in `## Phases`.
-   - Finalize `## Execution Report`: ensure one line per subtask from `plan.md` (including composite rows and their children); add missing ones as `not-reached` with reason.
+5. **Post-execution improvement review.** Collect unresolved `### Do Now` items from all
+   `## Improvement Proposals (T-XX)` sections; ignore items already applied or declined.
+   Select the caller mode before prompting. Under `/spec-run`, keep every proposal pending,
+   record `spec-run: proposals retained for post-delivery review; no application`, surface
+   their counts/items in the final report, and continue without prompting or applying.
+   Under `/phase-pipeline`, use its option-2 override below. Otherwise present one
+   consolidated choice and wait for user choice:
+   1. Create pending subtasks, one per improvement group, with complete descriptions,
+      Test Plans, plan rows, and progress blocks. Keep Execution `in-progress`; return to
+      `/pe-execute` to execute them before finalization.
+   2. Apply approved items now within the existing scope. Follow the `tdd` gate before any
+      changed behaviour, preserve frozen tests, update cumulative `target_files:`, rerun
+      verification, then invalidate and repeat atomic validation for affected leaves.
+   3. Discard only Do Now proposals; preserve Do Later / Optional items.
 
-   **`plan.md` (in the task directory):**
-   - Ensure each subtask `Status` column reflects the value from `## Execution Report` (`done` / `reviewed` / `blocked` / `deferred` / `not-reached`).
-   - `flow: quick` — no `plan.md` exists; skip without error.
+   Under `/phase-pipeline`, choose **option 2** without prompting and record
+   `pipeline: Do Now applied automatically (phase-pipeline override)` in each affected
+   proposal section. This override applies here; `/pav-propose --batch` still applies nothing.
+   Mark each handled proposal applied/declined so resuming never applies it twice.
+   No proposals → continue. Approved work that stops leaves Execution `in-progress`.
 
-   **`.ai/memory/state.md`:**
-   - Update the status of this task using the entry format defined in `workflow-reference → ## .ai/memory/state.md Entry Format`:
-     `phase: execution | status: complete | note: <one line — what was implemented>`
-
-   **`.ai/project_state.md`** — update per rules in `workflow-reference → ## .ai/project_state.md Update Rules`:
-   - Add/update entries in `## Module inventory` for each module implemented in this task (key exports, purpose).
-   - Add/update entries in `## HTTP surface` for each new endpoint exposed.
-   - Remove this task's entry from `## In-flight work` (it was added by discovery).
-   - Surgical edits only. If the file does not exist — skip without error.
-
-   **Root files — for each file, explicitly state your decision (update / skip) and the reason:**
-
-   | File | Update when | Surgical edit: only |
-   |------|-------------|---------------------|
-   | `.ai/memory/architecture.md` | New modules, endpoints, data flows, or dependencies were implemented | affected architecture/component sections |
-   | `.ai/principles/architecture.md` | Implementation deviated from or extended existing documented architectural decisions | corresponding decision sections |
-
-   **Update principle:** surgical edits only — write factual descriptions of how the system works now, not "task completed" statements. Do not rewrite unrelated sections. If a file does not exist — skip without error.
-
-4. **Artifact conformance check.** Run the contract validator against the task
-   directory:
-
+6. Run the available validator with the final artifacts:
    ```bash
-   bash "${ORCHESTRAIL_HOME:?Set ORCHESTRAIL_HOME}/scripts/validate-task.sh" <task-directory> --phase execution
+   bash "$ORCHESTRAIL_HOME/scripts/validate-task.sh" <task-directory> --phase execution
    ```
+   Exit 1 → repair reported artifacts and rerun; absence → report once and continue.
+   Once all checks pass, finalize the report with one line per plan row, apply the knowledge
+   updates from step 3, set `execution: complete`, and run `/compress-state --auto`.
 
-   It applies the canonical contracts — `## Phases` vocabulary, the `flow:` tier, the
-   six-section `description.md`, the `## Subtask Progress` block format, the required-even-
-   when-empty fields, and the TDD audit trail — to the artifacts this phase produced, rather
-   than to the workflow definitions. The manual review above says what to look for; this says
-   whether it is actually there.
+7. Report outcomes, verification, and updated paths. On quick tasks report the inline TDD
+   record and changed files. Display: "Execution complete. Run `/phase-validation <task-directory>` to start validation."
 
-   - **Exit 0** → continue.
-   - **Exit 1** → fix every reported failure, then re-run until it passes. A malformed
-     artifact is cheap to fix now and expensive later: the next phase parses these files and
-     will either misread them or stop.
-   - **Script missing or not executable** → report that in one line and continue. The
-     validator is a check, not a gate that can block work on its own absence.
-
-5. Run `/compress-state --auto` on task-level `state.md`.
-
-6. **Post-execution improvement review** (batch proposals collected during `/pe-execute`, which
-   invokes `/phase-atomic-validation … --batch`).
-
-   Scan task-level `state.md` for all `## Improvement Proposals (T-XX)` sections that contain at least one "Do Now" item.
-
-   If any exist:
-   - Present a consolidated list to the user: one block per T-XX, listing only "Do Now" items with a short description.
-   - Ask: "These Do Now improvements were deferred during batch execution. What would you like to do?
-     1. Create new subtasks for them (they will appear in `plan.md` as pending T-XX items).
-     2. Apply them now, before validation.
-     3. Skip — discard the Do Now proposals (Do Later / Optional items remain in `state.md`)."
-   - **Wait for user choice.** Then:
-     - Option 1 → create a new pending subtask entry in `plan.md` for each Do Now improvement group (one per T-XX that had items), then continue to step 6.
-     - Option 2 → apply improvements inline now (treat each group as an ad-hoc implementation step; do not create subtasks), then continue to step 6.
-     - Option 3 → remove only the "Do Now" subsections from the `## Improvement Proposals (T-XX)` blocks; preserve "Do Later" / "Optional" entries.
-
-   **Autonomous callers — do not wait.** When this workflow runs under `/phase-pipeline`,
-   choose **option 2** (apply them now, before validation) without prompting, apply each group
-   inline, and record the automatic choice in `state.md` by appending
-   `pipeline: Do Now applied automatically (phase-pipeline override)` to the corresponding
-   `## Improvement Proposals (T-XX)` section. The override is declared in
-   `phase-pipeline → ## Pipeline Overrides` and registered in
-   `workflow-globals → Workflow-declared mode overrides`. It exists because
-   `/pav-propose --batch` records proposals and never applies them — without this step the
-   pipeline would finish with the improvements it collected left unmade.
-
-   If no Do Now proposals exist → skip this step silently.
-
-7. Report to user (display as text — do NOT invoke):
-   - Summary table of all subtask outcomes (from `## Execution Report`); on `flow: quick`,
-     the `## TDD (quick)` record and the changed files instead.
-   - "Execution complete. Run `/phase-validation <task-directory>` to start validation."
-
-**STOP. Do not run `/phase-validation` automatically.**
+**STOP. Do not run `/phase-validation` automatically.** This completion is a progress
+marker for an active caller; only a caller with an explicit cross-phase override advances.

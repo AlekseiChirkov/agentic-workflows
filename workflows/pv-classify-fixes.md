@@ -9,48 +9,34 @@ Task directory = provided argument (trailing slash optional).
 
 ---
 
-## Purpose
-
-A validation pass can produce anything from one typo fix to a structural rework. Giving every
-fix its own branch and pull request buries the reviewer; putting them all in one buries the
-review. This step decides the split with a checkable rule instead of a judgement call.
-
-The rule reuses the project's existing definition of "small change" — the `quick-flow` gate —
-rather than inventing a second one.
-
----
-
 ## Guard
 
 1. Read `state.md`. If `## Issue List → ### Approved` is missing → **stop**: "Run `/pv-issues`
    first."
-2. If `### Approved` is empty → report "No approved issues to classify." and **stop**.
+2. If `### Approved` is empty or `None` → report "No approved issues to classify." and return.
+3. Reuse existing classification rows/IDs on resume; classify only newly approved issues.
+   Append new groups rather than changing completed ones. Ask for explicit confirmation
+   before replacing assigned IDs/groups. Load the `phase-validation` rule (`## Context Bootstrap`)
+   before project writes on standalone invocation.
 
 ---
 
 ## Classification
 
-For each approved issue, evaluate the four `quick-flow` gate conditions against the fix it
-would require:
+For each approved issue, evaluate the four conditions in
+`quick-flow → ## The escalation gate`: **3 or fewer files, counting test files**;
+no new invariant; no shipped-pipeline behaviour change; no schema/migration change.
+Record each pass/fail with evidence; unknown scope must be resolved before grouping.
 
-1. **Small surface** — the fix touches **3 or fewer files, counting test files**.
-2. **No new invariant** — it introduces nothing that would become a new line under
-   `### Invariants`, `domain.md`, or `principles/*`.
-3. **No behaviour change to an already-shipped pipeline** — using the definition in
-   `quick-flow`, applied to code that shipped before this task.
-4. **No schema change** — no DB schema change and no migration.
-
-- **All four hold → `shared`.** The fix joins the common fix branch.
-- **Any one fails → `dedicated`.** The fix gets its own branch and its own pull request.
-
-A `critical` severity issue is `dedicated` regardless of the gate: a critical finding deserves
-review in isolation, not folded into a batch.
+All four pass → `shared`; any fail or severity `critical` → `dedicated`.
+This reuses the gate per issue; it does not change the task's `flow:` tier.
 
 ### Naming — one vocabulary, shared with every downstream reader
 
-Fix-tasks have exactly one naming form, the one `/pv-create-fixes` writes into
-`## Fix-Tasks → Created:` and `/pv-execute-fixes` discovers by the glob `T-XX-fix-*`
-(`workflow-globals → ## Fix-Tasks format`):
+Allocate non-colliding fix IDs from `plan.md` and composite membership; `/pv-create-fixes`
+reuses them in `## Fix-Tasks → Created:`. The legacy `Branch` table column stores that
+**fix-task ID**, not a git branch name; actual branch names follow `git-flow`.
+`/pv-execute-fixes` uses the Created list, including sibling IDs:
 
 - **Dedicated** — one fix-task per issue: `T-NN-fix-<slug>`, `<slug>` naming the defect.
 - **Shared** — one fix-task per group, covering every issue in it: `T-NN-fix-<group-slug>`,
@@ -59,8 +45,9 @@ Fix-tasks have exactly one naming form, the one `/pv-create-fixes` writes into
 - **Child of a composite** (D8) — `T-NNx-fix-<slug>`, the sibling letter form defined in
   `/pv-create-fixes` step 2 Case B.
 
-Never emit a group name that is not itself a valid fix-task ID — a `fixes` / letter-suffix form
-matches no downstream reader, so a group named that way is created and then never executed.
+Each distinct ID is one group; `Grouping: shared` alone does not identify a group.
+Keep top-level fixes separate from composite-child fixes, and never group children of
+separate composites. Composite groups use the next available sibling letter.
 
 ### Splitting the shared group
 
@@ -70,6 +57,8 @@ Split it into two or more groups when either limit is exceeded:
 - more than **5** fixes in one group, or
 - more than **10** files touched in total across the group.
 
+A shared group must also stay within one independently testable component and one coherent
+criteria set. Split unrelated components/clusters into separate leaves even below these caps.
 Split along issue boundaries — never split a single fix across two branches. Each resulting
 group gets its own `T-NN-fix-<group-slug>` name from the form above — the split is expressed as
 two differently-named groups, never as a letter suffix on one name.
@@ -96,4 +85,5 @@ subsection into it — `/pv-create-fixes` fills in `fixes-created`, `fixes-count
 Every row records all four gate results, so a `dedicated` decision can be audited later —
 the same discipline `quick-flow` applies to its own tier decision.
 
-Report: "Fix classification complete. <N> shared across <M> branch(es), <K> dedicated."
+Report: "Fix classification complete. <N> shared across <M> groups, <K> dedicated."
+Return to the caller; this is a progress marker.

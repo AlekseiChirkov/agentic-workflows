@@ -104,6 +104,10 @@ condition 3 does not apply — it is about *already-shipped* pipelines.
   copy — are exactly the cases that legitimately land on `none`, so on the quick tier `none`
   will be common. That is the gate working, not the rule being bypassed: a change with no
   behaviour change has no behaviour to test.
+  For an independently justified `level: none`, a test command may be absent. Record
+  actual manual/AC verification; `green-observed: yes` means that verification completed,
+  not that nonexistent tests passed. Missing tooling never implies `none`.
+
 - **A `progress.md` entry on completion** — same format as a full task.
 
 Because there is no decomposition, the quick contract is the audit trail. The point of the

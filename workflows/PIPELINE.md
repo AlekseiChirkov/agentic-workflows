@@ -1,393 +1,192 @@
 ---
-description: Reference documentation — not an executable workflow. Contains full pipeline reference guide: file structure, phase steps, child workflow table, cycle examples.
+description: Reference documentation — pipeline map and command index; not an executable workflow
 ---
 
 # AI-Assisted SDLC Pipeline
 
-Three-phase workflow system: Discovery → Execution → Validation.
-Each phase is launched manually via slash command. To re-run a specific step, call its child workflow directly (see *Child Workflows* table below).
-Global principles are defined in `workflow-globals` (always-on rule).
-
----
+Discovery → Execution → Validation. Run phases manually, or authorize automatic
+transitions with `/phase-pipeline` or `/spec-run`. This file is a navigation reference;
+workflow headers own invocations, rules own contracts. Do not load the entire reference
+as a prerequisite for an individual child.
 
 ## How to Pass Task Context
 
-| What to pass | Format | Example |
-|---|---|---|
-| New task (Discovery) | path to spec file | `.ai/specs/01-add-oauth.md` |
-| Task directory (Execution / Validation) | path to task directory | `.ai/tasks/todo/task-01-add-oauth/` |
-| Atomic subtask | path to T-XX `description.md` | `.ai/tasks/todo/task-01-add-oauth/T-01-slug/description.md` |
-| Specific Discovery step | task directory | `/pd-design .ai/tasks/todo/task-01-add-oauth/` |
+| Operation | Argument |
+|---|---|
+| New Discovery | Spec path, e.g. `.ai/specs/01-add-oauth.md` |
+| Parent phases and children | Task directory, e.g. `.ai/tasks/todo/task-01-add-oauth/` |
+| Atomic execution/validation and their children | Leaf `description.md` path |
+| Composite validation | Composite `description.md` path |
 
-For phase-discovery: provide the spec path. Task directory is derived automatically.
-For all other phase and child workflow commands: provide the task directory.
-Atomic child workflow commands (pae-*, pav-*) still receive T-XX/description.md path.
-Task directory = provided argument (trailing slash optional).
-
----
+`phase-discovery` owns task naming, multi-phase selection and prefix collision checks.
+Resolve `working_dir:` before file operations; umbrella context is relative to the
+resolved project. See each command for supported flags.
 
 ## Task Structure Types
 
-The pipeline supports three task-structure types, selected autonomously by the classifier in `pd-decompose`. The type is **never** a user-facing mode — it is an emergent property of the decomposition.
+Canonical classifier: `workflow-reference → ## Autonomous Subtask Classifier`.
 
-| Type | Shape | When used |
-|------|-------|-----------|
-| **1 — Flat** | All T-XX are leaves; executed sequentially per dependency order | Default for most tasks |
-| **2 — Nested** | Some T-XX are composites; each has leaf children (T-XXa, T-XXb, …) that execute individually, then the composite runs integration validation | When a subtask is too large for one atomic cycle (≥2 independently-testable components) |
-| **3 — Vertical re-sliced** | Two independent tracks dissolved and re-decomposed into per-capability producer→consumer leaf pairs; interleaved for continuous integration | When two cross-repo tracks share a frozen contract and ≥2 capabilities |
+| Type | Shape and execution |
+|---|---|
+| **1 — Flat** | Dependency-ordered leaves, one atomic cycle per leaf. |
+| **2 — Nested** | Composite container with leaf children; integrate after every child is reviewed. |
+| **3 — Vertical re-sliced** | Shared-contract tracks become capability producer→consumer leaf pairs; extract common setup once. |
 
-Types 2 and 3 compose: a per-capability pair can itself be a composite if each member is large enough. Depth is capped at 2 (composites at depth 1; their children always at depth 2 as leaves).
-
----
+Only Type 2 creates a composite parent. Depth is capped at two: children are always
+leaves. Classifier decisions and dependencies are explicit in the plan.
 
 ## File Structure
 
-```
-.ai/                                      # project memory, principles, decisions, context
-
-.ai/memory/architecture.md                # system architecture snapshot
-.ai/memory/state.md                       # task-level context (active tasks, statuses)
-.ai/memory/progress.md                    # chronological log of completed work
-.ai/principles/                           # architecture / coding / domain principles
-.ai/adr/index.md                          # index of architectural decision records
-.ai/context/                              # integrations / environment / runbook
-
-.ai/specs/
-  <NN>-<slug>.md                          # task specification — immutable after creation
-                                          # consumed by phase-discovery; never in task dir
-
-.ai/tasks/
-  todo/
-    task-<NN>-<slug>/
-      state.md                            # task state + spec_path: + all decisions + phase statuses
-                                          #   includes: ## Subtask Progress (one block per T-XX)
-                                          #   leaf blocks: T-XX | name | atomic-tests | atomic-execution | atomic-validation
-                                          #     (+ branch/base_branch/base_commit/commits/pr in orchestrated mode)
-                                          #   composite blocks: [composite] T-XX | name | rollup | integration-validation
-      plan.md                             # decomposition: T-XX table + dependencies + strategy
-                                          #   flat tasks: ID/Name/KeySteps/DependsOn/Status columns
-                                          #   nested/sliced tasks: also Type/Slice columns
-                                          #   ## Decomposition Decisions: classifier rationale
-      T-XX-<slug>/
-        description.md                    # leaf subtask spec (## Goal/Context/Scope/Steps/AC/Test Plan)
-      T-XX-<slug>/                        # composite subtask container (Type 2)
-        description.md                    # composite spec (## Steps = "See children"; ## AC = integration-level)
-      T-XXa-<slug>/                       # child of composite T-XX (flat sibling dir — never nested)
-        description.md                    # leaf subtask spec
-      T-XXb-<slug>/
-        description.md
-      T-XX-fix-<slug>/
-        description.md                    # validation fix-task spec (top-level fixes)
-      T-XXc-fix-<slug>/                   # D8: child fix-task (sibling letter + fix suffix)
-        description.md
-  completed/
-    task-<NN>-<slug>/
+```text
+.ai/
+  specs/<NN>-<slug>.md                 original task statement
+  memory/{architecture,state,progress}.md
+  principles/                         constraints and domain language
+  adr/index.md                        decision index
+  context/                            runbook, integrations, environment
+  tasks/todo/task-<NN>-<slug>/         multi-phase tasks add -p<N>
+    state.md                          phase markers, decisions, progress blocks
+    plan.md                           subtasks, dependencies, strategy
+    state-archive.md                  archived verbose Discovery evidence
+    T-XX-<slug>/description.md         leaf or composite contract
+    T-XXa-<slug>/description.md        composite child: sibling directory
+    T-XX-fix-<slug>/description.md     top-level validation fix
+    T-XXc-fix-<slug>/description.md    composite fix sibling
+  tasks/completed/                    completed task records
 ```
 
-**Directory rules:**
-- Children are flat siblings (T-04a/, T-04b/ alongside T-04/) — no nested directories.
-- `state.md` and `plan.md` never appear inside T-XX directories.
-- All hierarchy lives in the parent task's `plan.md` and `state.md`.
-
----
+There is no state or plan inside subtask directories. Progress lives in parent state.
+Leaf descriptions have six sections: `## Goal`, `## Context`, `## Scope`, `## Steps`,
+`## Acceptance Criteria`, `## Test Plan`. Composite descriptions declare `type: composite` and integration criteria;
+pass them to composite validation, never atomic execution. Specification changes after
+Discovery follow the authorized reconciliation/completion exceptions; implementation
+never rewrites requirements to hide a failure.
 
 ## Phase 1 — Discovery
 
-```
-/phase-discovery <path>                   # full cycle (steps 0–4), autonomous
-/phase-discovery <path> --step-by-step    # pause for review after each step
-```
+`/phase-discovery <spec-path> [--step-by-step] [--phase N]`
 
-Discovery is **autonomous by default**: Steps 1–4 run back-to-back without
-returning control. Ambiguous requirements are resolved by research
-(principles → ADRs → memory → codebase patterns → best practice) and recorded in
-`## Task Analysis → ### Assumptions`; architectural choices are made via
-`workflow-reference → ## Autonomous Decision Protocol` and recorded as
-`### Autonomous Decision`. The phase still stops at its end — it never
-auto-advances into `/phase-execution`.
-
-`--step-by-step` restores the interactive behavior: clarifying questions in
-`pd-analyze`, user-chosen architecture in `pd-design`, and a review pause after
-every step. The flag is passed through to all four child workflows.
-
-To run a single step, call its child workflow directly (e.g. `/pd-design <path>`).
-
-| Step | Name | What it does |
-|---|---|---|
-| 0 | State check | Read state, determine continuation point |
-| 1 | Task analysis | Analyze spec + codebase, set `flow:`, record assumptions (asks only with `--step-by-step`) |
-| 2 | Decomposition | Break into T-XX subtasks, create directories |
-| 3 | Architectural design | Generate 2–3 variants, decide via the Autonomous Decision Protocol (user decides with `--step-by-step`) |
-| 4 | Finalization | Update files, compress, mark complete |
-
-**Output:**
-- `state.md` — Goal, Affected Parts, Solution Design, Off-limits, Invariants, Acceptance Criteria
-- `plan.md` — T-XX table with statuses and dependencies
-- `T-XX-<slug>/` directories with `description.md` only (no `state.md` or `plan.md`).
-  `description.md` has six sections: `## Goal`, `## Context`, `## Scope`, `## Steps`,
-  `## Acceptance Criteria`, `## Test Plan`.
-
----
+Autonomous by default, with research-backed assumptions and scored design decisions.
+`--step-by-step` enables review pauses. Orchestrated mode reserves class-B intent
+questions for the batch gate. The phase resolves task state, then runs analysis →
+decomposition → design → finalization; quick tasks skip decomposition/design/archive.
+Outputs: contract and phase markers in state, plus plan and descriptions for full tasks.
 
 ## Phase 2 — Execution
 
-```
-/phase-execution <path>              # execute all pending subtasks
-```
+`/phase-execution <task-directory>`
 
-To run a single step, call its child workflow directly (e.g. `/pe-execute <path>`).
-
-| Step | Name | What it does |
-|---|---|---|
-| 0 | State check | Verify discovery complete, find first incomplete subtask |
-| 1 | Subtask execution | For each T-XX: atomic-execution (tests → implement → finalize) → atomic-validation |
-| 2 | Finalization | Summary report, update files, compress |
-
-**Output:**
-- Implemented functionality
-- Task statuses in `plan.md` (`done` / `reviewed` / `blocked` / `deferred`)
-- `## Subtask Progress` blocks updated in parent `state.md`
-
----
+Require Discovery complete. For each ready leaf run atomic execution, then independent
+atomic validation; resume `done` leaves at validation. Composite containers run no
+implementation cycle. Finalize the execution report and proposal decisions before
+marking the phase complete. Quick tasks use inline TDD against their quick contract.
 
 ## Phase 3 — Validation
 
-```
-/phase-validation <path>             # full validation
-```
+`/phase-validation <task-directory>`
 
-To run a single step, call its child workflow directly (e.g. `/pv-issues <path>`).
-
-| Step | Name | What it does |
-|---|---|---|
-| 0 | State check | Verify execution complete |
-| 1 | Contract verification | Check Invariants, Acceptance Criteria, Off-limits |
-| 2 | Code review | Readability, security, edge cases |
-| 3 | Issue list | Numbered list with priorities, wait for user |
-| 4 | Create fix-tasks | New T-XX subtasks from approved issues |
-| 5 | Execute fix-tasks | Atomic cycles for each fix-task |
-| 6 | Finalization | Update files, compress, list deferred tasks |
-
-**Output:**
-- Fix-tasks created and executed
-- Deferred tasks listed
-- Clean, compressed state files
-
----
+Require Execution complete. Verify contract → review code → decide issues → create and
+execute approved fixes → finalize, record qualifying decisions and reconcile the spec.
+Quick tasks retain contract/review/approval but use inline repairs. Failed invariants or
+Off-limits always stop. A deferred item remains visible; it is never reported as delivered.
 
 ## Atomic Workflows
 
-For each T-XX subtask. Launched automatically by `/phase-execution` and `/phase-validation`, or manually by user.
-
-```
-/phase-atomic-execution <T-XX-path>     # orchestrator: implement (reads T-XX/description.md)
-/phase-atomic-validation <T-XX-path>    # orchestrator: validate + close
-/phase-composite-validation <T-XX-path> # orchestrator: integration validation for composites
-                                        #   called automatically by pav-close when last child closes
+```text
+/phase-atomic-execution <leaf-description>
+  /pae-tests → /pae-implement → /pae-finalize
+/phase-atomic-validation <leaf-description>
+  /pav-check → /pav-propose → /pav-close
 ```
 
-The atomic execution cycle is **test-first**:
-
-```
-/phase-atomic-execution
-  1. /pae-tests      RED   — classify test level, write failing tests from ## Acceptance
-                             Criteria, run them, observe them fail for the right reason
-  2. /pae-implement  GREEN — implement until every RED test passes, then refactor
-  3. /pae-finalize           record statuses, roll up composites
-```
-
-The RED test set is a frozen contract during GREEN: it may not be deleted, skipped, or
-weakened to make the implementation pass. Work with no testable behaviour passes an explicit
-test-level gate (`unit` / `integration` / `contract` / `smoke` / `none`) with a recorded
-justification — it is never skipped silently. Contract → the `tdd` rule; test style →
-`testing-standards`.
-
-All per-subtask implementation detail (`## Steps`, `## Acceptance Criteria`, `## Test Plan`) lives in `T-XX/description.md`, produced during parent `/pd-decompose` + `/pd-finalize`. T-XX directories contain only `description.md` — no `state.md` or `plan.md`. All progress tracking is in the parent `state.md → ## Subtask Progress`.
-
-For composites: `T-XX/description.md` contains `type: composite` in `## Context` and integration-level criteria in `## Acceptance Criteria`. It is never passed to `phase-atomic-execution` — only to `phase-composite-validation`.
-
----
+Test-first execution: establish RED before GREEN, or admitted characterization (`pinned`)
+before preservation work. `none` needs the recorded gate justification. The frozen test
+set cannot be deleted, skipped or weakened to pass. Canonical process: `tdd`.
+The last reviewed composite child triggers integration validation exactly once; approved
+integration fixes are new sibling leaves and keep the composite open until rechecked.
 
 ## Status Glossary
 
-**TDD statuses** (`atomic-tests:` field in leaf `## Subtask Progress` blocks):
+Canonical fields and vocabulary: `workflow-globals`; translations and protection:
+`workflow-reference`. Distinguish plan status from atomic fields:
 
-| Status | Meaning |
-|--------|---------|
-| `not-started` | `/pae-tests` has not run. A block with no `atomic-tests:` field is pre-TDD and reads as this |
-| `red` | Tests written, run, and observed failing for the expected reason |
-| `green` | Implementation complete; the whole RED set passes and is intact |
-| `n-a` | Test-level gate returned `none`, with a justification recorded in `notes:` |
-| `failed` | RED could not be established — a test passed before implementation, or the suite errored |
+| Record | Meaning |
+|---|---|
+| `atomic-tests: red / pinned / green / n-a / failed` | Observed test evidence, characterization baseline, success, justified absence, or failure to establish valid evidence. Missing field reads `not-started`. |
+| Plan `done` | Execution complete; validation still pending. |
+| Plan `reviewed` | Execution and validation complete. |
+| Composite `reviewed` | All children reviewed and `integration-validation: complete`. |
+| `composite-reviewed` | Execution-report summary: children and integration passed. |
+| `composite-blocked` | Execution-report summary: a child is blocked. |
+| `composite-stalled` | Execution-report summary: reviewed children lack completed integration validation. |
 
-**Leaf subtask statuses** (used in `plan.md` Status column and leaf `## Subtask Progress` blocks):
-
-| Status | Meaning |
-|--------|---------|
-| `not-started` | Subtask has not been touched |
-| `in-progress` | Atomic execution is running |
-| `done` | Atomic execution complete, atomic validation not yet run |
-| `reviewed` | Atomic execution + validation both complete |
-| `blocked` | Cannot proceed — external dependency or invariant conflict |
-| `deferred` | User chose to defer this subtask |
-| `not-reached` | Pipeline did not reach this subtask in the current run |
-
-**Composite subtask statuses** (used in `plan.md` Status column and composite `## Subtask Progress` blocks):
-
-| plan.md Status | rollup field | integration-validation | Meaning |
-|----------------|--------------|----------------------|---------|
-| `not-started` | `not-started` | `not-started` | No children have started |
-| `in-progress` | `in-progress` | `not-started` | At least one child is executing |
-| `done` | `done` | `not-started` | All children done; integration validation not yet run |
-| `in-progress` | `done` | `in-progress` | Integration validation running |
-| `in-progress` | `done` | `failed` | Integration validation failed; fix cycle pending |
-| `reviewed` | `done` | `complete` | All children reviewed AND integration validation passed |
-| `blocked` | `blocked` | — | At least one child is blocked |
-
-A composite's `plan.md` Status reaches `reviewed` ONLY after `integration-validation: complete`.
-
-**Execution Report composite statuses** (in `## Execution Report`):
-- `composite-reviewed` — all children reviewed, integration validation passed
-- `composite-blocked` — at least one child blocked
-- `composite-stalled` — all children reviewed but integration validation never triggered
-
-Phase statuses used in `state.md → ## Phases`:
-
-| Status | Meaning |
-|--------|---------|
-| `not-started` | Phase has not been entered |
-| `in-progress` | Phase is currently executing |
-| `complete` | Phase fully finished |
-
----
+Never copy a plan `done` value into an atomic-status field. Field names, protected lines,
+status transitions and backward compatibility come from the canonical rules.
 
 ## Child Workflows (Direct Step Access)
 
-Call any step directly without running the full phase.
+Children are callable independently and perform their phase bootstrap when no parent
+has loaded context. Their Guards detect completed work before overwrite.
 
-| Slash command | Phase | Step |
-|---|---|---|
-| `/pd-analyze` | Discovery | 1 — Task analysis + codebase |
-| `/pd-decompose` | Discovery | 2 — Decompose into T-XX |
-| `/pd-design` | Discovery | 3 — Architectural design |
-| `/pd-finalize` | Discovery | 4 — Finalize + compress |
-| `/pd-archive` | Discovery | 4b — Archive verbose Discovery content (called by `/pd-finalize`) |
-| `/pd-select-model` | Discovery | 2.5 — Model per subtask (opt-in; called by `/spec-run`, not by `/phase-discovery`) |
-| `/pe-execute` | Execution | 1 — Run atomic cycles |
-| `/pe-finalize` | Execution | 2 — Summary + finalize |
-| `/pv-contract` | Validation | 1 — Contract verification |
-| `/pv-review` | Validation | 2 — Code review |
-| `/pv-issues` | Validation | 3 — Issue list for user |
-| `/pv-create-fixes` | Validation | 4 — Create fix-tasks |
-| `/pv-execute-fixes` | Validation | 5 — Execute fix-tasks |
-| `/pv-finalize` | Validation | 6 — Finalize |
-| `/pae-tests` | Atomic Execution | 1 — TDD RED: test-level gate + failing tests from AC |
-| `/pae-implement` | Atomic Execution | 2 — TDD GREEN: execute steps until tests pass (includes tripwire check) |
-| `/pae-finalize` | Atomic Execution | 3 — Update statuses + incremental composite rollup |
-| `/pav-check` | Atomic Validation | 1 — Final check + verdict |
-| `/pav-propose` | Atomic Validation | 2 — Improvement proposals |
-| `/pav-close` | Atomic Validation | 3 — Close task + trigger composite integration validation |
-| `/phase-composite-validation` | Composite Validation | Integration check after all children reviewed |
-| `/pv-classify-fixes` | Validation | 4a — Classify fixes into shared vs dedicated branches |
-| `/spec-run` | Orchestrated | Whole spec → stacked branches → review-ready PRs |
-| `/restack` | Orchestrated | Replay the branch stack after the human merges part of it |
-
----
+| Group | Commands in execution order |
+|---|---|
+| Discovery | `/pd-analyze`, `/pd-decompose`, `/pd-design`, `/pd-finalize`, `/pd-archive` |
+| Optional model choice | `/pd-select-model` (bulk writes Model; called by `/spec-run`) |
+| Execution | `/pe-execute`, `/pe-finalize` |
+| Atomic execution | `/pae-tests`, `/pae-implement`, `/pae-finalize` |
+| Atomic validation | `/pav-check`, `/pav-propose`, `/pav-close` |
+| Composite integration | `/phase-composite-validation` |
+| Validation | `/pv-contract`, `/pv-review`, `/pv-issues`, `/pv-create-fixes`, `/pv-execute-fixes`, `/pv-finalize` |
+| Fix branch grouping | `/pv-classify-fixes` (called by fix creation in orchestrated mode) |
+| Automatic phases | `/phase-pipeline` |
+| Context-bounded delivery | `/spec-run`, `/restack` |
+| Entry points | `/spec-draft`, `/bugfix`, `/onboard-legacy-project` |
+| Knowledge utilities | `/context-pack`, `/compress-state`, `/adr-new`, `/spec-sync`, `/retro` |
+| Suggested delivery text | `/suggest-commit-message`, `/suggest-pr-description`, `/suggest-commit-pr` |
 
 ## Orchestrated Mode — one spec to review-ready pull requests
 
-```
-/spec-run .ai/specs/01-add-oauth.md              # local only — branches, no PRs
-/spec-run .ai/specs/01-add-oauth.md --allow-pr   # also push and open draft PRs
-/spec-run .ai/specs/01-add-oauth.md --dry-run    # print the plan, change nothing
-```
+`/spec-run <spec-path> [--allow-pr] [--dry-run]`
 
-`/spec-run` carries one spec through Discovery → Execution → Validation using
-context-bounded sub-agents, creating one stacked git branch per subtask. Single repository
-only — a spec covers exactly one repo.
+`orchestration` defines Orchestrator, Arbiter, Implementer and independent Validator.
+Workers run sequentially and return shared-file deltas; the Orchestrator owns shared
+state and git. Class-B questions are answered before the first branch, and leaks stop.
 
-**Roles** (`orchestration` rule): the Orchestrator owns sequencing, git, and every shared
-file; the Arbiter holds full project context for the whole run and answers questions only
-with a cited source; the Implementer runs one subtask's `pae-tests` → `pae-implement` →
-`pae-finalize`; a **separate** Validator runs `pav-check` → `pav-propose` → `pav-close`
-without having seen how the code was written.
+`git-flow` defines the stack: each leaf branches from its reviewed predecessor. RED
+gets a test-only commit before the same Implementer continues to GREEN; justified
+`n-a` gets one implementation commit. Composites are containers without branches in the
+current model. Later PRs contain their predecessors and depend on them. PRs require
+`--allow-pr`, start as drafts and become ready after successful task validation.
+The workflow never merges; the human chooses integration timing and strategy.
 
-Sub-agents exist to bound context, **not** to parallelize. Execution is strictly
-sequential — `## Subtask Progress` has no locking.
-
-**The branch stack** (`git-flow` rule): subtask N branches from the tip of subtask N-1. The
-stack tip holds the whole task, so task-level validation runs there and no separate
-integration branch exists. Consequence, stated plainly: a PR cannot reach the base branch
-without its predecessors. The human chooses the merge strategy and the timing; `/restack`
-repairs the stack afterwards regardless of which strategy was used.
-
-**The one planned stop** is the Discovery batch gate. `/pd-analyze` splits ambiguities into
-class A (answerable from principles / ADRs / codebase — resolved autonomously with a cited
-source) and class B (missing product intent — nobody can derive it). Class B is collected
-into `## Open Questions (batch)` and presented to the human as a single list *before the
-first branch is created*. After it clears, Execution runs unattended.
-
-```
-/restack .ai/tasks/todo/task-01-add-oauth/            # replay the stack after a merge
-/restack .ai/tasks/todo/task-01-add-oauth/ --allow-pr # and update the open PRs
-```
-
-`/restack` replays each remaining branch with `git rebase --onto <new-base> <base_commit>`,
-which is why `base_commit` is recorded at branch creation and never recomputed — after a
-squash merge the computed merge base is wrong.
-
----
+`/restack <task-directory> [--allow-pr]` repairs the remaining stack using recorded
+branch points after integration. Missing branches alone do not prove a merge.
 
 ## Utility
 
-```
-/compress-state [path]               # compress specific state file
-/compress-state                      # compress .ai/memory/state.md (default)
-```
-
----
+`/compress-state [path] [--auto]` preserves protected markers and current decisions.
+`/context-pack` verifies its source manifest before cache reuse. `/retro` is the only
+run-log reader and recommends workflow changes without applying them.
 
 ## Full Cycle Example
 
+```text
+/phase-discovery .ai/specs/01-add-oauth.md
+/phase-execution .ai/tasks/todo/task-01-add-oauth/
+/phase-validation .ai/tasks/todo/task-01-add-oauth/
 ```
-# WRITE SPEC
-# Create .ai/specs/01-task-foo.md with H1 title and Acceptance Criteria
-
-# PHASE 1 — DISCOVERY
-/phase-discovery .ai/specs/01-task-foo.md
-
-# PHASE 2 — EXECUTION
-/phase-execution .ai/tasks/todo/task-01-task-foo/
-
-# PHASE 3 — VALIDATION
-/phase-validation .ai/tasks/todo/task-01-task-foo/
-
-# MANUAL ATOMIC (single T-XX):
-/phase-atomic-execution  .ai/tasks/todo/task-01-task-foo/T-01-slug/description.md
-/phase-atomic-validation .ai/tasks/todo/task-01-task-foo/T-01-slug/description.md
-
-# MANUAL TDD STEP ONLY (re-run RED for one subtask):
-/pae-tests .ai/tasks/todo/task-01-task-foo/T-01-slug/description.md
-```
-
----
 
 ## Quick Start
 
-1. Create `.ai/specs/01-task-foo.md` with at minimum an H1 title.
-2. Fill in `test:` under `.ai/context/runbook.md → ## Commands` — the TDD step stops without it.
-3. Run `/phase-discovery .ai/specs/01-task-foo.md` — creates task directory automatically.
-4. Run `/phase-execution .ai/tasks/todo/task-01-task-foo/`.
-5. Run `/phase-validation .ai/tasks/todo/task-01-task-foo/`.
-
----
+Create a spec with H1 and acceptance criteria. Configure real verification commands in
+the runbook before testable execution. Run the manual cycle above or authorize the
+three phases with `/phase-pipeline <spec-path>`. Quick eligibility and promotion are
+owned by `quick-flow`; a small diff alone does not qualify.
 
 ## Known Limitations
 
 ### Type 3 — no whole-group integration validation
 
-D1 (composite validation: per-child AND whole-series) applies to **composites** (Type 2). Type 3 re-slicing intentionally does NOT create a composite parent — all capability slices are flat leaves. Therefore there is **no automatic whole-group integration validation** across all Type 3 slices.
-
-**Rationale:** Type 3 is designed for tasks where the slices are developed independently per capability, with each capability's producer→consumer pair verified end-to-end. A cross-capability integration concern should be modelled as a separate subtask (e.g. a shared-setup leaf with its own Acceptance Criteria, or a follow-on integration T-XX) rather than by adding a composite wrapper.
-
-**If cross-capability integration validation is required:** model it explicitly as a dedicated leaf subtask with its own `## Acceptance Criteria` that verifies the combined result, added to `plan.md` as a dependency of any downstream work.
+Flat capability pairs have **no automatic whole-group integration validation**. When
+cross-capability behavior needs checking, add a dedicated integration leaf with its own
+criteria and dependency edges; do not assume a composite trigger exists.

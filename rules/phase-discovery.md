@@ -35,9 +35,9 @@ After loading: state which architectural constraints apply to the current task b
 
 ## Codebase Reading Rules
 
-- **If `.ai/memory/architecture.md` describes a module → do NOT read that module's source files.**
+- Use `.ai/memory/architecture.md` to scope source reads. Read affected source when verifying behavior, freshness, or a concrete pattern; an inventory description alone is not implementation evidence.
 - Budget: max 12 files (8 entry-points + 4 one-level-deeper). Hard limit.
-- Document every file read with reason: "read because X not described in .ai/ context."
+- Document every file read with reason: "read to verify <specific behavior or gap>."
 - Stop reading when affected parts are understood.
 
 ## Decision Protocol

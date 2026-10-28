@@ -5,15 +5,10 @@ description: Atomic Execution Step 1 (TDD RED) — classify test level, write fa
 Invocation: `/pae-tests <path-to-atomic-description> [--batch] [--characterize]`
 Called by: `/phase-atomic-execution` as Step 1, before `/pae-implement`.
 
-`--batch` suppresses the review pause in `## Report`; it never suppresses the test-level gate,
-the RED observation, or the digest written to `notes:`.
-
-`--characterize` selects **characterization mode** for behaviour-preserving work — a
-refactor, an extraction, an equivalent-library swap, a performance change. The tests pin what
-the system does *now* and must pass before the change instead of failing. The full contract,
-including the three conditions that must all hold, is `tdd → ## Characterization mode`; this
-workflow's Step 4 branches on it. Everything else — the level gate, the scope rules, the
-tests-only rule, the digest — is identical.
+`--batch` suppresses duplicate digest display, never test classification, observation,
+or persistence. It does not authorize applying improvement proposals. `--characterize`
+selects `tdd → ## Characterization mode — behaviour-preserving work` when all admission
+conditions hold; the tests must pass against unchanged code instead of failing.
 
 Atomic task directory = parent directory of the provided `description.md`.
 Parent task directory = one level above.
@@ -30,10 +25,9 @@ The governing contract is the `tdd` rule; test style comes from `testing-standar
 2. If the block has `atomic-tests: green` → **stop**: "Tests for this subtask are already
    green. Re-running will overwrite the RED test set. Confirm to proceed? (yes/no)" Wait for
    explicit confirmation.
-2b. If the block has `atomic-tests: pinned` → report: "Behaviour already pinned for T-XX.
-   Existing characterization tests are reused; re-running re-verifies them against the
-   unchanged code." Continue in characterization mode regardless of whether `--characterize`
-   was passed — the recorded status is authoritative.
+2b. `atomic-tests: pinned` → reuse the recorded characterization mode. If implementation
+    has begun, return to `/pae-implement` without rewriting or claiming a new baseline;
+    otherwise re-verify existing pins against unchanged code.
 3. If the block has `atomic-tests: red` → report: "RED already reached for T-XX. Existing
    failing tests: [list]. Re-running will regenerate them. Confirm to proceed? (yes/no)"
    Wait. On a resume this is normally NOT what you want — continue to `/pae-implement`
@@ -55,28 +49,19 @@ The governing contract is the `tdd` rule; test style comes from `testing-standar
 
 0. **Working directory resolution** (identical to `/pae-implement`).
    Read `T-XX/description.md → ## Context`. Check for `working_dir:`.
-   - If present: `WORK_DIR = <resolved absolute path>`, `AI_DIR = WORK_DIR/.ai`.
+   - If present: resolve relative to the atomic task directory; set absolute `WORK_DIR` and `AI_DIR = WORK_DIR/.ai`.
    - If absent: `WORK_DIR = <current directory>`, `AI_DIR = .ai`.
    Report the resolved `WORK_DIR` before continuing.
 
-1. Load project context — follow `phase-atomic-execution` rules — ## Context Bootstrap.
-   Load from `AI_DIR`. If umbrella (`AI_DIR/../.ai/`) exists, load it first.
-   Load in order, skip missing files:
-   - `AI_DIR/memory/architecture.md` — component boundaries, integration points
-   - `AI_DIR/memory/state.md` — current task status, blockers
-   - `AI_DIR/principles/architecture.md` — patterns the tests must respect
-   - `AI_DIR/principles/coding.md` — style, naming, forbidden patterns
-   - `AI_DIR/principles/domain.md` — domain rules and terminology used in test names
-   - `AI_DIR/adr/index.md` — decisions that constrain the interface under test
-   - `AI_DIR/context/runbook.md` — **required** — the `test:` command
-   Report: "TDD context loaded from AI_DIR=<path>: [files read]"
+1. Load the `phase-atomic-execution` rule (`## Context Bootstrap`) from `AI_DIR` before
+   reading code or writing tests/implementation. Run the full bootstrap even when
+   standalone; the rule owns load order and reporting. Load `WORK_DIR/../.ai` as the
+   umbrella when present, then `AI_DIR`.
+   Preserve absolute task-artifact paths when running commands in `WORK_DIR`.
 
-2. **Runbook check.** Read `AI_DIR/context/runbook.md → ## Commands` and extract `test:`.
-   - If `test:` is defined → record it; it is the command used to observe RED.
-   - If `test:` is missing or still a placeholder → **stop**: "No `test:` command in
-     `AI_DIR/context/runbook.md → ## Commands`. TDD cannot observe RED without a way to run
-     tests. Add the command, or state explicitly that this subtask is exempt." Wait for the
-     user. Do not silently fall through to `none`.
+2. Read `AI_DIR/context/runbook.md → ## Commands` and capture `test:` if available.
+   Classify the test level before requiring a command. Missing tooling is never evidence
+   for `none`; only the independent gate in Step 1 can justify that exemption.
 
 3. Read `T-XX/description.md` — extract `## Goal`, `## Context`, `## Scope`, `## Steps`,
    `## Acceptance Criteria`, and `## Test Plan` if present.
@@ -87,10 +72,9 @@ The governing contract is the `tdd` rule; test style comes from `testing-standar
 
 ## Step 1 — Test-level gate
 
-Load the `tdd` rule — `## Test-level gate`. Classify this subtask by evaluating the levels
-in order (`unit` → `integration` → `contract` → `smoke` → `none`); the first level that
-applies wins. A subtask may legitimately need more than one level (e.g. a use case with a
-new HTTP route needs `unit` + `contract`) — record all that apply.
+Load `tdd → ## Test-level gate`. Evaluate `unit` → `integration` → `contract` → `smoke` →
+`none` in order; the first applicable level is primary. Add other levels only when needed
+for criteria the primary level cannot cover, and record their rationale.
 
 Report the classification before writing anything:
 
@@ -100,8 +84,8 @@ Rationale: <one sentence>
 Test command: <test: from runbook>
 ```
 
-**Characterization mode admission check** (only when `--characterize` was passed). Verify all
-three conditions from `tdd → ## Characterization mode → ### When it applies`: the Acceptance
+**Characterization mode admission check** (when `--characterize` was passed or pins are recorded). Verify all
+three conditions from `tdd → ## Characterization mode — behaviour-preserving work → ### When it applies`: the Acceptance
 Criteria assert preserved behaviour; that behaviour is observable today; no requirement
 changes. Report the verdict:
 
@@ -124,6 +108,10 @@ for work that is merely hard to specify.
 3. Set `atomic-tests: n-a` in the leaf block.
 4. Report: "TDD level: none (justified). Next: `/pae-implement <path>`." **Skip Steps 2–4.**
 
+For every testable level, a missing/placeholder/unavailable `test:` command → **stop**:
+"Configure a runnable `test:` command before establishing test evidence." Record an
+external tooling/dependency blocker; never downgrade the gate to `none` to bypass it.
+
 ---
 
 ## Step 2 — Derive the test plan
@@ -132,7 +120,7 @@ for work that is merely hard to specify.
 the authoritative list of scenarios. Verify it covers every Acceptance Criterion — if a
 criterion has no scenario, add one and note the gap in `notes:`.
 
-**If `## Test Plan` is absent** (pre-TDD task, or a fix-task): derive the plan now from
+**If `## Test Plan` is absent** (legacy description): derive the plan now from
 `## Acceptance Criteria` and record it in the parent `state.md` under the leaf's `notes:` as
 a one-line summary. Do not edit `description.md` retroactively.
 
@@ -156,17 +144,15 @@ decomposition defect — report it and stop.
 
 ## Step 3 — Write the tests
 
-Follow `testing-standards` for structure and style — this workflow does not restate it.
-The non-negotiables it defines: AAA structure, `test_<subject>_<condition>_<expected_outcome>`
-naming, InMemory implementations instead of `Mock()` for repository interfaces, no
-`time.sleep()`, no order-dependent tests, no `assert True` as the only assertion.
+Follow `testing-standards` for structure, naming, observable assertions, and test doubles.
 
 Constraints specific to this step:
 
-1. **Tests only.** Do not create or modify any implementation file. If a test needs a module
-   that does not exist yet, the test imports it and fails on that — that is the point.
-   Creating an empty stub module solely to make an import resolve is permitted **only** when
-   the test runner cannot collect any test otherwise; record it in `notes:`.
+1. **Tests only**, except the collection stub below. An import/collection failure is not RED.
+   A minimal collection-only stub is permitted
+   **only** when tests otherwise cannot be collected; record the exception in `notes:`
+   and `target_files:`. It must implement no behaviour. Observe an executable assertion
+   fail for the missing behaviour before proceeding.
 2. **Stay in scope.** Test files must be within the subtask's `## Scope → Target files` or
    the project's test directory. Add every test file created to `target_files:` in the leaf
    block.
@@ -224,54 +210,37 @@ T-XX | <name> | atomic-tests: pinned | atomic-execution: <current> | atomic-vali
          tdd: red digest — <behaviour> → test_<name>, test_<name>; <behaviour> → test_<name>
 ```
 
-The digest line keeps its `tdd: red digest` key in this mode too. Three later steps parse
-that exact key, and renaming it for one mode would make the pinned set invisible to all of
-them; the mode is carried by the `tdd: characterize` line beside it.
+Keep the exact `tdd: red digest` key for pins too; later steps read it in both modes.
 
-Then **skip the remainder of this step** and continue to `## Report`.
+Then skip the ordinary RED record below and continue to the Report section.
 
----
-
-**On success** (ordinary RED mode), update the leaf `## Subtask Progress` block in the parent
-`state.md`:
+**On success in ordinary mode**, update the parent leaf block, preserving other fields:
 
 ```
 T-XX | <name> | atomic-tests: red | atomic-execution: <current> | atomic-validation: <current>
   last_action: RED reached — <N> failing tests written (<level>)
-  target_files: <test files created, appended to any existing list>
+  target_files: <cumulative test/stub files, unioned with existing files>
   blocker: none
   notes: tdd: <level> — <N> tests, AC coverage <N>/<N>
          tdd: red digest — AC-1 → test_<name>, test_<name>; AC-2 → test_<name>; edge → test_<name>
 ```
 
-**The RED digest is written in every mode, not only in batch mode.** It is the AC→test-name
-mapping from Step 2, recorded verbatim as the `tdd: red digest` line above. It is the only
-persisted record of which tests were red and which criterion each one covers, and three later
-steps read it: `/pae-implement` Pre-check 2b (to load the set it must satisfy), its Final
-Verification (to prove the set is intact — same names, same count), and `/pav-check` (to
-detect a weakened or missing test). A digest left only in the chat transcript is not recorded.
+The RED digest is written in every mode, including characterization; `none` records its
+justification instead. Preserve other notes/git fields. `/pae-implement` and `/pav-check`
+read the digest to verify frozen test identities and AC coverage.
 
 ---
 
 ## Report
 
-```
-─── TDD RED COMPLETE — T-XX ─────────────────────────────────
-Level:      <unit | integration | contract | smoke | none>
-Tests:      <N> written, <N> failing as expected
-AC mapping: <N>/<N> Acceptance Criteria covered
-Files:      <test file list>
-─────────────────────────────────────────────────────────────
-```
+Report mode/level, test names, AC coverage, files, command, and observed result:
+ordinary mode: <N> expected failures; characterization: <N> pins passing before code changes;
+`none`: the recorded justification. Do not label passing pins as failing RED tests.
 
-**Review gate.** The tests are the specification the implementation will be measured
-against — reviewing them is more valuable than reviewing the code that follows. Present the
-test list and the AC mapping.
+Display the digest unless `--batch` or `/phase-pipeline` suppresses the duplicate output.
+A valid gate returns immediately to the caller; this is a progress marker, not a handoff.
+Incomplete mapping, an untestable criterion, or a required level downgrade → **stop**:
+"Test contract requires a decision: <gap>. Clarify the criterion or scope before implementation."
+Batch display suppression never bypasses these gates.
 
-- **Batch mode** (`--batch` passed, or called from `/phase-pipeline`): display nothing further
-  and continue without waiting — the digest is already in `notes:` from Step 4.
-- **Otherwise**: display the digest and continue. Stop and wait only if the AC mapping is
-  incomplete, a criterion proved untestable as written, or the test level had to be
-  downgraded — these are decisions the user must see.
-
-Next: `/pae-implement <path>` — implement until these tests pass. Do not weaken them.
+Next: `/pae-implement <path>`. Keep the recorded test set frozen.

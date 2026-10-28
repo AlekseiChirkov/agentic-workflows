@@ -1,285 +1,161 @@
 ---
-description: Fully autonomous pipeline — runs Discovery → Execution → Validation in a single session without manual phase transitions
+description: Fully autonomous pipeline — run Discovery, Execution and Validation with explicit decision overrides and resumable state
 ---
 
-Path to spec or task directory: $ARGUMENTS
+Invocation: `/phase-pipeline <spec-path|task-directory>`
 
-You are executing the **phase-pipeline** — a fully autonomous pipeline that runs Discovery → Execution → Validation in a single continuous session without manual phase transitions.
+Run one task through three phases. Load `workflow-globals`; use the phase rules for
+context bootstrap and resolve rule names as that contract specifies. Children reuse
+context already loaded by this invocation; standalone children bootstrap themselves.
 
----
+## Guard
+
+Require an existing spec or task path. Read existing task state before writes. Resume
+completed steps; never reset them. Guard confirmations that overwrite artifacts remain
+mandatory in every mode. If all three phases are complete, report and **stop**.
 
 ## Run Logging
 
-This pipeline writes a run log. Follow the **`run-log`** rule in full — it defines the
-store, the field vocabulary, and the rule that logging never blocks a run.
-
-Apply `run-log → ## Workflow coverage and routing` at each boundary. Keep internal
-step logging instructions and add `--note approximate` to every ordinary prompt step.
-
-At Step 0, open **one** run for the whole pipeline:
-
-Open the run with `scripts/log-step.sh run-start` through the configured helper:
+Follow `run-log → ## Workflow coverage and routing`. After Step 0 resolves the task,
+open one run with `scripts/log-step.sh run-start` through the configured helper:
 
 ```bash
 LOG_HELPER="${ORCHESTRAIL_HOME:+$ORCHESTRAIL_HOME/scripts/log-step.sh}"
 RUN_ID=""
 if [ -x "$LOG_HELPER" ]; then
   RUN_ID=$("$LOG_HELPER" run-start --pipeline phase-pipeline \
-  --project "$(pwd)" --task <task-directory> --spec <spec-path> --flow <quick|full>) || RUN_ID=""
+    --project "$WORK_DIR" --task <task-directory> --spec <spec-path> \
+    --flow <quick|full>) || RUN_ID=""
 fi
 ```
 
-Do not open a second run when this pipeline invokes `/phase-discovery`,
-`/phase-execution`, or `/phase-validation` — pass `RUN_ID` down and keep every step in one
-file, so a pipeline run reads as a single timeline. Log a `step` line for each child
-workflow, and additionally one line per **pipeline override actually exercised**
-(`--step override:pv-issues --decisions 1 --note approximate`), because the whole point of measuring this
-pipeline is learning which overrides fire and what they cost. Close with `run-end
---outcome completed`, or `--outcome stopped` naming the declared stop that ended it.
-
-Logging is best-effort: if `$LOG_HELPER` is missing or a call fails,
-continue unchanged and mention it once in the final report. Never stop, retry, or ask the
-user because of a log write.
-
----
+Do not open a second run in child phases; pass `RUN_ID` and let the outermost caller
+close it. Log each executed child once and each exercised override as
+`--step override:<child> --decisions 1 --note approximate`. Ordinary prompt steps
+always carry `--note approximate`. Close with `run-end --outcome completed|stopped|failed`.
+Missing helpers or logging errors never block work; mention unavailable logging once.
 
 ## Pipeline Overrides
 
-These rules override the corresponding rules in `workflow-globals` for this command only. All other global rules remain in full force.
+The registry is `workflow-globals`; this table specifies this command's behavior.
+Overrides apply only inside this invocation and never cross into a later spec phase.
 
-| Overridden rule | Pipeline behavior |
+| Decision point | Action |
 |---|---|
-| "Never auto-advance between phases" | **Auto-advance**: after each phase completes, continue to the next immediately. |
-| "Architectural choice → present options, wait for user" | **Use Deep Architectural Analysis Protocol** (defined below) to decide independently. |
-| "pv-issues → wait for user to approve/defer issues" (`pv-issues` step 4) | **Auto-decide**: fix all `critical` and `important` issues; defer `optional` ones. |
-| "pav-propose → wait for user approval of Do Now items" (`pav-propose` step 4) | Not reached: the pipeline always passes `--batch`, which **records and applies nothing**. The proposals are applied later, at `pe-finalize` step 5 below. |
-| "pe-finalize step 5 → **Wait for user choice**" on batched `Do Now` items | **Auto-choose option 2** — apply them now, before validation — and record the automatic choice in `state.md`. This is where the pipeline applies what `--batch` deferred. |
-| "pe-execute / pv-execute-fixes → at any blocker or ambiguous situation … wait for user's choice" | **Ambiguity**: resolve with the Deep Architectural Analysis Protocol and record it in the subtask's `notes:`. **Blocker**: escalate per the list below — a blocker is not an ambiguity. |
-| "pd-analyze step 3 → ask clarifying questions, **wait for answers**" | Not reached: `pd-analyze` asks only under `--step-by-step`, which the pipeline never passes. Ambiguities are resolved by its research order and recorded in `### Assumptions`. |
-| "pd-decompose step 2 → >8 subtasks / ambiguous boundary, present options and wait" | Not reached for the same reason: `pd-decompose` pauses only under `--step-by-step`; autonomously it resolves the same options via the Autonomous Decision Protocol and records the choice in `## Decomposition Decisions`. |
-| "compress-state step 2 → **wait for user confirmation**" | Not reached: every invocation in this pipeline is `/compress-state --auto`, which proceeds without waiting. Never call it without `--auto` from an autonomous run. |
-| "phase-composite-validation step 2 → present integration failures and **wait for the user's decision**" | **Auto-decide**, exactly as for `pv-issues`: approve every `critical` and `important` failure as a fix sibling, defer every `optional` one, and record in `## Integration Issues (T-XX)` that the split was automatic. |
+| End of Discovery or Execution | Continue to the next phase after its completion marker is verified. |
+| `pd-analyze`, `pd-decompose`, `pd-design` | Use autonomous defaults; never pass `--step-by-step`. Resolve design choices through the protocol below. |
+| `pae-tests` output formatting | Pass `--batch` to suppress duplicate digest display; preserve every evidence/blocker gate. RED establishment is never skipped. |
+| `pv-issues` approval | Approve `critical` and `important`; defer `optional`; record the automatic split. |
+| `phase-composite-validation` integration approval | Apply the same split in `## Integration Issues (T-XX)`. |
+| `pav-propose` | Pass `--batch`: record every proposal, apply nothing. |
+| `pe-finalize` step 5, batched `Do Now` choice | Choose option 2: apply now before Validation, and record the automatic choice. |
+| `pe-execute`, `pv-execute-fixes` ambiguity | Resolve through the protocol; external blockers still stop. |
+| `compress-state` confirmation | Pass `--auto`; protected sections remain intact. |
+| `spec-sync` reconciliation | Pass `--auto-mode` after Validation, retaining its failed-criterion guard. |
 
-Every override is registered in `workflow-globals → Workflow-declared mode overrides`, which is
-the canonical registry; this table is the detail, not a second source of truth.
-
-**Autonomous means no *planned* stops** — the pipeline never stops for a decision it is able to
-make. It still stops on the conditions below, and those stops are deliberate.
-
-**Escalate to user (pause and wait) ONLY when:**
-- A hard blocker appears that cannot be resolved without external information (missing secret, unavailable external service, missing requirement with no reasonable default).
-- A decision would change an external API contract already consumed by clients in a breaking way.
-- Two or more variants score identically on all 5 lenses AND have fundamentally different user-visible trade-offs that cannot be resolved by the simplicity tie-breaker.
-- A requirement is genuinely ambiguous **and** survives the `pd-analyze` research order (principles → ADRs → memory → codebase patterns → best practice) with no reasonable default (ask — wrong requirements waste all three phases).
-
-All other ambiguities → resolve using the Deep Architectural Analysis Protocol.
+`Do Now` proposals against validation fix-tasks remain recorded and appear in the final
+report; there is no later execution review stage to apply them automatically.
 
 ### Declared stops — steps this pipeline does NOT override
 
-These are the only places a `/phase-pipeline` run stops. Each is reserved for a human by
-contract, so none of them is a defect in the autonomy claim:
+Escalate only for unresolved external inputs, breaking changes to consumed external
+APIs, or unresolved user-visible trade-offs under the Autonomous Decision Protocol.
+A requirement without a reasonable default after the research order is such a stop.
+The following gates also stop and wait:
 
-| Step that stops | Why it is not overridden |
+| Gate | Action |
 |---|---|
-| `pv-contract` step 7 — critical-failure gate (a `FAIL` Invariant or Off-limits entry) | A violated invariant is reserved for the human by `orchestration → ## Conditions that always stop the run`. |
-| `pae-implement` — a step touching `### Scope → #### Out` | Same rule: an Off-limits / out-of-scope breach is never auto-approved. |
-| `pae-implement` — composite-promotion tripwire | Reserved for the human; the arbiter has no authority to approve a promotion. |
-| `pae-tests` — `atomic-tests: failed` (RED never established) | `tdd` and `workflow-globals → Test-first execution`; no autonomous mode suspends the test-first rule. |
-| `pae-implement` / `phase-atomic-execution` — an unresolved blocker | A hard blocker, per the escalation list above. |
-| `pe-finalize` step 2b — a composite whose children are all reviewed while `integration-validation: failed` | The integration fix cycle is still open. Reachable autonomously when every integration failure was `optional` and therefore auto-deferred, so it is a declared stop, not an override gap. |
-| Any `## Guard` confirmation that would overwrite existing artifacts | `workflow-globals`: Guard confirmations are never suspended by a mode override. |
-| `workflow-globals → Never auto-advance between phases`, at the end of the run | The pipeline auto-advances *between its own three phases* only; it never starts a fourth. |
+| `pv-contract` critical-failure gate: failed Invariant or Off-limits | Record the failure; ask the human. |
+| `pae-implement` out-of-scope work or composite-promotion tripwire | Preserve evidence; request the recorded decision. |
+| `pae-tests`: `atomic-tests: failed` | Establish valid test evidence before continuing. |
+| `phase-atomic-execution`, `pae-implement`: unresolved blocker | Preserve the stopping point and report the needed input. |
+| `pe-finalize`: `integration-validation: failed` with all children reviewed | Keep the integration cycle open; do not mark Execution complete. |
+| Any Guard confirmation that overwrites existing artifacts | Wait for explicit authorization. |
+| Failed artifact validation or inconsistent phase markers | Repair the artifact or report the blocker before advancing. |
 
----
+Completion of Validation ends this command; never launch the next spec phase.
 
 ## Deep Architectural Analysis Protocol
 
-Canonical definition: `workflow-reference → ## Autonomous Decision Protocol`
-(6 steps: generate variants → score on 5 lenses → anti-overengineering filter →
-select winner → check escalation threshold → document `### Autonomous Decision`
-in `state.md`). Load it and follow it verbatim.
-
-Use it whenever an architectural or design choice is required — it replaces
-"present options, wait for user" in `pd-design` and at any ambiguous decision
-point during execution.
-
-**Pipeline-specific addition:** at the protocol's Step 5, apply the escalation
-conditions from "Pipeline Overrides" above *in addition to* the protocol's own.
-When escalation applies → pause, show the scored table, explain the blocker,
-wait for the user.
-
----
+Canonical definition: `workflow-reference → ## Autonomous Decision Protocol`.
+Use its variants, scoring, tie-breakers and decision record for substantive design
+choices. Apply the additional stops above. Routine choices already determined by an
+artifact need only that citation, not another scoring table.
 
 ## Step 0 — Bootstrap
 
-1. Read `workflow-globals` fully.
-   Confirm: "Global rules loaded." before proceeding.
-   If file not found: stop and report path error.
-2. Verify `$ARGUMENTS` is provided. If not — ask for path to spec
-   (`.ai/specs/*.md` for new tasks) or task directory (`.ai/tasks/todo/<task>/`
-   for resuming).
-
-   Determine input type from $ARGUMENTS:
-   a. If argument ends with `.md` and path starts with `.ai/specs/` →
-      treat as spec path (new task). Do **not** derive the task directory here.
-      **Run `phase-discovery` Step 0 in full (its steps 1–7) and adopt the task directory it
-      produces** — it is the single definition of that name, and it includes the two things a
-      simplified derivation drops:
-      - **Step 0.4b — multi-phase detection.** A spec with ≥2 `Phase N` markers (or a
-        `## Phases` manifest) gets a `-p<N>` directory suffix, `active_phase:`,
-        `spec_phase_count:`, and a `## Spec Phases` section
-        (`workflow-reference → ## Multi-Phase Spec Rules`). Without it the pipeline
-        discovers a whole multi-phase spec as one unphased task and no deferred-phase
-        bookkeeping is ever written.
-      - **Step 0.5 — the numeric-prefix collision guard**, which stops on two specs sharing a
-        numeric prefix.
-      Run it in autonomous mode: the pipeline never passes `--step-by-step`, so Step 0.3 does
-      not ask about missing Acceptance Criteria. Step 0.6's Guard confirmations are **not**
-      overridden — `## Pipeline Overrides` above does not list them, and `workflow-globals`
-      forbids suspending them.
-   b. If argument is a directory path → treat as task directory (resume or
-      post-discovery run).
-   c. If argument ends with `.md` and is inside `.ai/tasks/` → legacy mode:
-      task directory = parent directory of the argument.
-3. Read `state.md` in the task directory (if it exists). Determine pipeline resume point from `## Phases`:
-   - `discovery: not-started` or absent → start from Discovery.
-   - `discovery: in-progress` → resume Discovery from last completed step.
-   - `discovery: complete`, `execution: not-started` → skip to Execution.
-   - `execution: in-progress` → resume Execution from first incomplete subtask.
-   - `execution: complete`, `validation: not-started` → skip to Validation.
-   - `validation: in-progress` → resume Validation from last completed step.
-   - All three `complete` → report "Pipeline already complete." Stop.
-
-Output resume point before proceeding:
-```
-Pipeline resume point: <Phase N — Step M / starting fresh>
-```
-
----
+1. Resolve `WORK_DIR` from `working_dir:` when present; otherwise use the project root
+   owning the input and its `.ai/`. Resolve relative arguments from the caller's directory.
+2. For a spec, **Run `phase-discovery` Step 0 in full**, once, for resolution only, and adopt its resolved task
+   directory. This preserves multi-phase `-p<N>` naming and the numeric-prefix collision
+   guard. This is read-only resolution: a fresh task is initialized by Discovery,
+   not by the parent.
+3. For a task directory, require and read its `state.md`. A legacy task-file argument resolves to its
+   parent directory. Reject other input forms with the supported invocation.
+4. For a newly resolved spec without task state, start Discovery. Otherwise read
+   `## Phases`: resume the earliest incomplete phase and its first incomplete child.
+   A later completed phase with an incomplete predecessor is inconsistent: **stop** and
+   report the conflicting markers. Missing/invalid state on a resume is a prerequisite
+   failure; do not manufacture a new task.
+5. Report the task, flow tier and resume point. Open logging after resolution succeeds.
 
 ## Phase 1 — Discovery
 
-Read global rules (loaded in Step 0) continue/never-restart rules. Then execute child workflows in order, skipping completed steps as determined in Step 0.
+Pass the resolved `--phase N` for multi-phase specs so the child keeps the selected
+phase. Run `/phase-discovery` in autonomous mode. Read-only resolution did not initialize a
+fresh task: let the child perform its normal initialization once. For an in-progress
+Discovery, resume its recorded step; skip completed Discovery entirely.
+It owns the quick/full branch, child sequencing, `/pd-archive` and completion checks.
+Do not separately replay its children:
 
-**Child workflow files:**
 - `/pd-analyze` → `pd-analyze.md`
-- `/pd-decompose` → `pd-decompose.md`
-- `/pd-design` → `pd-design.md`
+- `/pd-decompose` → `pd-decompose.md` (full only)
+- `/pd-design` → `pd-design.md` (full only)
 - `/pd-finalize` → `pd-finalize.md`
-- `/compress-state` → `compress-state.md`
 
-**Execution:**
-1. Read and follow `pd-analyze.md` inline in its default (autonomous) mode —
-   ambiguities are resolved by the research order defined there and recorded in
-   `## Task Analysis → ### Assumptions`. Ask the user only when an ambiguity
-   survives that research and meets the escalation threshold (a requirement with
-   no reasonable default that would invalidate all three phases).
-2. Read and follow `pd-decompose.md` inline.
-3. Read and follow `pd-design.md` inline, **replacing** the "present variants, wait for user choice" step with the **Deep Architectural Analysis Protocol** above.
-4. Read and follow `pd-finalize.md` inline.
-
-After Discovery completes, output:
-```
-─── DISCOVERY COMPLETE ──────────────────────────────────────
-Architecture: <one-line summary of chosen approach>
-Subtasks: <N> × T-XX
-Auto-advancing to Phase 2 — Execution…
-─────────────────────────────────────────────────────────────
-```
-
----
+After `discovery: complete`, report the chosen approach and advance to Execution.
 
 ## Phase 2 — Execution
 
-Read and follow `phase-execution.md` inline.
+Run `/phase-execution <task-directory>` with the overrides above. It owns inline quick
+execution or leaf cycles and the post-execution proposal review:
 
-**Child workflow files:**
 - `/pe-execute` → `pe-execute.md`
 - `/pe-finalize` → `pe-finalize.md`
 - `/phase-atomic-execution` → `phase-atomic-execution.md`
-- `/phase-atomic-validation` → `phase-atomic-validation.md`
 - `/pae-tests` → `pae-tests.md`
 - `/pae-implement` → `pae-implement.md`
 - `/pae-finalize` → `pae-finalize.md`
+- `/phase-atomic-validation` → `phase-atomic-validation.md`
 - `/pav-check` → `pav-check.md`
 - `/pav-propose` → `pav-propose.md`
 - `/pav-close` → `pav-close.md`
-- `/phase-composite-validation` → `phase-composite-validation.md` (reached through `/pav-close` step 5 when the last child of a composite closes — never invoked directly)
-- `/compress-state` → `compress-state.md`
+- `/phase-composite-validation` → `phase-composite-validation.md` (triggered by the last child's close)
 
-**Execution overrides during this phase:**
-- At any ambiguous situation that is NOT a hard blocker → apply the **Deep Architectural Analysis Protocol** and decide independently. Document decision in the T-XX `## Subtask Progress → notes` field.
-- `pae-tests` review gate → run in batch mode: record the AC→test digest in `notes:` and continue without waiting. **The step itself is never skipped** — the test-level gate is decided by the classifier in the `tdd` rule, not by the Deep Architectural Analysis Protocol, and `none` still requires its justification line. Autonomy licenses unblocked decisions, not untested code.
-- Hard blockers (missing external info, invariant conflict with no valid resolution) → escalate per the escalation threshold above.
-- `pav-propose` runs with `--batch` (passed down by `pe-execute` step 2d): every proposal is
-  **recorded and none is applied**. The `Do Now` items are applied at `pe-finalize` step 5,
-  which the pipeline auto-answers with option 2. Do not reinterpret `--batch` as
-  apply-without-asking — its meaning is fixed in `workflow-globals`.
-- `pe-finalize` step 5 → do not wait: choose option 2 (apply now, before validation) and record
-  that the choice was automatic.
-
-After Execution completes, output:
-```
-─── EXECUTION COMPLETE ──────────────────────────────────────
-Completed: <N> subtasks
-Blocked / deferred: <M> subtasks
-Auto-advancing to Phase 3 — Validation…
-─────────────────────────────────────────────────────────────
-```
-
----
+Advance only after `execution: complete` and successful artifact checks.
 
 ## Phase 3 — Validation
 
-Read and follow `phase-validation.md` inline.
+Run `/phase-validation <task-directory>` with the overrides above:
 
-**Child workflow files:**
 - `/pv-contract` → `pv-contract.md`
 - `/pv-review` → `pv-review.md`
 - `/pv-issues` → `pv-issues.md`
-- `/pv-create-fixes` → `pv-create-fixes.md`
-- `/pv-execute-fixes` → `pv-execute-fixes.md`
+- `/pv-create-fixes` → `pv-create-fixes.md` (full only)
+- `/pv-execute-fixes` → `pv-execute-fixes.md` (full only)
 - `/pv-finalize` → `pv-finalize.md`
-- `/phase-atomic-execution` → `phase-atomic-execution.md`
-- `/phase-atomic-validation` → `phase-atomic-validation.md`
-- `/pae-tests` → `pae-tests.md`
-- `/pae-implement` → `pae-implement.md`
-- `/pae-finalize` → `pae-finalize.md`
-- `/pav-check` → `pav-check.md`
-- `/pav-propose` → `pav-propose.md`
-- `/pav-close` → `pav-close.md`
 - `/compress-state` → `compress-state.md`
 
-**Execution overrides during this phase:**
-- `pv-issues` "wait for user" step → **skip the wait**. Instead, automatically approve all `critical` and `important` issues as fix-tasks. Automatically defer all `optional` issues. Write the `## Issue List → Approved / Deferred` sections accordingly.
-- `pav-propose` inside the fix cycle → `--batch`, same single meaning: recorded, not applied.
-  The Validation phase has no post-phase review step to apply them in, so `Do Now` items raised
-  against a fix-task are left recorded in `## Improvement Proposals (T-XX)` and listed in the
-  Final Report. This is a declared outcome, not an oversight: an improvement proposed on top of
-  a fix is new work, and the pipeline does not silently widen its own scope at the last step.
-
----
+Do not rerun fix creation or execution separately after this phase; its children own them.
 
 ## Final Report
 
-After all three phases complete, output:
-
-```
-═══ PIPELINE COMPLETE ═══════════════════════════════════════
-Task: <path to description.md>
-
-Discovery:  complete — <architecture one-liner>
-Execution:  <N> subtasks complete, <M> blocked/deferred
-Validation: <N> issues found → <N_fix> fixed, <N_defer> deferred
-
-State:  <path>/state.md
-Plan:   <path>/plan.md
-ADR:    .ai/adr/<NNNN-task-ID-short-title>.md (index: .ai/adr/index.md)
-═════════════════════════════════════════════════════════════
-```
-
----
+Report the resolved task path, phase outcomes, implemented behavior, verification and
+coverage, fixed/deferred issues, unprocessed proposals, state/plan paths and ADR paths
+(or the recorded reason none was needed). Report completion only after
+`validation: complete`; otherwise name the blocker and exact resume command.
 
 ## Interruption Recovery
 
-If the pipeline is interrupted mid-run, re-run `/phase-pipeline <same-path>`. Step 0 will read `state.md`, identify the resume point from `## Phases` and `## Subtask Progress`, and continue from exactly where work stopped.
+Re-run the same invocation. Read current files, reconcile pending decisions, and resume
+from the earliest incomplete checkpoint. Never infer completion from the last chat reply.

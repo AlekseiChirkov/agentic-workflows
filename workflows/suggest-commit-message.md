@@ -2,79 +2,62 @@
 description: Suggest a commit message for the current changes — output is ready to copy
 ---
 
-Invocation: `/suggest-commit-message`
-Examples:
-- `/suggest-commit-message` — use current session context (changes made in this conversation)
-- `/suggest-commit-message --staged` — only staged changes (reads git)
-- `/suggest-commit-message --branch main` — diff against a different base branch (reads git, default: main)
+Invocation: `/suggest-commit-message [--staged | --branch <base>]`
+Called by: `/suggest-commit-pr`; `/suggest-pr-description` reuses Step 0 only.
 
----
+This workflow suggests text; it performs no git writes. Follow `git-flow → ## Commits`
+and `git-flow → ## Commits → ### Pipeline identifiers stay out of the repository` for output hygiene.
+
+## Guard
+
+Validate the selected context and flags using
+`suggest-commit-message → ## Step 0 — Gather Diff Context`; an unavailable or empty
+selection stops the workflow. No existing file is overwritten.
 
 ## Step 0 — Gather Diff Context
 
-**Mode selection:**
+Use the following selection for this workflow and the other suggestion workflows.
+Reject unknown flags and a combination of `--staged` with `--branch`.
 
-- If invoked **with no arguments** (clean command) → **Session-context mode**: skip git commands entirely. Reconstruct the change set from the current conversation — every file the assistant wrote, edited, or deleted during this session. Proceed directly to Step 2 using that context. If no edits were made in this session, report "No changes found in current session." and **stop**.
+| Invocation | Change set | File list |
+|---|---|---|
+| No flags | Final changes made in the current conversation; run no git commands | Derive from session context |
+| `--staged` | `git diff --cached` | `git diff --cached --name-only` |
+| `--branch <base>` | `git diff <base>...HEAD` | `git diff <base>...HEAD --name-only` |
 
-- If invoked **with any flag** (`--staged`, `--branch`, etc.) → **Git mode**: run the steps below.
+Resolve paths from the current repository root. Validate that `<base>` resolves to a
+commit before using it. In branch mode, describe committed branch changes only; staged
+and unstaged changes are outside that selection. In git modes, read up to ten recent
+commit subjects for style, subordinate to the project's commit rules. An unborn HEAD is
+valid for `--staged`; branch mode requires HEAD and a merge base.
 
-**Git mode only:**
-
-1. Determine base branch:
-   - If `--branch <name>` provided → use it.
-   - Otherwise → `main`.
-
-2. Collect diff:
-   - If `--staged` → run `git diff --cached`.
-   - Otherwise → run `git diff HEAD` (staged + unstaged). If HEAD does not exist, run `git diff --cached`.
-
-3. Also run:
-   - `git diff --name-only HEAD` (or `--cached` if `--staged`) — file list.
-   - `git log --oneline -10` — recent commit style reference.
-   - `git diff <base-branch>...HEAD --stat` — cumulative branch delta (omit if no commits yet).
-
-4. If the diff is empty → report "No changes detected." and **stop**.
-
----
+If a requested revision or merge base is unavailable → **stop**: name the missing input.
+If the selected change set is empty → **stop**: "No changes found in the selected context."
+Do not substitute a different selection. Reuse already gathered context when called by
+`/suggest-commit-pr`.
 
 ## Step 2 — Analyse Changes
 
-Read each changed file fully only when the diff alone is insufficient to understand intent (e.g. context around a moved block, interface contract). Otherwise work from the diff.
-
-Identify:
-- **What changed** — the concrete code-level delta (files, functions, data structures).
-- **Why it changed** — the intent or problem being solved, inferred from diff + file names + recent commits.
-- **Scope** — new feature / bug fix / refactor / chore / docs / test / infra.
-- **Breaking changes** — public API, DB schema, config keys, env vars altered in a non-backwards-compatible way.
-
----
+Use the selected diff or session context. Read nearby code only where intent or behavior
+is unclear. Identify the resulting behavior, the reason supported by evidence, the change
+type, and any breaking API, schema, or configuration change. Do not invent motivation.
 
 ## Step 3 — Draft Commit Message
 
-Rules:
-- Subject line: imperative mood, ≤ 72 characters, no period, no issue number unless obvious from the diff.
-- Blank line after subject.
-- Body (only if needed): explain *why*, not *what*. Wrap at 72 characters. Omit entirely if the subject is self-explanatory.
-- Standard commit prefix when the project uses it (infer from `git log`). Common prefixes: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `perf`, `ci`.
-- **Never mention file names, file paths, or directory names** — describe what changed conceptually, not where it lives in the repository.
+Output one copy-ready fenced block using the format in `git-flow → ## Commits`:
 
-Output format — present inside a fenced code block so it is copy-ready:
+```text
+<type>[(<feature or module>)]: <imperative summary>
 
-```
-<type>(<scope>): <subject>
-
-<body — omit if not needed>
+<optional body: what changed and why>
 ```
 
----
+Keep the subject and body lines within 72 characters. Omit a redundant body. Describe
+behavior and intent; include a product path only when it makes the change clearer and
+project rules permit it. Never copy planning identifiers or tool attribution into the text.
 
 ## Step 4 — Flag Concerns
 
-After the copy-ready block, add a short **"Notes for the author"** section (omit entirely if nothing to flag):
-
-- Breaking changes that need a migration guide or version bump.
-- TODOs or commented-out code left in.
-- Secrets, debug flags, or `print()` / `console.log()` left in.
-- Anything that looks unfinished or inconsistent with the rest of the diff.
-
-Keep this section brief — one line per concern.
+After the block, add "Notes for the author" only for evidenced concerns: breaking changes,
+missing verification, unfinished changes, exposed secrets, or unintended debug output.
+Use one line per concern, without reproducing secret values. Then **stop**.

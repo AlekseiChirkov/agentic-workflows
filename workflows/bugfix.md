@@ -1,107 +1,81 @@
 ---
-description: Governed entry point for a defect — reproduce, freeze the reproduction as a failing test, fix, verify, record; the light path that is still inside the process
+description: Governed entry point for a defect — reproduce, freeze the reproduction as a failing test, fix, verify, record
 ---
 
-Invocation: `/bugfix "<defect description>" [--auto-mode] [--no-repro]`
-Examples:
-- `/bugfix "forex report shows stale rate after cache expiry"`
-- `/bugfix https://sentry.example.com/issues/44821 --auto-mode`
-- `/bugfix "typo in the confirmation email subject" --no-repro`
+Invocation: `/bugfix "<defect description, URL, or file>" [--auto-mode] [--no-repro]`
+Resolve paths from the current project root. This standalone workflow completes a
+quick-eligible defect lifecycle; a full-tier verdict hands over before implementation.
 
----
+`--auto-mode` resolves unblocked choices through
+`workflow-reference → ## Autonomous Decision Protocol` and records the rationale in state.
+Without it, ask about unresolved intent. Neither mode overrides the quick gate, test-first
+contract, validation stops, or confirmations for overwriting completed work.
 
-## Why this exists
+## Guard
 
-A production defect had exactly two paths before this workflow: write a full spec and run
-Discovery — too heavy, so it rarely happened — or fix it outside the pipeline entirely.
-The second is what actually occurred (`quick-flow → ## The escalation gate`, the 2026-07-22
-case: four behaviour changes to a shipped pipeline with no contract, no `pv-contract`, and
-no ADR). This workflow is the third path: lighter than Discovery, and governed unlike an
-ad-hoc fix.
-
-**What it does not do.** It does not replace `/phase-discovery` for defects that turn out to
-be missing features, and it does not skip the test-first rule. `workflow-globals →
-Test-first execution` holds here without exception: the reproduction *is* the RED test.
-
----
+1. Load the project principles, architecture and current-state memory, ADR index and
+   runbook; load integrations only when relevant. Use umbrella before local context.
+2. Resolve input through `spec-draft → ## Step 0 — Resolve the input` without running
+   specification authoring. If input is unavailable → **stop**: request the missing report.
+3. Look for a matching `kind: bugfix` task in `.ai/tasks/todo/` and `.ai/tasks/completed/`
+   using its recorded defect
+   source and description. Resume its first incomplete step from state; do not allocate a
+   duplicate. If several match → **stop**: request the task to resume. A completed matching
+   fix is reported; do not redo it without an explicit request.
+4. For a new report, create `.ai/tasks/todo/fix-<NN>-<slug>/` with a unique number and domain
+   slug. Record the defect source and expected behavior in `state.md`, in English.
 
 ## Run logging
 
-Follow the **`run-log`** rule. Open the run at Step 0 with `--pipeline bugfix`, log one
-`step` line per numbered step below, and close with `run-end`. Logging never blocks the fix.
-
----
+Follow `run-log`: open at Step 0 with `--pipeline bugfix`, record completed step boundaries,
+then close on completion or a declared stop. Logging failure never blocks work.
 
 ## Step 0 — Resolve the defect
 
-1. Classify the input exactly as `spec-draft → ## Step 0` does: URL → fetch and extract;
-   file path → read; anything else → treat as the literal defect report. A URL that cannot
-   be fetched → **stop** and ask for the description.
-2. Load context: `.ai/principles/*`, `.ai/memory/architecture.md`, `.ai/adr/index.md`,
-   `.ai/context/runbook.md` (required — the `test:` command), and
-   `.ai/context/integrations.md` if the defect involves an external service. Umbrella
-   first in multi-repo.
-3. Create the task directory `.ai/tasks/todo/fix-<NN>-<slug>/` and write `state.md`:
+For a new task initialize state; for a resumed task preserve existing evidence:
 
-```
-flow: quick
+```text
+flow: full
 kind: bugfix
 
 ## Phases
-- discovery: complete
+- discovery: in-progress
 - execution: not-started
 - validation: not-started
 ```
 
-`discovery: complete` is correct and deliberate: Steps 1–2 below *are* the discovery for a
-defect, and they finish before any code is touched. `kind: bugfix` marks the task so
-`/retro` can separate defect work from feature work.
-
----
+`full` is the safe initial value; Step 2 sets `quick` only after all gate conditions pass.
+Record completed steps in state for resume.
 
 ## Step 1 — Reproduce
 
-**No fix is written before the defect is reproduced.** This is the step the ad-hoc path
-skips, and it is the reason ad-hoc fixes so often address a symptom.
+**No fix is written before the defect is reproduced.** Find the smallest failing input
+and run the relevant system/test command. Record:
 
-1. Determine the smallest input that triggers the defect: the failing request, the record
-   that renders wrong, the sequence that corrupts state.
-2. Reproduce it by running the system — the `test:` or run command from the runbook, a
-   targeted script, or a direct call. Observe the wrong behaviour with your own eyes.
-3. Record in `state.md`:
-
-```
+```text
 ## Reproduction
-trigger: <the smallest input that produces the defect>
-observed: <what actually happens>
-expected: <what should happen, and what makes that the correct expectation>
-verified_by: <the exact command run>
+trigger: <minimal input or sequence>
+observed: <actual behavior>
+expected: <correct behavior and its source>
+verified_by: <exact command run>
 ```
 
-**If it does not reproduce → stop.** Report what was tried and what happened instead. A
-defect that cannot be reproduced cannot be verified as fixed, and "fixed" would be a guess.
-Ask the human for the missing condition — environment, data, timing, version.
+If it does not reproduce → **stop**: report attempts and request the missing environment,
+data, timing, or version. Do not claim a fix based on an unobserved defect.
 
-`--no-repro` skips this step and is legitimate **only** for a defect with no runtime
-behaviour: a typo in a literal, a wrong comment, a stale doc string. It is not legitimate
-for "hard to reproduce", "only happens in production", or "I can see the bug in the code".
-The first is a finding to report; the last two are exactly the cases where reproduction
-matters most. When `--no-repro` is used, write `## Reproduction` with `skipped: <the
-justification>` — an unjustified skip is a validation finding.
-
----
+`--no-repro` applies only to defects without runtime behavior, such as a wrong comment or
+literal copy. Write `skipped: <specific justification>` under `## Reproduction`. It never
+licenses skipping because reproduction is difficult or only possible in production.
 
 ## Step 2 — Diagnose and write the contract
 
-1. Find the cause, not the symptom. Name the file and line where the wrong behaviour
-   originates, and explain why the code produces it. A fix at a different layer than the
-   cause needs a stated reason.
-2. Determine the blast radius: what else calls this code, what else relies on the current
-   (wrong) behaviour, whether anything has cached or persisted the wrong result. Persisted
-   bad data is its own subtask, not a footnote.
-3. Run the four **`quick-flow`** gate conditions and record every result:
+1. Identify the cause as `path:line`, affected callers and persisted/cached data. If the
+   requested behavior never existed, **stop**: report the missing feature and print
+   `/spec-draft "<request>"` for the user.
+2. Evaluate `quick-flow → ## The escalation gate` against the complete affected surface,
+   including tests and any data correction. Record every result:
 
-```
+```text
 ## Contract (quick)
 
 ### Gate
@@ -112,87 +86,64 @@ justification>` — an unjustified skip is a validation finding.
 verdict: quick | full
 
 ### Off-limits
+<boundaries>
 ### Invariants
+<existing invariants to preserve>
 ### Acceptance Criteria
-- [ ] <the reproduction from Step 1 no longer reproduces — stated as Given/When/Then>
-- [ ] <no adjacent behaviour changed — name what was checked>
+- [ ] <expected result, given/when/then>
+- [ ] <named adjacent behavior remains correct>
 ```
 
-**Condition 3 is the one that matters here and it usually fails.** A defect fix *is* a
-behaviour change to a shipped pipeline in most cases — that is what a bug fix is. When the
-verdict is `full`, this workflow **stops** and hands over:
+A defect fix often changes shipped behavior and therefore fails condition 3. When any
+condition fails, set `flow: full`; this workflow **stops** and hands over. Preserve the
+reproduction and diagnosis, and print `/spec-draft "<defect>" --auto-mode` followed by
+`/phase-discovery <resulting-spec>`. Run neither command automatically.
 
-> "This fix changes shipped behaviour / touches N files / requires a migration. It runs the
-> full path. Run: `/spec-draft "<defect>" --auto-mode` then `/phase-discovery <spec>`."
-
-Do not carry on because the fix "feels small". The gate is a checklist, not a judgement
-call, and this is the exact failure mode the workflow exists to prevent.
-
----
+Only with all four passes, set `flow: quick` and `discovery: complete`, then
+`execution: in-progress`. Recheck the gate when scope grows; on breach follow
+`quick-flow → ## Mid-flight escalation (quick → full)` and stop this quick lifecycle.
 
 ## Step 3 — RED: freeze the reproduction as a test
 
-Follow **`tdd`** in full. The test level is classified by the gate in `tdd → ## Test-level
-gate`, and for a defect the reproduction dictates it: whatever layer reproduces the bug is
-the layer the test belongs to.
+Follow `tdd` and `quick-flow → ## The quick path — what changes`: the reproduction *is*
+the RED test. Classify the test level, assert expected behavior, run it and observe failure
+for the defect's reason. Record the canonical `## TDD (quick)` fields, test paths and
+command/output summary in state. Preserve the frozen test set through implementation.
 
-1. Write a test that asserts the **expected** behaviour from `## Reproduction`.
-2. Run it. It must fail, and it must fail **for the defect's reason** — the observed wrong
-   value, not an import error or a typo in the test. A regression test that passes before
-   the fix is not testing the defect; find out why and correct the test.
-3. Record `atomic-tests: red` and the test file in `state.md`.
-
-The RED test is frozen from this point. It is not edited, skipped, or weakened to make the
-fix easier — `tdd` governs, without exception.
-
-`--no-repro` work carries `atomic-tests: n-a` with the justification line required by `tdd`.
-
----
+`--no-repro` does not choose test level `none`. Evaluate the same test-level gate; use
+`none` only with its required written justification. Keep `atomic-tests: red` or `n-a`
+when present, consistent with the canonical quick TDD evidence.
 
 ## Step 4 — GREEN: fix
 
-1. Fix the cause identified in Step 2. Smallest change that makes the RED test pass.
-2. Run the full test suite for the affected modules, not only the new test. A fix that
-   greens its own test and reds another is not a fix.
-3. If the blast radius from Step 2 included persisted bad data, handle it explicitly —
-   either a correction step, or a recorded decision that existing bad data is left alone
-   and why. Silently leaving corrupted state is the most common incomplete bug fix.
-4. Record `atomic-tests: green`, `target_files:`, and what was run.
-
----
+Fix the diagnosed cause and run the frozen tests plus affected regression checks. For
+justified `level: none`, inspect the corrected artifact and run applicable existing checks;
+record that evidence instead of claiming a nonexistent test pass. Handle
+persisted bad data explicitly within the accepted gate/scope. Record results and
+`target_files:` under `## TDD (quick)`; mark `green-observed` only after an observed pass.
+If `atomic-tests:` exists, change `red` to `green`; preserve `n-a` for justified `none` work.
+Set `execution: complete` only after verification passes, then `validation: in-progress`.
 
 ## Step 5 — Verify and record
 
-1. Verify each Acceptance Criterion from Step 2 against the running system, not against the
-   diff.
-2. Re-run the original reproduction command from `## Reproduction → verified_by`. It must
-   now show the expected behaviour. Record the output's verdict in `## Contract Check`.
-3. Run lint/build from the runbook if defined.
-4. **ADR check.** Apply the same trigger as `pv-finalize → ## Step 3`. A defect fix earns an
-   ADR when the *cause* was a design decision rather than a slip — a wrong boundary, a bad
-   caching strategy, an error-handling approach that could not work. A typo does not.
-   When it triggers → run `/adr-new <task-directory>`.
-5. Append a `progress.md` entry: the defect, the cause, the fix, the test that now guards it.
-6. Move the task directory to `.ai/tasks/completed/`.
-
----
+1. Re-run the reproduction command unless its skip was justified. Record the observed
+   expected outcome; for non-runtime work inspect the corrected artifact instead.
+2. Run applicable lint/build commands from the runbook.
+3. Run `/pv-contract <task-directory>` and `/pv-review <task-directory>` against the inline
+   contract. Honor their stops. Present findings and record repair/defer choices before
+   repair; `--auto-mode` may approve in-scope critical/important repairs and defer optional
+   items, recording its rationale. Repair approved items inline within the quick gate
+   and rerun affected checks. Unresolved failed criteria or critical/important findings prevent
+   completion; do not silently treat them as deferred.
+4. Apply the ADR trigger in `pv-finalize → ## Instructions`, step 3. If triggered, record
+   the explicit decision in state and run `/adr-new <task-directory>`.
+5. Set `validation: complete`. Update the project-memory entry using
+   `workflow-reference → ## .ai/memory/state.md Entry Format` and append one progress entry
+   with the defect, cause, fix and verification evidence. Move the task directory to
+   `.ai/tasks/completed/` only after all required checks pass.
 
 ## Step 6 — Report
 
-Print: the cause (file:line), the fix, the test that guards it, the gate verdict, whether an
-ADR was written, and anything deliberately left alone with its reason.
-
-Then **stop**. Print any follow-up command as plain text. This workflow never commits,
-never pushes, and never opens a pull request — use `/suggest-commit-message` and the normal
-git flow.
-
----
-
-## What this workflow never does
-
-- Fix without reproducing (except a justified `--no-repro`).
-- Write the fix before the failing test.
-- Continue when the quick gate returns `full`.
-- Edit, skip, or weaken the RED test to reach green.
-- Treat a missing feature as a defect. If Step 2 finds the behaviour was never implemented,
-  stop and say so — that is a spec, not a bug.
+Report cause (`path:line`), fix, test/`none` evidence, gate and validation verdicts, ADR
+and unresolved follow-up. Then **stop**. This workflow
+never commits, pushes or opens a pull request; print follow-up commands as plain text.

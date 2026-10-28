@@ -10,27 +10,21 @@ Examples:
 
 ---
 
-## Why this exists
-
-`progress.md` is a narrative and `state.md` is resumable state; neither can answer "is the
-pipeline getting better, and where does it hurt?" across projects. The run log can, because
-it is structured, uniform, and cross-project. This workflow is its **only** reader — nothing
-in a live run may consult it.
-
-The output is a judgement about **the workflows**, not about the work. "Task 04 was slow" is
-not a finding. "Four of the last nine runs stopped at the same gate, all for the same missing
-input" is.
-
----
+Analyze workflow behavior across projects using the run log; do not infer product quality.
+This is the log store's only workflow reader. Recommend specific source edits; never apply
+findings. Read-only analysis excludes historical repair, active-run metadata and deployment.
 
 ## Guard
 
 1. Resolve the store: `$ORCHESTRAIL_LOG_ROOT`, else the script-relative store reported by `bash <workflow-source>/scripts/log-step.sh path`. If absent →
    **stop**: "No run log at `<path>`. Pipelines write it via `scripts/log-step.sh`; nothing has been
    recorded yet."
-2. Count run files after filters. Fewer than **5** → report the count and warn: "Below 5 runs
-   the numbers below are anecdotes, not signal." Continue, but every finding must be marked
-   `weak evidence`.
+2. Require access to list the runs directory. If unavailable, report the corpus as not
+   measurable rather than empty. Validate filters in Step 1 before analysis.
+3. Use the filtered loader count, not a separate unfiltered scan. Fewer than **5** selected
+   runs → label every finding `weak evidence` and show the actual denominator.
+4. Preserve an existing report at the chosen output path; use a timestamp suffix unless
+   updating that report was explicitly requested.
 
 ---
 
@@ -335,7 +329,7 @@ five percent, checked with exact integers; list any gaps. Nested/parallel span s
 and worker totals have their own denominators. Include eligible span/group counts,
 excluded observations, graph limitations and source labels with every timing table.
 
-**Throughput and cost**
+**Throughput** — cost is not measured by duration; absent cost/token fields remain not measurable.
 
 | Metric | From |
 |---|---|
@@ -373,44 +367,40 @@ excluded observations, graph limitations and source labels with every timing tab
 | Abandoned runs — no `run-end` | runs missing the closing line |
 | Blocked steps, and what blocked them | `outcome == "blocked"`, `blocker` |
 | Repeated runs of the same task | runs grouped by `task` with count > 1 |
-| Failure concentration | `outcome != "ok"` grouped by `step` |
+| Failure concentration | failed steps / usable steps by name; show blocked/skipped outcomes separately |
 
 ---
 
 ## Step 3 — Find what to change
 
-Turn numbers into candidate changes. A finding qualifies only when it names a **specific
-file** in this repository and the change to make. Three or more occurrences, or a clear
-majority of a small corpus, or it is `weak evidence`.
+A finding names a specific source file and edit, with measured evidence and limitations.
+Call it strong only with at least three occurrences or a clear majority of the selected
+corpus; fewer than five selected runs always remains weak evidence. Missing measurements
+cannot establish that a workflow adds no value.
 
-Work through these questions explicitly — for each, state what you checked, not only what you
-found:
+Check these questions; report findings or a brief limitation, not a repeated questionnaire:
 
-1. **Which step consumes the most time relative to its value?** A step that is consistently
-   slow and never produces a finding, a decision, or a gate result is ceremony. Name it.
-2. **Where does autonomy actually break?** Group `stops` by step. A step that stops in most
-   runs is either mis-specified or genuinely needs a human — and if the latter, the workflow
-   should *declare* it as a stop rather than surprising the operator each time.
-3. **Which gate fails most, and is the gate wrong or is the work wrong?** A gate failing
-   nearly always is a gate mis-calibrated; a gate never failing is a gate not doing anything.
-4. **Is the TDD gate being honoured?** A rising `n-a` share is the leading indicator of the
-   test-first rule decaying into test-after. Compare against the previous window.
-5. **Is the quick tier calibrated?** A high promotion rate means the gate admits work it
-   should not; a promotion rate of zero across many quick runs means the gate is so strict
-   the tier is unused.
-6. **What blocks runs, repeatedly?** Recurring `blocker` text across projects is usually a
-   missing prerequisite the workflows should check in preflight instead of discovering late.
-7. **Which tasks needed more than one run?** Repeated runs of one task mean the resume path
-   or the state format is failing, and that is a contract defect.
-8. **What is not measurable that should be?** A question you could not answer because no
-   field carries it is a finding against `run-log → ## Field vocabulary`. This is the loop
-   that keeps the log useful.
+1. Which steps consume the most measured time, and what observed outputs justify it?
+2. Where do measured stops/escalations concentrate; is the stop declared by the workflow?
+3. Which gates fail most; does evidence distinguish bad input from a faulty gate?
+4. How do test-level/`n-a` distributions change across comparable measured windows?
+5. What do measured quick→full promotions reveal? Zero promotions alone does not establish
+   whether quick flow is unused, strict or well calibrated.
+6. Which evidenced blockers recur and suggest a missing preflight prerequisite?
+7. Are repeated task runs explained by observed interruption/resume behavior? Repetition
+   alone does not prove a resume defect.
+8. Which unmeasurable question needs an additional `run-log → ## Field vocabulary` field?
+
+Separate observations from hypotheses. A gate always passing/failing is a review signal,
+not proof of miscalibration. Describe blocker causes only where usable evidence supports
+them, without copying raw notes or private field values into the report.
 
 ---
 
 ## Step 4 — Report
 
-Write `retro-<YYYY-MM-DD>.md` in the log store root (never in a project):
+Write `retro-<YYYY-MM-DD>.md` in the log store root (never in a project), using the Guard's
+collision rule. Write only the report; preserve historical logs unchanged:
 
 ```markdown
 # Retro — <date range>
@@ -450,11 +440,7 @@ Ranked by expected improvement, worst first.
 Then report to the user: the corpus including lint coverage and exclusions, the top three
 findings (or fewer when supported), and the report path.
 
-**Never** apply a finding automatically. This workflow analyses and recommends; changing a
-workflow is a deliberate act, and a change made on three data points that turns out wrong is
-harder to detect than the problem it replaced.
-
-Then **stop**.
+Then **stop** without applying recommendations.
 
 ---
 

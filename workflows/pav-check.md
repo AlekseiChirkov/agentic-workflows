@@ -21,19 +21,15 @@ Parent task directory = one level above.
 
 ## Context Bootstrap
 
-Follow `phase-atomic-validation` rules — ## Context Bootstrap.
+Load the `phase-atomic-validation` rule (`## Context Bootstrap`) before reading implementation files or
+writing project files; run the full bootstrap when invoked standalone. The rule owns
+the load order, umbrella precedence, conditional sources, and reporting.
 
-**Resolve paths first:** Read `T-XX/description.md → ## Context → working_dir:`.
-- If `working_dir:` present: `WORK_DIR = <resolved absolute path>`, `AI_DIR = WORK_DIR/.ai`
-- If absent: `WORK_DIR = <current directory>`, `AI_DIR = .ai`
-- Umbrella: if `AI_DIR/../.ai/` exists → load umbrella first, then `AI_DIR` (local overrides)
-
-Load in order, skip missing files:
-1. `AI_DIR/memory/architecture.md`, 2. `AI_DIR/memory/state.md`, 3. `AI_DIR/principles/architecture.md`,
-4. `AI_DIR/principles/coding.md`, 5. `AI_DIR/principles/domain.md`, 6. `AI_DIR/adr/index.md`, 7. `AI_DIR/context/runbook.md`
-
-Report: "Atomic validation context loaded from AI_DIR=<path>: [files read]"
-Read implementation files (from `target_files:`) AFTER this context is loaded.
+Resolve the description and parent task paths before changing directories. Resolve
+`working_dir:` from `description.md → ## Context` relative to the atomic task directory;
+if absent, use the invocation directory. Set `WORK_DIR` to that absolute directory
+and `AI_DIR = WORK_DIR/.ai`. The umbrella is `WORK_DIR/../.ai`.
+Keep task-artifact paths absolute; run code reads, writes, and commands in `WORK_DIR`.
 
 ---
 
@@ -43,12 +39,14 @@ Read implementation files (from `target_files:`) AFTER this context is loaded.
 2. Read parent `state.md` — extract `## Solution Design → Decision`, `### Off-limits`, `### Invariants`.
 3. Read parent `state.md → ## Subtask Progress` block for this T-XX — extract `last_action`, `notes` for context on what was implemented.
 4. Read changed files from parent `state.md → ## Subtask Progress → T-XX → target_files:`.
-   If `target_files:` is empty or missing → attempt recovery via git:
-   - Run `git diff --name-only HEAD~1 HEAD` to get files changed in the last commit.
-   - If git diff returns results → use those files and add a warning:
-     "target_files was empty — recovered from git diff. Verify this list is correct before proceeding."
-   - If git diff returns nothing (no commits yet or no changes) → ask the user
-     to specify which files were changed. Do not proceed until resolved.
+   If missing/empty, recover only from a recorded task-specific baseline or reviewed
+   commit set, including staged/unstaged changes belonging to this subtask. Never assume
+   the latest commit belongs to it. Persist the recovered cumulative list with its source.
+   Without reliable ownership evidence → **stop**: "Identify this subtask's changed files before validation."
+
+5. Run the applicable `test:` and `lint:` commands from the resolved runbook in `WORK_DIR`.
+   Missing commands, unavailable dependencies, or incomplete runs are reported as evidence
+   gaps; do not claim a passing verification that did not run.
 
 **Check completeness:**
 - Each Acceptance Criterion from `T-XX/description.md`: met / not met / partial. Mark `[INCOMPLETE]` if not fully met.
@@ -61,9 +59,9 @@ Read `atomic-tests:` from the leaf block.
   Then audit the test set itself:
   1. **AC coverage** — every Acceptance Criterion maps to at least one test. An uncovered
      criterion is an `important` finding, even when the criterion is met by inspection.
+     This test-mapping requirement does not apply to justified `n-a` or legacy exemptions.
   2. **No weakening** — compare the test set against the `tdd: red digest` line in `notes:`
-     (written by `/pae-tests`; if it is absent, record that the digest is missing and treat
-     the audit as incomplete rather than passing it). A missing
+     (written by `/pae-tests`; if it is absent, record an `important` finding; the integrity audit is incomplete). A missing
      test, a reduced test count with no additions, an introduced `skip`/`xfail`, or a
      vacuous assertion is a **`critical`** finding. Every test amendment must have its
      `tdd: test amended — …` line in `notes:` with a reason that blames the test, not the
@@ -76,8 +74,8 @@ Read `atomic-tests:` from the leaf block.
   *before* a change and become `green` when `/pae-implement` completes it. A subtask that
   arrives here still `pinned` means the change was never finished or the status was never
   updated — an `important` finding, and the audit below is run regardless. For a subtask that
-  went `pinned` → `green`, the "No weakening" audit compares against the `tdd: characterize`
-  note instead of the `tdd: red digest` line, and a pinned test that was amended must carry
+  went `pinned` → `green`, use `tdd: red digest` for the frozen test identities and the
+  `tdd: characterize` note for the preserved behaviour, and a pinned test that was amended must carry
   both its amendment record and the accepted behaviour change (`tdd → ## Characterization
   mode`). An amended pinned test with no recorded behaviour change is a **`critical`**
   finding: it means a refactor changed behaviour and the test was edited to hide it.
@@ -85,7 +83,7 @@ Read `atomic-tests:` from the leaf block.
   smoke was considered and why each is inapplicable. An unjustified or hand-waving `n-a`
   ("hard to test", "small change", "will add later", "existing tests cover it") is an
   **`important`** finding — record it and treat the subtask as untested.
-- `red` or `failed` while `atomic-execution: complete` → **`critical`** finding: the
+- `red`, `not-started`, or `failed` while `atomic-execution: complete` → **`critical`** finding: the
   implementation was closed without reaching GREEN.
 - Field absent → pre-TDD task. Note it, do not raise a finding.
 
@@ -110,3 +108,4 @@ Record the verdict in the parent `state.md → ## Subtask Progress` block for th
 **If NEEDS WORK** → present the list of unmet criteria and bugs to the user. **Stop.** Do not proceed to Step 2.
 
 Report: "Step 1 (Final Check) complete. Verdict: DONE / NEEDS WORK."
+A passing result is a progress marker; return to the caller.

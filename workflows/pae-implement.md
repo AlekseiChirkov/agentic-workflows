@@ -23,12 +23,14 @@ see the `tdd` rule, `## GREEN — what implementation may and may not do`.
    - `pinned` → characterization mode: the tests pin existing behaviour and already pass.
      Continue. The GREEN check below becomes a **preservation check** — the pinned set must
      still pass, unchanged, after the work. A pinned test that turns red is a defect in the
-     change, never in the test (`tdd → ## Characterization mode`).
+     change, never in the test (`tdd → ## Characterization mode — behaviour-preserving work`).
    - `n-a` → test-level gate returned `none` with a justification in `notes:`. Continue; the Final Verification test step degrades to running the existing suite for regressions. If no justification line is present in `notes:` → **stop**: "`atomic-tests: n-a` without a recorded justification. Run `/pae-tests` to classify this subtask."
    - `green` → tests already pass. This is a re-run; confirm before overwriting work.
    - `failed` → **stop**: "RED was never reached for T-XX: <reason from notes>. Resolve before implementing — implementing against a test set that never failed proves nothing."
    - `not-started` → **stop**: "No tests written for T-XX. Run `/pae-tests <path>` first — implementation precedes tests only on pre-TDD tasks."
-   - Field absent → pre-TDD task. Append `pre-TDD task, TDD step skipped` to `notes:` and continue.
+   - Field absent and execution already `in-progress` → pre-TDD task. Append
+     `pre-TDD task, TDD step skipped` once to `notes:` and continue.
+   - Field absent on an unstarted task → **stop**: "Run `/pae-tests <path>` first."
 5. Otherwise → continue.
 
 ---
@@ -38,6 +40,7 @@ see the `tdd` rule, `## GREEN — what implementation may and may not do`.
 0. **Working directory resolution.**
    Read `T-XX/description.md → ## Context`. Check for `working_dir:` field.
    - If `working_dir:` is present: resolve the path relative to the atomic task directory.
+     Resolve task-artifact paths absolutely before changing directories.
      All subsequent file reads, writes, and shell commands in this workflow execute
      within that resolved path (the target service repo).
      Set `WORK_DIR = <resolved absolute path>`.
@@ -47,28 +50,17 @@ see the `tdd` rule, `## GREEN — what implementation may and may not do`.
      Set `AI_DIR = .ai`.
    Report the resolved `WORK_DIR` before continuing.
 
-1. Load project context — follow `phase-atomic-execution` rules — ## Context Bootstrap.
-   Load from `AI_DIR` resolved in step 0 above. If umbrella (`AI_DIR/../.ai/`) exists, load it first.
-   Load in order, skip missing files:
-   - `AI_DIR/memory/architecture.md` — component boundaries, integration points
-   - `AI_DIR/memory/state.md` — current task status, blockers
-   - `AI_DIR/principles/architecture.md` — patterns to enforce during implementation
-   - `AI_DIR/principles/coding.md` — **required** — style, naming, error-handling, forbidden patterns
-   - `AI_DIR/principles/domain.md` — domain rules, terminology
-   - `AI_DIR/adr/index.md` — past decisions that constrain this implementation
-   - `AI_DIR/context/runbook.md` — **required for Final Verification** — test/lint/build commands
-   Report: "Atomic execution context loaded from AI_DIR=<path>: [files read]"
-   If `principles/coding.md` not found → note "No coding principles" in task `notes:` and proceed cautiously.
+1. Load the `phase-atomic-execution` rule (`## Context Bootstrap`) from `AI_DIR` before
+   reading code or writing tests/implementation. Run the full bootstrap even when
+   standalone; the rule owns load order and reporting. Load `WORK_DIR/../.ai` as the
+   umbrella when present, then `AI_DIR`.
+   Preserve absolute task-artifact paths when running commands in `WORK_DIR`.
+
 2. Read `T-XX/description.md` → `## Scope`.
    Extract:
    - In scope: what this subtask covers
    - Out of scope: what this subtask explicitly does NOT cover
    - Target files: files expected to be created or modified
-
-   Write a scope summary block before making any changes:
-     Scope In:    <in scope summary>
-     Scope Out:   <out of scope list>
-     Target files: <file list>
 
    If `## Scope` section is absent in description.md → **stop**:
    "T-XX/description.md is missing `## Scope` section. Run `/pd-decompose` to regenerate subtask descriptions." Do not continue.
@@ -76,7 +68,8 @@ see the `tdd` rule, `## GREEN — what implementation may and may not do`.
    `target_files:` by `/pae-tests`. These tests define what "done" means for this subtask in
    executable form — read them before writing any implementation code. Note the mapping
    between Acceptance Criteria and test names recorded in `notes:`.
-   If `atomic-tests: n-a` → skip this sub-step.
+   If `atomic-tests: n-a` or a recorded legacy exemption applies → skip this sub-step.
+   Otherwise require the `tdd: red digest`; if missing, stop and recover the frozen test set from evidence before implementing.
 3. Read `T-XX/description.md` — extract: `## Goal`, `## Context`, `## Steps`, `## Acceptance Criteria`, and `## Test Plan` if present.
 4. Read parent `state.md` — extract `## Solution Design → Decision`, `### Off-limits`, `### Invariants`.
 5. Read parent `state.md → ## Subtask Progress` block for this T-XX (if present) — extract `last_action`, `blocker`, `notes`. Determine starting step from `last_action`.
@@ -85,7 +78,7 @@ see the `tdd` rule, `## GREEN — what implementation may and may not do`.
 Output scope summary before making any changes:
 - **Task**: T-XX directory + Goal (from description.md).
 - **Context**: from `## Context`.
-- **Steps**: full list from `## Steps`. Mark starting point if continuing.
+- **Steps**: identify the next step; do not repeat the whole description.
 - **RED tests**: count and names of the failing tests this step must turn green (or `n-a`).
 - **Scope In / Out**: from `T-XX/description.md → ## Scope` (extracted in Pre-check step 2). Off-limits: from parent `## Solution Design → ### Off-limits`.
 - **Invariants**: constraints that must not be violated.
@@ -94,71 +87,36 @@ Output scope summary before making any changes:
 
 ## Execute Steps
 
-For each step from `## Steps` in `T-XX/description.md` (starting from determined point):
-
-Before executing this step:
-1. Check if this step touches anything listed in Scope Out.
-   If yes: STOP immediately. Report:
-   "Step N touches out-of-scope area: <specific item from Scope Out>.
-   This step should not be executed as written.
-   Options:
-   1. Modify the step to stay within scope
-   2. Defer this change to the appropriate subtask
-   3. Confirm explicitly that scope should be extended"
-   Wait for user decision. Do not proceed.
-2. Add any files modified in this step to `target_files:` in
-   `## Subtask Progress` block in parent `state.md`.
-   Update after every step, not only at the end.
-
-1. Read target file or check target directory before making changes.
-2. Execute the action described by the step.
-   - Do not refactor beyond what the step specifies.
-   - Do not add functionality beyond parent `## Solution Design → ### Scope → #### In`.
-   - Follow existing code style.
-3. Verify the step produced the expected effect (each step must be independently observable).
-   - If verification passes → update parent `state.md → ## Subtask Progress` block for this T-XX: set `last_action: completed step N — <short description>` and `target_files: <comma-separated list of files modified in this step>`. Next step.
-   - If verification fails → **stop immediately**. Update parent block: `blocker: step N failed — <what was observed>`. Report to user and wait.
-4. If a blocker is discovered (unknown dependency, invariant conflict) → **stop**. Update parent block `blocker:` field. Describe and wait.
-
-**Important**: Update the parent `## Subtask Progress` block after EVERY completed step, not just at the end. Write both `last_action:` and `target_files:` together. This ensures correct continuation if interrupted.
+For each planned step, starting from recorded `last_action:`:
+1. Check Scope Out and parent Off-limits before edits. A conflict → **stop**:
+   "Step <N> touches <excluded area>. Choose a scoped alternative, defer it, or explicitly
+   amend scope." Wait for the decision unless a declared caller override resolves it;
+   never treat that override as permission to violate a binding constraint.
+2. Read affected code, perform only the planned action, and follow loaded coding standards.
+   Keep `target_files:` as the cumulative union of every changed test/implementation file.
+3. Verify the expected effect and applicable scoped tests. Persist
+   `last_action: completed step N — <effect and test result>` with `target_files:` after
+   every completed step. This pair supplies interruption recovery.
+4. A failed step or blocker → set `atomic-execution: blocked`, describe the observed
+   failure in `blocker:`, and **stop**: "Resolve <failure> before continuing."
 
 ---
 
 ## Test Set Discipline (GREEN)
 
-Applies whenever `atomic-tests: red` or `atomic-tests: pinned`. Load the `tdd` rule — `## GREEN — what implementation
-may and may not do` — for the full contract. Enforced here:
-
+For `red` and `pinned`, enforce `tdd → ## GREEN — what implementation may and may not do`:
 **The RED test set may not be weakened.** Do not delete, rename, comment out, or mark
-`skip`/`xfail` any test from it. Do not narrow an assertion, replace an exact expected value
-with a truthiness check, or drop a case from a parametrized set. Do not change an expected
-value to match what the implementation happens to produce.
-
-**Making the code fit the test is the job. Making the test fit the code is the failure mode.**
-
-**Legitimate test amendment.** A RED test may be corrected when the *test* is wrong — it
-encoded a misunderstanding of the Acceptance Criterion, used a wrong fixture, or asserted an
-implementation detail instead of behaviour. It may never be corrected because the
-implementation is inconvenient. Record every amendment in the leaf's `notes:`:
+`skip`/`xfail` tests; do not weaken assertions or change expected values to fit the code.
+Record a legitimate correction as:
 
 ```
 tdd: test amended — <test name> — <what changed and why the original was wrong>
 ```
 
-If an amendment would change what an Acceptance Criterion means, that is a scope question,
-not a test question: **stop** and report before touching the test.
-
-**Adding tests during GREEN is always allowed** and needs no amendment record — an
-uncovered branch discovered while implementing should get a test.
-
-**Run the tests as you go.** After each step that touches behaviour under test, re-run the
-scoped `test:` command. A step is not "verified" (Execute Steps, item 3) while a test that
-covers it is still red — unless the step is an intermediate one whose test is expected to go
-green later. Record which tests turned green in `last_action:`.
-
-**Refactor.** Once every RED test passes, refactoring is permitted while the suite stays
-green and the changes stay within `## Scope`. Re-run the tests after refactoring. Refactoring
-never widens scope.
+Changing an Acceptance Criterion is a scope decision: stop before editing the test.
+Adding tests is allowed. Re-run scoped tests after each behaviour change; an intermediate
+step may leave a test red only when a later planned step supplies its missing behaviour.
+Record the result in `last_action:`. Refactor only within scope after GREEN, then rerun tests.
 
 ---
 
@@ -180,13 +138,16 @@ If either check is true — this is a depth-2 leaf; do NOT promote it. Stop and 
 
 If neither check is true — this is a depth-1 leaf (whether a plain leaf or a Type 3 re-sliced leaf); it MAY be promoted to a composite, within the depth-2 cap.
 
-**If tripwire fires (and this is a depth-1 leaf):** Invoke the Composite Promotion Protocol from `workflow-reference → Autonomous Subtask Classifier → Runtime self-correction`. Do not continue executing the current leaf. After promotion, restart execution with the first child (T-XXa).
+**If tripwire fires (and this is a depth-1 leaf):** Invoke the Composite Promotion Protocol from `workflow-reference → Autonomous Subtask Classifier → Runtime self-correction`. Do not continue executing the current leaf. Persist the promotion and preserved evidence, then stop/return the replacement children to
+the caller. Do not execute the first child until the declared tripwire decision is resolved.
 
-**Tests on promotion.** The RED tests already written are never discarded. Redistribute each
-one to the child whose Acceptance Criteria it covers, add it to that child's `target_files:`,
-and set that child's `atomic-tests: red`. A child that inherits no test enters the cycle at
-`/pae-tests` normally. The promoted composite's own integration-level criteria are covered by
-`/phase-composite-validation`, not by `/pae-tests`.
+**Tests on promotion.** Preserve every frozen test and its original pre-implementation
+observation. Redistribute tests, `target_files:`, AC mapping/digest, and test-mode notes to
+matching children. Inherit `red` for an observed RED set or `pinned` for characterization;
+never relabel pins as RED or discard tests already passing after partial work. Reuse this
+recorded evidence; new uncovered child criteria must pass `/pae-tests` before more code.
+A child with no inherited evidence enters `/pae-tests` normally. Composite integration
+criteria remain owned by `/phase-composite-validation`.
 
 If no tripwire condition is observed → continue execution normally without any change.
 
@@ -194,50 +155,28 @@ If no tripwire condition is observed → continue execution normally without any
 
 ## Final Verification
 
-After all steps from `## Steps` are done:
+After all planned steps, read `AI_DIR/context/runbook.md → ## Commands` and run
+verification in `WORK_DIR`:
+1. Require `test:` for testable work. A missing command blocks it; only justified `n-a`
+   or a documented pre-TDD task may record its absence and use actual AC/manual
+   verification. Missing tooling never changes a testable level to `none`.
+2. For `red` / `pinned`, run the whole frozen set and audit it against `tdd: red digest`:
+   same original identities/count, no weakened assertion or new skip/xfail without a valid
+   `tdd: test amended` record. Added tests are allowed. Under characterization this is a
+   **preservation check**: a failing pin means a defect in the change. Fix the code; an
+   intended behaviour change requires an approved criterion before changing the pin.
+3. Run the affected-module regression suite, including pre-existing tests. `n-a` skips
+   the new-test gate, never the regression check when a suite exists.
+4. Run configured `lint:`, `typecheck:`, and `build:` commands applicable to the change.
+   Note absent optional commands. A command with external deployment/publishing effects
+   still requires its normal authorization; do not mistake it for a local build.
+5. Verify every Acceptance Criterion with actual evidence (use passing mapped tests),
+   parent Invariants/Off-limits, and the allowed scope.
 
-Pre-verification:
-1. Read `AI_DIR/context/runbook.md` → `## Commands` (uses `AI_DIR` resolved in Pre-check step 0).
-   Run all commands from within `WORK_DIR`.
-2. **GREEN check** (when `atomic-tests: red` or `pinned`). Under `pinned` this is a
-   preservation check: the whole pinned set must still pass and must be intact — same test
-   names, same count as the `tdd: red digest` line. Any pinned test that now fails means the
-   change altered behaviour: fix the code, or, if the behaviour change is intended, stop —
-   the work is no longer behaviour-preserving and needs its own Acceptance Criterion and
-   very likely an ADR. Run the `test:` command over the RED test set
-   for this subtask. **Every test from that set must pass.**
-   - If any RED test still fails: set `blocker: test failures — <which tests, summary>`,
-     stop, report to user. Do not weaken the test to get past this gate.
-   - Then verify the set is intact: the tests that pass are the same tests that were red —
-     same names, same count (plus any added during GREEN), no `skip`/`xfail` markers
-     introduced. If the set shrank or an assertion was weakened without an amendment record
-     in `notes:` → set `blocker: RED test set was weakened — <detail>`, stop, report.
-   - On success: set `atomic-tests: green` in the leaf block.
-
-2b. **Regression check.** Run the full `test:` command for modules affected by this subtask —
-   not just the new tests. A subtask that turns its own tests green while breaking a
-   neighbouring test is not done. If pre-existing tests fail: set
-   `blocker: regression — <summary>`, stop, report to user.
-
-   When `atomic-tests: n-a`, step 2 does not apply and this step is the only test gate: run
-   the affected-module suite for regressions.
-
-3. If `lint:` command is defined:
-   Run the lint command.
-   If lint fails: set `blocker: lint failures — <summary>`, stop, report to user.
-4. If no `test:` command is defined:
-   This can only occur on a pre-TDD task — `/pae-tests` stops when `test:` is missing.
-   Write to `notes:`: "No test command found in AI_DIR/context/runbook.md → ## Commands"
-   Continue to Acceptance Criteria check.
-   If no `lint:` command is defined: note it the same way and continue.
-
-5. Check each Acceptance Criterion from `T-XX/description.md → ## Acceptance Criteria`: pass/fail.
-   For criteria backed by a test (per the AC→test mapping in `notes:`), the passing test **is**
-   the evidence — state which test proves it rather than re-asserting it by inspection.
-6. Verify no parent `### Invariants` are violated.
-7. Verify changes don't touch files outside parent `## Solution Design → ### Scope → #### In`.
-
-If any check fails → **stop**. Update parent `## Subtask Progress` block `blocker:` field. Report to user. Do not proceed to finalization.
+Any failure → preserve the entry test status, set `atomic-execution: blocked` and
+`blocker: <command/criterion and observed failure>`, then **stop**: "Resolve verification
+failures before finalizing." Keep the frozen tests; do not weaken them. Set GREEN only
+when all final checks pass, together with execution completion below.
 
 On success, update the parent `## Subtask Progress` block for this T-XX:
 
@@ -246,10 +185,14 @@ T-XX | <name> | atomic-tests: green | atomic-execution: complete | atomic-valida
   last_action: all steps complete — <one-sentence summary of what was implemented>
   target_files: <comma-separated list of all files modified during this subtask, including test files>
   blocker: none
-  notes: <optional — deviations, test amendments, or out-of-scope observations>
+  notes: <preserve existing notes and all tdd: records; append new observations>
 ```
 
-When the gate returned `none`, the first field stays `atomic-tests: n-a` and its
-justification line is preserved in `notes:`.
+When the gate returned `none`, preserve `atomic-tests: n-a` and its justification.
+For a documented pre-TDD task with no test field, preserve that absence and its legacy
+exemption; do not invent a GREEN status/digest for tests that were never established.
 
 If out-of-scope observations were found during execution, capture them in the `notes:` field (one short line, or a reference to a separate section in parent `state.md`).
+
+Report: "Step 2 (Implementation) complete. Verification: <results>."
+This is a progress marker; return to `/pae-finalize` through the active caller.

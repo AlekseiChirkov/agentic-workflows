@@ -11,7 +11,7 @@ Task directory = provided argument (trailing slash optional).
 
 ## Guard
 
-1. Read `state.md` in the task directory.
+1. Read `state.md` in the task directory; missing state or execution not `complete` → **stop**: "Complete `/phase-execution` first."
 2. Check `## Phases → validation`. If `complete` → **stop**: "Validation phase is already complete. Re-running will overwrite existing artifacts. Confirm to proceed? (yes/no)" Wait for explicit confirmation.
 3. Otherwise → continue.
 
@@ -19,18 +19,9 @@ Task directory = provided argument (trailing slash optional).
 
 ## Context Bootstrap
 
-Follow `phase-validation` rules — ## Context Bootstrap. Load in order, skip missing files.
-In multi-repo projects: load umbrella (`../.ai/`) first, then local (`.ai/`) — local overrides.
-
-1. `.ai/memory/architecture.md` — system invariants, integration contracts
-2. `.ai/memory/state.md` — what was executed, task progress
-3. `.ai/principles/architecture.md` — patterns the implementation must conform to
-4. `.ai/principles/coding.md` — code standards
-5. `.ai/principles/domain.md` — domain correctness rules
-6. `.ai/adr/index.md` — past decisions (violations = critical findings)
-7. `.ai/context/runbook.md` — test/lint commands
-
-Report: "Validation context loaded: [files read]". Then read implementation files.
+Load the `phase-validation` rule (`## Context Bootstrap`) before reading implementation files or
+writing project files; run the full bootstrap when invoked standalone. The rule owns
+the load order, umbrella precedence, conditional sources, and reporting.
 
 ---
 
@@ -41,13 +32,15 @@ Report: "Validation context loaded: [files read]". Then read implementation file
    `## Contract (quick)` instead — the quick tier's contract is inline and mandatory
    (`quick-flow → The quick path`). Everything below is unchanged.
 2. Read all implementation files referenced in parent `state.md → ## Subtask Progress → T-XX → target_files:` for each T-XX subtask.
-   **`flow: quick`:** there are no T-XX blocks. Use the files the quick task changed, recorded
-   in `## TDD (quick)` and the task's `progress.md` entry; if neither lists them, recover them
-   from `git diff --name-only` and say so in the report.
+   Resolve each file relative to its subtask's `working_dir:`. `flow: quick` has no leaf
+   blocks: use the cumulative file list recorded alongside `## TDD (quick)`. If absent,
+   recover only from task-specific git evidence and persist the source. Do not treat an
+   unrelated/latest commit or an unbounded worktree diff as proof of task ownership.
+   If ownership cannot be established → **stop**: "Identify the task's changed files first."
 3. For each Invariant: verify it holds. Record pass/fail with reason.
 4. For each Acceptance Criterion: verify it is met. Record pass/fail with reason.
 5. For each Off-limits constraint: verify it is not violated. Record pass/fail with reason.
-6. Write to `state.md`:
+6. Upsert one `## Contract Check` section in `state.md`; do not duplicate on rerun:
 
 ```
 ## Contract Check
@@ -77,3 +70,4 @@ Report: "Validation context loaded: [files read]". Then read implementation file
    Acceptance Criteria failures do not trigger the gate — they are batched for `/pv-issues` as usual.
 
 8. Report: "Step 1 (Contract Verification) complete. N passes, M failures (K critical)."
+This is a progress marker; return to the caller only after the critical gate is resolved.
