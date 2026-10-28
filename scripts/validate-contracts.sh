@@ -9,6 +9,17 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+# Run every cached-selection contract with fictional isolated inputs and no providers.
+if [ "${1:-}" = --model-workflow-only ]; then
+  shift
+  model_workflow_status=0
+  for model_suite in model-catalog.py model-selection.py model-plan.py model-workflow.py; do
+    python3 "$REPO_ROOT/tests/$model_suite" "$@" || model_workflow_status=1
+  done
+  python3 "$REPO_ROOT/tests/workflow-instructions.py" || model_workflow_status=1
+  exit "$model_workflow_status"
+fi
+
 # Check compatible plan columns and visible resolution with isolated offline fixtures.
 if [ "${1:-}" = --model-plan-only ]; then
   shift
@@ -4575,6 +4586,16 @@ check "test_model_plan_acceptance" \
 
 check "test_workflow_instruction_contracts" \
   "$(python3 "$REPO_ROOT/tests/workflow-instructions.py" && echo pass || echo 'workflow entry points, bootstrap and mode contracts must be consistent')"
+
+test_model_workflow_acceptance() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/model-workflow.py" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 60
+    return 1
+  }
+}
+check "test_model_workflow_acceptance" \
+  "$(test_model_workflow_acceptance && echo pass || echo 'cached selector callers, guide examples and contract reachability fixtures must pass')"
 
 # ── Native hook adapter acceptance ──────────────────────────────────
 test_hook_shell_quality_acceptance() {
