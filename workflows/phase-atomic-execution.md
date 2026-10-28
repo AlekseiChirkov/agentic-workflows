@@ -73,6 +73,30 @@ setting `atomic-execution: in-progress`; this prevents a new task from being mis
 legacy pre-TDD resume. Preserve all existing test evidence and git fields.
 Do not execute descriptions marked `type: composite`; run their leaf children instead.
 
+Before requesting a model, spawning a worker or executing a child, apply
+`workflow-reference → ### Model columns and resolution` to the parent plan row.
+Read its active optional `Model (Claude)` / `Model (Codex)` column with legacy `Model`
+and session-default compatibility. Resolve the configured or already-verified source root
+through the canonical read-only guidance preflight. Use the same source root for the helper
+and `$SOURCE_ROOT/docs/MODEL-CATALOG.md`, never CWD; installed skills read that absolute
+guide, while [the relative guide](../docs/MODEL-CATALOG.md) serves source readers.
+Missing guide/schema/rubric means selection unavailable: preserve session and inputs,
+infer no scores/schema/candidates, and never bypass explicit-request eligibility.
+Run the verified `model-catalog.py` helper with
+`--resolve-plan <plan> --provider <provider> --row <row-id> --resolution <resolution.json>`;
+use that guide for its exact input schema and keep
+`execution: null`. Refresh the invocation support snapshot from actual permitted tools,
+permissions and restrictions; verify requirements and owner limits before any request.
+Report requested, resolved and actual identities plus visible fallback/stop reasons.
+An unsupported explicit request requires an authorized eligible fallback or **stop**.
+Missing Python 3.11, helpers or catalog makes selection unavailable: preserve the current
+session and never bypass explicit request eligibility. Without switching capability,
+execute inline in the same session only when its verified current identity satisfies
+the request/fallback, or when no explicit request requires a switch, and note it.
+Actual remains unknown until a separate matching current execution receipt with caller
+provenance is available; a successful spawn alone is insufficient. Reuse a caller's
+resolution only for the same invocation and unchanged support/restrictions.
+
 Run child workflows in order, skipping steps already satisfied per the TDD entry point above:
 1. Call `/pae-tests <path-to-atomic-description>` — RED: classify test level, write failing tests from `## Acceptance Criteria`, observe them fail
 2. Call `/pae-implement <path-to-atomic-description>` — GREEN: execute steps from `## Steps` until the RED tests pass, then refactor + verify

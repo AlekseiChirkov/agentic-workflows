@@ -45,7 +45,7 @@ Without `--allow-pr`, no `git push` and no `gh` command runs at any point.
 |---|---|
 | 0 | Preflight; if the task directory exists, work out the resume point and reconcile recorded branches against the actual repository |
 | 1 | Discovery (`pd-analyze` → `pd-decompose` → `pd-design` → `pd-finalize`), autonomous. The Arbiter is spawned here and kept alive for the whole run. **→ the batch gate, see below** |
-| 2 | `/pd-select-model` in bulk mode fills the `Model` column in `plan.md` |
+| 2 | `/pd-select-model` in bulk mode recommends from the local catalog and updates optional `Model (Claude)` / `Model (Codex)` columns in `plan.md` |
 | 3 | Resolve execution order and print the branch stack before touching anything |
 | 4 | Per subtask: cut the branch → Implementer writes RED tests → **orchestrator commits `test:`** → same agent implements GREEN → orchestrator commits `feat:` → a **separate** Validator reviews → draft PR |
 | 5 | Task-level validation on the stack tip (`/phase-validation`) |
@@ -55,6 +55,28 @@ Without `--allow-pr`, no `git push` and no `gh` command runs at any point.
 
 Execution is strictly sequential — one subtask at a time. Sub-agents exist to bound context,
 not to parallelise.
+
+Leaf plan models govern Implementers, including recreation. Before requesting their
+model, resolve the active provider's cell using fresh support and permission evidence.
+Legacy `Model` and missing columns remain supported; an empty present provider cell
+means session default. The Arbiter starts before model selection, and independent
+Validators use session-default role workers without inheriting the implementation model.
+
+When overrides are unavailable, spawn a fresh default worker only for missing/empty
+model intent or an explicitly authorized independently suitable fallback matching its
+verified default. Never convert an unsupported explicit request into an unverified
+default. With no explicit model request, unknown default identity/support allows an
+ordinary default worker without claiming selection. Check current worker capabilities,
+permissions and restrictions for every role. If worker spawning is unavailable, stop;
+never implement inline in the Orchestrator.
+
+Display requested, resolved and actual identities; actual stays unknown until a separate
+matching current execution receipt is available. Missing helper/Python/catalog or
+guide/schema/rubric evidence preserves the session and plan and cannot waive explicit
+request eligibility. Installed skills use the canonical guidance preflight and
+`$SOURCE_ROOT/docs/MODEL-CATALOG.md` from the configured or verified source root, the same
+root as the helper; never infer that root from CWD. See [MODEL-CATALOG.md](MODEL-CATALOG.md)
+in the source checkout for dependency checks, explicit `--refresh`, rollback and examples.
 
 ---
 

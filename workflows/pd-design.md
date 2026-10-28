@@ -66,9 +66,12 @@ use applies the `phase-discovery` bootstrap.
    format, leaf-health constraints, statuses and progress. Record material changes
    in Decomposition Decisions. If the design requires a different decomposition,
    run `/pd-decompose` with this decision as input and its overwrite Guard; then
-   recheck alignment. A changed subtask with a populated `Model` cell needs a
-   fresh bulk `/pd-select-model` before model-specific execution; report the stale
-   recommendation without assigning or silently changing models here. Started
+   recheck alignment. Preserve optional/legacy columns under
+   `workflow-reference → ### Model columns and resolution`. A scope change in a
+   subtask with any populated provider model cell/column or legacy `Model` cell
+   makes its recommendation stale and needs a fresh bulk `/pd-select-model`
+   before model-specific execution; report the stale recommendation without
+   assigning or silently changing models here. Started
    work that conflicts with the decision is a reconciliation blocker, not permission
    to rewrite progress.
 5. Apply `pv-finalize → ## Instructions`'s architecture-decision trigger. If it fires,

@@ -131,7 +131,7 @@ has loaded context. Their Guards detect completed work before overwrite.
 | Group | Commands in execution order |
 |---|---|
 | Discovery | `/pd-analyze`, `/pd-decompose`, `/pd-design`, `/pd-finalize`, `/pd-archive` |
-| Optional model choice | `/pd-select-model` (bulk writes Model; called by `/spec-run`) |
+| Optional model choice | `/pd-select-model <description-or-task> [--refresh]` (cached selection; bulk writes optional provider columns; called by `/spec-run`) |
 | Execution | `/pe-execute`, `/pe-finalize` |
 | Atomic execution | `/pae-tests`, `/pae-implement`, `/pae-finalize` |
 | Atomic validation | `/pav-check`, `/pav-propose`, `/pav-close` |
@@ -143,6 +143,14 @@ has loaded context. Their Guards detect completed work before overwrite.
 | Entry points | `/spec-draft`, `/bugfix`, `/onboard-legacy-project` |
 | Knowledge utilities | `/context-pack`, `/compress-state`, `/adr-new`, `/spec-sync`, `/retro` |
 | Suggested delivery text | `/suggest-commit-message`, `/suggest-pr-description`, `/suggest-commit-pr` |
+
+Model choice uses an optional local catalog; only `--refresh` authorizes research and
+validated replacement. Missing or unusable evidence preserves the session default.
+Executors resolve active provider cells, legacy `Model` or missing columns against
+current invocation support before requesting a model. Unsupported explicit requests
+need an authorized eligible fallback or stop; actual execution identity remains
+unknown without a separate matching current receipt. The operating contract and
+offline examples are in [MODEL-CATALOG.md](../docs/MODEL-CATALOG.md).
 
 ## Orchestrated Mode — one spec to review-ready pull requests
 
