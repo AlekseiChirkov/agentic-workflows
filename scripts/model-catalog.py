@@ -3,8 +3,12 @@
 
 CLI: model-catalog.py [--catalog PATH] [--today YYYY-MM-DD]
                      [--refresh CANDIDATE | --select REQUEST.json]
+                     [--read-plan PLAN --provider anthropic|openai]
+                     [--update-plan PLAN --updates UPDATES.json]
+                     [--resolve-plan PLAN --provider PROVIDER --row ID --resolution REQUEST.json]
 JSON reports use exit 0 for a usable catalog/successful refresh and 2 otherwise.
-Only explicit refresh writes configuration; the candidate is supplied by its owner.
+Only explicit refresh or plan update writes a file; inputs are supplied by their owner.
+Plan resolution never executes a model. See model_plan.py for its public JSON schema.
 
 Schema version 1 has refreshed/evidence_date dates and exact model entries. A non-null
 capability_evidence is an independently source-supported ordinal quality rating 1..5,
@@ -281,29 +285,106 @@ def select_catalog(path: Path, request_path: Path, today: date) -> dict[str, Any
     return report
 
 
-def main(argv: list[str] | None = None) -> int:
+def _arguments(argv: list[str] | None) -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--catalog", type=Path, default=default_catalog_path())
-    parser.add_argument("--today", default=date.today().isoformat(), metavar="YYYY-MM-DD")
+    parser.add_argument("--catalog", type=Path)
+    parser.add_argument("--today", metavar="YYYY-MM-DD")
     operation = parser.add_mutually_exclusive_group()
     operation.add_argument("--refresh", type=Path, metavar="CANDIDATE",
                            help="explicitly validate and atomically install this offline candidate")
     operation.add_argument("--select", type=Path, metavar="REQUEST.json",
                            help="recommend from explicit offline task and current harness evidence")
+    operation.add_argument("--read-plan", type=Path, metavar="PLAN", help="read compatible model columns")
+    operation.add_argument("--update-plan", type=Path, metavar="PLAN", help="atomically apply explicit bulk updates")
+    operation.add_argument("--resolve-plan", type=Path, metavar="PLAN", help="resolve one row without executing a model")
+    parser.add_argument("--provider", choices=("anthropic", "openai"))
+    parser.add_argument("--updates", type=Path, metavar="UPDATES.json")
+    parser.add_argument("--row", metavar="ID")
+    parser.add_argument("--resolution", type=Path, metavar="REQUEST.json")
     arguments = parser.parse_args(argv)
+    _plan_arguments(parser, arguments)
+    return parser, arguments
+
+
+def _plan_arguments(parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> None:
+    supplied = {name for name in ("provider", "updates", "row", "resolution")
+                if getattr(arguments, name) is not None}
+    required = ({"provider"} if arguments.read_plan is not None else {"updates"}
+                if arguments.update_plan is not None else {"provider", "row", "resolution"}
+                if arguments.resolve_plan is not None else set())
+    if supplied != required:
+        parser.error("plan operations require exactly their documented provider/updates/row/resolution flags")
+    if ((arguments.read_plan is not None or arguments.update_plan is not None)
+            and (arguments.catalog is not None or arguments.today is not None)):
+        parser.error("--catalog and --today apply only to catalog selection or plan resolution")
+
+
+def _read_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_unique_object,
+                      parse_constant=_reject_constant)
+
+
+def _resolve_plan(arguments: argparse.Namespace, engine: dict[str, Any], today: date) -> dict[str, Any]:
+    rows = engine["read_plan"](arguments.resolve_plan.read_bytes().decode("utf-8"), arguments.provider)
+    selected = next((row for row in rows if row["id"] == arguments.row), None)
+    if selected is None:
+        raise CatalogError("plan resolution: unknown row ID")
     try:
-        today = date.fromisoformat(arguments.today)
-        _date(arguments.today, today, "--today")
+        request = _object(_read_json(arguments.resolution), {"selection", "fallback", "execution"}, "resolution input")
+        inspected = inspect_catalog(arguments.catalog or default_catalog_path(), today)
+        if not inspected["selection_available"]:
+            return {"status": "unavailable", "requested": selected["requested"], "resolved": None,
+                    "actual": None, "errors": inspected["errors"], "notice": inspected["notice"]}
+        request = dict(request, provider=arguments.provider, requested=selected["requested"])
+        report = engine["resolve_model"](inspected["catalog"], request, today)
+        report.update(row=arguments.row, source=selected["source"], errors=[],
+                      catalog_status=inspected["status"], notice=inspected["notice"])
+        return report
+    except (OSError, UnicodeError, ValueError, RecursionError) as error:
+        return {"status": "unavailable", "requested": selected["requested"], "resolved": None,
+                "actual": None, "errors": [str(error)]}
+
+
+
+def _plan_operation(arguments: argparse.Namespace, today: date) -> dict[str, Any]:
+    try:
+        engine = runpy.run_path(str(Path(__file__).with_name("model_plan.py")), run_name="local_model_plan")
+        if arguments.read_plan is not None:
+            rows = engine["read_plan"](arguments.read_plan.read_bytes().decode("utf-8"), arguments.provider)
+            return {"status": "read", "provider": arguments.provider, "rows": rows, "errors": []}
+        if arguments.update_plan is not None:
+            changed = engine["write_plan"](arguments.update_plan, _read_json(arguments.updates))
+            return {"status": "updated" if changed else "unchanged", "path": str(arguments.update_plan), "errors": []}
+        return _resolve_plan(arguments, engine, today)
+    except (OSError, UnicodeError, ValueError, RecursionError) as error:
+        return {"status": "unavailable", "requested": None, "resolved": None, "actual": None, "errors": [str(error)]}
+
+
+def _catalog_operation(arguments: argparse.Namespace, today: date) -> tuple[dict[str, Any], bool]:
+    path = arguments.catalog or default_catalog_path()
+    if arguments.select is not None:
+        report = select_catalog(path, arguments.select, today)
+        return report, report["status"] == "selected"
+    report = (refresh_catalog(path, arguments.refresh, today) if arguments.refresh is not None
+              else inspect_catalog(path, today))
+    successful = report["refreshed"] if arguments.refresh is not None else report["selection_available"]
+    return report, successful
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser, arguments = _arguments(argv)
+    try:
+        today_text = arguments.today or date.today().isoformat()
+        today = date.fromisoformat(today_text)
+        _date(today_text, today, "--today")
     except (ValueError, CatalogError):
         parser.error("--today requires an ISO YYYY-MM-DD calendar date")
-    if arguments.select is not None:
-        report = select_catalog(arguments.catalog, arguments.select, today)
-        print(json.dumps(report, sort_keys=True, allow_nan=False))
-        return 0 if report["status"] == "selected" else 2
-    report = (refresh_catalog(arguments.catalog, arguments.refresh, today)
-              if arguments.refresh is not None else inspect_catalog(arguments.catalog, today))
+    if any(getattr(arguments, name) is not None for name in ("read_plan", "update_plan", "resolve_plan")):
+        report = _plan_operation(arguments, today)
+        successful = report["status"] in ("read", "updated", "unchanged", "resolved", "session-default", "fallback")
+    else:
+        report, successful = _catalog_operation(arguments, today)
     print(json.dumps(report, sort_keys=True, allow_nan=False))
-    successful = report["refreshed"] if arguments.refresh is not None else report["selection_available"]
     return 0 if successful else 2
 
 

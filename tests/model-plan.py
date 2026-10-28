@@ -402,6 +402,56 @@ class PlanContractTests(unittest.TestCase):
                 self.assertEqual(path.read_bytes(), before)
 
 
+    def test_cli_stale_support_preserves_requested_identity_and_error_reason(self) -> None:
+        self.api()
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            paths = {name: directory / name for name in ("plan.md", "request.json", "catalog.md")}
+            paths["plan.md"].write_text(plan(["ID", "Status", "Model"], [["build", "done", "missing"]]))
+            request = resolution()
+            request["selection"]["harness"]["date"] = (TODAY - timedelta(days=1)).isoformat()
+            paths["request.json"].write_text(json.dumps({key: request[key] for key in ("selection", "fallback", "execution")}))
+            paths["catalog.md"].write_text(catalog_markdown())
+            result = self.run_cli(["--resolve-plan", str(paths["plan.md"]), "--provider", "openai", "--row", "build",
+                                   "--resolution", str(paths["request.json"]), "--catalog", str(paths["catalog.md"]),
+                                   "--today", TODAY.isoformat()], directory)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            report = json.loads(result.stdout)
+            self.assertEqual(report["requested"], identity("missing"))
+            self.assertIsNone(report["resolved"])
+            self.assertIsNone(report["actual"])
+            self.assertTrue(report["errors"])
+
+
+    def test_unbounded_last_row_is_rejected_before_atomic_updates(self) -> None:
+        api = self.api()
+        document = plan(["ID", "Status", "Model (Codex)", "Model (Claude)"],
+                        [["build", "done", "middle", ""]])
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "plan.md"
+            for row in ("review | done | middle |  |", "review | done | middle | "):
+                malformed = document.replace("\n\n## Notes", "\n" + row + "\n\n## Notes")
+                path.write_text(malformed)
+                before = path.read_bytes()
+                with self.assertRaisesRegex(ValueError, "table"):
+                    api["write_plan"](path, {"build": {"openai": "strong"}})
+                self.assertEqual(path.read_bytes(), before)
+
+
+    def test_indented_code_table_is_preserved_and_never_read_as_a_plan(self) -> None:
+        api = self.api()
+        document = plan(["ID", "Status", "Model (Codex)", "Model (Claude)"],
+                        [["build", "done", "middle", ""]])
+        example = "    | ID | Status | Model |\n    | --- | --- | --- |\n    | example | done | wrong |\n\n"
+        document = document.replace("| ID |", example + "| ID |", 1)
+        self.assertEqual([row["id"] for row in api["read_plan"](document, "openai")], ["build"])
+        updated = api["update_plan"](document, {"build": {"openai": "strong"}})
+        self.assertEqual(updated, document.replace("| build | done | middle |", "| build | done | strong |"))
+        example_only = "## Subtasks\n\n" + example
+        with self.assertRaises(ValueError):
+            api["read_plan"](example_only, "openai")
+
+
 
 if __name__ == "__main__":
     unittest.main()
