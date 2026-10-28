@@ -19,7 +19,7 @@ phases — Discovery, Execution, Validation — with all progress persisted in t
 project's `.ai/tasks/…/state.md`, and every orchestrated run appends telemetry to a
 central log store that `/retro` reads.
 
-Current inventory: 38 workflows, 14 rules, 4 principles, 10 shell scripts and two Python
+Current inventory: 42 workflows, 14 rules, 4 principles, 10 shell scripts and two Python
 engines under `scripts/`, with automated consistency and smoke checks.
 
 ## Components
@@ -48,7 +48,7 @@ Domain-quality rules, Python/FastAPI/GCP-centric. Deployed as Windsurf global ru
 as `principle-*` skills. `testing-standards` owns test *style*; `rules/tdd.md` owns test
 *process*.
 
-### Layer 3 — `workflows/` (slash commands, 38 files)
+### Layer 3 — `workflows/` (slash commands, 42 files)
 
 ```
 Orchestrators        phase-discovery  phase-execution  phase-validation  phase-pipeline
@@ -152,12 +152,13 @@ scripts/log-step.sh ──▶ logs/runs/*.jsonl ──▶ read-only lint ──�
 - **Protected Sections Contract** (`workflow-reference`) — what `/compress-state` may never
   remove (`notes:`, `target_files:`, git fields, `tdd:` lines, composite blocks,
   `## Improvement Proposals`, `### Fix Classification`).
-- **Cross-reference syntax** — `<file> → ## <Section>`; 127 such references exist and
-  `scripts/validate-contracts.sh` checks that named sections exist.
+- **Cross-reference syntax** — `<file> → ## <Section>`; offline instruction checks
+  validate canonical workflow/rule section targets, alongside the existing contract checks.
 - **Mode overrides registry** (`workflow-globals → Workflow-declared mode overrides`) —
   the only place a workflow may declare autonomy; `phase-pipeline → ## Pipeline
   Overrides` is the detail.
-- **`--batch`** — one meaning everywhere: record, prompt for nothing, apply nothing.
+- **`--batch`** — proposal callers record, prompt for nothing, apply nothing.
+  `/pae-tests --batch` only suppresses duplicate digest display; it grants no authority.
 - **Rule-name resolution** — bare basename on Windsurf/Devin, `rule-<name>` skill on
   Claude Code/Codex.
 - **Active-run metadata** — a fixed format header and escaped values preserve multiline caller text without interpreting it as records; ordinary legacy metadata remains readable. JSONL events retain their existing schema.
@@ -172,3 +173,15 @@ scripts/log-step.sh ──▶ logs/runs/*.jsonl ──▶ read-only lint ──�
   (`scripts/log-step.sh` digests, `/retro`), `bash`, a web search capability (`pd-select-model`
   rebuilds its model catalog live).
 - Script source defaults resolve to the repository root, the parent of `scripts/`. `ORCHESTRAIL_HOME` overrides source selection; `scripts/sync.sh --from` takes precedence. Setup helpers normalize and propagate the selected root to children. `ORCHESTRAIL_LOG_ROOT` overrides the repository-root `logs/` directory. Documentation paths are placeholders.
+
+## Workflow maintenance baseline — 2026-10-28
+
+Workflow entry points now expose explicit Guards and invocation forms. Parent/child
+context reuse requires available, current sources for the same resolved project; fresh
+workers and standalone children bootstrap independently. Context packs still verify
+metadata, not content hashes. Canonical phase rules own loading, and canonical protocol
+rules own the classifier, promotion stops and permitted specification writes.
+
+Finalization records completion after evidence, qualifying ADRs and authorized spec
+reconciliation. Source cleanup does not implement the planned naming/harness migration,
+usage telemetry, catalog cache, packet tooling or parallel composite execution.

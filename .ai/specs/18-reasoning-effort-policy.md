@@ -7,10 +7,14 @@ mechanical stages while preferring strong-first where expected rework makes it c
 
 ## Context & Problem
 
-Current selection assigns an Implementer model (`workflows/spec-run.md:169`) and
-spawns a separate Validator (`workflows/spec-run.md:204`); that is not a calibrated
-role/stage effort policy. Effort controls differ across models/harnesses, and a requested
-setting does not prove the setting was applied or that fewer reasoning tokens result.
+Baseline reviewed 2026-10-28.
+
+Selection now has consistent scoring/availability guidance, but still recommends an
+Implementer model through the existing live catalog (`workflows/pd-select-model.md → ## Instructions`).
+The orchestrator spawns a separate Validator and preserves same-worker execution
+checkpoints (`workflows/spec-run.md → ## Step 4 — Subtask loop`). No versioned role/stage
+effort policy, supported-setting resolver or qualified cheaper default has been added.
+Requested settings never prove applied effort or measured reasoning-token reduction.
 
 ## Goal
 

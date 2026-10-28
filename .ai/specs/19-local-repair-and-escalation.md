@@ -8,10 +8,14 @@ cost is lower than cheap execution plus repair.
 
 ## Context & Problem
 
-NEEDS WORK currently stops the run and preserves the branch/commits
-(`workflows/spec-run.md:209`, `workflows/pav-check.md:108`). This specification is an
-explicit behavioral extension, not a claim that an automatic repair loop already
-exists. Unbounded cheap retries can erase any initial saving and weaken tests.
+Baseline reviewed 2026-10-28.
+
+NEEDS WORK still stops the atomic/run path and preserves branch/commit evidence
+(`workflows/spec-run.md → ## Step 4 — Subtask loop`,
+`workflows/pav-check.md → ## Instructions`). Task-level approved validation fixes and
+quick bugfix repairs are separate existing paths; neither implements this proposed
+per-leaf bounded retry policy. The workflow audit improved resume and evidence handling
+without enabling automatic model escalation or resetting failure stops.
 
 ## Goal
 

@@ -10,7 +10,8 @@ Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) 
 `/phase-discovery .ai/specs/<NN>-<slug>.md`.
 
 ## Done
-- [Hook-based logging](../tasks/todo/task-03-hook-based-logging/state.md) | phase: validation | status: reviewed | note: seven leaves and prerequisite reviewed; separate final PR reviews and producer hardening complete; PRs #22–#29 merged in order; final validation 594/0/2
+- [Workflow instruction maintenance] | completed | note: all 42 workflows clarified and reduced in two passes; 18 active specs reconciled, four completed records preserved; 589 full-suite checks pass with two optional skips; the pre-existing unstaged archive condition passes the unchanged strict gate in a disposable index
+- [Hook-based logging](../tasks/completed/task-03-hook-based-logging/state.md) | phase: validation | status: reviewed | note: seven leaves and prerequisite reviewed; separate final PR reviews and producer hardening complete; PRs #22–#29 merged in order; final validation 594/0/2
 - [Run-log vocabulary validation](../tasks/todo/task-02-run-log-vocabulary-validation/state.md) | phase: validation | status: reviewed | note: strict producer, read-only lint, usable retrospective metrics, drift gate and isolated acceptance complete; PRs #13–#20 are ready for review; owner integration remains pending
 - [task-00-sensitive-data-scrub](../tasks/completed/task-00-sensitive-data-scrub/state.md) | completed | note: PRs #2, #3, and #4 integrated in order; review fixes included; 542 checks pass as normal user and UID 0; source specification archived under specs/completed
 - [Git source of truth] | completed | note: versioned contracts, portable runtime paths, public materials, identity checks, and validation metadata are complete; checkout is renamed; PRs #5–#9 were merged into main; owner deferrals remain documented
@@ -22,10 +23,11 @@ Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) 
 None.
 
 ## Known conditions (read before starting any task)
+- The existing hook specification/task archive move is still unstaged. The strict publication identity scan reads the Git index and rejects its absent old paths until that move is staged; keep the scanner strict and preserve the byte-identical completed records. See the 2026-10-28 workflow audit for isolated review-index evidence.
 - On 2026-10-26 the owner explicitly authorized final per-PR validation, autonomous repairs and integration of the hook-logging delivery. PRs #22–#29 were merged with verified trees and merge commits; no direct main push, force push, rebase, branch deletion or real-settings deployment was used.
 - The initial commit contains private references. On 2026-10-19 the owner explicitly authorized publishing the reviewed stack with existing ancestry and approved scan exceptions retained; the earlier publication hold is superseded. History rewriting remains outside scope.
 - `.ai/` in this repository is **committed in full**, including `tasks/todo/` — the
-  opposite of the pipeline's default for consumer projects (ADR-0007, accepted 2026-09-16).
+  repository-owned policy for this source checkout; consumer defaults remain local (ADR-0012).
 - The owner permits local test-first and implementation commits. Current mutable content is scrubbed; private scan patterns remain in local configuration. The owner authorized merging PRs #2–#9 after validation; they were integrated in dependency order using merge commits. Existing ancestry remains unchanged; history rewriting is outside scope.
 - The public name is **Orchestrail**. Local checkout references use `~/projects/orchestrail`;
   machine settings use `~/.config/orchestrail/`, with `ORCHESTRAIL_HOME` and

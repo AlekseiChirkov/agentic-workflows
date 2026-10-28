@@ -16,52 +16,25 @@ Input analysis: `docs/analysis/2026-09-16-rules-workflows-naming-review.md`.
 
 ## Context & Problem
 
-Historical snapshot: the following analysis was written on 2026-09-16. Script paths
-are normalized to their current `scripts/` location, but old line numbers/counts are
-historical evidence, not a current inventory. Spec 13a must refresh findings and the
-heading map from the actual checkout before any rename. Runtime capabilities must be
-verified against installed versions; old harness-name assumptions are superseded below.
+Current baseline, reviewed 2026-10-28: source deployment still targets Windsurf/Devin,
+Claude Code and Codex (`scripts/sync.sh` deployment sections). Colliding phase basenames
+remain in `rules/` and `workflows/`, resolved through the `rule-` skill prefix
+(`rules/workflow-globals.md`). Rules retain `trigger:` front matter; workflow headers
+have descriptions but not the proposed phase/step/load schema. `workflows/PIPELINE.md`
+is explicitly a reference and remains at its current path.
 
+The workflow audit corrected ambiguous inline phase calls, repeated instructions and
+resume/context/ownership guidance. It did not rename rules/commands, extract mixed-kind
+rule sections, move the reference, or remove a deployment target. Historical incident
+examples and former line counts remain in the source analysis named above; they are
+not a current defect inventory. Spec 13a must audit the updated checkout before renames.
 
-The repository deploys to three harnesses. Windsurf / Devin Desktop is an IDE with two
-namespaces (`global_workflows/`, `global_rules/`) addressed by bare basename
-(`scripts/sync.sh:51-67`); Claude Code and Codex are model harnesses with one namespace, skills
-(`scripts/sync.sh:72-140`). That difference shaped the source tree:
-
-- Five basenames exist in both `rules/` and `workflows/` — `phase-discovery`,
-  `phase-execution`, `phase-validation`, `phase-atomic-execution`,
-  `phase-atomic-validation`. On Windsurf the namespaces keep them apart; on Claude Code and
-  Codex they collided, the 2026-07 audit found the rule side undeployed (finding B-3,
-  `docs/audits/2026-07-21-logic-audit-fixes.md:41-52`), and the fix was a deploy-time
-  `rule-` prefix plus a prose resolution rule every reader must know
-  (`rules/workflow-globals.md:19-27`).
-- The rule side of each pair is not "the rules of that phase" but a **context bootstrap**
-  (load list + behaviours, `rules/phase-execution.md:8-26`), and two of them carry
-  unrelated procedures: Blocker Reconciliation (`rules/phase-atomic-execution.md:45-63`,
-  ≈350 of 644 words) and the Discovery Decision Protocol
-  (`rules/phase-discovery.md:36-64`).
-- Windsurf's `trigger: always_on | model_decision` front matter is on every rule
-  (`rules/tdd.md:2`, `rules/workflow-reference.md:2`) although it means nothing to Claude
-  Code or Codex, where a skill is model-invoked regardless
-  (`rules/workflow-globals.md:29-33`).
-- Citations are ambiguous where names collide: `workflows/phase-pipeline.md:185` reads
-  "follow `phase-execution.md` inline" — the workflow is meant, the rule is equally
-  plausible.
-- `workflows/PIPELINE.md` is documentation (`docs/USAGE.md:108`) but is deployed as a
-  skill because it sits in the copied directory (`scripts/sync.sh:54`, `scripts/sync.sh:75`).
-- The Windsurf/Devin path adds a per-project pass that discovers projects by a `.devin`
-  marker directory (`scripts/sync.sh:177-230`) and a setup step that writes `.windsurf/rules/`
-  and `.devin/rules/` copies into every consumer project (`scripts/setup-new-project.sh:80-135`).
-  Fifty lines across `rules/`, scripts, and `scripts/validate-contracts.sh` mention Windsurf,
-  Devin, or Codeium.
-- Rule names follow four different styles (subject: `tdd`; location: `workflow-globals`;
-  deploy target: `global-claude`; phase: `phase-*`), and `workflow-reference.md` holds
-  26 top-level sections of five different kinds in 514 lines.
-
-Consequence of doing nothing: every new rule inherits the collision workaround and a
-harness it no longer targets; a contributor cannot tell a file's kind from its name; the
-prose resolution rule and the Windsurf-only front matter are always-on context spent on
-a harness the owner has dropped.
+Completed hook logging already supplies `harness/claude/capabilities.md`,
+`harness/codex/capabilities.md`, `harness/claude/hooks.json`, owned hook installation and
+an XDG-aware canonical project registry written by setup. It does not supply
+`deploy.env`, the full always-on layout or registry-driven sync. Preserve these existing
+scaffolds and their stronger ownership/registration guarantees instead of rebuilding
+them from the original new-file assumptions.
 
 ## Goal
 
@@ -101,7 +74,8 @@ scripts, or contract checks refers to an IDE.
   removed.
 - Changing the content of any contract (status vocabularies, TDD rule, git rails,
   orchestration roles). Text moves; meaning does not.
-- Hooks, budgets, state tool, context tiering (specs 03, 05, 06, 07, 08).
+- Reimplementing completed hook logging (03), adding usage telemetry (05), git hooks
+  (06), the backlog state tool (07), context tiering (08), or production budgets.
 - Any support for a third harness (Cursor, Gemini CLI, Aider).
 
 ## Actors & Roles
@@ -165,8 +139,10 @@ for load mode; "global rule" for a rule.
 - **REQ-07** | IF `scripts/setup-new-project.sh` finds an existing `.windsurf/` or `.devin/`
   directory in the project, THEN THE SYSTEM SHALL print one line naming it as a legacy
   artifact safe to delete, and SHALL leave it unchanged.
-- **REQ-08** | WHEN `scripts/setup-new-project.sh` completes, THE SYSTEM SHALL append the
-  project's absolute path to `~/.config/orchestrail/projects` unless it is already present.
+- **REQ-08** | WHEN `scripts/setup-new-project.sh` completes, THE SYSTEM SHALL retain
+  existing idempotent, locked physical-root registration in
+  `${XDG_CONFIG_HOME:-$HOME/.config}/orchestrail/projects`, preserving unrelated entries
+  and rejecting unsupported newline paths. Registry use by sync SHALL NOT add a writer.
 - **REQ-09** | WHEN `scripts/sync.sh` runs its per-project pass, THE SYSTEM SHALL iterate the
   project registry, skip entries whose path no longer exists (reporting each), skip — with
   a report line — any project in which a task `state.md → ## Phases` has a phase
@@ -239,9 +215,10 @@ for load mode; "global rule" for a rule.
   step-by-step) and the codebase reading rules in `rules/protocol-discovery-conduct.md`,
   or — if Discovery finds the Autonomous Decision Protocol already covers the decision
   text — merged into it with a recorded justification.
-- **REQ-22** | THE SYSTEM SHALL contain no citation of a rule or workflow that carries a
-  `.md` suffix; `workflows/phase-pipeline.md:185` and `:225` SHALL read "run the
-  `/phase-execution` (`/phase-validation`) workflow's steps inline".
+- **REQ-22** | THE SYSTEM SHALL contain no rule or workflow citation carrying a
+  `.md` suffix. Preserve the explicit execution/validation workflow calls now present in
+  `workflows/phase-pipeline.md → ## Phase 2 — Execution` and `## Phase 3 — Validation`,
+  updating their command names at the naming step rather than restoring old wording.
 - **REQ-23** | THE SYSTEM SHALL hold `PIPELINE.md` at `docs/PIPELINE.md`, and every file in
   `workflows/` SHALL contain an `Invocation:` line.
 - **REQ-24** | THE SYSTEM SHALL name rules as `<kind>-<subject>` where kind ∈
@@ -301,16 +278,16 @@ for load mode; "global rule" for a rule.
 
 ## Data Model
 
-**Rule front matter** — `existing (rules/tdd.md:1-3)`, changed:
+**Rule front matter** — existing `trigger:` form (`rules/tdd.md`), changed:
 
 ```yaml
 ---
-description: <one line>          # required, existing
+description: <one line>          # required; add where currently absent
 load: always | on-demand         # new, replaces trigger:
 ---
 ```
 
-**Workflow front matter** — `existing (workflows/pd-analyze.md:1-3)`, extended:
+**Workflow front matter** — existing description-only form (`workflows/pd-analyze.md`), extended:
 
 ```yaml
 ---
@@ -320,18 +297,22 @@ step: <int> | -                  # new
 ---
 ```
 
-**Project registry** — `new`: `~/.config/orchestrail/projects`, plain text, one
-absolute path per line, no duplicates, created by `scripts/setup-new-project.sh`, read by
-`scripts/sync.sh`. Lifecycle: append on setup; entries whose path is missing are reported by
-`scripts/sync.sh` and left for the owner to prune.
+**Project registry** — existing from completed 03:
+`${XDG_CONFIG_HOME:-$HOME/.config}/orchestrail/projects`, one physical canonical absolute
+path per line. Setup is the sole serialized writer; the hook adapter already reads it.
+This spec adds read-only registry selection to sync. Missing paths are reported and
+left for the owner to prune; preserve XDG override, atomic updates and most-specific-root
+activation. Registry selection does not itself authorize deployment into an active task.
 
 **Skill manifest** — `new`: `~/.claude/skills/.orchestrail-manifest` and
 `~/.codex/skills/.orchestrail-manifest`, one skill directory name per line, rewritten
 on every `scripts/sync.sh`; the previous content drives stale-directory removal (REQ-10).
 
-**Harness directory** — `new`: `harness/<name>/always-on.md` (core body; rendered with the
-capability table at deploy), `capabilities.md` (table `capability | yes/no | note`),
-`deploy.env` (`skills_dir=`, `always_on_path=`), optional `hooks.json`.
+**Harness directory** — existing capability declarations and Claude hook manifest from
+completed 03; extend with `always-on.md` and `deploy.env` (`skills_dir=`,
+`always_on_path=`). Preserve verified runtime/evidence notes and the distinction between
+mechanism support, installation and accepted checkpoint coverage. Do not replace an
+unknown capability with an unsupported yes/no assertion.
 
 **Rule file kinds** — `new` classification, encoded in the file name prefix; no
 persisted enum beyond the names themselves and the check in `scripts/validate-contracts.sh`.
@@ -409,10 +390,10 @@ unreadable (exit 1, message); `scripts/setup-new-project.sh` continues without r
 
 - [ ] **AC-01** (withdrawn → spec 13a) (REQ-01, REQ-02, REQ-03, REQ-04) — Given the current tree, when the audit
       is written, then `docs/audits/<date>-rules-workflows-audit.md` has one row per file
-      in `rules/` and `workflows/` (52 rows) with the six columns named in REQ-01, a
+      in `rules/` and `workflows/` (actual audited inventory) with the columns named in REQ-01, a
       "mixed-kind" table naming at least `phase-atomic-execution` and `phase-discovery`
-      with section boundaries, an "ambiguous citations" table containing
-      `phase-pipeline.md:185` and `:225`, and a "duplicated statements" table.
+      with section boundaries, an "ambiguous citations" table distinguishing current
+      findings from repaired historical inline phase calls, and a "duplicated statements" table.
 - [ ] **AC-02** (REQ-05) — Given a clean `~/.codeium/` snapshot, when `scripts/sync.sh` runs, then
       no file under `~/.codeium/` is created or modified, and `grep -n 'claude\|codex' scripts/sync.sh`
       matches no branching construct — only the harness-directory loop.
@@ -454,8 +435,8 @@ unreadable (exit 1, message); `scripts/setup-new-project.sh` continues without r
       `Phase Behaviors`; and when a third heading is added, then `scripts/validate-contracts.sh`
       fails.
 - [ ] **AC-12** (REQ-20) — Given `rules/procedure-blocker-reconciliation.md`, when read,
-      then it contains the three classification cases (dependency/status, non-status,
-      ambiguity) verbatim from today's `rules/phase-atomic-execution.md:45-63`, and
+      then it preserves the three classification cases (dependency/status, non-status,
+      ambiguity) from `rules/phase-atomic-execution.md → ## Blocker Reconciliation`, and
       `workflows/pae-implement.md` and `workflows/phase-atomic-execution.md` cite it by
       that name and cite nothing else for reconciliation.
 - [ ] **AC-13** (REQ-21) — Given the post-change tree, when searched, then the Discovery
@@ -463,8 +444,8 @@ unreadable (exit 1, message); `scripts/setup-new-project.sh` continues without r
       cites it.
 - [ ] **AC-14** (REQ-22, REQ-31) — Given the post-change tree, when
       `grep -rnE '\`[a-z-]+\.md\`' workflows rules` is filtered to rule/workflow names,
-      then it is empty; `workflows/phase-pipeline.md` lines formerly 185 and 225 read as
-      specified; and when a `.md`-suffixed citation is inserted, then
+      then it is empty; inline phase calls remain explicit workflow calls in the
+      execution/validation phase sections; and when a `.md`-suffixed citation is inserted, then
       `scripts/validate-contracts.sh` fails.
 - [ ] **AC-15** (REQ-23) — Given the post-change tree, when checked, then
       `docs/PIPELINE.md` exists, `workflows/PIPELINE.md` does not, no `PIPELINE` skill
@@ -558,7 +539,7 @@ unreadable (exit 1, message); `scripts/setup-new-project.sh` continues without r
 | Risk | Impact | Likelihood | Mitigation |
 |---|---|---|---|
 | A rename misses a citation in a file the sweep did not cover (e.g. `templates/AGENTS.md`, `.ai/`) | Agent loads nothing for a cited rule; silent behaviour change | medium | REQ-25 sweep list is explicit; REQ-31 check fails on any unresolved name; do the sweep with one `sed` script committed with the change |
-| Splitting `workflow-reference` changes a section heading | 42 citations in `workflows/`+`rules/` break | medium | AC-17 requires the heading set to be preserved exactly; rename only files, not headings, in this spec |
+| Splitting `workflow-reference` changes a section heading | Dependent section citations break | medium | AC-17 requires the heading set to be preserved exactly; rename only files, not headings, in this spec |
 | Stale-skill removal deletes something the owner made by hand | Data loss in `~/.claude/skills` | low | REQ-10 removes only manifest-listed names; first run removes nothing (edge case 6) |
 | Required Git history is unavailable when this runs | Rename sweep is unreviewable and unrevertable | conditional; source-of-truth work is completed | Hard dependency on completed 01; verify actual repository availability |
 | Contract-check count changes invalidate numbers in docs | Docs drift | high | AC-07 implies re-running; `docs/USAGE.md` count updated in the same task |
@@ -575,12 +556,13 @@ unreadable (exit 1, message); `scripts/setup-new-project.sh` continues without r
   "before deleting, look at the target" and the low cost of manual deletion.
 - `project discovery` — a registry file replaces the `.devin` marker because no other
   marker distinguishes a consumer project from any directory with `.claude/`
-  → source: `scripts/sync.sh:177-182` (marker-based discovery), decision recorded in Decisions.
+  → source: `scripts/sync.sh` per-project discovery section; setup's existing registry
+  is retained, while registry-driven deployment remains planned.
 - `skill prefix kept` — `rule-`/`principle-` deploy prefixes stay because they group
   skills in listings and cost nothing once the collision is gone → source: naming review
   R4.
 - `headings frozen` — the split of `workflow-reference` keeps every `##` heading text so
-  that all 42 section citations survive with only the file part changed → source: risk
+  that the audited section citations survive with only the file part changed → source: risk
   table.
 - `in-flight tasks preserved` — deployment skips in-progress projects and citation
   rewrites exclude completed/free-text historical records; actual live references
@@ -685,7 +667,7 @@ unreadable (exit 1, message); `scripts/setup-new-project.sh` continues without r
 | 8 | Edge cases cover at least error, empty, boundary, and concurrency | PASS — concurrency declared unsupported (case 12) |
 | 9 | Every ambiguity is either resolved in `## Assumptions` or listed in `## Open Questions` | PASS |
 | 10 | No `blocker`-severity open question remains | PASS |
-| 11 | Every codebase claim carries a `path:line` citation | PASS |
+| 11 | Existing-code claims cite inspected paths/sections; historical evidence is labelled | PASS — line-sensitive workflow references replaced during 2026-10-28 reconciliation |
 | 12 | Terminology matches `principles/domain.md` where it defines a term | PASS — all new terms flagged for addition (REQ-34) |
 | 13 | The spec is feature-sized — plausibly 1–8 implementation subtasks | FAIL (recommendation only) — estimated 9–11 after the command renames were added; split boundary given in Risks |
 
@@ -710,3 +692,14 @@ splitting into 13 and 13b at decomposition. Amended 2026-09-17 per ADR-0009; the
 - The feature-size reservation remains: Discovery must use the documented 13/13b
   split boundary if necessary; no ninth optimization workstream is expanded merely
   to absorb naming work. Record such a split in the index before execution.
+
+
+## Reconciliation — 2026-10-28
+
+Workflow clarity/token-efficiency work is delivered in source without the naming sweep.
+Source findings: `docs/audits/2026-10-28-workflow-clarity-and-size.md`.
+REQ-08's registry foundation and parts of REQ-22/23/35/36 already have source support;
+the complete acceptance criteria remain open. Refresh 13a's inventory before migration,
+reuse completed hook scaffolding, retain all stable IDs and preserve historical records.
+No full harness abstraction, command rename, catalog cache, usage accounting or state
+tool was implemented by this reconciliation.

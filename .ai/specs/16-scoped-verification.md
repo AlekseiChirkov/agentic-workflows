@@ -7,11 +7,17 @@ hidden quality loss; a strong reviewer is evidence, not an absolute correctness 
 
 ## Context & Problem
 
-The current independent Validator receives task description, tests and the base-to-head
-diff, without Implementer reasoning (`workflows/spec-run.md:204`). Atomic validation
-also reloads full project context (`rules/phase-atomic-validation.md:10`). Findings and
-NEEDS WORK currently stop the task (`workflows/pav-check.md:101`). This spec optimizes
-verification inputs/evidence; spec 19 alone changes repair control flow.
+Baseline reviewed 2026-10-28.
+
+An independent Validator receives task obligations, tests and the branch-range diff
+without the Implementer's reasoning (`workflows/spec-run.md → ## Step 4 — Subtask loop`).
+The workflow audit clarified scoped changed-file recovery, applicable command evidence,
+TDD integrity and full standalone versus inherited context. NEEDS WORK still stops
+atomic validation/run progression (`workflows/pav-check.md → ## Instructions`).
+
+Verification receipts, qualified review levels and finding-led incremental re-review are
+not implemented. This spec optimizes inputs/evidence; spec 19 alone changes repair
+control flow. Existing contract/TDD checks and conservative stops remain authoritative.
 
 ## Goal
 

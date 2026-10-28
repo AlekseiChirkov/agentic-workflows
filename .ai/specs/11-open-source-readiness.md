@@ -1,5 +1,14 @@
 # Open-source readiness: installer, profiles, examples, scrubbing, contributing
 
+## Current implementation baseline — 2026-10-28
+
+The checkout already contains a public README, version stamp, portable source roots,
+tracked knowledge and completed hygiene checks. Hook installation has owned-entry
+preservation/recovery (`scripts/install-hooks.sh`, `scripts/install-hooks.py`), but it
+is not a general workflow installer/uninstaller. Profiles, contribution/release
+materials, model goldens, generated references and the wider harness/naming migration
+remain pending. The workflow-only audit does not authorize a release or deployment.
+
 ## Goal
 
 After spec 01 the repository is public but still shaped for one machine: `sync.sh`
@@ -49,7 +58,7 @@ Decisions 1 and 6).
 ## Out of Scope
 
 - Documentation site (later)
-- Renaming the project (done in spec 01) or the commands (done in spec 13)
+- Renaming the project (completed 01) or the commands (owned by pending 13)
 
 ## Notes
 

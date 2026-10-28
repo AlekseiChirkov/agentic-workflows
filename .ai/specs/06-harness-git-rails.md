@@ -1,10 +1,20 @@
 # Enforce the git safety rails with harness hooks and permission rules
 
+## Current implementation baseline — 2026-10-28
+
+Git safety remains a prose contract (`rules/git-flow.md → ## Safety rails`); the current
+hook adapter records telemetry, not PreToolUse git enforcement. Restack now requires
+merge evidence, bounded own-commit ranges, a recovery journal and captured explicit
+leases (`workflows/restack.md → ## Guard`, `## Step 1 — Classify each branch`,
+`## Step 3 — Publish (only with --allow-pr)`). The hook/deny-list feature below remains
+pending and must preserve these recovery and publication conditions.
+
 ## Goal
 
 `rules/git-flow.md` forbids `git add -A`, pushing to protected branches, force-push
-outside `/restack`, `reset --hard`, `clean`, branch deletion, `gh pr merge`, and staging
-anything under `.ai/`. All of it is prose. A `PreToolUse` hook and a permission deny-list
+outside `/restack`, `reset --hard`, `clean`, branch deletion, `gh pr merge`, and unauthorized staging
+of local knowledge/state. Tracked project knowledge and explicitly authorized tracking
+remain permitted under repository policy. Git mutation enforcement is still prose. A `PreToolUse` hook and a permission deny-list
 make the operations fail in the harness, to enforce the covered command forms and reduce reliance on
 prompt compliance (ADR-0009, Decision 5).
 
@@ -18,8 +28,11 @@ prompt compliance (ADR-0009, Decision 5).
       merged — ADR-0009 Decision 4), `gh pr merge`, `git rebase` outside `/restack`
 - [ ] The hook blocks `git commit` when the message contains `Co-Authored-By`, a
       `T-[0-9A-Za-z]+` identifier, or `ADR-[0-9]+`
-- [ ] The hook blocks staging any path under `.ai/` unless `git ls-files .ai` is
-      non-empty (tracked `.ai/`, as in this repository); the result is cached per session
+- [ ] The hook enforces repository-owned knowledge tracking policy: intentional changes
+      to tracked `.ai/` paths are allowed; previously untracked state requires explicit
+      tracking authorization. Finding any tracked `.ai/` file does not authorize all
+      untracked metadata. Any cached decision is bound to the repository/worktree and
+      invalidated when the relevant tracking policy changes
 - [ ] Installed at **user level** by `sync.sh` from `harness/claude/hooks.json`,
       idempotently; the hook exits immediately unless the current directory is a
       registered project

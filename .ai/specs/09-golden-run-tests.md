@@ -12,6 +12,15 @@ golden proposal compared normalized artifacts but removed free-text evidence, an
 "no network" did not distinguish offline application fixtures from the model transport.
 Evaluation must independently assess behavior, architecture, TDD and cost.
 
+## Current implementation baseline — 2026-10-28
+
+Existing offline suites exercise producer, hook, installation, timing and workflow
+instruction contracts (`tests/log-step.sh`, `tests/hook-workflow-contract.sh`,
+`tests/hook-timing.sh`, `tests/workflow-instructions.py`). They are deterministic contract
+checks, not model-driven task goldens or independent strategy comparisons. The fixture
+set, golden runner, evaluation protocol and paid-run qualification specified here remain
+pending; source text reductions do not establish model-quality or financial results.
+
 ## Goal
 
 Provide deterministic local regression checks plus separately authorized model-driven

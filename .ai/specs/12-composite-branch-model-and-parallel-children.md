@@ -1,5 +1,14 @@
 # Composite tasks: one branch and one PR, children on temporary branches, optional parallelism
 
+## Current implementation baseline — 2026-10-28
+
+The current orchestrated stack remains sequential, with leaf branches/PRs and no
+composite branch (`workflows/spec-run.md → ## Step 4 — Subtask loop`). The workflow audit
+clarifies child rollup, one integration-validation trigger and open failure evidence
+(`workflows/phase-composite-validation.md → ## Guard`). It does not implement temporary
+child worktrees, composite-owned PRs, concurrent workers or `--parallel`. All proposed
+branch/concurrency changes below remain future work.
+
 ## Goal
 
 Today every child of a Type 2 composite is an ordinary leaf in the stack — its own

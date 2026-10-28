@@ -7,9 +7,12 @@ test and file outputs without hiding information needed for a correct result.
 
 ## Context & Problem
 
-Current workflows require command evidence and git/test inspections
-(`workflows/spec-run.md:182`, `workflows/pav-check.md:92`). An optimization cannot
-replace full failures with success-shaped summaries or defeat the git rails in 06.
+Current workflows call for targeted reads, command evidence and scoped git/test
+inspection (`workflows/spec-run.md → ## Step 4 — Subtask loop`,
+`workflows/pav-check.md → ## Instructions`). The 2026-10-28 prose cleanup reduces redundant
+narration but does not implement complete capture artifacts, preview limits, range
+retrieval or a capture helper. Those interfaces remain planned. Preserve full failures,
+exit status and the future git-rail enforcement boundary in 06.
 
 ## Goal
 

@@ -7,6 +7,13 @@ editing state files directly for now. This file records the agreed shape so the 
 start without a new round of questions when the evidence (hand-edit corruption found by
 `validate-task.sh`) justifies it.
 
+## Current implementation baseline — 2026-10-28
+
+No generic state tool has been added. Workflow state updates remain direct edits or
+orchestrator-applied worker deltas (`rules/orchestration.md → ## Shared-file discipline`).
+The workflow audit clarifies resume/field preservation and adds instruction checks;
+these are not a state serializer or locking API. This spec remains unscheduled backlog.
+
 ## Goal
 
 Every workflow rewrites `## Subtask Progress` blocks by hand. The 2026-07 audit found

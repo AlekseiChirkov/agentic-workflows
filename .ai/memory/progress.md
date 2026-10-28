@@ -99,3 +99,5 @@ and the audit spec — dates are those recorded in the sources.
   state on disk, Guard sections, multi-repo umbrella `.ai/`, deployment to Windsurf +
   Claude Code + Codex via `sync.sh`, Python/FastAPI/GCP principles, TDD contract with
   `pinned` characterization mode.
+
+- **2026-10-28 — Workflow clarity and instruction-size maintenance.** Reviewed all 42 workflow files, corrected scope/resume/ownership/test/finalization contradictions, and completed a separate reduction pass: 58,093 to 40,425 words (30.4% fewer). Reconciled eighteen active/backlog specs and the index while preserving four completed records and prior telemetry changes. Offline workflow/reference checks and five hook-workflow fixtures pass; full acceptance: 589 passed, one pre-existing unstaged archive condition, two optional hygiene skips. The unchanged strict archive scan passed with only the eleven byte-identical archive moves staged in a disposable index; the real index hash stayed unchanged. Details: `docs/audits/2026-10-28-workflow-clarity-and-size.md`; decisions recorded in the index. No deployed or model-usage savings are claimed.

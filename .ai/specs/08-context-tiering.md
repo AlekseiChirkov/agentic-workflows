@@ -7,11 +7,17 @@ The previous unmeasured 40–60k bootstrap-token claim is withdrawn as a baselin
 
 ## Context & Problem
 
-Atomic bootstraps explicitly demand full context even within parent phases
-(`rules/phase-atomic-execution.md:10`, `rules/phase-atomic-validation.md:10`).
-This spec owns instruction/reference separation and output shape. Spec 14 owns
-consumer-project context selection and reuse; neither task may silently remove a
-mandatory invariant to satisfy a size target.
+The 2026-10-28 workflow audit removed repeated instructions, clarified child/parent
+context ownership, and made standalone bootstrap requirements explicit. The canonical
+phase bootstraps remain mandatory; an already loaded compatible parent context can be
+reused under `rules/workflow-globals.md` (Context Bootstrap contract). Context packs still use
+the current metadata freshness contract (`workflows/context-pack.md → ## Step 1 — Check freshness`).
+
+This is an initial instruction cleanup, not delivery of this spec. The rule/reference
+split, machine-readable `loads:`, transitive context measurement, reference deployment,
+size targets and quantified baseline gates remain pending. Spec 14 owns stronger project
+context manifests/packets and reuse receipts; operative constraints cannot be removed to
+meet a size target.
 
 ## Goal
 

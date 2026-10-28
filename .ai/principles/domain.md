@@ -54,7 +54,8 @@ appears in a rule.
    `/spec-run`, which declare it.
 4. Every workflow reads `state.md` before writing anything, and resumes rather than restarts.
 5. Exactly one writer per shared file at any moment; sub-agents return deltas.
-6. `--batch` means record, prompt for nothing, apply nothing — everywhere.
+6. Proposal `--batch` means record, prompt for nothing, apply nothing. The separate
+   `/pae-tests --batch` flag suppresses duplicate digest display only; all evidence gates hold.
 7. `notes:` and `target_files:` are always written, even when empty; `atomic-tests:` is
    never removed or downgraded; git fields are touched only by `/spec-run` and `/restack`.
 8. No pipeline identifier and no tool attribution ever enters a consumer repository.

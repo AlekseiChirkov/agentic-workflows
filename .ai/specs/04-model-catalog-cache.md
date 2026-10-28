@@ -7,12 +7,17 @@ total cost of a correct result, including the possibility that strong-first is c
 
 ## Context & Problem
 
-The current selector rebuilds an in-chat catalog (`workflows/pd-select-model.md:385`).
-Its verifiability definition assigns instant detection score 5 (line 155), while its
-rubric assigns instant detection score 1 (line 377). The quality calculation discounts
-score 5 (line 192). Retaining inconsistent scales can route a poorly verifiable task
-to a weaker model. Capability scores and task scores also need one declared mapping,
-not a comparison of unrelated numerical scales.
+The selector still rebuilds its catalog through live web search on every invocation
+(`workflows/pd-select-model.md → ### Step 0 — Build the model catalog via live web search (every run, no file)`).
+The 2026-10-28 workflow audit corrected verifiability to 1 = difficult and 5 = immediate,
+made task/capability scales explicit, completed boundary rules, and retained conservative
+risk/availability floors (`## Scoring Rubric`, `### Step 2 — Derive the minimum quality tier (Qmin)`,
+`### Step 4 — Step up through remaining tiers using expected cost of error`). These textual
+corrections are the baseline, not unresolved defects to reproduce.
+
+Persisted catalog/TTL/refresh, dual optional harness columns, deterministic catalog fixtures
+and qualified economic selection remain pending. Bulk mode currently writes the single
+`Model` column; single mode remains chat-only (`### Step 5 — Present the recommendation`).
 
 ## Goal
 
@@ -61,7 +66,8 @@ choice whose actual execution model must still be recorded by telemetry.
   Verifiability SHALL use 1 = difficult/late detection and 5 = cheap/immediate detection
   everywhere. Any task-to-capability mapping SHALL be explicit, bounded and total;
   no uncovered intervals or raw 1–5 versus 1–10 comparison is allowed. The old inverted
-  rubric and conflicting catalog-prohibition prose SHALL be removed.
+  rubric is already corrected in the current workflow; retain it under regression checks.
+  Replace the current no-persistence catalog contract only when implementing this spec.
 - **REQ-05** THE SYSTEM SHALL support optional trait overrides
   `creative | heavy-reasoning | mechanical`, document migration from current trait
   labels and prevent trait overrides from bypassing quality/availability floors.

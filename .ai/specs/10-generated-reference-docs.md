@@ -1,10 +1,18 @@
 # Generate reference documentation and always-on files from source
 
+## Current implementation baseline — 2026-10-28
+
+Workflow headers and manual reference tables remain the source/derived documents;
+front matter still lacks the proposed machine-readable phase/load/read/write metadata.
+The workflow audit repaired interfaces/citations and compacted `workflows/PIPELINE.md`,
+which remains a reference in its current location. No documentation generator, generated
+reference set or shared always-on renderer has been implemented.
+
 ## Goal
 
-The command tables in `docs/USAGE.md`, `docs/PIPELINE.md`, and the child-workflow table
-in the state-files contract restate the same facts by hand, and the two always-on files
-are maintained separately. Make workflow front matter the source of the reference
+The command tables in `docs/USAGE.md`, the current `workflows/PIPELINE.md`, and the
+child-workflow table in the state-files contract restate facts by hand. Spec 13 owns the
+future move to `docs/PIPELINE.md`; the two always-on files remain maintained separately. Make workflow front matter the source of the reference
 tables and a shared core body the source of every harness's always-on file (ADR-0009,
 Decision 6).
 

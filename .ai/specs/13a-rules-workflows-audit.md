@@ -1,5 +1,16 @@
 # Audit of every rule and workflow file before the naming sweep
 
+## Current implementation baseline — 2026-10-28
+
+The owner's 2026-10-28 request produced a source-wide workflow clarity pass followed by
+a token-efficiency pass. It repaired executable interfaces, scope/resume/ownership
+ambiguities, repeated loads/prose and stale call instructions; focused contracts live in
+`tests/workflow-instructions.py`; source findings are recorded in
+`docs/audits/2026-10-28-workflow-clarity-and-size.md`. It did not deliver this spec's
+complete rules/harness
+inventory, mixed-kind report or rename map. Review the updated source rather than
+reopening already repaired workflow defects or marking this whole audit complete.
+
 ## Goal
 
 Spec 13 renames every rule and command and splits files by kind. Before touching
@@ -18,8 +29,10 @@ spec 13 is amended from its findings via `/spec-sync` (ADR-0009, Decision 3).
       with the section boundaries — at least `phase-atomic-execution` (Blocker
       Reconciliation) and `phase-discovery` (Decision Protocol, Codebase Reading Rules)
 - [ ] An "ambiguous citations" table lists every citation with a `.md` suffix on a
-      colliding basename or a section name that does not exist in the cited file — at
-      least `workflows/phase-pipeline.md:185` and `:225`
+      colliding basename or a section name that does not exist in the cited file.
+      Separate current findings from repaired historical examples; inline execution/
+      validation calls are now explicit in `workflows/phase-pipeline.md → ## Phase 2 — Execution`
+      and `## Phase 3 — Validation`
 - [ ] A "duplicated statements" table lists every statement appearing verbatim or
       near-verbatim in two or more of `rules/`, `workflows/`, `docs/USAGE.md`,
       `workflows/PIPELINE.md`, with the proposed single home

@@ -7,11 +7,16 @@ preserving checkpoints, single-writer state and correctness.
 
 ## Context & Problem
 
-The orchestrator performs branch/state bookkeeping, RED/GREEN commits, independent
-review, composite rollup and reporting (`workflows/spec-run.md:158`). RED and GREEN are
-separate checkpoints with the same Implementer (`workflows/spec-run.md:169`); removing
-that checkpoint would break test-first commit evidence. Optimize work around those
-gates, not the gates themselves.
+Baseline reviewed 2026-10-28.
+
+The orchestrator owns branch/state bookkeeping, test-first commits, independent
+review and composite rollup (`workflows/spec-run.md → ## Step 4 — Subtask loop`). The
+workflow audit clarified checkpoint-aware resume, same-worker RED/GREEN continuation,
+returned state deltas and finalization ordering. These safeguards are the baseline.
+
+Versioned checkpoint envelopes, deterministic inspect/render helpers, hash-bound resume
+receipts and measured controller-overhead reductions remain pending. Optimize work
+around the required test-first handoff and review gates; do not remove them.
 
 ## Goal
 

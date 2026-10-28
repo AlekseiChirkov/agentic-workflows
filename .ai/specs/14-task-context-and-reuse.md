@@ -7,12 +7,19 @@ analysis and task-state loading without losing correctness or changing models.
 
 ## Context & Problem
 
-Atomic entry points always reload full project context
-(`rules/phase-atomic-execution.md:10`, `rules/phase-atomic-validation.md:10`).
-The existing pack includes mutable global state (`workflows/context-pack.md:50`) and
-checks size/mtime (`workflows/context-pack.md:66`). The orchestrator already avoids
-passing previous leaf transcripts (`workflows/spec-run.md:169`). Improve those existing
-mechanisms rather than adding a new orchestration engine.
+Baseline reviewed 2026-10-28.
+
+The workflow audit now distinguishes inherited compatible parent context from full
+standalone bootstrap; new workers still load their own required context. The existing
+pack includes mutable project state and verifies exact source membership, size and mtime,
+including umbrella/absent sources (`workflows/context-pack.md → ## Sources`,
+`## Step 1 — Check freshness`). It does not provide content-hash freshness or a stable/dynamic split.
+
+The orchestrator keeps prior leaf transcripts out of new workers and reuses one
+Implementer across the test-first handoff (`workflows/spec-run.md → ## Step 4 — Subtask loop`).
+Immutable leaf packets, session load receipts, structured extraction and hash-bound
+analysis reuse remain pending. Improve these existing mechanisms without adding a new
+orchestration engine.
 
 ## Goal
 

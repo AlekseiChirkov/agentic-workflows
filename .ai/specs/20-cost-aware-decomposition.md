@@ -7,10 +7,17 @@ and review while retaining coherent scopes, architectural boundaries and low err
 
 ## Context & Problem
 
-Each leaf starts an Implementer and separate Validator
-(`workflows/spec-run.md:169`, `workflows/spec-run.md:204`), so an unnecessarily small
-leaf can repeat setup and review. Conversely large leaves increase context, ambiguity,
-rework and missed defects. Leaf count alone is not a cost or quality metric.
+Baseline reviewed 2026-10-28.
+
+Each leaf uses its own Implementer and independent Validator
+(`workflows/spec-run.md → ## Step 4 — Subtask loop`). The current decomposition workflow
+already records classifier signals, dependency order, target ownership and coherent leaf
+criteria (`workflows/pd-decompose.md → ## Instructions`); the workflow audit clarified
+Type 3 re-slicing, inherited constraints and preservation of progressed subtasks.
+
+No calibrated cost model or economic grouping adviser has been implemented. Tiny leaves
+can repeat setup/review, while oversized leaves can increase rework; leaf count alone
+remains neither a cost nor a quality metric.
 
 ## Goal
 
