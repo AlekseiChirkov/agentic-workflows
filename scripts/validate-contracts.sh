@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+# Check compatible plan columns and visible resolution with isolated offline fixtures.
+if [ "${1:-}" = --model-plan-only ]; then
+  shift
+  exec python3 "$REPO_ROOT/tests/model-plan.py" "$@"
+fi
+
 # Exercise conservative selection using fictional capability and cost evidence.
 if [ "${1:-}" = --model-selection-only ]; then
   shift
@@ -4556,6 +4562,16 @@ test_model_selection_acceptance() {
 }
 check "test_model_selection_acceptance" \
   "$(test_model_selection_acceptance && echo pass || echo 'conservative quality, eligibility and qualified economics fixtures must pass')"
+
+test_model_plan_acceptance() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/model-plan.py" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_model_plan_acceptance" \
+  "$(test_model_plan_acceptance && echo pass || echo 'compatible plan columns, atomic updates and visible supported resolution fixtures must pass')"
 
 check "test_workflow_instruction_contracts" \
   "$(python3 "$REPO_ROOT/tests/workflow-instructions.py" && echo pass || echo 'workflow entry points, bootstrap and mode contracts must be consistent')"
