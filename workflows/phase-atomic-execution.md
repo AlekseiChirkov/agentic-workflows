@@ -76,9 +76,15 @@ Do not execute descriptions marked `type: composite`; run their leaf children in
 Before requesting a model, spawning a worker or executing a child, apply
 `workflow-reference → ### Model columns and resolution` to the parent plan row.
 Read its active optional `Model (Claude)` / `Model (Codex)` column with legacy `Model`
-and session-default compatibility. Run the configured `model-catalog.py` helper with
+and session-default compatibility. Resolve the configured or already-verified source root
+through the canonical read-only guidance preflight. Use the same source root for the helper
+and `$SOURCE_ROOT/docs/MODEL-CATALOG.md`, never CWD; installed skills read that absolute
+guide, while [the relative guide](../docs/MODEL-CATALOG.md) serves source readers.
+Missing guide/schema/rubric means selection unavailable: preserve session and inputs,
+infer no scores/schema/candidates, and never bypass explicit-request eligibility.
+Run the verified `model-catalog.py` helper with
 `--resolve-plan <plan> --provider <provider> --row <row-id> --resolution <resolution.json>`;
-use [the catalog guide](../docs/MODEL-CATALOG.md) for its exact input schema and keep
+use that guide for its exact input schema and keep
 `execution: null`. Refresh the invocation support snapshot from actual permitted tools,
 permissions and restrictions; verify requirements and owner limits before any request.
 Report requested, resolved and actual identities plus visible fallback/stop reasons.

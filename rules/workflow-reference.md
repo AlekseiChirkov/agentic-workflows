@@ -96,6 +96,38 @@ Amendments are a permanent record — never delete them from `state.md`.
 
 ### Model columns and resolution
 
+Resolve the configured or already-verified source root before reading selection guidance.
+Prefer `ORCHESTRAIL_HOME`; otherwise set invocation-local `SOURCE_ROOT` to an already-known,
+verified absolute checkout path. This is not a new persistent configuration. Never infer
+a source root from CWD or an installed skill's relative links. Use the same source root
+for the helper, its siblings and `$SOURCE_ROOT/docs/MODEL-CATALOG.md`. Repository-relative
+guide links below are conveniences for source readers; installed skills must use that
+verified absolute path. The read-only preflight checks files and schema/rubric sections;
+the caller remains responsible for the provenance of the configured or known checkout.
+
+```bash model-catalog-guidance
+guidance_unavailable() {
+  printf '%s\n' 'Catalog selection unavailable; preserve session, plan and catalog; do not infer scores or candidates.'
+  exit 2
+}
+SOURCE_ROOT="${ORCHESTRAIL_HOME:-${SOURCE_ROOT:-}}"
+case "$SOURCE_ROOT" in /*) ;; *) guidance_unavailable ;; esac
+for relative in scripts/model-catalog.py scripts/model_selection.py scripts/model_plan.py docs/MODEL-CATALOG.md; do
+  [ -f "$SOURCE_ROOT/$relative" ] && [ -r "$SOURCE_ROOT/$relative" ] || guidance_unavailable
+done
+GUIDE="$SOURCE_ROOT/docs/MODEL-CATALOG.md"
+grep -Fqx -- '## Schema and public operations' "$GUIDE" || guidance_unavailable
+grep -Fqx -- '## Quality rubric, traits and uncertainty' "$GUIDE" || guidance_unavailable
+printf 'guidance: available\nhelper: %s\nguide: %s\n' "$SOURCE_ROOT/scripts/model-catalog.py" "$GUIDE"
+```
+
+Missing source, helper, guide, schema or rubric makes guidance unavailable; preserve
+session/plan/catalog and return through the caller's conservative unavailable path.
+Never infer missing scores, schema, rubric or refresh candidates from memory or CWD.
+Run this preflight before scoring, resolving or refresh research. An unusable prior
+catalog does not block explicit refresh recovery when this required guidance is available.
+Unavailable guidance never waives explicit-request eligibility or worker-role boundaries.
+
 Optional model columns: `Model (Claude)` maps to provider `anthropic`; `Model (Codex)`
 maps to `openai`. Read columns by header, never position. A legacy `Model` cell applies
 to the active provider only when its provider column is absent. A present empty provider

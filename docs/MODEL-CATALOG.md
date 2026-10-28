@@ -24,6 +24,19 @@ path is `$XDG_CONFIG_HOME/orchestrail/model-catalog.md`, or
 Locate the helper through `ORCHESTRAIL_HOME` or a known source checkout; an installed
 workflow alone does not prove that the optional helper is installed.
 
+Installed skills do not package this guide beside `SKILL.md`. Follow the canonical
+[read-only guidance preflight](../rules/workflow-reference.md#model-columns-and-resolution):
+prefer configured `ORCHESTRAIL_HOME`, otherwise use an already-known verified absolute
+checkout in invocation-local `SOURCE_ROOT`. Read the helper, its siblings and
+`$SOURCE_ROOT/docs/MODEL-CATALOG.md` from the same verified source root. Never infer that
+root from CWD or from a per-skill relative link. Relative links in source documents serve
+repository readers. Missing helper/guide/schema/rubric reports selection unavailable and
+preserves session, plan and catalog; never fabricate scores, schema or refresh candidates.
+Required sections are `## Schema and public operations` and
+`## Quality rubric, traits and uncertainty`. The preflight only reads files; it installs
+no runtime, configuration or documentation. With guidance available, explicit refresh can
+still initialize or repair a missing/invalid catalog.
+
 Before an authorized refresh, retain a known-good copy outside the destination. Build a
 separate complete candidate from exact provider identifiers, dated availability/context/tool
 documentation, independent capability evidence and separate price sources. Invoke:

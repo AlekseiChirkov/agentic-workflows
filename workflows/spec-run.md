@@ -88,7 +88,9 @@ Pass the resolved `--phase N` for multi-phase specs so the child keeps the selec
 phase. Run `/phase-discovery` in autonomous **orchestrated** mode, allowing normal initialization
 for a fresh task and resuming existing Discovery artifacts otherwise. It owns child sequencing and quick/full routing; never pass `--step-by-step`.
 Spawn the **Arbiter** after task artifacts exist, before execution; give it current spec,
-state, plan and relevant project context. Retain it by message for this session.
+state, plan and relevant project context. Use the session-default role worker without a
+model override after checking current worker capabilities, permissions and restrictions;
+no leaf plan cell governs this spawn. Retain it by message for this session.
 
 `orchestration → ## Escalation protocol` governs Discovery: resolve class A with cited
 sources; collect class B in `## Open Questions (batch)`. No worker may infer missing intent.
@@ -121,10 +123,23 @@ legacy `Model` values through explicit migration. Read the active provider colum
 legacy fallback and session default under
 `workflow-reference → ### Model columns and resolution`.
 
-Before each model request or worker spawn, including a recreated worker, run
+Plan model intent applies only to leaf execution workers: Implementers, including
+recreated Implementers. The Arbiter runs before Step 2 with no leaf or plan row for
+model routing. Validators must not inherit the Implementer's plan model. Task-wide
+and default-role workers use the session-default path with fresh worker capabilities,
+permissions and restrictions, without a leaf model override or a claim of known identity.
+
+Apply the canonical guidance preflight using the configured or independently verified
+source root `SOURCE_ROOT`, the same source root as the helper. Read
+`$SOURCE_ROOT/docs/MODEL-CATALOG.md`; never infer a source root from CWD or an installed
+skill's location. Missing guide, schema or rubric means selection unavailable: preserve
+the session configuration and existing plan/catalog, never infer scores or candidates,
+and use only the conservative default-worker or explicit-eligibility stop paths below.
+
+Before each leaf Implementer model request or spawn, including recreation, run
 `model-catalog.py --resolve-plan <plan> --provider <provider> --row <row-id> --resolution <resolution.json>`
-using the configured source helper and the input schema in
-[the catalog guide](../docs/MODEL-CATALOG.md). Keep `execution: null` during resolution.
+using that verified source helper and the guide's input schema. Keep `execution: null`
+during resolution.
 Observe support afresh for that invocation from the actual permitted tools, current
 permissions and restrictions; catalog age and logging support do not establish it.
 Display requested, resolved and actual identities and any eligibility/fallback reasons.
@@ -214,9 +229,11 @@ it as issued; if issuance is uncertain, use the canonical unknown-resume route. 
 reconstruct or quote the line as assistant/tool output. A known unavailable dispatch
 that issued no envelope uses the canonical ordinary approximate path.
 
-Immediately before spawning, apply Step 2's resolution with current invocation evidence.
-Request only its eligible resolved identity; on a stop do not spawn. When model overrides
-are unavailable, use Step 2's permitted default-worker path without an override.
+Immediately before spawning the leaf Implementer, apply Step 2's resolution with current
+invocation evidence. Request only its eligible resolved identity. An explicit request
+without eligible resolution or authorized suitable fallback stops the spawn. Missing or
+empty intent may use Step 2's ordinary default-worker path without an override and without
+claiming selection, even when default model identity/support is unknown.
 Unavailable worker spawning stops execution; never replace the worker with inline implementation.
 Give the fresh sub-agent: the path to
 `T-XX/description.md`, the resolved `WORK_DIR`, the branch name,
@@ -264,7 +281,11 @@ messages. Verify the recorded digest/commits before skipping an interrupted chec
 A characterization (`pinned`) checkpoint uses the same test-first commit handoff without
 claiming RED or emitting a named RED marker; follow `tdd` for its evidence.
 
-**4.3 Validator.** Spawn a **separate** sub-agent. Give it: the path to the same
+**4.3 Validator.** Spawn a **separate** session-default role worker without a model
+override after checking fresh worker capabilities, permissions and restrictions.
+Never inherit the Implementer's model or resolve its leaf plan model for this role.
+Keep unknown default identity unknown; successful spawning does not identify execution.
+Unavailable worker spawning stops the run. Give it: the path to the same
 `T-XX/description.md`, the test files, and the subtask diff (`git diff <base_commit>..HEAD`).
 Do **not** give it the Implementer's reasoning or report. Instruct it to run `/pav-check` →
 `/pav-propose --batch` → `/pav-close`.

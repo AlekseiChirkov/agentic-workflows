@@ -56,16 +56,27 @@ Without `--allow-pr`, no `git push` and no `gh` command runs at any point.
 Execution is strictly sequential — one subtask at a time. Sub-agents exist to bound context,
 not to parallelise.
 
-Before each model request, resolve the active provider's plan cell using fresh support
-and permission evidence. Legacy `Model` and missing columns remain supported; an
-empty present provider cell means session default. Unsupported explicit requests
-require an authorized eligible fallback or stop. Without switching capability, keep
-the current session and report inline execution only when that satisfies the request
-or permitted default path. Display requested, resolved and actual identities; actual
-stays unknown until a separate matching current execution receipt is available.
-Missing helper/Python/catalog evidence preserves the session and cannot waive explicit
-request eligibility. See [MODEL-CATALOG.md](MODEL-CATALOG.md) for dependency checks,
-explicit `--refresh`, rollback and offline examples.
+Leaf plan models govern Implementers, including recreation. Before requesting their
+model, resolve the active provider's cell using fresh support and permission evidence.
+Legacy `Model` and missing columns remain supported; an empty present provider cell
+means session default. The Arbiter starts before model selection, and independent
+Validators use session-default role workers without inheriting the implementation model.
+
+When overrides are unavailable, spawn a fresh default worker only for missing/empty
+model intent or an explicitly authorized independently suitable fallback matching its
+verified default. Never convert an unsupported explicit request into an unverified
+default. With no explicit model request, unknown default identity/support allows an
+ordinary default worker without claiming selection. Check current worker capabilities,
+permissions and restrictions for every role. If worker spawning is unavailable, stop;
+never implement inline in the Orchestrator.
+
+Display requested, resolved and actual identities; actual stays unknown until a separate
+matching current execution receipt is available. Missing helper/Python/catalog or
+guide/schema/rubric evidence preserves the session and plan and cannot waive explicit
+request eligibility. Installed skills use the canonical guidance preflight and
+`$SOURCE_ROOT/docs/MODEL-CATALOG.md` from the configured or verified source root, the same
+root as the helper; never infer that root from CWD. See [MODEL-CATALOG.md](MODEL-CATALOG.md)
+in the source checkout for dependency checks, explicit `--refresh`, rollback and examples.
 
 ---
 

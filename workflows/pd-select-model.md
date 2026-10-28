@@ -30,10 +30,17 @@ authorizes research and catalog replacement; routine selection is offline.
 
 ### Step 0 — Inspect the cache or explicitly refresh
 
-Locate `scripts/model-catalog.py` and its sibling `model_selection.py`/`model_plan.py`
-from configured `ORCHESTRAIL_HOME` or a known Orchestrail source checkout. Require
-Python 3.11+. Missing Python, missing helper or siblings → report "selection unavailable",
-preserve the current/session model and existing plan cells, and return to the caller.
+Resolve the configured or already-verified source root and run the read-only guidance
+preflight in `workflow-reference → ### Model columns and resolution`. Prefer configured
+`ORCHESTRAIL_HOME`; otherwise use an already-known verified absolute `SOURCE_ROOT`.
+Use the same source root for the helper `scripts/model-catalog.py`, its siblings
+`model_selection.py`/`model_plan.py`, and `$SOURCE_ROOT/docs/MODEL-CATALOG.md`.
+Never infer the root from CWD. Relative guide links below serve source readers; installed
+skills must read that verified absolute guide. Require Python 3.11+. Missing Python,
+missing helper/siblings/guide/schema/rubric → report "selection unavailable", preserve
+the current/session model and existing plan/catalog bytes, and return to the caller.
+Never invent missing scores, schema or refresh candidates. Check guidance before lookup
+or authorized research; missing guidance cannot be repaired by guessing its contents.
 Never bypass explicit-request
 eligibility; follow `workflow-reference → ### Model columns and resolution` before
 any requested model execution. No historical log/store reads are permitted.

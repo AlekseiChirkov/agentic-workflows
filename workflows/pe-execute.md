@@ -41,9 +41,15 @@ standalone, perform the full bootstrap, set `execution: in-progress`, and resume
    - Before requesting a model or executing the atomic cycle, apply
      `workflow-reference → ### Model columns and resolution`. Read the active optional
      `Model (Claude)` / `Model (Codex)` column, legacy `Model`, or session default by
-     that precedence. Run the configured helper's
+     that precedence. Resolve the configured or already-verified source root through
+     the canonical read-only guidance preflight; use the same source root for the helper
+     and `$SOURCE_ROOT/docs/MODEL-CATALOG.md`, never CWD. Installed skills must read that
+     absolute guide; [the repository-relative guide](../docs/MODEL-CATALOG.md) serves
+     source readers. Missing guide/schema/rubric makes selection unavailable: preserve
+     inputs and session, infer no scores/schema/candidates, and retain explicit-request
+     eligibility checks. Run the verified helper's
      `--resolve-plan <plan> --provider <provider> --row <row-id> --resolution <resolution.json>`
-     using [the catalog guide](../docs/MODEL-CATALOG.md); keep `execution: null`.
+     using that guide; keep `execution: null`.
      Supply fresh invocation support from actual permitted tools, permissions and
      restrictions, plus the task requirements and owner limits. Show requested,
      resolved and actual identities and rejection reasons. Unsupported explicit
