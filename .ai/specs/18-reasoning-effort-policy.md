@@ -1,167 +1,147 @@
-# Capability-aware reasoning effort by role and task
+# 18. Политика усилия рассуждения с учётом роли, риска и возможностей среды
 
-## Source
+## 1. Статус и основания
 
-Workstream 7 of the owner's 2026-10-21 request: avoid unnecessary reasoning for
-mechanical stages while preferring strong-first where expected rework makes it cheaper.
+**Статус:** будущая возможность направления 7 запроса от 2026-10-21. Редакция согласована со снимком `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28. Текущий выбор модели использует существующий каталог и правила пригодности; оркестратор разделяет исполнителя и независимого проверяющего и сохраняет исполнителя между его контрольными точками. Версионированная политика усилия по ролям/этапам и квалифицированные более дешёвые значения не считаются внедрёнными.
 
-## Context & Problem
+Упомянутый исходными материалами отдельный отчёт аудита отсутствует в снимке. Настройки конкретного установленного средства и точный синтаксис проверяются при реализации по его версии и авторитетным сведениям; приведённые ниже поля не являются утверждением о текущих параметрах провайдера.
 
-Baseline reviewed 2026-10-28.
+## 2. Цель и границы
 
-Selection now has consistent scoring/availability guidance, but still recommends an
-Implementer model through the existing live catalog (`workflows/pd-select-model.md → ## Instructions`).
-The orchestrator spawns a separate Validator and preserves same-worker execution
-checkpoints (`workflows/spec-run.md → ## Step 4 — Subtask loop`). No versioned role/stage
-effort policy, supported-setting resolver or qualified cheaper default has been added.
-Requested settings never prove applied effort or measured reasoning-token reduction.
+Использовать только реально поддерживаемые настройки усилия, выбирать их по роли, этапу, сложности и риску и честно фиксировать, что было запрошено, разрешено средой и наблюдалось. Механическая работа выполняется детерминированным средством, когда оно достаточно. Сложная и критичная работа сохраняет консервативную конфигурацию до независимой квалификации альтернатив.
 
-## Goal
+18 владеет разрешением поддерживаемой настройки. Каталог моделей и их доступность принадлежат 04, возможности среды — [13](13-model-only-harnesses-and-rule-naming.md), измерения — [05](05-cost-and-duration-telemetry.md), квалификация — [09](09-golden-run-tests.md), проверка — [16](16-scoped-verification.md), решение об усилении — [19](19-local-repair-and-escalation.md).
 
-Choose supported effort conservatively by role, stage, complexity and risk, record the
-actual configuration and allow evidence-based reduction without hidden quality loss.
+19 — последующий потребитель разрешения настроек, не предпосылка 18. Пока политика исправлений 19 не включена, применяются существующие остановки и разрешённые владельцем назначения; автономное усиление из этой спецификации не возникает.
 
-## Scope
+Не входят: придуманные параметры, перенос названий уровней между провайдерами, обучаемый маршрутизатор, автоматическая смена модели/провайдера, ограничения производственных расходов и обещание видимости скрытых токенов рассуждения.
 
-Effort policy, supported-setting registry integration, precedence/fallback, role-stage
-overrides, conservative risk floors, telemetry and qualification.
+## 3. Термины и неизменные условия
 
-## Out of Scope
-
-Inventing unsupported flags, equating providers' effort labels, a learned model router,
-automatic model migration, production cost/time caps, or promising reasoning-token
-visibility when a harness does not expose it.
-
-## Actors & Roles
-
-The owner may explicitly pin effort. Discovery records task risk and defaults.
-The orchestrator resolves supported settings before dispatch. Workers report execution
-configuration where exposed. The evaluator qualifies reductions under 09.
-
-## Terminology
-
-Requested effort is an intended supported value. Effective effort is what the harness
-accepts; observed actual effort is recorded only if exposed. A semantic policy class
-is local intent, not a provider-independent numerical reasoning scale.
-
-## Requirements
-
-- **REQ-01** THE SYSTEM SHALL define an optional versioned policy keyed by role
-  (orchestrator/Arbiter/Implementer/Validator), stage, complexity, risk, ambiguity and
-  task kind. Mechanical inspections SHALL prefer deterministic helpers where sufficient;
-  planning, uncertain architecture, critical invariants and complex review SHALL retain
-  conservative model/effort floors.
-- **REQ-02** THE SYSTEM SHALL declare model/harness-supported effort controls in one
-  capability registry integrated with 04/13, with exact invocation syntax, evidence
-  date and unknown/unsupported states. Different provider labels SHALL not be treated
-  as equivalent or converted into fabricated reasoning-token budgets.
-- **REQ-03** WHEN resolving effort, THE SYSTEM SHALL apply explicit approved owner/run
-  override, approved task override, qualified role/stage policy, then the existing
-  conservative harness default, subject to declared quality floors. A conflicting
-  unsafe override SHALL be surfaced for decision, not silently lowered.
-- **REQ-04** IF effort cannot be requested or verified, THEN THE SYSTEM SHALL use the
-  documented suitable default without unsupported flags, record requested/resolved/
-  observed values separately under 05 and mark unknown actual effort. The helper SHALL
-  not substitute a different model to satisfy an effort setting without authorization.
-- **REQ-05** WHEN switching stages or retrying, THE SYSTEM SHALL retain explicit
-  policy provenance and avoid inheriting a cheap mechanical-stage effort into complex
-  repair/review. Spec 19 owns any escalation decision; this spec resolves only its
-  supported effort request.
-- **REQ-06** THE SYSTEM SHALL preserve existing defaults until a cheaper effort profile
-  passes the predeclared independent quality and accepted-result cost rule under 09.
-  Deterministic policy tests may establish correct resolution but SHALL NOT be presented
-  as model-quality evidence.
-- **REQ-07** THE SYSTEM SHALL record total input/output, reasoning subset where exposed,
-  cache effects, latency, failures, retries, review/escalation and API-equivalent total
-  cost under 05. Reasoning tokens already in output SHALL never be double-charged;
-  missing reasoning data SHALL not be equated to zero.
-- **REQ-08** THE SYSTEM SHALL keep legacy plans valid, document policy disable/rollback
-  and apply shared index gates G1–G8. No provider/harness network probe or paid model
-  experiment SHALL run from ordinary validation or policy lookup.
-
-## Data Model
-
-Versioned policy entries: role/stage/task signals, semantic intent, exact supported
-setting per model/harness, conservative floor, evidence/calibration reference and
-fallback. Optional plan/task effort metadata must be additive; unspecified values
-retain previous behavior. Per-request requested/resolved/actual values use 05.
-
-## Contracts & Interfaces
-
-Add optional effort fields to the existing selection/dispatch contracts and a
-read-only resolver. Capability declarations own valid controls; policy entries reference
-them. A dry-run resolution shows chosen model/effort, evidence and fallback with no
-model invocation. It never claims a setting was applied before execution.
-
-## Non-Functional Requirements
-
-Offline resolution is deterministic for identical catalog/policy/capability inputs.
-Zero provider calls occur during lookup/tests. Unsupported parameters are never sent.
-All default changes are reversible without modifying canonical status history.
-
-## Edge Cases & Failure Modes
-
-Cover absent policy, unknown model version, unsupported effort, unavailable actual
-effort, conflict with owner pin, higher-risk task, stage change, resumed worker,
-catalog staleness and a cheap setting that increases retries. Preserve the suitable
-conservative model/default when qualification is missing.
-
-## Acceptance Criteria
-
-- [ ] **AC-01** (REQ-01, REQ-03) Table-driven role/stage/risk fixtures choose the declared
-  policy; critical/architecture cases retain floors and unsafe overrides are surfaced.
-- [ ] **AC-02** (REQ-02, REQ-04) Supported controls are passed exactly; unsupported or
-  unknown models receive no invented flag, no silent model change and honest metadata.
-- [ ] **AC-03** (REQ-05) Stage/repair fixtures do not inherit inappropriate cheap effort;
-  explicit escalation from 19 resolves through the same capability contract.
-- [ ] **AC-04** (REQ-06, REQ-07) Unqualified profiles cannot become defaults. Synthetic
-  reports include repair/review cost, reasoning subsets and missingness without
-  double counting or claiming observed model-quality savings.
-- [ ] **AC-05** (REQ-08) Legacy/no-policy behavior, dry-run and disable/rollback work,
-  deterministic checks pass and zero paid calls occur during lookup/validation.
-
-## Traceability
-
-| Requirement | Acceptance |
+| Термин | Что означает |
 |---|---|
-| REQ-01, REQ-03 | AC-01 |
-| REQ-02, REQ-04 | AC-02 |
-| REQ-05 | AC-03 |
-| REQ-06, REQ-07 | AC-04 |
-| REQ-08 | AC-05 |
+| Запрошенное усилие | Намерение владельца, задачи или политики |
+| Разрешённая настройка | Точное значение, которое текущая проверенная возможность позволяет передать выбранной модели |
+| Подтверждение применения | Только явно возвращённое средой принятие параметра; отсутствие подтверждения не выдумывается |
+| Наблюдаемое усилие | Фактически раскрытая средой характеристика исполнения; может оставаться неизвестной |
+| Класс намерения политики | Локальное понятие сложности/риска, не универсальная числовая шкала провайдеров |
+| Минимальная планка качества | Утверждённое ограничение пригодности конфигурации для данного класса задачи |
 
-## Risks
+1. Одинаковое название уровня у разных моделей не означает одинаковое вычисление, качество или стоимость.
+2. Отправленный параметр не доказывает его применение и тем более фактическое количество рассуждений.
+3. Неизвестные показатели не записываются как ноль.
+4. Неподдерживаемый параметр не отправляется наугад. Модель не подменяется молча.
+5. Более дешёвая настройка не становится исходной без квалификации полного результата по 09.
+6. Переключение этапа заново разрешает настройку; дешёвое механическое действие не понижает следующую сложную проверку.
 
-Lower effort can increase rework or latent defects; effort names may change.
-Pin capability evidence and evaluate whole-result cost/quality rather than isolated
-reasoning-token reductions.
+## 4. Требования
 
-## Assumptions
+- **REQ-01**. Определить необязательную версионированную политику по роли (`orchestrator`, `Arbiter`, `Implementer`, `Validator`), этапу, сложности, риску, неоднозначности и виду задачи. Для достаточных механических действий предпочитать детерминированные средства. Планирование, неопределённая архитектура, критичные инварианты и сложная проверка сохраняют консервативные минимальные планки.
+- **REQ-02**. Поддерживаемые настройки модели/среды описываются в едином реестре 04/13: точный синтаксис, допустимые значения, область действия, дата/версия подтверждения и состояния неизвестности/неподдержки. Межпровайдерное приравнивание названий и выдуманные бюджеты токенов запрещены.
+- **REQ-03**. Приоритет: явное утверждённое переопределение владельца/запуска, утверждённое переопределение задачи, квалифицированная политика роли/этапа, прежнее подходящее консервативное значение среды. Все варианты проверяются против планок качества. Конфликт с планкой показывается для решения; он не скрывается понижением или игнорированием запроса.
+- **REQ-04**. Если управление усилием отсутствует или применение нельзя подтвердить, использовать документированное подходящее значение без неподдерживаемых параметров и отдельно записать запрошенное, разрешённое и наблюдаемое. Наблюдаемое остаётся неизвестным при отсутствии данных. Подменять модель ради настройки без разрешения нельзя.
+- **REQ-05**. При смене этапа, восстановлении и повторе сохранять происхождение политики и заново определять пригодность. Недопустимо наследовать дешёвое усилие механического этапа в сложное исправление/проверку. Решение усилить исполнение принадлежит 19; здесь только проверяется поддерживаемая настройка.
+- **REQ-06**. До независимой оценки качества и полной стоимости принятого результата по 09 сохранять прежние значения по умолчанию. Автономная проверка разрешения настройки доказывает корректность выбора параметра, но не качество модели.
+- **REQ-07**. Учитывать по 05 полный ввод/вывод, доступную часть рассуждения, кэш, время, отказы, повторы, проверку и усиление. Токены рассуждения, уже включённые в вывод, не оплачиваются повторно. Отсутствие отдельного счётчика не равно отсутствию рассуждения.
+- **REQ-08**. Старые планы остаются допустимыми; описать отключение/откат и выполнить G1–G8. Обычное разрешение настройки и проверки не обращаются к провайдеру и не запускают платный эксперимент.
 
-Some harnesses expose no effort control or actual setting. Honest defaults are a
-supported result, not a failure requiring a different provider.
+## 5. Реестр возможности и политика версии 1
 
-## Decisions
+Одна запись возможности принадлежит точной паре/версии модели и среды, а не всему бренду:
 
-Retain current conservative defaults until qualification. Models and price snapshots
-remain owned by 04/05; this feature does not duplicate those catalogs.
+| Поле | Назначение |
+|---|---|
+| `capability_id`, `schema_version` | Стабильная ссылка и версия записи |
+| `harness_id`, `harness_version`, `model_id` | Точная область применимости без расширения на неизвестные версии |
+| `support_state` | `supported`, `unsupported`, `unknown` |
+| `supported_values` | Только подтверждённые точные значения |
+| `invocation_contract` | Поддерживаемый аргумент/поле и способ передачи без вычисления строки |
+| `scope` | Настройка на запрос, сессию или запуск; возможность смены в живом работнике |
+| `evidence_ref`, `evidence_version`, `verified_at` | Проверяемый источник и время проверки |
+| `acknowledgement_available`, `observation_available` | Что среда действительно раскрывает |
+| `fallback_ref` | Документированное подходящее поведение без управления |
 
-## Clarifications
+Политика ссылается на реестр вместо копирования списка моделей/параметров. Её запись содержит `policy_id`, `policy_version`, условия роли/этапа/риска, `quality_floor_ref`, `capability_ref`, выбранное точное значение либо использование значения среды, ссылку на квалификацию, резервный путь и приоритет.
 
-2026-10-21: use every actually supported effort/model alternative in approved comparison;
-no hard-coded preference for cheap-first or high effort across all roles.
+Условия политики декларативны, не исполняются как код. Два равноприоритетных несовместимых правила означают конфликт конфигурации. Неизвестный сигнал риска не равен низкому риску. Слишком общая запись для бренда не покрывает неизвестную конкретную модель.
 
-## Open Questions
+Пример схематичен и не содержит выдуманного названия настройки провайдера:
 
-None blocking. Exact current control syntax is verified during implementation using
-the installed harness and authoritative documentation; live margins need owner approval.
+```json
+{
+  "schema_version": 1,
+  "policy_id": "conservative-default",
+  "policy_version": "1",
+  "role": "Validator",
+  "stage": "review",
+  "risk": "unknown",
+  "selection": "retain_existing_default",
+  "qualification_ref": null,
+  "require_exact": false
+}
+```
 
-## Notes
+`require_exact` различает обязательный точный запрос и допустимое предпочтение. Если владелец требует конкретную настройку, которую невозможно применить/подтвердить в необходимом смысле, это конфликт для решения, а не повод молча продолжить с другим значением.
 
-Depends on 04, 05, 09, 15 and 16. Suggested slices: capability/schema; resolver;
-dispatch/metadata; qualification guards; stage/fallback fixtures; docs.
+## 6. Детерминированный алгоритм разрешения
 
-## Readiness Checklist
+1. Получить выбранную доступную модель по 04, роль, этап, признаки риска, утверждённые переопределения, версию политики и запись возможности.
+2. Проверить идентичность и достаточность сведений. Новая версия модели/среды, неподтверждённый синтаксис или просроченное по политике свидетельство означают `unknown`; не выполнять сетевую проверку скрыто внутри разрешения.
+3. Определить применимую минимальную планку по контракту задачи и 16. При неизвестном риске использовать консервативный путь.
+4. Выбрать первый применимый источник по приоритету REQ-03. Если запись политики должна уменьшить исходное усилие, проверить, что её квалификация относится к тому же классу задач и конфигурации.
+5. Проверить выбранную настройку по точному реестру. Не делать арифметического преобразования между шкалами или догадки по названию.
+6. При поддержке сформировать точный запрос. При неподдержке/неизвестности использовать документированный подходящий резервный путь, если это разрешено характером запроса; иначе остановиться с причиной конфликта.
+7. Выдать решение с `requested`, `resolved`, `source`, `capability_ref`, `policy_ref`, `quality_floor_ref`, `fallback_reason` и признаком необходимости решения владельца. Это результат разрешения, не запуск модели.
+8. После реального разрешённого запуска дополнить запись доступным подтверждением и наблюдением. Нельзя задним числом изменить `requested` так, чтобы оно выглядело совпавшим с результатом.
 
-Supported-value ownership, precedence, risk floors, truthful telemetry and acceptance
-are explicit. Ready for Discovery; no default reduction is authorized by this spec.
+Разрешение детерминировано для одинаковых входов. Актуализация каталога выполняется отдельным предусмотренным процессом 04; обычная проверка политики не запускает модель, не проверяет её платным запросом и не принимает неизвестную модель за доступную.
+
+## 7. Смена этапа и восстановление
+
+Перед следующим этапом сверяются роль, риск, контракт задачи и область действия настройки в среде. Если среда допускает управление только при создании сессии, нельзя заявлять переключение в уже работающем агенте. Допустимые варианты: продолжить с текущей пригодной консервативной настройкой либо использовать предусмотренный процесс нового агента с полным контекстом. Решение не нарушает обязательный тестовый переход и независимость проверяющего.
+
+Сохранение одного исполнителя между RED и GREEN остаётся действующим правилом. Это не разрешает искусственно пересоздать работника ради неподдерживаемой экономии. Если новая стадия требует недоступной планки качества, оркестратор явно решает конфликт по 19/текущему процессу; не приписывает существующему работнику новое усилие.
+
+После возобновления разрешение повторяется по текущей точной версии возможностей. История прежних запросов не переписывается. Отключение политики возвращает старое подходящее значение для **новых** запусков; оно не меняет уже выполненные результаты, защищённые поля или сведения о фактической модели.
+
+## 8. Квалификация и измерения
+
+Структурные сценарии подтверждают, что правильное значение выбирается и передаётся, но не подтверждают отсутствие потери качества. Для снижения исходного усилия необходим отдельный план 09: сопоставимые исходные задачи/ревизии, заранее определённые допускаемые дефекты, независимые проверки, полный учёт повторов/проверок/усиления и стоимость принятого результата.
+
+Если малая настройка сокращает один ответ, но повышает число исправлений или пропускает дефект, это учитывается в итоговом результате. Сравниваются все реально поддерживаемые и разрешённые варианты; универсальная предпочтительность «сначала дёшево» или «всегда максимум» не вводится.
+
+При недоступных счётчиках рассуждения отчёт сохраняет общий вывод и отмечает отсутствие детализации. Цена и арифметика полностью принадлежат 05. Значение, присланное политикой, не используется для расчётного выдумывания скрытых токенов.
+
+## 9. Ошибки и резервные пути
+
+| Условие | Результат |
+|---|---|
+| Политика отсутствует | Прежнее подходящее консервативное поведение |
+| Модель/версия неизвестна | Не отправлять придуманный параметр; явный резервный путь или остановка точного требования |
+| Управление отсутствует | Документированное значение среды; наблюдаемое усилие неизвестно, если не раскрыто |
+| Настройка принята, фактическое усилие не раскрыто | Раздельно «принята» и «неизвестно»; не выдумывать наблюдение |
+| Переопределение конфликтует с планкой | Передать конкретный конфликт владельцу; не понижать молча |
+| Конфликт двух правил | Ошибка конфигурации; прежнее безопасное значение, если оно допустимо, иначе остановка |
+| Дешёвая политика не квалифицирована | Не становится исходной; допускаются только отдельно разрешённые эксперименты |
+| Нужно усиление после ошибки | Решение 19, проверка доступности 04 и разрешение точной настройки здесь |
+| В живом работнике нельзя сменить настройку | Не заявлять переключение; сохранить пригодную настройку или явный предусмотренный переход |
+
+## 10. Критерии приёмки
+
+- [ ] **AC-01** (`REQ-01`, `REQ-03`). Табличные роли/этапы/риски дают ожидаемое правило и источник. Архитектурная/критичная неопределённость сохраняет планку; несовместимое переопределение и конфликт правил явно обнаруживаются.
+- [ ] **AC-02** (`REQ-02`, `REQ-04`). Поддерживаемые значения передаются точно. Неизвестная модель/версия и неподдерживаемое значение не порождают выдуманный аргумент или смену модели. Запрошенное, разрешённое, подтверждённое и наблюдаемое различаются.
+- [ ] **AC-03** (`REQ-05`). Смена этапа, восстановление и усиление 19 используют один реестр и повторную проверку планок. Настройка механического этапа не наследуется неподходящим образом; ограничение сессионной области соблюдается.
+- [ ] **AC-04** (`REQ-06`, `REQ-07`). Неквалифицированная экономная запись не становится исходной. Синтетический отчёт учитывает проверку/исправление, неизвестные показатели и включённую в вывод часть рассуждения без двойного начисления. Автономный сценарий не выдаётся за оценку качества живой модели.
+- [ ] **AC-05** (`REQ-08`). Старый план, отсутствие политики, просмотр решения без запуска, отключение и возобновление сохраняют действующее поведение. Во время разрешения и автономной проверки нет сетевых/платных вызовов.
+
+Трассировка: `REQ-01,03 → AC-01`; `REQ-02,04 → AC-02`; `REQ-05 → AC-03`; `REQ-06–07 → AC-04`; `REQ-08 → AC-05`.
+
+## 11. Порядок внедрения и готовность
+
+1. Проверить актуальные установленные возможности и их доказательства; записать неизвестное вместо предположений.
+2. Добавить схему реестра и политики без изменения прежних значений.
+3. Создать автономные сценарии приоритетов, конфликтов и отсутствующих возможностей; реализовать разрешение без запуска модели.
+4. Подключить решения к отправке работы 15 и метаданным 05; проверить смену стадий и возобновление.
+5. Документировать отключение и запрет неподтверждённого повышения заявленного уровня. Квалификацию более дешёвого поведения проводить только по отдельно разрешённому плану 09.
+
+Зависимости: 04, 05, 09, 15, 16. G1–G8 обязательны; см. [руководство](00-review-and-implementation-guide.md). Эта редакция разрешает проектирование и автономные проверки будущей возможности, но не снижение исходных требований к качеству и не платное сравнение.

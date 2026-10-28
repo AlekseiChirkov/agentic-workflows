@@ -1,186 +1,166 @@
-# Bounded local repairs and explicit model escalation
+# 19. Ограниченные локальные исправления и явный переход к более сильной модели
 
-## Source
+## 1. Статус и исходный контракт
 
-Workstream 8 of the owner's 2026-10-21 request: preserve correct work, use concrete
-review feedback, and prefer strong execution immediately where its expected total
-cost is lower than cheap execution plus repair.
+**Статус:** будущая возможность направления 8 запроса от 2026-10-21. Основание текущего поведения — снимок `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28, `workflows/spec-run.md`, `rules/orchestration.md` и действующий атомарный цикл проверки.
 
-## Context & Problem
+Сейчас `NEEDS WORK` сохраняет ветвь, коммиты и замечания и останавливает последовательный запуск. Существующие разрешённые исправления на уровне задачи и короткие исправления ошибок — отдельные пути; они не означают наличия предлагаемого здесь ограниченного цикла. Упомянутый исходниками отдельный отчёт аудита отсутствует в снимке и не доказывает внедрение.
 
-Baseline reviewed 2026-10-28.
+Новая политика включается явно и только после решения об изменении остановки, зафиксированного при реализации в архитектурном решении. До этого и при отсутствии политики действует прежняя остановка. Данная редакция не включает новую политику автоматически.
 
-NEEDS WORK still stops the atomic/run path and preserves branch/commit evidence
-(`workflows/spec-run.md → ## Step 4 — Subtask loop`,
-`workflows/pav-check.md → ## Instructions`). Task-level approved validation fixes and
-quick bugfix repairs are separate existing paths; neither implements this proposed
-per-leaf bounded retry policy. The workflow audit improved resume and evidence handling
-without enabling automatic model escalation or resetting failure stops.
+## 2. Цель и область
 
-## Goal
+Сохранять уже верную работу и исправлять конкретные локальные дефекты по независимым замечаниям, ограничивая число попыток и проверяя каждую заново. При неопределённости, критичном нарушении или отсутствии прогресса своевременно переходить к разрешённой более сильной модели либо останавливать работу для решения владельца.
 
-Offer an opt-in, bounded repair path for clearly local defects, with independent
-revalidation, preserved evidence and prompt escalation or owner stop when appropriate.
+Входят: классификация, контракт исправления, долговечный счётчик попыток, оценка прогресса, проверка доступности/усилия, независимая повторная проверка и восстановление.
 
-## Scope
+Не входят: расширение области без разрешения, автоматическое изменение требований, ослабление замороженных тестов, бесконечные повторы, обход внешних ограничений, новые производственные лимиты денег/времени и автоматические внешние действия.
 
-Repair eligibility/classification, correction contract, retry state, progress checks,
-model/effort resolution, escalation, independent recheck and interruption recovery.
+## 3. Владение и определения
 
-## Out of Scope
-
-Automatic scope expansion, hiding critical findings, weakening frozen RED tests,
-unlimited retries, routine production spend/time caps, automatic approval of external
-actions, or default activation of cheap-first execution without qualification.
-
-## Actors & Roles
-
-The independent Validator produces findings. The orchestrator determines policy/
-eligibility and owns shared state/git. The Implementer applies the smallest sufficient
-repair. The Arbiter/owner resolves architecture, invariant and intent ambiguity.
-
-## Terminology
-
-A local repair changes code within the existing approved task contract.
-Escalation selects an explicitly authorized stronger execution configuration or hands
-the decision to the owner; it never means silently accepting a failed task.
-
-## Requirements
-
-- **REQ-01** THE SYSTEM SHALL retain the current stop-on-NEEDS-WORK behavior by default.
-  An explicit run policy such as `--repair-policy bounded-local` SHALL opt in only after
-  the changed stop contract is recorded in an implementation ADR. Standalone validation
-  without that policy SHALL still stop and surface findings.
-- **REQ-02** WHEN classifying failure, THE SYSTEM SHALL distinguish local implementation
-  defects, missing/incorrect tests, missing context, infrastructure/tool failure,
-  architecture/contract disagreement and forbidden-scope/invariant violations.
-  Ambiguous intent, security/data-integrity critical findings, off-limits changes,
-  weakened RED evidence and conflicting architecture SHALL stop for the existing
-  Arbiter/owner decision; they SHALL NOT enter an autonomous cheap repair loop.
-- **REQ-03** WHEN repair is eligible, THE SYSTEM SHALL provide a correction contract
-  with finding IDs, affected ACs, reproduction/evidence, expected behavior, constrained
-  files/interfaces, frozen test digest and required checks. It SHALL preserve verified
-  correct code and avoid whole-task regeneration unless an explicit redesign is approved.
-  Reviewer feedback SHALL not override the original specification.
-- **REQ-04** THE SYSTEM SHALL allow at most one local repair attempt on the current
-  model and at most one explicitly authorized stronger-model attempt per leaf within
-  one bounded-local policy episode. Each attempt SHALL get an independent verdict.
-  Repeated findings, no progress, new important defects, budget-provider termination
-  or uncertainty about repair feasibility SHALL skip further cheap attempts.
-- **REQ-05** WHEN considering repair versus immediate strong execution, THE SYSTEM
-  SHALL use available qualified task-class evidence for execution, verification,
-  success/repair and escalation cost under 05/09. If that evidence is absent, it SHALL
-  retain the suitable conservative/strong path rather than invent probabilities.
-  An authorized stronger candidate may be chosen immediately when expected total
-  correct-result cost is lower. A high API price alone SHALL not force cheap execution.
-- **REQ-06** WHEN escalating, THE SYSTEM SHALL verify availability/quality floors in 04,
-  resolve supported effort in 18, record requested/resolved/actual model separately
-  and give a new executor sufficient original contract/context plus unresolved findings.
-  Missing authorized strong models SHALL stop visibly; no silent substitution.
-- **REQ-07** WHEN repair changes behavior or adds a regression case, THE SYSTEM SHALL
-  preserve test-first order, keep frozen RED tests immutable unless the established
-  amendment/owner process authorizes correction, and commit tests before corresponding
-  implementation. It SHALL rerun affected deterministic checks and apply independent
-  scoped/full re-review under 16 before closure.
-- **REQ-08** THE SYSTEM SHALL persist attempt/finding lineage and last verified tree
-  through 15 envelopes with one shared-state writer. Resuming SHALL not reset counters
-  to bypass the bound. Dependent leaves SHALL remain blocked until the current leaf
-  is reviewed; terminal failure SHALL preserve all branches, commits and findings.
-- **REQ-09** THE SYSTEM SHALL attribute repair/context/review/escalation costs and
-  progress to 05, apply shared index gates G1–G8, and document opt-in, stop reasons,
-  disable/resume and rollback. Attempt bounds are control-flow safeguards, not
-  production USD/time caps; a provider limit SHALL not be evaded by account switching.
-
-## Data Model
-
-Additive policy/attempt record: episode ID, leaf/base/contract hash, executor/model/
-effort request, finding IDs, classification, attempt counter, prior/next tree,
-frozen-test hash, progress, verification receipt and outcome. Existing statuses stay
-canonical; additional attempt data must be protected from destructive compression.
-
-## Contracts & Interfaces
-
-Extend `spec-run` and atomic validation handoff only for explicitly enabled policy.
-Canonical NEEDS WORK remains a failure verdict. No dependent task starts above it.
-Use 14 correction packets, 15 envelopes, 16 verification and 18 effort resolution.
-Only the orchestrator applies state/git effects; worker retries do not own shared state.
-
-## Non-Functional Requirements
-
-At most two model repair attempts per bounded-local episode: one local plus one
-authorized stronger attempt; either can be skipped. No active attempt can alter
-frozen evidence silently. A process restart cannot create an uncounted third attempt.
-
-## Edge Cases & Failure Modes
-
-Cover duplicate findings/reports, same finding after repair, infrastructure failures,
-stale contracts, no actual model control, unavailable escalation, changed test oracle,
-new important bug, interrupted commit and provider termination. Preserve work and
-surface the reason instead of restarting the entire task or suppressing a failure.
-
-## Acceptance Criteria
-
-- [ ] **AC-01** (REQ-01, REQ-02) Default/standalone validation still stops. Opt-in fixtures
-  permit local defects but route critical, off-limits, architecture and frozen-test
-  problems to the required decision path.
-- [ ] **AC-02** (REQ-03, REQ-07) A correction fixture changes only necessary code, retains
-  correct files and frozen tests, adds new reproduction tests before implementation,
-  and cannot close without independent revalidation.
-- [ ] **AC-03** (REQ-04, REQ-08) Repeated/no-progress findings skip cheap retries; restart,
-  duplicate events and changed worker sessions cannot exceed the persisted bound or
-  start a dependent task on an unreviewed result.
-- [ ] **AC-04** (REQ-05, REQ-06) Hand-calculated policy scenarios select immediate strong
-  execution when repair erases savings; unknown evidence keeps conservative behavior,
-  and unavailable/unsupported stronger requests stop visibly.
-- [ ] **AC-05** (REQ-09) Reports include every attempt/review/context/escalation cost,
-  terminal findings and model identities. Offline traces cover disable/resume and do
-  not launch paid models or impose a production spend/time cap.
-
-## Traceability
-
-| Requirement | Acceptance |
+| Участник | Разрешённое действие |
 |---|---|
-| REQ-01, REQ-02 | AC-01 |
-| REQ-03, REQ-07 | AC-02 |
-| REQ-04, REQ-08 | AC-03 |
-| REQ-05, REQ-06 | AC-04 |
-| REQ-09 | AC-05 |
+| Независимый проверяющий | Стабильные идентификаторы замечаний, воспроизводимые доказательства, серьёзность и вердикт |
+| Оркестратор | Применение утверждённой политики, резервирование попыток, передача исправления, общие записи и операции с репозиторием |
+| Исполнитель | Минимальное достаточное исправление в разрешённой области, тестовые доказательства, возврат результата |
+| Арбитр/владелец | Разрешение вопросов, которые требуют трактовки или изменения принятого контракта по действующим полномочиям |
 
-## Risks
+**Локальное исправление** не меняет утверждённые цель, AC, интерфейсные обязательства и запрещённую область. **Усиление** — исполнение явно разрешённой более сильной моделью, выбранной по пригодности, либо передача решения владельцу. Более высокая цена сама по себе не доказывает большую пригодность.
 
-A reviewer may be wrong, a cheap model may misunderstand its instructions, and changing
-tests can disguise failure. Keep original acceptance authoritative, evaluate independently
-under 09 and stop rather than auto-amend the contract.
+**Эпизод** связывает листовую задачу, её утверждённый контракт и конкретную начальную неуспешную проверку со всеми последующими попытками. Возобновление, новый процесс, новое имя файла или новый агент не создают новый бюджет попыток. Все реальные запросы и отзывы остаются в общей линии результата по 05.
 
-## Assumptions
+## 4. Требования
 
-One local attempt is a conservative initial policy choice, not an empirically optimal
-retry count. Changing the bound or default requires an explicit policy decision and
-quality evidence, not a continuation that silently resets the episode.
+- **REQ-01**. По умолчанию сохранять остановку на `NEEDS WORK`. Явная политика, например `--repair-policy bounded-local`, действует только после записанного изменения контракта. Самостоятельная проверка без этой политики по-прежнему останавливается и показывает замечания.
+- **REQ-02**. Различать локальный дефект реализации, недостаточный/неверный тест, недостающий контекст, инфраструктурный отказ, архитектурное/контрактное расхождение и нарушение запрещённой области/инварианта. Неясное намерение, критичная безопасность/целостность данных, запрещённая область, ослабленный RED и конфликт архитектуры не входят в автономный цикл; требуется предусмотренное решение.
+- **REQ-03**. Для допустимого исправления выдать контракт с идентификаторами замечаний, AC, воспроизведением/доказательством, ожидаемым поведением, ограниченными файлами/интерфейсами, хешем замороженных тестов и обязательными проверками. Сохранить верный код; не пересоздавать всю задачу без разрешённого перепроектирования. Замечание проверяющего не отменяет исходную спецификацию.
+- **REQ-04**. В одном эпизоде допускается не более одной локальной попытки на текущей модели и не более одной явно разрешённой попытки более сильной моделью. Каждая получает независимый вердикт. Повтор того же дефекта, отсутствие прогресса, новое важное нарушение, прекращение провайдером или сомнение в локальности запрещают дополнительные дешёвые попытки.
+- **REQ-05**. Сравнение локального исправления и сильного исполнения опирается только на пригодные данные 05/09 о полном исполнении, проверке, успехе/исправлении и усилении. Без таких данных сохраняется подходящий консервативный/сильный путь; вероятности не выдумываются. Разрешённая сильная модель может выбираться сразу, если полный ожидаемый результат предпочтительнее.
+- **REQ-06**. Перед усилением проверить доступность и планки 04, разрешить поддерживаемую настройку через 18, раздельно сохранить запрошенную/разрешённую/фактическую модель. Новому исполнителю передать достаточный исходный контракт и нерешённые замечания. Отсутствие разрешённого кандидата означает явную остановку, не скрытую замену.
+- **REQ-07**. Сохранить порядок тестов до соответствующей реализации, неизменность замороженного RED и предусмотренную процедуру разрешения поправок к тестам. При новом поведенческом случае добавить и зафиксировать воспроизводящий тест до исправляющего кода. Повторить затронутые команды и независимую проверку 16 перед закрытием.
+- **REQ-08**. Сохранять линию попыток/замечаний и последнее проверенное дерево через сообщения 15 с единственным писателем общих данных. Возобновление не обнуляет лимит. Зависимые листья заблокированы до независимого принятия; окончательная неудача сохраняет ветви, коммиты и замечания.
+- **REQ-09**. Учитывать по 05 всю работу исправления, контекста, проверки и усиления, применять G1–G8, описать включение, причины остановки, отключение и восстановление. Ограничение попыток — правило управления, не денежный/временной лимит. Ограничение провайдера нельзя обходить сменой учётной записи.
 
-## Decisions
+## 5. Допустимость: решение до резервирования попытки
 
-Introduce an opt-in exception to current failure stops only after a recorded ADR.
-Retain hard intent/invariant stops, single-writer state, test-first order and independent
-validation. Strong-first and early strong escalation remain valid choices.
+| Класс | Автономное действие при включённой политике |
+|---|---|
+| Однозначный локальный дефект реализации внутри разрешённого контракта | Возможна одна локальная попытка с конкретным воспроизведением |
+| Недостающий контекст, ответ есть в текущих источниках | Сначала получить контекст по 14/арбитру; затем повторно классифицировать, не исправлять по догадке |
+| Нужен дополнительный тест для неизменённого требования | Допустимо только при действующем праве добавить тест и порядке тест → фиксация → реализация |
+| Существующий замороженный тест неверен или требует ослабления | Остановиться для установленного согласования изменения тестового основания |
+| Сбой сети/среды/инструмента без доказанного дефекта кода | Диагностировать инфраструктуру; не переписывать код, чтобы скрыть отказ |
+| Архитектурное расхождение, неоднозначный AC, изменение общего контракта | Арбитр/владелец по действующим полномочиям; не автономная локальная попытка |
+| Критичная безопасность/целостность данных, выход за запрещённую область, нарушение инварианта | Остановка; новые исполнения не запускаются до решения |
+| Ограничение/прекращение провайдера | Сохранить состояние, явно остановиться; не искать обход учётными записями |
 
-## Clarifications
+Если замечание проверяющего противоречит спецификации, оркестратор не назначает спецификацию ошибочной и не исправляет код вслепую. Получается независимое разъяснение по исходным источникам; изменение намерения принадлежит владельцу. Если риск нельзя уверенно классифицировать как локальный, применяется остановка/сильный предусмотренный путь, а не оптимистичная классификация.
 
-2026-10-21: the owner prioritizes minimal corrected errors and lowest total correct-result
-cost. A low-cost model is not preferred when expected rework makes it more expensive.
+## 6. Контракт исправления и запись эпизода
 
-## Open Questions
+Контракт исправления содержит:
 
-None blocking for implementing the disabled-by-default path. Paid qualification and any
-default activation need a 09 manifest and owner-approved tolerances.
+- `episode_id`, `attempt_id`, `task_id`, `leaf_id`, `task_contract_hash`;
+- последнее независимо проверенное дерево, текущее фактическое дерево и пакет 14;
+- полный набор открытых замечаний со стабильными идентификаторами, серьёзностью, AC и источником;
+- воспроизведение, ожидаемое поведение и фактический отказ;
+- разрешённые/запрещённые файлы, интерфейсы и ограничения;
+- замороженный набор тестов и его хеш, требуемые новые тесты и основание их добавления;
+- обязательные детерминированные проверки и область независимой проверки 16;
+- разрешённую модель/усилие, источник разрешения и причины выбора;
+- условия остановки, оставшиеся слоты и ожидаемый следующий отчёт.
 
-## Notes
+Долговечная запись эпизода дополнительно содержит `policy_version`, исходную неуспешную проверку, резервирование/отправку/завершение каждой попытки, предыдущие и новые хеши деревьев, независимые вердикты, оценку прогресса и терминальную причину. Эти данные защищаются от разрушительного сокращения. Они дополняют канонические статусы, не вводят конкурирующий словарь состояния задач.
 
-Depends on 04, 06, 09, 15, 16 and 18. Suggested slices: policy/lineage; eligibility;
-correction packet; bounded controller flow; test/review integration; recovery/docs.
-Parallel repair behavior is integrated separately in 12.
+Идентификатор замечания не меняется только из-за переформулировки текста. Эквивалентные замечания связываются общим основанием, иначе агент мог бы объявлять повтор старой ошибки новым прогрессом. Отзыв ошибочного замечания имеет отдельное независимое обоснование, а не молчаливое удаление.
 
-## Readiness Checklist
+## 7. Конечный порядок исполнения
 
-Existing behavior, opt-in change, hard stops, finite attempts, quality gates and
-acceptance are explicit. Ready for Discovery; paid qualification remains unapproved.
+1. Получить независимый `NEEDS WORK`, сохранить ветвь, доказательства и все замечания. Не начинать зависимую задачу.
+2. Проверить наличие утверждённой политики. Без неё остановиться по прежнему правилу.
+3. Классифицировать замечания и проверить локальность. Жёсткое условие остановки завершает автоматический путь до нового исполнения.
+4. Выбрать допустимую стратегию: использовать оставшуюся локальную попытку, пропустить её и перейти к уже разрешённой сильной модели либо остановиться. Данные о стоимости не отменяют планки качества.
+5. **До отправки исполнителю** долговечно зарезервировать конкретный слот с `attempt_id` через оркестратора. Если запись не удалась или состояние неоднозначно, исполнителя не запускать.
+6. Отправить контракт исправления. Повтор транспортной доставки сохраняет `attempt_id`; он не создаёт второй запуск. Если неизвестно, был ли запуск начат, слот считается использованным до подтверждения отсутствия выполнения.
+7. Получить фактическое дерево, тестовые доказательства и сообщение 15. Сверить контракт, область и замороженные тесты. Не принимать результат только из-за сообщения исполнителя «исправлено».
+8. Выполнить затронутые проверки и независимый повтор по 16. Каждая реально выполненная попытка получает собственный вердикт, даже если исполнение прервано или не дало полезных изменений.
+9. Если всё принято — закрыть эпизод и только затем разрешить зависимое продвижение. Если есть неуспех — определить прогресс и следующий разрешённый шаг по оставшимся слотам.
+10. После усиленной попытки при неуспехе остановиться. Новое важное замечание запрещает дальнейшую дешёвую попытку и требует повторной классификации: уже разрешённое усиление возможно только если задача всё ещё однозначно локальна и не нарушены жёсткие остановки. Критичное замечание, неизвестный эффект или отсутствие разрешённого кандидата прекращают автоматический путь.
+
+### Что считается попыткой и прогрессом
+
+Попытка начинается при реальной передаче работы исполнителю, не при получении его успешного ответа. Отказ/тайм-аут исполнителя не возвращает слот автоматически. Доказанно неотправленный запрос можно пометить отменённым с причиной; это не стирает запись резервирования. Платные запросы диагностики и проверки учитываются по 05 независимо от того, занимают ли они слот исправления.
+
+Прогресс — независимое подтверждение устранения конкретных прежних замечаний при сохранении остальных обязательств и отсутствии нового важного дефекта. Количество изменённых строк, новый коммит и оптимистичный отчёт исполнителя прогрессом не являются. Частичный прогресс не разрешает вторую локальную попытку: локальный слот всё равно один.
+
+## 8. Защита от обнуления лимита
+
+В пределах неизменённого контракта одной листовой задачи повтор запуска, восстановление процесса, смена исполнителя, очистка сеансового контекста и новое имя эпизода не дают дополнительные слоты. Оркестратор ищет существующую линию по задаче, контракту и исходной ошибке и продолжает её.
+
+Новая работа после исчерпания лимита допустима только как явное решение владельца об изменении политики, контракте новой задачи или разрешённом перепланировании. Решение ссылается на прежний эпизод, объясняет новую область и сохраняет прежние затраты/неудачи в общем результате. Создание технически нового идентификатора без такого решения запрещено.
+
+Параллельное резервирование двух попыток одного листа не допускается. В 12 изолированные листья могут иметь собственные эпизоды, но общий критичный дефект останавливает новые отправки и требует общего решения. Ограничение одного листа не используется для бесконтрольного создания множества копий той же ошибки.
+
+## 9. Тестовый порядок и сохранение верной работы
+
+Если существующие замороженные тесты уже воспроизводят локальный дефект, повторный пустой тестовый коммит не создаётся. Сохраняются прежние доказательства и вносится соответствующее исправление с повторной проверкой. Если нужен новый тест, он сначала демонстрирует нарушение неизменённого требования и фиксируется до соответствующего кода. Исполнитель не ослабляет ожидания ради зелёного результата.
+
+Существующее обоснованное исключение `test-level: none` / `atomic-tests: n-a` сохраняется для допустимых задач без применимых тестов. Оно не назначается задним числом для сокрытия ошибки, не создаёт ложного RED и не отменяет независимую содержательную/структурную проверку.
+
+Режим `atomic-tests: pinned` и совместимость уже начатых исторических блоков без `atomic-tests` также сохраняются по каноническому контракту. Проходящие тесты фиксации поведения не описываются как падающий RED, прошлые доказательства не выдумываются. Это не освобождает новое исправление поведения от применимого воспроизводящего теста до соответствующего кода; основание выбирается по реальному типу исправления, а не для обхода проверки.
+
+Передача более сильной модели включает полный достаточный исходный контракт, фактический код, тесты и нерешённые замечания. Она не означает переписывание всего решения. Уже проверенные верные части сохраняются, если нет доказанного влияния исправления на них; изменение общей архитектуры требует отдельного решения.
+
+## 10. Экономическое решение без выдуманных вероятностей
+
+Полное сравнение выполняется по 05/09 с одинаковым критерием принятия. В упрощённой схеме:
+
+```text
+ожидаемая стоимость цепочки =
+  первоначальное исполнение и проверка
+  + P(локальное исправление) × стоимость локального исправления с проверкой
+  + P(локальное исправление) × P(усиление | локальное исправление)
+      × стоимость усиления с проверкой
+  + остальные явно учтённые расходы
+```
+
+Условные вероятности не перемножаются как независимые без основания. Реальные пропуски дефектов, неуспешные конечные результаты и принятые результаты учитываются по канонической методике 05/09; эта формула не заменяет её.
+
+Синтетический пример только для проверки арифметики: первоначальные исполнение и проверка стоят 16 условных единиц; локальное исправление с проверкой — 16; вероятность его необходимости — 0,6; условная вероятность последующего усиления — 0,5; усиление с проверкой — 30. Тогда цепочка стоит `16 + 0,6 × 16 + 0,6 × 0,5 × 30 = 34,6`, а сразу сильное исполнение — 30 при одинаковом предполагаемом качестве. Пример показывает возможную невыгодность дешёвого начала, но не является измерением проекта или доказательством указанных вероятностей.
+
+Без пригодной калибровки поля вероятности/стоимости остаются неизвестными. Выбор делается по консервативной пригодности и риску, а не по вымышленному проценту экономии.
+
+## 11. Возобновление и остановки
+
+| Событие | Действие |
+|---|---|
+| Прервано до отправки после резервирования | Подтвердить отсутствие отправки; сохранить отмену либо продолжить тот же слот |
+| Неизвестно, был ли запуск | Не отправлять автоматически ещё раз; восстановить факты, слот временно считается использованным |
+| Пришёл дубликат результата | По `attempt_id/event_id` применить один раз через 15 |
+| Изменён контракт или тестовое основание | Инвалидировать старый пакет, остановиться для разрешённой поправки |
+| Повторилось прежнее замечание | Нет новой локальной попытки; возможное уже разрешённое усиление либо остановка |
+| Новое важное нарушение | Прекратить дешёвые повторы, повторно классифицировать; усиление только при сохранённой допустимости и ранее выданном разрешении |
+| Новое критичное нарушение | Остановить автоматический путь и передать полное доказательство |
+| Сильная модель недоступна | Сохранить результат и явно остановиться, не подменять модель |
+| Политика отключена во время эпизода | Не начинать новые попытки; довести сбор текущих доказательств и сохранить прежнюю остановку |
+| Лимит исчерпан | Сохранить всю линию и вернуть конкретный нерешённый результат владельцу |
+
+## 12. Критерии приёмки
+
+- [ ] **AC-01** (`REQ-01`, `REQ-02`). Без политики и в самостоятельной проверке сохраняется остановка. Локальные дефекты проходят классификацию; критичные, архитектурные, запрещённые и затрагивающие замороженный тест случаи требуют предусмотренного решения.
+- [ ] **AC-02** (`REQ-03`, `REQ-07`). Исправляется минимальная достаточная область; верный код и замороженные тесты сохраняются. Новый тест предшествует реализации; прежний достаточный тест не порождает пустой тестовый коммит. Закрытие без независимой повторной проверки невозможно.
+- [ ] **AC-03** (`REQ-04`, `REQ-08`). Повторные/непрогрессирующие замечания, перезапуск, новый агент, дубликат события и новая техническая метка эпизода не обходят лимит одной локальной и одной разрешённой усиленной попытки. Слот резервируется до отправки; зависимая задача не начинается на непринятом результате.
+- [ ] **AC-04** (`REQ-05`, `REQ-06`). Синтетическая арифметика показывает выбор немедленного сильного исполнения при большей полной стоимости цепочки. Без данных сохраняется консервативный путь. Недоступная модель, неподдерживаемая настройка и отсутствие разрешения явно останавливают усиление.
+- [ ] **AC-05** (`REQ-09`). Отчёты сохраняют все исполнения, контекст, проверки, усиление, модельную идентичность и конечные замечания. Проверены отключение, прерывание отправки и восстановление. Автономные проверки не запускают платные модели и не вводят производственный денежный/временной лимит.
+
+Трассировка: `REQ-01–02 → AC-01`; `REQ-03,07 → AC-02`; `REQ-04,08 → AC-03`; `REQ-05–06 → AC-04`; `REQ-09 → AC-05`.
+
+## 13. Внедрение и готовность
+
+1. Зафиксировать решение об исключении из текущей остановки и оставить политику выключенной по умолчанию.
+2. Ввести долговечную линию эпизода/слотов и синтетические сценарии прерывания до любого автоматического запуска.
+3. Реализовать классификацию и контракт исправления, затем ограниченные переходы, тестовый порядок и независимую повторную проверку.
+4. Подключить 04/18 для разрешённой конфигурации, 14/15 для контекста/контрольных точек и 05 для полной атрибуции.
+5. Проверить отключение, отсутствие доступной сильной модели, исчерпание лимита и отсутствие сброса при возобновлении.
+
+Зависимости: 04, 06, 09, 15, 16, 18; используются контекстные контракты 14. G1–G8 обязательны, см. [руководство](00-review-and-implementation-guide.md). Один локальный повтор — консервативное исходное решение, не доказанный оптимум. Изменение лимита, исходной политики или качества требует явного решения и отдельной оценки, а не технического перезапуска.

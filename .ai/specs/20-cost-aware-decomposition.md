@@ -1,176 +1,188 @@
-# Cost-aware decomposition with complete acceptance coverage
+# 20. Экономически обоснованная декомпозиция с полным покрытием приёмки
 
-## Source
+## 1. Статус и основания
 
-Workstream 9 of the owner's 2026-10-21 request: reduce redundant leaf setup, planning
-and review while retaining coherent scopes, architectural boundaries and low error rates.
+**Статус:** будущая возможность направления 9 запроса от 2026-10-21. Редакция согласована с исходным снимком `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28.
 
-## Context & Problem
+Текущий `workflows/spec-run.md` последовательно передаёт листовые задачи исполнителю и отдельному проверяющему. Исходные материалы описывают действующий классификатор, порядок зависимостей, целевые файлы, согласованные границы листьев и переразбиение слишком крупных задач с сохранением уже выполненной работы. При реализации следует проверить фактический рабочий процесс декомпозиции и его имя после миграции 13. Отдельный отчёт аудита, названный исходниками, отсутствует в снимке и не доказывает наличие экономического советника.
 
-Baseline reviewed 2026-10-28.
+Калиброванная модель стоимости и сравнение экономических вариантов ещё не считаются реализованными. Малое количество листьев не является целью само по себе: слишком мелкие листья повторяют подготовку и проверку, слишком крупные повышают область неопределённости и стоимость исправления.
 
-Each leaf uses its own Implementer and independent Validator
-(`workflows/spec-run.md → ## Step 4 — Subtask loop`). The current decomposition workflow
-already records classifier signals, dependency order, target ownership and coherent leaf
-criteria (`workflows/pd-decompose.md → ## Instructions`); the workflow audit clarified
-Type 3 re-slicing, inherited constraints and preservation of progressed subtasks.
+## 2. Цель и границы
 
-No calibrated cost model or economic grouping adviser has been implemented. Tiny leaves
-can repeat setup/review, while oversized leaves can increase rework; leaf count alone
-remains neither a cost nor a quality metric.
+Выбирать связные проверяемые границы подзадач по архитектуре, ограничениям, риску и доступным измерениям, сохраняя все критерии приёмки, интерфейсы, зависимости и интеграционные проверки.
 
-## Goal
+В объём входят сигналы разделения/объединения, общий архитектурный контракт, карта обязательств, граф зависимостей, сопоставление кандидатов, обоснование решения и автономные сценарии.
 
-Choose coherent task boundaries using measured overhead and risk, with complete AC/
-dependency/integration coverage and reusable architecture decisions.
+Не входят: автоматическое объединение выполняемых или принятых задач, изменение спецификации ради удобства, минимизация числа листьев любой ценой, новая модель ветвей, параллельность верхнего уровня и некалиброванное обучение маршрутизатора.
 
-## Scope
-
-Decomposition signals, shared analysis contract, grouping/splitting criteria, dependency
-DAG, overhead-aware candidate comparison, decomposition rationale and regression fixtures.
-
-## Out of Scope
-
-Automatically merging active reviewed tasks, changing a specification to make it easier,
-minimizing leaf count irrespective of risk, top-level parallelism, new branch semantics
-or a learned task-sizing model without calibration.
-
-## Actors & Roles
-
-Discovery identifies boundaries and creates the plan. An Arbiter resolves architectural
-ambiguity. The model selector applies quality/availability floors. The orchestrator
-executes the existing sequential stack; independent validation checks integration.
-
-## Terminology
-
-Fixed leaf overhead includes bootstrap, dispatch, bookkeeping and required review.
-A coherent leaf has one verifiable outcome and a manageable impact scope.
-A composite coordinates children but does not remove each child's TDD obligations.
-
-## Requirements
-
-- **REQ-01** THE SYSTEM SHALL map every specification AC, invariant and interface
-  obligation to one or more leaves and an explicit integration check. It SHALL preserve
-  ownership, required test levels, off-limits constraints and dependency readiness;
-  no saving may be achieved by leaving an obligation unmapped.
-- **REQ-02** THE SYSTEM SHALL identify shared architecture/interface decisions once,
-  store their source/version in the reusable contract under 14 and reference them from
-  related leaves instead of asking each executor to redesign the same interface.
-  Unresolved cross-cutting decisions SHALL be resolved before dependent execution.
-- **REQ-03** WHEN considering grouping, THE SYSTEM SHALL favor closely related,
-  jointly verifiable changes with compatible target ownership/context and no need for
-  independent checkpoints. It SHALL reject grouping across incompatible risk/quality
-  floors, unrelated outcomes, mandatory approval boundaries or excessive context.
-- **REQ-04** WHEN considering splitting, THE SYSTEM SHALL use architectural seams,
-  independent acceptance outcomes, target-file/interface conflicts, context sufficiency,
-  ambiguity, criticality and expected rework. It SHALL not create tiny leaves solely to
-  assign a cheaper model or claim parallelism.
-- **REQ-05** WHEN sufficiently reliable 05/09 calibration exists, THE SYSTEM SHALL
-  compare candidate decompositions by total planning + per-leaf context/dispatch/
-  execution/review + integration + expected repair/escalation cost and wall time.
-  It SHALL report the calibration sample/cohort, uncertainty and quality floors.
-  Unknown probabilities/costs SHALL stay unknown; an uncalibrated plan SHALL use
-  conservative structural heuristics, not fabricated USD savings.
-- **REQ-06** THE SYSTEM SHALL record chosen grouping/splitting rationale and plausible
-  rejected boundaries in `Decomposition Decisions`, exact dependencies in an acyclic
-  plan, context/quality signals for 04/18 and integration ownership. The plan SHALL
-  distinguish estimated calls/cost from observed usage.
-- **REQ-07** THE SYSTEM SHALL preserve canonical atomic/composite types and the existing
-  top-level stack. Parallel safety, when later enabled by 12, SHALL require its separate
-  independence checks; fewer leaves or shared analysis SHALL not imply parallel safety.
-  No partially executed task SHALL be regrouped silently on resume.
-- **REQ-08** THE SYSTEM SHALL evaluate decomposition on matched tasks under 09, include
-  repeated planning/context/review and later integration defects in 05, and apply shared
-  index gates G1–G8. It SHALL document conservative fallback, replan authorization and
-  how to disable cost-aware advice without losing the canonical task plan.
-
-## Data Model
-
-Additive decomposition rationale: AC-to-leaf/integration mapping, target/interface
-ownership, shared architecture contract hash, dependency edges, risk/context signals,
-candidate boundaries, structural estimate or calibration reference and uncertainty.
-Existing task/plan formats remain readable; advisory economic fields are optional.
-
-## Contracts & Interfaces
-
-Extend the existing decomposition workflow and subtask classifier at their single
-canonical homes after 13 renames. Model/effort resolution remains 04/18; pricing is 05.
-The plan is frozen according to the existing Discovery contract. A changed assumption
-during execution uses the established amendment/replan process, not automatic regrouping.
-
-## Non-Functional Requirements
-
-One hundred percent of declared AC IDs are mapped; dependency cycles and duplicate/
-conflicting target ownership are detected. No compulsory leaf-count target is added.
-Deterministic checks require no model calls or shared-log reads.
-
-## Edge Cases & Failure Modes
-
-Cover one tiny task, many related mechanical edits, a high-risk shared interface,
-large context, missing calibration, conflicting ownership, cyclic dependencies,
-changed acceptance after Discovery and partially completed composite. Prefer a
-reviewable conservative plan when financial evidence is weak.
-
-## Acceptance Criteria
-
-- [ ] **AC-01** (REQ-01, REQ-02) Fixture AC/interface maps are complete; several related
-  leaves reference one fresh architecture contract and cannot execute while a shared
-  decision remains unresolved.
-- [ ] **AC-02** (REQ-03, REQ-04) Tiny-related-change and architecture-seam fixtures choose
-  coherent grouping/splitting; approval/risk/context conflicts prevent unsafe grouping.
-- [ ] **AC-03** (REQ-05) Synthetic calculations show both excessive fragmentation and
-  oversized rework can be more expensive; absent calibration produces explicit
-  structural advice with no invented success rate or monetary saving.
-- [ ] **AC-04** (REQ-06, REQ-07) Plans have complete rationale, an acyclic dependency map
-  and preserved stack/types; a resumed partially executed task cannot silently change
-  leaf ownership or declare parallel-safe.
-- [ ] **AC-05** (REQ-08) Offline integration-defect/coverage fixtures pass, matched-run
-  reporting includes setup/review/rework, and documentation provides disable/replan
-  paths without claiming that fewer leaves guarantee lower cost or equal quality.
-
-## Traceability
-
-| Requirement | Acceptance |
+| Владелец | Контракт |
 |---|---|
-| REQ-01, REQ-02 | AC-01 |
-| REQ-03, REQ-04 | AC-02 |
-| REQ-05 | AC-03 |
-| REQ-06, REQ-07 | AC-04 |
-| REQ-08 | AC-05 |
+| 20 | Границы задач, покрытие, зависимости и обоснование экономического совета |
+| [14](14-task-context-and-reuse.md) | Общий архитектурный пакет, происхождение и свежесть |
+| 04 и [18](18-reasoning-effort-policy.md) | Пригодные доступные модели и поддерживаемое усилие |
+| [05](05-cost-and-duration-telemetry.md) | Измерения, стоимость и недостающие данные |
+| [09](09-golden-run-tests.md) | Сопоставимая независимая оценка стратегий |
+| [15](15-orchestrator-overhead.md) и [16](16-scoped-verification.md) | Контрольные точки, принятие и интеграционное доказательство |
+| [12](12-composite-branch-model-and-parallel-children.md) | Будущая модель ветвей составной задачи и отдельные условия параллельности |
 
-## Risks
+12 и 18 не становятся новыми предпосылками 20: до их отдельного внедрения действуют существующие последовательные ветви и выбор модели/усилия. Контракты 20 заранее дают им нужные сигналы, но не заявляют будущую возможность включённой.
 
-Grouping may hide integration failures; splitting may multiply bootstrap and reviews.
-Measure whole-result economics and independently verify acceptance/invariants rather
-than choosing a global minimum or maximum leaf size.
+## 3. Термины и инварианты
 
-## Assumptions
+**Лист** — конечная задача с одним связным проверяемым результатом, достаточным контекстом и управляемой областью влияния. **Составная задача** объединяет детей и проверяет их взаимодействие, но не снимает собственные обязательства тестирования каждого ребёнка. **Накладная работа листа** включает подготовку контекста, передачу, учёт и обязательную проверку, даже если сам код изменён мало.
 
-Historical calibration may be unavailable or too small; structural heuristics remain
-valid advisory behavior. Feature-sized specs can decompose into the existing allowed
-task types without forcing a single atomic implementation.
+1. Все AC, инварианты, интерфейсные обязательства и запрещённые области представлены в плане; экономия не оправдывает пропуск.
+2. Общий архитектурный вопрос решается один раз с источником, а не заново каждым исполнителем. Противоречие или устаревание решения требует разрешения до зависимого исполнения.
+3. Несовместимые риски, обязательные согласования и независимые контрольные точки не исчезают при объединении.
+4. Граф зависимостей ацикличен. Совпадающие целевые файлы и общие интерфейсы имеют явного владельца и порядок.
+5. Уже начатая работа не перераспределяется молча. История, AC и доказательства не теряются при разрешённом перепланировании.
+6. Стоимость, время, число вызовов и качество — отдельные величины. Неизвестное не заменяется нулём, а ускорение не называется денежной экономией.
+7. Меньше листьев, общий анализ и отсутствие совпадения имён файлов не доказывают безопасность параллельного выполнения.
 
-## Decisions
+## 4. Требования
 
-Preserve architectural boundaries, traceability and explicit integration checks.
-Optimize decomposition locally; do not replace the task hierarchy or stack model.
+- **REQ-01**. Связать каждый AC, инвариант и интерфейсное обязательство с одним или несколькими листьями и явной проверкой интеграции. Сохранить владение, уровень тестирования, запрещённую область и готовность зависимостей. Непокрытое обязательство делает план непригодным к исполнению.
+- **REQ-02**. Общие архитектурные/интерфейсные решения хранить один раз в свежем контракте 14 с источником и версией и ссылаться на них из связанных листьев. Неразрешённое общее решение блокирует зависимое исполнение.
+- **REQ-03**. Рассматривать объединение тесно связанных совместно проверяемых изменений с совместимыми файлами/контекстом и без необходимости независимых границ. Отвергать объединение несовместимых рисков/планок качества, несвязанных результатов, обязательных согласований и чрезмерного контекста.
+- **REQ-04**. Рассматривать разделение по архитектурным границам, самостоятельным результатам приёмки, конфликтам файлов/интерфейсов, достаточности контекста, неопределённости, критичности и ожидаемой переделке. Не создавать мелкие листья лишь ради дешёвой модели или заявления параллельности.
+- **REQ-05**. При пригодной калибровке 05/09 сравнивать полную стоимость планирования, контекста/передачи/исполнения/проверки каждого листа, интеграции и ожидаемого исправления/усиления, отдельно время. Указать выборку, класс задач, неопределённость и планки качества. Без калибровки использовать консервативные структурные признаки без выдуманных вероятностей и денежной экономии.
+- **REQ-06**. Записывать выбранные и разумные отвергнутые границы в `Decomposition Decisions`, точные зависимости, сигналы контекста/качества для 04/18 и владельца интеграции. Оценочные вызовы/стоимость отличать от наблюдений.
+- **REQ-07**. Сохранить канонические атомарные/составные виды и последовательный верхний стек. Будущая параллельность 12 требует собственных доказательств независимости. Частично выполненная задача не перегруппировывается при возобновлении без явного предусмотренного решения.
+- **REQ-08**. Оценивать варианты на сопоставимых задачах по 09, учитывая повторное планирование/контекст/проверку и поздние интеграционные дефекты в 05. Применить G1–G8; описать консервативный резервный путь, разрешение перепланирования и отключение советов без потери канонического плана.
 
-## Clarifications
+## 5. Входные данные и выходной контракт
 
-2026-10-21: reuse architecture analysis, not mutable progress or executor transcripts.
-If strong planning amortized across leaves wins, it is a valid strategy C result.
+До выбора границ нужны исходная спецификация и её хеш, точные AC, архитектура/решения, уровень тестирования, запрещённые файлы, интерфейсы, существующий план и его состояние, доступные роли/модели, рабочие корни и при наличии калибровка. Неизвестные входы перечисляются явно. Расхождение источников не разрешается произвольным выбором удобного варианта.
 
-## Open Questions
+Выход — прежние канонические файлы задачи с добавочными доказательствами решения, а не новая обязательная база данных:
 
-None blocking. Useful calibration strata and live task sample require later evaluation.
+| Блок | Содержание |
+|---|---|
+| Идентичность | `schema_version`, `plan_revision`, `source_spec_hash`, `task_contract_hash`, `architecture_contract_hash` |
+| Покрытие | AC/инвариант/интерфейс → лист/листья → проверка → владелец интеграции |
+| Лист | Идентификатор, цель, тип, критерии, целевые и запрещённые пути, рабочая директория, тестовый уровень, риски, контекст |
+| Граф | Идентификаторы узлов и точные ориентированные зависимости с причиной/условием готовности |
+| Владение | Файл/интерфейс → ответственный лист, согласованный порядок при совместной работе |
+| Кандидаты | Возможные группировки, доказанные ограничения, причина выбора/отказа |
+| Экономика | `structural_only` либо ссылка на калибровку, компоненты затрат/времени, неопределённость, неизвестные поля |
+| Граница исполнения | Что заморожено, что уже начато/принято, каков следующий разрешённый этап |
 
-## Notes
+Не каждое обязательство требует отдельного листа или дополнительного теста. Один сценарий может покрыть несколько AC; один существующий интеграционный этап — несколько листьев. Но для каждого обязательства должно быть видно, **где и кем** оно проверяется, чтобы экономия количества строк не скрыла отсутствие проверки.
 
-Depends on 04, 05, 09, 14, 15 and 16. Suggested slices: coverage/decision schema;
-group/split heuristics; optional calibrated comparison; workflow/classifier integration;
-dependency fixtures; evaluation/docs. Spec 12 adds parallel execution later.
+Если AC охватывает несколько компонентов, допускается назначить несколько листьев, но ответственность за итоговую приёмку остаётся однозначной. Формула «каждый проверит свою часть» без владельца интеграции недостаточна.
 
-## Readiness Checklist
+## 6. Алгоритм декомпозиции
 
-Scope, coherent boundary criteria, complete coverage, calibration limits, compatibility
-and acceptance are explicit. Ready for Discovery; no fixed savings target is invented.
+1. **Проверить исходную полноту.** Извлечь все AC и ограничения без пересказа, который меняет смысл. Сопоставить с уже существующим планом; сохранить начатые/принятые строки.
+2. **Выделить общие решения.** Определить интерфейсы и инварианты, от которых зависит несколько изменений. Записать или загрузить свежий контракт 14. Неразрешённые вопросы передать действующему арбитру/владельцу до зависимого исполнения.
+3. **Построить структурный кандидат.** Начать со связных проверяемых результатов, а не заданного числа листьев или цены моделей. Крупную задачу, классифицированную действующими правилами как требующую переразбиения, переразбить по этим же правилам.
+4. **Проверить покрытие и граф.** Найти непокрытые AC, отсутствующих владельцев, циклы, неизвестные зависимости, конфликтующие целевые области и нарушения границ согласования.
+5. **Рассмотреть близкие альтернативы.** Для соседних связанных изменений проверить разумное объединение; для широкого/рискованного листа — разделение по архитектурному шву. Не перечислять искусственно все комбинации ради видимости подробности.
+6. **Отбросить недопустимые варианты.** Любой пропуск критерия, нарушение запрета, качества, согласования или контекстной достаточности исключает вариант до расчёта стоимости.
+7. **Сравнить допустимые варианты.** При пригодной калибровке использовать раздел 8. Без неё применить структурное обоснование и отметить отсутствие экономической определённости.
+8. **Зафиксировать решение.** Сохранить выбранные границы, разумные отвергнутые варианты, причины, версии источников и интеграционного владельца. Указать следующий разрешённый этап.
+9. **Заморозить согласно действующему процессу.** Исполнение использует согласованный план. Новое предположение во время работы запускает предусмотренную поправку, а не скрытое перестроение графа.
+
+## 7. Правила объединения, разделения и владения
+
+### Объединение допустимо, когда одновременно выполнено следующее
+
+- Изменения служат одному связному результату и имеют совместную понятную приёмку.
+- Целевые файлы/интерфейсы имеют совместимого владельца и порядок.
+- Контекст помещается в достаточную рабочую область с доступным расширением по 14; не требуется скрывать часть спецификации.
+- Нет обязательного промежуточного согласования или независимо проверяемой готовности, которую объединение уничтожило бы.
+- Риски и минимальные планки качества совместимы; критичный участок не маскируется среди механических изменений.
+
+### Разделение требуется рассмотреть, когда
+
+- Есть самостоятельные результаты приёмки или архитектурные границы, позволяющие осмысленную проверку.
+- Одному листу нужны несовместимые роли, согласования или существенно разные условия исполнения.
+- Контекст слишком широк, влияние трудно установить либо ожидаемая переделка затронет чрезмерно большую область.
+- Несколько изменений конкурируют за общую схему, интерфейс или файл и нуждаются в явно упорядоченных стадиях.
+
+Совпадение целевых файлов не всегда запрещает последовательные листья: оно требует явной зависимости и владельца интеграции. Однако оно не позволяет объявить такие листья независимыми для параллельности 12. Общая схема/контракт могут связывать листья даже при непересекающихся путях.
+
+Дети составной задачи не объединяются автоматически только потому, что 12 в будущем даст одну общую ветвь. Каждый сохраняет применимый тестовый цикл. Законное `none/n-a`, фиксация сохраняемого поведения `pinned` и совместимость начатых исторических блоков применяются через действующие основания, а не экономический совет. Перегруппировка не создаёт ретроактивного RED и не стирает уже собранное доказательство.
+
+## 8. Экономика: полная стоимость и неопределённость
+
+Для кандидата учитываются:
+
+```text
+C = планирование
+    + общий повторно используемый контекст
+    + сумма по листьям(подготовка + передача + исполнение + обязательная проверка)
+    + интеграционная проверка
+    + ожидаемые исправления и усиление
+    + прочие подтверждённые расходы
+```
+
+Общий контекст считается один раз только когда данные доказывают такое использование. Повторная фактическая загрузка/запись кэша не исчезает из расчёта из-за одинакового хеша. Составные итоги не прибавляются к уже включённым дочерним единицам. Правила идентичности и денежной оценки полностью принадлежат 05.
+
+Время оценивается отдельно: в текущем последовательном режиме учитываются последовательные интервалы и накладная работа; гипотетическое ускорение параллельностью помечается как недоступный пока сценарий, если 12 не реализована и не разрешена. Сумма длительностей работников не объявляется временем родительского запуска.
+
+Калибровка пригодна, только если известны сравнимый класс задач, исходные версии, модели/среды, критерии принятия, полный учёт попыток и независимая оценка качества. Устаревшая версия, малая нерепрезентативная выборка или неизвестное покрытие означают ограниченную применимость. Неопределённость задаётся данными или честным диапазоном; статистическая точность не выдумывается.
+
+Если интервалы сопоставимых оценок существенно перекрываются или качество несравнимо, экономический победитель не объявляется. Предпочитается понятный консервативный вариант и сохраняется причина неопределённости. Низкая оценочная стоимость не компенсирует нарушение планки качества.
+
+### Синтетическая проверка арифметики
+
+Условные единицы ниже проверяют только полноту сложения. Это не измеренные цены и не обещание проекта.
+
+| Кандидат | Планирование | Подготовка и обязательная проверка | Исполнение | Интеграция | Ожидаемая переделка | Всего |
+|---|---:|---:|---:|---:|---:|---:|
+| Один чрезмерно широкий лист | 2 | 4 | 12 | 2 | 18 | 38 |
+| Два связных листа | 2 | 8 | 12 | 2 | 2 | 26 |
+| Шесть слишком мелких листьев | 2 | 24 | 12 | 2 | 1 | 41 |
+
+Таблица показывает, почему минимальное и максимальное число листьев могут оба проигрывать. Она не устанавливает оптимум «два»: другие входы дают другой результат. Без данных о переделке соответствующая ячейка остаётся неизвестной, а не равной нулю.
+
+## 9. Готовность зависимостей и перепланирование
+
+Ребро `A → B` означает конкретное условие готовности A перед B, например независимое принятие нужного интерфейса/дерева. Само завершение исполнения A не заменяет его проверку. Изменившийся общий контракт инвалидирует основанные на нём ещё не начатые пакеты и требует проверки влияния на уже выполненную работу.
+
+При возобновлении сначала сравниваются спецификация, план, состояния и доказательства. Принятый лист не переименовывается и не растворяется в новом крупном листе ради улучшения отчёта. При разрешённом перепланировании сохраняются:
+
+- прежние идентификаторы и состояния как историческое доказательство;
+- отображение старых AC/листьев в новые с причинами;
+- использованные коммиты, тесты и независимые вердикты;
+- список остающихся действительными и инвалидированных доказательств;
+- новая версия плана и явное решение, которое разрешило изменение.
+
+Отключение экономического советника не переписывает план. Следующая новая декомпозиция использует прежние структурные правила; активная работа продолжает согласованный план либо предусмотренное владельцем перепланирование.
+
+## 10. Сценарии отказов
+
+| Ситуация | Обязательная реакция |
+|---|---|
+| Один небольшой связный результат | Не создавать дополнительные листья ради формальной многоступенчатости |
+| Много похожих механических изменений | Рассмотреть совместную приёмку, сохранив область и проверку каждого обязательства |
+| Общий критичный интерфейс | Сначала архитектурное решение и владелец интеграции; не прятать в дешёвую группу |
+| Не хватает контекста | Разделить по смысловой границе или расширить по 14; не исключать AC |
+| Нет калибровки | Структурный совет с неизвестной стоимостью |
+| Цикл зависимостей | Отвергнуть план, устранить цикл/выделить общее решение до исполнения |
+| Совместное владение без порядка | Установить единственного ответственного и зависимость либо изменить границы |
+| Изменился AC после согласования | Предусмотренная поправка/перепланирование с новой версией, не тихое редактирование |
+| Частично выполнена составная задача | Сохранить прогресс и доказательства; перегруппировка только явно разрешённым путём |
+| Файлы различны, но схема общая | Не объявлять параллельную безопасность; применить отдельную проверку 12 |
+
+## 11. Критерии приёмки
+
+- [ ] **AC-01** (`REQ-01`, `REQ-02`). Карта охватывает 100% исходных AC, инвариантов и интерфейсных обязательств; каждый имеет проверку и владельца интеграции. Связанные листья используют один свежий архитектурный контракт. Нерешённое общее решение блокирует зависимое исполнение.
+- [ ] **AC-02** (`REQ-03`, `REQ-04`). Сценарии связанных мелких изменений и архитектурного шва обосновывают связное объединение/разделение. Конфликт согласований, качества, риска или контекстной достаточности исключает недопустимый вариант до экономического сравнения.
+- [ ] **AC-03** (`REQ-05`). Ручные синтетические суммы подтверждают, что дробление и чрезмерный размер могут оба повышать стоимость. Без калибровки нет выдуманных вероятностей/денежной экономии. Общие и дочерние расходы не считаются дважды.
+- [ ] **AC-04** (`REQ-06`, `REQ-07`). План содержит выбранные/отвергнутые границы, причины, ацикличный граф и явное владение. Сохраняются существующие типы/стек. Возобновление не меняет молча начатые задачи и не объявляет параллельность по одной группировке.
+- [ ] **AC-05** (`REQ-08`). Автономные сценарии обнаруживают пропуск покрытия и интеграционный дефект. Сопоставимая отчётность включает планирование/контекст/проверку/переделку. Проверены отключение советов и разрешённое перепланирование без потери истории; меньшее число листьев не выдаётся за доказанную экономию или равное качество.
+
+Трассировка: `REQ-01–02 → AC-01`; `REQ-03–04 → AC-02`; `REQ-05 → AC-03`; `REQ-06–07 → AC-04`; `REQ-08 → AC-05`.
+
+## 12. Реализация и готовность
+
+1. Проверить текущий классификатор и заморозку плана после миграции 13; сохранить единственное каноническое место правил.
+2. Добавить схему покрытия/владения и отказывающие сценарии циклов, пропущенных AC и конфликтующих границ.
+3. Реализовать структурные предложения без денежной оценки, затем необязательное сравнение по пригодной калибровке.
+4. Связать общий контракт с 14, контрольные точки с 15, интеграционную проверку с 16 и метрики с 05.
+5. Проверить сохранение уже начатых задач, отключение и разрешённое перепланирование; оценку живых стратегий проводить отдельно по 09.
+
+Зависимости: 04, 05, 09, 14, 15, 16. G1–G8 обязательны, см. [руководство](00-review-and-implementation-guide.md). Для начала детерминированной реализации не нужна выдуманная калибровка. Ценность сильного общего планирования, дешёвого исполнения либо иной цепочки устанавливается независимыми данными, а не выбранным заранее количеством листьев.

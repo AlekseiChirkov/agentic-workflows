@@ -1,178 +1,148 @@
-# Bounded tool previews with complete local evidence
+# 17. Ограниченный показ результатов инструментов с полными локальными доказательствами
 
-## Source
+## 1. Статус и назначение
 
-Workstream 6 of the owner's 2026-10-21 request: reduce input from large command, search,
-test and file outputs without hiding information needed for a correct result.
+**Статус:** целевая спецификация направления 6 запроса от 2026-10-21, согласованная с исходным снимком `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28. Текущие рабочие процессы требуют целевого чтения, доказательств команд и проверки изменённых файлов. Полный захват, ограничение предварительного показа и точное получение диапазонов остаются планируемыми интерфейсами. Отдельный отчёт аудита, названный исходными документами, в снимке отсутствует.
 
-## Context & Problem
+Цель — уменьшить объём обычного текста инструментов, поступающего модели, сохранив точные полные результаты, их происхождение и действительный исход команды. Краткое представление не является доказательством того, что агент увидел достаточно данных.
 
-Current workflows call for targeted reads, command evidence and scoped git/test
-inspection (`workflows/spec-run.md → ## Step 4 — Subtask loop`,
-`workflows/pav-check.md → ## Instructions`). The 2026-10-28 prose cleanup reduces redundant
-narration but does not implement complete capture artifacts, preview limits, range
-retrieval or a capture helper. Those interfaces remain planned. Preserve full failures,
-exit status and the future git-rail enforcement boundary in 06.
+В объём входят необязательный локальный захват, политики поиска/чтения/разницы/тестов, структурированные сведения о результате, получение диапазонов, хранение и восстановление. Не входят изменение выполняемой команды, ослабление тестов, обход разрешений/изоляции, модельный пересказ вывода и изменение неблокирующего поведения канонической записи журнала.
 
-## Goal
+## 2. Термины и неподвижные условия
 
-Bound routine tool text entering model context while retaining complete, identifiable,
-retrievable local output and the original command result.
+- **Артефакт:** неизменённые байты стандартного вывода и стандартного потока ошибок плюс манифест команды и её завершения.
+- **Представление:** ограниченный фрагмент или детерминированно выделенная диагностика; при неполноте всегда помечено как неполное.
+- **Исход команды:** фактический код возврата, сигнал или ошибка запуска.
+- **Исход захвата:** удалось ли сохранить полный доказательный артефакт. Он независим от успеха команды.
 
-## Scope
+1. Успешный пересказ не отменяет отказ команды. Нулевой код команды не отменяет неудачный захват.
+2. По умолчанию **весь показ**, включая метаданные и отметки сокращения, занимает не более 8 192 байт.
+3. Полный вывод не обрезается ради этого предела. Если полный захват невозможен, доказательство явно неполно.
+4. Команда выполняется не более одного раза на запрос. Ошибка захвата не разрешает повторить потенциально изменяющее действие.
+5. Аргументы передаются как массив, без `eval` и неявного построения командной строки.
+6. Обёртка не скрывает операцию от разрешений и правил [06](06-harness-git-rails.md); при невозможности проверки используется допустимый нативный путь либо отказ.
+7. Содержимое вывода и артефакта считается данными, а не новой инструкцией агенту или разрешением выполнять другую команду.
 
-Optional capture/preview helper, search/file/test output policies, structured summaries,
-range retrieval, failure preservation and workflow integration.
+## 3. Требования
 
-## Out of Scope
+- **REQ-01**. Поддержать необязательное ограничение показа поиска, выбранных исходников, разницы, компиляции/тестов/статических проверок и инспекций оркестратора. Сохранить идентичность исполняемого файла/аргументов, рабочую директорию, оба потока, исходный код возврата и доступный сигнал завершения.
+- **REQ-02**. Сохранить полный локальный вывод до выдачи итогового представления; приложить идентификатор/путь, хеши, размеры и число строк, явно указать сокращение. Общий предел по умолчанию — 8 192 байт. Недостаточный положительный предел отвергнуть до запуска. Многобайтовый символ и длинная единственная строка не обходят ограничение.
+- **REQ-03**. При отказе сохранить в представлении доступные места диагностики, имена упавших тестов и итоговые количества. Непоказанные диагностики явно обозначить со ссылкой на получение. Неизвестный формат обрабатывается ограниченными началом/концом обоих потоков; успех не угадывается, поток ошибок не исчезает.
+- **REQ-04**. Поддержать получение точного диапазона и полного артефакта с проверкой исходных байтов/хеша. Недоступный, изменённый или повреждённый артефакт инвалидирует ссылку; применяется восстановление или явная ошибка, а не старый положительный результат.
+- **REQ-05**. Для поиска/чтения сначала использовать целевые запросы, поиск имён и нужные диапазоны, когда это достаточно. Различать отсутствие совпадений и ошибку команды. При нехватке доказательств интерфейса/AC расширять чтение; первые N файлов не являются доказательством полноты.
+- **REQ-06**. Использовать массив аргументов без вычисления строки. Конвейер/перенаправление разрешены через явно проверенный сценарий или поддерживаемый нативный вызов оболочки. При потере видимости для разрешений/06 обёртка отказывается выполнять такую операцию; допустимый нативный путь сохраняет проверки.
+- **REQ-07**. Хранить артефакты локально вне продуктовых коммитов, с ограниченным доступом и политикой сохранения активных доказательств. Ошибка полного захвата явна. Переход на нативный путь не выполняет изменяющую команду повторно.
+- **REQ-08**. Передавать по 05 размеры полного вывода, представления и полученных дополнений; сохранять исходные коды для автоматических проверок; выполнить G1–G8. Короткий показ без измерения не объявляется денежной экономией.
 
-Suppressing errors, changing commands or assertions, bypassing sandbox approvals,
-filtering source code before execution, paid LLM summarization of tool output, or
-changing the canonical run-log writer's non-blocking behavior.
+## 4. Манифест артефакта версии 1
 
-## Actors & Roles
-
-The executing role chooses an appropriate supported command. The helper captures local
-output and produces a bounded preview. Reviewers can retrieve full evidence/ranges.
-The orchestrator retains approval, git and shared-state ownership.
-
-## Terminology
-
-A preview is explicitly incomplete when truncated. An artifact is the full captured
-stdout/stderr with exit status and identity. A command outcome is not the helper's
-summary verdict.
-
-## Requirements
-
-- **REQ-01** THE SYSTEM SHALL provide optional bounded output for search listings,
-  selected source ranges, diffs, compiler/test/lint output and controller inspections.
-  It SHALL preserve executable/argument identity, working directory, stdout/stderr,
-  original exit code and termination signal where exposed.
-- **REQ-02** WHEN capturing, THE SYSTEM SHALL write complete local output before
-  presenting a preview, attach an artifact path/content hash and byte/line counts,
-  and mark truncation explicitly. Default total preview SHALL be at most 8,192 bytes,
-  with configurable positive limits sufficient for mandatory metadata. An undersized
-  limit SHALL fail validation before executing the command; line-based display SHALL not silently count
-  multibyte characters as bytes or hide an oversized single line.
-- **REQ-03** WHEN a command fails, THE SYSTEM SHALL preserve diagnostic locations,
-  failing test names and available summary counts in the preview, label any unshown
-  diagnostics and provide retrieval. An unrecognized format SHALL use a generic
-  bounded head/tail with honest truncation, not guess success or omit stderr.
-- **REQ-04** THE SYSTEM SHALL support exact range/full retrieval of an artifact,
-  preserving its hash and original bytes. A missing, changed or unreadable artifact
-  SHALL invalidate the evidence reference and trigger recapture or explicit failure,
-  not silently reuse a prior success.
-- **REQ-05** WHEN selecting search/file output, THE SYSTEM SHALL use targeted queries,
-  names-first discovery and relevant ranges where sufficient, preserve no-match versus
-  command-failure status, and request expansion when interface/AC evidence is missing.
-  No fixed first-N-file rule SHALL be treated as completeness.
-- **REQ-06** THE SYSTEM SHALL avoid unsafe shell string interpolation: command capture
-  SHALL use argument arrays/no eval, and pipelines/redirections SHALL use an explicitly
-  reviewed script or existing supported shell invocation. If a wrapper would hide the
-  command from a permission/git-rail hook, it SHALL NOT wrap that command; use native
-  execution/output limits with separate evidence capture instead.
-- **REQ-07** THE SYSTEM SHALL keep artifacts local, out of committed product code,
-  with restrictive permissions and a documented retention/cleanup policy preserving
-  active task/review evidence. Failure to capture a complete output SHALL be explicit;
-  fallback native execution SHALL not run a mutating command twice.
-- **REQ-08** THE SYSTEM SHALL attach output/preview sizes and retrieval counts to 05,
-  retain failure exit codes for CI/gates, and apply shared index gates G1–G8.
-  A shorter preview SHALL not be described as lower API cost without measurement.
-
-## Data Model
-
-Artifact ID/path, command argv digest, allowed working directory, timestamp, tree hash
-where meaningful, original return status/signal, stdout/stderr hashes and byte counts,
-preview bounds/truncation and diagnostic extraction confidence. Raw commands/output may
-contain private data and stay local; exported telemetry uses safe metadata only.
-
-## Contracts & Interfaces
-
-Proposed optional interface:
-`scripts/capture-output.sh --limit-bytes <N> --artifact-dir <dir> -- <command> [args...]`
-and a read-only range/full-output subcommand. The execution mode returns the original
-command's exit status when capture succeeds. If capture fails after a successful
-command, it returns helper status 125 and reports the original status separately;
-if the command also failed, its original nonzero status takes precedence. Capture
-failure is always explicit, never a passing evidence receipt.
-A signal is not translated into success. Helper failure must not rerun a command
-whose side effects may already have happened. Existing CLI-specific exit contracts
-remain visible, including log-step's deliberate best-effort zero.
-
-The helper never broadens permissions; 06 must still see protected git commands.
-Native harness truncation is acceptable only with complete retrievable evidence.
-
-## Non-Functional Requirements
-
-Default preview ≤8,192 bytes including metadata/markers; exact full output retained.
-Capture uses streaming/spooling so large output need not reside wholly in memory.
-No network/model call, no eval, no arbitrary cleanup outside the artifact root.
-
-## Edge Cases & Failure Modes
-
-Cover empty output, exact limit/limit+1, huge single line, UTF-8 split boundaries, binary
-output, stderr-only failure, missing executable, exit 1 no-match, compiler/test formats,
-signal/timeout, disk full, interrupted capture, artifact mutation and unsafe wrapper
-visibility. A failed mutation is inspected before any retry.
-
-## Acceptance Criteria
-
-- [ ] **AC-01** (REQ-01, REQ-02) Synthetic success/failure outputs preserve argv, streams
-  and exact return status; 0/boundary/oversized/UTF-8 fixtures respect total preview
-  bounds and full artifact hashes match original bytes.
-- [ ] **AC-02** (REQ-03, REQ-05) Failing tests, stderr-only errors, generic formats and
-  no-match searches are distinguished; incomplete context requests retrieve more data.
-- [ ] **AC-03** (REQ-04) Full/range retrieval reproduces bytes; missing or edited artifacts
-  cannot satisfy a verification evidence reference.
-- [ ] **AC-04** (REQ-06, REQ-07) Adversarial argv/shell characters execute literally;
-  protected git commands remain visible to rails or are refused by the wrapper;
-  simulated capture failure executes a side-effect counter command only once.
-- [ ] **AC-05** (REQ-07, REQ-08) Local retention/privacy, fallback and disable instructions
-  exist; telemetry records preview/full/retrieved bytes separately and offline checks
-  cannot convert a failing original command into a passing gate.
-
-## Traceability
-
-| Requirement | Acceptance |
+| Поле | Контракт |
 |---|---|
-| REQ-01, REQ-02 | AC-01 |
-| REQ-03, REQ-05 | AC-02 |
-| REQ-04 | AC-03 |
-| REQ-06 | AC-04 |
-| REQ-07 | AC-04, AC-05 |
-| REQ-08 | AC-05 |
+| `artifact_id`, `schema_version` | Уникальный идентификатор и поддерживаемая версия |
+| `repository_id`, `worktree_id`, `working_dir` | Разрешённое место выполнения; при отсутствии репозитория это явно отмечено |
+| `command_argv_digest`, `command_ref` | Идентичность точного массива аргументов; полный массив хранится локально с ограниченным доступом |
+| `effective_tree_digest` | Фактические входы, когда это имеет смысл; отсутствие не выдаётся за доказанную ревизию |
+| `started_at`, `ended_at` | Время наблюдения; длительность и её качество согласуются с 05 |
+| `command_status` | Код, сигнал, тайм-аут или ошибка запуска; не заменяется оценкой парсера |
+| `capture_status` | `complete`, `partial`, `failed` или `not_started` |
+| `stdout`, `stderr` | Локальные пути, хеши исходных байтов, размеры и число строк каждого потока |
+| `preview` | Предел, фактические байты, показанные диапазоны, признак сокращения, версия извлечения диагностики |
+| `diagnostics` | Известные количества, формат/версия распознавания и явно неизвестные поля |
+| `retention_refs` | Активные задачи/проверки, которым ещё нужен артефакт |
 
-## Risks
+Состояния захвата — новые значения производного артефакта, не статусы задач. Число строк определяется единообразно: количество байтов перевода строки плюс одна последняя непустая строка без завершающего перевода; пустой поток имеет ноль строк. Двоичные данные всё равно имеют точный размер и хеш; строковое представление для них помечается неприменимым или вспомогательным.
 
-Useful diagnostics can occur anywhere in a large output. Preview caps require honest
-truncation, reliable full retrieval and impact-driven expansion; they are not a proof
-that a reviewer has seen enough.
+Два потока хранятся раздельно. Их произвольное склеивание не выдаётся за точный временной порядок сообщений процесса. Если собирается дополнительный журнал чередования, он описывает наблюдение захвата, а исходные потоки остаются каноническими байтами.
 
-## Assumptions
+Сырые команды и результаты могут содержать частные данные. В экспортируемую телеметрию входят только безопасные метаданные, не аргументы, секреты или стенограммы. Маскировка представления допустима при явной отметке; она не переписывает сырой артефакт и не меняет его хеш. Полный доступ к частным данным сохраняет исходные ограничения доступа.
 
-Local writable evidence storage is usually available. Without it, preserve correctness
-through native output/retrieval and record that bounded capture was unavailable.
+## 5. Интерфейс и стадии выполнения
 
-## Decisions
+Целевой необязательный интерфейс:
 
-Keep optional local tools, native approval enforcement and complete evidence.
-Do not change production run budgets or replace deterministic tools with another LLM.
+```text
+scripts/capture-output.sh --limit-bytes <N> --artifact-dir <dir> -- <command> [args...]
+scripts/capture-output.sh read --artifact <id> --stream stdout --offset <B> --length <N>
+scripts/capture-output.sh read --artifact <id> --stream stderr --full
+```
 
-## Clarifications
+Чтение не запускает исходную команду. Байтовые диапазоны имеют нулевое смещение и полуоткрытую область `[offset, offset + length)`; отрицательные значения и выход за размер отвергаются. При запросе текста диапазон может отображаться с безопасным декодированием, но выдача точных байтов остаётся отдельным режимом. Смещение не пересчитывается по символам.
 
-2026-10-21: the 8 KiB default is a configurable preview policy, not a measured optimum
-or a cap on failures/evidence available to an agent.
+### До запуска
 
-## Open Questions
+1. Проверить аргументы, разрешённый корень артефактов, возможность создания и отсутствие небезопасных ссылок/подмены пути.
+2. Проверить совместимость с нативными разрешениями и 06. В сомнительном случае отказать **до** запуска, сохранив возможность прямого разрешённого вызова.
+3. Сформировать обязательный каркас метаданных. Предел должен вместить этот каркас, возможные состояния завершения и отметку получения полного артефакта. Если не вмещает — вернуть ошибку проверки; не запускать команду с заранее невыполнимым обещанием.
+4. Создать отдельный защищённый временный каталог. Для систем с соответствующими правами использовать каталог `0700`, файлы `0600`; на других платформах — эквивалентные ограничения доступа.
+5. Зафиксировать идентичность команды и отметить ещё не начавшееся исполнение.
 
-None blocking. Optimal caps and retrieval overhead require later measured evaluation.
+### Во время запуска
 
-## Notes
+1. Запустить точный массив аргументов один раз.
+2. Читать оба потока параллельно и последовательно дописывать каждый в свой файл, чтобы переполнение одного канала не блокировало другой. Использовать потоковую запись, а не хранение всего вывода в памяти.
+3. Собирать хеши и размеры по фактически сохранённым байтам. При ошибке записи отметить неполный захват; не возвращать полное доказательство.
+4. Передавать отмену/тайм-аут только процессу или группе, созданным этим запуском, в рамках имеющихся разрешений. Зафиксировать действительный доступный исход; не объявлять принудительное прекращение успехом.
+5. Сообщение о ходе долгой команды может показывать, что она ещё выполняется, но не считается итоговым доказательством и не утверждает полноту будущего вывода.
 
-Depends on 06, 09 and 14. Suggested slices: streaming capture; previews; diagnostics;
-retrieval/retention; safe workflow integration; deterministic tests/docs.
+### После завершения
 
-## Readiness Checklist
+1. Дочитать потоки, закрыть файлы, сохранить исходный статус и завершить манифест.
+2. Опубликовать артефакт как завершённый только после успешного окончания полного захвата. Незавершённый временный объект не получает `complete`.
+3. Построить представление из сохранённых байтов, выделив место обязательным метаданным и обоим потокам. При ошибке команды предпочесть подтверждённую диагностику; остальное показать началом/концом и дать получение диапазонов.
+4. Проверить фактический размер всего выдаваемого UTF-8 представления. Не разрезать многобайтовый символ; убрать целый символ при нехватке места. Сокращение длинной строки отражается явно.
+5. Вернуть код согласно следующей таблице и не запускать команду ещё раз.
 
-Interface, limits, exit behavior, error preservation, security boundaries and acceptance
-are explicit. Ready for Discovery; savings unmeasured.
+## 6. Коды завершения: два независимых результата
+
+| Команда | Захват | Возвращаемый итог и смысл |
+|---|---|---|
+| Код 0 | Полный | Код 0; артефакт может служить доказательством именно этой команды |
+| Ненулевой код | Полный | Исходный ненулевой код; полный артефакт объясняет отказ |
+| Код 0 | Неполный/ошибка | Код средства 125; отдельно сохранён исходный 0, доказательство неполно |
+| Ненулевой код | Неполный/ошибка | Исходный ненулевой код имеет приоритет; ошибка захвата всё равно явно видна |
+| Сигнал/тайм-аут | Любой | Ненулевой исход с отдельным точным сигналом/причиной; преобразование оболочки не объявляется обычным кодом приложения |
+| Не удалось запустить | Не начат | Явная ошибка запуска; `command_started=false`, нет выдуманного кода завершившегося приложения |
+
+Если само приложение вернуло 125, это различается через `command_status` и `capture_status`; числовой код не является единственным носителем причины. В случаях сигналов оболочка может предоставлять только стандартное отображение `128 + signal`; в манифесте указывается доступная точность, без выдуманного исходного статуса.
+
+Специальные контракты команд сохраняются. Например, отсутствие совпадений поиска может иметь код 1 и не означать системную ошибку. Канонический журнал с намеренно неблокирующим нулевым кодом **не оборачивается этим средством захвата**: он выполняется своим нативным путём, и сбой дополнительной диагностики не меняет его неблокирующий контракт. Поэтому строка `0 + ошибка захвата → 125` к такому служебному пути не применяется. Нулевой код журнала не доказывает, что измерение обязательно было записано.
+
+## 7. Политика представления и достаточности
+
+Для известного формата допускается детерминированно извлечь имена упавших тестов, диагностические пути и итоговые количества. Парсер имеет идентификатор/версию; неподдерживаемый формат остаётся неизвестным. Слова «успех» в тексте не отменяют ненулевой статус, а отсутствие найденных ошибок не превращает неизвестный формат в успех.
+
+Если все диагностические сведения не вмещаются, указывается число распознанных и непоказанных записей либо честное «количество неизвестно», показанные диапазоны и ссылка получения. Требование сохранить диагностику означает сохранить её полные исходные байты и доступность, а не обещать поместить произвольный объём в 8 192 байта.
+
+Для поиска сначала перечисляются подходящие пути, затем читаются нужные участки. Если для критерия необходима полнота поиска, фиксируются корень, шаблон, исключения и исход команды. Отсутствие совпадений в выбранном диапазоне не выдаётся за отсутствие во всём проекте. Проверяющий может получить полный артефакт и расширить поиск.
+
+## 8. Хранение, получение и восстановление
+
+Артефакты находятся в разрешённом локальном корне доказательств и не индексируются в продуктовый коммит автоматически. Имена строятся из безопасного идентификатора, не из произвольного аргумента команды. Получение не выходит за манифестированный корень, не следует неразрешённым символическим ссылкам и проверяет хеши перед использованием.
+
+Активная задача/проверка закрепляет свои артефакты через `retention_refs`. Автоматическая очистка активных доказательств запрещена. Срок хранения завершённых артефактов и явная команда очистки документируются при внедрении; без утверждённой политики разрушительная очистка по умолчанию не запускается. Удаляются только принадлежащие средству объекты внутри разрешённого корня, без обхода соседних каталогов.
+
+При переполнении диска, отказе прав или прерывании захвата сохраняется доступная диагностика и состояние `partial/failed`. Перед любым повтором сначала проверяются фактические побочные эффекты. Если команда только читает и её повтор безопасен, допускается новый отдельный запуск с новым идентификатором. Изменяющая команда не повторяется автоматически; восстанавливается доказательство другим чтением либо запрашивается решение по действующему процессу.
+
+Нативное сокращение среды допустимо только при наличии полного доступного результата или проверяемого внешнего артефакта. Когда среда уже потеряла часть вывода, такой результат не обозначается как полный. Отсутствие средства захвата сохраняет обычное выполнение и чтение, но необходимые доказательства должны быть получены до принятия задачи.
+
+## 9. Критерии приёмки
+
+- [ ] **AC-01** (`REQ-01`, `REQ-02`). Синтетические пустой вывод, точная граница, граница плюс байт, длинная строка, UTF-8 и двоичные данные сохраняют точные потоки/хеши/статус. Весь показ не превышает предел; недостаточный предел отвергается до выполнения.
+- [ ] **AC-02** (`REQ-03`, `REQ-05`). Различаются упавшие тесты, ошибка только в потоке ошибок, неизвестный формат и отсутствие совпадений. Непоказанная диагностика помечена; запрос расширения возвращает недостающее содержимое.
+- [ ] **AC-03** (`REQ-04`). Полная выдача и байтовые диапазоны воспроизводят исходные байты. Изменение/исчезновение артефакта и выход за диапазон дают ошибку, а не старое успешное доказательство.
+- [ ] **AC-04** (`REQ-06`, `REQ-07`). Специальные символы аргументов остаются данными. Защищённая операция видна 06 или отвергнута до выполнения. При искусственном отказе захвата команда со счётчиком побочного эффекта выполняется ровно один раз.
+- [ ] **AC-05** (`REQ-07`, `REQ-08`). Проверены права, разрешённые корни, закрепление активных доказательств, очистка только принадлежащих объектов и отключение. Метрики различают полные/показанные/дополнительно полученные байты. Ошибка команды или захвата не становится успешной проверкой.
+
+Дополнительные обязательные сценарии: оба потока одновременно заполняют каналы; процесс завершается сигналом; исполняемый файл отсутствует; захват прерван после побочного эффекта; приложение само вернуло 125; представление маскирует частные данные без изменения исходного хеша.
+
+Трассировка: `REQ-01–02 → AC-01`; `REQ-03,05 → AC-02`; `REQ-04 → AC-03`; `REQ-06 → AC-04`; `REQ-07 → AC-04,05`; `REQ-08 → AC-05`.
+
+## 10. Порядок внедрения и зависимости
+
+1. Зафиксировать точный интерфейс и таблицу исходов; подготовить синтетические сценарии отказов до реализации.
+2. Реализовать потоковый захват и неизменяемые артефакты, затем представление и получение диапазонов.
+3. Проверить совместимость с разрешениями/06, отдельно команды с побочными эффектами и ошибки диска.
+4. Подключить манифесты к 14/15/16 и безопасные диагностические метаданные к 05. Диагностическое событие не создаёт новую оплачиваемую модельную единицу.
+5. Описать локальное хранение, отключение и восстановление; выполнить проверки 09 без модели и сети.
+
+Зависимости: 06, 09, 14. G1–G8 обязательны, см. [руководство](00-review-and-implementation-guide.md). Предел 8 КиБ — настраиваемая исходная политика, а не измеренный оптимум и не ограничение доказательств, доступных агенту. Денежный эффект, включая дополнительные получения, оценивается только по 05/09.

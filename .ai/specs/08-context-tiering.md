@@ -1,171 +1,153 @@
-# Compact instructions, explicit loads and concise reports
+# 08. Уровни инструкций, явная загрузка и краткие отчёты без потери обязательств
 
-## Source
+## 1. Статус и граница доказательств
 
-ADR-0009 Decision 6 and workstream 3 of the owner's 2026-10-21 optimization request.
-The previous unmeasured 40–60k bootstrap-token claim is withdrawn as a baseline.
+**Статус:** спецификация будущей реализации; сокращение текстов само по себе не означает выполнения этой спецификации. Редакция согласована с исходным индексом `.ai/specs/README.md` в снимке `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28. Основание: ADR-0009, решение 6, и направление 3 запроса от 2026-10-21.
 
-## Context & Problem
+Исходные материалы описывают проведённое уточнение рабочих процессов, повторное использование совместимого родительского контекста и обязательную полную загрузку при самостоятельном вызове. Упомянутый ими отчёт `docs/audits/2026-10-28-workflow-clarity-and-size.md` отсутствует в проверенном дереве; он не считается доступным доказательством. Перед реализацией следует проверять сами действующие инструкции.
 
-The 2026-10-28 workflow audit removed repeated instructions, clarified child/parent
-context ownership, and made standalone bootstrap requirements explicit. The canonical
-phase bootstraps remain mandatory; an already loaded compatible parent context can be
-reused under `rules/workflow-globals.md` (Context Bootstrap contract). Context packs still use
-the current metadata freshness contract (`workflows/context-pack.md → ## Step 1 — Check freshness`).
+Разделение правил и справочных материалов, декларации `loads:`, измеритель графа загрузки, развёртывание справочных навыков и численные целевые показатели остаются будущими возможностями. Историческая оценка «40–60 тысяч токенов при начальной загрузке» отозвана: использовать её как исходное измерение запрещено.
 
-This is an initial instruction cleanup, not delivery of this spec. The rule/reference
-split, machine-readable `loads:`, transitive context measurement, reference deployment,
-size targets and quantified baseline gates remain pending. Spec 14 owns stronger project
-context manifests/packets and reuse receipts; operative constraints cannot be removed to
-meet a size target.
+## 2. Назначение и область действия
 
-## Goal
+Сократить повторяющиеся инструкции и пересказ уже доступных данных, сохранив все запреты, обязательные загрузки, условия остановки, критерии приёмки, доказательства тестирования и сведения для восстановления.
 
-Reduce repeated instructional prose and generated narration while retaining operative
-contracts, test evidence, findings, stop conditions and readable recovery instructions.
+Спецификация владеет структурой правил, декларациями загрузки, подсчётом объёма инструкций и формой краткого отчёта. Она не изменяет смысл рабочих процессов, статусы задач, модель оплаты, выбор моделей или условия принятия результата.
 
-## Scope
-
-Rule/reference split, per-workflow load declarations, context-size tooling, concise
-workflow/role report schemas and structural regression checks.
-
-## Out of Scope
-
-Changing contract meaning, task-state storage or project context selection (14),
-tool-output truncation (17), cheaper models (04/18), and skipping validation (16).
-
-## Actors & Roles
-
-Maintainers keep one canonical contract; sync deploys on-demand reference; workflow
-authors declare loads; executors return concise evidence; validators verify the same
-acceptance obligations.
-
-## Terminology
-
-Always-on text is supplied every session. On-demand reference is loaded only when a
-condition/citation requires it. A load graph records dependencies and conditional edges;
-its unconditional closure is not every reachable reference.
-
-## Requirements
-
-- **REQ-01** THE SYSTEM SHALL keep each top-level rule at most 700 words and the
-  always-on set at most 6,000 words; the stricter bootstrap limit from 13 still applies.
-  Optional rationale, examples and incidents SHALL move to `rules/reference/<name>.md`
-  with stable section links; all operative requirements SHALL stay reachable and
-  mandatory conditions SHALL not become optional reference.
-- **REQ-02** WHEN syncing, THE SYSTEM SHALL deploy reference files as `ref-<name>`
-  on-demand skills with manifest-owned cleanup and preserve references after renames.
-- **REQ-03** THE SYSTEM SHALL add `loads:` to workflow front matter, identify mandatory
-  and conditional dependencies, and have bootstraps cite the declaration instead of
-  duplicating load lists. Missing conditional prerequisites SHALL trigger full relevant
-  loading or the original stop, never silent continuation.
-- **REQ-04** THE SYSTEM SHALL provide `scripts/measure-context.sh <workflow>`, resolving
-  mandatory loads once, detecting missing targets/cycles and reporting words/bytes,
-  always-on contribution, and conditional/worst-case closure separately. It SHALL
-  not call word counts token counts or assume that every reference is eagerly loaded.
-- **REQ-05** WHEN comparing `atomic-execution-implement` and
-  `atomic-execution-tests`, THE SYSTEM SHALL record a pre-change baseline with matching
-  source/deployed versions and reduce each mandatory instruction-word total to at most
-  50 percent of baseline without changing its obligations. If this is infeasible while
-  preserving contracts, the task SHALL surface the failed target for owner decision,
-  not hide missing requirements or silently weaken the gate.
-- **REQ-06** THE SYSTEM SHALL define concise RED, GREEN, review and final-report
-  projections carrying result, changed files/diff identity, relevant AC IDs, test
-  command/result/evidence reference, blockers, required decisions and next action.
-  Repeated step prose, full specs and already recorded histories SHALL not be echoed
-  by default; full artifacts SHALL remain accessible. Mandatory warnings and findings
-  SHALL never be suppressed to hit a length target.
-- **REQ-07** WHEN an output cap or compact schema is used, THE SYSTEM SHALL distinguish
-  a complete structured payload from a shortened human summary. It SHALL not truncate
-  state deltas, git instructions, errors, test failure details or acceptance evidence
-  in transit. Spec 15 owns checkpoint envelopes; 17 owns tool previews.
-- **REQ-08** THE SYSTEM SHALL enforce size/reachability/load and required-output-field
-  contracts, preserve canonical statuses/protected state and pass offline regression
-  assertions from 09. Shared index gates G1–G8 apply. Actual usage/cost comparisons
-  SHALL use 05/09 separately from instruction-word targets.
-
-## Data Model
-
-`loads:` references mandatory rules plus explicit conditional references with a
-condition. Discovery finalizes a machine-readable encoding compatible with 13's
-front matter and 10's renderer. Compact reports reference local full evidence by path,
-content hash and scope; no provider-specific report parser is required.
-
-## Contracts & Interfaces
-
-The existing workflow invocations and statuses remain. Removed prose must map to its
-new reference home; bootstrap command/prohibition text stays operative and exact.
-`measure-context.sh` returns a nonzero status for unresolved mandatory loads/cycles
-and emits a machine-readable option for offline gates; it invokes no models.
-
-## Non-Functional Requirements
-
-≤700 words per top-level rule, ≤6,000 always-on words, bootstrap ≤300 words under 13.
-Unique dependency traversal terminates on cycles with diagnostics. Output completeness
-is schema-based, not a forced prose-word cap that could drop critical findings.
-
-## Edge Cases & Failure Modes
-
-Cover empty/missing load lists, conditional profiles, duplicate/transitive dependencies,
-cycles, renamed sections, standalone child calls and long finding lists. A summary
-reference without its artifact is incomplete evidence and triggers retrieval/recheck.
-
-## Acceptance Criteria
-
-- [ ] **AC-01** (REQ-01, REQ-02) Word gates and reference resolution pass; a moved
-  prohibition or unmanifested destructive cleanup is rejected.
-- [ ] **AC-02** (REQ-03, REQ-04) Every workflow has valid loads; fixtures distinguish
-  mandatory and conditional closure, avoid double counting, and reject broken cycles.
-- [ ] **AC-03** (REQ-05) Both named workflows meet the recorded 50-percent instruction
-  target with a requirement-preservation map, or acceptance explicitly remains failed.
-- [ ] **AC-04** (REQ-06, REQ-07) RED/GREEN/review/final fixtures retain required fields
-  and full evidence; a large critical-finding payload is preserved despite summary caps.
-- [ ] **AC-05** (REQ-08) Offline flat/TDD/state assertions pass, documentation includes
-  disable/full-reference recovery, and no savings claim is inferred from word counts.
-  An approved release golden, when run, also preserves behavior.
-
-## Traceability
-
-| Requirement | Acceptance |
+| Соседняя спецификация | Её исключительное владение |
 |---|---|
-| REQ-01, REQ-02 | AC-01 |
-| REQ-03, REQ-04 | AC-02 |
-| REQ-05 | AC-03 |
-| REQ-06, REQ-07 | AC-04 |
-| REQ-08 | AC-05 |
+| [05](05-cost-and-duration-telemetry.md) | Фактические токены, время, покрытие измерений и денежная оценка |
+| [10](10-generated-reference-docs.md) | Генерация справочников и развёртываемых файлов из канонических источников |
+| [13](13-model-only-harnesses-and-rule-naming.md) | Имена, размещение файлов и возможности сред исполнения |
+| [14](14-task-context-and-reuse.md) | Выбор проектного контекста, пакеты задачи и их свежесть |
+| [15](15-orchestrator-overhead.md) | Полные сообщения контрольных точек и предложения изменения состояния |
+| [16](16-scoped-verification.md) | Область и достаточность проверки |
+| [17](17-bounded-tool-output.md) | Ограниченный показ результатов инструментов и полные артефакты |
 
-## Risks
+## 3. Неподвижные условия
 
-Over-compression can hide a stop or load condition. Keep a before/after obligation map,
-test standalone entry points, and preserve access to full reference. A shorter prompt
-can have worse cache behavior; only 05/09 can establish a financial result.
+1. У каждого обязательства есть одно каноническое место и проверяемый путь загрузки до момента, когда оно нужно.
+2. Условная загрузка означает «обязательно при выполнении условия», а не «по усмотрению агента».
+3. Удалённое повторение заменяется ссылкой только тогда, когда самостоятельный вызов и вызов из родителя по-прежнему получают достаточные инструкции.
+4. Краткое представление не заменяет полный структурированный результат. Критические сведения не удаляются ради ограничения длины.
+5. Количество слов и байтов не называется количеством токенов. Из него не выводятся денежная экономия или гарантированные попадания в кэш.
+6. Измеритель, проверка ссылок и генератор не запускают модели и не меняют рабочее состояние задачи.
 
-## Assumptions
+## 4. Требования
 
-Instruction-word reduction is a structural target, not a promised token/cost reduction.
-Optional reference may be expensive on unusual tasks and must be reported honestly.
+- **REQ-01**. Каждое правило верхнего уровня содержит не более 700 слов, весь постоянно загружаемый набор — не более 6 000 слов. Из 13 одновременно действуют отдельные пределы: 300 слов для начального правила и 1 200 слов для каждого развёрнутого постоянно загружаемого файла среды. Это четыре разных области проверки; соблюдение одной не отменяет остальные. Обоснования, необязательные примеры и история происшествий переносятся в `rules/reference/<name>.md`. Запреты, условия остановки и обязательные действия остаются в оперативном пути загрузки; перенос не превращает их в необязательный материал.
+- **REQ-02**. Синхронизация развёртывает справочные файлы как загружаемые по требованию навыки `ref-<name>`. Владение записывается в манифесте установщика. Переименование сохраняет или явно мигрирует ссылки. Удаление допускается только для доказанно принадлежащих установщику неизменённых файлов; чужие изменения сохраняются.
+- **REQ-03**. Каждый рабочий процесс объявляет `loads:` с обязательными и условными зависимостями. Начальные инструкции ссылаются на эту декларацию вместо ручной копии списка. При неизвестном условии загружается соответствующий полный материал; если исходный контракт требует остановки из-за отсутствующего обязательного источника, остановка сохраняется.
+- **REQ-04**. `scripts/measure-context.sh <workflow>` вычисляет граф загрузки, проверяет цели и циклы, однократно учитывает одинаковые источники и отдельно сообщает постоянно загружаемую часть, обязательное замыкание, условные ветви и верхнюю границу. Условные ветви не выдаются за фактическую загрузку. Предусмотрен машиночитаемый результат.
+- **REQ-05**. До изменения инструкций фиксируется сопоставимая исходная величина для `atomic-execution-implement` и `atomic-execution-tests` с привязкой к версии исходников и установленной версии. Для каждого процесса обязательный объём после изменения должен составлять не более 50% соответствующей исходной величины. Дополнительно требуется карта сохранения обязательств. Недостижимая цель остаётся невыполненной и передаётся владельцу на решение; удалять обязательства или подменять исходную величину нельзя.
+- **REQ-06**. Представления RED, GREEN, проверки и завершения содержат результат, идентичность изменений, затронутые файлы, критерии приёмки, команды и результаты проверок, ссылки на доказательства, препятствия, необходимые решения и следующее действие. По умолчанию не повторяются вся спецификация, полный журнал и уже сохранённый план. Существенные предупреждения и замечания сохраняются.
+- **REQ-07**. Формат явно отличает полный структурированный результат от краткого человеческого изложения. Дельты состояния, инструкции работы с ветвями, ошибки и доказательства приёмки передаются полностью либо как проверяемая ссылка на полный артефакт; обрезанный объект не считается корректным сообщением. Контрольные точки определяет 15, инструментальные представления — 17.
+- **REQ-08**. Проверки охватывают размер, достижимость правил, полноту загрузки и обязательные поля отчётов, сохраняют статусы и защищённые разделы, выполняют автономные проверки 09 и общие условия G1–G8. Сравнение фактических токенов и стоимости проводится отдельно по 05/09.
 
-## Decisions
+## 5. Каноническая модель загрузки
 
-Retain ADR-0009 size targets, on-demand references and post-rename implementation.
-No test-first, validation or protected-section rule is relaxed.
+Ниже задан целевой формат версии 1; это проектный контракт, а не утверждение, что поля уже поддерживаются. Реализация 13 и генератор 10 используют одну и ту же схему без независимых вариантов.
 
-## Clarifications
+```yaml
+loads:
+  schema_version: 1
+  mandatory:
+    - path: rules/contract-example.md
+      sections: ["Safety rails"]
+  conditional:
+    - condition_id: composite_task
+      condition: "task.type == composite"
+      path: rules/reference/example.md
+      sections: ["Integration"]
+      on_unknown: load
+```
 
-2026-10-21: expanded to concise generated reports; task context and tool output stay
-owned by 14 and 17. Full model-driven goldens remain explicitly approved/release-only.
+Пример содержит условные имена источников; они не должны появиться в настоящем манифесте без существующих файлов. Поле `condition` — декларативное выражение из утверждённого набора признаков задачи, а не исполняемый код. Неизвестный оператор, поле или версия схемы означает ошибку проверки, а не ложное условие. Идентификаторы условий уникальны в пределах декларации.
 
-## Open Questions
+Для каждой зависимости нужны нормализованный путь относительно корня исходников, режим загрузки и, при выборе раздела, точный существующий заголовок. Пути разрешаются после миграции имён 13. Символьная ссылка за разрешённые корни не обходится автоматически. Две ссылки на один файл без выбора разделов обозначают одну загрузку; одинаковые разделы объединяются, пересекающиеся диапазоны учитываются как объединение байтовых диапазонов. Загрузка файла целиком поглощает его частичные загрузки.
 
-No blocking question. Comparative task samples and quality margins are decided before
-paid evaluation under 09.
+Справочная ссылка не становится зависимостью только от наличия упоминания. Автор обязан классифицировать её как обязательную, условную либо информационную. Противоречие между текстовой командой «прочитать» и необязательной декларацией считается дефектом.
 
-## Notes
+### Алгоритм разрешения
 
-Depends on 13 and 09. Suggested slices: baseline/load graph; rule split; deployment;
-report contracts; measurement/contract checks; regression and documentation.
+1. Зафиксировать идентификатор рабочего процесса, снимок исходников, схему и список постоянно загружаемых файлов среды.
+2. Проверить декларацию и разрешить каждую цель и каждый раздел.
+3. Построить ориентированный граф. Для обязательного обхода включить обязательные рёбра; условные рёбра включать по значениям известных признаков.
+4. При неопределённом условии включить соответствующую зависимость и пометить причину. Отсутствующая обязательная цель останавливает проверку.
+5. Использовать три состояния вершины: не посещена, в текущем стеке, завершена. Ребро в текущий стек означает цикл; вывести полный путь цикла и вернуть ошибку. Повтор уже завершённой вершины не является циклом.
+6. Удалить повторный учёт файлов и перекрывающихся разделов. Рассчитать фактическое выбранное замыкание, обязательный минимум и объединённую верхнюю границу отдельно.
+7. Если условия взаимоисключающие, объединение всех ветвей назвать верхней границей, а не достижимым сценарием. Не обещать точный максимум без определения допустимых сочетаний условий.
 
-## Readiness Checklist
+## 6. Правила измерения и сопоставимости
 
-Goal, exclusions, measurable targets, failure behavior and traceability are specified.
-Ready for Discovery; conditional loads must not be mistaken for optional correctness.
+Слово для структурной проверки — максимальная непустая последовательность символов Unicode между пробельными символами. Считается весь развёрнутый текст, включая заголовки, фрагменты кода и метаданные: скрывать инструкции в исключённой области нельзя. Байты считаются в исходном представлении UTF-8. Версия алгоритма включается в отчёт и применяется одинаково до и после изменения.
+
+Для процесса `w`:
+
+```text
+mandatory_total(w) = words(union(always_on, mandatory_closure(w)))
+target_met(w) = 2 * after.mandatory_total(w) <= before.mandatory_total(w)
+```
+
+Объединение предотвращает двойной учёт правила, одновременно присутствующего в начальном наборе и декларации загрузки. Сравниваются одинаковые границы контекста: нельзя сравнить полный исходный набор с одним новым файлом, исключив обязательные зависимости.
+
+Машиночитаемый отчёт содержит `schema_version`, `counter_version`, `workflow_id`, `source_revision`, `deployed_manifest_digest`, `inputs_digest`, массив файлов/разделов с хешами и причинами загрузки, `always_on_words`, `mandatory_words`, `conditional_words`, `upper_bound_words`, соответствующие байты, неразрешённые цели и циклы. Точное имя итоговой команды и параметры формата фиксируются при реализации; оболочка не должна требовать обязательной службы.
+
+Если исходное измерение отсутствует, равно нулю, относится к другой границе или не подтверждено установленным манифестом, процент считается **неизвестным**. Создаётся воспроизводимая исходная запись; из памяти и исторических оценок знаменатель не восстанавливается. Изменение токенизации провайдера не меняет этот структурный счётчик.
+
+## 7. Краткие отчёты и восстановление полноты
+
+| Граница | Обязательное содержание |
+|---|---|
+| RED | Задача и критерии, точные тестовые файлы, воспроизводящая команда, ожидаемый и наблюдённый отказ, полный артефакт, подтверждение тестового коммита |
+| GREEN | Проверяемое дерево, изменения реализации, неизменность замороженных тестов, команды/статусы, полные доказательства, непокрытые критерии |
+| Независимая проверка | Область проверки, входные идентификаторы, все значимые замечания, проверенные и непроверенные обязательства, итоговый вердикт |
+| Завершение | Последняя проверенная ревизия, завершённые обязательства, оставшиеся ограничения, состояние ветви/запроса на включение изменений, следующее разрешённое действие |
+
+RED применим только при требуемом тестовом цикле. Законный путь `test-level: none` / `atomic-tests: n-a` сохраняет обоснование неприменимости и фактические ручные/структурные доказательства; не создаёт выдуманные RED, тестовый коммит или строку измерения.
+
+Также сохраняется существующий `atomic-tests: pinned`: для изменения без смены поведения тесты фиксируют исходное поведение и проходят до изменения; это не RED и не должно описываться как наблюдённый отказ. Старый блок без `atomic-tests` читается по действующей совместимости: уже начатой исторической задаче не навязывается ретроактивный RED, а предусмотренное обоснование пропуска сохраняется. Краткая форма отчёта не отменяет эти ветви канонического контракта.
+
+Сокращённый отчёт ссылается на полный артефакт через путь, хеш, версию формата и область. Сам путь не доказывает существование содержимого. Перед опорой на ссылку потребитель проверяет доступность и хеш. Если артефакт недоступен, загружается оригинал или заново собирается доказательство; неизвестное не обозначается как успешное.
+
+Число важных замечаний не ограничивается фиксированным количеством пунктов. Длинный список допускает отдельный полный артефакт и явный перечень оставшихся нерешёнными идентификаторов. Человеческий текст не является единственным носителем дельты состояния. Двоичный или обрезанный в середине сериализации объект должен отвергаться потребителем.
+
+## 8. Внедрение, совместимость и действия агента
+
+1. Прочитать фактические правила, рабочие процессы и индекс после миграции 13; зафиксировать используемые имена команд. До миграции не вызывать будущие имена как существующие.
+2. Снять исходные измерения двух целевых процессов и постоянно загружаемых файлов. Сохранить источник, установленную версию и алгоритм подсчёта.
+3. Составить карту `старое место → обязательство → новое место → условие загрузки → проверка`. Запрет без строки этой карты не переносить.
+4. Добавить схему загрузки и автономные проверки неразрешённых целей, циклов и самостоятельных входов. Затем разделить тексты и обновить ссылки.
+5. Использовать манифест владения и текущую сборку, установленные 13. Будущие 10 и 11 потребляют схему и правила 08, но не являются условиями начала или приёмки 08. При их последующем подключении установка не должна повторно дописывать уже сгенерированное правило.
+6. Ввести краткие формы отчётов, сохранив полные сообщения 15 и артефакты 17.
+7. Выполнить структурные проверки и синтетические сценарии 09. Вести отдельный результат для численной цели и для сохранения поведения.
+8. При отключении новых деклараций применять прежнюю полную загрузку. Сохранить историю, рабочие состояния и все доказательства. Платное сравнение разрешается только по отдельной процедуре 09.
+
+## 9. Ошибки и обязательные реакции
+
+| Ситуация | Реакция |
+|---|---|
+| Нет обязательной декларации или цели | Ошибка структурной проверки; рабочий процесс использует полную прежнюю загрузку либо исходную остановку |
+| Неизвестно условие | Загрузить релевантный полный материал; не считать ветвь ненужной |
+| Ссылка на переименованный раздел | Исправить ссылку или миграционное соответствие; не угадывать ближайший заголовок |
+| Цикл | Вернуть неуспех с путём цикла; не зависнуть и не считать результат полным |
+| Недостижим предел 50% | Сохранить обязательства; критерий AC-03 оставить невыполненным до решения владельца |
+| Самостоятельный дочерний вызов | Самостоятельно загрузить обязательный контекст; наличие квитанции родителя не равно передаче содержимого |
+| Нет полного артефакта отчёта | Восстановить доказательство до следующего зависимого решения |
+| Меньше слов, но больше загрузок кэша | Отразить оба наблюдения по 05; не объявлять экономию |
+
+## 10. Критерии приёмки и трассировка
+
+- [ ] **AC-01** (`REQ-01`, `REQ-02`). Каждое верхнеуровневое правило проходит предел 700, полный постоянно загружаемый набор — 6 000, начальное правило — 300, каждый развёрнутый постоянно загружаемый файл среды — 1 200. Проверяется карта переносов. Перенос запрета в недостижимый справочник и удаление чужого файла установщиком приводят к отказу.
+- [ ] **AC-02** (`REQ-03`, `REQ-04`). Все рабочие процессы имеют корректные декларации. Сценарии проверяют обязательные и условные рёбра, неизвестные условия, повторные и пересекающиеся загрузки, отсутствующий раздел, цикл и самостоятельный запуск. Счётчик выдаёт ожидаемые вручную рассчитанные слова/байты.
+- [ ] **AC-03** (`REQ-05`). Обе целевые процедуры отдельно достигают 50% от подтверждённой исходной величины при полной карте сохранения обязательств. Если нет — результат явно не принят; усреднение двух процедур не допускается.
+- [ ] **AC-04** (`REQ-06`, `REQ-07`). Формы RED/GREEN/проверки/завершения содержат обязательные поля и проверяемые полные доказательства. Большой список важных замечаний и большая дельта состояния сохраняются полностью; повреждённые ссылки и обрезанные объекты отвергаются.
+- [ ] **AC-05** (`REQ-08`). Автономные проверки плоской задачи, тестирования до реализации и защищённого состояния проходят. Проверены отключение и полная повторная загрузка. Денежные выводы не основаны на количестве слов. Отдельно разрешённый эталонный запуск, если он проводился, сохраняет обязательное поведение.
+
+Трассировка полная: `REQ-01–02 → AC-01`; `REQ-03–04 → AC-02`; `REQ-05 → AC-03`; `REQ-06–07 → AC-04`; `REQ-08 → AC-05`.
+
+## 11. Готовность и ограничения
+
+Зависимости: 13 и 09. Общие G1–G8 берутся из `.ai/specs/README.md`; их согласованное объяснение включено в [руководство комплекта](00-review-and-implementation-guide.md). Данная редакция не даёт разрешения на развёртывание, платные эксперименты или изменение ограничений проекта.
+
+Для начала проектирования дополнительных решений владельца не требуется. Перед заявлением выполнения нужны реальные исходные измерения, карта обязательств, подтверждённые установленные версии и результаты перечисленных проверок. Оптимальный размер контекста и денежный эффект остаются предметом измерения по 05/09.

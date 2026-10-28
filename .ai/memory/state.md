@@ -6,10 +6,13 @@ of every session. Updated after every phase transition.
 
 ## Active Tasks
 
+None.
+
 Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11 → 12; 07 is backlog. The roadmap is in `specs/README.md`; each spec becomes a task via
 `/phase-discovery .ai/specs/<NN>-<slug>.md`.
 
 ## Done
+- [Cached model catalog](../tasks/completed/task-04-model-catalog-cache/state.md) | phase: validation | status: reviewed | note: owner-authorized independent review and integration complete; all six PRs #31–#36 merged; full validation 594/0/2, no required repairs; main 111455ac171c7356d083e00d4d307a7285ed2e35 exactly matches the tested tree
 - [Workflow instruction maintenance] | completed | note: all 42 workflows clarified and reduced in two passes; 18 active specs reconciled, four completed records preserved; 589 full-suite checks pass with two optional skips; the pre-existing unstaged archive condition passes the unchanged strict gate in a disposable index
 - [Hook-based logging](../tasks/completed/task-03-hook-based-logging/state.md) | phase: validation | status: reviewed | note: seven leaves and prerequisite reviewed; separate final PR reviews and producer hardening complete; PRs #22–#29 merged in order; final validation 594/0/2
 - [Run-log vocabulary validation](../tasks/todo/task-02-run-log-vocabulary-validation/state.md) | phase: validation | status: reviewed | note: strict producer, read-only lint, usable retrospective metrics, drift gate and isolated acceptance complete; PRs #13–#20 are ready for review; owner integration remains pending
@@ -23,7 +26,8 @@ Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) 
 None.
 
 ## Known conditions (read before starting any task)
-- The existing hook specification/task archive move is still unstaged. The strict publication identity scan reads the Git index and rejects its absent old paths until that move is staged; keep the scanner strict and preserve the byte-identical completed records. See the 2026-10-28 workflow audit for isolated review-index evidence.
+- On 2026-10-28 the owner explicitly authorized committing all pending knowledge and roadmap edits and pushing main directly. This supersedes the earlier feature-run exclusions for this publication only. The personal checkout path is omitted from the new completed record; pinned source links and the owner's specification text are preserved. The exact source-URL ledger inventory is updated under this later authorization, with its checker unchanged.
+- On 2026-10-28 the owner authorized fresh independent catalog review, autonomous repair and integration. PRs #31–#36 are merged; main 111455ac171c7356d083e00d4d307a7285ed2e35 exactly matches the clean independently validated tree (594/0/2). All17 unrelated later-specification edits are preserved. Optional example-oracle precision is a nonblocking future enhancement; the actual guide fixture preserves exact unrelated bytes.
 - On 2026-10-26 the owner explicitly authorized final per-PR validation, autonomous repairs and integration of the hook-logging delivery. PRs #22–#29 were merged with verified trees and merge commits; no direct main push, force push, rebase, branch deletion or real-settings deployment was used.
 - The initial commit contains private references. On 2026-10-19 the owner explicitly authorized publishing the reviewed stack with existing ancestry and approved scan exceptions retained; the earlier publication hold is superseded. History rewriting remains outside scope.
 - `.ai/` in this repository is **committed in full**, including `tasks/todo/` — the

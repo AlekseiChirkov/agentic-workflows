@@ -203,6 +203,22 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 | `docs/analysis/2026-09-16-comparative-analysis.ru.md` | 429 | `AGENTIC_WORKFLOWS` × 1 |
 | `docs/audits/2026-07-21-logic-audit-fixes.md` | 1, 8, 568 | `agentic_workflows` × 1 per line |
 | `docs/USAGE.md` | 254 | `agentic-workflows` × 1 |
+| `.ai/specs/05-cost-and-duration-telemetry.md` | 678 | `agentic-workflows` × 5 |
+| `.ai/specs/06-harness-git-rails.md` | 9 | `agentic-workflows` × 2 |
+| `.ai/specs/07-state-tool.md` | 9 | `agentic-workflows` × 2 |
+| `.ai/specs/07-state-tool.md` | 11 | `agentic-workflows` × 1 |
+| `.ai/specs/09-golden-run-tests.md` | 9 | `agentic-workflows` × 1 |
+| `.ai/specs/10-generated-reference-docs.md` | 9 | `agentic-workflows` × 2 |
+| `.ai/specs/11-open-source-readiness.md` | 9 | `agentic-workflows` × 3 |
+| `.ai/specs/12-composite-branch-model-and-parallel-children.md` | 7 | `agentic-workflows` × 2 |
+| `.ai/specs/12-composite-branch-model-and-parallel-children.md` | 9 | `agentic-workflows` × 1 |
+| `.ai/specs/12-composite-branch-model-and-parallel-children.md` | 24 | `agentic-workflows` × 2 |
+| `.ai/specs/13-model-only-harnesses-and-rule-naming.md` | 13 | `agentic-workflows` × 1 |
+| `.ai/specs/13a-rules-workflows-audit.md` | 13 | `agentic-workflows` × 1 |
+
+### Subsequent Publication Authorization — 2026-10-28
+
+The owner explicitly requested committing and pushing all current pending changes to main. Those existing edits include revised roadmap specifications with immutable public source links at commit 8c2fa08c18115ffcf38a1798742c41e53a2c7461. To preserve their provenance without rewriting the owner's text, the additional specification rows record only those 23 source-URL tokens on 12 exact lines. Every earlier ledger row is preserved byte-for-byte. This is a later finite source inventory update under the new publication instruction; it does not change the original sweep authorization, baseline, token matching or fail-closed validator.
 
 ### Root File Decisions
 - `.ai/memory/architecture.md`: updated during Discovery for repository identity, configuration roots, and version metadata; the validator count was synchronized during validation.

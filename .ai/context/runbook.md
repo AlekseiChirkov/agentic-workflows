@@ -23,6 +23,12 @@ Notes:
   home/config/state/project/log roots rather than real user settings. The shell
   source contract uses syntax-only inspection, bounded named exceptions and
   fingerprinted unchanged baseline functions; it has no AST-Grep runtime dependency.
+- Optional model helpers use offline focused suites `--model-catalog-only`,
+  `--model-selection-only` and `--model-plan-only` through `scripts/validate-contracts.sh`.
+  `--model-workflow-only` runs catalog, selection, plan, workflow and unchanged general
+  instruction suites together, including temporary installed-skill guidance fixtures and
+  worker-role authorization. They use fictional disposable catalogs and never execute
+  a model or refresh the web. The complete isolated CLI example is in docs/MODEL-CATALOG.md.
 - Installer and offline timing engines require Python 3.11 or newer, using only the
   standard library. Timing also requires jq-backed producer lint. Native hooks retain
   Bash/jq/flock dependencies; saved-state uninstall does not require jq/flock.

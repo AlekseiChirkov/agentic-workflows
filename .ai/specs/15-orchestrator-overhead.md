@@ -1,174 +1,139 @@
-# Reduce orchestrator turns and deterministic bookkeeping overhead
+# 15. Снижение накладной работы оркестратора при сохранении контрольных точек
 
-## Source
+## 1. Статус и исходное поведение
 
-Workstream 4 of the owner's 2026-10-21 request: reduce controller context/turns while
-preserving checkpoints, single-writer state and correctness.
+**Статус:** целевая спецификация направления 4 запроса от 2026-10-21. Проверяемая исходная версия: `8c2fa08c18115ffcf38a1798742c41e53a2c7461`, 2026-10-28. Опубликованные заявления об аудите не означают наличие реализации этой спецификации; упомянутый отдельный отчёт аудита отсутствует в снимке.
 
-## Context & Problem
+В `rules/orchestration.md` и `workflows/spec-run.md` оркестратор владеет общими файлами и операциями с репозиторием. Работник в текущем последовательном режиме может менять собственный блок прогресса, а изменения общих файлов возвращает как предложения. Исполнитель останавливается после RED, оркестратор фиксирует тесты и возобновляет **того же** исполнителя. Независимый проверяющий запускается отдельно; `NEEDS WORK` останавливает последовательное продвижение.
 
-Baseline reviewed 2026-10-28.
+Законное исключение уже существует: при выбранном по действующим правилам уровне `none` и `atomic-tests: n-a` нет RED, тестового коммита и строки измерения RED; создаётся один содержательный коммит с записанным обоснованием. Эта спецификация сохраняет исключение и запрещает выдумывать отсутствующую контрольную точку.
 
-The orchestrator owns branch/state bookkeeping, test-first commits, independent
-review and composite rollup (`workflows/spec-run.md → ## Step 4 — Subtask loop`). The
-workflow audit clarified checkpoint-aware resume, same-worker RED/GREEN continuation,
-returned state deltas and finalization ordering. These safeguards are the baseline.
+В `rules/workflow-globals.md` существует и режим `atomic-tests: pinned`: тесты фиксируют сохраняемое поведение и проходят до изменения, затем состояние переходит в `green`. Такая тестовая граница не называется RED и не требует выдуманного отказа. Для исторического блока без `atomic-tests` применяется действующая совместимость: отсутствие поля не является ошибкой, а уже начатая до введения тестового цикла задача не получает ретроактивного RED; предусмотренная запись о пропуске сохраняется.
 
-Versioned checkpoint envelopes, deterministic inspect/render helpers, hash-bound resume
-receipts and measured controller-overhead reductions remain pending. Optimize work
-around the required test-first handoff and review gates; do not remove them.
+Существующие `ORCHESTRAIL_DISPATCH_V1` и `ORCHESTRAIL_REPORT_V1` обслуживают корреляцию телеметрии. Новое сообщение контрольной точки ниже имеет другое назначение и не выдаётся за уже существующий протокол. Его добавление не создаёт повторную строку измерения для одной работы.
 
-## Goal
+## 2. Цель, область и роли
 
-Keep the controller focused on decisions requiring judgment and use bounded,
-deterministic inspections and patch proposals for repeated mechanical work.
+Оставить оркестратору решения, требующие суждения, а повторяющиеся проверки и подготовку предложений выполнять детерминированно. Сокращать следует лишние загрузки и опросы, сохраняя последовательность проверяемых действий.
 
-## Scope
+В объём входят сообщения контрольных точек, необязательная проверка исходных фактов и подготовка патчей, объединение независимых чтений, квитанции применения и восстановление после прерывания.
 
-Checkpoint envelope, read-only inspection/delta rendering, batched safe reads, resume
-receipts, compact controller context and selective history retrieval.
+Не входят: универсальный изменяющий состояние инструмент [07](07-state-tool.md), служба запуска агентов, изменение модели владения, автоматическое выполнение зависимых задач на непроверенной основе, параллельность верхнего уровня и обход правил [06](06-harness-git-rails.md).
 
-## Out of Scope
-
-General state CLI (07 remains backlog), a runtime that launches agents, changing writer
-ownership, skipping RED/GREEN commits or independent review, top-level parallelism,
-or automatically starting dependent work before its prerequisite is reviewed.
-
-## Actors & Roles
-
-The orchestrator owns git and shared state. Implementer/Validator return evidence and
-proposed deltas. Optional helpers inspect/render deterministic results and never spawn
-models, commit, or mutate canonical task state.
-
-## Terminology
-
-A checkpoint envelope is one complete structured report for a logical boundary.
-A delta is a proposal against an identified state revision; it is not self-authorizing.
-
-## Requirements
-
-- **REQ-01** THE SYSTEM SHALL define RED, GREEN, review and close envelopes carrying
-  task/leaf identity, base/tree revision, event/attempt identity, AC/evidence references,
-  exact changed/test paths, test outcome, findings and proposed state delta. Required
-  fields SHALL remain complete even when human narration is compact under 08.
-- **REQ-02** THE SYSTEM SHALL consolidate redundant status polls and repeated reports
-  into the next meaningful checkpoint, while preserving RED-before-implementation,
-  GREEN-before-review, independent validation and every existing owner/blocker stop.
-  A running agent without a new checkpoint SHALL not trigger repeated full-state reads.
-- **REQ-03** THE SYSTEM SHALL provide an optional deterministic inspection/rendering
-  helper for branch/base verification, exact-path staging plans, progress-block
-  extraction and canonical delta proposals. It SHALL be read-only for project state/
-  git; the orchestrator applies reviewed patches and executes git commands. This is
-  not the generic arbitrary-field state mutation API deferred in 07.
-- **REQ-04** WHEN applying a proposed delta, THE SYSTEM SHALL verify task/leaf, source
-  hash, current branch/base, allowed transition and evidence preconditions, preserve
-  protected fields and unrelated blocks, and apply it once. Stale, duplicate or
-  contradictory proposals SHALL be rejected or recognized as already applied before
-  any mutation. Helpers SHALL not grant permission for an otherwise forbidden action.
-- **REQ-05** THE SYSTEM SHALL keep the active controller packet bounded to the current
-  checkpoint, leaf contract/view, unresolved findings, prerequisite summaries and
-  relevant git evidence. Full history SHALL stay on disk with hashes/retrieval paths;
-  a resume/new agent SHALL verify it before relying on a prior decision.
-- **REQ-06** WHEN safe independent reads are needed, THE SYSTEM SHALL batch them into
-  one inspection operation, preserving each command's status and output identity.
-  Dependent mutations, commits, approvals and state transitions SHALL stay ordered;
-  batching SHALL not combine RED and GREEN across their required checkpoint.
-- **REQ-07** THE SYSTEM SHALL attribute controller requests, tool calls, state bytes
-  loaded and checkpoint counts to 05. It SHALL compare complete controller cost and
-  latency, not reduce turns by moving the same work to uncounted children.
-- **REQ-08** THE SYSTEM SHALL retain manual instructions when helpers are absent,
-  recover from interruption at any checkpoint, and apply shared index gates G1–G8.
-  New behavioral interfaces SHALL be recorded during implementation; no mandatory
-  runtime dependency or state-tool promotion is authorized by this specification.
-
-## Data Model
-
-Envelope version, event ID, task/leaf, role, attempt, state hash, branch/base/tree,
-evidence references, required next gate and proposed patch. Session-local receipts
-record accepted envelope IDs; durable canonical statuses remain unchanged.
-
-## Contracts & Interfaces
-
-Proposed optional interface:
-`scripts/controller-step.sh inspect --task <dir> --leaf <id>` and
-`... render --event <file>`, producing versioned JSON plus an exact patch proposal.
-Missing dependencies use manual inspection and the same transition checks.
-No `apply`, agent-spawn or arbitrary field-write subcommand is included.
-
-The orchestrator may submit the validated patch through existing editing tools as one
-operation, with its existing authorization. Spec 06 enforcement still applies to all
-subsequent git commands. Spec 07 may later reuse the renderer if separately scheduled.
-
-## Non-Functional Requirements
-
-Helpers perform zero model calls, state writes or git mutations. Duplicate events
-are idempotent at the orchestration layer. Unrelated/protected text is byte-preserved.
-Safety checks precede effects; controller turn reduction is measured under 05/09.
-
-## Edge Cases & Failure Modes
-
-Cover missing/duplicated reports, stale hashes, manually edited state, branch movement,
-RED without committed tests, GREEN without successful verification, late child result,
-partially applied patch, missing helper and controller restart. On ambiguity inspect
-the real tree/evidence; never synthesize a completed gate.
-
-## Acceptance Criteria
-
-- [ ] **AC-01** (REQ-01, REQ-02) Trace fixtures have one meaningful envelope per boundary,
-  no redundant polling turns, and retain separate RED, GREEN and independent review.
-- [ ] **AC-02** (REQ-03, REQ-06) Helper fixtures return deterministic inspection/patch
-  proposals, retain per-command failures, make zero mutations/calls and preserve
-  sequential dependent actions.
-- [ ] **AC-03** (REQ-04) Stale/duplicate/wrong-branch/invalid-transition fixtures cannot
-  overwrite state; correct patches preserve unrelated blocks and protected evidence.
-- [ ] **AC-04** (REQ-05, REQ-08) Interrupt/restart at every checkpoint and helper-absent
-  runs resume through the same gates with full-history retrieval available.
-- [ ] **AC-05** (REQ-07, REQ-08) Before/after fixture traces expose controller calls,
-  bytes and delegated work; documentation includes rollout/disable and does not claim
-  measured model savings without a separately approved run.
-
-## Traceability
-
-| Requirement | Acceptance |
+| Участник | Ответственность |
 |---|---|
-| REQ-01, REQ-02 | AC-01 |
-| REQ-03, REQ-06 | AC-02 |
-| REQ-04 | AC-03 |
-| REQ-05 | AC-04 |
-| REQ-07 | AC-05 |
-| REQ-08 | AC-04, AC-05 |
+| Оркестратор | Проверить факты, принять/отклонить предложение, последовательно изменить общие файлы и выполнить разрешённые операции с репозиторием |
+| Исполнитель | Вернуть полный результат своей границы и предлагаемую дельту; не выдавать предложение за применённое состояние |
+| Независимый проверяющий | Вернуть вердикт и доказательства, сохранив независимость от рассуждений исполнителя |
+| Вспомогательное средство | Только читать, вычислять и выводить проверку или предложение; не менять состояние, индекс, ветви и коммиты, не запускать модели |
 
-## Risks
+Полная передача всех записей под `.ai/` единственному писателю в параллельном режиме принадлежит [12](12-composite-branch-model-and-parallel-children.md). Здесь сохраняется текущая граница общих файлов; новые сообщения не расширяют права работника.
 
-Over-batching can remove a necessary decision or hide an error. Preserve checkpoint
-semantics and individual read statuses; never batch dependencies or approvals blindly.
+## 3. Требования
 
-## Assumptions
+- **REQ-01**. Определить полные сообщения RED, GREEN, проверки и завершения с задачей/листом, ролью, идентификаторами события и попытки, исходным и проверяемым деревом, AC/доказательствами, точными путями изменений/тестов, исходами проверок, замечаниями и предлагаемой дельтой. Краткий текст по 08 не сокращает структурированное содержимое.
+- **REQ-02**. Объединять повторные опросы и пересказы до следующей значимой границы, сохраняя RED до реализации, GREEN до независимой проверки и все остановки владельца/препятствий. Работник без новой контрольной точки не заставляет повторно читать полное состояние. Законный путь `none/n-a` сохраняется без ложного RED.
+- **REQ-03**. Предоставить необязательное детерминированное средство для проверки ветви/базы, подготовки списка явных путей для индекса, извлечения блока прогресса и предложения канонической дельты. Оно не выполняет изменения и не предоставляет произвольную запись полей; применение принадлежит оркестратору.
+- **REQ-04**. До применения проверить задачу/лист, хеш исходного состояния, текущую ветвь/базу, разрешённость перехода и доказательства. Защищённые поля и посторонние блоки сохраняются. Дубликат распознаётся как уже применённый; устаревшее или противоречивое предложение отклоняется до изменения. Вспомогательное средство не выдаёт дополнительных разрешений.
+- **REQ-05**. Ограничить активный контекст текущей границей, контрактом/представлением листа, открытыми замечаниями, краткими фактами зависимостей и релевантными доказательствами репозитория. Полная история сохраняется с хешами и способом получения; новый оркестратор проверяет её перед использованием старого решения.
+- **REQ-06**. Независимые безопасные чтения объединять в одну проверку с отдельными статусами и идентичностью каждого результата. Зависимые изменения, согласования, фиксация тестов и реализация остаются последовательными. Объединение не перескакивает через контрольную точку.
+- **REQ-07**. Передавать в 05 запросы оркестратора, вызовы инструментов, загруженные байты состояния и количество границ. Сравнивать полную стоимость и время всей цепочки; перенос работы в неучтённого ребёнка не считается экономией.
+- **REQ-08**. Сохранить ручную процедуру при отсутствии вспомогательного средства, восстановление на каждой границе и G1–G8. Новые поведенческие интерфейсы фиксируются решением при внедрении; обязательный механизм исполнения и продвижение 07 из резерва не разрешаются.
 
-The existing editor and git interfaces suffice for applying a rendered proposal.
-No state lock service is required while the orchestrator remains the only writer.
+## 4. Сообщение контрольной точки: целевая схема
 
-## Decisions
+| Поле | Смысл и проверка |
+|---|---|
+| `schema_version` | Версия схемы; неизвестная версия отвергается |
+| `event_id` | Уникальный идентификатор одного логического сообщения; повторная доставка сохраняет его |
+| `payload_digest` | Хеш полного сообщения; одинаковый `event_id` с другим содержимым — конфликт |
+| `task_id`, `leaf_id`, `role` | Точное назначение; результат другого листа не применяется |
+| `attempt_id`, `checkpoint` | Попытка и граница `red`, `pinned`, `green`, `review`, `close`; это значения сообщения, не новые статусы задачи. `pinned` отражает существующую фиксацию поведения, не падающий тест |
+| `repository_id`, `worktree_id` | Разрешённое рабочее дерево; одинаковые имена ветвей в другом репозитории не совпадают |
+| `branch`, `base_revision`, `head_revision` | Фактические сведения репозитория, а не текст из старого плана |
+| `effective_tree_digest` | Хеш влияющих фактических входов, включая нужные незакоммиченные/неотслеживаемые файлы |
+| `task_contract_hash`, `packet_digest` | Контракт и пакет, использованные работником по 14 |
+| `source_state_digest` | Исходное состояние, относительно которого составлено предложение |
+| `ac_ids`, `changed_paths`, `test_paths` | Полные списки; пустой список допустим только с явной причиной |
+| `evidence`, `findings`, `unresolved` | Ссылки с хешами/областью, все значимые замечания и открытые обязательства |
+| `proposed_delta` | Изменения только допустимых полей с ожидаемыми исходными значениями |
+| `next_gate` | Следующая обязательная граница или причина остановки |
 
-Retain ADR-0001's Markdown orchestration and optional helpers, ADR-0009's deferred
-state engine, and current test-first two-checkpoint execution.
+Порядок списков и сериализации нормализуется для воспроизводимого хеша. Сообщение не исполняется как код, а предложенная команда не передаётся в оболочку через вычисление строки. Пути проверяются после нормализации и разрешения корней. Поля, запрещённые политикой данной роли, отвергаются независимо от правдоподобности содержимого.
 
-## Clarifications
+Доказательство RED содержит тестовые пути, их хеши, отказ правильного класса и последующий идентификатор тестового коммита, который подтверждает оркестратор. Работник не может сам объявить несуществующий коммит. GREEN не может ссылаться на прежний маркер RED как на новую контрольную точку. Телеметрическая корреляция хранится непрозрачной ссылкой на 05, без реконструкции нативных событий.
 
-2026-10-21: deterministic bookkeeping means inspections/rendered proposals plus the
-existing authorized writer, not a mandatory autonomous state-mutating daemon.
+## 5. Интерфейс вспомогательного средства
 
-## Open Questions
+Целевой необязательный интерфейс:
 
-None blocking. Actual turn/cost improvement needs evaluation under 09.
+```text
+scripts/controller-step.sh inspect --task <dir> --leaf <id>
+scripts/controller-step.sh render --event <file>
+```
 
-## Notes
+`inspect` выдаёт фактическую идентичность рабочего дерева, ветви и входов, извлечённые допустимые поля, обнаруженные препятствия и предлагаемый набор явных путей. `render` проверяет структуру сообщения и создаёт предложение точного патча, но **не применяет** его. Подкоманд `apply`, `spawn`, произвольной записи полей или выполнения коммитов нет.
 
-Depends on 06, 09 and 14. Suggested slices: envelope; inspection/render helper;
-transition guards; controller history/polling; recovery fixtures and documentation.
-Spec 12 later supplies concurrent child results; this feature remains sequential.
+Выход содержит `schema_version`, результат каждого чтения, его статус, хеш/источник и общий признак достаточности. Успех одного чтения не скрывает отказ другого. После внедрения 17 полный вывод может сохраняться через его интерфейс, но ссылка должна вести на полный артефакт. До этого используется существующий полный локальный результат; 17 не является предпосылкой 15. Вспомогательное средство не изменяет репозиторий даже ради обновления служебного индекса; при использовании команд чтения отключаются необязательные блокировки/обновления там, где это требуется для обещания отсутствия изменений.
 
-## Readiness Checklist
+Нулевой код означает корректное завершение проверки/подготовки предложения, **не** разрешение перейти в следующий статус. Ошибки схемы, неизвестные входы и несоответствия возвращают ненулевой статус с отдельным описанием причины. Отсутствие средства приводит к ручному выполнению тех же проверок; обязательства не исчезают.
 
-Checkpoint ownership, optional interface, failure cases and acceptance are explicit.
-Ready for Discovery; no claim that fewer turns necessarily reduce total cost.
+## 6. Последовательность обработки сообщения
+
+1. Принять полное сообщение, проверить схему, хеш и назначение; не принимать обрезанный человеческий отчёт вместо него.
+2. Проверить журнал обработанных событий. Одинаковый `event_id` и хеш с подтверждённым применением означает повтор доставки: вернуть прежний итог без нового эффекта. Другой хеш того же события означает конфликт и остановку.
+3. Сверить фактические ветвь, базу, рабочее дерево, контракт и состояние с входами сообщения. Если они изменились, определить влияние; не применять старый патч автоматически.
+4. Проверить полный набор предусловий конкретного перехода: разрешённые статусы, доказательства тестов/проверки, замороженные поля и предусмотренные согласования.
+5. Подготовить патч с точными исходными фрагментами, явными целевыми путями и ожидаемым итогом. Независимо проверить, что посторонние и защищённые данные сохраняются.
+6. Непосредственно перед изменением повторно проверить исходные хеши. Использовать существующее средство изменения с проверкой ожидаемого исходного содержимого. Если исключительное владение или такая проверка недоступны при возможном внешнем писателе, остановиться; последовательность «прочитал, потом записал» сама по себе не является атомарной защитой.
+7. Применить только разрешённый патч существующим редактором. Операции с репозиторием выполнять отдельно, последовательно и под 06. Не объединять фиксацию RED с реализацией.
+8. Проверить фактическое итоговое состояние и записать квитанцию с `event_id`, хешем, исходным/итоговым состоянием, применёнными путями и доказательством эффекта. Только после этого считать границу принятой.
+
+Журнал квитанций долговечен в локальных данных задачи, принадлежит оркестратору и не заменяет канонические статусы. Его точное размещение включается в манифест артефактов при реализации; очистка не удаляет квитанции активной задачи. Сеансовый кэш допускается лишь как ускорение чтения журнала, а не единственное средство идемпотентности.
+
+После отдельного внедрения параллельности 12 два ребёнка могут законно вернуть результаты, основанные на одном старом `source_state_digest`. Применение первого изменяет общий хеш и делает исходный патч второго устаревшим, но не обязательно обесценивает его код/проверки. Оркестратор повторно проверяет факты, конкретные исходные значения целевых полей, контракт и независимость изменений. Если они сохранились, он создаёт **новое производное предложение** с новым `proposal_id`, текущим хешем состояния и ссылками `original_event_id`/`original_payload_digest`. Исходное сообщение и его содержимое не переписываются; это не новая попытка исполнения. Долговечная квитанция связывает принятие исходного события с единственным применённым предложением. При изменении целевого поля или сомнении в независимости требуется разрешение конфликта, а не автоматическое обновление патча. Этот путь не включает параллельность в 15 и не делает 12 её предпосылкой.
+
+Если операция затрагивает несколько файлов, нельзя обещать общую атомарность обычных редакторских вызовов. Оркестратор фиксирует упорядоченные шаги и ожидаемые хеши каждого, прекращает дальнейшие действия при отказе и восстанавливает оставшуюся часть после проверки фактов. Принятие задачи запрещено, пока межфайловые инварианты не восстановлены.
+
+## 7. Возобновление и отсутствие повторных эффектов
+
+| Момент прерывания | Действие после возобновления |
+|---|---|
+| Сообщение получено, изменения не начаты | Повторить проверки исходных входов и применить один раз |
+| Патч применён, квитанция не записана | Сравнить фактическое состояние с ожидаемым итогом; восстановить квитанцию без повторного патча |
+| Применена только часть файлов | Определить завершённые шаги по хешам, проверить целостность, довести допустимые оставшиеся шаги либо остановиться с конфликтом |
+| Тестовый коммит создан, исполнитель не возобновлён | Подтвердить содержимое коммита и неизменность тестов; продолжить GREEN тем же работником, если он доступен, или передать достаточный контекст новому |
+| Работник закончил, ответ потерян | Прочитать сохранённое доказательство и фактическое дерево; не считать отсутствующий ответ успехом |
+| Пришёл поздний ответ старой попытки | Сохранить для диагностики, не менять текущую задачу без совпадающей активной попытки |
+| Человек изменил состояние/ветвь | Не перезаписывать; пересобрать представление и решить конфликт по текущему контракту |
+| Нет журнала квитанций | Сопоставить фактические результаты и защищённую историю; при неоднозначности остановиться, а не повторить потенциальную мутацию |
+
+Запись «применено» без совпадающего фактического состояния не даёт права продолжить. Обратно, совпадение одного статуса без доказательств коммита/проверки не доказывает, что все эффекты уже выполнены.
+
+## 8. Контекст и объединение чтений
+
+Разрешено совместно читать независимые сведения о ветви, составе изменений, блоке прогресса и доступности доказательств. Для каждого результата сохраняются источник, момент/снимок и статус. Чтения, зависящие от результата предыдущего, выполняются после него; промежуточное изменение дерева делает ранний набор устаревшим.
+
+Ожидание работника не вызывает бессмысленный цикл полного чтения. Обновление требуется при новой контрольной точке, внешнем изменении, получении замечания, возобновлении или необходимости разрешить конкретное сомнение. Это не отменяет разумного контроля зависшего процесса: средство ожидания использует доступный идентификатор процесса и ограниченные сообщения, не угадывая завершение.
+
+Проверяющему передаётся отдельно собранный пакет 16 с проверяемыми фактами. Сообщение исполнителя не пересылается ему целиком, поскольку может содержать рассуждения и самооценку. Полные исходные артефакты остаются доступны через проверенные ссылки.
+
+## 9. Критерии приёмки
+
+- [ ] **AC-01** (`REQ-01`, `REQ-02`). Синтетическая цепочка содержит по одному логическому сообщению на фактическую границу; повтор доставки не создаёт новую. Применимые тестовая граница, фиксация тестов, GREEN и независимая проверка упорядочены. Пути `none/n-a`, `pinned` и уже начатый исторический блок не создают ложного RED. Ожидание без события не перечитывает всю историю.
+- [ ] **AC-02** (`REQ-03`, `REQ-06`). На одинаковых входах средство возвращает одинаковые предложения. Ошибка одного чтения сохраняется. Не меняются файлы, индекс, ветви и состояние; нет запуска модели. Зависимые действия не объединяются в один непрозрачный шаг.
+- [ ] **AC-03** (`REQ-04`). Устаревшее состояние, неправильная ветвь, чужой лист, недопустимый переход, конфликтующий дубликат и повреждённое доказательство не меняют состояние. Правильный патч сохраняет защищённые и посторонние байты; идентичный повтор не применяется дважды.
+- [ ] **AC-04** (`REQ-05`, `REQ-08`). Прерывание до/после каждой границы, между файлами и до записи квитанции восстанавливается без выдуманного успеха и повторных эффектов. Ручной путь при отсутствии средства проходит те же условия.
+- [ ] **AC-05** (`REQ-07`, `REQ-08`). До/после видны вызовы оркестратора, байты, границы и делегированная работа. Описаны включение, отключение и возобновление. Синтетические следы не выдаются за денежную экономию живых моделей.
+
+Трассировка: `REQ-01–02 → AC-01`; `REQ-03,06 → AC-02`; `REQ-04 → AC-03`; `REQ-05 → AC-04`; `REQ-07 → AC-05`; `REQ-08 → AC-04,05`.
+
+## 10. План внедрения и готовность
+
+1. Проверить существующие переходы, исключение `none/n-a`, поля, защищённые от сжатия, и протокол телеметрии.
+2. Зафиксировать схему сообщения и квитанции; создать отказывающие синтетические сценарии неверного назначения, устаревания и дубликатов.
+3. Реализовать только чтение/подготовку предложений, затем подключить проверки оркестратора и долговечную квитанцию.
+4. Проверить прерывания и ручной путь, затем уменьшать повторные чтения и пересказы.
+5. Подключить метаданные к 05, сохранив раздельность сообщения исполнения и телеметрического события. Обновить правила через предусмотренное решение, не объявляя 07 реализованной.
+
+Зависимости: 06, 09, 14. Условия G1–G8 из исходного индекса обязательны; см. [руководство](00-review-and-implementation-guide.md). Возможность уменьшить количество обращений не доказывает снижение полной стоимости: это отдельно проверяется по 05/09. Параллельные результаты детей добавляются впоследствии по 12.

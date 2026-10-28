@@ -1,3 +1,9 @@
+---
+status: done
+completed_task: task-04-model-catalog-cache
+completed_at: 2026-10-28
+---
+
 # Cached model catalog and consistent, availability-aware selection
 
 ## Source
@@ -116,16 +122,16 @@ uncertainty rather than asserting an unmeasured cheap-model success rate.
 
 ## Acceptance Criteria
 
-- [ ] **AC-01** (REQ-01) Clock-controlled age/error fixtures produce the specified notices
+- [x] **AC-01** (REQ-01) Clock-controlled age/error fixtures produce the specified notices
   and no network access; failed refresh leaves the prior catalog unchanged.
-- [ ] **AC-02** (REQ-02, REQ-03, REQ-05) An unavailable cheap candidate and a cheap
+- [x] **AC-02** (REQ-02, REQ-03, REQ-05) An unavailable cheap candidate and a cheap
   candidate below a financial/security floor are excluded; equally priced models are
   not assigned equal capability without evidence.
-- [ ] **AC-03** (REQ-04) Boundary/monotonicity fixtures cover every score and interval;
+- [x] **AC-03** (REQ-04) Boundary/monotonicity fixtures cover every score and interval;
   worsening uncertainty, risk or verifiability cannot lower the quality floor.
-- [ ] **AC-04** (REQ-06) Legacy/dual-column plans work; unsupported requests are visible,
+- [x] **AC-04** (REQ-06) Legacy/dual-column plans work; unsupported requests are visible,
   and actual model reporting cannot retain an unavailable planned ID.
-- [ ] **AC-05** (REQ-07, REQ-08) Workflow length, fixture latency, schema/drift checks
+- [x] **AC-05** (REQ-07, REQ-08) Workflow length, fixture latency, schema/drift checks
   pass; documentation separates measured timings from targets and defines fallback,
   refresh and calibration-export ownership.
 
@@ -166,11 +172,22 @@ None blocking. A new default model or paid routing comparison requires explicit 
 
 ## Notes
 
-Depends on 13. Consumers: 18 effort, 19 escalation, 20 decomposition. Spec 05 owns
+Deterministic catalog selection and plan resolution use explicit current-invocation
+capability evidence. The owner selected implementation before the broader harness
+migration; unknown support remains unavailable. Spec 13 retains ownership of the full
+deployed harness capability contract and naming migration.
+
+Consumers: 18 effort, 19 escalation, 20 decomposition. Spec 05 owns
 monetary definitions; 09 owns comparative evidence. Suggested slices: catalog/TTL,
 consistent scoring, availability/plan resolution, checks and documentation.
 
 ## Readiness Checklist
 
-Scope, compatibility, failure cases and acceptance are explicit. Ready for Discovery;
-no claimed model quality or savings has been measured by authoring this spec.
+Scope, compatibility, failure cases and acceptance remain explicit and consistent.
+Implementation and independent validation are complete; all original acceptance criteria
+pass. No live model-quality or savings measurement is claimed.
+
+## Change Log
+
+### 2026-10-28 — reconciled from task-04-model-catalog-cache
+- dependency-sequencing | implemented-differently | Clarified owner-selected delivery using explicit current capability inputs before the broader harness migration; no requirement or acceptance statement weakened. | Source: task state Task Analysis/Assumptions and Solution Design/Scope; ADR-0015.

@@ -1,306 +1,262 @@
-# Reliable usage telemetry, API-equivalent cost and baseline
+# 05. Достоверный учёт использования моделей, стоимости и времени
 
-## Source
+## Паспорт и статус
 
-Owner request, 2026-10-21, translated: optimize total cost of a correct result; actual
-billing is a fixed subscription, but value every observable task at API prices; do not
-invent measurements or launch paid experiments. This expands the existing telemetry
-spec without reintroducing production budgets (ADR-0009 Decision 5).
-
-## Context & Problem
-
-The lifecycle producer advances step sequence and timing on accepted writes
-(`scripts/log-step.sh:736`, `scripts/log-step.sh:845`), deletes active metadata on
-close (`scripts/log-step.sh:944`), and recognizes only three lifecycle event types
-(`scripts/log-step.sh:1171`). Correlated replay freezes the accepted payload
-(`rules/run-log.md → ## Correlated hook intervals`, `rules/run-log.md → ## Native hook adapter → ### Project activation and private ownership`). Consequently, logging a model request
-as another step, or enriching an accepted checkpoint with late usage, would change
-existing process semantics. The hook currently forwards timing and result fields,
-not usage counters (`hooks/log-step-hook.sh:355`, `hooks/log-step-hook.sh:443`).
-
-The privacy contract forbids conversation content and external source paths in the
-shared store (`rules/run-log.md → ## What must never enter the log`); retrospective analysis owns historical reads
-(`rules/run-log.md → ## Relationship to the existing state files`, `workflows/retro.md → ## Step 1 — Load`). Usage needs its own additive
-observation contract and explicit completeness evidence. Otherwise partial streams,
-forked histories, internal review calls, resumed work and nested summaries can produce
-apparently precise but incomplete or duplicated costs. This document specifies planned
-behavior; none of the additional interfaces below is claimed to be implemented.
-
-## Current implementation baseline — 2026-10-28
-
-Completed correlated logging supplies executable intervals, explicit attribution and
-exact retrospective timing. The workflow audit preserves that protocol and its loader
-(`workflows/retro.md → ## Step 1 — Load`, `### Measured hook intervals`), while shortening
-workflow text. Usage observations, prices, cost projections, advisory policies and the
-interfaces in this spec remain unimplemented. Word/byte changes are diagnostics, not
-measured tokens or money. The owner's expanded 2026-10-27 requirements remain intact.
-
-## Goal
-
-Make model usage and the cost of independently accepted results auditable across both
-supported harnesses, so the owner can identify expensive work and evaluate savings
-without hiding missing data, failed attempts, verification or subscription semantics.
-
-## Scope
-
-- Versioned source profiles, scoped collection and immutable request observations.
-- Streaming finalization, deduplication, causal attribution and coverage accounting.
-- Reproducible API-equivalent valuation, including cache, tools and unknown prices.
-- Local usage summaries, advisory thresholds and retrospective exports for optimization.
-- Compatibility with lifecycle logging and the shared metric contract consumed by
-  catalog selection, evaluation, context, orchestration, review, effort and repair work.
-
-## Out of Scope
-
-Production spend/time caps; quota prediction; automatic model or policy changes; paid
-experiments; external notifications; a dashboard, daemon or hosted monitoring service;
-provider billing/admin API integration; a general log-retention manager; rewriting
-historical logs; and making Python, jq or telemetry mandatory for legacy logging.
-No collection of prompts, responses, source code, tool arguments or credentials is added.
-
-## Actors & Roles
-
-| Actor | Responsibility and permitted inputs |
+| Поле | Значение |
 |---|---|
-| Source adapter | Read explicitly selected exports or owned hook payloads using a declared source profile; emit sanitized observations and inventory evidence. |
-| Telemetry producer | Validate complete ingestion invocations and publish immutable artifacts; return separate usage receipts. It does not query historical usage for routing or totals. |
-| Authorized orchestrator | Supply correlation, consume its own current-run receipts and private accumulator, and write shared notes as the existing single writer. |
-| Retro | Select historical lifecycle and usage inputs, freeze a private corpus manifest, invoke pure analysis helpers and publish versioned reports. |
-| Maintainer | Explicitly refresh price snapshots and configure advisory policies or adapter profiles. |
-| Evaluation and optimization consumers | Read explicitly exported aggregates and independent acceptance labels, never discover or scan the shared history themselves. |
+| Назначение | Сделать воспроизводимым учёт ресурсов, времени и стоимости независимо принятого результата. |
+| Статус | Спецификация целевого поведения. Дополнительные интерфейсы, схемы и проверки ниже не объявляются реализованными. |
+| Основание | Запрос владельца от 2026-10-21: оптимизировать полную стоимость корректного результата, оценивать наблюдаемое использование по тарифам программного интерфейса, учитывать фиксированную подписку, не придумывать измерения и не запускать платные эксперименты. Уточнение от 2026-10-27 сохранено. |
+| Редакция | 2026-10-28; объединены исходные требования и уточнения, добавлены однозначные правила сериализации, времени, полноты и восстановления. |
+| Стабильность ссылок | Сохранены `REQ-01`–`REQ-26` и `AC-01`–`AC-20`. Новые требования и проверки добавлены после них. |
+| Владелец контракта | Этот документ владеет наблюдениями использования, денежными сценариями, метриками полноты и времени. Канонические рабочие статусы остаются в существующем контракте состояния. |
+| Разрешение | Редактирование спецификации не разрешает реализацию, изменение развёрнутой конфигурации, эксперименты, публикацию или замену принятой модели. |
 
-Reading a producer's exact existing content-addressed publication to verify an
-idempotent retry is bookkeeping, not permission for historical queries. Pure helpers
-read only explicit input manifests. An active workflow cannot use them to select a
-historical corpus. Export ingestion does not grant permission to inspect unrelated
-sessions or accounts.
+### Как агенту работать с документом
 
-## Terminology
+Перед реализацией прочитать паспорт, границы, инварианты и раздел своей операции. Затем пройти соответствующие требования, схемы, ошибки и критерии приёмки; нельзя реализовать только положительный пример. Сначала установить фактическую редакцию исходного кода и наличие зависимостей, затем записать решение об аддитивном расширении публичных форматов. При неизвестной возможности источника выбрать явную неполноту, а не угадывать поля или останавливать основную работу.
 
-| Term | Definition |
+Для проверки стоимости нужны разделы «Нормализация», «Полнота» и «Оценка стоимости» вместе. Для публикации — «Сериализация», «Публикация» и «Ошибки» вместе. Квитанция публикации сама по себе не является доказательством полноты измерений или правильной цены.
+
+## Основания и исходное состояние
+
+Прочитанный исходный снимок `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28 подтверждает контракт связанного учёта жизненного цикла: исполняемые интервалы, явную атрибуцию, ретроспективное время и неизменяемый повтор уже принятой полезной нагрузки. Производитель содержит команды `run-start`, `step` и `run-end`; предлагаемые здесь `usage-ingest`, `--usage-file` и денежные проекции в прочитанном производителе отсутствуют. Декларация первой среды описывает реализованный профиль `claude-stop-v1`, второй — отсутствие поставленного встроенного адаптера. Это не утверждение о вечных возможностях платформ. Дополнительный сбор использования, ценовые снимки, денежные проекции и предупреждения здесь остаются планом.
+
+Опорные места для проверки перед реализацией:
+
+- `scripts/log-step.sh`: продвижение последовательности и времени только на принятой записи; закрытие активных метаданных; словарь событий. Номера строк из старой редакции — 736, 845, 944 и 1171 — являются историческими указателями и не заменяют поиск актуальных функций.
+- `rules/run-log.md`, разделы `Correlated hook intervals`, `Native hook adapter`, `What must never enter the log`, `Relationship to the existing state files` и `Field vocabulary`: неизменяемый повтор, владение, приватность, границы чтения.
+- `hooks/log-step-hook.sh`: в исходной редакции передавались время и результат, а не счётчики использования; исторические указатели — строки 355 и 443.
+- `workflows/retro.md`, раздел `Step 1 — Load` и подраздел `Measured hook intervals`: разрешённый выбор истории и допустимые источники времени.
+
+Прочтение исходных контрактов не является запуском испытаний. Исторические утверждения о содержимом отдельных перехватчиков и загрузчика ретроспективы проверяются повторно в актуальном дереве перед изменением этих файлов. Упомянутый во вложениях полный отчёт аудита от 2026-10-28 отсутствует в проверенном дереве и не используется как самостоятельное доказательство. Изменение числа слов или байтов в инструкциях нельзя выдавать за измеренное сокращение токенов или денег. Возможности двух поддерживаемых сред исполнения могут различаться; полный сопоставимый денежный базис не гарантирован.
+
+## Цель, границы и зависимости
+
+Получать проверяемую оценку использования моделей и стоимости независимо принятого результата, включая неудачные попытки, исправления, управление и проверку, с явным обозначением отсутствующих данных и отличием расчётной стоимости от оплаты подписки.
+
+В область входят версии профилей источников, выбранные владельцем входы, неизменяемые наблюдения, завершение потоков, устранение повторов, причинная атрибуция, независимый учёт ожидаемых запросов, цены, точная арифметика, локальные предупреждения и воспроизводимые ретроспективные выгрузки.
+
+Вне области: производственные денежные или временные лимиты; прогноз квот; автоматическая смена модели или политики; платные эксперименты; внешние уведомления; панель наблюдения, фоновая служба или размещённый сервис; административные интерфейсы выставления счетов; общий менеджер хранения; переписывание истории; обязательные зависимости для прежнего журналирования. Содержимое запросов, ответов, кода, аргументов инструментов и учётных данных собирать не требуется и не разрешается этим контрактом.
+
+| Связанный документ | Граница ответственности |
 |---|---|
-| API-equivalent cost | Usage valued using a named public API price scenario; distinct from subscription payment, provider-reported money and quota consumption. |
-| Result opportunity | One declared task/input/acceptance-contract/strategy/repetition combination; resumed runs and repairs do not create new opportunities. |
-| Run | One lifecycle invocation; process completion and usage finalization are separate. |
-| Attempt | One execution, repair or verification episode belonging to a result opportunity. |
-| Request | One actual model response, counted once across copied histories; a retry producing a different response is another request. |
-| Observation | An immutable source measurement of a request, counter interval, inventory or monetary aggregate; several observations may describe the same request. |
-| Accounting owner | The narrowest evidenced task/span or explicit shared/unattributed pool charged once; parent rollups are non-additive views. |
-| Coverage | Separately evidenced inventory, finalization, token-dimension, valuation and attribution completeness for a declared scope and as-of time. |
-| Priced subtotal | The sum of valid, disjoint, priceable components; it is not automatically a complete total or a proven lower bound. |
+| Завершённые основы словаря и связанного журналирования | Их события, временные правила, повторы и необязательные зависимости сохраняются. |
+| 04 | Выбор и доступность моделей. Этот документ не создаёт второй каталог моделей. |
+| 06 | Ограничения операций с репозиторием; сбор и сокращённый вывод не обходят их. |
+| 07 | Отложенный инструмент изменения состояния; не является предпосылкой этой работы. |
+| 08 и 14 | Загрузка инструкций и контекста; передают диагностические измерения, но не определяют денежные правила. |
+| 09 | Независимая оценка качества и разрешённые эксперименты; предоставляет метки принятия. |
+| 12 | Параллельные дочерние задачи; длительности работников и время родителя учитываются раздельно. |
+| 15 | Предлагаемые переходы управления; только существующий уполномоченный оркестратор применяет изменения общего состояния. |
+| 16–20 | Область проверки, вывод инструментов, усилие рассуждения, исправления и декомпозиция; производят свои метрики, не переопределяя цену и полноту. |
 
-Existing project meanings of workflow, phase, atomic cycle, leaf, orchestrator, run log
-and retro are retained. New telemetry terms are definitions proposed for the canonical
-run-log contract during implementation, not additional workflow status vocabularies.
+Более широкое переименование среды исполнения по документу 13 не блокирует автономные синтетические проверки телеметрии. Завершённую работу по перехватчикам повторно не реализовывать. Общие проверки `G1`–`G8` подтверждены в индексе указанного исходного снимка и применяются в следующем смысле:
 
-## Requirements
-
-- **REQ-01** WHEN a usage observation is available, THE SYSTEM SHALL associate the
-  identities and provenance in the Data Model with it, leaving unavailable actual
-  model/effort or ownership dimensions explicitly unknown rather than substituting
-  planned values, session defaults or timestamp guesses.
-- **REQ-02** WHEN normalizing a supported counter convention, THE SYSTEM SHALL produce
-  the disjoint quantities defined below while retaining only allowlisted numeric raw
-  counters; included reasoning and tool tokens SHALL NOT be charged again.
-- **REQ-03** IF a measurement is missing, partial, contradictory or unsupported, THEN
-  THE SYSTEM SHALL retain valid available dimensions with typed coverage reasons and
-  withhold unsupported complete totals; text length SHALL NOT estimate token usage.
-- **REQ-04** WHEN observations refer to the same response, THE SYSTEM SHALL resolve
-  them exactly once under the identity and revision rules below, preserving provenance
-  and quarantining unresolved conflicts instead of using ingestion order as authority.
-- **REQ-05** THE SYSTEM SHALL maintain immutable, explicitly refreshed price snapshots
-  with exact model applicability, effective evidence, unit prices, cache lifetimes,
-  context predicates, service/region dimensions and separately billed tool units.
-- **REQ-06** WHEN valuing usage, THE SYSTEM SHALL apply one identified valuation
-  scenario and publish its calculation breakdown, retaining provider-reported money
-  separately; subscription payments SHALL NOT become per-request charges or quotas.
-- **REQ-07** WHEN optional token/cost projections or structured usage references are
-  supplied to the lifecycle producer, THE SYSTEM SHALL validate the whole invocation
-  before mutation under the projection rules below, preserving its existing safe,
-  non-blocking failure and legacy optional-dependency behavior.
-- **REQ-08** WHEN reporting a run, THE SYSTEM SHALL expose the completeness dimensions
-  defined below and distinguish a provisional close-time projection from a complete
-  as-of retrospective total; unknown request inventory SHALL NOT become 100% coverage.
-- **REQ-09** WHERE a verified source profile exposes usage, THE SYSTEM SHALL support
-  its owned hook payload or explicitly selected read-only export; a timing hook alone
-  SHALL NOT establish usage support, inventory completeness or native model access.
-- **REQ-10** WHEN reporting durations, THE SYSTEM SHALL distinguish lifecycle wall
-  time, inclusive span time, derivable exclusive time and sum of worker time, retaining
-  clock/source quality and never adding overlapping spans into run wall time.
-- **REQ-11** WHEN an eligible completed duration crosses the declared advisory rule,
-  THE SYSTEM SHALL deliver the duration warning to the owning notes and final report
-  using an explicit threshold export or the fixed two-hour fallback, without stopping
-  the run or reading history.
-- **REQ-12** WHEN building a baseline, THE SYSTEM SHALL publish the cohort statistics,
-  expensive-work ranking, usage mix, failures and exclusions defined below, separating
-  complete observations, partial subtotals and censored work.
-- **REQ-13** WHEN joining independent acceptance labels, THE SYSTEM SHALL report
-  opportunity-level observed cost per accepted result under the cohort rules below,
-  including failed/rejected attempts and production review costs; an LLM completion
-  verdict SHALL NOT supply an independent acceptance label.
-- **REQ-14** THE SYSTEM SHALL publish reproducible offline fixtures, formulas, adapter
-  coverage and operational documentation; shared index gates G1-G8 apply, and paid
-  collection/comparison still requires a separately authorized experiment manifest.
-- **REQ-15** WHEN selecting an adapter, THE SYSTEM SHALL require a versioned source
-  profile declaring format, counter scope, identity, finality and inventory capabilities;
-  unsupported versions SHALL produce unavailable coverage rather than guessed mappings.
-- **REQ-16** WHEN partial, final or corrected response usage arrives, THE SYSTEM SHALL
-  select authoritative quantities using the stream lifecycle rules below; summing
-  cumulative snapshots or treating the largest partial value as final is prohibited.
-- **REQ-17** WHEN only cumulative or aggregate counters are exposed, THE SYSTEM SHALL
-  apply the verified-epoch and aggregate rules below without inventing per-request
-  usage, distributing costs by text size or adding covered aggregate and request totals.
-- **REQ-18** WHEN attributing a response, THE SYSTEM SHALL use explicit causal evidence
-  and assign one evidenced accounting owner or shared/unattributed pool, without equal
-  splits or fabricated leaf assignments.
-- **REQ-19** WHEN usage or acceptance evidence arrives after process closure, THE
-  SYSTEM SHALL publish a new immutable observation or derived report revision without
-  reopening the run or modifying its accepted lifecycle event or checkpoint payload.
-- **REQ-20** WHEN publishing usage, THE SYSTEM SHALL use the bounded immutable artifact
-  and snapshot contracts below, leaving lifecycle files, sequence, timing and checkpoint
-  state unchanged by usage-only ingestion.
-- **REQ-21** WHEN calculating or presenting monetary values, THE SYSTEM SHALL use exact
-  integer/decimal arithmetic and the subtotal, lower-bound and rounding rules below.
-- **REQ-22** WHEN a configured usage advisory threshold is crossed, THE SYSTEM SHALL
-  emit a local, deduplicated warning with scope and coverage, without enforcing a budget,
-  changing a model, invoking another model or sending external messages.
-- **REQ-23** WHERE consumers supply optimization diagnostics, THE SYSTEM SHALL retain
-  the typed, namespaced metadata dimensions below without treating bytes, words or
-  inferred roles as measured tokens, actual model settings or independent quality.
-- **REQ-24** WHEN exporting telemetry analysis, THE SYSTEM SHALL produce versioned
-  machine-readable and human-readable artifacts with a frozen corpus, calculation
-  scenario and inclusion/exclusion audit trail; equal inputs SHALL reproduce equal
-  semantic output and canonical serialized bytes except declared creation timestamps.
-- **REQ-25** IF collection is disabled, a dependency is unavailable or a bounded source
-  fails validation, THEN THE SYSTEM SHALL preserve existing evidence and workflow
-  behavior while reporting the affected coverage gap under the failure contract below.
-- **REQ-26** WHEN comparing strategies or models, THE SYSTEM SHALL distinguish
-  descriptive observations from qualified comparisons and refuse cheapest/effectiveness
-  conclusions from incomparable scope, partial lower bounds or self-reported quality.
-
-## Data Model
-
-All entities below are **new** additive metadata except the existing lifecycle events
-(`rules/run-log.md → ## Field vocabulary`) and timing/correlation fields (`rules/run-log.md → ## Correlated hook intervals`).
-Wire schemas have integer `schema_version: 1`, no duplicate JSON keys, finite numeric
-values, and a canonical contract export. Unknown schema versions are unsupported;
-unknown fields in normalized envelopes are rejected. A provider payload is never copied
-wholesale into any entity.
-
-| Entity | Required fields, types and identity |
+| Проверка | Обязательство для этой спецификации |
 |---|---|
-| Source profile | Stable profile ID/version; provider, harness and supported format/version evidence; counter paths and semantics; response identity/account scope; finality signal; inventory capability; optional cache/effort/tool dimensions; known omissions; reviewed date and official evidence URL. |
-| Collection scope | Opaque project/task/opportunity/run/session/agent IDs as available; selected-source IDs/digests; profile version; collection interval; receipt/as-of time; authorized source selection. Project rename aliases require explicit mapping. |
-| Observation | Content-derived ID; kind `request_usage`, `inventory` or `reported_aggregate`; profile and source digest/record ordinal; counter scope; provider identity scope; response/client-call ID where exposed; provider timestamp and timestamp quality; observed-at time; sanitized raw counters; normalized dimensions; measurement state; outcome; attribution evidence and optional superseded observation reference. |
-| Request view | Derived canonical provider/account/response key; contributing observation IDs; requested/resolved/actual model and effort with evidence; selected final/partial dimensions; accounting owner; coverage reasons; no mutable stored request total. |
-| Inventory | Scope and observation window; independently supplied eligible client-call/response identities and one-to-many linkage; unresolved issued-call slots; explicit `complete`, `partial` or `unknown` state and evidence; known child/internal-review/tool membership, collection segments/gaps and declared exclusions. |
-| Attribution | Root entrypoint, nested workflow/stage, role, full/quick flow, attempt, parent span and opportunity ID where supplied; owner kind `span`, `task`, `shared_pool` or `unattributed`; candidate owners, evidence source and asserted/verified/inferred quality. |
-| Price snapshot | Content-derived ID; USD currency and decimal-string rates per declared unit; retrieval date; effective interval or explicitly unknown history; exact model/verified alias mapping; API modality, service tier, region, cache/threshold/tool applicability and source URLs. |
-| Valuation scenario | Stable ID and basis `at_execution` or `reprice`; selected snapshot IDs; explicit service/region/modality assumptions or original execution dimensions; threshold rules; currency and presentation precision. It is not an invoice. |
-| Advisory policy | Schema/version, explicit token/USD/coverage thresholds; scope and units; generated-at/valid-until; optional compatible historical cohort digest/sample count/median; warning deduplication state stays private to the owning run. |
-| Analysis manifest | Explicit immutable lifecycle/usage/inventory/price/acceptance inputs with digests and versions; normalized aliases; scope; as-of time; exclusions; selected scenario; output schema/normalizer version. External source paths remain in the local manifest, never shared telemetry. |
+| G1 — Атрибуция | Версии исходников/развёртывания, фактические среда/модель, конфигурация, роль/этап/попытка, полнота и идентичность эксперимента при его наличии; отсутствующее не равно нулю. |
+| G2 — Сопоставимость | Одинаковые исходная редакция, спецификация, приёмка и задачи; раздельные токены/кэш, деньги, вызовы, повторы, время и полнота. Слова и симуляции не доказывают результаты модели. |
+| G3 — Независимое качество | Сохраняются порядок тестов до реализации, замороженное доказательство отрицательного теста, контракты, ограничения репозитория, остановки владельца, независимая проверка и интеграция. Ни тесты, ни вердикт проверяющего не абсолютны; отложенные критерии и поздние дефекты оценивает 09. |
+| G4 — Совместимость | Прежние артефакты читаемы, необязательные возможности имеют консервативный путь, небезопасное состояние останавливается до мутации, неизвестность сохраняется, скрытой подмены модели нет. |
+| G5 — Владение | Общее состояние и репозиторий меняет только уполномоченный писатель; чистые помощники не вызывают модели и не обходят разрешения. Специальный производитель публикует только оговорённую телеметрию; 07 остаётся отложенным. |
+| G6 — Проверки | Новое поведение получает падающие автономные проверки до реализации и проходящие после неё. Документы проверяются на контракт/достижимость. Обычная проверка, синхронизация и автоматическая сборка не запускают платные модели. |
+| G7 — Возврат | Описаны отключение и возобновление от последней проверенной точки по прежней политике, с сохранением истории и доказательств. |
+| G8 — Экономика | Полная стоимость корректного результата включает планирование, инструменты, проверку, исправления и эскалацию. Подписка — реальная оплата; расчёт в долларах не счёт и не квота. Производственные лимиты не вводятся. |
 
-### Counter and lifecycle semantics
+## Участники и права чтения
 
-- `measurement_state`: `partial | final | unavailable | conflicted` per applicable
-  dimension; request outcome is separately `succeeded | failed | cancelled | timed_out |
-  unknown`. Failure or cancellation does not imply free usage.
-- `counter_scope`: `response_total | incremental_delta | cumulative_epoch |
-  provider_aggregate | caller_aggregate`. Session/request counters cannot be interchanged.
-- Normalized quantities: `input_uncached`, `input_cache_read`, cache-write entries
-  `{ttl, tokens}`, optional `input_cache_write_unsplit`, `output_total` and optional
-  `reasoning_subset`. `tokens_in` is known only when its exhaustive input sum is known.
-  Each reported observation count is an integer from zero through 9007199254740991;
-  derived aggregate counts use exact integers even above that per-observation limit.
-- Included-input profiles subtract both cache reads and cache writes from total input
-  only when the profile documents that inclusion. Separate-input profiles add their
-  disjoint ordinary/cache buckets. A missing write field means zero only when that
-  profile proves it inapplicable, not because a serializer omitted it. TTL components
-  must equal a reported write total; negative residuals and overlaps are conflicts.
-- A final provider snapshot replaces earlier partial totals for that response. It is
-  not added to them. A final correction replaces a prior final only with explicit
-  provider revision/ordering evidence; otherwise contradictory finals are conflicted.
-  Arrival order, file modification time and component-wise maximum are not authority.
-  Documented unique incremental deltas may be summed once; finality additionally
-  requires a proven start-to-terminal contiguous sequence or equivalent provider
-  completeness evidence. A terminal marker with missing deltas is not enough. Their
-  authoritative final snapshot is a consistency check or replacement, never another
-  charge. A truncated stream remains
-  partial even when its counters are monotonic or its process exits successfully.
-- Cumulative differencing requires the same provider/account/model/unit dimensions,
-  a documented epoch, ordered adjacent snapshots and a complete interval inventory.
-  Per-request attribution additionally requires exactly one evidenced contributing
-  request fully bracketed by the snapshots with no in-flight usage crossing either
-  endpoint, or documented counters updated atomically at request completion. A
-  mid-request predecessor measures only an interval, not the entire request. Resets,
-  replayed prefixes, gaps, multiple requests and unknown initial values
-  must not create request-level deltas. A valid interval aggregate may remain a separate
-  aggregate-only observation. Aggregate monetary/counter snapshots are non-additive
-  corroboration when their covered request set overlaps or is unknown.
+| Участник | Обязанности и разрешённые входы |
+|---|---|
+| Адаптер источника | Читает явно выбранные выгрузки или принадлежащие текущему запуску полезные нагрузки перехватчика по проверенному профилю; выдаёт очищенные наблюдения и доказательства охвата. |
+| Производитель телеметрии | Проверяет весь вызов приёма, публикует неизменяемый пакет, возвращает отдельную квитанцию. Не выбирает историю для суммирования или маршрутизации. |
+| Уполномоченный оркестратор | Передаёт связь с текущим запуском, читает собственные квитанции и закрытый накопитель, последовательно меняет общие заметки как единственный писатель. |
+| Ретроспектива | Явно выбирает исторические входы, фиксирует закрытый перечень корпуса, вызывает чистые вычисления и публикует новую редакцию отчёта. |
+| Сопровождающий | Отдельно обновляет снимки цен, проверяет профили и настраивает явные политики предупреждений. |
+| Потребители оптимизаций | Получают явно экспортированные агрегаты и независимые метки принятия. Самостоятельно историю не обнаруживают и не сканируют. |
 
-### Identity, ownership and late data
+Проверка точного уже существующего файла по адресу его содержимого при повторной публикации — техническая проверка идемпотентности, а не разрешение читать историю. Чистые вычислители читают только явно перечисленные входы. Активный рабочий процесс не получает право выбирать исторический корпус через такой вычислитель. Выбор одной выгрузки не разрешает читать соседние сеансы, проекты или учётные записи.
 
-Provider/account identity scopes deduplicate the same response across forked sessions;
-session IDs are provenance, not an extra identity component that duplicates a response.
-Without response IDs, a profile may use a proven stable client-call identity and its
-response linkage; timestamp-plus-token fingerprints alone cannot prove equivalence.
-Unresolvable identity leaves completeness unavailable and excludes potentially
-overlapping values from an additive subtotal. Transport/export replay of one response
-counts once; retries producing different responses count separately.
+## Термины и неизменяемые правила
 
-Ownership evidence is dispatch/correlation metadata or an explicit reviewed import
-mapping. Requested model, prompt-inferred role or a coincident timestamp is not an
-actual execution setting or proof of ownership. Root controller, planning, integration
-and review spans are legitimate owners without a leaf. A proven common ancestor may
-own a shared pool once; candidate leaves keep incomplete attribution. If no common
-scope is evidenced, the pool stays unattributed. No equal or proportional split is made.
-Top-level approach and nested stages are separate labels, never additive competing runs.
+| Термин | Значение |
+|---|---|
+| Эквивалент стоимости по тарифам программного интерфейса | Использование, оценённое по указанному тарифному сценарию. Отдельно от платы за подписку, сообщённых поставщиком денег и расходования квот. |
+| Возможность получить результат | Одно сочетание задачи, версии входов, контракта приёмки, стратегии и независимого повторения. Возобновление и исправление не создают новую возможность. |
+| Запуск | Один вызов жизненного цикла. Завершение процесса и окончательность использования — разные события. |
+| Попытка | Выполнение, исправление или проверка в пределах одной возможности результата. |
+| Запрос | Один фактический ответ модели. Копии истории считаются один раз; повтор, породивший другой ответ, считается новым запросом. |
+| Наблюдение | Неизменяемое измерение ответа, интервала счётчиков, инвентаризации или денежного агрегата. Несколько наблюдений могут относиться к одному запросу. |
+| Владелец учёта | Наименьшая доказанная задача или интервал либо явно общий/неатрибутированный пул, которому расход назначен один раз. Родительская сводка не является дополнительным расходом. |
+| Полнота | Раздельные свойства инвентаризации, окончательности, измерения токенов, цены и атрибуции для заданной области и момента наблюдения. |
+| Оценённая часть суммы | Сумма достоверных, непересекающихся и оцениваемых компонентов. Не обязательно полная стоимость или доказанная нижняя граница. |
 
-Stable ownership includes linked final responses, children and tool observations that
-arrive after `run-end`. A process outcome is unchanged. Reports use immutable as-of
-revisions, retain earlier reports and list late arrivals/exclusions. Replayed or invalid
-timestamps may support identity evidence only; duration and time-window membership stay
-unknown unless another measured clock establishes them.
+Обязательные инварианты:
 
-### Completeness and cost states
+1. Один фактический ответ даёт не более одного слагаемого в одной аддитивной сводке. Квитанции, родительские сводки, агрегаты поставщика и окончательные снимки не прибавляются поверх уже учтённых ответов.
+2. Неизвестное значение не равно нулю. Отсутствие поля не означает неприменимость. Окончательность процесса не доказывает окончательность использования.
+3. Наблюдение, чекпоинт и опубликованный отчёт после принятия неизменяемы. Поздние данные создают новое наблюдение или редакцию отчёта.
+4. Сбор использования не меняет время, последовательность и результат жизненного цикла, не открывает закрытый запуск и не влияет на выбор модели.
+5. Расчёт не расширяет область доступа. В общую телеметрию не попадают содержимое диалога, секреты и внешние исходные пути.
+6. Полная стоимость требует доказанной полноты именно заявленной области. Достоверная стоимость общего пула может входить в полную стоимость родителя, оставаясь неизвестной для отдельных листьев.
+7. Счётчики, цены, атрибуция и качество имеют отдельные доказательства. Корректный формат записи не доказывает правдивость источника.
+8. Сбой телеметрии сохраняет работу основного процесса. Это не превращает ошибочную телеметрию в принятую: принятие подтверждается только типизированной квитанцией.
 
-Every report declares scope/as-of and records inventory state, eligible request count
-when known, finalized request count, per-dimension usable numerator/denominator,
-priceable count, verified-owner count, unknown-model count, unknown-rate count and
-exclusion reasons. An independently evidenced inventory includes retries, cancelled
-and failed requests, orchestration, workers and internal review where the source can
-enumerate them. An end marker without such capability does not prove inventory closure.
-Client-call and linked response identities are aliases of one contributing response;
-one call yielding two actual responses expands to two distinct requests. An unresolved
-issued call remains an unknown-usage slot, not a zero-cost response. Unresolved fan-out
-keeps the response denominator unknown; report known responses and unresolved slots
-separately, never a ratio greater than one or a guessed complete denominator.
-Parsed record count is never the request inventory denominator. Missing inventory makes
-request coverage unknown even if all parsed records contain final counters. Known empty
-inventory reports zero eligible requests, exact zero billable cost when the whole
-billable scope is evidenced empty, and coverage `not_applicable`, not 0/0 or fabricated
-100%. An empty export with unknown inventory still has unavailable cost.
+## Требования
 
-A token dimension may be complete while valuation or attribution is incomplete.
-Unknown internal model aliases, including guardian/review calls, retain measured tokens
-and request counts with unpriced cost; no public-model substitution is made. Complete
-scope cost requires independently complete inventory, final applicable quantities,
-resolved identity/ownership, applicable prices/tool units and no conflicting overlap.
-Otherwise `cost_usd` complete total is absent and a separately named priced subtotal
-may be shown. `lower_bound` is permitted only when all included components are valid,
-nonnegative, disjoint and priceable, and exclusions cannot reduce them. Contradictions,
-unresolved overlap, assumed historical prices or unresolved signed components within
-the selected valuation forbid that claim. Separately excluded provider account credits
-do not change an API-list-price subtotal's mathematical bound. Priceable components
-with unknown write TTL can contribute a subtotal while
-write cost remains unavailable. Provider-reported money keeps original currency, scope
-and possible credits separately; no implicit FX conversion or aggregate addition occurs.
+- **REQ-01.** Для каждого наблюдения хранить доступные идентификаторы и происхождение из модели данных. Неизвестные фактические модель, усилие и владелец остаются неизвестными; план, настройки сеанса и совпавшее время их не заменяют.
+- **REQ-02.** Поддерживаемые счётчики приводить к непересекающимся величинам. Сохранять только разрешённые числовые исходные поля. Включённые токены рассуждения и инструментов повторно не тарифицировать.
+- **REQ-03.** При отсутствии, частичности, противоречии или неподдерживаемом формате сохранять достоверные измерения с типизированными причинами, исключая недоказанные полные суммы. Размер текста не является оценкой токенов.
+- **REQ-04.** Наблюдения одного ответа разрешать ровно один раз по правилам идентичности и редакций. Сохранять происхождение; неразрешённые противоречия изолировать. Порядок приёма не задаёт авторитетность.
+- **REQ-05.** Использовать неизменяемые, явно обновляемые снимки цен с точной применимостью к модели, периодом действия или отметкой его неизвестности, единицами, временем жизни кэша, порогами контекста, уровнем обслуживания, регионом и отдельными единицами инструментов.
+- **REQ-06.** Для расчёта выбирать один именованный сценарий и публиковать состав вычисления. Деньги поставщика хранить отдельно. Плата за подписку не распределяется по запросам и не превращается в квоту.
+- **REQ-07.** При передаче новых скалярных проекций или структурированной ссылки жизненному циклу проверять весь вызов до любых изменений. Сохранять прежнее безопасное неблокирующее поведение и необязательность зависимостей.
+- **REQ-08.** Для запуска показывать все измерения полноты, отличая предварительную проекцию при закрытии от полной ретроспективной суммы на фиксированный момент. Неизвестную инвентаризацию нельзя объявить стопроцентной.
+- **REQ-09.** Поддержка использования существует только при проверенном профиле полезной нагрузки или явно выбранной выгрузки. Перехватчик времени сам по себе не доказывает использование, полную инвентаризацию или доступ к встроенной модели.
+- **REQ-10.** Различать календарное время запуска, включительную длительность интервала, выводимое исключительное время и сумму длительностей работников. Сохранять качество часов; пересечения не складываются в календарное время.
+- **REQ-11.** При превышении допустимого завершённого интервала выдавать предупреждение в принадлежащие ему заметки и итоговый отчёт по явному экспорту порога либо резервному правилу двух часов. Не останавливать запуск и не читать историю.
+- **REQ-12.** Базовый отчёт должен содержать статистики сопоставимой группы, список дорогой работы, состав использования, неудачи и исключения; полные наблюдения, частичные суммы и незавершённые случаи разделяются.
+- **REQ-13.** Стоимость принятого результата рассчитывать по возможностям результата и независимым меткам приёмки, включая неудачи, отклонения и производственную проверку. Ответ модели о собственном завершении не является независимой приёмкой.
+- **REQ-14.** Опубликовать воспроизводимые автономные проверки, формулы, охват адаптеров и эксплуатационные инструкции. Общие проверки `G1`–`G8` применимы при доступном определении; платное сравнение требует отдельного разрешённого плана эксперимента.
+- **REQ-15.** Выбор адаптера требует версии профиля с форматом, областью счётчиков, идентичностью, окончательностью и инвентаризацией. Неизвестная версия означает недоступность соответствующего измерения, а не догадку о соответствии полей.
+- **REQ-16.** Частичные, окончательные и исправленные данные разрешать по жизненному циклу потока. Запрещены суммирование накопительных снимков и признание максимального частичного значения окончательным.
+- **REQ-17.** Накопительные и агрегированные счётчики обрабатывать только по доказанным эпохам и покрытиям. Не придумывать использование отдельного запроса, не распределять деньги по длине текста и не складывать пересекающиеся агрегаты с запросами.
+- **REQ-18.** Назначать ответу одного владельца либо общий/неатрибутированный пул на основании причинной связи. Равное или пропорциональное распределение без доказательств запрещено.
+- **REQ-19.** Позднее использование или приёмка порождают новое неизменяемое наблюдение либо редакцию отчёта, не меняя закрытый запуск и принятый чекпоинт.
+- **REQ-20.** Использование публикуется отдельными ограниченными неизменяемыми пакетами. Приём только использования не меняет файлы жизненного цикла, последовательность, время или состояние повторов.
+- **REQ-21.** Денежные значения вычислять точной целочисленной и десятичной арифметикой по правилам частичной суммы, нижней границы и округления.
+- **REQ-22.** Превышение явного порога использования вызывает локальное устранённое от повторов предупреждение с областью и полнотой. Оно не вводит бюджет, не меняет модель, не вызывает модель и не отправляет сообщения вовне.
+- **REQ-23.** Дополнительные диагностические метрики принимать через типизированный реестр пространств имён; байты, слова и предположенная роль не становятся измеренными токенами, фактической настройкой или независимой оценкой качества.
+- **REQ-24.** Выгрузки для человека и программы должны иметь версии, фиксированный корпус, сценарий и журнал включений/исключений. Равные входы дают равные смысловые результаты и канонические байты, кроме явно отделённого времени создания отчёта.
+- **REQ-25.** При отключении, отсутствии зависимости или ошибке источника сохранять имеющиеся доказательства и поведение рабочего процесса; неполноту сообщать по контракту ошибок.
+- **REQ-26.** Описательные наблюдения отделять от квалифицированного сравнения. Несопоставимые области, частичные нижние границы и самооценка качества не дают права назвать самый дешёвый или эффективный вариант.
+- **REQ-27.** Идентификаторы содержимого, точные числа и экспорт формировать по одной канонической сериализации. Повторное преобразование одинаковых зафиксированных входов не должно получать новые идентификаторы из-за порядка полей или текущих часов.
+- **REQ-28.** Исключительное время выводить только из совместимых полных интервалов посредством объединения пересечений, сохраняя отдельно сумму работников; при недостаточных часах или охвате оставлять его неизвестным.
+- **REQ-29.** Полноту стоимости и атрибуции проверять относительно выбранной области. Нельзя переносить полноту родителя на лист или лишать родителя доказанной суммы только из-за отсутствия искусственного распределения общего расхода.
+- **REQ-30.** До чтения больших входов фиксировать пределы выбранного объёма и сохранять их в локальном перечне. Превышение предела даёт явную ошибку/частичность, не скрытую усечённую полную сумму.
 
-## Contracts & Interfaces
+## Модель данных и типы
 
-### Additive ingress and publication
+Все сущности ниже — аддитивные метаданные. Существующие события, временные и корреляционные поля остаются в каноническом контракте журнала. Общий экспорт контракта — единственный источник физических схем; потребители не создают собственные несовместимые варианты.
 
-Proposed interfaces, to be implemented without changing existing invocation behavior:
+| Сущность | Обязательное содержание |
+|---|---|
+| Профиль источника | Стабильные идентификатор и версия; поставщик, среда и доказанная версия формата; пути счётчиков и их смысл; область идентичности учётной записи/ответа; сигналы окончательности; возможности инвентаризации; поддержка кэша, усилия и инструментов; известные пропуски; дата проверки и официальное основание. |
+| Область сбора | Доступные непрозрачные идентификаторы проекта, задачи, возможности, запуска, сеанса и агента; выбранные источники и хеши; версия профиля; интервал сбора; фиксированный момент наблюдения; основание выбора. Переименование проекта требует явной таблицы соответствия. |
+| Наблюдение | Идентификатор содержимого; вид `request_usage`, `inventory` или `reported_aggregate`; профиль, хеш источника, номер записи; область счётчика; область поставщика/учётной записи; идентификатор ответа/вызова, если доступен; исходное время и качество; фиксированное время наблюдения; разрешённые числовые поля; нормализованные измерения; состояние, исход, атрибуция; необязательная ссылка на исправляемое наблюдение. |
+| Представление запроса | Производный ключ поставщик/учётная запись/ответ; идентификаторы исходных наблюдений; запрошенные, разрешённые и фактические модель/усилие с доказательствами; выбранные значения и окончательность каждого измерения; владелец; причины неполноты. Изменяемая сохранённая сумма запроса не создаётся. |
+| Инвентаризация | Область, окно наблюдения, независимо полученный перечень ожидаемых вызовов и ответов, связь один-ко-многим, неразрешённые места вызовов; состояние `complete`, `partial` или `unknown` с доказательствами; принадлежность дочерних, внутренних проверочных и инструментальных вызовов; сегменты, разрывы и исключения. |
+| Атрибуция | Корневая команда, вложенный процесс/этап, роль, полный/быстрый путь, попытка, родительский интервал, возможность результата; вид владельца `span`, `task`, `shared_pool` или `unattributed`; кандидаты, основание и качество `asserted`, `verified` или `inferred`. |
+| Снимок цены | Идентификатор содержимого; валюта `USD`; ставки десятичными строками и единицы; дата получения; доказанный период действия либо его неизвестность; точные модели/проверенные псевдонимы; модальность, уровень обслуживания, регион, кэш, пороги, инструментальные единицы и первичные ссылки. |
+| Сценарий оценки | Стабильный идентификатор; основа `at_execution` или `reprice`; снимки цен; исходные параметры или явно допустимые предположения; правила порогов; валюта и точность показа. Не является счётом. |
+| Политика предупреждений | Версия и идентификатор; явные пороги токенов/денег/полноты, область и единицы; момент формирования и окончания действия; при наличии — хеш совместимой исторической группы, размер и медиана. Состояние доставки принадлежит только текущему запуску. |
+| Перечень анализа | Явные неизменяемые входы журнала, использования, инвентаризации, цен и приёмки с хешами/версиями; соответствия идентификаторов; область; фиксированный момент; исключения; сценарий; версии схемы и нормализатора. Внешние исходные пути остаются только в этом закрытом перечне. |
+
+### Представление отсутствующих значений
+
+У каждого необязательного измерения есть типизированное состояние и причины. Известный ноль хранится как ноль со своим доказательством. Неизвестное значение не сериализуется нулём, пустой строкой или строкой `"unknown"` вместо числа. Для счётчиков допускается отсутствие числового поля при обязательном описании состояния. Поле полной стоимости `cost_usd` вообще отсутствует, пока полнота не доказана; частичная сумма находится в отдельном поле `priced_subtotal_usd` с качеством `proven_lower_bound` либо `subtotal_only`.
+
+`measurement_state` относится к каждому применимому измерению: `partial | final | unavailable | conflicted`. Исход запроса независим: `succeeded | failed | cancelled | timed_out | unknown`. Отмена или ошибка не означает бесплатное использование. `not_applicable` используется для полноты неприменимой области, а не как подмена отсутствующего измерения.
+
+### Каноническая сериализация и идентичность содержимого
+
+1. `schema_version` — целое `1`. Дубли ключей, неизвестная версия, неизвестные поля нормализованной оболочки, нечисловые специальные значения и логические значения вместо счётчиков запрещены. Сырые поля поставщика не копируются целиком.
+2. Исходный числовой счётчик — целое от 0 до 9007199254740991 включительно. Отрицательное значение, дробь и переполнение являются ошибками соответствующей записи. Производные суммы могут быть больше; в машинной выгрузке они передаются каноническими десятичными строками, чтобы потребитель с ограниченными числами их не округлил.
+3. Денежные суммы и ставки — десятичные строки без знака плюс, экспоненты, разделителей групп и валютного символа. Ноль записывается `"0"`; начальные нули и ненужные конечные нули дроби удаляются. Отрицательные компоненты допустимы только в отдельно типизированных деньгах поставщика, например кредитах; нормализованные количества и тарифы неотрицательны.
+4. Канонические байты: `UTF-8` без маркера порядка байтов, компактный `JSON`, ключи объектов отсортированы по кодовым точкам, без незначащих пробелов и завершающего перевода строки. Строки и непрозрачные идентификаторы не нормализуются по регистру или форме символов. Массивы, являющиеся множествами по схеме, сортируются по определённому ключу; последовательности потоков сохраняют семантический порядок.
+5. Идентификатор наблюдения — `SHA-256` канонических байтов наблюдения без собственного идентификатора. Идентификатор пакета — `SHA-256` его полных канонических байтов; пакет не содержит собственного хеша. Хеширует и проверяет один общий модуль, используемый нормализатором, производителем и анализатором.
+6. Время наблюдения, входящее в хеш, поступает из зафиксированного перечня или доказанного источника. Повтор нормализации не подставляет новые текущие часы. Время создания отчёта отделено от семантического тела и его хеша; исключение из байтовой воспроизводимости явно перечислено в схеме.
+7. Хеш доказывает совпадение байтов, а не достоверность поставщика, независимость приёмки, право доступа или актуальность профиля. Непрозрачные идентификаторы не должны содержать исходные пути, секреты и свободный текст.
+
+Описанная сериализация является проектным контрактом для экспорта схемы, а не заявлением о совместимости с произвольным сторонним канонизатором. Установочные и реализационные изменения должны сопровождаться эталонными байтовыми примерами.
+
+## Нормализация счётчиков
+
+### Непересекающиеся величины
+
+`counter_scope` принимает `response_total`, `incremental_delta`, `cumulative_epoch`, `provider_aggregate` или `caller_aggregate`. Область счётчика обязательна: число сеанса нельзя принять за число запроса.
+
+Канонические величины:
+
+- `input_uncached` — обычный вход;
+- `input_cache_read` — вход, прочитанный из кэша;
+- `input_cache_write` — набор `{ttl, tokens}` для непересекающихся периодов жизни;
+- `input_cache_write_unsplit` — при наличии общей записи в кэш с неизвестным разбиением;
+- `output_total` — полный выход;
+- `reasoning_subset` — необязательная уже включённая часть выхода, не дополнительное слагаемое;
+- `tokens_in` — известен только при известной исчерпывающей сумме всех входных категорий.
+
+Для профиля, где общий вход включает кэш, обычный вход равен общему входу минус чтение и запись кэша. Вычитать запись можно лишь при доказанном включении именно в этом формате. Для профиля с отдельным обычным входом итоговый вход равен сумме обычного входа, чтения и записи. Одна схема не переносится на другую по названию поставщика.
+
+Отсутствующий счётчик записи равен нулю только при доказанной неприменимости поля в выбранном профиле. Сумма разбитых по времени жизни записей обязана совпадать с имеющимся общим счётчиком записи. Если известны и общая запись, и её части, общая величина служит контрольной суммой, а не ещё одним слагаемым. Отрицательный остаток, пересекающиеся категории, превышение `reasoning_subset > output_total` или несовпадение контрольной суммы дают конфликт затронутых измерений. Не затронутые достоверные измерения сохраняются отдельно; полная сумма не выводится до устранения конфликта.
+
+### Разрешение потоков и редакций
+
+Алгоритм для одной идентичности ответа:
+
+1. Проверить профиль, область, исходные числовые поля и идентификатор наблюдения. Одинаковое наблюдение исключить из повторного счёта.
+2. Разделить полные снимки и уникальные приращения; не смешивать их как независимые расходы.
+3. Окончательный снимок заменяет частичные снимки того же ответа. Он не прибавляется к ним и не обязательно равен их максимуму.
+4. Исправленный окончательный снимок заменяет предыдущий только при явном номере редакции, последовательности или иной проверенной связи исправления поставщика. Цикл исправлений, два несопоставимых преемника и противоречивые окончательные значения без такого основания дают `conflicted`.
+5. Документированные уникальные приращения суммируются один раз. Окончательность требует непрерывной последовательности от доказанного начала до терминального события либо равноценного подтверждения поставщика. Терминальное событие при пропуске номера недостаточно.
+6. Окончательный полный снимок при наличии приращений является заменой либо проверкой их суммы по профилю. Он не становится ещё одним расходом.
+7. Если окончательность не доказана, сохранить последнюю доказанную частичную величину по порядку источника. При отсутствии порядка не выбирать «самую позднюю» по получению или максимальную; сохранить конфликт/неполноту.
+
+Качество задаётся по измерениям: окончательная запись входа не делает выход окончательным, если профиль не утверждает этого. Успешный выход процесса и монотонность потока не закрывают недополученный поток. При исправлении нельзя собирать искусственный «лучший» запрос из несовместимых редакций: поля должны принадлежать одному согласованному снимку либо доказанно совместимым независимым измерениям.
+
+### Накопительные эпохи и агрегаты
+
+Разность накопительных снимков допустима только при совпадении поставщика, области учётной записи, модели, единиц, доказанной эпохи, порядке смежных снимков и полной инвентаризации интервала. Сброс, неизвестное начальное значение, повтор префикса и разрыв запрещают выдумывать дельту запроса.
+
+Чтобы объявить разность использованием конкретного запроса, должен существовать ровно один доказанный запрос, полностью заключённый между снимками, без незавершённого использования на обеих границах. Альтернатива — профиль доказывает атомарное обновление счётчика строго по завершении запроса. Снимок из середины запроса определяет только часть интервала. Если запрос начался на 90, но доступны лишь середина 100 и конец 110, разность 10 не доказывает полное использование 20.
+
+Достоверный агрегат интервала может сохраняться как агрегат, даже когда разложение по запросам невозможно. Агрегаты с пересекающимся или неизвестным покрытием не прибавляются к ответам; они служат отдельной сверкой. Непересекающийся агрегат может входить в отдельную агрегатную сводку только с явным доказательством границ и единиц; такая сводка не превращается в полный учёт запросов. Деньги поставщика остаются отдельными даже при совпадении суммы.
+
+## Идентичность, атрибуция и поздние данные
+
+Ключ ответа использует поставщика, непрозрачную область учётной записи и идентификатор ответа. Идентификатор сеанса — происхождение, а не дополнительная часть ключа, которая удвоит ответ в ответвлённой истории. Если идентификатора ответа нет, профиль может использовать доказанно устойчивый идентификатор клиентского вызова с однозначной связью с ответом. Комбинация времени и токенов не доказывает тождество.
+
+Один повторно переданный ответ учитывается один раз. Повторный запрос, создавший новый ответ, учитывается отдельно в той же возможности результата. Один клиентский вызов, создавший два ответа, разворачивается в два ответа. Неоднозначная связь не даёт произвольно слить или размножить запросы: сохраняются известные идентичности, неразрешённые места и причины неполноты. Потенциально пересекающиеся значения исключаются из аддитивной суммы до разрешения идентичности.
+
+Основание владельца — метаданные отправки, корреляция или явно проверенное соответствие импорта. Роль, угаданная по тексту, выбранная в плане модель и совпавшее время не являются доказательствами фактического выполнения. Корневое управление, планирование, интеграция и проверка могут быть самостоятельными владельцами без листовой задачи.
+
+Если один запрос имеет несколько кандидатов-листьев и доказанного общего предка, он назначается одному общему пулу этого предка. Кандидатам нельзя приписать половины. Когда общий предок не доказан, пул остаётся `unattributed`. Полная стоимость родителя возможна при доказанной принадлежности всех расходов родителю; стоимость отдельных листьев при этом может остаться неполной. Расход вне доказанной области родителя не включается в его полный итог.
+
+Области верхнеуровневого подхода и вложенных этапов — разные метки одной работы, а не конкурирующие аддитивные запуски. Родительская сводка содержит ссылки на вкладчиков; при суммировании выбирается один уровень разложения.
+
+Явно связанные дочерние ответы, окончательные токены и инструментальные расходы после `run-end` сохраняют владельца. Они меняют только новый отчёт на новый момент. Исход процесса, старые отчёты и полезная нагрузка принятого чекпоинта остаются прежними. Неправильные или повторённые отметки времени могут участвовать в идентификации только при допустимом профиле; длительность и принадлежность временному окну остаются неизвестными без другого измеренного времени.
+
+## Полнота и допустимые денежные состояния
+
+Отчёт всегда объявляет область, момент `as_of`, инвентаризацию, известное число допустимых запросов, завершённые запросы, числитель/знаменатель по измерениям, число оцениваемых запросов, число проверенных владельцев, неизвестных моделей и ставок, причины исключений. «Все разобранные записи окончательные» не равно «все запросы получены».
+
+| Измерение | Что требуется для полной оценки | Что показывать при недостатке |
+|---|---|---|
+| Инвентаризация | Независимый источник перечисляет весь заявленный охват, включая повторы, ошибки, отмены, работников, управление, внутреннюю проверку и отдельные инструментальные расходы, если применимо. | `partial` или `unknown`, известные ответы и неразрешённые места вызовов отдельно. |
+| Окончательность | Для каждого ожидаемого ответа доказаны необходимые окончательные измерения. | Число окончательных ответов при известном знаменателе; иначе только число и неизвестная доля. |
+| Токены | Для выбранного измерения известны все применимые непересекающиеся значения. | Достоверные частичные значения и причины; другой полностью измеренный токеновый показатель может быть полным. |
+| Цена | Для каждого тарифицируемого компонента известны количество, модель, применимый тариф и обязательные параметры. | Оценённая часть суммы; число неизвестных тарифов, моделей, периодов кэша и единиц инструментов. |
+| Атрибуция | Все вкладчики доказанно принадлежат выбранной области либо её общему пулу. | Неполнота для этой области; неизвестность листового распределения не переносится автоматически на доказанную родительскую область. |
+
+Перечень разбираемых записей не служит знаменателем запросов. Неотвеченный выданный вызов — место с неизвестным использованием, а не бесплатный ответ. Если возможное разветвление не разрешено, знаменатель ответов неизвестен. Нельзя получать долю больше единицы или угадывать число неувиденных ответов.
+
+Для доказанно пустой области: ноль допустимых запросов, полнота `not_applicable`; точный ноль стоимости допустим лишь когда пуст весь тарифицируемый охват, включая независимые инструментальные единицы. Пустая выгрузка при неизвестной инвентаризации даёт неизвестную стоимость. Наличие инструментальных расходов при нуле модельных запросов не даёт нулевой общей стоимости.
+
+Поле `cost_usd` допустимо, когда одновременно выполнены:
+
+1. Инвентаризация заявленной тарифицируемой области полна.
+2. Идентичности разрешены; пересечения и конфликтующие редакции исключены или разрешены доказательствами.
+3. Все применимые количества окончательны; отсутствующее поле доказанно неприменимо, если оно не участвует.
+4. Все компоненты имеют единственную применимую цену и обязательные параметры сценария.
+5. Принадлежность выбранной области доказана, включая её явно общие пулы.
+
+Иначе полная стоимость отсутствует. Достоверные непересекающиеся компоненты могут сформировать `priced_subtotal_usd`. Метка `proven_lower_bound` разрешена только если все включённые слагаемые достоверны, неотрицательны, не пересекаются и оцениваемы, а исключённые данные не могут их уменьшить. Противоречия, нерешённое пересечение, подставленные исторические цены и неизвестные знаковые компоненты выбранного сценария запрещают эту метку. Выброшенные из отдельного счёта поставщика кредиты не меняют математическую нижнюю границу положительной суммы по публичным тарифам.
+
+При неизвестном периоде записи кэша можно показать оценённый обычный вход, чтение и выход, оставив запись неоценённой. Измеренные токены внутренней модели с неизвестным тарифом сохраняются; подмена её публичной моделью запрещена. Деньги поставщика хранят исходную валюту, область, возможные кредиты и собственный статус; не выполняется неявная конвертация валюты или добавление к расчётной стоимости.
+
+## Интерфейсы и оболочки
+
+Предлагаемые команды не являются подтверждением наличия этих программ:
 
 ```text
 python3 scripts/usage-telemetry.py normalize --profile ID --input-manifest FILE --output FILE
@@ -309,390 +265,326 @@ python3 scripts/usage-telemetry.py analyze --corpus-manifest FILE --scenario ID 
 python3 scripts/usage-telemetry.py status --receipt-snapshot FILE [--policy FILE] --output FILE
 ```
 
-`normalize` reads only explicitly enumerated regular source files and an explicit
-attribution scope in its manifest; no recursive session discovery or implicit backfill.
-It emits a sanitized bundle and structured coverage diagnostics. Valid but unavailable
-dimensions are not invalid producer arguments. An invalid individual source observation
-is quarantined by opaque source ID/ordinal/reason while other usable observations are
-retained; a malformed container/profile/manifest fails the invocation with no output
-publication. Unknown raw payload fields are not persisted. A changing selected input is
-excluded or frozen at an explicitly verified prefix with a partial-source reason.
-
-The proposed wire envelopes are fixed as follows; physical JSON schemas are exported
-with the canonical contract during implementation, not guessed independently by each
-consumer. Identifier counts and envelope sizes use the limits below.
-
-| Envelope | Required contract |
+| Оболочка | Обязательный контракт |
 |---|---|
-| Input manifest | `schema_version: 1`, `kind: source_selection`, profile ID/version, declared owner scope, explicit attribution mapping, and source entries `{source_id, local_path, sha256, optional verified_prefix_bytes}`. A source entry is a selected regular file, never a directory/glob; source IDs and digests replace local paths in output. |
-| Ingestion manifest | The self-contained sanitized `usage_bundle`: schema/profile versions, opaque declared run/project scope, source IDs/digests, observations, inventories/collection segments and bounded typed diagnostics. It has no external data references or external source paths. Declared ownership remains asserted until its causal evidence is verified; schema acceptance does not prove it. |
-| Usage receipt | `kind: usage_accepted`, receipt schema version, bundle SHA-256, observation IDs, declared owner scope, `duplicate` boolean and schema-validation version. This acknowledges publication only, not inventory completeness, provider truth, verified attribution or financial finality. |
-| Lifecycle usage projection | Self-contained sanitized contributor quantities/IDs and profile evidence, included price definitions/digests/scenario, exact projected amounts and coverage. It is submitted through `--usage-file`; no contributor discovery or shared-history read is needed. Missing independent evidence leaves the projection unverified/non-additive. |
-| Receipt snapshot | `kind: current_run_snapshot`, schema version, owner run/session scope, private revision ID, collection mode/segments, accepted receipt identities, reconciled request views/inventory and advisory crossing/delivery state. Optional duration observations carry measured endpoints/duration, duration kind, source quality and cohort key; historical threshold exports carry explicit bytes/digest/expiry. It carries data needed for calculation, not just shared-store file names. Multiple private parts require explicit digested entries in a bounded manifest. |
+| Перечень источников | `schema_version: 1`, `kind: source_selection`, профиль/версия, заявленная область владельца, явная карта атрибуции, фиксированный момент наблюдения и записи `{source_id, local_path, sha256, optional verified_prefix_bytes}`. Каждая запись — выбранный обычный файл, не каталог или шаблон. |
+| Пакет приёма | Самодостаточный очищенный `usage_bundle`: версии схемы/профиля, непрозрачные проект/запуск, идентификаторы и хеши источников, наблюдения, инвентаризации/сегменты и ограниченная диагностика. Внешних ссылок на данные и исходных путей нет. Заявленный владелец остаётся заявленным, пока не проверена причинная связь. |
+| Квитанция использования | `kind: usage_accepted`, версия квитанции, хеш пакета, идентификаторы наблюдений, заявленная область, `duplicate`, версия проверки схемы. Подтверждает только публикацию. |
+| Проекция жизненного цикла | Самодостаточные очищенные количества/идентификаторы вкладчиков, доказательства профиля, включённые определения цен/хеши/сценарий, точные суммы и полнота. Передаётся через `--usage-file`; чтение истории не нужно. |
+| Закрытый снимок текущего запуска | `kind: current_run_snapshot`, версия, область владельца запуск/сеанс, частная редакция, режим/сегменты, принятые квитанции, разрешённые запросы/инвентаризация и состояния пересечений/доставки предупреждений. Содержит сами необходимые данные либо явные хешированные части в ограниченном перечне. |
 
-Input, corpus and private snapshot manifests are at most 1 MiB and 10,000 entries;
-referenced normalized bundle/private data parts are at most 32 MiB each. Policy and
-receipt envelopes are bounded by the same 1 MiB limit. Reject duplicate keys, nonfinite
-values, unsupported versions and a manifest above its limit before following entries.
-An analysis manifest freezes all chosen bytes/digests before calculation. Output bundles
-and private data parts use the normalized observation limits. Explicit helper outputs
-must be outside the canonical shared usage namespace; only the producer publishes there.
+### Ограничения размеров и выбранного объёма
 
-`usage-ingest` is the sole usage-store writer and uses the same canonical definitions
-exported by `log-step.sh contract`; normalized envelopes are not a second lifecycle event
-vocabulary. It validates the entire sanitized bundle before publication and writes
-exactly one immutable canonical bundle file per invocation below the resolved log
-root's `usage/v1/`. Its basename is producer-generated SHA-256 of the full canonical
-bundle bytes plus `.json`; the bundle has no embedded self-digest. Observation IDs hash
-their canonical bytes excluding their own ID. Exact concurrent replay publishes one
-identical bundle; different observations of one request are retained for retrospective
-revision/conflict resolution. Publication uses exclusive no-follow temporary creation
-in the same directory and atomic no-overwrite install. There is at most one install
-attempt per invocation; no lock/poll/retry loop or global history lock is introduced.
-A partial file is never eligible for analysis or referenced by success.
-A prior artifact is never replaced or silently repaired. Usage-only ingestion cannot
-change `runs/`, lifecycle `seq`, `last_epoch`, duration, active run metadata or checkpoint
-replay state, including when its declared run is closed or unverified.
+| Объект | Верхняя граница |
+|---|---|
+| Перечень источников, корпуса или частей закрытого снимка | 1 МиБ и 10 000 записей. |
+| Политика и квитанция | 1 МиБ. |
+| Отдельная исходная запись | 16 МиБ. |
+| Нормализованное наблюдение | 1 МиБ. |
+| Пакет приёма или закрытая часть данных | 32 МиБ и не более 10 000 наблюдений. |
+| Непрозрачный идентификатор | 256 символов; существующие идентификаторы жизненного цикла дополнительно сохраняют свои более строгие ограничения. |
+| Кандидаты владельца одного наблюдения | 64. |
 
-Stored references are only producer-generated digest basenames, not caller-selected
-paths: no separators, `..`, absolute path or symlink component is accepted. Resolve
-the canonical usage root once and use regular files confined beneath it, with no-follow
-operations or equivalent descriptor-relative checks to prevent path-swap escape.
-Idempotent replay verifies the exact existing bundle digest/bytes and returns a duplicate
-receipt; a corrupt existing target is diagnosed, never overwritten. Unknown temporary
-files are ineligible, not interpreted as committed bundles.
+МиБ означает 1 048 576 байт. Пределы относятся к байтам до разбора и после канонической сериализации в соответствующей фазе; нельзя обойти предел многобайтовыми символами или раздуванием вложенности. Для новых оболочек максимальная глубина объекта/массива — 32 уровня, не более 256 ключей в одном объекте; ограниченные массивы сохраняют собственные границы. Эти значения — защитные параметры предлагаемой схемы, не сведения о текущем коде. Превышение не должно приводить к необработанному исключению парсера; адаптер ограничивает разбор исходной записи до преобразования, сохраняя заявленные поля и явную причину исключения.
 
-The usage producer follows the legacy zero-exit, at-most-one bounded safe-diagnostic
-contract; success requires an explicit typed receipt with the bundle digest and
-observation identities. No receipt means acceptance is unacknowledged/unknown, not proof
-that publication failed: death or lost stdout after install can leave the whole bundle
-persisted. Retry only the exact canonical bundle and verify its content-addressed target
-to obtain a duplicate receipt. Do not infer rejection, emit a synthetic receipt or claim
-crash-proof exactly-once delivery.
-Usage receipts and lifecycle checkpoint receipts have separate types. Pure helper CLI
-exit codes are 0 for successful processing (including explicitly partial output), 2 for
-invalid/unsupported invocation, 3 for source or output I/O failure; diagnostics contain
-reason codes and opaque IDs, not source content. Validation failure publishes no report
-claimed complete. Collection/analysis failure does not stop the owning workflow.
+До чтения содержимого перечень фиксирует размер каждого выбранного файла/префикса и явные `max_source_bytes`, `max_total_bytes`, `max_records`, не меньшие выбранного объёма и не отменяющие жёстких границ выше. Значения — пределы операции ввода, не денежный или временной бюджет рабочего процесса. Отсутствие необходимых пределов делает новый перечень невалидным. Необязательная потоковая обработка ограничивает память; предел выходного пакета сохраняется. Большой импорт делится на явно выбранные ограниченные пакеты, не на скрытую рекурсивную загрузку.
 
-### Projections, immutability and read ownership
+`normalize` читает только перечисленные обычные файлы. До разбора проверяет контейнер, профиль, пределы и область. Невалидная отдельная запись из пригодного контейнера помещается в карантин по непрозрачному идентификатору/номеру/причине; остальные пригодные записи сохраняются с указанием влияния исключения на полноту. Невалидный контейнер, профиль или перечень отклоняет вызов без публикации результата. Неизвестные сырые поля не сохраняются.
 
-`step` optionally accepts `--tokens-in N --tokens-out N --cost-usd X` and
-`--usage-file FILE` containing verified contributor references and their coverage.
-Token-only scalars without source/profile evidence are caller-supplied unverified
-aggregates; they cannot establish cache semantics, complete request coverage or an
-additional additive cost. A supplied `--cost-usd` requires the self-contained structured
-snapshot, scenario and calculation breakdown, and must equal the canonical exact
-decimal amount, not its rounded display value; otherwise reject the whole lifecycle
-invocation before any mutation. The scalar is permitted only for an independently
-complete stated projection scope; partial priced components use a separately named
-subtotal inside `--usage-file`, never a complete `cost_usd` scalar. Display-only amounts
-have a separate non-additive field.
-The writer validates only this explicit supplied snapshot and canonical schema, not
-historical contributor artifacts or run summaries. Accepted projections remain derived
-non-additive views and never prove native provider evidence by their presence alone.
-Duplicate flags, mismatched contributor projections and invalid decimal/count inputs
-also reject atomically. New canonical `cost_usd` projections mean API-equivalent USD;
-historical values without a basis remain legacy/unverified, not retroactively relabeled.
+Изменившийся выбранный файл исключается либо читается только до заранее проверенного хешированного префикса с отметкой частичности. Проверяется именно прочитанное содержимое, а не только размер или время изменения. Выходы чистых помощников размещаются вне канонического общего пространства использования; публиковать туда может только производитель.
 
-References/projections may be supplied only on the first accepted lifecycle write.
-Accepted checkpoint retries keep their original normalized payload exactly. Late usage
-or repricing creates a separate artifact/report, never enriches or reopens that event.
-Close-time summaries may use only the owner's receipt-derived private accumulator and
-are provisional unless full inventory/finality is independently established; failure
-or absence of that accumulator leaves them unavailable, not reconstructed from history.
+## Публикация и восстановление
 
-Only retro selects lifecycle and usage history for analysis. Its pure `analyze` helper
-receives a frozen explicit corpus manifest, including applicable inventories, price
-snapshots and acceptance revisions; it never discovers the store. Inputs must pass
-their schema/lint and digest checks before inclusion. Unknown runs or invalid lifecycle
-records remain quarantined/unverified attribution, not silently joined by directory or
-time. Existing timing-source eligibility and lint exclusions remain in force.
+`usage-ingest` — единственный писатель общего хранилища использования. Он использует определения, экспортируемые `log-step.sh contract`; новый пакет не становится четвёртым событием жизненного цикла.
 
-### Valuation and arithmetic
+Порядок операции:
 
-An `at_execution` scenario needs prices whose effective interval covers execution and
-all original required service/region/model dimensions. A retrieval date alone cannot
-prove historical applicability. A `reprice` scenario intentionally applies named fixed
-snapshots and explicit dimensions to the same workload; its amounts are labeled
-counterfactual API-equivalent values. Unknown original dimensions may be explicitly
-assumed only in `reprice`, with those assumptions visible and no historical-bill claim.
-Only tariff-scenario service tier, region and API pricing modality may be assumed for
-repricing, with explicit labels. Actual model identity, usage quantities, cache lifetime,
-threshold operands, inventory and ownership must remain evidenced; cross-model
-simulation is outside this contract. Conflicting/overlapping snapshot applicability is
-unavailable, never first-match-wins.
-Price refresh is a separate explicit operation, preserves old snapshots on failure and
-never occurs during normalization, aggregation, validation or ordinary collection.
+1. Установить режим сбора и разрешённую зарегистрированную область. При отключении выйти по правилам отключения.
+2. Прочитать ограниченный самодостаточный пакет; проверить целиком схему, типы, размеры, хеши, приватность и объявленный профиль до изменений.
+3. Получить канонические байты и имя `<sha256>.json`. В пакете нет собственного хеша. Разрешить корень журнала один раз и работать только под `usage/v1/`.
+4. Если точный адрес уже существует, проверить, что это обычный файл нужных байтов/хеша. При совпадении вернуть квитанцию повтора; при повреждении сообщить ошибку и не заменять файл.
+5. Создать собственный временный файл в том же каталоге с исключительным созданием без следования символическим ссылкам, записать все байты, закрыть/синхронизировать по поддерживаемому контракту долговечности.
+6. Сделать одну атомарную установку без перезаписи. При конкурирующей установке того же адреса разрешена однократная проверка победившего файла; это не второй цикл публикации.
+7. Только после полной видимости обычного неизменяемого файла вернуть типизированную квитанцию. Неполный временный файл не является принятым артефактом.
 
-For each request, sum disjoint quantity times applicable rate divided by the rate unit,
-plus separately billed tool quantities. Context transmission is already included in
-input. Snapshot predicates state their operand, exact boundary (`>` versus `>=`) and
-affected components; a request-level context multiplier applies to the whole request
-when its tariff says so, never to a run's cumulative input. Unsupported modalities or
-tool units remain unpriced. Included reasoning is a subset; an independently priced
-reasoning dimension is allowed only where an evidenced tariff and source define it.
+Нет глобальной блокировки истории, ожидания, опроса или цикла повторов. Точная конкурентная публикация даёт один файл. Разные наблюдения одного ответа сохраняются отдельно и разрешаются анализом; производитель не переписывает ранее принятый вариант. Отказ не меняет `runs/`, `seq`, `last_epoch`, длительность, активные метаданные или состояние повторов чекпоинтов, в том числе при уже закрытом или пока непроверенном заявленном запуске.
 
-Use exact arbitrary-precision aggregate integers and decimal monetary arithmetic.
-No per-request cent rounding occurs before summation. Machine exports retain exact
-decimal strings and explicit rate units; human USD values round once to two decimals
-using half-even and disclose when displayed rows differ from the displayed total.
-Prices, subtotals, lower bounds, caller-reported money and provider money have distinct
-fields and status labels. A complete USD field is never filled with a partial sum.
+В общей ссылке допустимо только имя, созданное производителем из хеша. Разделители, `..`, абсолютные пути и символические ссылки запрещены. Нужны операции без следования ссылкам или эквивалентная проверка относительно открытого дескриптора каталога, защищающая от подмены пути между проверкой и открытием. Существующие посторонние каталоги не меняют свои права. Новые закрытые каталоги получают `0700`, файлы — `0600`.
 
-### Advisory monitoring
+Производитель сохраняет старое правило выхода `0` на всех путях и не более одной безопасной строки диагностики до 512 байт. Нулевой код не доказывает принятие. Отсутствие квитанции означает неизвестное подтверждение, а не доказанный отказ: процесс мог завершиться после установки и до выдачи ответа. Нельзя синтезировать квитанцию или обещать доставку ровно один раз при любом аварийном завершении.
 
-Automatic collection and `usage-ingest` use `ORCHESTRAIL_USAGE_MODE=on|off`, scoped to
-the invoking process and inherited hook execution; unset defaults to `off`. Invalid
-values disable collection with a safe reason. Off produces no shared usage publication
-or accepted receipt; legacy timing/logging is unaffected. Explicit read-only normalize,
-analyze and status operations still work while collection is off. Enabling requires a
-registered/authorized owner scope and verified profile; it never grants wider source
-access. No settings file is changed automatically by this feature.
+При явно инициированном восстановлении допускается повтор точно тех же зафиксированных канонических байтов с проверкой точного адреса. Обычный рабочий процесс не должен останавливаться или заводить цикл повторов из-за журналирования. Квитанции использования и жизненного цикла имеют разные виды; одна не подменяет другую. Автоматическая очистка принятой истории не добавляется. Разрешено убрать только собственные неопубликованные временные файлы; будущая очистка принятого доказательства требует отдельного ограниченного предварительного просмотра и защиты ссылок.
 
-The owning process keeps a private collection segment boundary when mode changes;
-re-enabling starts a new segment and declares the intervening gap. Missing prior private
-state makes continuity unknown. No usage count is invented while off and no historical
-backfill is performed implicitly. Existing evidence and delivered-warning state survive
-disable/resume. An explicitly authorized later export can supply additional observations
-without erasing the earlier gap or changing accepted lifecycle events.
+### Коды завершения чистых помощников
 
-`status` is a pure calculation over the current owner's explicit receipt snapshot;
-it does not read historical artifacts. The authorized owner is the single writer of
-that private state, reconciles request revisions by the same rules as retro, and never
-adds receipt totals together. `status` returns current usage/cost and coverage, advisory
-candidates with stable IDs, and proposed next private state; it does not deliver notes
-or mutate its inputs. Unknown or missing accumulator state is unavailable, not a prompt
-to recover history. Its snapshot also supports the normal completion report; there is
-no background poller or mid-step alarm.
+| Код | Значение |
+|---|---|
+| `0` | Успешная обработка, в том числе явно частичный результат. Полнота читается из данных, а не из кода. |
+| `2` | Невалидный или неподдерживаемый вызов, схема, профиль, политика либо перечень. |
+| `3` | Ошибка чтения выбранного источника или записи результата. |
 
-Duration observations come only from the current owner's timing receipts or executable
-clock evidence and explicit threshold-export inputs, never a historical lookup. Usage
-collection off does not disable duration advisories. A duration-only private snapshot
-is valid without usage receipts; unavailable timing evidence yields an explicit reason.
+Диагностика содержит причины и непрозрачные идентификаторы, не исходное содержимое. Ошибочная проверка не публикует отчёт с утверждением полноты. Эти коды относятся к новым чистым помощникам; нулевой контракт `log-step.sh` сохраняется. Ошибка вспомогательного вычисления не останавливает основную задачу.
 
-The owner atomically accepts the next private state and performs idempotent note/report
-updates keyed by warning ID. The ID includes run, policy version, scope, metric and
-crossing episode. Repeated status calls return the same pending ID; retries/resume do
-not add another warning. Crash between state persistence and note delivery leaves a
-pending/recoverable delivery state, not a claim of exactly-once notification. Leaf
-warnings belong in the leaf notes; run-only warnings belong in run notes. All warnings
-appear in the final report. If a notes destination is unavailable, retain a pending
-reason for the final report rather than writing an unrelated file or blocking execution.
+Чистый помощник также формирует результат во временном файле вне общего хранилища и делает его видимым только после полной записи/проверки. Ошибка не уничтожает прежний корректный результат. Неизменяемые отчёты получают новый адрес редакции; существующий отличающийся отчёт не заменяется молча. Точный повтор может подтвердить совпадение. Обычный результат чистого преобразования не имеет вида `usage_accepted` и не подменяет квитанцию общей публикации.
 
-Token and USD thresholds are optional explicit nonnegative policy values with a scope
-(`request`, completed `span`, or current `run`) and units. There are no default USD or
-token budgets. Token thresholds are bounded integers; USD thresholds are exact decimal
-strings; coverage minima are exact decimals in [0,1]. Invalid policies are unavailable,
-not partially applied. Expired or scope/version-incompatible token/USD/coverage policies
-produce a policy-unavailable diagnostic and no crossing warning; only duration uses the
-fixed fallback below. A warning fires on strict `measured_value > threshold` at an accepted
-measurement/checkpoint; equality does not fire. A valid partial lower bound may warn
-that the observed subtotal crossed, explicitly stating partial coverage; conflicted or
-unpriced values cannot assert a monetary crossing. Coverage policies may warn on
-`known_finalized_fraction < minimum_fraction`; unknown denominator yields a separate
-unknown-coverage diagnostic, never a manufactured percentage. Return one candidate per
-crossing episode and retain delivery state across owner restart and mode changes; only
-a known noncrossing measurement resets the episode. Unknown values do not reset it.
-A new policy version has its own identity. A late correction may establish a known
-noncrossing state but never deletes an earlier warning; a later status explains its
-revised evidence. Only the authorized shared-file writer adds notes and final reports.
+## Проекции в жизненном цикле
 
-Duration warnings evaluate completed measured work spans or closed run wall intervals
-separately. Cohort key: canonical step, duration kind, timing-source quality and declared
-compatible harness/profile/contract/configuration. Exclude waiting-only spans, synthetic
-rollups, invalid timestamps, unfinished spans and the candidate observation. Do not mix
-approximate intervals with measured work. An explicit retro threshold export supplies
-corpus digest, sample window, eligible count, median, generated-at and valid-until;
-expired, incompatible or missing exports use the fixed rule, not invented history.
-With fewer than five usable cohort samples or unavailable history, warn iff duration
-is greater than 7200 seconds; with at least five, warn iff it is greater than both
-7200 seconds and three times the median. Approximate intervals may show a labeled
-duration notice, not a measured historical anomaly. Policies never stop, retry, reroute
-or change workflow/model execution.
+Предлагаемые дополнительные параметры `step`:
 
-### Retrospective output and comparison
+```text
+--tokens-in N --tokens-out N --cost-usd X --usage-file FILE
+```
 
-Export canonical versioned JSON plus Markdown and CSV summaries. Include corpus and
-scenario IDs, as-of, versions, source/deployed hashes where exposed, inventory and all
-coverage dimensions, exclusions, late observations, conflicted identities, unpriced
-model/tool counts, contributor IDs and calculation terms. Stable sort keys make row and
-input-order permutations semantically identical. Raw source manifests remain local;
-public fixtures/exports contain synthetic or explicitly sanitized metadata only.
+Они необязательны. Счётчики без профиля и доказательств — заявленный вызывающим агрегат; они не устанавливают семантику кэша, охват запросов или дополнительное аддитивное слагаемое. `--cost-usd` требует самодостаточного структурированного снимка, сценария и состава расчёта. Значение должно точно совпасть с каноническим десятичным итогом, не с округлённой суммой для показа.
 
-Report per run/opportunity/root approach/nested stage/role/model/effort/attempt with
-sample counts; input/cache/output/reasoning mix; requests, retries and escalation;
-duration kinds; and five most expensive completely valued leaves. Partial priced leaves
-have a separate partial-subtotal list with `proven_lower_bound` or `subtotal_only`
-labels according to the proof rules; conflicted/unresolved overlap is unrankable, and
-no partial list establishes the cheapest. Median sorts usable
-values and averages the two middle values for even n; p90 is nearest-rank at
-`ceil(0.9*n)`. Empty cohorts are unavailable; n below five is labeled small-sample.
-Complete cost distributions and partial-subtotal distributions never share a percentile.
-Unfinished, rejected, missing and censored opportunities remain visible with their costs.
+Скаляр `--cost-usd` разрешён только для независимо полной заявленной области проекции. Частичная сумма хранится внутри `--usage-file` под отдельным именем, не в скаляре полной стоимости. Поле суммы для показа отдельно и неаддитивно. Несовпадение вкладчиков/значений, дубли флагов и неправильные числа отклоняют весь вызов до любых изменений.
 
-Opportunity identity includes task/input revision, acceptance contract, strategy arm
-and independent repetition. Resumed invocations and repairs stay inside that identity.
-Independent acceptance labels carry evaluator/source, contract, observed-at and revision;
-an escaped-defect correction produces an as-of label revision, not an edited history.
-Observed cost per accepted result = all observed workload cost in that declared cohort
-divided by independently accepted opportunities. Include rejected/failed work, repairs,
-orchestration and production verification in the numerator; zero accepted results is
-unavailable. Missing cost/censoring makes the ratio partial/descriptive, not unbiased
-expected success cost. Additional independent experimental evaluation overhead is
-reported separately, with an optional all-in total, never counted twice as production
-verification.
+Производитель проверяет только явно переданный снимок и схему, не ищет исторических вкладчиков. Принятая проекция остаётся производным неаддитивным представлением. Её наличие не доказывает, что поставщик выдал соответствующие данные. Новая каноническая `cost_usd` означает именно эквивалент в долларах; прежние суммы без основания остаются прежними непроверенными значениями и не переименовываются задним числом.
 
-Qualified comparisons require the same task set/initial revision/acceptance criteria,
-declared repetitions and quality policy, compatible measurement coverage, and one
-valuation basis. Root approaches are compared at root scope; nested phase and atomic
-costs are exclusive stage breakdowns inside a root rollup, not independent competitors.
-Partial or unmatched cohorts cannot establish cheapest or most effective. Model choice,
-effort, task size and quality floors remain owned by their consumer specs; this feature
-only provides evidence and never applies an optimization automatically.
+Проекцию можно передать только на первой принятой записи. Повтор принятого чекпоинта обязан содержать исходную нормализованную полезную нагрузку. Поздние токены и переоценка создают отдельный артефакт, а не обогащают прежнюю запись. При закрытии допустим только закрытый накопитель владельца, построенный из его квитанций; отсутствие накопителя даёт недоступность, а не восстановление из общей истории. Полнота при закрытии отдельно доказывается; иначе это предварительная проекция.
 
-Optional diagnostics use a canonical namespaced registry of numeric value, unit,
-scope/contributor IDs, source and measurement quality. Initial supported namespaces
-cover context loads/bytes/cache observations, controller/tool calls/checkpoints,
-review scope/reuse, tool preview/full/retrieved bytes, repair/escalation and
-decomposition/setup/integration. Consumers own producing these values. The registry
-does not make their instrumentation mandatory or convert bytes/words to tokens.
+## Оценка стоимости
 
-## Non-Functional Requirements
+### Сценарии и применимость цены
 
-| Attribute | Target | Verification |
+`at_execution` требует снимка, чей доказанный период действия покрывает выполнение, и всех необходимых исходных параметров модели, обслуживания, региона и модальности. Дата скачивания цены не доказывает её историческую применимость.
+
+`reprice` намеренно применяет зафиксированный тарифный сценарий к тому же измеренному объёму работы. Результат обозначается как условная переоценка, не как исторический счёт. Допускаются явно показанные предположения только о тарифном уровне обслуживания, регионе и ценовой модальности программного интерфейса. Фактическая модель, количества, время жизни кэша, операнды тарифного порога, инвентаризация и принадлежность должны оставаться доказанными. Подстановка другой модели является межмодельной симуляцией за пределами этого контракта.
+
+Для каждого компонента должна существовать ровно одна применимая ставка. Пересекающиеся противоречивые интервалы, неразрешённый псевдоним модели или отсутствующий обязательный параметр означают неизвестную цену. Порядок строк и правило «взять первое совпадение» запрещены. Тарифный порог задаёт операнд, границу (`>` или `>=`) и затрагиваемые компоненты. Порог конкретного запроса не проверяется по суммарному входу запуска.
+
+Обновление цены — отдельная явно инициированная операция. Она не выполняется во время обычного сбора, нормализации, анализа и проверки; ошибка сохраняет прежние снимки. Официальные ссылки служат основанием профиля и цены, но не разрешают сетевой поиск при каждом запросе. Отсутствие исторической цены не исправляется молчаливой подстановкой текущей.
+
+### Формула и точность
+
+Для полностью оцениваемого запроса:
+
+\[
+C_r=\frac{U_rP_U}{K_U}+\frac{R_rP_R}{K_R}
+     +\sum_t\frac{W_{r,t}P_{W,t}}{K_{W,t}}
+     +\frac{O_rP_O}{K_O}+\sum_j\frac{Q_{r,j}P_j}{K_j}.
+\]
+
+Здесь `U` — обычный вход, `R` — чтение кэша, `W` — непересекающиеся записи кэша по времени жизни, `O` — полный выход, `Q` — отдельно тарифицируемые инструментальные единицы; `P` — ставки, `K` — число единиц в тарифе. Каждое слагаемое появляется только если профиль и тариф доказывают его самостоятельность. Контекст уже входит во входные токены. Включённое рассуждение является подмножеством выхода. Отдельная цена рассуждения допустима только при явно отдельной единице и в источнике, и в тарифе.
+
+Все количества и промежуточные суммы вычисляются точными целыми/десятичными числами, без двоичной арифметики денежных значений. Деление на единицу тарифа не округляется скрыто. Схема снимка должна гарантировать конечное точное десятичное представление используемой ставки на единицу; если деление даёт бесконечную дробь, компонент остаётся неоценённым с причиной неподдерживаемой точной единицы до явно принятого расширения схемы. Это ограничение арифметического формата, а не основание округлить цену незаметно.
+
+Ни запросы, ни строки отчёта не округляются до центов перед суммированием. Машинный экспорт сохраняет точные десятичные строки и единицы. Итог для человека округляется один раз до двух знаков по правилу ближайшего чётного. Отчёт сообщает, если сумма показанных округлённых строк отличается от отдельно округлённого общего итога. Например, два значения `0.015` дают точное `0.03`, а не `0.04`.
+
+Неизвестная применимость множителя запрещает считать базовую ставку достоверной ценой затронутого компонента. Неизвестный период записи не запрещает оценить независимые известные обычный вход, чтение и выход. Сумма показанных частичных компонентов никогда не заполняет поле полной стоимости.
+
+## Измерение времени
+
+Измеренное время получают исполняемые часы, а не модель. Принимаются существующие допустимые поля жизненного цикла; новую схему времени нельзя использовать для обхода прежней проверки. Порядок получения событий не заменяет порядок их интервалов.
+
+| Величина | Правило |
+|---|---|
+| Календарное время запуска | Измеренный конец минус измеренное начало одного запуска при совместимых часах. Не сумма этапов. |
+| Включительная длительность | Конец минус начало одного валидного интервала. Включает время его вложенной работы. |
+| Исключительная длительность | Длина родительского интервала минус длина объединения его доказанных дочерних интервалов, ограниченного границами родителя. Требует полного охвата вычитаемых детей и совместимых часов. |
+| Сумма времени работников | Сумма длительностей уникальных выбранных работников/интервалов одного уровня, даже если они пересекаются. Это отдельная величина, не календарное время и не стоимость. |
+| Измеренное покрытие работы | Длина объединения валидных интервалов работы в заявленной области; повторы и пересечения не удваивают покрытие. |
+| Ожидание | Только явно помеченные интервалы ожидания. Пробел между событиями сам по себе ожидание не доказывает. |
+
+Исключительное время при полном дереве определяется через непосредственных детей, чтобы не вычитать внуков повторно. Несвязанные временные перекрытия не доказывают родительство. Если дочерний интервал выходит за границы родителя, пересечение может использоваться для явно обозначенного покрытия внутри окна, но противоречие и принадлежность должны быть показаны; на его основе нельзя объявить полное согласованное дерево. Нельзя обнулить отрицательное значение, чтобы скрыть ошибку часов.
+
+Для родителя `[0,10]` и детей `[1,7]`, `[4,9]` длительность родителя — 10, сумма детей — 11, объединение детей — 8, исключительное время — 2. При неизвестном ребёнке величина 2 перестаёт быть доказанным исключительным временем; доступно только наблюдаемое покрытие с отметкой неполноты.
+
+Сравнение часов требует доказанного общего источника либо известного преобразования. Монотонные значения разных процессов не сравниваются без такой связи. Отрицательные интервалы, недопустимые отметки, неустановленное смещение часов и незавершённые интервалы не дают точной длительности. Точное миллисекундное вычисление сохраняется отдельно от старого округления `duration_s` вниз; исходные события не переписываются. Приблизительные исторические интервалы остаются приблизительными и не смешиваются с измеренными в одном сравнительном распределении.
+
+## Управление сбором и предупреждения
+
+### Включение и отключение
+
+`ORCHESTRAIL_USAGE_MODE=on|off` действует на вызывающий процесс и унаследованные перехватчики. Неустановленное значение означает `off`; неверное значение безопасно отключает сбор с причиной. В `off` нет общей публикации использования и квитанции его принятия, но прежнее журналирование времени сохраняется. Явные чистые `normalize`, `analyze` и `status` работают и при отключённом автоматическом сборе.
+
+Включение требует зарегистрированной/разрешённой области и проверенного профиля; оно не расширяет доступ к источникам и не меняет автоматически файл настроек. При смене режима владелец сохраняет границу закрытого сегмента. Повторное включение начинает новый сегмент и явно показывает промежуток без сбора. Отсутствие прежнего закрытого состояния означает неизвестную непрерывность.
+
+Ранее собранные доказательства и состояние доставки предупреждений сохраняются. Во время отключения числа не придумываются и история автоматически не дочитывается. Позднее явно разрешённая выгрузка может заполнить измерения, сохраняя факт прежнего разрыва сбора и неизменяемость событий.
+
+### Чистое вычисление состояния
+
+`status` принимает только явный снимок текущего владельца, не читает историческое хранилище, не меняет вход и не пишет заметки. Возвращает текущие значения/полноту, кандидатов предупреждений со стабильными идентификаторами и предложенную следующую редакцию закрытого состояния. Владелец разрешает редакции ответов тем же алгоритмом, что ретроспектива; суммы квитанций не складываются.
+
+Неизвестный или отсутствующий накопитель даёт недоступность, а не чтение истории. Снимок может быть только временным, без использования: предупреждение о длительности остаётся возможным при `off`. Его измерения поступают из собственных квитанций времени или других исполняемых часов и явно переданного экспорта порога. Отсутствующие часы дают причину недоступности. Фонового опроса и тревоги посреди незавершённого этапа нет.
+
+### Пороги и эпизоды пересечения
+
+Порог токенов или долларов задаётся явно и неотрицательно с областью `request`, завершённый `span` либо текущий `run` и единицами. Порог токенов — ограниченное целое, денег — точная десятичная строка, минимальная доля полноты — точное число в `[0,1]`. Денежных или токеновых порогов по умолчанию нет. Невалидная политика не применяется частично.
+
+Истёкшая, несовместимая по области или версии политика токенов/денег/полноты даёт недоступность политики и не создаёт предупреждение о пересечении. Резервное правило предусмотрено только для длительности.
+
+Пересечение определяется строгим `measured_value > threshold` при принятом измерении или чекпоинте; равенство не срабатывает. Доказанная частичная нижняя граница может вызвать предупреждение о превышении наблюдаемой части, с явной неполнотой. Конфликт или неоценённые данные не доказывают денежное превышение. Для полноты используется `known_finalized_fraction < minimum_fraction`; неизвестный знаменатель даёт отдельную диагностику неизвестного охвата без процента.
+
+Идентификатор предупреждения включает запуск, версию политики, область, метрику и эпизод. При повторном вызове с тем же состоянием возвращается тот же незавершённый идентификатор. Только известное непересекающее измерение завершает эпизод; неизвестность его не сбрасывает. Новая версия политики имеет отдельную идентичность. Позднее исправление может подтвердить отсутствие превышения, но не удаляет старое предупреждение: новый отчёт объясняет изменившееся доказательство.
+
+### Правило длительности
+
+Проверяются отдельно завершённые измеренные интервалы работы и закрытое календарное время запуска. Ключ сопоставимой группы: канонический этап, вид длительности, качество источника времени и заявленные совместимые среда, профиль, контракт и конфигурация.
+
+Из группы исключаются кандидат, интервалы одного ожидания, синтетические сводки, неправильные часы и незавершённые интервалы. Приблизительные интервалы не смешиваются с измеренными. Явный экспорт ретроспективы содержит хеш корпуса, окно выборки, число пригодных наблюдений, медиану, время создания и окончания действия.
+
+- При отсутствии пригодного экспорта или менее пяти пригодных наблюдений предупреждать только при длительности **строго больше 7200 секунд**.
+- При пяти и более наблюдениях предупреждать только при одновременном превышении **7200 секунд** и **трёх медиан**.
+- Истёкший или несовместимый экспорт использует правило двух часов, не выдуманную историю.
+- Приблизительная длительность может дать явно помеченное уведомление, но не измеренную историческую аномалию.
+
+### Доставка и аварийное восстановление
+
+Единственный уполномоченный писатель атомарно принимает следующую редакцию закрытого состояния, затем идемпотентно обновляет заметки/отчёт по идентификатору предупреждения. Состояния доставки должны различать по меньшей мере ожидающее и подтверждённое применение; потеря процесса между ними оставляет восстанавливаемую доставку, не обещание безусловного единственного уведомления.
+
+Предупреждение листа относится к его заметкам; предупреждение всего запуска — к заметкам запуска. Все предупреждения отражаются в итоговом отчёте. При недоступном месте заметок сохраняется ожидающая причина для итогового отчёта; нельзя писать в посторонний файл или останавливать исполнение. Повтор, возобновление и отключение сбора не добавляют новую копию уже применённой заметки.
+
+Предупреждения никогда не останавливают, не повторяют, не перенаправляют работу и не меняют модель/усилие/контракт. Они не являются производственным бюджетом.
+
+## Ретроспективный анализ и сравнение
+
+### Выбор и фиксация корпуса
+
+Только ретроспектива выбирает исторические события и использование. `analyze` получает уже зафиксированный явный перечень, включая инвентаризации, цены и редакции приёмки; сам хранилище не обнаруживает. До вычислений каждый вход проверяется по схеме, разрешённости, хешу и прежним правилам проверки журнала. Неизвестный запуск или невалидное событие не соединяется по каталогу или совпавшему времени.
+
+Перечень фиксирует выбранные байты, версии, область, `as_of`, сценарий и исключения до расчёта. Позднее наблюдение не меняет прежний корпус. `as_of` — граница доступности доказательства, а не время, к которому задним числом относится ответ. Учитываются только наблюдения и редакции приёмки, известные к этой границе; позднее исправление с ранней датой ответа не включается в старый отчёт. Фиксированный момент наблюдения задаётся при первом выбранном сборе/импорте и сохраняется при его точном повторе; нельзя подменить его исходной датой ответа, чтобы скрыть позднее поступление. Окно выполнения задачи, если задано, фильтруется отдельно по доказанному времени исполнения. При неизвестном времени оно имеет неизвестную пригодность для временного окна, даже когда причинный владелец известен.
+
+Порядок строк входа не влияет на итог. Внешние пути остаются локальными; опубликованные демонстрационные данные синтетические либо явно очищенные. Сумма длительностей отдельных возобновлённых запусков помечается именно как сумма; интервал от первого начала до последнего конца может включать паузы и не подменяет её. Для пересекающихся запусков календарное покрытие считается объединением только при совместимых часах и явном выборе такой метрики.
+
+### Состав экспорта
+
+Выдать версионированные `JSON`, таблицы `CSV` и читаемый `Markdown` с одинаковым смыслом. Включить идентификаторы корпуса/сценария, момент, версии, доступные хеши исходной и развёрнутой редакции, всю полноту, исключения, поздние данные, конфликты идентичности, неоценённые модели/инструменты, вкладчиков и слагаемые расчёта. Формат `CSV` сохраняет точные числа как текст; человеческое округление не заменяет машинные суммы.
+
+Разрезы: запуск, возможность результата, корневой подход, вложенный этап, роль, модель, усилие, попытка. По каждому — размер выборки; обычный/кэшированный вход, запись кэша, выход и включённое рассуждение; запросы, повторы и эскалации; отдельные виды длительности. Отсутствующие разрезы явно неизвестны, не заполнены плановыми значениями.
+
+Пять самых дорогих полностью оценённых листьев ранжируются отдельно от частичных сумм. Частичная таблица содержит `proven_lower_bound` или `subtotal_only`; конфликтующие и потенциально пересекающиеся суммы не ранжируются. Частичная таблица не доказывает, кто самый дешёвый.
+
+Медиана: отсортировать пригодные значения, при чётном числе взять среднее двух центральных. `p90`: ближайший ранг `ceil(0.9*n)` с нумерацией от единицы. Пустая группа имеет недоступную статистику; при `n < 5` обязательна отметка малой выборки. Распределения полной стоимости и частичной суммы не смешиваются. Незавершённые, отклонённые, пропущенные и ещё не полностью наблюдённые возможности остаются видимыми вместе с известными расходами.
+
+### Стоимость независимо принятого результата
+
+Идентичность возможности результата включает версию задачи/входов, контракт приёмки, ветвь сравниваемой стратегии и независимое повторение. Возобновлённые запуски и исправления остаются внутри этой идентичности. Метка принятия содержит независимого оценщика/источник, контракт, время наблюдения и редакцию. Поздний обнаруженный дефект создаёт новую метку для нового отчёта, не переписывая прежний.
+
+\[
+C_{accepted,observed}=\frac{C_{all\ observed\ workload}}{N_{independently\ accepted}}.
+\]
+
+Числитель включает всю наблюдаемую работу выбранной группы: неудачные и отклонённые попытки, исправления, управление и производственную проверку. Общие расходы группы включаются один раз; без доказательств их нельзя раздать отдельным возможностям. Знаменатель — число независимо принятых возможностей, не успешных ответов модели и не завершённых процессов. При нуле принятых результат недоступен, а не ноль и не бесконечность.
+
+Неполная стоимость и незавершённое наблюдение делают отношение частичным/описательным; оно не является несмещённой ожидаемой стоимостью успеха. Дополнительная независимая экспериментальная оценка показывается отдельно от производственной проверки. Необязательная общая сумма включает её один раз.
+
+### Когда допустимо сравнение стратегий
+
+Нужны одинаковые задачи, исходные редакции, критерии приёмки, объявленные повторения и политика качества, совместимый охват измерений и единая основа стоимости. Корневые подходы сравниваются на корневой области; фазы и атомарные циклы внутри них являются разложением, а не отдельными конкурентами. Состав экспериментальной группы, независимость качества и допустимость вывода принадлежат 09.
+
+Частичная или несопоставимая группа не определяет победителя по цене или эффективности. Даже полная наблюдаемая разница сама по себе не доказывает причинный эффект при изменившихся задачах или настройках. Этот документ предоставляет доказательства; он не выбирает модель, не снижает качество и не применяет оптимизацию автоматически.
+
+## Дополнительная диагностика
+
+Каждая метрика содержит имя из канонического реестра, числовое значение, единицу, область/идентификаторы вкладчиков, источник и качество измерения. Начальные пространства имён:
+
+| Пространство | Владелец и примеры |
+|---|---|
+| `context` | 08/14: загрузки, байты, хеши пакета, наблюдения чтения/записи кэша. |
+| `orchestration` | 15: вызовы управляющего агента/инструментов, границы и чекпоинты. |
+| `verification` | 16: область проверки, повторное использование доказательства, причины новой проверки. |
+| `tool_output` | 17: полные, показанные и дополнительно прочитанные байты раздельно; состояние команды отдельно от состояния захвата. |
+| `repair` | 19: реальные попытки, прогресс, исправления, эскалации и повторная доставка результатов. |
+| `decomposition` | 20: разбиение, подготовка, интеграция и повторная работа. |
+
+Идентификаторы вроде `event_id`, `attempt_id` и хеша контекста служат ссылками, а не новыми оплачиваемыми запросами. Повтор доставки диагностического события не создаёт новую попытку. Фактический новый ответ модели на повторную попытку остаётся отдельным вкладчиком стоимости в прежней возможности результата. Диагностические события никогда не суммируются с ответами как ещё один денежный слой.
+
+Реестр не делает всю инструментализацию обязательной. Отсутствие метрики остаётся неизвестным; уменьшение байтов не превращается в сокращение токенов, попадание в кэш или экономию. Проверенный общий ключ доказательства из 14–20 (`repository_id`, `worktree_id`, `base_revision`, `effective_tree_digest`, `task_contract_hash`, версии политики/схемы) может храниться как явная ссылка, не заменяя идентичность модельного ответа.
+
+## Нефункциональные требования
+
+| Идентификатор | Проверяемая цель | Проверка |
 |---|---|---|
-| Nonblocking compatibility | Zero changes to legacy invocation behavior; usage producer exit 0 on all paths; zero workflow stops caused by telemetry failure. | Isolated acceptance fixtures with missing dependencies and failed writes. |
-| Exactness | No binary-floating monetary summation; no aggregate integer overflow at the per-event bound. | Decimal/integer golden arithmetic and permutation fixtures. |
-| Offline operation | Zero model calls, price lookups or network calls during capture, normalization, analysis or ordinary checks. | Network/model stubs fail if invoked. Explicit price refresh is tested separately offline with snapshots. |
-| Input bounds | At most 16 MiB per selected source record, 1 MiB per normalized observation, 10,000 observations and 32 MiB per ingestion bundle; at most 256 characters per opaque identifier and 64 candidate owners per observation. | Exact-boundary and one-over fixtures; oversize data produces a declared exclusion/failure, never silent truncation. Larger imports require explicit bounded bundles. |
-| Persistence | New private directories 0700 and metadata files 0600; immutable no-overwrite publication; no success receipt before full artifact visibility. | Permission, process interruption and concurrent-publication fixtures. Existing unrelated directories are not chmod'ed. |
-| Scope and privacy | Zero credential reads, arbitrary project scans, persisted conversation bodies or external absolute source paths. | Forbidden-field/path/symlink and instrumented file-access fixtures. |
-| Diagnostics | Usage-producer diagnostics are at most one line and 512 UTF-8 bytes per invocation; structured helper diagnostics use bounded opaque IDs/reason codes only. | Oversize/error fixtures verify bounds and no payload echoes. |
-| Determinism | Equal inputs/profile/scenario yield identical sorted canonical output except declared creation timestamps. | Byte comparison and input permutation fixtures. |
-| Runtime dependencies | Legacy producer retains its existing optional-jq path; Python 3.10+ standard library is optional for the new usage helper only. | Missing Python/jq fixtures show explicit usage unavailability and working legacy logging. |
-| Performance claims | No wall-time/RSS claim without a declared machine, corpus, selected record count and profile. Processing is bounded by the declared input/bundle limits and never rereads history per request. | Fixture access trace and bounded-bundle checks; any later benchmark reports its profile. |
+| NFR-01 | Ноль изменений прежнего поведения вызовов; производитель использования всегда завершает с `0`; ноль остановок основного процесса из-за телеметрии. | Изолированные сценарии без зависимостей, с отказом записи и при отключении. |
+| NFR-02 | Никакой двоичной денежной суммы и переполнения производного целого при допустимых наблюдениях. | Точная арифметика, крупные суммы, перестановка входа, граничные цены и округление. |
+| NFR-03 | Ноль сетевых запросов и вызовов моделей при сборе, нормализации, анализе и обычных проверках. | Заглушка сети/модели падает при попытке вызова. Обновление цены проверяется отдельно на зафиксированных снимках. |
+| NFR-04 | Все пределы раздела размеров проверяются до и после нужной стадии; скрытого усечения нет. | Точная граница и значение на один больше; многобайтовый текст, чрезмерная вложенность и поток больше заявленного объёма. |
+| NFR-05 | Неизменяемая установка без перезаписи, права `0700`/`0600`, отсутствие квитанции до полной видимости файла. | Конкуренция, остановка на каждой границе публикации, права и повреждённый существующий адрес. |
+| NFR-06 | Ноль чтений секретов, произвольных проектов и соседних сеансов; ноль сохранённых тел диалога и внешних исходных путей. | Наблюдение доступа к файлам, запрещённые поля, подмена пути и символические ссылки. |
+| NFR-07 | Диагностика производителя — максимум одна строка и 512 байт; у помощников — ограниченные типизированные причины и непрозрачные ссылки. | Слишком большой ошибочный ввод и приватные строки не отражаются в сообщениях. |
+| NFR-08 | Равные зафиксированные входы/профиль/сценарий дают равные канонические смысловые байты. | Повторная нормализация и перестановка объектов/множеств, новый момент запуска инструмента, неизменный момент наблюдения. |
+| NFR-09 | Прежний необязательный путь без `jq` сохранён; `Python 3.10+` со стандартной библиотекой необязателен только для нового помощника. | Отсутствие интерпретатора/`jq`: явная недоступность использования и работающее прежнее журналирование. Требования существующего установщика перехватчиков не понижаются. |
+| NFR-10 | Нет заявления о скорости/памяти без машины, корпуса, числа записей и профиля. История не перечитывается для каждого запроса. | След доступа и ограниченные пакеты; отдельный будущий замер содержит весь профиль окружения. |
 
-## Edge Cases & Failure Modes
+## Ошибки, карантин и безопасные результаты
 
-| Case | Required behavior |
+Коды ниже — минимальный целевой словарь причин; их точные значения включаются в общий экспорт схемы перед реализацией. Нельзя использовать один общий «успех» для успешного разбора и полной измерительной области.
+
+| Ситуация | Причина / состояние | Обязательное действие |
+|---|---|---|
+| Неподдерживаемый профиль/версия | `unsupported_profile` | Не угадывать поля; чистый вызов с невалидным профилем отклоняется, существующая работа продолжается. |
+| Неизвестная нормализованная версия, дубли ключей, лишнее поле | `invalid_schema` | Отклонить всю оболочку до записи. |
+| Недопустимый счётчик/пересечение категорий | `invalid_counter` / `counter_conflict` | Изолировать затронутую исходную запись/измерение; не заполнять полный итог. |
+| Нет независимой инвентаризации | `inventory_unknown` | Известные ответы показать, долю/полную стоимость не создавать. |
+| Нет окончательного потока, пропуск приращения | `stream_incomplete` | Сохранить доказанную часть; терминальный маркер не закрывает пробел. |
+| Неоднозначный ответ/конфликт редакций | `identity_unresolved` / `revision_conflict` | Не складывать возможные повторы; сохранить происхождение и конфликт. |
+| Неизвестные модель, ставка, период кэша, тарифный операнд | `unpriced_component` | Сохранить токены и известные независимые слагаемые; не подставлять модель или цену. |
+| Неопределённая область владельца | `attribution_unverified` | Общий доказанный пул либо неатрибутированный расход, без произвольных долей. |
+| Неправильные часы или неполное дерево | `timing_unavailable` | Доступные виды времени отдельно; исключительное время не угадывать. |
+| Пустой файл | По доказательству инвентаризации | Различить пустую область и отсутствие сведений; не выводить `0/0`. |
+| Невалидная запись внутри пригодной выгрузки | `source_record_quarantined` | Сохранить непрозрачную ссылку/причину и остальные записи; показать влияние на полноту. |
+| Источник изменился или не совпал хеш | `source_changed` / `digest_mismatch` | Исключить либо использовать заранее доказанный префикс с частичностью; прежнюю историю не ремонтировать. |
+| Путь вне области, ссылка или запрещённое поле | `scope_violation` / `forbidden_field` | Не читать за пределами и не отражать содержимое в диагностике. |
+| Превышение любого предела | `input_limit_exceeded` | Отклонить оболочку либо изолировать отдельную запись по уровню нарушения; скрыто не обрезать. |
+| Не совпала проекция/скаляр | `projection_mismatch` | Отклонить весь вызов жизненного цикла до любых изменений. |
+| Конкурентная установка того же пакета | Точный дубликат либо `publication_conflict` | Один файл, однократная проверка результата без цикла ожидания; квитанция только при доказанном совпадении. |
+| Повреждённый существующий адрес | `stored_artifact_corrupt` | Не заменять и не исправлять автоматически. |
+| Полный диск/нет прав/прерывание | `io_unavailable` либо неизвестное подтверждение | Нет успешной квитанции при неизвестном результате; точный файл мог уже сохраниться. |
+| Сбор отключён/нет зависимости | `collection_disabled` / `dependency_unavailable` | Прежняя работа идёт дальше; разрыв сбора остаётся видимым. |
+| Просроченная/невалидная политика | `policy_unavailable` | Нет токенового/денежного предупреждения; только длительность использует оговорённый резерв. |
+| Нет места для заметки | `delivery_pending` | Сохранить кандидат и причину для итогового отчёта; не писать посторонние файлы. |
+| Нет принятых результатов/несопоставимые группы | `accepted_denominator_zero` / `comparison_ineligible` | Нет ложной нулевой цены успеха или победителя сравнения. |
+
+Карантин — очищенное описание исключения, а не копия опасной полезной нагрузки. Отсутствие квитанции не требует повторного выполнения исходной команды модели или инструмента: повторяемой сущностью может быть только точный уже сформированный пакет телеметрии.
+
+## Критерии приёмки
+
+Все проверки ниже выполняются на синтетических данных без внешних моделей и получения текущих цен. Флажок остаётся пустым до фактического результата теста реализации. Эта редактура не является выполнением перечисленных испытаний.
+
+- [ ] **AC-01** (`REQ-01`, `REQ-09`, `REQ-15`). Синтетические включённые и отдельные входные счётчики нормализуются без перехватчика. Неизвестные фактические модель/усилие сохраняются неизвестными; неподдерживаемая версия не угадывается. Квитанция только времени не доказывает использование/инвентаризацию. След доступа содержит только выбранные файлы.
+- [ ] **AC-02** (`REQ-02`, `REQ-03`, `REQ-21`). Арифметические примеры ниже дают точные `0.00264`, `0.00289` и частичную `0.00224` доллара. Рассуждение включено один раз; неизвестная запись кэша не становится нулевой.
+- [ ] **AC-03** (`REQ-04`, `REQ-08`, `REQ-10`, `REQ-18`). Повторы, ответвления, вложенные и параллельные трассы учитывают каждый доказанный ответ один раз, сохраняют общие пулы, разные виды времени и отдельные известные/неизвестные знаменатели. Родитель не добавляет второй расход.
+- [ ] **AC-04** (`REQ-05`, `REQ-06`, `REQ-21`). Проверены время жизни кэша, равенство/превышение порога, регион/обслуживание, отдельный инструмент, конфликт тарифных интервалов, явная переоценка и отсутствие исторической ставки. Неизвестная внутренняя модель сохраняет запрос и токены без денежной подстановки. Неподдерживаемая точная единица не округляется скрыто.
+- [ ] **AC-05** (`REQ-07`, `REQ-20`). Невалидные проекции и `--cost-usd` не меняют ни байта жизненного цикла, последовательности, часов или активных метаданных. Принятый связанный повтор сохраняет прежнюю полезную нагрузку; прежние проверки без обязательного `jq` проходят.
+- [ ] **AC-06** (`REQ-11`, `REQ-22`). Группы из четырёх и пяти наблюдений, точные границы 7200 секунд и трёх медиан, исключение кандидата и истёкший/несовместимый экспорт дают оговорённый результат без остановки или чтения истории. Снимок только времени выдаёт допустимое предупреждение при отключённом сборе использования; отсутствие часов — недоступность.
+- [ ] **AC-07** (`REQ-12`, `REQ-13`, `REQ-26`). Принятый/отклонённый/возобновлённый/незавершённый примеры дают три возможности, одну принятую и наблюдаемую сумму `1.5` доллара. Отношение описательное с оговорённой неполнотой наблюдения. При нуле принятых оно недоступно. Сообщение модели о завершении не создаёт метку приёмки и экономии.
+- [ ] **AC-08** (`REQ-14`, `REQ-24`, `REQ-25`). Инструкции и автономные проверки покрывают разрешённые источники, профили, явное обновление цены, базовый экспорт, отключение/возобновление, отсутствие зависимостей, прежние значения и восстановление без переписывания истории и платных вызовов.
+- [ ] **AC-09** (`REQ-04`, `REQ-16`). Частичные выходы 1, 40 и окончательный 100 разрешаются в 100 и стоимость `0.00264` независимо от порядка/повтора; сумма 141 считается ошибкой. Без окончательного снимка 40 остаётся частичным. Приращения 10 с номером 1 и 30 с номером 3 при пропущенном 2 и терминальном 4 остаются частичными 40. Повтор приращения не прибавляется; конфликт одного идентификатора/окончательных снимков требует доказанного исправления либо карантина.
+- [ ] **AC-10** (`REQ-17`). Два смежных накопительных снимка с одним полностью заключённым доказанным запросом дают его точную дельту. Снимки середина 100/конец 110 не доказывают весь запрос, начавшийся на 90. Сброс, разрыв, несколько запросов и неизвестная эпоха не создают ложный расход запроса и не добавляют пересекающийся агрегат.
+- [ ] **AC-11** (`REQ-08`, `REQ-15`). Два независимо перечисленных окончательных запроса с одним неизвестным тарифом дают полноту токенов `2/2` и оценённость `1/2`. Те же записи без инвентаризации имеют неизвестный знаменатель. Доказанно пустой тарифицируемый охват даёт ноль и `not_applicable`. Псевдоним вызов/ответ считается один раз, два ответа одного вызова — два места; неизвестное разветвление не порождает долю больше единицы или бесплатный пропуск.
+- [ ] **AC-12** (`REQ-18`, `REQ-19`). Общий запрос `0.1` доллара для двух кандидатов остаётся одним пулом `0.1`, не двумя долями `0.05`. Явно связанное позднее использование меняет только новый отчёт; повторённые отметки не создают измеренную длительность.
+- [ ] **AC-13** (`REQ-19`, `REQ-20`). Много запросов одного этапа, поздний окончательный ответ и новый тарифный сценарий создают новые пакеты/отчёты; контрольные суммы принятых событий и метаданных чекпоинтов не меняются. Прежний отчёт воспроизводится.
+- [ ] **AC-14** (`REQ-20`, `REQ-25`). Конкурентный точный повтор создаёт один видимый файл. Прерывание/полный диск/отказ прав не дают ложной квитанции и ссылки на неполный файл. Смерть после установки и до ответа оставляет неизвестное подтверждение; явно выполненный точный повтор получает квитанцию дубликата, без нового расхода и продвижения времени. Нет обещания безусловной доставки ровно один раз.
+- [ ] **AC-15** (`REQ-09`, `REQ-20`, `REQ-25`). Дубли ключей, превышение размера, запрещённое поле, выход пути за корень, ссылка, несовпадение хеша и изменяющийся вход дают предусмотренные исключения/отказ. В общей диагностике нет секретов, текста диалога и внешних путей.
+- [ ] **AC-16** (`REQ-06`, `REQ-21`). Производные целые выше границы наблюдения остаются точными. Два расхода `0.005` дают точное `0.01`; два `0.015` дают `0.03`, не `0.04`. Точный `0.00264` нельзя передать как канонический `0`; скаляр без доказательств не заполняет проверенную стоимость.
+- [ ] **AC-17** (`REQ-22`, `REQ-25`). Явные пороги проверяют равенство, пересечение, повтор, позднее исправление и известный сброс эпизода. Один эпизод имеет один идентификатор и идемпотентную заметку; повторный чистый `status` возвращает того же кандидата. Перезапуск владельца и отключение/возобновление сохраняют доставку. Просроченная политика и доля вне `[0,1]` не срабатывают. Без политики нет придуманного порога, остановки или вызова модели.
+- [ ] **AC-18** (`REQ-12`, `REQ-24`). Значения `{1,2,3,4}` дают `n=4`, медиану `2.5`, `p90=4` и отметку малой выборки. Пустые, частичные и полные группы раздельны; перестановки входов сохраняют смысл всех трёх форматов.
+- [ ] **AC-19** (`REQ-13`, `REQ-26`). Возобновление исправления остаётся одной возможностью; новые метки приёмки/позднего дефекта меняют только новые отчёты. Независимая экспериментальная оценка отделена от производственной проверки и прибавляется в общий вариант один раз. Несовпавшие задачи или основы цены не дают победителя.
+- [ ] **AC-20** (`REQ-23`, `REQ-24`). Синтетические метрики каждого пространства сохраняют единицы, область, источник и качество. Отсутствующие метрики неизвестны; байты не заполняют токены, деньги или вывод качества. Диагностическое событие не становится вторым оплачиваемым запросом.
+- [ ] **AC-21** (`REQ-27`). Перестановки ключей/множеств дают те же байты и хеши; изменение семантически упорядоченной последовательности — другой результат. Повтор через день с тем же фиксированным моментом наблюдения не меняет идентичность. Логическое значение вместо счётчика, неканоническое число и некорректная строка цены отклоняются; старый допуск исторического журнала этим не меняется.
+- [ ] **AC-22** (`REQ-10`, `REQ-28`). Родитель `[0,10]`, дети `[1,7]`, `[4,9]` дают 10 календарных единиц, 11 суммарных, 8 покрытия и 2 исключительных. Внук повторно не вычитается. Отсутствующий ребёнок, несовместимые часы или неверное родительство оставляют исключительное время неизвестным; пробел не помечается ожиданием автоматически.
+- [ ] **AC-23** (`REQ-08`, `REQ-18`, `REQ-29`). Доказанный общий пул входит один раз в полную родительскую стоимость, не делая отдельные листья полными. Неатрибутированный внешний пул не включается в полный итог родителя. Ноль модельных ответов при известном отдельном инструментальном расходе не даёт нулевую общую стоимость.
+- [ ] **AC-24** (`REQ-25`, `REQ-30`). Перечень без объёмных ограничений отклоняется. Файл/пакет на границе принимается, превышающий — отклоняется или карантинируется по оговорённому уровню, сохраняя остальные допустимые данные без ложной полноты. Изменившийся префикс, многобайтовая строка и слишком глубокое дерево не обходят лимит.
+
+## Синтетические арифметические примеры
+
+Все цены здесь вымышлены и служат только проверкам. На 1 000 000 токенов: обычный вход — 2 доллара, чтение кэша — 0.2, короткая запись — 2.5, длинная запись — 4, выход — 10. Это не действующие тарифы поставщиков. Профиль определяет, включает ли вход кэш и выход рассуждение.
+
+| Пример | Точное ожидание |
 |---|---|
-| Empty export or no eligible requests | Known empty inventory differs from unknown inventory; no 0/0, invented 100%, or fabricated zero cost for absent data. |
-| Initial stream usage only; interrupted stream | Keep partial state and valid components; no final cost solely from output size, process exit or maximum counter. |
-| Out-of-order replay, corrected final, conflicting finals | Use declared identity/revision semantics; duplicates count once; unsupported conflicts remain excluded. |
-| Missing IDs; reset cumulative counters; inherited history | No fingerprint-based exactness or invented per-request deltas; report aggregate-only/unknown identity and gaps. |
-| Shared request, root-only controller, after-close usage | Preserve one supported pool/owner; no leaf split; append late observations without lifecycle mutation. |
-| Unknown model, internal review, rate/TTL/context operand missing | Keep measured tokens and unpriced components; no substitution, TTL default or complete-dollar total. |
-| Failed, cancelled, rejected or timed-out work | Retain known billable usage/outcome; unknown usage is not zero. |
-| Malformed producer arguments, duplicate keys, unsupported normalized schema | Reject the full invocation before any mutation; one safe producer diagnostic and no success receipt. |
-| Invalid record within an otherwise usable explicit export | Quarantine sanitized identity/reason and exclude affected dimensions; preserve other usable records and disclose denominator impact. |
-| Unauthorized source, path traversal, symlink escape, forbidden payload field | Reject or exclude without exposing content or reading outside the explicit scope. |
-| Concurrent identical publication or interruption | One immutable visible artifact; no partial success. Retry is idempotent. Conflicting observation revisions resolve during analysis, not overwrite. |
-| Corrupt/missing/changed referenced artifact or selected input | Disclose exclusion or fail the dependent report's completeness; do not repair historical data. |
-| Disk full, permissions or concurrent publication contention | Return a diagnostic and no acknowledgment on failure; a completed install may persist with unknown acknowledgment. Exact retry checks the target. No lock/wait loop or global history lock. |
-| Disabled/missing adapter or dependency | Legacy workflow continues; status explains gap; re-enable starts a new collection checkpoint with no silent history scan. |
-| Stale policy, noncomparable cohort, equality at threshold | Use documented fixed duration fallback; do not invent cost/token thresholds or fire on equality. |
-| Cleanup or retention | No automatic deletion of accepted evidence. Removing producer-owned unpublished temporary files is permitted; source transcripts stay source-owned. Future evidence cleanup requires a scoped dry-run and referenced-evidence safeguards. |
+| Общий включающий вход 1000, чтение 200, запись доказанно неприменима, выход 100, рассуждение 40; либо отдельные обычные 800 + чтение 200 + выход 100. | Обычный вход 800, полный вход 1000, выход 100. `(800×2 + 200×0.2 + 100×10)/1000000 = 0.00264`. Рассуждение не добавляется. |
+| Обычный 600 + чтение 200 + короткая запись 100 + длинная запись 100 + выход 100. | Вход 1000. `(1200 + 40 + 250 + 400 + 1000)/1000000 = 0.00289`. |
+| Общая запись 200, период неизвестен; известны обычный 600, чтение 200, выход 100. | Оценённая часть `(1200 + 40 + 1000)/1000000 = 0.00224`; полной стоимости и придуманного периода нет. |
+| Порог полного входа строго `>1000`; множитель входных ставок 2, выходной 1.5. | При 1000 — `0.00264`. При обычном 801, чтении 200 и выходе 100 — `(801×4 + 200×0.4 + 100×15)/1000000 = 0.004784`. |
+| Ошибка 0.4 + возобновлённое принятое исправление 0.6; отдельный отклонённый случай 0.3; отдельный ещё не полностью наблюдённый случай 0.2. | Три возможности, одна принятая; наблюдаемая сумма 1.5. Описательное отношение 1.5 с явным незавершённым наблюдением. |
+| Два независимо перечисленных ответа; второй — внутренняя модель без известного тарифа с входом 500 и выходом 50. | Токены обоих известны; полнота оценки запросов `1/2`; цена второго неизвестна, не ноль. |
+| Два расхода 0.005; отдельно два расхода 0.015. | Сначала суммы 0.01 и 0.03, затем показ 0.01 и 0.03. Нельзя округлять строки до сложения. |
+| Пустой известный охват модельных запросов и один доказанный отдельно оплачиваемый инструмент за 0.02. | Ноль запросов не означает ноль общей цены; инструмент входит один раз при полной инвентаризации тарифицируемой области. |
 
-## Acceptance Criteria
+## Трассировка требований
 
-- [ ] **AC-01** (REQ-01, REQ-09, REQ-15) Both included-input and separate-input synthetic
-  exports normalize without hooks; absent actual-model/effort and unsupported profile
-  versions produce explicit unavailable states. A timing-only receipt cannot establish
-  usage or inventory completeness; access probes confirm only selected sources are read.
-- [ ] **AC-02** (REQ-02, REQ-03, REQ-21) Synthetic rates and quantities in the arithmetic
-  fixtures below produce exact $0.00264, $0.00289 and unknown-TTL priced subtotal
-  $0.00224, with reasoning included once and missing dimensions never treated as zero.
-- [ ] **AC-03** (REQ-04, REQ-08, REQ-10, REQ-18) Duplicate/fork/nested/parallel fixtures
-  count each evidenced request once, retain shared pools, distinguish timing kinds and
-  show separate known/unknown coverage denominators without additive parent charges.
-- [ ] **AC-04** (REQ-05, REQ-06, REQ-21) Versioned fixtures cover cache TTL, threshold
-  equality/one-over, service/region applicability, separate tool charges, conflicting
-  rate intervals, explicit repricing and missing historical rates. Unknown internal
-  model pricing leaves its request/tokens visible and cost unavailable.
-- [ ] **AC-05** (REQ-07, REQ-20) Invalid scalar/structured projections and unsupported
-  `--cost-usd` leave lifecycle bytes, sequence, clocks and active metadata unchanged;
-  accepted correlated replay stays byte-equivalent and legacy optional-jq checks pass.
-- [ ] **AC-06** (REQ-11, REQ-22) Four/five-sample duration fixtures, strict 7200-second and
-  three-median boundaries, candidate exclusion, and expired/incompatible threshold
-  exports yield the declared warning behavior without a stop or historical store read.
-  A valid current-owner duration-only snapshot still produces its warning when usage
-  collection is off, while missing timing evidence remains unavailable.
-- [ ] **AC-07** (REQ-12, REQ-13, REQ-26) Accepted/rejected/resumed/censored fixtures yield
-  the declared opportunity counts and $1.50 observed workload cost; zero accepted
-  results is unavailable. LLM DONE alone cannot supply acceptance or a savings claim.
-- [ ] **AC-08** (REQ-14, REQ-24, REQ-25) Documentation and isolated offline smoke/contract
-  checks cover scope consent, profiles, price refresh, baseline export, disable/resume,
-  dependency absence, legacy values and recovery without history rewriting or paid calls.
-- [ ] **AC-09** (REQ-04, REQ-16) Partial output snapshots 1, 40 and final 100 resolve to
-  output 100 and $0.00264 regardless of order/replay; summing them to 141 fails. Without
-  a final, output 40 remains partial. Deltas 10 at sequence 1 and 30 at sequence 3 with
-  missing sequence 2 and terminal 4 remain partial 40. Delta replay counts once;
-  conflicting same-ID deltas/finals require explicit correction evidence or quarantine.
-- [ ] **AC-10** (REQ-17) Adjacent cumulative snapshots with one inventoried request
-  fully bracketed by those snapshots permit its exact delta. If the request started at
-  counter 90 but available snapshots are mid-request 100 and final 110, delta 10 cannot
-  establish full request usage 20. Reset, gap, multiple-request and unknown-epoch cases
-  never fabricate a per-request delta or add overlapping provider aggregates.
-- [ ] **AC-11** (REQ-08, REQ-15) Two independently inventoried final requests with one
-  unknown tariff yield token coverage 2/2 and valuation coverage 1/2. The same parsed
-  rows without inventory yield unknown coverage; a known empty billable scope has exact
-  zero cost and not_applicable coverage. Call/response aliases count once, one call with
-  two responses yields two request slots, and unresolved fan-out prevents a known
-  denominator rather than producing coverage greater than one or a free missing call.
-- [ ] **AC-12** (REQ-18, REQ-19) A $0.10 request shared by two candidate leaves remains
-  one $0.10 common pool, not $0.05 per leaf; explicitly linked after-close usage changes
-  only a new as-of report, and replayed timestamps cannot create measured durations.
-- [ ] **AC-13** (REQ-19, REQ-20) Many requests for one step, a late final, and a new price
-  scenario publish usage/report revisions while checksums of all accepted lifecycle
-  events and checkpoint metadata remain unchanged. Prior reports stay reproducible.
-- [ ] **AC-14** (REQ-20, REQ-25) Concurrent exact bundle replay yields one visible artifact;
-  interrupted/full-disk/permission-failed publication returns no success receipt and
-  no partial referenced file. Death/lost stdout after full install leaves acknowledgment
-  unknown; exact retry returns a duplicate receipt. No crash-proof delivery claim is made,
-  and retry neither duplicates cost nor advances lifecycle timing.
-- [ ] **AC-15** (REQ-09, REQ-20, REQ-25) Duplicate-key, oversized, forbidden-field,
-  traversal, symlink, digest-mismatch and changing-input fixtures disclose exclusions or
-  fail as specified, without credentials, conversation bodies or external paths in logs.
-- [ ] **AC-16** (REQ-06, REQ-21) Exact totals above the per-observation integer bound are
-  preserved. Two $0.005 request costs sum to $0.010 and display $0.01; two $0.015 costs
-  sum to $0.030 and display $0.03 rather than per-item rounded $0.04. Exact $0.00264
-  cannot be supplied as canonical $0.00; unverified scalars cannot populate verified cost.
-- [ ] **AC-17** (REQ-22, REQ-25) Explicit token/USD/coverage policies test equality,
-  crossing, replay, late correction and known reset; each crossing emits once and labels
-  partial/unknown coverage. Repeated pure status calls return the same candidate ID;
-  owner restart and collection disable/resume preserve delivery state and idempotent
-  notes/final-report updates. Expired policies and coverage minima outside [0,1] yield
-  no crossing warning. No policy means no invented threshold, stop or model call.
-- [ ] **AC-18** (REQ-12, REQ-24) Values {1,2,3,4} produce n=4, median 2.5 and p90 4 with
-  a small-sample label. Empty, partial and complete cohorts remain separate; repeated
-  input permutations produce matching canonical JSON, Markdown and CSV semantics.
-- [ ] **AC-19** (REQ-13, REQ-26) Resumed repairs count as one result opportunity;
-  acceptance/escaped-defect revisions change only new as-of reports. Independent
-  experiment evaluation cost remains separate from production review and an all-in
-  report adds it once. Incomparable task or valuation arms cannot name a cost winner.
-- [ ] **AC-20** (REQ-23, REQ-24) Synthetic metadata from each diagnostic namespace keeps
-  units, scope, source and inferred/measured quality. Missing diagnostics are unavailable,
-  and byte reductions alone cannot populate tokens, dollars or quality conclusions.
-
-### Synthetic arithmetic fixtures
-
-All prices here are invented test data per 1,000,000 tokens: ordinary input $2,
-cache read $0.20, short write $2.50, long write $4 and output $10. They are not current
-provider prices. Input/output totals and reasoning are interpreted by the chosen profile.
-
-| Fixture | Expected exact result |
-|---|---|
-| Included input 1000, read subset 200, no applicable writes, output 100, reasoning subset 40; or separate ordinary 800 + read 200 + output 100. | Ordinary 800, input 1000, output 100; $0.00264. |
-| Ordinary 600 + read 200 + short write 100 + long write 100 + output 100. | Input 1000; $0.00289. |
-| Same total write 200, TTL unknown; ordinary 600 + read 200 + output 100 known. | Known priced subtotal $0.00224; no complete cost or guessed TTL. |
-| Synthetic context predicate input > 1000, multiplying all input prices by 2 and output by 1.5. | At input 1000 use $0.00264; at ordinary 801 + read 200 + output 100 use $0.004784. |
-| Failed execution $0.40 + resumed accepted repair $0.60; separate rejected opportunity $0.30; separate censored opportunity $0.20. | Three opportunities, one accepted; total observed $1.50; descriptive ratio $1.50 with censoring disclosed. |
-| Two independently inventoried requests, second an internal unknown-price model with input 500 and output 50. | Both retain known tokens; valuation 1/2; second cost unknown, never zero. |
-
-## Traceability
-
-| Requirement | Acceptance |
+| Требование | Критерии |
 |---|---|
 | REQ-01 | AC-01 |
 | REQ-02 | AC-02 |
@@ -701,9 +593,9 @@ provider prices. Input/output totals and reasoning are interpreted by the chosen
 | REQ-05 | AC-04 |
 | REQ-06 | AC-04, AC-16 |
 | REQ-07 | AC-05 |
-| REQ-08 | AC-03, AC-11 |
+| REQ-08 | AC-03, AC-11, AC-23 |
 | REQ-09 | AC-01, AC-15 |
-| REQ-10 | AC-03 |
+| REQ-10 | AC-03, AC-22 |
 | REQ-11 | AC-06 |
 | REQ-12 | AC-07, AC-18 |
 | REQ-13 | AC-07, AC-19 |
@@ -711,127 +603,101 @@ provider prices. Input/output totals and reasoning are interpreted by the chosen
 | REQ-15 | AC-01, AC-11 |
 | REQ-16 | AC-09 |
 | REQ-17 | AC-10 |
-| REQ-18 | AC-03, AC-12 |
+| REQ-18 | AC-03, AC-12, AC-23 |
 | REQ-19 | AC-12, AC-13 |
 | REQ-20 | AC-05, AC-13, AC-14, AC-15 |
 | REQ-21 | AC-02, AC-04, AC-16 |
 | REQ-22 | AC-06, AC-17 |
 | REQ-23 | AC-20 |
 | REQ-24 | AC-08, AC-18, AC-20 |
-| REQ-25 | AC-08, AC-14, AC-15, AC-17 |
+| REQ-25 | AC-08, AC-14, AC-15, AC-17, AC-24 |
 | REQ-26 | AC-07, AC-19 |
+| REQ-27 | AC-21 |
+| REQ-28 | AC-22 |
+| REQ-29 | AC-23 |
+| REQ-30 | AC-24 |
 
-## Risks
+## Порядок реализации для агента
 
-| Risk | Consequence | Mitigation |
+Не более восьми самостоятельных частей, с сохранением существующей процедуры согласования и порядка «падающая проверка — реализация — независимая проверка»:
+
+1. **Схема, профили и эталоны.** Проверить фактический исходный снимок, текущий экспорт контракта и источники; записать решение о расширении форматов. Создать схемы, канонизатор, типы причин, версионированные синтетические профили и отрицательные примеры. Выход — однозначный контракт, не живая интеграция.
+2. **Ограниченные адаптеры.** Реализовать только явно выбранные файлы/принадлежащие полезные нагрузки, ограничения, карантин, фиксированное происхождение и сегменты. Доказать отсутствие соседних чтений и утечек.
+3. **Неизменяемый приём и проекции.** Добавить отдельную публикацию, квитанции, конкурентный повтор и самодостаточную проекцию. Сравнить контрольные суммы существующего жизненного цикла до/после отрицательных сценариев.
+4. **Разрешение и полнота.** Реализовать идентичность ответов, потоковые редакции, инвентаризацию, владельцев, общие пулы и поздние данные. Проверить независимость от порядка входа.
+5. **Цены и арифметика.** Добавить зафиксированные сценарии, проверку применимости, точные суммы, частичные состояния и представление. Прогнать все ручные примеры без сети.
+6. **Ретроспектива и приёмка результата.** Добавить явный фиксированный корпус, три формата, статистики, независимые метки, исключения и охрану выводов сравнения. Не разрешать исторический выбор активным процессам.
+7. **Текущее состояние и предупреждения.** Реализовать чистый `status`, режимы, сегменты, стабильные кандидаты и предложения состояния. Применение остаётся у уполномоченного писателя; проверить каждую аварийную границу доставки.
+8. **Совместимость, восстановление и инструкции.** Проверить отсутствующие зависимости, прежние события, неблокирующее поведение, права, отключение/возобновление и отсутствие платных вызовов. Зафиксировать фактические результаты критериев и ограничения источников.
+
+У каждой части есть входной контракт, выходной артефакт и связанная группа критериев. Новые папки задач и задания реализации этой редактурой не создаются. Вывод «всё готово» разрешён только после результатов проверок, а вывод «есть экономия» — только после отдельно разрешённой независимой оценки по 09.
+
+## Риски и решения
+
+| Риск | Последствие | Ответ |
 |---|---|---|
-| Harness exposes only partial counters or no request inventory | Complete dollars cannot be established. | Source capability evidence and per-dimension unknown states; no promise to recover hidden counters. |
-| Wrong finality, counter scope or alias mapping | False savings, duplication or incorrect prices. | Versioned profiles, explicit revisions, exact fixtures and unknown/conflict states. |
-| Optional telemetry affects the workflow clock or replay | Broken process/timing evidence. | Separate immutable publication, checksum acceptance and no late lifecycle enrichment. |
-| Private source content leaks through provenance or errors | Sensitive metadata is exposed. | Numeric allowlists, opaque source IDs, confined artifacts and safe diagnostics. |
-| Advisories become implicit budgets or routing | Changes accepted workflow behavior. | Explicit warning-only policy, no execution effects and unchanged no-budget decision. |
-| Feature grows into a state engine or monitoring service | Implementation becomes a new platform. | Eight bounded implementation slices; no daemon, dashboard, mandatory runtime or generalized retention. |
+| Источник даёт лишь частичные счётчики или не перечисляет все ответы | Полная денежная сумма недоказуема. | Честная полнота по измерениям; нет обещания восстановить скрытые данные. |
+| Неверные идентичность, окончательность или псевдоним | Удвоенная цена или ложная экономия. | Версионированные профили, доказанные редакции, неизвестность/конфликт и ручные эталоны. |
+| Телеметрия меняет часы/повтор процесса | Повреждается доказательство исполнения. | Отдельное хранилище, неизменяемость событий, сравнение байтов на отрицательных сценариях. |
+| Происхождение или диагностика выдают приватный текст | Утечка данных. | Разрешённые числовые поля, непрозрачные ссылки, ограниченные сообщения и отсутствие исходных путей в общем хранилище. |
+| Предупреждение становится бюджетом/маршрутизацией | Меняется принятый рабочий процесс. | Только локальное информирование без исполнения и прежняя политика отсутствия производственных лимитов. |
+| Функция превращается в движок состояния/мониторинга | Неограниченный объём реализации. | Восемь частей, нет фоновой службы, панели, обязательной среды и общего менеджера хранения. |
+| Аддитивность родителя/детей не определена | Один расход складывается несколько раз. | Один владелец, доказанные общие пулы, неаддитивные сводки и один уровень выбранного разложения. |
+| Хеш включает текущее время повторного импорта | Повтор становится новым наблюдением без реального изменения. | Фиксированный момент наблюдения и отдельное время формирования отчёта. |
 
-## Assumptions
+Сохраняются `ADR-0009`, решение 5, об отсутствии производственных бюджетов и `ADR-0011` о строгом неблокирующем журналировании. Запрос владельца добавляет расчёт по тарифам при подписной оплате, но не разрешает повышение модели, эксперименты или вывод текущей цены из исторического текста.
 
-Both harnesses may expose different subsets of usage; a comparable complete baseline
-is not guaranteed. Missing data can prevent a financial conclusion without blocking
-implementation of honest telemetry.
+Уточнение от 2026-10-21: старое безусловное исключение стоимости для среды `Codex` заменено правилом «не показывать, пока не измерено достоверно и не оценено по применимой цене». Наличие перехватчика не определяет доступность использования. Исторические пороги экспортирует только ретроспектива.
 
-- A-01 | Scope of this refinement | Resolved: improve the existing telemetry specification autonomously; implementation remains unstarted. | Source: owner's 2026-10-27 request. | Reversible: yes.
-- A-02 | Request observations versus lifecycle events | Resolved: separate immutable usage artifacts and first-write-only lifecycle references. | Source: existing timing/replay contracts at `scripts/log-step.sh:845` and `rules/run-log.md → ## Correlated hook intervals`. | Reversible: yes, before implementation contract approval.
-- A-03 | Missing live counter capability | Resolved: explicit selected-export support or unavailable profile; no speculative native hooks. | Source: current hook forwarding at `hooks/log-step-hook.sh:355`. | Reversible: yes.
-- A-04 | Advisory scope | Resolved: local explicit token/USD/coverage warnings with no enforced production budgets or external messages. | Source: existing no-budget decision and owner's transparency goal. | Reversible: yes.
-- A-05 | Historical/current price ambiguity | Resolved: separate at_execution and reprice scenarios; unknown historical dimensions remain unknown. | Source: existing API-equivalent definition and best practice. | Reversible: yes.
-- A-06 | Unknown request ownership | Resolved: common-scope shared/unattributed pools, never arbitrary leaf splits. | Source: prior retrospective evidence and best practice. | Reversible: yes.
-- A-07 | Publication limits/runtime | Resolved: explicit bounded bundles and an optional standard-library helper; legacy producer dependency behavior unchanged. | Source: existing non-blocking producer contract and best practice. | Reversible: yes.
-- A-08 | Coverage proof | Resolved: independent inventory/finality evidence; source limitations can make complete accounting impossible. | Source: prior retrospective evidence and official provider observability semantics. | Reversible: yes.
-- A-09 | Statistical and presentation conventions | Resolved: nearest-rank p90, n<5 notice, exact decimals and final half-even cents. | Source: best practice, chosen for deterministic offline acceptance. | Reversible: yes.
-- A-10 | Consumer diagnostic scope | Resolved: accept optional typed metadata now; consumer instrumentation and optimization policy stay with their owning specs. | Source: existing shared metric ownership in the roadmap. | Reversible: yes.
-- A-11 | Collection enablement | Resolved: process-scoped explicit on/off with default off; read-only analysis remains available and duration advisories retain their existing obligation. | Source: optional collection/privacy constraints and best practice. | Reversible: yes.
-- A-12 | Lost acknowledgment | Resolved: one immutable bundle can persist without a receipt; exact replay verifies it instead of inferring rejection. | Source: uncertain-persistence contract at `rules/run-log.md → ## Correlated hook intervals`. | Reversible: yes.
-- A-13 | Advisory delivery state | Resolved: pure status returns stable candidates/next state; the authorized owner performs private-state and idempotent notes/report updates. | Source: project single-writer invariant and best practice. | Reversible: yes.
+Уточнение от 2026-10-27: расширения являются предлагаемым контрактом; перед изменением публичного формата производитель/читатель должны получить конкретное аддитивное архитектурное решение. Существующие решения по времени и корреляции продолжают действовать. Эта редакция не переписывает их задним числом.
 
-## Decisions
+### Сохранённые допущения
 
-Retain ADR-0009's no-budget policy and ADR-0011's strict, non-blocking log contract.
-The owner's current request adds API-equivalent valuation under subscription billing.
-Do not silently upgrade a model or infer a current rate from historical prose.
-
-2026-10-27: the additions above are proposed specification contracts, not a change to
-deployed behavior or an approval of experiments. Record the concrete additive runtime
-contract decision before implementation changes public producer/reader formats. Existing
-timing and correlation decisions remain effective.
-
-## Clarifications
-
-2026-10-21: the old unconditional "Codex omits cost" becomes "omit unless reliably
-measured and valuably priced"; hook availability alone does not determine usage access.
-Anomaly history is exported only by retro, preserving its exclusive shared-store role.
-
-### Session 2026-10-27
-
-Owner request, translated: perform a full additional analysis and improve this
-specification to close gaps, inaccuracies, problems and ambiguities. Existing edits are
-authorized. Source text and requirement/acceptance IDs are preserved; new requirements
-and acceptance cases are appended. No clarification questions or paid experiments were
-needed. Full audit considered all nine authoring categories: scope, data model, flow,
-non-functional behavior, integrations, failures, constraints, terminology and acceptance.
-
-## Open Questions
-
-None blocking. A source profile that cannot prove usage finality, complete inventory,
-actual model identity or prices must expose that limitation; implementing honest partial
-coverage does not require those unavailable measurements. Live source-version capability
-verification and any paid experiment settings remain execution-time evidence/authorization,
-not permission to guess missing data or start an experiment during this task.
-
-## Notes
-
-Depends on completed vocabulary and correlated timing foundations. Spec 04 owns catalog
-selection, this spec owns monetary snapshots/usage, and spec 09 owns qualified quality
-comparison. Existing optimization consumers remain 08 and 14-20. Source profiles use
-capabilities and current helper paths; the wider harness naming migration is not a
-prerequisite for deterministic telemetry fixtures. Do not repeat completed hook work.
-
-Suggested maximum eight implementation slices: canonical schema/profiles and fixtures;
-scoped adapters; immutable ingress and lifecycle projections; reconciliation/inventory/
-ownership; price scenarios and arithmetic; retrospective exports and acceptance cohorts;
-current-run status/advisories; compatibility, recovery and documentation. No task
-directories or implementation subtasks are created by this authoring pass.
-
-Rejected alternatives: one step per request changes timing; enriching old checkpoints
-breaks replay; max partial usage fabricates finality; assigning unknown review models a
-public price fabricates money; forced leaf splits fabricate precision; a global session
-scan violates scope; dashboard/budget enforcement adds an unrelated operational system.
-
-Implementation-time primary references, verified 2026-10-27; revalidate adapter versions
-before claiming support. These sources establish semantics, not a pinned production rate:
-
-- [OpenAI prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching)
-- [OpenAI observability and usage](https://developers.openai.com/api/docs/guides/agents-api/observability)
-- [Anthropic streaming](https://platform.claude.com/docs/en/build-with-claude/streaming)
-- [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
-
-## Readiness Checklist
-
-| Check | Result |
+| Идентификатор | Принятое допущение и граница |
 |---|---|
-| Goal is one paragraph in domain language | PASS |
-| Concrete scope and exclusions are defined | PASS |
-| Requirements retain stable IDs and EARS triggers | PASS |
-| Every requirement and acceptance case is traced | PASS |
-| Acceptance outcomes are binary and observable offline | PASS |
-| Non-functional targets are numeric or explicitly bounded | PASS |
-| Data model, proposed interfaces and errors are defined | PASS |
-| Empty/error/boundary/concurrency cases are covered | PASS |
-| Authoring ambiguities are resolved and recorded | PASS |
-| No blocking open question remains | PASS |
-| Existing-code claims carry verified path/line evidence | PASS |
-| Existing project terminology is retained | PASS |
-| Feature is bounded to at most eight implementation slices | PASS |
+| A-01 | Разрешено улучшить спецификацию; реализация не начиналась этой работой. |
+| A-02 | Наблюдения использования отделены от событий жизненного цикла; ссылки только при первой принятой записи. |
+| A-03 | При недоказанной встроенной возможности — явно выбранная выгрузка или недоступность, без выдуманного перехватчика. |
+| A-04 | Только явные локальные предупреждения токенов/денег/полноты, без бюджета и внешних сообщений. |
+| A-05 | Историческая оценка и условная переоценка раздельны; неизвестная историческая цена остаётся неизвестной. |
+| A-06 | Неизвестный листовой владелец даёт общий/неатрибутированный пул, не искусственные доли. |
+| A-07 | Ограниченные пакеты и необязательный помощник стандартной библиотеки; прежние зависимости производителя сохранены. |
+| A-08 | Нужны независимые инвентаризация и окончательность; полная оценка иногда принципиально недоступна. |
+| A-09 | `p90` ближайшего ранга, отметка `n<5`, точные десятичные суммы и округление итоговых центов к ближайшему чётному. |
+| A-10 | Диагностика необязательна; её инструментализация и оптимизационная политика принадлежат документам-потребителям. |
+| A-11 | Сбор явно включается на уровне процесса, по умолчанию выключен; чистый анализ и обязанность временного предупреждения сохраняются. |
+| A-12 | После полной установки возможна потеря квитанции; точный повтор проверяет адрес, не выводит отказ из отсутствия ответа. |
+| A-13 | `status` чистый; уполномоченный владелец применяет предложенное закрытое состояние и идемпотентные заметки. |
 
-Verdict: READY FOR DEVELOPMENT following document validation and independent adversarial
-review. This is an automated readiness assessment, not human sign-off or evidence of
-implementation. Review the proposed contracts before implementation; live savings remain
-unmeasured.
+Это решения проектной редакции, а не измерения или согласования новых экспериментов. До реализации они обратимы через явную редакцию контракта; после публикации форматов требуется правило совместимости, а не молчаливая смена смысла.
+
+Отвергнутые варианты: отдельный этап жизненного цикла на каждый запрос меняет часы; дописывание старого чекпоинта ломает повтор; максимум частичных токенов выдумывает окончательность; цена публичной модели для неизвестной внутренней выдумывает деньги; распределение неизвестного расхода по листьям создаёт ложную точность; общий поиск сеансов нарушает область; панель и бюджет добавляют постороннюю систему.
+
+## Источники и пределы доказательств
+
+Проверяемая редакция исходного репозитория: `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28. Непосредственно доступны и прочитаны [контракт журнала](https://github.com/AlekseiChirkov/agentic-workflows/blob/8c2fa08c18115ffcf38a1798742c41e53a2c7461/rules/run-log.md), [производитель журнала](https://github.com/AlekseiChirkov/agentic-workflows/blob/8c2fa08c18115ffcf38a1798742c41e53a2c7461/scripts/log-step.sh), [возможности первой среды](https://github.com/AlekseiChirkov/agentic-workflows/blob/8c2fa08c18115ffcf38a1798742c41e53a2c7461/harness/claude/capabilities.md), [возможности второй среды](https://github.com/AlekseiChirkov/agentic-workflows/blob/8c2fa08c18115ffcf38a1798742c41e53a2c7461/harness/codex/capabilities.md) и [общий индекс](https://github.com/AlekseiChirkov/agentic-workflows/blob/8c2fa08c18115ffcf38a1798742c41e53a2c7461/.ai/specs/README.md). Они подтверждают нулевой выход без ложной квитанции, запрет исторического чтения активным процессом, текущий словарь событий и различие реализованных возможностей перехватчиков. Название поставщика не является доказательством встроенного счётчика использования.
+
+Первичные ссылки исходной спецификации повторно проверены 2026-10-28:
+
+- [Кэширование входа и его счётчики](https://developers.openai.com/api/docs/guides/prompt-caching): подтверждает необходимость учитывать включённые категории по точной версии формата.
+- [Наблюдаемость и использование](https://developers.openai.com/api/docs/guides/agents-api/observability): источник для последующей проверки конкретного профиля; не доказывает автоматически возможности локальной среды.
+- [Потоковая передача сообщений](https://platform.claude.com/docs/en/build-with-claude/streaming): счётчики `usage` в `message_delta` накопительные, поэтому события нельзя просто суммировать.
+- [Отдельные счётчики кэшированного входа](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): обычный вход, чтение и запись кэша должны интерпретироваться согласно профилю; разбиение записи по периоду сверяется с общим значением.
+
+Эти страницы подтверждают семантические различия, а не фиксируют производственные цены, поддерживаемые модели или полное покрытие локальных экспортов. Перед объявлением поддержки конкретной версии адаптер заново проверяет формат и доступные доказательства. Внутренние проверочные модели остаются общим возможным случаем; наличие определённого внутреннего имени этим документом не утверждается.
+
+## Готовность и открытые вопросы
+
+Блокирующих вопросов для дальнейшей проработки контракта нет. Неполная наблюдаемость источника не мешает реализовать честную частичную телеметрию. Фактическая поддержка версии источника, окончательность, инвентаризация и применимость цены требуют доказательств во время реализации; их отсутствие не даёт права угадывать данные.
+
+| Проверка готовности | Статус этой редакции |
+|---|---|
+| Цель, границы, владелец данных и зависимости | Описаны. |
+| Исходные идентификаторы требований и приёмки | Сохранены; новые дописаны без переиспользования старых номеров. |
+| Схемы, алгоритмы, ошибки, конкуренция и восстановление | Определены как целевой контракт; физические схемы и программы ещё должны быть реализованы. |
+| Проверяемая связь требований и приёмки | Задана таблицей; выполнение проверок не заявлено. |
+| Исходный код и внешние основания | Указан фиксированный снимок и предел проверенного чтения; исторические номера строк не выдаются за актуальные. |
+| Экономия, качество и платная квалификация | Не измерены и не разрешены данной редактурой. |
+| Независимая проверка реализации | Не выполнена этой редактурой; потребуется по установленному процессу. |
+
+Документ подготовлен к этапу исследования и проектирования. Переход к реализации следует существующему процессу и конкретному решению о публичных форматах. Отметка готовности документа не является приёмкой работающей функции, человеческим согласованием эксперимента или доказательством снижения стоимости.

@@ -1,198 +1,152 @@
-# Reusable project context and fresh task-scoped execution packets
+# 14. Повторно используемый контекст проекта и свежие пакеты задачи
 
-## Source
+## 1. Статус, источники и границы
 
-Workstream 2 of the owner's 2026-10-21 request: reduce repeated specification, project
-analysis and task-state loading without losing correctness or changing models.
+**Статус:** целевая спецификация направления 2 запроса от 2026-10-21. Редакция относится к исходному снимку `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28. Полный отчёт об упомянутом в исходниках аудите отсутствует в этом снимке; отдельные заявления о выполненном аудите не подменяют проверку действующего кода и правил.
 
-## Context & Problem
+В текущем `rules/orchestration.md` и `workflows/spec-run.md` новый исполнитель получает задачу и сам загружает контекст; стенограммы предыдущих подзадач ему не передаются. Исполнитель сохраняется между тестовым и реализационным этапами одной подзадачи. Совместимый родительский контекст и самостоятельная загрузка разграничены правилами начальной загрузки. Исходная спецификация описывает проверку существующего пакета по составу, размеру и времени изменения источников; этого недостаточно для заявленной ниже проверки по содержимому.
 
-Baseline reviewed 2026-10-28.
+Неизменяемые пакеты, разделение устойчивых и изменяемых данных, квитанции загрузки и повторное использование анализа по хешам — будущие возможности. Документ не объявляет их уже установленными и не вводит новый механизм оркестрации.
 
-The workflow audit now distinguishes inherited compatible parent context from full
-standalone bootstrap; new workers still load their own required context. The existing
-pack includes mutable project state and verifies exact source membership, size and mtime,
-including umbrella/absent sources (`workflows/context-pack.md → ## Sources`,
-`## Step 1 — Check freshness`). It does not provide content-hash freshness or a stable/dynamic split.
+## 2. Цель и владение
 
-The orchestrator keeps prior leaf transcripts out of new workers and reuses one
-Implementer across the test-first handoff (`workflows/spec-run.md → ## Step 4 — Subtask loop`).
-Immutable leaf packets, session load receipts, structured extraction and hash-bound
-analysis reuse remain pending. Improve these existing mechanisms without adding a new
-orchestration engine.
+Каждая роль получает минимальный **достаточный**, проверяемо свежий контекст. Повторно используются только материалы, чьи основания не изменились. При сомнении в полноте агент расширяет чтение, а не продолжает с неподтверждённым предположением.
 
-## Goal
+14 владеет пакетами и их происхождением. [08](08-context-tiering.md) владеет обязательной загрузкой инструкций; [15](15-orchestrator-overhead.md) — контрольными точками; [16](16-scoped-verification.md) — достаточностью проверки; [17](17-bounded-tool-output.md) — выдачей полного результата инструментов; [05](05-cost-and-duration-telemetry.md) — измерениями. Канонические файлы проекта остаются источником истины. Пакет не является хранилищем статусов, разрешением на действие или заменой спецификации.
 
-Give each role the smallest sufficient, verifiably fresh context, reuse stable
-architecture analysis and avoid reloading unchanged material within the same session.
+Не входят в объём: обязательная векторная база, обязательный интерпретатор Python у потребителя, новый сервер поиска, гарантии кэша провайдера, изменение модели оплаты и удаление исходного контекста.
 
-## Scope
+## 3. Термины и инварианты
 
-Stable project pack, dynamic leaf view, structured task contract, relevant-file
-selection, session load receipt, invalidation, conditional retrieval and prefix layout.
-This owns workstream 2; instruction text is 08 and controller decisions are 15.
+- **Устойчивый пакет:** принципы, архитектурные решения, интерфейсы и команды, применимые нескольким задачам. В него не входят текущий прогресс, время запуска и меняющийся список выполненных листьев.
+- **Контракт листовой задачи:** цель, точные критерии приёмки и ограничения одной конечной исполняемой подзадачи.
+- **Изменяемое представление:** состояние этой подзадачи, влияющих предков и зависимостей на конкретный момент.
+- **Пакет роли:** неизменяемая комбинация обязательных инструкций, контракта, исходников и актуального представления, предназначенная конкретной роли.
+- **Квитанция загрузки:** запись о реально доступном содержимом в одной сессии. Она не доказывает память другой сессии или доступность содержимого после сокращения контекста.
 
-## Out of Scope
+1. Оригинальные запреты, команды, запрещённые пути, критерии и существенные условия интерфейсов воспроизводятся точно, с происхождением; краткий пересказ не может ослабить их.
+2. У каждого производного утверждения есть ссылка на источник и хеш. При конфликте текущий канонический источник и принятое решение имеют приоритет над сводкой.
+3. Изменение содержимого определяется хешем, не временем изменения или размером файла.
+4. Новый работник получает само достаточное содержимое либо явно загружает его. Идентификатор пакета без содержимого не считается передачей контекста.
+5. Изменение другой независимой подзадачи не инвалидирует устойчивую архитектуру; изменение применимого принципа или интерфейса — инвалидирует.
+6. Работник не редактирует общий пакет: он возвращает запрос расширения. Публикация общих производных данных принадлежит оркестратору.
 
-Changing canonical state storage, deleting source context, summarizing prohibitions
-loosely, mandatory vector databases, mandatory Python runtime, provider cache promises,
-or replacing the full-context fallback.
+### Граница доверия
 
-## Actors & Roles
+Утверждённые ограничения задачи и канонические правила явно отделяются от цитат из кода, комментариев, результатов инструментов и производных сводок. Полученные данные используются как доказательства; включение в пакет, подпись происхождения или совпадение хеша не дают вложенным указаниям дополнительных полномочий. Текст в комментарии или выводе команды не может расширить область, отменить запрет или разрешить изменение общего состояния. Если фактический код расходится с принятым требованием, фиксируется расхождение и применяется установленный путь решения; само существующее поведение не является основанием переписать спецификацию.
 
-Discovery records the reusable architecture/implementation contract. The orchestrator
-materializes immutable packets and dynamic views. Workers read packets and request
-additional evidence. Only the authorized writer changes shared artifacts.
+## 4. Требования
 
-## Terminology
+- **REQ-01**. Отделить устойчивые факты и ограничения от изменяемого состояния. Сохранить порядок разрешения общего родительского проекта и локальных переопределений, а также действительный `working_dir`. Инвалидировать только затронутые устойчивые зависимости; выполнение постороннего листа само по себе не меняет устойчивый пакет.
+- **REQ-02**. Ввести версионированный манифест с хешами содержимого, путями, выбранными разделами, происхождением общего/локального слоя и способом получения производных данных. Не считать совпадение размера и времени изменения доказательством свежести. Сохранять точные команды, запреты, существенные ограничения и ссылки на оригиналы.
+- **REQ-03**. При передаче листа включать цель, точные критерии и их идентификаторы, область и исключения, интерфейсы, архитектурные решения, зависимости с доказательствами готовности, рабочую директорию, исходную ревизию, команды тестирования и интеграционные риски. Исключать нерелевантную историю других листьев, сохраняя влияющие ограничения предков и нерешённые препятствия.
+- **REQ-04**. В одной непрерывной сессии повторно использовать загруженное неизменённое содержимое по квитанции с хешами и ролью. Новый или ответвлённый агент получает собственный контекст. Перед следующим решением, зависящим от изменённого источника, этот источник перечитывается. После потери контекста квитанция без сохранившегося содержимого непригодна.
+- **REQ-05**. Начинать выбор исходников с целевых файлов, интерфейсов, релевантных тестов и вызывающих компонентов. Показать, что исключено, почему и как это получить. Изменение интерфейса, нарушение инварианта, неразрешённая ссылка, неоднозначность и провал приёмки требуют расширения. Полная спецификация и полный контекст всегда доступны.
+- **REQ-06**. Повторно использовать архитектурный анализ только пока совпадают хеши его источников и интерфейсов. Хранить происхождение решения, релевантные отвергнутые варианты и явное состояние устаревания. Устаревшая сводка не отменяет действующее решение или поведение кода.
+- **REQ-07**. По возможности размещать устойчивые инструкции раньше изменяемых данных, исключая меняющиеся времена и прогресс из устойчивого префикса. Наблюдаемые чтения и записи кэша передавать по 05. Если среда не даёт управления кэшем, использовать обычную загрузку без вымышленных параметров и гарантий.
+- **REQ-08**. Поддержать самостоятельные вызовы и старые проекты без манифеста: построить достаточный пакет из оригиналов либо выполнить полную загрузку. Недостающие обязательные принципы и команды сохраняют прежние предупреждения и остановки. Некорректный манифест не считается свежим.
+- **REQ-09**. Вспомогательные средства остаются необязательными и не меняют каноническое состояние. Только оркестратор публикует общие производные пакеты; работники получают неизменяемые снимки. Все пути разрешаются в явно разрешённых корнях проекта/общего родительского проекта.
+- **REQ-10**. Применить G1–G8, документировать отключение и полную загрузку, передавать в 05 хеши, размеры и решения о загрузке. Автономно проверить покрытие, свежесть и изоляцию. Сравнение живых токенов, кэша и стоимости проводится отдельно с разрешением по 09.
 
-A stable pack contains reusable constraints/architecture, not current progress.
-A leaf view is a fresh projection of one leaf, relevant ancestor/dependency status
-and unresolved blockers. A receipt proves what a particular session loaded; it cannot
-prove that another agent remembers the content.
+## 5. Модель данных версии 1
 
-## Requirements
+Поля ниже — целевой контракт. Расширение должно быть добавочным; старые пакеты остаются читаемыми, но не получают новый статус свежести без пересборки.
 
-- **REQ-01** THE SYSTEM SHALL split reusable project facts/constraints from mutable
-  task progress, preserving umbrella-first/local-override resolution and `working_dir`.
-  A completed leaf elsewhere SHALL not invalidate unrelated stable architecture context;
-  changed principles, runbook commands or architecture SHALL invalidate affected packs.
-- **REQ-02** THE SYSTEM SHALL build a manifest with schema/source version, content
-  hashes, source paths, selected sections, umbrella/local provenance and derivation.
-  Correctness SHALL not depend solely on mtime/size. A generated summary SHALL retain
-  links to originals and preserve every operative rule; commands, prohibitions,
-  off-limits lists and relevant invariant/interface clauses SHALL remain exact.
-- **REQ-03** WHEN dispatching a leaf, THE SYSTEM SHALL supply its goal, exact AC IDs/
-  criteria, scope/off-limits, interfaces, architecture decisions, dependencies with
-  readiness evidence, working directory, base revision, test commands and relevant
-  integration risks. The dynamic view SHALL exclude unrelated leaf histories while
-  retaining ancestors, blockers and cross-cutting constraints that affect this leaf.
-- **REQ-04** WHEN reusing within one session, THE SYSTEM SHALL load unchanged material
-  once using a session-local receipt tied to hashes and role. A new/forked agent SHALL
-  receive its own sufficient context; a receipt alone SHALL not replace the content.
-  Changed sources SHALL be reloaded before the next relevant decision.
-- **REQ-05** WHEN selecting source files, THE SYSTEM SHALL start with target files,
-  referenced interfaces, relevant tests and dependency callers; it SHALL expose omitted
-  sources and a retrieval path. Interface/invariant changes, unresolved references,
-  ambiguity or failed acceptance SHALL expand context before proceeding. Full-spec and
-  full-context loading SHALL remain available.
-- **REQ-06** THE SYSTEM SHALL reuse stable architecture analysis across related leaves
-  only while its source/interface hashes remain valid. It SHALL retain decision
-  provenance, rejected alternatives only when relevant, and an explicit stale status;
-  no stale generated summary may override current code or an accepted decision.
-- **REQ-07** THE SYSTEM SHALL order unchanged stable instructions before dynamic task
-  material where the harness permits, keeping volatile timestamps/progress out of the
-  stable prefix. It SHALL report provider cache read/write observations under 05 and
-  make no claim that a stable file guarantees cache hits. Missing provider cache controls
-  SHALL use ordinary context loading without invented cache settings.
-- **REQ-08** THE SYSTEM SHALL support standalone workflow calls and legacy projects
-  without a pack by resolving sources and building a scoped packet or loading full
-  context. Missing required coding principles/test commands SHALL preserve the original
-  warning/stop semantics. Invalid manifests SHALL not silently count as fresh.
-- **REQ-09** THE SYSTEM SHALL keep context helpers optional and read-only with respect
-  to canonical task state. Only the orchestrator may publish shared generated packets;
-  concurrent workers SHALL get immutable snapshots and return context requests/deltas.
-  Generated local paths SHALL stay within explicitly resolved project/umbrella roots.
-- **REQ-10** THE SYSTEM SHALL apply shared index gates G1–G8, document disable/full-load
-  recovery and integrate packet hashes/sizes/loading decisions with 05. Offline fixtures
-  SHALL check coverage, invalidation and isolation; live token/cache/cost comparisons
-  SHALL remain separate approved evaluations under 09.
-
-## Data Model
-
-A versioned packet manifest records stable-source hashes, dynamic state revision,
-task contract digest, relevant source/test hashes, role, base revision and retrieval
-references. A session-local receipt records loaded packet/hash and subsequent additions.
-Generated packs/views are derived artifacts, never the source of canonical statuses.
-
-## Contracts & Interfaces
-
-Extend existing `/context-pack [--check|--refresh]` rather than add a required service.
-Existing packs remain readable as legacy but cannot satisfy the stronger freshness
-contract until rebuilt. Discovery chooses an optional deterministic extractor interface;
-its absence uses the same documented extraction/full-load procedure.
-
-The role packet consumes 08 load declarations and exposes a contract reference/hash to
-15 checkpoints, 16 reviewers, 19 repair attempts and 20 decomposition plans. These
-consumers may request expansion; they may not silently redefine packet contents.
-
-## Non-Functional Requirements
-
-A dynamic leaf view contains no unrelated leaf block. Dependency traversal is cycle-
-checked and each source is loaded at most once per unchanged session receipt.
-Exact commands/prohibitions are byte-preserved. Generated context contains no credentials
-or unrelated project paths. No model/network call is necessary to check freshness.
-
-## Edge Cases & Failure Modes
-
-Cover absent/empty pack, same-size same-mtime content change, umbrella/local override,
-missing source, renamed interface, active blocker, cross-leaf invariant, role switch,
-new agent, manual state edit, symlink outside allowed roots and concurrent worker
-requests. On uncertain completeness load the missing originals; stop where the current
-contract requires it. Never save tokens by hiding unresolved uncertainty.
-
-## Acceptance Criteria
-
-- [ ] **AC-01** (REQ-01, REQ-02) Independent-leaf progress changes preserve a stable pack;
-  same-size source edits invalidate it. Umbrella overrides and exact forbidden lists/
-  runbook commands survive extraction with source provenance.
-- [ ] **AC-02** (REQ-03, REQ-05) A many-leaf fixture exposes only the selected leaf and
-  required dependency/ancestor context; a changed interface triggers caller/test
-  expansion and every AC remains represented or resolvable.
-- [ ] **AC-03** (REQ-04, REQ-06) Repeated same-session loading reuses a matching receipt;
-  new agents receive actual context, and stale architecture sources force refresh.
-- [ ] **AC-04** (REQ-07) Stable-prefix fixtures exclude volatile task progress; reports
-  distinguish observed cache hits from merely cache-compatible ordering.
-- [ ] **AC-05** (REQ-08, REQ-09) Legacy, standalone, missing-command and concurrent-worker
-  fixtures use correct fallback/stops; workers cannot modify shared views and traversal
-  cannot escape declared roots.
-- [ ] **AC-06** (REQ-10) Offline checks and baseline profiles cover full versus scoped
-  loading, complete AC/invariant retention, version/size metadata and disable/resume.
-  No measured savings are claimed from fixture byte reductions.
-
-## Traceability
-
-| Requirement | Acceptance |
+| Объект | Обязательные сведения |
 |---|---|
-| REQ-01, REQ-02 | AC-01 |
-| REQ-03, REQ-05 | AC-02 |
-| REQ-04, REQ-06 | AC-03 |
-| REQ-07 | AC-04 |
-| REQ-08, REQ-09 | AC-05 |
-| REQ-10 | AC-06 |
+| Источник | Нормализованный путь, разрешённый корень, слой общего/локального проекта, наличие или ожидаемое отсутствие, хеш исходных байтов, выбранные разделы, причина включения |
+| Производный фрагмент | Идентификатор, хеш, версия извлечения, список исходных источников/разделов, точные или пересказанные части, карта сохраняемых обязательств |
+| Устойчивый манифест | `schema_version`, `source_revision`, `project_id`, `root_set_digest`, `sources`, `source_set_digest`, `derivation_version`, `stable_digest` |
+| Контракт задачи | `task_id`, `leaf_id`, `task_contract_hash`, точные AC, ограничения, архитектурные решения, интерфейсы, команды и уровень тестирования |
+| Представление исполнения | `state_revision`, `state_digest`, зависимые предки/листья, открытые препятствия, `working_dir`, `base_revision`, `effective_tree_digest` |
+| Пакет роли | `packet_id`, `packet_digest`, `role`, `stable_digest`, `task_contract_hash`, `dynamic_view_digest`, обязательные загрузки, выбранные исходники, исключённые источники и маршрут получения |
+| Квитанция сессии | `session_id`, `context_epoch`, `role`, `packet_digest`, реально загруженные хеши/разделы, последующие дополнения, причина повторной загрузки |
 
-## Risks
+`source_revision` — идентификатор исходной зафиксированной версии, если он доступен. `effective_tree_digest` отражает фактические релевантные входы: отслеживаемые изменения, индекс, незакоммиченные и нужные неотслеживаемые файлы. Один идентификатор коммита не доказывает неизменность рабочего дерева. Отсутствующие файлы также входят в набор источников как отрицательные зависимости: появление локального файла переопределения делает прежний пакет устаревшим.
 
-A relevant-looking file subset can omit a system invariant. Exact constraint coverage,
-explicit retrieval, impact-triggered expansion and independent hidden checks mitigate
-this; they do not prove that all summaries are lossless.
+Хеши вычисляются по фактическим байтам с явно указанным алгоритмом. Для манифеста используются детерминированная сериализация и сортировка путей; сначала сохраняются исходные байты, затем производные записи. Времена генерации могут присутствовать в служебной записи, но не входят в устойчивое содержимое и не вызывают ложную инвалидацию. Идентичность пути не заменяется одним хешем: одинаковый текст в разных слоях может иметь разный приоритет.
 
-## Assumptions
+Квитанция не является записью об оплате. Событие загрузки и модельный ответ — разные сущности в 05; два чтения одного файла не создают автоматически две оплачиваемые модельные единицы.
 
-Canonical project files stay authoritative and available. A context summary is a
-derived convenience, not permission to disregard the full specification.
+## 6. Алгоритм подготовки и повторного использования
 
-## Decisions
+### 6.1. Разрешение корней и источников
 
-Extend existing context-pack and bootstrap behavior locally. No required retrieval
-service, new state database or provider-specific caching contract.
+1. Определить проект, разрешённый общий родительский проект, рабочую директорию, роль и задачу по действующему контракту. Не угадывать корень из текущей директории процесса.
+2. Нормализовать пути и разрешить символьные ссылки. Выход за разрешённый набор корней блокируется; для легитимного внешнего источника требуется явное расширение разрешённого набора, не обход проверки.
+3. Составить точный набор обязательных, условных и отсутствующих источников. Сохранить порядок «общий слой → локальное переопределение» по существующим правилам. Локальное отсутствие не отменяет обязательство общего слоя.
+4. Проверить обязательные принципы и команды. Если действующие правила предписывают остановку — остановиться до изменения кода; нельзя заменить отсутствующую команду выдуманной.
 
-## Clarifications
+### 6.2. Свежесть
 
-2026-10-21: both repeated source input and cache writes must be measured; reducing
-uncached characters alone does not establish lower API-equivalent cost.
+1. Проверить версию схемы, происхождение, состав источников и хеш каждого влияющего входа.
+2. Сравнить не только содержимое существующих файлов, но и появление/исчезновение источников, выбранные разделы, порядок переопределений и версию извлечения.
+3. При совпадении устойчивых входов повторно использовать устойчивый пакет. При несовпадении пересобрать только зависимые фрагменты или весь пакет, если зависимости недостаточно точны.
+4. Представление состояния строить заново перед отправкой работы, проверкой результата и возобновлением. Оно не наследует старые статусы из устойчивого пакета.
+5. Сопоставить квитанцию с текущей сессией, ролью и `context_epoch`. Смена роли или сокращение контекста требует проверки доступности обязательного содержимого; сомнение означает повторную загрузку.
 
-## Open Questions
+Проверка свежести выполняется без сетевого обращения и без модели. Хеширование слишком дорогого либо недоступного источника не даёт права объявить его неизменённым: используется полное чтение или состояние «свежесть неизвестна» с остановкой перед зависимым решением.
 
-None blocking. Paid task samples and tolerances are decided in the 09 manifest.
+### 6.3. Публикация и использование
 
-## Notes
+1. Собрать пакет во временном локальном месте и проверить все ссылки/хеши.
+2. Оркестратор публикует неизменяемый снимок с уникальным идентификатором. Опубликованное содержимое не перезаписывается при запросе расширения; создаётся новая версия с указанием предшественника.
+3. Работник подтверждает достаточную загрузку. Передача одной квитанции без содержимого недопустима.
+4. Запрос расширения содержит причину, недостающий источник/инвариант, блокируемое решение и требуемую область. Оркестратор проверяет источник и выдаёт дополнение или новый пакет; не делает вид, что первоначальный пакет был полным.
+5. Перед принятием результата оркестратор сопоставляет использованный контракт и базовую ревизию с текущими. Устаревший пакет означает проверку влияния и повтор соответствующей работы, а не автоматическое отклонение полезного кода или автоматическое принятие.
 
-Depends on 05, 08 and 09. Suggested slices: manifest/invalidation; project pack;
-leaf contracts/views; session reuse and relevant-file expansion; workflow integration;
-offline checks and docs. Context selection does not enable parallelism by itself.
+## 7. Контекст разных ролей
 
-## Readiness Checklist
+| Роль | Получает | Не получает автоматически |
+|---|---|---|
+| Исполнитель | Полный контракт своего листа, ограничения, релевантные исходники и тесты, факты зависимостей | Стенограммы соседних листьев и всю историю родительского запуска |
+| Независимый проверяющий | Точный контракт, исходное и проверяемое дерево, полный перечень изменений, тестовые доказательства и нужные окружающие интерфейсы | Рассуждения, промежуточные шаги и самооценку исполнителя |
+| Оркестратор | Активный контракт, текущее представление, открытые замечания, факты ветвей и контрольных точек | Полные истории всех завершённых листьев без причины загрузки |
+| Арбитр | Источники, необходимые для ответа на конкретный вопрос, и принятые архитектурные решения | Право выдумывать решение или менять инвариант без предусмотренного согласования |
 
-One owner, explicit source provenance, schema, failure/fallback behavior, binary
-acceptance and shared gates are present. Ready for Discovery; savings unmeasured.
+Независимость проверяющего не достигается отсутствием нужного кода. Разрешается передавать проверяемые факты и артефакты, но не аргументацию исполнителя как основание для принятия. Проверяющий вправе независимо расширить чтение.
+
+## 8. Интерфейс и совместимость
+
+Расширяется существующий `/context-pack [--check|--refresh]`; новая обязательная служба не вводится. `--check` читает и выдаёт состояние свежести без изменения канонических файлов. `--refresh` строит производные данные под владением разрешённого писателя; он не меняет статусы задач, план, архитектуру или исходные решения.
+
+Целевые состояния проверки: `fresh`, `stale`, `missing`, `invalid`, `unknown`. Это состояния производного пакета, не новые статусы задач. Только `fresh` допускает повторное использование без перечитывания соответствующих источников; остальные состояния запускают пересборку/полную загрузку либо исходную остановку. Неизвестная версия схемы не интерпретируется как последняя поддерживаемая.
+
+Вспомогательный извлекатель необязателен. Его отсутствие означает ту же последовательность ручного разрешения и чтения, а не пропуск обязательных условий. При смене версии или отключении производные данные можно не использовать; каноническое состояние и история не переписываются.
+
+## 9. Ошибки и восстановление
+
+| Сценарий | Требуемый результат |
+|---|---|
+| Изменение того же размера с сохранённым временем | Несовпадение хеша; зависимый пакет устарел |
+| Выполнен независимый лист | Устойчивый пакет сохранён; представление соответствующей задачи обновлено |
+| Появилось локальное переопределение | Изменился набор источников; пересборка применимого контекста |
+| Интерфейс переименован или изменён | Загрузить определение, вызывающие компоненты и тесты; обновить анализ |
+| Ручное изменение состояния | Новое представление; прежняя квитанция состояния непригодна |
+| Потерян артефакт или исходный файл | Восстановить из разрешённого источника либо остановиться с перечнем недостающего |
+| Сбой во время публикации | Незавершённый временный файл не виден как действующий пакет |
+| Два работника просят расширение | Запросы независимы; оркестратор последовательно публикует версии, не редактируя активные снимки |
+| Контекст сжат или новая сессия | Новая эпоха; обязательное содержимое загружается заново |
+| Недостаточно контекста для критерия | Расширение до полной спецификации/контекста; критерий не исключается |
+
+## 10. Критерии приёмки
+
+- [ ] **AC-01** (`REQ-01`, `REQ-02`). Изменение независимого прогресса не портит устойчивый пакет; изменение байтов при тех же размере/времени делает зависимый пакет устаревшим. Появление/исчезновение локального переопределения обнаруживается. Точные запреты и команды сохранены с происхождением. Вложенное указание из комментария/вывода не становится правилом или разрешением после упаковки; конфликт кода и принятого требования остаётся явным нерешённым расхождением.
+- [ ] **AC-02** (`REQ-03`, `REQ-05`). В проекте со многими листьями пакет включает только нужный лист, влияющих предков/зависимости и общие ограничения. Каждый критерий представлен. Изменение интерфейса расширяет чтение до вызывающих компонентов и тестов. Исключённые источники перечислены и доступны.
+- [ ] **AC-03** (`REQ-04`, `REQ-06`). Повтор в той же сессии повторно использует совпадающий материал; новая сессия и потеря контекста получают само содержимое. Устаревший анализ не замещает текущие источники.
+- [ ] **AC-04** (`REQ-07`). Устойчивый префикс не меняется из-за прогресса и времени. Отчёт отличает совместимый порядок от наблюдённого чтения/записи кэша; недоступные счётчики не превращаются в нули.
+- [ ] **AC-05** (`REQ-08`, `REQ-09`). Старый пакет, самостоятельный запуск, отсутствующая команда, недопустимая ссылка и параллельные запросы дают предусмотренную загрузку/остановку. Работник не меняет общие пакеты; незавершённая публикация не становится действующей.
+- [ ] **AC-06** (`REQ-10`). Синтетические проверки сравнивают полную и выбранную загрузку, покрытие критериев/инвариантов, версии и размеры, отключение и возобновление. Из сокращения байтов не делается вывод о фактической стоимости.
+
+Трассировка: `REQ-01–02 → AC-01`; `REQ-03,05 → AC-02`; `REQ-04,06 → AC-03`; `REQ-07 → AC-04`; `REQ-08–09 → AC-05`; `REQ-10 → AC-06`.
+
+## 11. Порядок реализации и завершение
+
+1. Проверить действующие источники и алгоритм общего/локального разрешения; зафиксировать недостающие поля старого формата.
+2. Ввести схему манифеста и автономные сценарии инвалидации до реализации нового извлечения.
+3. Разделить устойчивые сведения и представление состояния; затем реализовать контракт листа и пакет роли.
+4. Добавить квитанцию сессии, эпоху контекста и протокол расширения, сохранив полный путь загрузки.
+5. Подключить хеши и размеры к 05, пакеты — к 15/16/19/20, декларации — к 08.
+6. Проверить старые проекты, самостоятельные входы, изоляцию и восстановление. Документировать отключение без изменения канонических файлов.
+
+Зависимости: 05, 08, 09. G1–G8 обязательны; объяснение границ — в [руководстве комплекта](00-review-and-implementation-guide.md). Качество выбранного контекста нельзя доказать одними хешами: хеш подтверждает идентичность источника, полноту определяют карта обязательств и независимые проверки. Платная оценка экономии требует отдельного разрешения по 09.

@@ -47,7 +47,7 @@ searches the web.
 
 ### Web search — model catalog
 - Used by: `/pd-select-model` Step 0, every run, by explicit rule (no cached catalog).
-- Cost observed: up to 3 h in run b905a8a5. See `specs/04-model-catalog-cache.md`.
+- Cost observed: up to 3 h in run b905a8a5. See `specs/completed/04-model-catalog-cache.md`.
 
 ### Web fetch — spec and defect sources
 - Used by: `/spec-draft` and `/bugfix` when given a URL (issue tracker, Sentry, docs).

@@ -1,179 +1,164 @@
-# Risk-aware verification and finding-led repair review
+# 16. Проверка по риску и повторная проверка исправлений по замечаниям
 
-## Source
+## 1. Статус и основания
 
-Workstream 5 of the owner's 2026-10-21 request: reduce repeated review cost without
-hidden quality loss; a strong reviewer is evidence, not an absolute correctness oracle.
+**Статус:** будущая возможность направления 5 запроса от 2026-10-21. Исходный снимок: `8c2fa08c18115ffcf38a1798742c41e53a2c7461`, 2026-10-28. Текущие `rules/orchestration.md` и `workflows/spec-run.md` требуют отдельного проверяющего без рассуждений исполнителя; `NEEDS WORK` препятствует закрытию и дальнейшему последовательному исполнению. Упомянутый исходными документами отдельный отчёт аудита отсутствует в снимке и не используется как доказательство внедрения.
 
-## Context & Problem
+Квитанции воспроизводимой проверки, квалифицированные более дешёвые режимы и повторная проверка только затронутой области ещё не объявлены реализованными. Эта спецификация изменяет подготовку доказательств и область проверки. Автоматическое исправление и исключение из остановки определяются исключительно [19](19-local-repair-and-escalation.md).
 
-Baseline reviewed 2026-10-28.
+## 2. Цель и границы
 
-An independent Validator receives task obligations, tests and the branch-range diff
-without the Implementer's reasoning (`workflows/spec-run.md → ## Step 4 — Subtask loop`).
-The workflow audit clarified scoped changed-file recovery, applicable command evidence,
-TDD integrity and full standalone versus inherited context. NEEDS WORK still stops
-atomic validation/run progression (`workflows/pav-check.md → ## Instructions`).
+Повторять только те проверки, чьи входы или область обоснованно изменились, при этом сохранять независимую оценку всех критериев и поведения всей затронутой системы. Сильная модель и успешные тесты являются доказательствами, но не гарантией отсутствия ошибки.
 
-Verification receipts, qualified review levels and finding-led incremental re-review are
-not implemented. This spec optimizes inputs/evidence; spec 19 alone changes repair
-control flow. Existing contract/TDD checks and conservative stops remain authoritative.
+Входят: план покрытия, первичные детерминированные проверки, разрешённый уровень смысловой проверки, пакет проверяющего, квитанции, анализ влияния исправления и расширение области.
 
-## Goal
+Не входят: устранение роли независимого проверяющего, принятие по одним тестам, автоматическое изменение спецификации, понижение проверки по цене модели, выбор модели вне каталога и новый словарь статусов.
 
-Pay for checks appropriate to actual risk and reuse only evidence that remains valid,
-while preserving independent acceptance and adequate whole-change review.
-
-## Scope
-
-Verification plan, deterministic first level, conditional model review, review packet,
-evidence identities, repeat-review scope and escalation to broader review.
-
-## Out of Scope
-
-Removing the Validator role, accepting solely because tests pass, automatic repair
-policy (19), skipping required architecture/invariant checks, or assuming every strong
-review is cheaper than implementation.
-
-## Actors & Roles
-
-Tools provide deterministic evidence. The independent Validator evaluates contract
-and semantic/architectural correctness without executor reasoning. The orchestrator
-assembles packets and preserves stops. The independent evaluator in 09 checks whether
-the entire verification process misses defects.
-
-## Terminology
-
-A verification receipt binds result to actual inputs and environment.
-An impact set includes changed code plus affected contracts, callers, tests and
-invariants. Finding-led review still checks the remaining acceptance obligations.
-
-## Requirements
-
-- **REQ-01** THE SYSTEM SHALL create a verification plan from the unchanged task ACs,
-  risk/criticality, interfaces and available deterministic commands. It SHALL identify
-  which obligations tools can check and which need independent semantic/architecture
-  review; coverage gaps SHALL remain explicit.
-- **REQ-02** THE SYSTEM SHALL run applicable compile/type/lint/tests and structural
-  checks before requesting semantic review when execution is safe. Required failing/
-  missing checks SHALL not become pass by omission; a failure may be reviewed for
-  diagnosis but SHALL not be closed as DONE.
-- **REQ-03** THE SYSTEM SHALL keep three available levels: deterministic checks,
-  eligible lower-cost semantic review and strong review for complex/critical/uncertain
-  changes. The existing conservative review policy SHALL remain the default until
-  independently qualified under 09. No level SHALL be skipped solely because a
-  lower-level check passed, and a cost-band label SHALL not establish reviewer fitness.
-- **REQ-04** WHEN preparing review, THE SYSTEM SHALL provide exact AC/invariant/
-  off-limits obligations, base/head identities, full changed-file manifest, diff,
-  relevant before/after code, interfaces/callers and test evidence using 14/17.
-  A diff-only packet SHALL not be treated as sufficient when surrounding behavior or
-  architecture matters. The Implementer's reasoning SHALL remain excluded.
-- **REQ-05** WHEN reusing deterministic results, THE SYSTEM SHALL require identical
-  effective source/test tree, command/arguments, dependency versions, environment/
-  configuration and other declared inputs. Missing identity, dirty/untracked relevant
-  changes or changed inputs SHALL invalidate the receipt. Relevant changes SHALL
-  rerun the check even if a previous attempt was green.
-- **REQ-06** WHEN reviewing a repair, THE SYSTEM SHALL supply prior findings, the
-  previous reviewed tree, the new tree, repair diff and unresolved ACs. The Validator
-  SHALL verify each finding plus regressions/impact; changed interfaces, shared
-  invariants, scope or uncertain dependencies SHALL trigger wider/full review.
-  A new reviewer SHALL receive sufficient original context rather than a receipt alone.
-- **REQ-07** THE SYSTEM SHALL retain the canonical DONE/NEEDS WORK severity semantics
-  and record reviewed scope, evidence receipts, findings, unresolved obligations and
-  reasons for expansion. No shortened report may drop critical/important findings.
-  Spec 19 consumes the verdict; this spec SHALL NOT auto-close or auto-repair failures.
-- **REQ-08** THE SYSTEM SHALL attribute deterministic checks, AI review levels,
-  repeated input, reruns, context expansion and missed defects to 05/09. It SHALL
-  measure review versus execution cost on the same tasks instead of assuming review
-  is always cheaper, and apply shared index gates G1–G8.
-
-## Data Model
-
-Verification plan: AC/invariant-to-check mapping, risk, level eligibility and gaps.
-Receipt: tree/input digest, command, dependencies/environment digest, return status,
-artifact references and coverage. Review record: base/head, impact scope, findings,
-level/model, full-versus-incremental reason and independently evaluated defects.
-
-## Contracts & Interfaces
-
-Extend the atomic validation check and composite/final validation entry points without
-changing their canonical status vocabulary. Consume 14 packets, 17 artifacts and 15
-envelopes. A receipt is optional derived evidence; full re-execution/review remains the
-fallback. Preserve original standalone NEEDS WORK stops until 19 explicitly opts in.
-
-## Non-Functional Requirements
-
-Every task AC has a declared verification owner/check or an explicit unresolved gap.
-Receipts are content/environment-bound and cannot survive relevant input changes.
-Reviewer independence is mandatory; no executor self-approval path is introduced.
-
-## Edge Cases & Failure Modes
-
-Cover green-but-wrong code, architecture drift, tests weakened after RED, unchanged
-tree with different environment, dirty worktree, hidden dependency, lost artifact,
-unresolved finding, reviewer switch, large repair and unknown impact. Expand/rerun when
-uncertain; record unavailable checks rather than hallucinating results.
-
-## Acceptance Criteria
-
-- [ ] **AC-01** (REQ-01, REQ-02) Fixture plans map all ACs and gaps; failing or unavailable
-  mandatory tools prevent acceptance even if a simulated reviewer returns DONE.
-- [ ] **AC-02** (REQ-03) Risk/eligibility fixtures retain strong/conservative review for
-  uncertain or critical work; tool pass alone does not authorize skipping semantics.
-- [ ] **AC-03** (REQ-04) Packets contain full obligation/change manifests and retrieve
-  necessary interfaces; no executor reasoning enters the independent review input.
-- [ ] **AC-04** (REQ-05) Identical-input receipts may be reused; source/test/environment/
-  command/dependency changes, dirty relevant files or unknown identities force rerun.
-- [ ] **AC-05** (REQ-06, REQ-07) Local repairs get finding-led review plus regression/
-  impact checks; interface/invariant changes force expansion, all important findings
-  survive compaction, and no failure closes automatically.
-- [ ] **AC-06** (REQ-08) Seeded green-but-wrong and reviewer-missed defects fail independent
-  09 checks; reporting separates execution/review/repair costs and documents full-review
-  fallback/disable without claiming unmeasured savings.
-
-## Traceability
-
-| Requirement | Acceptance |
+| Ответственный | Действия |
 |---|---|
-| REQ-01, REQ-02 | AC-01 |
-| REQ-03 | AC-02 |
-| REQ-04 | AC-03 |
-| REQ-05 | AC-04 |
-| REQ-06, REQ-07 | AC-05 |
-| REQ-08 | AC-06 |
+| Оркестратор | Собрать факты, проверить свежесть, выбрать допустимый режим по политике, сохранить остановки и доказательства |
+| Детерминированные средства | Выполнить реальные команды и сохранить результаты; не решать архитектурную корректность за пределами своих проверок |
+| Независимый проверяющий | Оценить точный контракт, поведение, интерфейсы, инварианты и замечания без рассуждений исполнителя |
+| Независимая оценка 09 | Проверить, какие дефекты пропускает вся стратегия, включая сильного проверяющего |
 
-## Risks
+## 3. Неподвижные условия
 
-Correlated executor/reviewer errors and incomplete impact analysis can escape review.
-Use independent seeded/held-out checks, conservative expansion and later-defect tracking;
-a stronger reviewer alone does not eliminate this risk.
+1. Каждый критерий и существенный инвариант имеет владельца проверки либо явно незакрытый пробел.
+2. Требуемая неуспешная, отсутствующая или неизвестная проверка не становится успешной по умолчанию.
+3. Квитанция связана с фактическими входами, командой и средой; один коммит не описывает грязное рабочее дерево.
+4. Частичная повторная проверка допустима только вместе с доказательством, почему остальные обязательства остаются покрытыми.
+5. Изменение интерфейса, общего инварианта или неизвестное влияние расширяют область; отсутствие уверенности не трактуется как отсутствие влияния.
+6. Проверяющий независим от производства реализации. Передача ему рассуждений или самооценки исполнителя не заменяет исходные доказательства.
+7. Тестовый уровень `none` допустим только через существующее обоснованное правило. Он не создаёт ложных RED/тестов и не отменяет проверки документа, контракта или результата, которые остаются применимыми.
+8. Существующий `atomic-tests: pinned` сохраняет доказательство проходящих до изменения тестов для неизменного поведения; он не выдаётся за RED. Старые блоки без `atomic-tests` читаются по канонической совместимости без ретроактивного требования RED к уже начатой исторической работе. Проверяются именно законные основания применимой ветви, а не фиктивный общий шаблон.
 
-## Assumptions
+## 4. Требования
 
-Some checks depend on machine/environment and cannot be reused safely. A full rerun is
-acceptable when fingerprinting cost or uncertainty exceeds potential savings.
+- **REQ-01**. Создать план проверки по неизменённым AC, риску, критичности, интерфейсам и доступным командам. Отдельно указать, что проверяется инструментом, что требует независимого смыслового/архитектурного рассмотрения и что остаётся непокрытым.
+- **REQ-02**. До смыслового рассмотрения выполнить применимые компиляцию, типизацию, статические проверки, тесты и структурные проверки, когда их выполнение безопасно и разрешено. Обязательная ошибка/недоступность препятствует завершению. Отказ может передаваться на диагностику, но не превращается в `DONE`.
+- **REQ-03**. Сохранить три доступные ступени: детерминированные проверки, квалифицированная более дешёвая смысловая проверка и сильная проверка сложных/критичных/неопределённых изменений. Действующая консервативная политика остаётся исходной, пока новая не прошла независимую оценку 09. Положительный результат нижней ступени сам по себе не разрешает исключить требуемую смысловую проверку.
+- **REQ-04**. Пакет проверяющего содержит точные AC, инварианты и ограничения, исходную и проверяемую ревизии, полный перечень изменений, разницу и нужное окружающее поведение, интерфейсы/вызывающие компоненты и доказательства тестирования по 14/17. Одна разница файлов недостаточна, когда существенен контекст. Рассуждения исполнителя исключены.
+- **REQ-05**. Повторное использование результата инструмента требует совпадения всех эффективных входов: исходников/тестов, команды/аргументов, зависимостей, среды, конфигурации и прочих объявленных источников. Неизвестная идентичность, релевантные незакоммиченные/неотслеживаемые изменения и изменение входов делают квитанцию непригодной.
+- **REQ-06**. При исправлении передать прежние замечания, ранее проверенное и новое дерево, разницу исправления и незакрытые AC. Проверить каждое замечание, регрессии и влияние. Изменённые интерфейсы, общие инварианты, область или неизвестные зависимости требуют более широкой/полной проверки. Новый проверяющий получает достаточное исходное содержимое, а не одну старую квитанцию.
+- **REQ-07**. Сохранить действующий смысл `DONE`/`NEEDS WORK` и серьёзности замечаний. Записать проверенную область, квитанции, все существенные замечания, открытые обязательства и причины расширения. Сокращение отчёта не удаляет важное. Спецификация сама не запускает исправление и не закрывает ошибку.
+- **REQ-08**. Передавать по 05/09 сведения о командах, уровнях проверки, повторных входах, повторных проверках, расширении контекста и позднее найденных дефектах. Сравнивать исполнение и проверку на одинаковых задачах; не предполагать, что проверка всегда дешевле. Применить G1–G8.
 
-## Decisions
+## 5. План покрытия и выбор уровня
 
-Keep independent validation, current correctness obligations and stop semantics.
-Qualify lower-cost verification policies before promoting them as defaults.
+Для каждого обязательства создаётся строка:
 
-## Clarifications
+| Поле | Содержание |
+|---|---|
+| `obligation_id` | Существующий AC или стабильный идентификатор инварианта/ограничения |
+| `source_ref`, `source_hash` | Каноническое точное требование |
+| `risk_reason` | Конкретный риск: контракт, безопасность, целостность данных, миграция, общая зависимость, неопределённость |
+| `deterministic_checks` | Точные команды, область и ожидаемые результаты либо причина неприменимости |
+| `semantic_review` | Что обязан независимо оценить проверяющий |
+| `integration_owner` | Кто и где проверяет взаимодействие с остальными изменениями |
+| `coverage_state` | Покрыто свежим доказательством, требует выполнения, непроверяемо текущими средствами или нерешённо |
 
-2026-10-21: incremental review is not just checking the reported fix; it also checks
-acceptance coverage and affected behavior. Test receipts never authorize stale GREEN.
+Пустой список тестов не означает отсутствие риска. Декларация `none/n-a` сопровождается ссылкой на решение уровня тестирования; она не создаётся проверяющим для удобства.
 
-## Open Questions
+### Правило выбора
 
-None blocking. Live false-negative tolerances and reviewer arms belong in a 09 manifest.
+1. Сначала определить обязательные команды и смысловые обязательства, затем рассматривать стоимость.
+2. При критичном риске, неопределённом влиянии, изменении архитектуры/общего контракта либо отсутствии квалификации использовать текущую консервативную/сильную проверку.
+3. Более дешёвая смысловая проверка допустима только для заранее квалифицированного класса задач, доступной конфигурации и разрешённой политики 09/18. Одна низкая цена или название модели не являются квалификацией.
+4. Детерминированные проверки выполняются до смысловых, если допустимы. Их отказ сохраняется даже при последующем положительном тексте проверяющего.
+5. Не требуется бессмысленно запускать обе смысловые ступени на каждой задаче: выбирается достаточный разрешённый режим. Переход к сильной проверке происходит по риску, пробелу покрытия или результату более дешёвой проверки.
 
-## Notes
+## 6. Квитанция результата инструмента
 
-Depends on 09, 14, 15 and 17, including the checkpoint-envelope contract used here.
-Suggested slices: coverage plan; receipts; review packets; repair impact expansion;
-workflow integration; seeded checks and docs. Composite parallel review extends in 12.
+Целевая запись версии 1 содержит:
 
-## Readiness Checklist
+```text
+receipt_id, schema_version
+repository_id, worktree_id, base_revision, head_revision
+task_contract_hash, check_id, check_scope
+effective_inputs_manifest, effective_inputs_digest
+command_argv_digest, working_dir
+dependency_digest, environment_digest, configuration_digest
+tool_versions, nondeterministic_inputs
+command_status, termination_signal, capture_status
+artifact_refs, covered_obligations, created_at
+```
 
-Scope, independent ownership, reuse preconditions, expansion rules and acceptance are
-explicit. Ready for Discovery; review cost advantage remains a hypothesis.
+`effective_inputs_manifest` включает нужные исходники, тесты, фикстуры, конфигурацию, локальные данные, зависимые интерфейсы, отсутствующие ожидаемые файлы и производные входы с происхождением. Совпадение хеша дерева коммита недостаточно, если команда читает дополнительные файлы. Разрешённое изменённое рабочее дерево может проверяться, но его фактическое содержимое входит в манифест.
+
+`environment_digest` включает влияющие версии среды, платформу и безопасные идентификаторы конфигурации. Секреты и сырые значения учётных данных не сохраняются в журнале. Если внешнее состояние, текущая дата, сеть, случайность или секретозависимая конфигурация существенно влияют на результат и не могут быть корректно зафиксированы, квитанция отмечается непригодной для повторного использования; проверка выполняется заново. Не следует хешировать случайный набор известных полей и объявлять его полной средой.
+
+Артефакты по 17 содержат полные результаты и хеши. `capture_status != complete`, утрата артефакта или несовпадение байтов исключают использование его как доказательства успешной проверки. Время создания помогает диагностике, но само по себе не доказывает свежесть.
+
+### Решение о повторном использовании
+
+Повтор допускается только при одновременном выполнении условий:
+
+- схема и команда поддерживаются;
+- контракт и проверяемое обязательство совпадают;
+- известен полный набор влияющих входов и он совпадает;
+- среда, конфигурация и зависимости совпадают;
+- артефакты доступны и целостны;
+- не требуется новый запуск по действующей политике данного типа проверки.
+
+Изменение нерелевантного файла не обязано инвалидировать узкую проверку, **если** полнота её зависимостей доказана. Если такой модели зависимостей нет, применяется консервативная инвалидация по всему потенциально влияющему дереву. Отсутствие записи о зависимости не доказывает её отсутствия.
+
+## 7. Пакет независимой проверки
+
+1. Точная цель, AC, инварианты, запреты, разрешённый объём и принятые решения.
+2. Идентичность исходного и проверяемого состояния, полный перечень добавленных/изменённых/удалённых/переименованных файлов.
+3. Полная разница либо полные проверяемые ссылки с получением диапазонов; перечень файлов не сокращается до первых нескольких.
+4. Нужные определения интерфейсов, вызывающие компоненты, настройки и код до/после изменения.
+5. Тестовый уровень и обоснование, RED-доказательство при применимости, замороженные хеши тестов, фактические команды и результаты.
+6. План покрытия, открытые замечания, ранее проверенная область и причины запрошенного режима.
+
+Не включаются рассуждения, переписка о создании решения и самооценка исполнителя. Фактические сведения из его результата перепроверяются и переносятся в нейтральную форму. Если проверяющий обнаруживает недостающее основание, он запрашивает расширение через 14/17 и не принимает результат до получения нужного контекста.
+
+## 8. Повторная проверка исправления
+
+Начальная единица сравнения — последнее независимо проверенное дерево, а не случайный предыдущий коммит. Для каждого замечания хранится стабильный идентификатор, исходное доказательство, затронутые AC и связь с исправлением.
+
+1. Проверить, что контракт не изменился без разрешения и замороженные тесты не ослаблены.
+2. Построить разницу исправления и множество влияния: файлы, интерфейсы, вызывающие компоненты, общие данные, конфигурация, тесты и интеграционные границы.
+3. Для каждого старого замечания дать отдельный исход: устранено с доказательством, остаётся, не подтверждено с независимым обоснованием либо требует решения владельца. Простое исчезновение текста замечания не означает устранение.
+4. Повторить изменившиеся детерминированные проверки. Неизменные результаты использовать только по разделу 6.
+5. Проверить регрессии в множестве влияния и подтвердить, почему оставшиеся AC по-прежнему покрыты.
+6. При изменении публичного/общего интерфейса, архитектуры, инварианта, критериев или неизвестном влиянии расширить проверку до всей затронутой задачи; при невозможности локализовать — до полного изменения.
+7. Выдать независимый вердикт и полную запись области. Даже устранение всех старых замечаний не означает принятие, если появилось новое важное нарушение.
+
+После слияния детей по 12 проверяется фактическое результирующее дерево. Две успешные проверки изолированных ветвей не доказывают их совместимость. Повторная проверка может использовать отдельные совпадающие квитанции, но не переносит общий зелёный вердикт на объединение без анализа.
+
+## 9. Ошибки и остановки
+
+| Случай | Реакция |
+|---|---|
+| Тесты проходят, но нарушен AC | `NEEDS WORK`; исправление только по предусмотренному пути |
+| Обязательная команда отсутствует | Явный пробел, диагностика/восстановление; не считать выполненной |
+| Тесты ослаблены после RED | Остановка и действующая процедура изменения тестового основания |
+| Та же версия кода, другая среда | Инвалидация зависимых квитанций и повтор |
+| Появились релевантные неотслеживаемые файлы | Обновить манифест входов и повторить зависимые проверки |
+| Артефакт удалён или повреждён | Восстановить доказательство либо выполнить проверку заново |
+| Новый проверяющий | Передать достаточный первоначальный контракт, факты и предыдущие замечания |
+| Непонятно влияние исправления | Полная проверка затронутой задачи; не экономить за счёт предположения |
+| Средство проверки недоступно | Сохранить остановку или документированный прежний консервативный путь; не выдумывать результат |
+
+## 10. Критерии приёмки
+
+- [ ] **AC-01** (`REQ-01`, `REQ-02`). Планы покрывают все AC и явно показывают пробелы. Обязательная ошибка/недоступность не допускает принятия даже при синтетическом положительном вердикте. Обоснованные `none/n-a`, `pinned` и уже начатая историческая задача проверяются по собственным условиям и не создают ложных RED-доказательств.
+- [ ] **AC-02** (`REQ-03`). Табличные сценарии критичности, архитектурной неопределённости и отсутствия квалификации выбирают консервативную/сильную проверку. Успешный инструмент не отменяет смысловую обязанность; цена не определяет пригодность модели.
+- [ ] **AC-03** (`REQ-04`). Пакет содержит все обязательства и полный манифест изменений. Нужные интерфейсы доступны; рассуждения исполнителя не попадают в пакет независимого проверяющего.
+- [ ] **AC-04** (`REQ-05`). Полностью совпадающие входы допускают повторное использование. Изменение источника/теста/команды/среды/зависимости, неизвестная внешняя зависимость, релевантные грязные файлы и потерянный артефакт требуют новой проверки. Доказанно нерелевантное изменение не вызывает ложной инвалидации узкого результата.
+- [ ] **AC-05** (`REQ-06`, `REQ-07`). Локальное исправление проверяет старые замечания, регрессии и остающиеся AC. Изменение интерфейса/инварианта расширяет область. Важные замечания переживают сокращение отчёта; ошибочный результат не закрывается автоматически. Слияние проверяется на итоговом дереве.
+- [ ] **AC-06** (`REQ-08`). Сценарии «тесты зелёные, поведение неверно» и пропущенное проверяющим нарушение обнаруживаются независимыми проверками 09. Отчёты разделяют исполнение, проверку и исправление, включают полную повторную проверку и отключение оптимизации без неподтверждённых обещаний экономии.
+
+Трассировка: `REQ-01–02 → AC-01`; `REQ-03 → AC-02`; `REQ-04 → AC-03`; `REQ-05 → AC-04`; `REQ-06–07 → AC-05`; `REQ-08 → AC-06`.
+
+## 11. Внедрение и готовность
+
+1. Зафиксировать действующий смысл вердиктов и уровней тестирования. Не переопределять словарь состояния.
+2. Ввести карту обязательств и синтетические дефекты до оптимизации повторов.
+3. Реализовать квитанции с полным манифестом входов и консервативной инвалидацией; затем пакет независимой проверки.
+4. Добавить анализ влияния исправлений и объяснение сохранённого покрытия.
+5. Подключить 14/15/17 и отчётность 05. Проверить полный резервный путь при отключённой оптимизации.
+6. Более дешёвый режим оставить выключенным по умолчанию до отдельной квалификации 09 с заранее выбранными владельцем допусками качества.
+
+Зависимости: 09, 14, 15, 17. Условия G1–G8 обязательны; см. [руководство](00-review-and-implementation-guide.md). Совпадение квитанций подтверждает повторимость известных входов, но не полноту понимания системы. Проверки с неизвестными или нестабильными входами допустимо выполнять заново — экономия не важнее достаточности доказательства.

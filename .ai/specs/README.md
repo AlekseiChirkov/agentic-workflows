@@ -40,10 +40,13 @@ A separate token-efficiency pass removed repeated prose; instruction-contract ch
 cover these interfaces. See the [source audit](../../docs/audits/2026-10-28-workflow-clarity-and-size.md). These are source changes, not evidence of measured token/cost
 savings or deployed behavior.
 
-This partially advances the concerns of 04/08/13a/14/15/16 but completes none of those
-specifications. Full rule inventory/naming, reference tiers/load metadata, content-hash
-packets, catalog persistence, helper APIs, effort/repair policies and economic evaluation
-remain pending. Completed 00–03 are foundations, not work to repeat.
+That cleanup alone partially advanced 04/08/13a/14/15/16 without completing them.
+Cached catalog selection, conservative quality/economic filtering, compatible plan
+resolution and installed workflow guidance were subsequently delivered under
+[04](completed/04-model-catalog-cache.md), with 594 required checks passing and 87 focused model tests.
+Full rule inventory/naming, reference tiers/load metadata, content-hash packets,
+effort/repair policies and economic evaluation remain separate work. Completed 00–04
+remain foundations, not work to repeat. No deployment or model-usage savings is claimed.
 
 ## Shared acceptance gates
 
@@ -77,7 +80,7 @@ script names in historical context identify their earlier locations.
 | Done | [02 — log vocabulary](completed/02-run-log-vocabulary-validation.md) | 01 | Retain strict grammar, non-blocking writes and read-only lint; merge status belongs to task records |
 | 1 | [13a — audit](13a-rules-workflows-audit.md) | 01 | Refresh actual inventory; identify duplicated loads and ownership |
 | 2 | [13 — harnesses/naming](13-model-only-harnesses-and-rule-naming.md) | 01, 13a | Preserve IDs; capability-based behavior and current script paths |
-| 3 | [04 — catalog](04-model-catalog-cache.md) | 13 | Availability, consistent scoring and cached catalog |
+| Done | [04 — catalog](completed/04-model-catalog-cache.md) | Current-invocation capabilities; wider 13 migration remains separate | Reviewed cached catalog, conservative selection and compatible plan resolution; PRs #31–#36 merged |
 | Done | [03 — logging](completed/03-hook-based-logging.md) | 02; minimal harness/registry scaffold | Reviewed explicit correlation, owned hooks and exact timing; minimal hook scaffold only, wider harness migration remains pending |
 | 4 | [05 — telemetry](05-cost-and-duration-telemetry.md) | 02, 03 | Expanded workstream 1 |
 | 5 | [06 — git rails](06-harness-git-rails.md) | 13, 05 | Enforcement remains effective through helpers and repairs |
@@ -97,10 +100,10 @@ script names in historical context identify their earlier locations.
 
 ## Review record and remaining decisions
 
-The 2026-10-28 reconciliation reviewed all **22 specifications**: four completed
-records retain delivery history, and eighteen active/backlog records reflect current
+The 2026-10-28 reconciliation reviewed all **22 specifications**: five completed
+records retain delivery history, and seventeen active/backlog records reflect current
 source. The seven optimization specs added on 2026-10-21 remain planned; this index is
-not a spec. Completed hook logging now links to its archived source.
+not a spec. Completed hook logging and catalog selection now link to their archived sources.
 
 The nine workstreams cover the identified mechanisms. Cheap-first execution is still a
 hypothesis. Spec 09 compares strong-first, cheap execution plus strong verification,

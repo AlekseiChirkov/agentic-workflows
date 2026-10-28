@@ -19,8 +19,8 @@ phases — Discovery, Execution, Validation — with all progress persisted in t
 project's `.ai/tasks/…/state.md`, and every orchestrated run appends telemetry to a
 central log store that `/retro` reads.
 
-Current inventory: 42 workflows, 14 rules, 4 principles, 10 shell scripts and two Python
-engines under `scripts/`, with automated consistency and smoke checks.
+Current inventory: 42 workflows, 14 rules, 4 principles, 10 shell scripts and five Python
+helpers under `scripts/`, with automated consistency and smoke checks.
 
 ## Components
 
@@ -166,12 +166,12 @@ scripts/log-step.sh ──▶ logs/runs/*.jsonl ──▶ read-only lint ──�
 
 ## External Dependencies
 
-- Agent harnesses: Claude Code (skills, `CLAUDE.md`, sub-agents — the only harness where
-  `/spec-run`'s Arbiter/Implementer/Validator model is executable), OpenAI Codex
+- Agent harnesses: Claude Code (skills, `CLAUDE.md`, sub-agents), OpenAI Codex
   (`AGENTS.md`, skills), Windsurf / Devin Desktop (global workflows and rules).
+  Model and worker requestability must be observed from the active session; harness
+  names and logging declarations alone do not establish support.
 - Tools invoked by workflows: `git`, `gh` (PRs, only with `--allow-pr`), `jq`
-  (`scripts/log-step.sh` digests, `/retro`), `bash`, a web search capability (`pd-select-model`
-  rebuilds its model catalog live).
+  (`scripts/log-step.sh` digests, `/retro`), `bash`, a web search capability (explicit model-catalog refresh only).
 - Script source defaults resolve to the repository root, the parent of `scripts/`. `ORCHESTRAIL_HOME` overrides source selection; `scripts/sync.sh --from` takes precedence. Setup helpers normalize and propagate the selected root to children. `ORCHESTRAIL_LOG_ROOT` overrides the repository-root `logs/` directory. Documentation paths are placeholders.
 
 ## Workflow maintenance baseline — 2026-10-28
@@ -184,4 +184,45 @@ rules own the classifier, promotion stops and permitted specification writes.
 
 Finalization records completion after evidence, qualifying ADRs and authorized spec
 reconciliation. Source cleanup does not implement the planned naming/harness migration,
-usage telemetry, catalog cache, packet tooling or parallel composite execution.
+usage telemetry, packet tooling or parallel composite execution. The optional catalog
+helpers below are a separate additive feature.
+
+## Optional model catalog helpers
+
+`scripts/model-catalog.py` validates a versioned Markdown payload and its derived tier table,
+inspects freshness, and atomically installs an explicitly supplied validated candidate. Public
+APIs include validate_catalog, inspect_catalog, refresh_catalog, tier_rows and default_catalog_path.
+The helper never browses; explicit workflow refresh owns source research. Catalog ages below
+14 days are fresh, 14–30 dated, and over 30 stale but usable with notice. Invalid evidence
+preserves the session and reports selection unavailable.
+
+`scripts/model_selection.py` exposes quality_floor, normalize_traits and select_model.
+Independent ordinal quality floors and current-invocation support/context/tools/owner limits
+precede economics. A suitable default is displaced only by qualified comparable total-cost
+intervals; price bands and snapshots do not establish equivalent quality or expected cost.
+Unknown evidence remains unknown. The recommendation is advisory and never executes models.
+
+`scripts/model_plan.py` exposes read_plan, update_plan, write_plan and resolve_model.
+Optional provider columns take precedence over legacy Model, including explicit empty cells.
+Bulk writes preserve unrelated bytes and require explicit legacy migration decisions.
+Resolution reports requested/resolved/actual separately; unsupported requests require an
+independently suitable declared authorized fallback or stop. Actual identity remains unknown
+without separate current-day matching execution evidence.
+
+Focused offline gates are --model-catalog-only, --model-selection-only and --model-plan-only;
+the same suites are included in default validation. All three helpers have passed focused
+acceptance and independent review. Workflow integration has passed fresh independent revalidation.
+The canonical model-column and resolution contract is owned by workflow-reference. The selector
+uses cached lookup, explicit research/atomic refresh and session-preserving unavailable behavior;
+all execution and discovery readers reference the same additive contract. Installed skills resolve
+the guide from the same configured or already-verified source root as the helper, never CWD.
+A read-only canonical preflight verifies helper siblings and guide schema/rubric sections; missing
+guidance preserves inputs and reports selection unavailable. Leaf model intent applies to
+Implementers; Arbiter and independent Validator workers retain separate session-default roles.
+The on-demand catalog
+guide contains the rubric, evidence ownership, rollback and executable fictional CLI examples.
+The --model-workflow-only gate runs all four model suites plus unchanged instruction contracts;
+default validation includes the same suites. The selector is 1,017 words. Fixture lookup timing
+is measured separately from the unmeasured live 60-second target.
+No real initial catalog, model execution, new production default, paid comparison, global
+deployment, price ledger or full harness migration is introduced.
