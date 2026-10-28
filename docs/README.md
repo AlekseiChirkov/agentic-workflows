@@ -19,9 +19,9 @@ Everything here is *about* the system; the system itself is `workflows/`, `rules
 ## Analysis (`analysis/`)
 
 - [Usage telemetry specification review](analysis/2026-10-27-usage-telemetry-spec-review.md) — request finality, exact cost accounting, coverage, immutable usage records and advisory monitoring
-- [2026-09-16-comparative-analysis.ru.md](analysis/2026-09-16-comparative-analysis.ru.md) — full analysis vs BMAD, Spec Kit, Kiro, OpenSpec, Superpowers, Agent OS, Conductor; pros/cons; fit; improvements (Russian)
+- [2026-09-16-comparative-analysis.ru.md](analysis/2026-09-16-comparative-analysis.ru.md) — full analysis vs BMAD, Spec Kit, Kiro, OpenSpec, Superpowers, Agent OS, Conductor; pros/cons; fit; improvements (English translation of the historical Russian record)
 - [2026-09-16-rules-workflows-naming-review.md](analysis/2026-09-16-rules-workflows-naming-review.md) — why five rule/workflow names collide, what differs, and renaming recommendations
-- [2026-09-16-comparative-analysis-tldr.ru.md](analysis/2026-09-16-comparative-analysis-tldr.ru.md) — TL;DR of the above (Russian)
+- [2026-09-16-comparative-analysis-tldr.ru.md](analysis/2026-09-16-comparative-analysis-tldr.ru.md) — TL;DR of the above (English translation of the historical Russian record)
 
 ## Roadmap
 Actionable improvements are specs, not documents: see [`.ai/specs/README.md`](../.ai/specs/README.md).
