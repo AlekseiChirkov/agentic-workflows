@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+# Exercise local catalog validation and refresh using only disposable offline fixtures.
+if [ "${1:-}" = --model-catalog-only ]; then
+  shift
+  exec python3 "$REPO_ROOT/tests/model-catalog.py" "$@"
+fi
+
 # Inspect focused shell delivery boundaries without reading runtime stores.
 if [ "${1:-}" = --hook-shell-quality-only ]; then
   shift
@@ -4525,6 +4531,16 @@ check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
 # ── End public identity smoke checks ────────────────────────────────
 
 # Workflow entry points and bootstrap contracts are checked without model calls.
+test_model_catalog_acceptance() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/model-catalog.py" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_model_catalog_acceptance" \
+  "$(test_model_catalog_acceptance && echo pass || echo 'offline local catalog schema, freshness and transactional refresh fixtures must pass')"
+
 check "test_workflow_instruction_contracts" \
   "$(python3 "$REPO_ROOT/tests/workflow-instructions.py" && echo pass || echo 'workflow entry points, bootstrap and mode contracts must be consistent')"
 
