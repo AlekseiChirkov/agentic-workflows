@@ -108,6 +108,33 @@ class EnvelopeTests(unittest.TestCase):
                         call('validate_usage_bundle', variant)
                     self.assertNotIn(unsafe, str(error.exception))
 
+    def test_other_identifiers_reject_paths_and_free_text(self):
+        valid = observation() | {'response_id': 'response-1', 'call_id': 'call-1'}
+        self.assertEqual(call('validate_observation', valid), valid)
+        self.assertEqual(call('validate_usage_bundle', bundle()), bundle())
+        self.assertEqual(call('validate_evidence_object', evidence()), evidence())
+        for unsafe in ('/private/source.json', '../private/source.json',
+                       'C:\\private\\source.json', 'private source content'):
+            for field in ('profile_id', 'profile_version', 'response_id', 'call_id'):
+                with self.subTest(unsafe=unsafe, field=field):
+                    with self.assertRaises(ValueError) as error:
+                        call('validate_observation', valid | {field: unsafe})
+                    self.assertNotIn(unsafe, str(error.exception))
+            with self.subTest(unsafe=unsafe, field='run_id'):
+                with self.assertRaises(ValueError) as error:
+                    call('validate_usage_bundle', bundle() | {'run_id': unsafe})
+                self.assertNotIn(unsafe, str(error.exception))
+            with self.subTest(unsafe=unsafe, field='evidence_profile_id'):
+                with self.assertRaises(ValueError) as error:
+                    call('validate_evidence_object', evidence() | {'profile_id': unsafe})
+                self.assertNotIn(unsafe, str(error.exception))
+
+    def test_timestamps_are_not_opaque_identifiers(self):
+        valid = observation() | {'source_time': '2026-01-02T03:04:04Z',
+                                 'source_time_quality': 'verified',
+                                 'observed_at': '2026-01-02T03:04:05Z'}
+        self.assertEqual(call('validate_observation', valid), valid)
+
     def test_observation_json_input_byte_limit(self):
         data = json.dumps(observation(), ensure_ascii=False, separators=(',', ':')).encode('utf-8')
         exact = data + b' ' * (1024 * 1024 - len(data))
