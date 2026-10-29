@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import stat
 import sys
@@ -80,6 +81,8 @@ def _config(path, profile_id):
         for field in ('project_identifier', 'provider_identifier'):
             if not isinstance(value[field], str) or not value[field]:
                 raise ValueError('invalid private identity material')
+        if not isinstance(value['run_id'], str) or re.fullmatch(r'[0-9a-f]{8}', value['run_id']) is None:
+            raise ValueError('invalid run identifier')
         validate_usage_bundle({'schema_version': 1, 'kind': 'usage_bundle',
             'profile_id': matches[0]['profile_id'], 'profile_version': matches[0]['profile_version'],
             'project_id': 'sha256:' + '0' * 64, 'run_id': value['run_id'],
