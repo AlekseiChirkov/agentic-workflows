@@ -22,7 +22,7 @@ scenario_fixtures = load('scenario_fixtures', 'tests/usage-pricing-scenario-sche
 def call(name, *args):
     return getattr(contract, name, lambda *args: None)(*args)
 
-def projection():
+def base_projection():
     price = price_fixtures.snapshot()
     scenario = scenario_fixtures.scenario()
     price['rates'][0]['multiplier'] = {'state': 'none'}
@@ -57,6 +57,33 @@ def projection():
                              'attribution': 'complete'},
             'cost_usd': '1.5'}
 
+def projection():
+    """References bind sanitized records, not their external authenticity."""
+    value = base_projection()
+    price = value['price_snapshots'][0]
+    period = price['effective_period']
+    period_evidence = {'schema_version': 1, 'kind': 'price_period_evidence',
+                       'source_hash': 'd' * 64, 'start': period['start'], 'end': period['end']}
+    period['evidence'] = contract.content_id(period_evidence)
+    value['evidence_objects'].append(period_evidence)
+    for name, parameter in value['scenario']['source_parameters'].items():
+        item = {'schema_version': 1, 'kind': 'source_parameter_evidence',
+                'profile_id': 'profile', 'source_hash': 'a' * 64,
+                'field': name, 'value': parameter['value']}
+        value['evidence_objects'].append(item)
+        parameter['evidence'] = contract.content_id(item)
+    price_id = contract.content_id(price)
+    value['scenario']['snapshot_ids'] = [price_id]
+    for index, contributor in enumerate(value['contributors'], 1):
+        contributor['price_snapshot_id'] = price_id
+        time = '2026-01-01T12:00:00Z'
+        item = {'schema_version': 1, 'kind': 'execution_time_evidence',
+                'profile_id': 'profile', 'source_hash': 'a' * 64,
+                'record_number': index, 'value': time}
+        value['evidence_objects'].append(item)
+        contributor['execution_time'] = {'value': time, 'evidence': contract.content_id(item)}
+    return value
+
 class LifecycleProjectionSchemaTests(unittest.TestCase):
     def assert_valid(self, value):
         self.assertEqual(call('validate_lifecycle_projection', value), value)
@@ -67,6 +94,92 @@ class LifecycleProjectionSchemaTests(unittest.TestCase):
         self.assertEqual(value['cost_usd'], '1.5')
         self.assertEqual(value['contributors'][0]['measurements']['input_uncached']['value'], 500000)
         self.assert_valid(value | {'display_cost_usd': '1.50'})
+
+    def test_evidenced_execution_time_controls_historical_price_period(self):
+        value = projection()
+        self.assert_valid(value)
+        # Retrospective observation can happen after the price period ends.
+        self.assert_valid(value | {'as_of': '2028-01-01T00:00:00Z'})
+        bad = copy.deepcopy(value)
+        bad['contributors'][0]['execution_time']['value'] = '2028-01-01T00:00:00Z'
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', bad)
+        bad = copy.deepcopy(value)
+        item = next(item for item in bad['evidence_objects'] if item['kind'] == 'execution_time_evidence')
+        item['value'] = '2028-01-01T00:00:00Z'
+        bad['contributors'][0]['execution_time'] = {'value': item['value'], 'evidence': contract.content_id(item)}
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', bad)
+        bad = copy.deepcopy(value)
+        del bad['contributors'][0]['execution_time']
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', bad)
+
+    def test_price_period_and_parameter_evidence_are_self_contained_and_match(self):
+        value = projection()
+        self.assert_valid(value)
+        for kind in ('price_period_evidence', 'source_parameter_evidence', 'execution_time_evidence'):
+            bad = copy.deepcopy(value)
+            bad['evidence_objects'] = [item for item in bad['evidence_objects'] if item['kind'] != kind]
+            with self.subTest(kind=kind), self.assertRaises(ValueError):
+                call('validate_lifecycle_projection', bad)
+        bad = copy.deepcopy(value)
+        item = next(item for item in bad['evidence_objects'] if item['kind'] == 'source_parameter_evidence')
+        item['value'] = 'other'
+        bad['scenario']['source_parameters'][item['field']]['evidence'] = contract.content_id(item)
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', bad)
+
+    def test_display_amount_is_correct_half_even_rounding(self):
+        value = projection()
+        self.assert_valid(value | {'display_cost_usd': '1.50'})
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', value | {'display_cost_usd': '999'})
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', value | {'display_cost_usd': '1.51'})
+        price = value['price_snapshots'][0]
+        price['rates'][0]['usd'] = '2.06'
+        price_id = contract.content_id(price)
+        value['scenario']['snapshot_ids'] = [price_id]
+        for contributor, cost in zip(value['contributors'], ('1.03', '0.515')):
+            contributor['price_snapshot_id'] = price_id
+            contributor['priced_usd'] = cost
+        value['cost_usd'] = '1.545'
+        self.assert_valid(value | {'display_cost_usd': '1.54'})
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', value | {'display_cost_usd': '1.55'})
+
+    def test_unresolved_identity_cannot_establish_a_lower_bound(self):
+        value = projection()
+        del value['cost_usd']
+        value['completeness']['identity'] = 'unknown'
+        value['priced_subtotal_usd'] = '1.5'
+        value['subtotal_quality'] = 'subtotal_only'
+        self.assert_valid(value)
+        value['subtotal_quality'] = 'proven_lower_bound'
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', value)
+
+    def test_nonterminating_unit_rate_is_unpriced_even_when_quantity_cancels(self):
+        value = projection()
+        price = value['price_snapshots'][0]
+        price['rates'][0]['unit_quantity'] = 3
+        price['rates'][0]['usd'] = '2'
+        price_id = contract.content_id(price)
+        value['scenario']['snapshot_ids'] = [price_id]
+        for contributor in value['contributors']:
+            contributor['price_snapshot_id'] = price_id
+        # Both quantities are multiples of three and resulting totals are finite.
+        for index, contributor in enumerate(value['contributors']):
+            quantity = (3, 6)[index]
+            contributor['measurements']['input_uncached']['value'] = quantity
+            evidence = value['evidence_objects'][index]
+            evidence['value'] = quantity
+            contributor['measurements']['input_uncached']['evidence'] = contract.content_id(evidence)
+            contributor['priced_usd'] = ('2', '4')[index]
+        value['cost_usd'] = '6'
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', value)
 
     def test_partial_projection_preserves_explicit_unknowns_without_full_cost(self):
         value = projection()
