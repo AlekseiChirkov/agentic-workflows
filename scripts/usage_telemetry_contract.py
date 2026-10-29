@@ -138,6 +138,10 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
     envelope = kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
 
     def schema_set(path: tuple[str, ...]) -> bool:
+        if kind == "price_snapshot" and path in {
+            ("aliases",), ("rates",), ("primary_sources",),
+        }:
+            return True
         if kind == "source_profile" and path in {
             ("counter_fields",), ("counter_fields", "includes"),
             ("known_gaps",), ("finality", "signals"),
@@ -204,6 +208,7 @@ SELECTION_LIMIT = 1024 * 1024
 INVENTORY_LIMIT = 1024 * 1024
 SEGMENT_LIMIT = 1024 * 1024
 DIAGNOSTIC_LIMIT = 1024 * 1024
+PRICE_SNAPSHOT_LIMIT = 1024 * 1024
 DIAGNOSTIC_METRICS = {
     "context.loaded_bytes": "bytes",
     "orchestration.tool_calls": "count",
@@ -840,6 +845,120 @@ def _validate_json(data: str | bytes, limit: int, validator: Callable[[Any], Any
         return validator(parse_json(raw))
     except (ValueError, UnicodeError, RecursionError, TypeError, OverflowError):
         raise ValueError("invalid bounded telemetry input") from None
+
+
+def validate_price_snapshot(value: Any) -> dict[str, Any]:
+    """Validate a snapshot's structure; evidence still requires independent verification.
+
+    Unknown applicability and unsupported exact units remain explicit. This
+    function does not infer historical prices or decide whether a rate applies.
+    """
+    _fields(value, {"schema_version", "kind", "currency", "retrieved_at", "effective_period",
+                    "model", "aliases", "modality", "service_tier", "region", "rates",
+                    "primary_sources"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"price_snapshot"}))
+    _choice(value["currency"], frozenset({"USD"}))
+    _timestamp(value["retrieved_at"])
+    _identifier(value["model"])
+    for field in ("modality", "service_tier", "region"):
+        if value[field] is not None:
+            _identifier(value[field])
+
+    period = value["effective_period"]
+    if not isinstance(period, dict):
+        raise ValueError("invalid effective period")
+    if period.get("state") == "known":
+        _fields(period, {"state", "start", "end", "evidence"})
+        _timestamp(period["start"])
+        _timestamp(period["end"])
+        def instant(timestamp: str) -> tuple[str, str]:
+            # Compare arbitrarily precise fractions without truncating to microseconds.
+            whole, _, fraction = timestamp[:-1].partition(".")
+            return whole, fraction.rstrip("0")
+        if instant(period["start"]) >= instant(period["end"]):
+            raise ValueError("invalid effective period")
+        _hash(period["evidence"])
+    elif period.get("state") == "unknown":
+        _fields(period, {"state", "reason"})
+        _identifier(period["reason"])
+    else:
+        raise ValueError("invalid effective period")
+
+    aliases = value["aliases"]
+    if not isinstance(aliases, list) or len(aliases) > 10000:
+        raise ValueError("invalid aliases")
+    alias_names = set()
+    for alias in aliases:
+        _fields(alias, {"alias", "evidence"})
+        _identifier(alias["alias"])
+        _hash(alias["evidence"])
+        if alias["alias"] == value["model"] or alias["alias"] in alias_names:
+            raise ValueError("duplicate model alias")
+        alias_names.add(alias["alias"])
+
+    rates = value["rates"]
+    if not isinstance(rates, list) or not 1 <= len(rates) <= 10000:
+        raise ValueError("invalid rates")
+    seen_rates = set()
+    for rate in rates:
+        _fields(rate, {"component", "usd", "unit", "unit_quantity", "cache_ttl_seconds", "threshold"})
+        _choice(rate["component"], frozenset({"input_uncached", "input_cache_read", "input_cache_write",
+                                               "output", "reasoning", "tool"}))
+        validate_decimal(rate["usd"])
+        _identifier(rate["unit"])
+        if validate_counter(rate["unit_quantity"]) == 0:
+            raise ValueError("rate unit quantity must be positive")
+        ttl = rate["cache_ttl_seconds"]
+        if ttl is not None:
+            if rate["component"] != "input_cache_write" or validate_counter(ttl) == 0:
+                raise ValueError("invalid cache duration")
+        threshold = rate["threshold"]
+        if threshold is not None:
+            _fields(threshold, {"operand", "operator", "value"})
+            _identifier(threshold["operand"])
+            _choice(threshold["operator"], frozenset({">", ">="}))
+            validate_counter(threshold["value"])
+        encoded = canonical_bytes(rate)
+        if encoded in seen_rates:
+            raise ValueError("duplicate rate")
+        seen_rates.add(encoded)
+
+    sources = value["primary_sources"]
+    if not isinstance(sources, list) or not 1 <= len(sources) <= 10000:
+        raise ValueError("invalid source references")
+    seen_sources = set()
+    for source in sources:
+        if not isinstance(source, str) or len(source) > 2048:
+            raise ValueError("invalid source reference")
+        try:
+            if len(source.encode("utf-8")) > 2048:
+                raise ValueError("invalid source reference")
+            parsed = urlsplit(source)
+            if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None or
+                    parsed.password is not None or parsed.query or parsed.fragment or
+                    any(char.isspace() or unicodedata.category(char).startswith("C") for char in source)):
+                raise ValueError("invalid source reference")
+            parsed.port
+        except (ValueError, UnicodeError):
+            raise ValueError("invalid source reference") from None
+        if source in seen_sources:
+            raise ValueError("duplicate source reference")
+        seen_sources.add(source)
+
+    if len(canonical_bytes(value)) > PRICE_SNAPSHOT_LIMIT:
+        raise ValueError("price snapshot exceeds byte limit")
+    return value
+
+
+def price_snapshot_id(value: Any) -> str:
+    """Identify all canonical snapshot content without asserting source authenticity."""
+    return content_id(validate_price_snapshot(value))
+
+
+def validate_price_snapshot_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, PRICE_SNAPSHOT_LIMIT, validate_price_snapshot)
 
 
 def validate_source_selection_json(data: str | bytes) -> dict[str, Any]:
