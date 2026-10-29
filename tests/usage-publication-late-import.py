@@ -94,6 +94,24 @@ class LateImportTests(unittest.TestCase):
         self.assertNotIn(str(self.run_file), opened)
         self.assertNotIn(str(self.fixture.lifecycle), opened)
 
+    def test_same_key_in_both_registries_cannot_self_certify_registration(self):
+        fingerprint = hashlib.sha256(rsa_tests.PUBLIC).hexdigest()
+        registration = self.registration_body | {'authority_key_sha256': fingerprint}
+        registration = registration | {'signature': rsa_tests.sign(
+            b'orchestrail:usage-registration-certificate:v1\0' + contract.canonical_bytes(registration))}
+        late = self.body | {'authority_key_sha256': fingerprint,
+                            'registration_sha256': contract.content_id(registration)}
+        late = late | {'signature': rsa_tests.sign(b'orchestrail:usage-late-import:v1\0' + contract.canonical_bytes(late))}
+        self.certificate_path.write_bytes(contract.canonical_bytes({'registration': registration, 'authorization': late}))
+        with patch.dict(os.environ, self.fixture.env | {'USAGE_TELEMETRY_REGISTRATION_KEY':
+                        '/etc/orchestrail/usage-registration-authorities/test.pem'}, clear=True), \
+             patch.object(ingest, 'trusted_authority_key', return_value=rsa_tests.PUBLIC), \
+             patch.object(ingest, 'trusted_registration_key', return_value=rsa_tests.PUBLIC):
+            with self.assertRaises(ValueError):
+                ingest.certified_late_registration(str(self.certificate_path), self.fixture.bundle,
+                                                   self.fixture.config, bytes.fromhex(self.fixture.config['key_hex']))
+        self.assertFalse(self.fixture.artifact().exists())
+
     def test_real_registration_key_loader_rejects_caller_owned_key(self):
         user_key = self.fixture.root / 'caller-owned.pem'
         user_key.write_bytes(rsa_tests.PUBLIC)
