@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -161,6 +162,55 @@ class NormalizeCliTests(unittest.TestCase):
         result = self.run_cli(output=alias / 'bundle.json')
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(list(shared.iterdir()), [])
+
+    def test_destination_moved_into_shared_store_before_publication_is_rejected(self):
+        module = load('usage_cli_race', CLI)
+        destination = self.root / 'destination'
+        destination.mkdir()
+        shared = self.log_root / 'usage' / 'v1'
+        shared.parent.mkdir(parents=True)
+        original = module.adapter.normalize_selection
+
+        def move_during_normalization(*args, **kwargs):
+            result = original(*args, **kwargs)
+            destination.rename(shared)
+            return result
+
+        args = ['normalize', '--profile', 'synthetic-profile', '--input-manifest',
+                str(self.manifest), '--output', str(destination / 'bundle.json')]
+        with patch.dict(os.environ, self.env, clear=True), \
+                patch.object(module.adapter, 'normalize_selection', side_effect=move_during_normalization):
+            with self.assertRaises((ValueError, OSError)):
+                module.main(args)
+        self.assertEqual(list(shared.iterdir()), [])
+
+    def test_unreviewed_profile_strings_never_appear_in_output(self):
+        def source(profile):
+            profile['source'] = 'https://example.invalid/PRIVATE_PROFILE_SECRET'
+
+        def nested_evidence(profile):
+            profile['inventory']['evidence'] = 'PRIVATE_PROFILE_SECRET'
+
+        def nested_path(profile):
+            profile['counter_fields'][0]['path'][1] = 'PRIVATE_PROFILE_SECRET'
+
+        for mutate in (source, nested_evidence, nested_path):
+            with self.subTest(field=mutate.__name__):
+                profile = copy.deepcopy(self.profile)
+                mutate(profile)
+                self.config['profiles'][0] = {'profile': profile,
+                    'sha256': hashlib.sha256(contract.canonical_bytes(profile)).hexdigest()}
+                self.write_config()
+                self.output.unlink(missing_ok=True)
+                result = self.run_cli()
+                exposed = result.stdout + result.stderr
+                if self.output.exists():
+                    bundle = json.loads(self.output.read_text())
+                    self.assertEqual(contract.validate_usage_bundle(bundle), bundle)
+                    exposed += self.output.read_text()
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn('PRIVATE_PROFILE_SECRET', exposed)
 
 
 if __name__ == '__main__':
