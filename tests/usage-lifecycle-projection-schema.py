@@ -130,6 +130,48 @@ class LifecycleProjectionSchemaTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             call('validate_lifecycle_projection', bad)
 
+    def test_parameter_evidence_must_belong_to_contributor_source_and_profile(self):
+        value = projection()
+        self.assert_valid(value)
+        for field, replacement in (('profile_id', 'other-profile'), ('source_hash', 'b' * 64)):
+            bad = copy.deepcopy(value)
+            item = next(item for item in bad['evidence_objects']
+                        if item['kind'] == 'source_parameter_evidence' and item['field'] == 'model')
+            item[field] = replacement
+            bad['scenario']['source_parameters']['model']['evidence'] = contract.content_id(item)
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                call('validate_lifecycle_projection', bad)
+
+    def test_distinct_contributors_cannot_reuse_one_source_record(self):
+        value = projection()
+        self.assert_valid(value)
+        bad = copy.deepcopy(value)
+        first, second = bad['contributors']
+        second['measurements'] = copy.deepcopy(first['measurements'])
+        second['execution_time'] = copy.deepcopy(first['execution_time'])
+        second['priced_usd'] = first['priced_usd']
+        bad['cost_usd'] = '2'
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', bad)
+
+    def test_observation_cannot_precede_execution(self):
+        value = projection()
+        self.assert_valid(value)
+        self.assert_valid(value | {'as_of': '2026-01-01T12:00:00Z'})
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', value | {'as_of': '2026-01-01T11:59:59Z'})
+
+    def test_unknown_pricing_cannot_prove_a_lower_bound(self):
+        value = projection()
+        del value['cost_usd']
+        value['completeness']['pricing'] = 'unknown'
+        value['priced_subtotal_usd'] = '1.5'
+        value['subtotal_quality'] = 'subtotal_only'
+        self.assert_valid(value)
+        value['subtotal_quality'] = 'proven_lower_bound'
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', value)
+
     def test_display_amount_is_correct_half_even_rounding(self):
         value = projection()
         self.assert_valid(value | {'display_cost_usd': '1.50'})
