@@ -607,10 +607,11 @@ def validate_evidence_object(value: Any) -> dict[str, Any]:
         _timestamp(value["end"])
         return value
     if isinstance(value, dict) and value.get("kind") == "source_parameter_evidence":
-        _fields(value, {"schema_version", "kind", "profile_id", "source_hash", "field", "value"})
+        _fields(value, {"schema_version", "kind", "profile_id", "source_hash", "record_number", "field", "value"})
         _version(value["schema_version"])
         _identifier(value["profile_id"])
         _hash(value["source_hash"])
+        validate_counter(value["record_number"])
         _choice(value["field"], frozenset({"model", "service_tier", "region", "modality"}))
         if value["field"] == "model":
             if (not isinstance(value["value"], str) or len(value["value"]) > 256 or
@@ -1358,7 +1359,9 @@ def _projection_component_cost(field: str, quantity: int, snapshot: dict[str, An
     parameters = scenario["source_parameters"]
     for name in ("model", "service_tier", "region", "modality"):
         parameter = parameters[name]
-        if parameter is None or parameter["value"] != snapshot[name]:
+        assumed = scenario["assumptions"].get(name)
+        selected = assumed if assumed is not None else (parameter["value"] if parameter is not None else None)
+        if selected is None or selected != snapshot[name]:
             raise ValueError("projection price parameters do not match")
     period = snapshot["effective_period"]
     if scenario["basis"] == "at_execution" and (period["state"] != "known" or
@@ -1420,8 +1423,10 @@ def validate_lifecycle_projection(value: Any) -> dict[str, Any]:
         validate_decimal(value["priced_subtotal_usd"])
         _choice(value["subtotal_quality"], frozenset({"subtotal_only", "proven_lower_bound"}))
         if value["subtotal_quality"] == "proven_lower_bound" and (
-                completeness["identity"] != "complete" or completeness["pricing"] != "complete"):
-            raise ValueError("lower bound requires resolved identities and pricing")
+                any(completeness[dimension] != "complete" for dimension in
+                    ("identity", "pricing", "measurements", "attribution")) or
+                value["scenario"]["basis"] != "at_execution"):
+            raise ValueError("lower bound requires resolved work and historical pricing")
     if "display_cost_usd" in value:
         display = value["display_cost_usd"]
         if not isinstance(display, str) or re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", display) is None:
@@ -1458,7 +1463,8 @@ def validate_lifecycle_projection(value: Any) -> dict[str, Any]:
     total = Fraction(0)
     for contributor in contributors:
         _fields(contributor, {"contributor_id", "observation_ids", "profile_id", "profile_version",
-                              "measurements", "price_snapshot_id", "priced_usd", "execution_time"})
+                              "measurements", "price_snapshot_id", "priced_usd", "execution_time",
+                              "parameter_evidence"})
         identity = contributor["contributor_id"]
         _private_identifier(identity)
         if identity in seen_ids:
@@ -1493,12 +1499,19 @@ def validate_lifecycle_projection(value: Any) -> dict[str, Any]:
         if record in seen_records:
             raise ValueError("overlapping contributor source records")
         seen_records.add(record)
-        for parameter in value["scenario"]["source_parameters"].values():
-            if parameter is not None:
-                item = evidence[parameter["evidence"]]
-                if (item["profile_id"] != contributor["profile_id"] or
-                        item["source_hash"] != time_evidence["source_hash"]):
-                    raise ValueError("parameter evidence is outside contributor source")
+        parameters = value["scenario"]["source_parameters"]
+        parameter_evidence = contributor["parameter_evidence"]
+        known_fields = {name for name, parameter in parameters.items() if parameter is not None}
+        _fields(parameter_evidence, known_fields)
+        for field in known_fields:
+            _hash(parameter_evidence[field])
+            item = evidence.get(parameter_evidence[field])
+            if (item is None or item["kind"] != "source_parameter_evidence" or
+                    item["field"] != field or item["value"] != parameters[field]["value"] or
+                    item["profile_id"] != contributor["profile_id"] or
+                    item["source_hash"] != time_evidence["source_hash"] or
+                    item["record_number"] != time_evidence["record_number"]):
+                raise ValueError("parameter evidence is outside contributor record")
         measurements = contributor["measurements"]
         if not isinstance(measurements, dict) or not measurements:
             raise ValueError("missing contributor measurements")
@@ -1524,6 +1537,11 @@ def validate_lifecycle_projection(value: Any) -> dict[str, Any]:
     for field in ("cost_usd", "priced_subtotal_usd"):
         if field in value and total != Fraction(value[field]):
             raise ValueError("projection total does not match")
+    for field, parameter in value["scenario"]["source_parameters"].items():
+        if parameter is not None and not any(
+                contributor["parameter_evidence"].get(field) == parameter["evidence"]
+                for contributor in contributors):
+            raise ValueError("scenario evidence is outside contributor records")
     if "display_cost_usd" in value:
         if "cost_usd" not in value:
             raise ValueError("display cost requires full cost")
