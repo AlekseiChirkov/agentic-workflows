@@ -10,6 +10,11 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 # Check publication receipt schemas with offline fixtures.
+if [ "${1:-}" = --usage-projection-only ]; then
+  shift
+  exec python3 "$REPO_ROOT/tests/usage-lifecycle-projection-schema.py" "$@"
+fi
+
 if [ "${1:-}" = --usage-receipt-only ]; then
   shift
   exec python3 "$REPO_ROOT/tests/usage-usage-receipt-schema.py" "$@"
@@ -4631,6 +4636,17 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
 check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
   "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
 # ── End public identity smoke checks ────────────────────────────────
+
+# Run lifecycle projection fixtures during ordinary validation as well.
+test_usage_projection_acceptance() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/usage-lifecycle-projection-schema.py" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_usage_projection_acceptance" \
+  "$(test_usage_projection_acceptance && echo pass || echo 'lifecycle projection fixtures must pass')"
 
 # Run publication receipt fixtures during ordinary validation as well.
 test_usage_receipt_acceptance() {
