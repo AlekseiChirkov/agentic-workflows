@@ -2225,6 +2225,8 @@ with tempfile.TemporaryDirectory(prefix='run-log-contract-') as temporary:
     gate()
     exported = subprocess.check_output(['bash',str(helper),'contract'], text=True)
     contract = dict(line.split('=',1) for line in exported.splitlines())
+    contract.pop('usage.availability', None)
+    contract.pop('usage.registry', None)
     rows = {}
     for line in original_rule.splitlines():
         match = re.fullmatch(r'\| `([^`]+)` \| (.+) \|', line)

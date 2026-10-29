@@ -11,6 +11,7 @@ import hashlib
 from datetime import datetime
 from fractions import Fraction
 import json
+from pathlib import Path
 import re
 import unicodedata
 from typing import Any, Callable, Iterable, Mapping
@@ -1824,8 +1825,9 @@ def validate_usage_bundle_json(data: str | bytes) -> dict[str, Any]:
 def schema_registry(version: int = 1) -> dict[str, Any]:
     """Describe the available versioned validators and their input byte limits.
 
-    Validator names refer to the executable definitions in this module. The
-    registry is discovery metadata; consumers must still validate actual inputs.
+    Validator names refer to executable definitions in the exported source.
+    Consumers must authenticate that source before executing it and must still
+    validate actual inputs.
     """
     if type(version) is not int or version != 1:
         raise ValueError("unsupported schema version")
@@ -1845,10 +1847,13 @@ def schema_registry(version: int = 1) -> dict[str, Any]:
         "lifecycle_projection": (validate_lifecycle_projection_json, LIFECYCLE_PROJECTION_LIMIT),
         "current_run_snapshot": (validate_current_run_snapshot_json, CURRENT_RUN_SNAPSHOT_LIMIT),
     }
+    source = Path(__file__).read_bytes().decode("utf-8")
     return {
         "schema_version": version,
         "measurement_states": sorted(MEASUREMENT_STATES),
         "measurement_reasons": sorted(MEASUREMENT_REASONS),
+        "validator_source": source,
+        "validator_source_sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
         "kinds": {kind: {"validator": validator.__name__, "max_bytes": limit}
                   for kind, (validator, limit) in definitions.items()},
     }
@@ -1858,12 +1863,17 @@ def export_schema_registry() -> str:
     """Return compact registry JSON only after checking its executable bindings."""
     registry = schema_registry()
     if not isinstance(registry, dict) or set(registry) != {
-        "schema_version", "measurement_states", "measurement_reasons", "kinds"
+        "schema_version", "measurement_states", "measurement_reasons", "kinds",
+        "validator_source", "validator_source_sha256"
     } or type(registry["schema_version"]) is not int or registry["schema_version"] != 1:
         raise ValueError("invalid schema registry")
     if (registry["measurement_states"] != sorted(MEASUREMENT_STATES) or
             registry["measurement_reasons"] != sorted(MEASUREMENT_REASONS)):
         raise ValueError("invalid schema vocabulary")
+    if (not isinstance(registry["validator_source"], str) or
+            hashlib.sha256(registry["validator_source"].encode("utf-8")).hexdigest() !=
+            registry["validator_source_sha256"]):
+        raise ValueError("invalid schema source")
     kinds = registry["kinds"]
     if not isinstance(kinds, dict) or not kinds:
         raise ValueError("invalid schema kinds")
