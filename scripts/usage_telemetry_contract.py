@@ -861,7 +861,13 @@ def validate_price_snapshot(value: Any) -> dict[str, Any]:
     _choice(value["kind"], frozenset({"price_snapshot"}))
     _choice(value["currency"], frozenset({"USD"}))
     _timestamp(value["retrieved_at"])
-    _identifier(value["model"])
+    def model_identifier(name: Any) -> None:
+        # Namespace syntax restricts paths but does not establish provenance or privacy.
+        if (not isinstance(name, str) or len(name) > 256 or
+                re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]*(?:/[A-Za-z0-9][A-Za-z0-9._:-]*)?", name) is None):
+            raise ValueError("invalid model identifier")
+
+    model_identifier(value["model"])
     for field in ("modality", "service_tier", "region"):
         if value[field] is not None:
             _identifier(value[field])
@@ -892,7 +898,7 @@ def validate_price_snapshot(value: Any) -> dict[str, Any]:
     alias_names = set()
     for alias in aliases:
         _fields(alias, {"alias", "evidence"})
-        _identifier(alias["alias"])
+        model_identifier(alias["alias"])
         _hash(alias["evidence"])
         if alias["alias"] == value["model"] or alias["alias"] in alias_names:
             raise ValueError("duplicate model alias")
@@ -901,12 +907,36 @@ def validate_price_snapshot(value: Any) -> dict[str, Any]:
     rates = value["rates"]
     if not isinstance(rates, list) or not 1 <= len(rates) <= 10000:
         raise ValueError("invalid rates")
+    tool_rates = [rate for rate in rates if isinstance(rate, dict) and rate.get("component") == "tool"]
+    if len(tool_rates) > 1 and any("tool_id" not in rate for rate in tool_rates):
+        raise ValueError("multiple tool rates require tool identities")
     seen_rates = set()
     for rate in rates:
-        _fields(rate, {"component", "usd", "unit", "unit_quantity", "cache_ttl_seconds", "threshold"})
+        _fields(rate, {"component", "usd", "unit", "unit_quantity", "cache_ttl_seconds", "threshold"},
+                {"tool_id", "multiplier"})
         _choice(rate["component"], frozenset({"input_uncached", "input_cache_read", "input_cache_write",
                                                "output", "reasoning", "tool"}))
         validate_decimal(rate["usd"])
+        if "tool_id" in rate:
+            if rate["component"] != "tool":
+                raise ValueError("tool identity requires a tool rate")
+            _identifier(rate["tool_id"])
+        if "multiplier" in rate:
+            multiplier = rate["multiplier"]
+            if not isinstance(multiplier, dict):
+                raise ValueError("invalid multiplier")
+            if multiplier.get("state") == "none":
+                _fields(multiplier, {"state"})
+            elif multiplier.get("state") == "known":
+                _fields(multiplier, {"state", "factor", "scope"})
+                validate_decimal(multiplier["factor"])
+                _identifier(multiplier["scope"])
+            elif multiplier.get("state") == "unknown":
+                _fields(multiplier, {"state", "scope", "reason"})
+                _identifier(multiplier["scope"])
+                _identifier(multiplier["reason"])
+            else:
+                raise ValueError("invalid multiplier")
         _identifier(rate["unit"])
         if validate_counter(rate["unit_quantity"]) == 0:
             raise ValueError("rate unit quantity must be positive")
