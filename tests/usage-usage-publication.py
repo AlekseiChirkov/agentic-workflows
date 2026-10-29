@@ -9,6 +9,7 @@ from pathlib import Path
 import stat
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -158,10 +159,83 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(list(outside.iterdir()), [])
         self.assert_lifecycle_intact()
 
+    def test_authorize_error_does_not_disclose_private_evidence(self):
+        def reject(*_):
+            raise RuntimeError('PRIVATE_SOURCE_PATH_AND_PAYLOAD')
+        with self.assertRaises(ValueError) as error:
+            self.publish(authorize=reject)
+        self.assertNotIn('PRIVATE_SOURCE_PATH_AND_PAYLOAD', str(error.exception))
+        self.assertFalse((self.root / 'usage').exists())
+        self.assert_lifecycle_intact()
+
+    def test_existing_external_hardlink_is_not_accepted(self):
+        self.artifact.parent.mkdir(parents=True)
+        outside = Path(self.tmp.name) / 'external-file'
+        outside.write_bytes(self.expected)
+        os.link(outside, self.artifact)
+        with self.assertRaises((ValueError, OSError)):
+            self.publish()
+        self.assertEqual(outside.read_bytes(), self.expected)
+        self.assertEqual(self.artifact.read_bytes(), self.expected)
+        self.assert_lifecycle_intact()
+
+    def test_concurrent_duplicate_does_not_conflict_with_writer_cleanup(self):
+        installed = threading.Event()
+        duplicate_read = threading.Event()
+        writer_done = threading.Event()
+        original_link, original_read = os.link, os.read
+
+        def synchronized_link(*args, **kwargs):
+            result = original_link(*args, **kwargs)
+            installed.set()
+            if not duplicate_read.wait(3):
+                raise AssertionError('duplicate did not reach visible file')
+            return result
+
+        def synchronized_read(fd, count):
+            data = original_read(fd, count)
+            if threading.current_thread().name == 'duplicate' and installed.is_set():
+                duplicate_read.set()
+                if not writer_done.wait(3):
+                    raise AssertionError('writer did not finish')
+            return data
+
+        results = []
+        errors = []
+        def run_writer():
+            try:
+                results.append(self.publish())
+            except Exception as error:
+                errors.append(error)
+            finally:
+                writer_done.set()
+
+        def run_duplicate():
+            try:
+                results.append(self.publish())
+            except Exception as error:
+                errors.append(error)
+
+        with patch.object(os, 'link', synchronized_link), patch.object(os, 'read', synchronized_read):
+            writer = threading.Thread(target=run_writer, name='writer')
+            writer.start()
+            installed.wait(0.3)
+            duplicate = threading.Thread(target=run_duplicate, name='duplicate')
+            duplicate.start()
+            writer.join(5)
+            duplicate.join(5)
+        self.assertFalse(writer.is_alive())
+        self.assertFalse(duplicate.is_alive())
+        self.assertEqual(errors, [])
+        self.assertEqual(len(results), 2)
+        self.assertEqual(sum(not result['duplicate'] for result in results), 1)
+        self.assertEqual(self.artifact.read_bytes(), self.expected)
+        self.assert_lifecycle_intact()
+
     def test_failed_atomic_install_never_returns_receipt_or_changes_lifecycle(self):
         if publication is None:
             self.fail('publication module is not implemented')
-        with patch.object(os, 'link', side_effect=OSError('simulated disk failure')):
+        with patch.object(publication, '_install', create=True, side_effect=OSError('simulated disk failure')):
             with self.assertRaises(OSError):
                 self.publish()
         self.assertFalse(self.artifact.exists())
