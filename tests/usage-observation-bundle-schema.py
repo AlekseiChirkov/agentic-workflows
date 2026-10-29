@@ -26,7 +26,7 @@ def observation():
     digest = hashlib.sha256(contract.canonical_bytes(evidence())).hexdigest()
     return {'schema_version': 1, 'kind': 'request_usage', 'profile_id': 'profile',
             'profile_version': '1', 'source_hash': 'a' * 64, 'record_number': 1,
-            'counter_scope': 'response_total', 'provider_scope': 'provider',
+            'counter_scope': 'response_total', 'provider_scope': 'sha256:' + 'c' * 64,
             'source_time': None, 'source_time_quality': 'unknown',
             'observed_at': '2026-01-02T03:04:05Z', 'state': 'partial',
             'outcome': 'unknown', 'attribution': {'owner_kind': 'unattributed',
@@ -37,8 +37,8 @@ def observation():
 
 def bundle():
     return {'schema_version': 1, 'kind': 'usage_bundle', 'profile_id': 'profile',
-            'profile_version': '1', 'project_id': 'project', 'run_id': 'run',
-            'sources': [{'source_id': 'source', 'sha256': 'a' * 64}],
+            'profile_version': '1', 'project_id': 'sha256:' + 'd' * 64, 'run_id': 'run',
+            'sources': [{'source_id': 'sha256:' + 'e' * 64, 'sha256': 'a' * 64}],
             'observations': [observation()], 'evidence_objects': [evidence()],
             'inventories': [], 'segments': [], 'diagnostics': []}
 
@@ -84,6 +84,30 @@ class EnvelopeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             call('validate_observation', valid | {'profile_id': 'p' * 257})
 
+    def test_opaque_identifiers_reject_paths_and_free_text(self):
+        valid = bundle()
+        self.assertEqual(call('validate_usage_bundle', valid), valid)
+        for unsafe in ('/private/source.json', '../private/source.json',
+                       'C:\\private\\source.json', 'private source content', 'private_secret_token'):
+            variants = []
+            project = copy.deepcopy(valid)
+            project['project_id'] = unsafe
+            variants.append(project)
+            source = copy.deepcopy(valid)
+            source['sources'][0]['source_id'] = unsafe
+            variants.append(source)
+            provider = copy.deepcopy(valid)
+            provider['observations'][0]['provider_scope'] = unsafe
+            variants.append(provider)
+            candidate = copy.deepcopy(valid)
+            candidate['observations'][0]['attribution']['candidates'] = [unsafe]
+            variants.append(candidate)
+            for variant in variants:
+                with self.subTest(unsafe=unsafe, variant=variants.index(variant)):
+                    with self.assertRaises(ValueError) as error:
+                        call('validate_usage_bundle', variant)
+                    self.assertNotIn(unsafe, str(error.exception))
+
     def test_observation_json_input_byte_limit(self):
         data = json.dumps(observation(), ensure_ascii=False, separators=(',', ':')).encode('utf-8')
         exact = data + b' ' * (1024 * 1024 - len(data))
@@ -114,13 +138,13 @@ class EnvelopeTests(unittest.TestCase):
         base = observation()
         base['measurements'] = {'input_uncached': {'measurement_state': 'final',
                                                     'value': 1, 'reasons': []}}
-        base['attribution']['candidates'] = [str(i).zfill(2) + 'x' * 254 for i in range(64)]
+        base['attribution']['candidates'] = ['sha256:' + hashlib.sha256(str(i).encode()).hexdigest() for i in range(64)]
         value = bundle() | {'evidence_objects': []}
-        value['observations'] = [base | {'record_number': n} for n in range(1, 1901)]
+        value['observations'] = [base | {'record_number': n} for n in range(1, 6001)]
         self.assertLessEqual(len(contract.canonical_bytes(value)), 32 * 1024 * 1024)
         self.assertEqual(call('validate_usage_bundle', value), value)
         larger = value | {'observations': value['observations'] +
-                          [base | {'record_number': n} for n in range(1901, 2101)]}
+                          [base | {'record_number': n} for n in range(6001, 7101)]}
         self.assertGreater(len(contract.canonical_bytes(larger)), 32 * 1024 * 1024)
         with self.assertRaises(ValueError):
             call('validate_usage_bundle', larger)
