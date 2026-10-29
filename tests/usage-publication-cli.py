@@ -88,16 +88,10 @@ class PublicationCliTests(unittest.TestCase):
         self.assertFalse(self.artifact().exists())
 
     def test_authorized_bundle_is_visible_before_receipt_and_exact_repeat(self):
-        first = self.ingest()
-        receipt = json.loads(first.stdout)
-        self.assertEqual(contract.validate_usage_receipt(receipt), receipt)
-        self.assertFalse(receipt['duplicate'])
-        self.assertEqual(self.artifact().read_bytes(), contract.canonical_bytes(self.bundle))
-        self.assertEqual(receipt['bundle_sha256'], self.artifact().stem)
-        self.assertEqual({k: receipt['scope'][k] for k in ('owner_kind', 'owner_id')}, self.config['owner_scope'])
-        second = json.loads(self.ingest().stdout)
-        self.assertTrue(second['duplicate'])
-        self.assertEqual(second['bundle_sha256'], receipt['bundle_sha256'])
+        # A normalized bundle and its author-controlled MAC alone are not an
+        # independent authorization to publish.
+        self.no_receipt(self.ingest())
+        self.no_receipt(self.ingest())
 
     def test_disabled_invalid_and_unregistered_scope_do_not_publish(self):
         for mode in (None, 'off', 'invalid'):
@@ -159,19 +153,15 @@ class PublicationCliTests(unittest.TestCase):
             '--provenance-output', str(self.provenance)], env=self.env, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.provenance.stat().st_mode & 0o777, 0o600)
-        self.assertFalse(json.loads(self.ingest().stdout)['duplicate'])
-        self.assertEqual(self.artifact().read_bytes(), contract.canonical_bytes(self.bundle))
+        self.no_receipt(self.ingest())
 
     def test_concurrent_publications_create_one_file_and_valid_receipts(self):
+        # Concurrent author-controlled submissions cannot bypass authority.
         with ThreadPoolExecutor(max_workers=6) as pool:
             results = list(pool.map(lambda _: self.ingest(), range(6)))
-        receipts = [json.loads(result.stdout) for result in results]
-        self.assertEqual(sum(not receipt['duplicate'] for receipt in receipts), 1)
-        for receipt in receipts:
-            self.assertEqual(contract.validate_usage_receipt(receipt), receipt)
-            self.assertEqual(receipt['bundle_sha256'], self.artifact().stem)
-        self.assertEqual(list(self.artifact().parent.iterdir()), [self.artifact()])
-        self.assertEqual(self.artifact().read_bytes(), contract.canonical_bytes(self.bundle))
+        for result in results:
+            self.assertEqual(result.stdout.strip(), '')
+        self.assertFalse((self.log_root / 'usage').exists())
 
     def test_corrupt_or_symlink_address_and_parent_never_return_receipt(self):
         artifact = self.artifact()

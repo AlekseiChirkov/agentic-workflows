@@ -66,10 +66,10 @@ class ProvenanceAuthorizationTests(unittest.TestCase):
         measurement['evidence'] = contract.content_id(proof)
         self.reject_forgery(changed)
 
-    def test_genuine_normalization_is_accepted(self):
+    def test_genuine_normalization_requires_independent_authority(self):
         result = self.fixture.ingest()
-        self.assertTrue(result.stdout.strip(), 'authorized normalization did not receive a receipt')
-        self.assertEqual(self.fixture.artifact().read_bytes(), contract.canonical_bytes(self.original))
+        self.assertEqual(result.stdout.strip(), '')
+        self.assertFalse((self.fixture.log_root / 'usage').exists())
 
 
 if __name__ == '__main__':
