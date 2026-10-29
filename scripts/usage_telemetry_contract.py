@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import unicodedata
 from typing import Any, Callable, Iterable, Mapping
 
 MAX_COUNTER = 9007199254740991
@@ -161,3 +162,213 @@ def observation_id(value: dict[str, Any], *, set_paths: Iterable[tuple[str, ...]
         raise ValueError("observation must be an object")
     return content_id({key: item for key, item in value.items() if key != "id"},
                       set_paths=set_paths, set_keys=set_keys)
+
+# Envelope bounds apply to UTF-8 bytes, not character counts.
+OBSERVATION_LIMIT = 1024 * 1024
+BUNDLE_LIMIT = 32 * 1024 * 1024
+_HASH = re.compile(r"[0-9a-f]{64}\Z")
+_COUNTER_SCOPES = frozenset({"response_total", "incremental_delta", "cumulative_epoch",
+                             "provider_aggregate", "caller_aggregate"})
+_MEASUREMENT_FIELDS = frozenset({"input_uncached", "input_cache_read", "input_cache_write_unsplit",
+                                 "output_total", "reasoning_subset", "tokens_in"})
+
+
+def _fields(value: Any, required: set[str], optional: set[str] = frozenset()) -> None:
+    if not isinstance(value, dict) or not required <= value.keys() or value.keys() - required - optional:
+        raise ValueError("invalid envelope fields")
+
+
+def _identifier(value: Any) -> None:
+    if (not isinstance(value, str) or not value or len(value) > 256
+            or any(char in "/\\" or char.isspace() or unicodedata.category(char).startswith("C")
+                   for char in value)):
+        raise ValueError("invalid identifier")
+
+
+def _timestamp(value: Any) -> None:
+    if not isinstance(value, str) or not value or len(value) > 256:
+        raise ValueError("invalid timestamp")
+
+
+def _private_identifier(value: Any) -> None:
+    # Syntax alone does not prove safe origin or prevent encoded secrets.
+    if not isinstance(value, str) or re.fullmatch(r"sha256:[0-9a-f]{64}", value) is None:
+        raise ValueError("invalid opaque identifier")
+
+
+def _hash(value: Any) -> None:
+    if not isinstance(value, str) or _HASH.fullmatch(value) is None:
+        raise ValueError("invalid digest")
+
+
+def _version(value: Any) -> None:
+    if type(value) is not int or value != 1:
+        raise ValueError("unsupported schema version")
+
+
+def _bounded_tree(value: Any, depth: int = 0) -> None:
+    if depth > 32:
+        raise ValueError("envelope nesting exceeds limit")
+    if isinstance(value, dict):
+        if len(value) > 256 or any(not isinstance(key, str) for key in value):
+            raise ValueError("invalid object keys")
+        for child in value.values():
+            _bounded_tree(child, depth + 1)
+    elif isinstance(value, list):
+        for child in value:
+            _bounded_tree(child, depth + 1)
+    elif value is not None and type(value) not in (str, int, bool):
+        raise ValueError("invalid JSON value")
+
+
+def _choice(value: Any, choices: frozenset[str]) -> None:
+    if not isinstance(value, str) or value not in choices:
+        raise ValueError("invalid envelope value")
+
+
+def validate_observation(value: Any) -> dict[str, Any]:
+    """Validate a bounded, sanitized observation without resolving evidence."""
+    required = {"schema_version", "kind", "profile_id", "profile_version", "source_hash",
+                "record_number", "counter_scope", "provider_scope", "source_time",
+                "source_time_quality", "observed_at", "state", "outcome", "attribution",
+                "measurements"}
+    _fields(value, required, {"id", "response_id", "call_id", "supersedes"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"request_usage", "inventory", "reported_aggregate"}))
+    for name in ("profile_id", "profile_version"):
+        _identifier(value[name])
+    _private_identifier(value["provider_scope"])
+    for name in ("response_id", "call_id"):
+        if name in value:
+            _identifier(value[name])
+    for name in ("source_hash", "supersedes"):
+        if name in value:
+            _hash(value[name])
+    validate_counter(value["record_number"])
+    _choice(value["counter_scope"], _COUNTER_SCOPES)
+    _choice(value["source_time_quality"], frozenset({"unknown", "verified", "asserted", "inferred"}))
+    if value["source_time"] is None:
+        if value["source_time_quality"] != "unknown":
+            raise ValueError("missing source time must be unknown")
+    else:
+        _timestamp(value["source_time"])
+    _timestamp(value["observed_at"])
+    _choice(value["state"], MEASUREMENT_STATES)
+    _choice(value["outcome"], frozenset({"succeeded", "failed", "cancelled", "timed_out", "unknown"}))
+    attribution = value["attribution"]
+    _fields(attribution, {"owner_kind", "quality", "candidates"})
+    _choice(attribution["owner_kind"], frozenset({"span", "task", "shared_pool", "unattributed"}))
+    _choice(attribution["quality"], frozenset({"asserted", "verified", "inferred"}))
+    candidates = attribution["candidates"]
+    if not isinstance(candidates, list) or len(candidates) > 64:
+        raise ValueError("invalid owner candidates")
+    for candidate in candidates:
+        _private_identifier(candidate)
+    if len(set(candidates)) != len(candidates):
+        raise ValueError("duplicate owner candidate")
+    measurements = value["measurements"]
+    if not isinstance(measurements, dict) or not measurements or measurements.keys() - _MEASUREMENT_FIELDS:
+        raise ValueError("invalid measurement fields")
+    for measurement in measurements.values():
+        validate_measurement(measurement)
+    if len(canonical_bytes(value)) > OBSERVATION_LIMIT:
+        raise ValueError("observation exceeds byte limit")
+    if "id" in value:
+        _hash(value["id"])
+        if value["id"] != observation_id(value):
+            raise ValueError("observation identifier mismatch")
+    return value
+
+
+def validate_evidence_object(value: Any) -> dict[str, Any]:
+    """Validate the separate evidence record; the hash is not an authenticity claim."""
+    _fields(value, {"schema_version", "kind", "profile_id", "source_hash", "record_number", "field", "value"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"measurement_evidence"}))
+    _identifier(value["profile_id"])
+    _hash(value["source_hash"])
+    validate_counter(value["record_number"])
+    _choice(value["field"], _MEASUREMENT_FIELDS)
+    validate_counter(value["value"])
+    return value
+
+
+def verify_measurement_evidence(observation: Any, field: str, evidence: Any) -> bool:
+    """Verify digest and field/source linkage; external provenance remains unverified."""
+    try:
+        validate_observation(observation)
+        validate_evidence_object(evidence)
+        measurement = observation["measurements"][field]
+        return (measurement.get("evidence") == content_id(evidence)
+                and evidence["field"] == field and evidence["value"] == measurement.get("value")
+                and all(evidence[key] == observation[key]
+                        for key in ("profile_id", "source_hash", "record_number")))
+    except (ValueError, KeyError, TypeError, RecursionError):
+        return False
+
+
+def validate_usage_bundle(value: Any) -> dict[str, Any]:
+    """Validate a self-contained, bounded sanitized bundle."""
+    _fields(value, {"schema_version", "kind", "profile_id", "profile_version", "project_id",
+                    "run_id", "sources", "observations", "evidence_objects", "inventories",
+                    "segments", "diagnostics"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"usage_bundle"}))
+    for field in ("profile_id", "profile_version", "run_id"):
+        _identifier(value[field])
+    _private_identifier(value["project_id"])
+    for field in ("sources", "observations", "evidence_objects", "inventories", "segments", "diagnostics"):
+        if not isinstance(value[field], list) or len(value[field]) > 10000:
+            raise ValueError("invalid bundle collection")
+    # Entity-specific schemas are supplied separately; fail closed until available.
+    if value["inventories"] or value["segments"] or value["diagnostics"]:
+        raise ValueError("unsupported bundle entity")
+    source_hashes = set()
+    for source in value["sources"]:
+        _fields(source, {"source_id", "sha256"})
+        _private_identifier(source["source_id"])
+        _hash(source["sha256"])
+        source_hashes.add(source["sha256"])
+    evidence_by_hash = {}
+    for evidence in value["evidence_objects"]:
+        validate_evidence_object(evidence)
+        digest = content_id(evidence)
+        if digest in evidence_by_hash:
+            raise ValueError("duplicate evidence")
+        evidence_by_hash[digest] = evidence
+    for observation in value["observations"]:
+        validate_observation(observation)
+        if (observation["profile_id"] != value["profile_id"] or
+                observation["profile_version"] != value["profile_version"] or
+                observation["source_hash"] not in source_hashes):
+            raise ValueError("observation is outside bundle scope")
+        for field, measurement in observation["measurements"].items():
+            if "evidence" in measurement and not verify_measurement_evidence(
+                    observation, field, evidence_by_hash.get(measurement["evidence"])):
+                raise ValueError("unverified measurement evidence")
+    if len(canonical_bytes(value)) > BUNDLE_LIMIT:
+        raise ValueError("bundle exceeds byte limit")
+    return value
+
+
+def _validate_json(data: str | bytes, limit: int, validator: Callable[[Any], Any]) -> Any:
+    if not isinstance(data, (str, bytes)):
+        raise ValueError("invalid JSON input")
+    try:
+        raw = data.encode("utf-8") if isinstance(data, str) else data
+        if len(raw) > limit:
+            raise ValueError("input exceeds byte limit")
+        return validator(parse_json(raw))
+    except (ValueError, UnicodeError, RecursionError, TypeError, OverflowError):
+        raise ValueError("invalid bounded telemetry input") from None
+
+
+def validate_observation_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, OBSERVATION_LIMIT, validate_observation)
+
+
+def validate_usage_bundle_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, BUNDLE_LIMIT, validate_usage_bundle)
