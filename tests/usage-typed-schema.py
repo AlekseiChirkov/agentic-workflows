@@ -91,6 +91,23 @@ class TypedMeasurementTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate({"measurement_state": "unavailable", "reasons": ["not_a_reason"]})
 
+    def test_zero_evidence_rejects_paths_and_unknown_placeholders(self):
+        self.assertEqual(validate(known(0)), known(0))
+        for evidence in ("/private/source.json", "../source.json", "unknown"):
+            with self.subTest(evidence=evidence), self.assertRaises(ValueError):
+                validate(known(0) | {"evidence": evidence})
+
+    def test_final_requires_value_and_conflicted_requires_reason(self):
+        self.assertEqual(validate(known(0)), known(0))
+        invalid = (
+            {"measurement_state": "final", "reasons": ["stream_incomplete"]},
+            {"measurement_state": "conflicted", "value": 1, "reasons": [],
+             "evidence": "record-1"},
+        )
+        for measurement in invalid:
+            with self.subTest(measurement=measurement), self.assertRaises(ValueError):
+                validate(measurement)
+
     def test_duplicate_keys_are_rejected_before_measurement_validation(self):
         self.assertEqual(validate(known(1)), known(1))
         with self.assertRaises(ValueError):
