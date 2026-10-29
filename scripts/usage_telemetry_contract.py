@@ -139,6 +139,22 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
     envelope = kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
 
     def schema_set(path: tuple[str, ...]) -> bool:
+        if kind == "current_run_snapshot":
+            if path in {("segments",), ("accepted_receipts",), ("bundles",),
+                        ("inventories",), ("inventory_evidence",), ("warning_delivery",),
+                        ("parts",), ("accepted_receipts", "observation_ids"),
+                        ("inventories", "expected_calls"), ("inventories", "expected_responses"),
+                        ("inventories", "unresolved_slots"), ("bundles", "sources"),
+                        ("bundles", "observations"), ("bundles", "evidence_objects"),
+                        ("bundles", "inventories"), ("bundles", "segments"),
+                        ("bundles", "diagnostics"), ("bundles", "inventories", "expected_calls"),
+                        ("bundles", "inventories", "expected_responses"),
+                        ("bundles", "inventories", "unresolved_slots")}:
+                return True
+            if path[-2:] == ("attribution", "candidates"):
+                return True
+            if len(path) >= 3 and path[-3] == "measurements" and path[-1] == "reasons":
+                return True
         if kind == "lifecycle_projection" and path in {
             ("contributors",), ("contributors", "observation_ids"),
             ("evidence_objects",), ("price_snapshots",),
@@ -1636,10 +1652,12 @@ def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
 
     Receipt and attribution claims require independent authentication by the
     owner. A matching digest establishes structure, not provenance or consent.
+    The owner must explicitly load selected parts, enforce input byte limits,
+    and verify their size, digest, schema and scope before computing status.
     """
     _fields(value, {"schema_version", "kind", "owner_scope", "revision", "mode",
                     "segments", "accepted_receipts", "bundles", "inventories",
-                    "inventory_evidence", "overlap_state", "warning_delivery", "bounds"})
+                    "inventory_evidence", "overlap_state", "warning_delivery", "bounds"}, {"parts"})
     _bounded_tree(value)
     _version(value["schema_version"])
     _choice(value["kind"], frozenset({"current_run_snapshot"}))
@@ -1657,6 +1675,8 @@ def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
         raise ValueError("invalid snapshot bounds")
     sections = ("segments", "accepted_receipts", "bundles", "inventories",
                 "inventory_evidence", "warning_delivery")
+    if "parts" in value:
+        sections += ("parts",)
     if any(not isinstance(value[field], list) for field in sections):
         raise ValueError("invalid snapshot collection")
     if sum(len(value[field]) for field in sections) > bounds["max_entries"]:
@@ -1674,6 +1694,24 @@ def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
         validate_collection_segment(segment)
         if segment["owner_scope"] != scope:
             raise ValueError("foreign snapshot segment")
+    part_paths = set()
+    part_hashes = set()
+    for part in value.get("parts", []):
+        _fields(part, {"kind", "local_path", "sha256", "size_bytes"})
+        _choice(part["kind"], frozenset({"usage_bundle", "usage_accepted", "inventory",
+                                         "inventory_evidence", "collection_segment", "warning_delivery"}))
+        path = part["local_path"]
+        if (not isinstance(path, str) or not path or
+                any(char in "*?[]" or unicodedata.category(char).startswith("C") for char in path)):
+            raise ValueError("invalid selected part path")
+        _hash(part["sha256"])
+        size = validate_counter(part["size_bytes"])
+        if size > BUNDLE_LIMIT:
+            raise ValueError("selected part exceeds byte limit")
+        if path in part_paths or part["sha256"] in part_hashes:
+            raise ValueError("duplicate selected part")
+        part_paths.add(path)
+        part_hashes.add(part["sha256"])
     bundles = {}
     for bundle in value["bundles"]:
         validate_usage_bundle(bundle)
