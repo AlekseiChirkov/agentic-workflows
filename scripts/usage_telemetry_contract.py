@@ -63,7 +63,12 @@ MEASUREMENT_REASONS = frozenset({
 
 
 def validate_measurement(value: Any) -> dict[str, Any]:
-    """Validate measurement structure; evidence provenance is checked by its owner."""
+    """Validate structure only; consumers must verify evidence and its scope.
+
+    An evidence reference is the SHA-256 of a sanitized evidence object. Its
+    syntax does not establish that the object is safe, authentic, or relevant.
+    Consumers must verify the object and its connection to the measurement.
+    """
     if not isinstance(value, dict) or set(value) - {
         "measurement_state", "value", "reasons", "evidence"
     }:
@@ -81,10 +86,7 @@ def validate_measurement(value: Any) -> dict[str, Any]:
         raise ValueError("duplicate measurement reason")
     evidence = value.get("evidence")
     if "evidence" in value and (
-        not isinstance(evidence, str) or not evidence or len(evidence) > 256
-        or evidence.casefold() == "unknown"
-        or any(character in evidence for character in "/\\")
-        or any(character.isspace() or ord(character) < 32 for character in evidence)
+        not isinstance(evidence, str) or re.fullmatch(r"[0-9a-f]{64}", evidence) is None
     ):
         raise ValueError("invalid measurement evidence reference")
     if state == "conflicted" and not reasons:
