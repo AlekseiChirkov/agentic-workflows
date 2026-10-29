@@ -1323,11 +1323,19 @@ cmd_usage_ingest() {
     warn 'usage dependency_unavailable'
     return 0
   fi
-  if [ "$#" -ne 2 ] || [ "$1" != --manifest ] || [ -z "$2" ]; then
+  if { [ "$#" -ne 2 ] && [ "$#" -ne 4 ]; } || [ "$1" != --manifest ] || [ -z "$2" ]; then
     warn 'usage invalid_schema'
     return 0
   fi
-  receipt="$(python3 "$SCRIPT_DIR/usage_telemetry_ingest.py" ingest "$2" "$LOG_ROOT" 2>/dev/null)" || {
+  local -a ingest_args=(ingest "$2" "$LOG_ROOT")
+  if [ "$#" -eq 4 ]; then
+    if [ "$3" != --late-certificate ] || [ -z "$4" ]; then
+      warn 'usage invalid_schema'
+      return 0
+    fi
+    ingest_args+=("$4")
+  fi
+  receipt="$(python3 "$SCRIPT_DIR/usage_telemetry_ingest.py" "${ingest_args[@]}" 2>/dev/null)" || {
     warn 'usage ingestion_unavailable'
     return 0
   }
