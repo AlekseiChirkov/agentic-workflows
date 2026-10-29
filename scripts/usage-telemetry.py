@@ -15,6 +15,11 @@ from usage_telemetry_contract import (canonical_bytes, validate_source_profile,
                                       validate_source_selection_json, validate_usage_bundle)
 
 LIMIT = 1024 * 1024
+# This public synthetic format is the only profile reviewed for disclosure.
+# Adding profiles requires reviewing every serialized field and its semantics.
+PUBLIC_PROFILE_DIGESTS = frozenset({
+    '9831e467f5491bde26960256791cf69bdf68bd4aad88d0e27380b1be19818f46',
+})
 
 
 class Parser(argparse.ArgumentParser):
@@ -65,7 +70,8 @@ def _config(path, profile_id):
             if not isinstance(entry, dict) or set(entry) != {'profile', 'sha256'}:
                 raise ValueError('invalid trusted profile')
             profile = validate_source_profile(entry['profile'])
-            if entry['sha256'] != hashlib.sha256(canonical_bytes(profile)).hexdigest():
+            digest = hashlib.sha256(canonical_bytes(profile)).hexdigest()
+            if entry['sha256'] != digest or digest not in PUBLIC_PROFILE_DIGESTS:
                 raise ValueError('trusted profile digest mismatch')
             if profile['profile_id'] == profile_id:
                 matches.append(profile)
@@ -104,22 +110,33 @@ def _output_directory(path):
             child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
             os.close(directory)
             directory = child
-        return directory, name
+        return directory, name, parent, log_root
     except BaseException:
         os.close(directory)
         raise
 
 
-def _publish(directory, name, data):
+def _check_destination(directory, parent, log_root):
+    # Fail closed if the opened directory was moved or the kernel cannot expose
+    # its current location. The operator must still prevent concurrent renames.
+    actual = os.readlink('/proc/self/fd/' + str(directory))
+    shared = os.path.realpath(os.path.join(log_root, 'usage', 'v1'))
+    if actual != parent or os.path.commonpath((actual, shared)) == shared:
+        raise ValueError('output directory changed')
+
+
+def _publish(directory, name, parent, log_root, data):
     temp = '.usage-' + secrets.token_hex(16) + '.tmp'
     fd = None
     try:
+        _check_destination(directory, parent, log_root)
         fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
         with os.fdopen(fd, 'wb') as stream:
             fd = None
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
+        _check_destination(directory, parent, log_root)
         os.replace(temp, name, src_dir_fd=directory, dst_dir_fd=directory)
     finally:
         if fd is not None:
@@ -143,12 +160,12 @@ def main(argv=None):
     if (selection['profile_id'] != args.profile or selection['profile_version'] != profile['profile_version'] or
             selection['owner_scope'] != config['owner_scope']):
         raise ValueError('selection does not match trusted configuration')
-    directory, name = _output_directory(args.output)
+    directory, name, parent, log_root = _output_directory(args.output)
     try:
         result = adapter.normalize_selection(selection, profile=profile,
                     expected_owner_scope=config['owner_scope'], project_identifier=config['project_identifier'],
                     provider_identifier=config['provider_identifier'], run_id=config['run_id'], key=key)
-        _publish(directory, name, canonical_bytes(result['bundle']))
+        _publish(directory, name, parent, log_root, canonical_bytes(result['bundle']))
     finally:
         os.close(directory)
 
