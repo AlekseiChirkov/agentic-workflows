@@ -192,6 +192,7 @@ def observation_id(value: dict[str, Any], *, set_paths: Iterable[tuple[str, ...]
 OBSERVATION_LIMIT = 1024 * 1024
 BUNDLE_LIMIT = 32 * 1024 * 1024
 PROFILE_LIMIT = 1024 * 1024
+SELECTION_LIMIT = 1024 * 1024
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 _COUNTER_SCOPES = frozenset({"response_total", "incremental_delta", "cumulative_epoch",
                              "provider_aggregate", "caller_aggregate"})
@@ -377,6 +378,82 @@ def validate_source_profile(value: Any) -> dict[str, Any]:
     return value
 
 
+def validate_source_selection(value: Any) -> dict[str, Any]:
+    """Validate a local selection without opening or trusting any source.
+
+    Declared sizes and hashes must be checked against actual selected bytes by
+    the consumer before records are processed. The owner scope and attribution
+    map are claims, not proof of causal ownership.
+    """
+    _fields(value, {"schema_version", "kind", "profile_id", "profile_version",
+                    "owner_scope", "attribution_map", "observed_at", "sources",
+                    "max_source_bytes", "max_total_bytes", "max_records"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"source_selection"}))
+    for key in ("profile_id", "profile_version"):
+        _identifier(value[key])
+    _timestamp(value["observed_at"])
+    scope = value["owner_scope"]
+    _fields(scope, {"owner_kind", "owner_id"})
+    _choice(scope["owner_kind"], frozenset({"run", "session", "task", "span", "shared_pool"}))
+    _private_identifier(scope["owner_id"])
+    for key in ("max_source_bytes", "max_total_bytes", "max_records"):
+        validate_counter(value[key])
+    if value["max_records"] == 0:
+        raise ValueError("record limit must be positive")
+    sources = value["sources"]
+    if not isinstance(sources, list) or not 1 <= len(sources) <= 10000:
+        raise ValueError("invalid source selection count")
+    ids: set[str] = set()
+    selected_total = 0
+    for source in sources:
+        _fields(source, {"source_id", "local_path", "sha256", "size_bytes"},
+                {"verified_prefix_bytes"})
+        _private_identifier(source["source_id"])
+        if source["source_id"] in ids:
+            raise ValueError("duplicate selected source")
+        ids.add(source["source_id"])
+        path = source["local_path"]
+        if (not isinstance(path, str) or not path or
+                any(char in "*?[]" or unicodedata.category(char).startswith("C") for char in path)):
+            raise ValueError("invalid local source path")
+        _hash(source["sha256"])
+        size = validate_counter(source["size_bytes"])
+        selected_size = size
+        if "verified_prefix_bytes" in source:
+            selected_size = validate_counter(source["verified_prefix_bytes"])
+            if selected_size > size:
+                raise ValueError("selected prefix exceeds declared source size")
+        if selected_size > value["max_source_bytes"]:
+            raise ValueError("selected source exceeds byte limit")
+        selected_total += selected_size
+    if selected_total > value["max_total_bytes"]:
+        raise ValueError("selected sources exceed total byte limit")
+    mappings = value["attribution_map"]
+    if not isinstance(mappings, list) or len(mappings) != len(ids):
+        raise ValueError("invalid attribution map")
+    mapped: set[str] = set()
+    for mapping in mappings:
+        _fields(mapping, {"source_id", "owner_kind", "quality", "candidates"})
+        _private_identifier(mapping["source_id"])
+        if mapping["source_id"] not in ids or mapping["source_id"] in mapped:
+            raise ValueError("invalid source attribution mapping")
+        mapped.add(mapping["source_id"])
+        _choice(mapping["owner_kind"], frozenset({"span", "task", "shared_pool", "unattributed"}))
+        _choice(mapping["quality"], frozenset({"unknown", "asserted", "verified", "inferred"}))
+        candidates = mapping["candidates"]
+        if not isinstance(candidates, list) or len(candidates) > 64:
+            raise ValueError("invalid attribution candidates")
+        for candidate in candidates:
+            _private_identifier(candidate)
+        if len(set(candidates)) != len(candidates):
+            raise ValueError("duplicate attribution candidate")
+    if len(canonical_bytes(value)) > SELECTION_LIMIT:
+        raise ValueError("selection exceeds byte limit")
+    return value
+
+
 def validate_observation(value: Any) -> dict[str, Any]:
     """Validate a bounded, sanitized observation without resolving evidence."""
     required = {"schema_version", "kind", "profile_id", "profile_version", "source_hash",
@@ -525,6 +602,10 @@ def _validate_json(data: str | bytes, limit: int, validator: Callable[[Any], Any
         return validator(parse_json(raw))
     except (ValueError, UnicodeError, RecursionError, TypeError, OverflowError):
         raise ValueError("invalid bounded telemetry input") from None
+
+
+def validate_source_selection_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, SELECTION_LIMIT, validate_source_selection)
 
 
 def validate_observation_json(data: str | bytes) -> dict[str, Any]:
