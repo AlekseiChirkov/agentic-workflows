@@ -214,6 +214,7 @@ SEGMENT_LIMIT = 1024 * 1024
 DIAGNOSTIC_LIMIT = 1024 * 1024
 PRICE_SNAPSHOT_LIMIT = 1024 * 1024
 PRICING_SCENARIO_LIMIT = 1024 * 1024
+WARNING_POLICY_LIMIT = 1024 * 1024
 DIAGNOSTIC_METRICS = {
     "context.loaded_bytes": "bytes",
     "orchestration.tool_calls": "count",
@@ -1090,6 +1091,85 @@ def pricing_scenario_id(value: Any) -> str:
 
 def validate_pricing_scenario_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, PRICING_SCENARIO_LIMIT, validate_pricing_scenario)
+
+
+def validate_warning_policy(value: Any) -> dict[str, Any]:
+    """Validate a closed policy without deciding applicability or reading history.
+
+    Explicit nulls indicate absent thresholds or cohort evidence. Consumers must
+    verify the cohort provenance and compatibility and check expiry at use time.
+    Identifier syntax alone cannot prove that a producer omitted private data.
+    """
+    _fields(value, {"schema_version", "kind", "policy_id", "policy_version", "scope",
+                    "created_at", "expires_at", "token_threshold", "money_threshold",
+                    "minimum_completeness", "historical_cohort"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"warning_policy"}))
+    _identifier(value["policy_id"])
+    if validate_counter(value["policy_version"]) == 0:
+        raise ValueError("invalid policy version")
+    _choice(value["scope"], frozenset({"request", "span", "run"}))
+
+    def instant(timestamp: Any) -> tuple[str, str]:
+        _timestamp(timestamp)
+        whole, _, fraction = timestamp[:-1].partition(".")
+        return whole, fraction.rstrip("0")
+
+    if instant(value["created_at"]) >= instant(value["expires_at"]):
+        raise ValueError("invalid policy validity")
+
+    def decimal(number: Any) -> str:
+        if (not isinstance(number, str) or len(number) > 256 or
+                re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", number) is None):
+            raise ValueError("invalid exact decimal")
+        return number
+
+    for name, unit in (("token_threshold", "tokens"), ("money_threshold", "USD"),
+                       ("minimum_completeness", "fraction")):
+        threshold = value[name]
+        if threshold is None:
+            continue
+        _fields(threshold, {"value", "unit"})
+        _choice(threshold["unit"], frozenset({unit}))
+        if name == "token_threshold":
+            validate_counter(threshold["value"])
+        else:
+            number = decimal(threshold["value"])
+            if name == "minimum_completeness":
+                whole, _, fractional = number.partition(".")
+                if whole not in {"0", "1"} or (whole == "1" and fractional.strip("0")):
+                    raise ValueError("completeness outside range")
+
+    cohort = value["historical_cohort"]
+    if cohort is not None:
+        _fields(cohort, {"corpus_hash", "window_start", "window_end", "sample_size",
+                         "median_seconds", "stage", "duration_kind", "clock_quality",
+                         "environment", "profile", "contract", "configuration"})
+        _hash(cohort["corpus_hash"])
+        if instant(cohort["window_start"]) >= instant(cohort["window_end"]):
+            raise ValueError("invalid cohort window")
+        sample_size = validate_counter(cohort["sample_size"])
+        if sample_size == 0:
+            if cohort["median_seconds"] is not None:
+                raise ValueError("empty cohort has no median")
+        else:
+            decimal(cohort["median_seconds"])
+        for key in ("stage", "duration_kind", "clock_quality", "environment", "profile",
+                    "contract", "configuration"):
+            _identifier(cohort[key])
+    if len(canonical_bytes(value)) > WARNING_POLICY_LIMIT:
+        raise ValueError("warning policy exceeds byte limit")
+    return value
+
+
+def warning_policy_id(value: Any) -> str:
+    """Identify declared policy content without asserting its applicability."""
+    return content_id(validate_warning_policy(value))
+
+
+def validate_warning_policy_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, WARNING_POLICY_LIMIT, validate_warning_policy)
 
 
 def validate_source_selection_json(data: str | bytes) -> dict[str, Any]:
