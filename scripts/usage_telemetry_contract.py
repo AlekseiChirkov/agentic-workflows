@@ -1425,7 +1425,8 @@ def validate_lifecycle_projection(value: Any) -> dict[str, Any]:
         if value["subtotal_quality"] == "proven_lower_bound" and (
                 any(completeness[dimension] != "complete" for dimension in
                     ("identity", "pricing", "measurements", "attribution")) or
-                value["scenario"]["basis"] != "at_execution"):
+                value["scenario"]["basis"] != "at_execution" or
+                scope["attribution_quality"] != "verified"):
             raise ValueError("lower bound requires resolved work and historical pricing")
     if "display_cost_usd" in value:
         display = value["display_cost_usd"]
