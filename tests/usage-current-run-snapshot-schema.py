@@ -50,6 +50,7 @@ def snapshot():
 def warning():
     return {'warning_id': opaque('d'), 'policy_id': 'policy', 'policy_version': 1,
             'scope': {'owner_kind': 'run', 'owner_id': opaque('b')},
+            'owner_scope': {'owner_kind': 'run', 'owner_id': opaque('b')},
             'metric': 'duration_ms', 'episode': 1, 'crossing_state': 'unknown',
             'delivery_state': 'unknown'}
 
@@ -153,6 +154,35 @@ class CurrentRunSnapshotTests(unittest.TestCase):
         for index, bad in enumerate(variants):
             with self.subTest(index=index), self.assertRaises(ValueError):
                 call('validate_current_run_snapshot', bad)
+
+    def test_warning_subscopes_and_multiple_episodes_preserve_independent_delivery(self):
+        value = snapshot()
+        warning_one = value['warning_delivery'][0]
+        warning_one.update(scope={'owner_kind': 'request', 'owner_id': opaque('1')},
+                           metric='completeness', episode=1,
+                           crossing_state='cleared', delivery_state='failed')
+        warning_two = copy.deepcopy(warning_one)
+        warning_two.update(warning_id=opaque('e'), episode=2,
+                           crossing_state='crossed', delivery_state='pending')
+        value['warning_delivery'].append(warning_two)
+        self.assert_valid(value)
+        self.assertEqual([item['delivery_state'] for item in value['warning_delivery']], ['failed', 'pending'])
+        span = copy.deepcopy(value)
+        for item in span['warning_delivery']:
+            item['scope'] = {'owner_kind': 'span', 'owner_id': opaque('2')}
+        self.assert_valid(span)
+        foreign = copy.deepcopy(value)
+        foreign['warning_delivery'][0]['owner_scope']['owner_id'] = opaque('f')
+        with self.assertRaises(ValueError):
+            call('validate_current_run_snapshot', foreign)
+        duplicate = copy.deepcopy(value)
+        duplicate['warning_delivery'].append(copy.deepcopy(duplicate['warning_delivery'][0]))
+        with self.assertRaises(ValueError):
+            call('validate_current_run_snapshot', duplicate)
+        missing = copy.deepcopy(value)
+        del missing['warning_delivery'][0]['owner_scope']
+        with self.assertRaises(ValueError):
+            call('validate_current_run_snapshot', missing)
 
     def test_json_duplicate_keys_and_declared_limits(self):
         value = snapshot()
