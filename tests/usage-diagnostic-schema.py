@@ -44,12 +44,25 @@ class DiagnosticSchemaTests(unittest.TestCase):
                              ('orchestration.tool_calls', 'count'),
                              ('verification.evidence_reuses', 'count'),
                              ('tool_output.full_bytes', 'bytes'),
+                             ('tool_output.shown_bytes', 'bytes'),
+                             ('tool_output.additional_read_bytes', 'bytes'),
                              ('repair.attempts', 'count'),
                              ('decomposition.rework', 'count')):
             value = diagnostic() | {'metric': metric, 'unit': unit}
             with self.subTest(metric=metric):
                 self.assert_valid(value)
         self.assert_valid(diagnostic() | {'value': 0})
+
+    def test_event_attempt_and_context_references_remain_opaque(self):
+        value = diagnostic() | {'event_id': opaque('c'), 'attempt_id': opaque('e'),
+                                'context_hash': opaque('f')}
+        self.assert_valid(value)
+        for field in ('event_id', 'attempt_id', 'context_hash'):
+            with self.subTest(field=field):
+                self.assert_valid(value | {field: None})
+                for invalid in ('/private/path', 'secret-token', 'sha256:' + 'A' * 64):
+                    with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                        call('validate_diagnostic_measurement', value | {field: invalid})
 
     def test_unknown_is_explicit_and_does_not_become_zero(self):
         value = diagnostic() | {'value': None, 'quality': 'unknown'}
