@@ -277,6 +277,12 @@ def _timestamp(value: Any) -> None:
         raise ValueError("invalid UTC timestamp") from None
 
 
+def _instant(timestamp: str) -> tuple[str, str]:
+    """Compare UTC timestamps without truncating arbitrary fractional precision."""
+    whole, _, fraction = timestamp[:-1].partition(".")
+    return whole, fraction.rstrip("0")
+
+
 def _private_identifier(value: Any) -> None:
     # Syntax alone does not prove safe origin or prevent encoded secrets.
     if not isinstance(value, str) or re.fullmatch(r"sha256:[0-9a-f]{64}", value) is None:
@@ -1355,11 +1361,8 @@ def _projection_component_cost(field: str, quantity: int, snapshot: dict[str, An
         if parameter is None or parameter["value"] != snapshot[name]:
             raise ValueError("projection price parameters do not match")
     period = snapshot["effective_period"]
-    def instant(timestamp: str) -> tuple[str, str]:
-        whole, _, fraction = timestamp[:-1].partition(".")
-        return whole, fraction.rstrip("0")
     if scenario["basis"] == "at_execution" and (period["state"] != "known" or
-            not instant(period["start"]) <= instant(execution_time) < instant(period["end"])):
+            not _instant(period["start"]) <= _instant(execution_time) < _instant(period["end"])):
         raise ValueError("projection price period is unavailable")
     matches = [rate for rate in snapshot["rates"] if rate["component"] == components[field]]
     if len(matches) != 1:
@@ -1416,8 +1419,9 @@ def validate_lifecycle_projection(value: Any) -> dict[str, Any]:
     if "priced_subtotal_usd" in value:
         validate_decimal(value["priced_subtotal_usd"])
         _choice(value["subtotal_quality"], frozenset({"subtotal_only", "proven_lower_bound"}))
-        if value["subtotal_quality"] == "proven_lower_bound" and completeness["identity"] != "complete":
-            raise ValueError("lower bound requires resolved contributor identities")
+        if value["subtotal_quality"] == "proven_lower_bound" and (
+                completeness["identity"] != "complete" or completeness["pricing"] != "complete"):
+            raise ValueError("lower bound requires resolved identities and pricing")
     if "display_cost_usd" in value:
         display = value["display_cost_usd"]
         if not isinstance(display, str) or re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", display) is None:
@@ -1450,7 +1454,7 @@ def validate_lifecycle_projection(value: Any) -> dict[str, Any]:
     contributors = value["contributors"]
     if not isinstance(contributors, list) or not 1 <= len(contributors) <= 10000:
         raise ValueError("invalid projection contributors")
-    seen_ids, seen_observations = set(), set()
+    seen_ids, seen_observations, seen_records = set(), set(), set()
     total = Fraction(0)
     for contributor in contributors:
         _fields(contributor, {"contributor_id", "observation_ids", "profile_id", "profile_version",
@@ -1483,6 +1487,18 @@ def validate_lifecycle_projection(value: Any) -> dict[str, Any]:
                 time_evidence["value"] != execution["value"] or
                 time_evidence["profile_id"] != contributor["profile_id"]):
             raise ValueError("execution time evidence does not match")
+        if _instant(execution["value"]) > _instant(value["as_of"]):
+            raise ValueError("execution is after observation")
+        record = (time_evidence["profile_id"], time_evidence["source_hash"], time_evidence["record_number"])
+        if record in seen_records:
+            raise ValueError("overlapping contributor source records")
+        seen_records.add(record)
+        for parameter in value["scenario"]["source_parameters"].values():
+            if parameter is not None:
+                item = evidence[parameter["evidence"]]
+                if (item["profile_id"] != contributor["profile_id"] or
+                        item["source_hash"] != time_evidence["source_hash"]):
+                    raise ValueError("parameter evidence is outside contributor source")
         measurements = contributor["measurements"]
         if not isinstance(measurements, dict) or not measurements:
             raise ValueError("missing contributor measurements")
