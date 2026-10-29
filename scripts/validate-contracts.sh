@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+if [ "${1:-}" = --usage-source-normalization-only ]; then
+  shift
+  python3 "$REPO_ROOT/tests/usage-source-normalization.py" "$@"
+  exec python3 "$REPO_ROOT/tests/usage-normalize-cli.py" "$@"
+fi
+
 if [ "${1:-}" = --usage-bounded-source-reads-only ]; then
   shift
   exec python3 "$REPO_ROOT/tests/usage-bounded-source-reads.py" "$@"
@@ -4830,6 +4836,16 @@ test_usage_bounded_source_reads_acceptance() {
 }
 check "test_usage_bounded_source_reads_acceptance" \
   "$(test_usage_bounded_source_reads_acceptance && echo pass || echo 'bounded source read fixtures must pass')"
+
+test_usage_source_normalization_acceptance() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/usage-source-normalization.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-normalize-cli.py" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_usage_source_normalization_acceptance" \
+  "$(test_usage_source_normalization_acceptance && echo pass || echo 'usage source normalization fixtures must pass')"
 
 # Run explicit source-selection fixtures during ordinary validation as well.
 test_usage_selection_acceptance() {
