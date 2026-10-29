@@ -54,6 +54,12 @@ if [ "${1:-}" = --usage-price-snapshot-only ]; then
   exec python3 "$REPO_ROOT/tests/usage-price-snapshot-schema.py" "$@"
 fi
 
+# Check diagnostic registry behavior with offline fixtures.
+if [ "${1:-}" = --usage-diagnostic-registry-only ]; then
+  shift
+  exec python3 "$REPO_ROOT/tests/usage-diagnostic-registry.py" "$@"
+fi
+
 # Check registered diagnostic measurement schemas with offline fixtures.
 if [ "${1:-}" = --usage-diagnostic-only ]; then
   shift
@@ -4756,6 +4762,16 @@ check "test_usage_price_snapshot_acceptance" \
   "$(test_usage_price_snapshot_acceptance && echo pass || echo 'usage price snapshot fixtures must pass')"
 
 # Run diagnostic measurement fixtures during ordinary validation as well.
+test_usage_diagnostic_registry_acceptance() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/usage-diagnostic-registry.py" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 20
+    return 1
+  }
+}
+check "test_usage_diagnostic_registry_acceptance" \
+  "$(test_usage_diagnostic_registry_acceptance && echo pass || echo 'usage diagnostic registry fixtures must pass')"
+
 test_usage_diagnostic_acceptance() {
   local output
   output="$(python3 "$REPO_ROOT/tests/usage-diagnostic-schema.py" 2>&1)" || {
