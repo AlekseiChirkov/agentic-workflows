@@ -12,6 +12,8 @@ available, ingestion fails closed before any shared storage is modified.
 """
 import hashlib
 import hmac
+import base64
+import binascii
 import importlib.util
 import json
 import os
@@ -132,6 +134,71 @@ def trusted_authority_key(path):
         os.close(directory)
 
 
+def verify_rsa_sha256(public_key, message, signature):
+    """Verify a strict RSA SPKI and PKCS#1 v1.5 SHA-256 signature."""
+    def tlv(data, position, tag):
+        if position >= len(data) or data[position] != tag:
+            raise ValueError('invalid DER tag')
+        position += 1
+        if position >= len(data):
+            raise ValueError('invalid DER length')
+        length = data[position]
+        position += 1
+        if length & 0x80:
+            count = length & 0x7f
+            if not 1 <= count <= 2 or position + count > len(data) or data[position] == 0:
+                raise ValueError('invalid DER length')
+            length = int.from_bytes(data[position:position + count], 'big')
+            position += count
+            if length < 128 or (count == 2 and length < 256):
+                raise ValueError('noncanonical DER length')
+        end = position + length
+        if end > len(data):
+            raise ValueError('truncated DER')
+        return data[position:end], end
+
+    try:
+        if not isinstance(public_key, bytes) or not isinstance(message, bytes) or not isinstance(signature, bytes):
+            return False
+        lines = public_key.splitlines()
+        if (len(lines) < 3 or lines[0] != b'-----BEGIN PUBLIC KEY-----' or
+                lines[-1] != b'-----END PUBLIC KEY-----' or
+                any(not line or len(line) > 64 for line in lines[1:-1])):
+            return False
+        der = base64.b64decode(b''.join(lines[1:-1]), validate=True)
+        sequence, end = tlv(der, 0, 0x30)
+        if end != len(der):
+            return False
+        algorithm, pos = tlv(sequence, 0, 0x30)
+        if algorithm != bytes.fromhex('06092a864886f70d0101010500'):
+            return False
+        bits, end = tlv(sequence, pos, 0x03)
+        if end != len(sequence) or not bits or bits[0] != 0:
+            return False
+        encoded_key, end = tlv(bits[1:], 0, 0x30)
+        if end != len(bits) - 1:
+            return False
+        modulus_bytes, pos = tlv(encoded_key, 0, 0x02)
+        exponent_bytes, end = tlv(encoded_key, pos, 0x02)
+        if (end != len(encoded_key) or len(modulus_bytes) not in (257, 385, 513) or
+                modulus_bytes[0] != 0 or not modulus_bytes[1] & 0x80 or
+                exponent_bytes != b'\x01\x00\x01'):
+            return False
+        modulus = int.from_bytes(modulus_bytes, 'big')
+        size = len(modulus_bytes) - 1
+        if not modulus & 1 or len(signature) != size:
+            return False
+        value = int.from_bytes(signature, 'big')
+        if value >= modulus:
+            return False
+        digest_info = bytes.fromhex('3031300d060960864801650304020105000420') + hashlib.sha256(message).digest()
+        expected = b'\x00\x01' + b'\xff' * (size - len(digest_info) - 3) + b'\x00' + digest_info
+        actual = pow(value, 65537, modulus).to_bytes(size, 'big')
+        return hmac.compare_digest(actual, expected)
+    except (ValueError, TypeError, binascii.Error, IndexError):
+        return False
+
+
 def authorized_by_independent_authority(bundle, config, registered_key):
     """Verify an exact signed permit; callers cannot supply the trust anchor."""
     path = os.environ.get('USAGE_TELEMETRY_AUTHORITY_PERMIT')
@@ -150,26 +217,31 @@ def authorized_by_independent_authority(bundle, config, registered_key):
     if {key: permit[key] for key in expected} != expected:
         raise ValueError('authority permit mismatch')
     signature = permit['signature']
-    if not isinstance(signature, str) or re.fullmatch(r'[0-9a-f]{128}', signature) is None:
+    if not isinstance(signature, str) or re.fullmatch(r'(?:[0-9a-f]{128}|[0-9a-f]{512}|[0-9a-f]{768}|[0-9a-f]{1024})', signature) is None:
         raise ValueError('invalid authority signature')
-    try:
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-        from cryptography.exceptions import InvalidSignature
-    except ImportError:
-        raise ValueError('authority verifier unavailable') from None
     trusted_key = trusted_authority_key(key_path)
     if not re.fullmatch(r'[0-9a-f]{64}', registered_key) or not hmac.compare_digest(
             hashlib.sha256(trusted_key).hexdigest(), registered_key):
         raise ValueError('authority key is not registered')
-    try:
-        public_key = serialization.load_pem_public_key(trusted_key)
-        if not isinstance(public_key, Ed25519PublicKey):
-            raise ValueError('invalid authority key')
-        public_key.verify(bytes.fromhex(signature),
-                          b'orchestrail:usage-authority:v1\0' + canonical_bytes(expected))
-    except (InvalidSignature, ValueError, TypeError):
-        raise ValueError('invalid authority permit') from None
+    message = b'orchestrail:usage-authority:v1\0' + canonical_bytes(expected)
+    if len(signature) == 128:
+        # Keep legacy permits usable when the optional verifier is installed.
+        # RSA permits above remain usable with Python's standard library alone.
+        try:
+            from cryptography.hazmat.primitives import serialization
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+            from cryptography.exceptions import InvalidSignature
+        except ImportError:
+            raise ValueError('authority verifier unavailable') from None
+        try:
+            key = serialization.load_pem_public_key(trusted_key)
+            if not isinstance(key, Ed25519PublicKey):
+                raise ValueError('invalid authority key')
+            key.verify(bytes.fromhex(signature), message)
+        except (ValueError, TypeError, InvalidSignature):
+            raise ValueError('invalid authority permit') from None
+    elif not verify_rsa_sha256(trusted_key, message, bytes.fromhex(signature)):
+        raise ValueError('invalid authority permit')
     return True
 
 
