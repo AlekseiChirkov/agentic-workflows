@@ -138,6 +138,11 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
     envelope = kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
 
     def schema_set(path: tuple[str, ...]) -> bool:
+        if kind == "source_profile" and path in {
+            ("counter_fields",), ("counter_fields", "includes"),
+            ("known_gaps",), ("finality", "signals"),
+        }:
+            return True
         if not envelope:
             return False
         if path[-2:] == ("attribution", "candidates"):
@@ -254,7 +259,11 @@ def _choice(value: Any, choices: frozenset[str]) -> None:
 
 
 def validate_source_profile(value: Any) -> dict[str, Any]:
-    """Validate a bounded profile without inferring unverified capabilities."""
+    """Validate structure, not the origin or secrecy of referenced evidence.
+
+    Callers must independently establish provenance, applicability, and privacy.
+    Absent counter semantics are unknown and must not be inferred by consumers.
+    """
     required = {"schema_version", "kind", "profile_id", "profile_version", "provider",
                 "runtime", "format_version", "counter_fields", "identity_scope",
                 "finality", "inventory", "capabilities", "known_gaps", "verified_at",
@@ -270,7 +279,8 @@ def validate_source_profile(value: Any) -> dict[str, Any]:
         raise ValueError("invalid counter fields")
     seen = set()
     for counter in counters:
-        _fields(counter, {"path", "measurement", "counter_scope"})
+        _fields(counter, {"path", "measurement", "counter_scope"},
+                {"semantics_status", "includes", "ttl"})
         path = counter["path"]
         if not isinstance(path, list) or not 1 <= len(path) <= 32:
             raise ValueError("invalid counter path")
@@ -280,8 +290,30 @@ def validate_source_profile(value: Any) -> dict[str, Any]:
         if key in seen:
             raise ValueError("duplicate counter path")
         seen.add(key)
-        _choice(counter["measurement"], _MEASUREMENT_FIELDS)
+        _choice(counter["measurement"], _MEASUREMENT_FIELDS | {"input_total", "input_cache_write"})
         _choice(counter["counter_scope"], _COUNTER_SCOPES)
+        status = counter.get("semantics_status", "unknown")
+        _choice(status, frozenset({"verified", "unknown"}))
+        includes = counter.get("includes")
+        if status == "unknown":
+            if ("includes" in counter or "ttl" in counter or
+                    counter["measurement"] == "input_cache_write"):
+                raise ValueError("unknown counter semantics have details")
+        else:
+            if not isinstance(includes, list) or len(includes) > 3:
+                raise ValueError("invalid included measurements")
+            allowed = {
+                "input_total": frozenset({"input_cache_read", "input_cache_write_unsplit", "input_cache_write"}),
+                "output_total": frozenset({"reasoning_subset"}),
+            }.get(counter["measurement"], frozenset())
+            if any(not isinstance(item, str) or item not in allowed for item in includes):
+                raise ValueError("invalid included measurement")
+            if len(set(includes)) != len(includes):
+                raise ValueError("duplicate included measurement")
+            if counter["measurement"] == "input_cache_write":
+                _identifier(counter.get("ttl"))
+            elif "ttl" in counter:
+                raise ValueError("TTL requires split cache write")
     identity = value["identity_scope"]
     _fields(identity, {"account", "response"})
     for field in ("account", "response"):
