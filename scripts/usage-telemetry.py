@@ -2,6 +2,7 @@
 """Offline helpers for explicitly selected, private usage telemetry."""
 import argparse
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -157,6 +158,7 @@ def main(argv=None):
     normalize.add_argument('--profile', required=True)
     normalize.add_argument('--input-manifest', required=True)
     normalize.add_argument('--output', required=True)
+    normalize.add_argument('--provenance-output')
     args = parser.parse_args(argv)
     config, profile, key = _config(os.environ.get('USAGE_TELEMETRY_CONFIG'), args.profile)
     selection = validate_source_selection_json(_read_file(args.input_manifest))
@@ -168,7 +170,23 @@ def main(argv=None):
         result = adapter.normalize_selection(selection, profile=profile,
                     expected_owner_scope=config['owner_scope'], project_identifier=config['project_identifier'],
                     provider_identifier=config['provider_identifier'], run_id=config['run_id'], key=key)
-        _publish(directory, name, parent, log_root, canonical_bytes(result['bundle']))
+        bundle = result['bundle']
+        encoded = canonical_bytes(bundle)
+        if args.provenance_output:
+            proof = {'schema_version': 1, 'kind': 'usage_provenance',
+                     'bundle_sha256': hashlib.sha256(encoded).hexdigest(),
+                     'profile_id': bundle['profile_id'], 'profile_version': bundle['profile_version'],
+                     'scope': config['owner_scope']}
+            proof['mac'] = hmac.new(key, b'orchestrail:usage-provenance:v1\0' +
+                                    canonical_bytes(proof), hashlib.sha256).hexdigest()
+            proof_dir, proof_name, proof_parent, proof_log = _output_directory(args.provenance_output)
+            try:
+                if os.path.abspath(args.output) == os.path.abspath(args.provenance_output):
+                    raise ValueError('provenance output must be separate')
+                _publish(proof_dir, proof_name, proof_parent, proof_log, canonical_bytes(proof))
+            finally:
+                os.close(proof_dir)
+        _publish(directory, name, parent, log_root, encoded)
     finally:
         os.close(directory)
 

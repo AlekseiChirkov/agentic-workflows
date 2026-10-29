@@ -586,7 +586,12 @@ cmd_run_start() {
   ensure_store || { warn 'run-start storage unavailable'; return 0; }
 
   [ -n "$project" ] || project="$(pwd)"
-  local run_id ts file base file_pipeline contract_version="" start_epoch active recorded_file recorded_seq recorded_flow
+  local run_id ts file base file_pipeline contract_version="" start_epoch active recorded_file recorded_seq recorded_flow usage_key_fingerprint=''
+  # Registration is optional and must never prevent existing lifecycle logging.
+  if [ -n "${USAGE_TELEMETRY_CONFIG:-}" ] && command -v python3 >/dev/null 2>&1; then
+    usage_key_fingerprint="$(python3 "$SCRIPT_DIR/usage_telemetry_ingest.py" register 2>/dev/null)" || usage_key_fingerprint=''
+    [[ "$usage_key_fingerprint" =~ ^[0-9a-f]{64}$ ]] || usage_key_fingerprint=''
+  fi
   # The version belongs to this helper's checkout, independently of the caller.
   if [ -r "$REPO_ROOT/VERSION" ]; then
     contract_version="$(cat "$REPO_ROOT/VERSION" 2>/dev/null)" || contract_version=""
@@ -621,6 +626,13 @@ cmd_run_start() {
     rm -f "$active" 2>/dev/null
     warn 'run-start metadata persistence failed'
     return 0
+  fi
+  if [ -n "$usage_key_fingerprint" ]; then
+    meta_set "$run_id" usage_key_fingerprint "$usage_key_fingerprint" || {
+      rm -f "$active" 2>/dev/null
+      warn 'run-start metadata persistence failed'
+      return 0
+    }
   fi
   meta_read "$run_id" file recorded_file 2>/dev/null || recorded_file=''
   recorded_seq="$(meta_get "$run_id" seq 2>/dev/null)"
@@ -1290,9 +1302,32 @@ cmd_lint() {
   return 0
 }
 
+cmd_usage_ingest() {
+  local mode="${ORCHESTRAIL_USAGE_MODE:-off}" receipt
+  if [ "$mode" != on ]; then
+    warn 'usage collection_disabled'
+    return 0
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    warn 'usage dependency_unavailable'
+    return 0
+  fi
+  if [ "$#" -ne 2 ] || [ "$1" != --manifest ] || [ -z "$2" ]; then
+    warn 'usage invalid_schema'
+    return 0
+  fi
+  receipt="$(python3 "$SCRIPT_DIR/usage_telemetry_ingest.py" ingest "$2" "$LOG_ROOT" 2>/dev/null)" || {
+    warn 'usage ingestion_unavailable'
+    return 0
+  }
+  [ -n "$receipt" ] || { warn 'usage ingestion_unavailable'; return 0; }
+  printf '%s\n' "$receipt"
+}
+
 # ── dispatch ──────────────────────────────────────────────────────────
 case "${1-}" in
   run-start) shift; cmd_run_start "$@" ;;
+  usage-ingest) shift; cmd_usage_ingest "$@" ;;
   step)      shift; cmd_step "$@" ;;
   run-end)   shift; cmd_run_end "$@" ;;
   path)      shift; cmd_path "$@" ;;
