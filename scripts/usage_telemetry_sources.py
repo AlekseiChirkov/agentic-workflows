@@ -42,9 +42,12 @@ def _open_regular(path):
             directory = child
         descriptor = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
                              dir_fd=directory)
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        try:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise ValueError('selected source is not a regular file')
+        except BaseException:
             os.close(descriptor)
-            raise ValueError('selected source is not a regular file')
+            raise
         return descriptor
     except (OSError, OverflowError):
         raise ValueError('cannot safely open selected source') from None
