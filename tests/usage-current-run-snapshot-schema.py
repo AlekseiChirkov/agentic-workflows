@@ -48,7 +48,7 @@ def snapshot():
                        'max_records': 10000}}
 
 def warning():
-    return {'warning_id': opaque('d'), 'policy_id': 'policy', 'policy_version': '1',
+    return {'warning_id': opaque('d'), 'policy_id': 'policy', 'policy_version': 1,
             'scope': {'owner_kind': 'run', 'owner_id': opaque('b')},
             'metric': 'duration_ms', 'episode': 1, 'crossing_state': 'unknown',
             'delivery_state': 'unknown'}
@@ -147,7 +147,8 @@ class CurrentRunSnapshotTests(unittest.TestCase):
         variants = []
         bad = copy.deepcopy(value); bad['warning_delivery'][0]['scope']['owner_id'] = opaque('f'); variants.append(bad)
         for change in ({'episode': 0}, {'episode': -1}, {'episode': True},
-                       {'metric': 'unknown'}, {'policy_id': ''}, {'policy_version': ''}):
+                       {'metric': 'unknown'}, {'policy_id': ''}, {'policy_version': 0},
+                       {'policy_version': '1'}):
             bad = copy.deepcopy(value); bad['warning_delivery'][0].update(change); variants.append(bad)
         for index, bad in enumerate(variants):
             with self.subTest(index=index), self.assertRaises(ValueError):
