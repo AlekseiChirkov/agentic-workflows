@@ -176,6 +176,33 @@ class EnvelopeTests(unittest.TestCase):
         self.assertNotEqual(contract.canonical_bytes({'stream': [1, 2]}),
                             contract.canonical_bytes({'stream': [2, 1]}))
 
+    def test_schema_set_order_cannot_be_overridden(self):
+        obs = observation()
+        obs['attribution']['candidates'] = ['sha256:' + 'a' * 64, 'sha256:' + 'b' * 64]
+        expected = contract.canonical_bytes(obs)
+        self.assertEqual(expected, contract.canonical_bytes(obs))
+        path = ('attribution', 'candidates')
+        for function in (contract.canonical_bytes, contract.content_id, contract.observation_id):
+            with self.subTest(function=function.__name__), self.assertRaises(ValueError):
+                function(obs, set_keys={path: lambda item: ''.join(reversed(item))})
+        value = bundle()
+        with self.assertRaises(ValueError):
+            contract.content_id(value, set_keys={('sources',): lambda item: item['source_id']})
+        custom = {'items': [1, 2]}
+        self.assertNotEqual(contract.canonical_bytes(custom),
+                            contract.canonical_bytes(custom, set_keys={('items',): lambda item: -item}))
+        self.assertNotEqual(contract.canonical_bytes({'stream': [1, 2]}),
+                            contract.canonical_bytes({'stream': [2, 1]}))
+
+    def test_bundle_rejects_duplicate_set_members(self):
+        valid = bundle()
+        self.assertEqual(call('validate_usage_bundle', valid), valid)
+        for field in ('sources', 'observations'):
+            duplicate = copy.deepcopy(valid)
+            duplicate[field].append(copy.deepcopy(duplicate[field][0]))
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                call('validate_usage_bundle', duplicate)
+
     def test_evidence_profile_record_and_bundle_scope_are_checked(self):
         valid = observation()
         self.assertTrue(call('verify_measurement_evidence', valid, 'input_uncached', evidence()))
