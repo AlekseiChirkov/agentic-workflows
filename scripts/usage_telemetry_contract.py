@@ -520,6 +520,16 @@ def validate_observation(value: Any) -> dict[str, Any]:
 
 def validate_evidence_object(value: Any) -> dict[str, Any]:
     """Validate the separate evidence record; the hash is not an authenticity claim."""
+    if isinstance(value, dict) and value.get("kind") == "inventory_evidence":
+        _fields(value, {"schema_version", "kind", "profile_id", "profile_version",
+                        "source_hash", "inventory_digest"})
+        _bounded_tree(value)
+        _version(value["schema_version"])
+        _identifier(value["profile_id"])
+        _identifier(value["profile_version"])
+        _hash(value["source_hash"])
+        _hash(value["inventory_digest"])
+        return value
     _fields(value, {"schema_version", "kind", "profile_id", "source_hash", "record_number", "field", "value"})
     _bounded_tree(value)
     _version(value["schema_version"])
@@ -593,6 +603,7 @@ def validate_inventory(value: Any) -> dict[str, Any]:
             raise ValueError("duplicate inventory call")
         calls.add(entry["call_id"])
     responses = set()
+    answered_calls = set()
     for entry in value["expected_responses"]:
         _fields(entry, {"response_id", "call_id"})
         _private_identifier(entry["response_id"])
@@ -602,6 +613,8 @@ def validate_inventory(value: Any) -> dict[str, Any]:
                 entry["response_id"] in responses):
             raise ValueError("invalid inventory response link")
         responses.add(entry["response_id"])
+        if entry["call_id"] is not None:
+            answered_calls.add(entry["call_id"])
     slots = set()
     for entry in value["unresolved_slots"]:
         _fields(entry, {"call_id", "reason"})
@@ -611,7 +624,7 @@ def validate_inventory(value: Any) -> dict[str, Any]:
         if entry["call_id"] not in calls or identity in slots:
             raise ValueError("invalid unresolved inventory slot")
         slots.add(identity)
-    if value["state"] == "complete" and (slots or any(
+    if value["state"] == "complete" and (slots or calls != answered_calls or any(
             entry["call_id"] is None for entry in value["expected_responses"])):
         raise ValueError("complete inventory has unresolved slots")
     if len(canonical_bytes(value)) > INVENTORY_LIMIT:
@@ -665,6 +678,16 @@ def validate_usage_bundle(value: Any) -> dict[str, Any]:
         if digest in evidence_by_hash:
             raise ValueError("duplicate evidence")
         evidence_by_hash[digest] = evidence
+    for inventory in value["inventories"]:
+        if inventory["evidence"] is None:
+            continue
+        evidence = evidence_by_hash.get(inventory["evidence"])
+        declaration = {key: item for key, item in inventory.items() if key != "evidence"}
+        if (not evidence or evidence.get("kind") != "inventory_evidence" or
+                evidence["inventory_digest"] != content_id(declaration) or
+                any(evidence[key] != inventory[key]
+                    for key in ("profile_id", "profile_version", "source_hash"))):
+            raise ValueError("unverified inventory evidence")
     observation_members = set()
     for observation in value["observations"]:
         validate_observation(observation)
