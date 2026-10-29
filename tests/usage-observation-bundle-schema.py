@@ -6,6 +6,7 @@ import importlib.util
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('contract', ROOT / 'scripts/usage_telemetry_contract.py')
@@ -134,6 +135,86 @@ class EnvelopeTests(unittest.TestCase):
                                  'source_time_quality': 'verified',
                                  'observed_at': '2026-01-02T03:04:05Z'}
         self.assertEqual(call('validate_observation', valid), valid)
+
+    def test_invalid_timestamps_are_rejected_without_exposure(self):
+        valid = observation() | {'source_time': '2026-01-02T03:04:04Z',
+                                 'source_time_quality': 'verified'}
+        self.assertEqual(call('validate_observation', valid), valid)
+        for field in ('source_time', 'observed_at'):
+            for unsafe in ('/private/source.json', 'private source text',
+                           '2026-99-99T12:00:00Z', '2026-01-02'):
+                with self.subTest(field=field, unsafe=unsafe):
+                    with self.assertRaises(ValueError) as error:
+                        call('validate_observation', valid | {field: unsafe})
+                    self.assertNotIn(unsafe, str(error.exception))
+
+    def test_candidate_set_is_canonical(self):
+        first = observation()
+        first['attribution']['candidates'] = ['sha256:' + 'a' * 64, 'sha256:' + 'b' * 64]
+        second = copy.deepcopy(first)
+        second['attribution']['candidates'].reverse()
+        self.assertEqual(contract.canonical_bytes(first), contract.canonical_bytes(second))
+        self.assertEqual(contract.observation_id(first), contract.observation_id(second))
+
+    def test_bundle_sets_are_canonical_and_sequences_remain_ordered(self):
+        first = observation()
+        second = copy.deepcopy(first)
+        one = bundle()
+        one['observations'] = [first, second | {'record_number': 2}]
+        one['evidence_objects'] = [evidence(), evidence() | {'record_number': 2}]
+        for item in one['observations']:
+            item['measurements'] = {'input_uncached': {'measurement_state': 'final', 'value': 1, 'reasons': []}}
+        one['sources'].append({'source_id': 'sha256:' + 'f' * 64, 'sha256': 'f' * 64})
+        two = copy.deepcopy(one)
+        two['sources'].reverse()
+        two['observations'].reverse()
+        two['evidence_objects'].reverse()
+        self.assertEqual(call('validate_usage_bundle', one), one)
+        self.assertEqual(call('validate_usage_bundle', two), two)
+        self.assertEqual(contract.canonical_bytes(one), contract.canonical_bytes(two))
+        self.assertEqual(contract.content_id(one), contract.content_id(two))
+        self.assertNotEqual(contract.canonical_bytes({'stream': [1, 2]}),
+                            contract.canonical_bytes({'stream': [2, 1]}))
+
+    def test_evidence_profile_record_and_bundle_scope_are_checked(self):
+        valid = observation()
+        self.assertTrue(call('verify_measurement_evidence', valid, 'input_uncached', evidence()))
+        for change in ({'profile_id': 'other'}, {'record_number': 2}):
+            item = evidence() | change
+            candidate = copy.deepcopy(valid)
+            candidate['measurements']['input_uncached']['evidence'] = contract.content_id(item)
+            self.assertFalse(call('verify_measurement_evidence', candidate, 'input_uncached', item))
+        good = bundle()
+        self.assertEqual(call('validate_usage_bundle', good), good)
+        for change in ({'profile_id': 'other'}, {'profile_version': 'other'}, {'source_hash': 'b' * 64}):
+            invalid = copy.deepcopy(good)
+            invalid['observations'][0].update(change)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                call('validate_usage_bundle', invalid)
+
+    def test_exact_canonical_bundle_limit_and_multibyte_input(self):
+        value = bundle()
+        size = len(contract.canonical_bytes(value))
+        with patch.object(contract, 'BUNDLE_LIMIT', size):
+            self.assertEqual(call('validate_usage_bundle', value), value)
+        with patch.object(contract, 'BUNDLE_LIMIT', size - 1):
+            with self.assertRaises(ValueError):
+                call('validate_usage_bundle', value)
+        obs = observation() | {'profile_id': 'é'}
+        data = json.dumps(obs, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        with patch.object(contract, 'OBSERVATION_LIMIT', len(data)):
+            self.assertEqual(call('validate_observation_json', data), obs)
+            with self.assertRaises(ValueError):
+                call('validate_observation_json', data + b' ')
+
+    def test_canonical_observation_limit_gate(self):
+        value = observation()
+        size = len(contract.canonical_bytes(value))
+        with patch.object(contract, 'OBSERVATION_LIMIT', size):
+            self.assertEqual(call('validate_observation', value), value)
+        with patch.object(contract, 'OBSERVATION_LIMIT', size - 1):
+            with self.assertRaises(ValueError):
+                call('validate_observation', value)
 
     def test_observation_json_input_byte_limit(self):
         data = json.dumps(observation(), ensure_ascii=False, separators=(',', ':')).encode('utf-8')
