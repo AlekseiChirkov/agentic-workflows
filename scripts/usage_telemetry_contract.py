@@ -850,8 +850,13 @@ def _validate_json(data: str | bytes, limit: int, validator: Callable[[Any], Any
 def validate_price_snapshot(value: Any) -> dict[str, Any]:
     """Validate a snapshot's structure; evidence still requires independent verification.
 
-    Unknown applicability and unsupported exact units remain explicit. This
-    function does not infer historical prices or decide whether a rate applies.
+    An absent multiplier means its applicability is unknown, not that no
+    multiplier applies. Consumers must not treat the affected component as
+    reliably priced without evidence resolving that uncertainty. An absent
+    tool_id means the tool's identity is unknown; consumers must not match the
+    rate to a specific tool by guessing. Unsupported exact units remain
+    unpriced until exact arithmetic is available. This function does not infer
+    historical prices or decide whether a rate applies.
     """
     _fields(value, {"schema_version", "kind", "currency", "retrieved_at", "effective_period",
                     "model", "aliases", "modality", "service_tier", "region", "rates",
