@@ -2,6 +2,7 @@
 """Integration coverage for the additive producer contract export."""
 
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -133,6 +134,66 @@ class ProducerContractExport(unittest.TestCase):
             self.assertEqual(actual["usage.availability"], "unavailable")
             self.assertNotIn("usage.registry", actual)
             self.assertNotIn("usage_accepted", result.stdout)
+
+    def test_exported_definitions_validate_without_repository_access(self):
+        registry = json.loads(entries(invoke())["usage.registry"])
+        source = registry["validator_source"]
+        self.assertEqual(hashlib.sha256(source.encode("utf-8")).hexdigest(),
+                         registry["validator_source_sha256"])
+        profile = {
+            "schema_version": 1, "kind": "source_profile",
+            "profile_id": "synthetic-profile", "profile_version": "1",
+            "provider": "synthetic-provider", "runtime": "synthetic-runtime",
+            "format_version": "1",
+            "counter_fields": [{"path": ["usage", "input"], "measurement": "input_uncached",
+                                "counter_scope": "response_total"}],
+            "identity_scope": {"account": "provider_account", "response": "response_id"},
+            "finality": {"signals": ["complete"], "status": "verified"},
+            "inventory": {"status": "verified", "evidence": "synthetic-inventory-evidence"},
+            "capabilities": {"cache": "unknown", "effort": "unknown", "tools": "unknown"},
+            "known_gaps": ["historical_prices"], "verified_at": "2026-01-02T03:04:05Z",
+            "source": "https://example.invalid/synthetic-format",
+        }
+        consumer = '''
+import hashlib, json, sys
+data = json.load(sys.stdin)
+registry, profile = data["registry"], data["profile"]
+assert hashlib.sha256(registry["validator_source"].encode("utf-8")).hexdigest() == data["trusted_digest"]
+assert registry["validator_source_sha256"] == data["trusted_digest"]
+namespace = {"__name__": "exported_contract"}
+exec(compile(registry["validator_source"], "<exported contract>", "exec"), namespace)
+validate = namespace[registry["kinds"]["source_profile"]["validator"]]
+encode = lambda obj: json.dumps(obj, separators=(",", ":")).encode()
+assert validate(encode(profile)) == profile
+for bad in ({**profile, "schema_version": 2}, {**profile, "unexpected": "secret"},
+            {**profile, "counter_fields": []}):
+    try:
+        validate(encode(bad))
+    except ValueError:
+        continue
+    raise AssertionError("invalid profile was accepted")
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            result = subprocess.run(["python3", "-I", "-c", consumer], cwd=tmp,
+                                    input=json.dumps({"registry": registry, "profile": profile,
+                                                      "trusted_digest": hashlib.sha256(MODULE.read_bytes()).hexdigest()}),
+                                    text=True, capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_missing_required_kind_disables_export(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            scripts = Path(tmp) / "scripts"
+            scripts.mkdir()
+            shutil.copyfile(SCRIPT, scripts / SCRIPT.name)
+            source = MODULE.read_text(encoding="utf-8")
+            entry = '        "current_run_snapshot": (validate_current_run_snapshot_json, CURRENT_RUN_SNAPSHOT_LIMIT),\n'
+            self.assertEqual(source.count(entry), 1)
+            (scripts / MODULE.name).write_text(source.replace(entry, ""), encoding="utf-8")
+            result = invoke(script=scripts / SCRIPT.name)
+            self.assertEqual(result.returncode, 0)
+            actual = entries(result)
+            self.assertEqual(actual["usage.availability"], "unavailable")
+            self.assertNotIn("usage.registry", actual)
 
 
 if __name__ == "__main__":
