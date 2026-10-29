@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import importlib.util
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -76,6 +77,38 @@ class LateImportTests(unittest.TestCase):
         self.assertFalse(receipt['duplicate'])
         self.assertEqual(self.fixture.artifact().read_bytes(), contract.canonical_bytes(self.fixture.bundle))
         self.assertTrue(self.invoke()['duplicate'])
+        self.assertEqual(self.run_file.read_bytes(), self.closed)
+        self.assertFalse(self.fixture.lifecycle.exists())
+
+    def test_real_cli_requires_explicit_late_certificate(self):
+        authority_file = self.fixture.root / 'authority-public.pem'
+        issuer_file = self.fixture.root / 'issuer-public.pem'
+        authority_file.write_bytes(self.auth.public)
+        issuer_file.write_bytes(rsa_tests.PUBLIC)
+        bootstrap = self.fixture.root / 'bootstrap.py'
+        bootstrap.write_text('import os, sys\n'
+            'sys.path.insert(0, os.environ["TEST_SCRIPTS"])\n'
+            'import usage_telemetry_ingest as ingest\n'
+            'ingest.trusted_authority_key = lambda path: open(os.environ["TEST_AUTH_KEY"], "rb").read()\n'
+            'ingest.trusted_registration_key = lambda path: open(os.environ["TEST_REG_KEY"], "rb").read()\n'
+            'sys.argv = sys.argv[1:]\n'
+            'ingest.main()\n')
+        bindir = self.fixture.root / 'test-bin'
+        bindir.mkdir()
+        wrapper = bindir / 'python3'
+        wrapper.write_text('#!/bin/sh\nexec ' + sys.executable + ' ' + str(bootstrap) + ' "$@"\n')
+        wrapper.chmod(0o755)
+        env = self.fixture.env | {'PATH': str(bindir) + os.pathsep + os.environ['PATH'],
+                                  'TEST_SCRIPTS': str(ROOT / 'scripts'), 'TEST_AUTH_KEY': str(authority_file),
+                                  'TEST_REG_KEY': str(issuer_file),
+                                  'USAGE_TELEMETRY_REGISTRATION_KEY': '/etc/orchestrail/usage-registration-authorities/test.pem'}
+        command = ['bash', str(ROOT / 'scripts/log-step.sh'), 'usage-ingest', '--manifest', str(self.fixture.output)]
+        denied = subprocess.run(command, env=env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(denied.stdout, '')
+        self.assertFalse(self.fixture.artifact().exists())
+        accepted = subprocess.run(command + ['--late-certificate', str(self.certificate_path)],
+                                  env=env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(json.loads(accepted.stdout)['kind'], 'usage_accepted', accepted.stderr)
         self.assertEqual(self.run_file.read_bytes(), self.closed)
         self.assertFalse(self.fixture.lifecycle.exists())
 
