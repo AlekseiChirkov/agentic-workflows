@@ -94,6 +94,20 @@ class PriceSnapshotSchemaTests(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 call('validate_price_snapshot', value | change)
 
+    def test_namespaced_model_and_alias_identifiers(self):
+        value = snapshot()
+        value['model'] = 'example-vendor/example-model-2026'
+        value['aliases'][0]['alias'] = 'example-vendor/example-alias'
+        self.assert_valid(value)
+        for name in ('/private/path', '../model', 'vendor/../secret', 'a/b/c',
+                     'vendor/model?token=secret', 'vendor/model#fragment', 'vendor/model name'):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                call('validate_price_snapshot', value | {'model': name})
+            invalid = copy.deepcopy(value)
+            invalid['aliases'][0]['alias'] = name
+            with self.subTest(alias=name), self.assertRaises(ValueError):
+                call('validate_price_snapshot', invalid)
+
     def test_rate_units_cache_and_thresholds_are_typed(self):
         value = snapshot()
         self.assert_valid(value)
@@ -113,6 +127,50 @@ class PriceSnapshotSchemaTests(unittest.TestCase):
             del bad['rates'][0][key]
             with self.subTest(missing=key), self.assertRaises(ValueError):
                 call('validate_price_snapshot', bad)
+
+    def test_tool_rates_preserve_separate_tool_identities(self):
+        value = snapshot()
+        value['rates'][-1]['tool_id'] = 'search'
+        value['rates'].append({'component': 'tool', 'tool_id': 'fetch', 'usd': '0.03',
+                               'unit': 'request', 'unit_quantity': 1,
+                               'cache_ttl_seconds': None, 'threshold': None})
+        self.assert_valid(value)
+        for identity in ('', '/private/tool', True, None):
+            invalid = copy.deepcopy(value)
+            invalid['rates'][-1]['tool_id'] = identity
+            with self.subTest(identity=identity), self.assertRaises(ValueError):
+                call('validate_price_snapshot', invalid)
+        invalid = copy.deepcopy(value)
+        invalid['rates'][0]['tool_id'] = 'search'
+        with self.assertRaises(ValueError):
+            call('validate_price_snapshot', invalid)
+        invalid = copy.deepcopy(value)
+        del invalid['rates'][-1]['tool_id']
+        with self.assertRaises(ValueError):
+            call('validate_price_snapshot', invalid)
+
+    def test_multiplier_applicability_is_explicit_and_exact(self):
+        # Omitting this optional extension preserves the previously valid schema.
+        self.assert_valid(snapshot())
+        value = snapshot()
+        value['rates'][0]['multiplier'] = {'state': 'none'}
+        value['rates'][1]['multiplier'] = {'state': 'known', 'factor': '1.25',
+                                          'scope': 'extended_context'}
+        value['rates'][2]['multiplier'] = {'state': 'unknown', 'scope': 'service_tier',
+                                          'reason': 'missing_applicability_evidence'}
+        self.assert_valid(value)
+        for multiplier in ({}, {'state': 'none', 'factor': '1'},
+                           {'state': 'known', 'factor': '1.0', 'scope': 'tier'},
+                           {'state': 'known', 'factor': '1'},
+                           {'state': 'known', 'factor': '-1', 'scope': 'tier'},
+                           {'state': 'unknown', 'scope': 'tier'},
+                           {'state': 'unknown', 'scope': 'tier', 'reason': ''},
+                           {'state': 'unknown', 'scope': 'tier', 'reason': 'missing', 'factor': '1'},
+                           {'state': 'maybe', 'scope': 'tier'}):
+            invalid = copy.deepcopy(value)
+            invalid['rates'][0]['multiplier'] = multiplier
+            with self.subTest(multiplier=multiplier), self.assertRaises(ValueError):
+                call('validate_price_snapshot', invalid)
 
     def test_forbidden_fields_and_source_urls_do_not_leak(self):
         value = snapshot()
