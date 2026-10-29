@@ -73,6 +73,24 @@ class TypedMeasurementTests(unittest.TestCase):
             with self.subTest(measurement=invalid), self.assertRaises(ValueError):
                 validate(invalid)
 
+    def test_specified_reasons_are_typed_and_preserved(self):
+        reasons = (
+            "unsupported_profile", "invalid_schema", "invalid_counter", "counter_conflict",
+            "inventory_unknown", "stream_incomplete", "identity_unresolved", "revision_conflict",
+            "unpriced_component", "attribution_unverified", "timing_unavailable",
+            "source_record_quarantined", "source_changed", "digest_mismatch", "scope_violation",
+            "forbidden_field", "input_limit_exceeded", "projection_mismatch", "publication_conflict",
+            "stored_artifact_corrupt", "io_unavailable", "collection_disabled",
+            "dependency_unavailable", "policy_unavailable", "delivery_pending",
+            "accepted_denominator_zero", "comparison_ineligible",
+        )
+        for reason in reasons:
+            measurement = {"measurement_state": "unavailable", "reasons": [reason]}
+            with self.subTest(reason=reason):
+                self.assertEqual(validate(measurement), measurement)
+        with self.assertRaises(ValueError):
+            validate({"measurement_state": "unavailable", "reasons": ["not_a_reason"]})
+
     def test_duplicate_keys_are_rejected_before_measurement_validation(self):
         self.assertEqual(validate(known(1)), known(1))
         with self.assertRaises(ValueError):
