@@ -42,10 +42,16 @@ def snapshot():
             'accepted_receipts': [receipt], 'bundles': [bundle],
             'inventories': [inventories.inventory()],
             'inventory_evidence': [inventories.inventory_evidence(inventories.inventory())],
-            'overlap_state': 'unknown', 'warning_delivery': [
-                {'warning_id': opaque('d'), 'crossing_state': 'unknown',
-                 'delivery_state': 'unknown'}],
-            'bounds': {'max_bytes': 1048576, 'max_entries': 10000}}
+            'overlap_state': 'unknown', 'warning_delivery': [warning()],
+            'bounds': {'max_bytes': 1048576, 'max_entries': 10000,
+                       'max_source_bytes': 1048576, 'max_total_bytes': 1048576,
+                       'max_records': 10000}}
+
+def warning():
+    return {'warning_id': opaque('d'), 'policy_id': 'policy', 'policy_version': '1',
+            'scope': {'owner_kind': 'run', 'owner_id': opaque('b')},
+            'metric': 'duration_ms', 'episode': 1, 'crossing_state': 'unknown',
+            'delivery_state': 'unknown'}
 
 class CurrentRunSnapshotTests(unittest.TestCase):
     def assert_valid(self, value):
@@ -64,7 +70,7 @@ class CurrentRunSnapshotTests(unittest.TestCase):
     def test_session_scope_and_time_only_disabled_snapshot(self):
         value = snapshot()
         value['owner_scope'] = {'owner_kind': 'session', 'owner_id': opaque('e')}
-        value.update(mode='off', segments=[], accepted_receipts=[], bundles=[], inventories=[], inventory_evidence=[])
+        value.update(mode='off', segments=[], accepted_receipts=[], bundles=[], inventories=[], inventory_evidence=[], warning_delivery=[])
         self.assert_valid(value)
 
     def test_required_fields_closed_shape_and_private_payload(self):
@@ -123,6 +129,30 @@ class CurrentRunSnapshotTests(unittest.TestCase):
             with self.subTest(index=index), self.assertRaises(ValueError):
                 call('validate_current_run_snapshot', bad)
 
+    def test_warning_policy_scope_metric_and_episode_survive_clear_and_recross(self):
+        value = snapshot()
+        value['warning_delivery'][0].update(crossing_state='cleared', delivery_state='delivered')
+        self.assert_valid(value)
+        self.assertEqual(value['warning_delivery'][0]['episode'], 1)
+        reopened = copy.deepcopy(value)
+        reopened['warning_delivery'][0].update(warning_id=opaque('e'), episode=2,
+                                                crossing_state='crossed', delivery_state='pending')
+        self.assert_valid(reopened)
+        self.assertEqual(reopened['warning_delivery'][0]['episode'], 2)
+        self.assertNotEqual(value['warning_delivery'][0]['warning_id'], reopened['warning_delivery'][0]['warning_id'])
+        for key in ('policy_id', 'policy_version', 'scope', 'metric', 'episode'):
+            bad = copy.deepcopy(value); del bad['warning_delivery'][0][key]
+            with self.subTest(missing=key), self.assertRaises(ValueError):
+                call('validate_current_run_snapshot', bad)
+        variants = []
+        bad = copy.deepcopy(value); bad['warning_delivery'][0]['scope']['owner_id'] = opaque('f'); variants.append(bad)
+        for change in ({'episode': 0}, {'episode': -1}, {'episode': True},
+                       {'metric': 'unknown'}, {'policy_id': ''}, {'policy_version': ''}):
+            bad = copy.deepcopy(value); bad['warning_delivery'][0].update(change); variants.append(bad)
+        for index, bad in enumerate(variants):
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                call('validate_current_run_snapshot', bad)
+
     def test_json_duplicate_keys_and_declared_limits(self):
         value = snapshot()
         self.assert_valid(value)
@@ -173,10 +203,33 @@ class CurrentRunSnapshotTests(unittest.TestCase):
             with self.subTest(index=index), self.assertRaises(ValueError):
                 call('validate_current_run_snapshot', bad)
 
+    def test_part_read_limits_must_be_explicit_and_cover_the_selected_total(self):
+        value = snapshot()
+        value.update(segments=[], accepted_receipts=[], bundles=[], inventories=[],
+                     inventory_evidence=[], warning_delivery=[])
+        value['parts'] = [{'kind': 'usage_bundle', 'local_path': '/selected/one.json',
+                           'sha256': 'a' * 64, 'size_bytes': 73},
+                          {'kind': 'usage_bundle', 'local_path': '/selected/two.json',
+                           'sha256': 'b' * 64, 'size_bytes': 50}]
+        value['bounds'].update(max_source_bytes=73, max_total_bytes=123, max_records=1)
+        with patch('builtins.open', side_effect=AssertionError('part opened')):
+            self.assert_valid(value)
+        for key in ('max_source_bytes', 'max_total_bytes', 'max_records'):
+            bad = copy.deepcopy(value); del bad['bounds'][key]
+            with self.subTest(missing=key), self.assertRaises(ValueError):
+                call('validate_current_run_snapshot', bad)
+        for change in ({'max_source_bytes': 72}, {'max_total_bytes': 122},
+                       {'max_records': 0}, {'max_source_bytes': True},
+                       {'max_total_bytes': -1}, {'max_records': True}):
+            bad = copy.deepcopy(value); bad['bounds'].update(change)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                call('validate_current_run_snapshot', bad)
+
     def test_snapshot_schema_sets_have_stable_canonical_identity(self):
         value = snapshot()
-        value['warning_delivery'].append({'warning_id': opaque('e'),
-                                           'crossing_state': 'below', 'delivery_state': 'pending'})
+        value['warning_delivery'].append(warning() | {'warning_id': opaque('e'),
+                                                        'policy_id': 'second_policy',
+                                                        'crossing_state': 'below', 'delivery_state': 'pending'})
         value['bundles'][0]['sources'].append({'source_id': opaque('f'), 'sha256': 'b' * 64})
         value['accepted_receipts'][0]['bundle_sha256'] = contract.content_id(value['bundles'][0])
         self.assert_valid(value)
