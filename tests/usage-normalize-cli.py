@@ -44,7 +44,7 @@ class NormalizeCliTests(unittest.TestCase):
         self.config = {'schema_version': 1, 'profiles': [{'profile': self.profile,
                        'sha256': hashlib.sha256(contract.canonical_bytes(self.profile)).hexdigest()}],
                        'owner_scope': fixtures.OWNER, 'project_identifier': 'PRIVATE_PROJECT',
-                       'provider_identifier': 'PRIVATE_PROVIDER', 'run_id': 'run-1',
+                       'provider_identifier': 'PRIVATE_PROVIDER', 'run_id': '1a2b3c4d',
                        'key_hex': '7f' * 32}
         self.write_config()
         self.write_records([self.raw])
@@ -75,6 +75,7 @@ class NormalizeCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         bundle = json.loads(self.output.read_text())
         self.assertEqual(contract.validate_usage_bundle(bundle), bundle)
+        self.assertEqual(bundle['run_id'], '1a2b3c4d')
         self.assertEqual(bundle['observations'][0]['measurements']['tokens_in']['value'], 1000)
         self.assertEqual(bundle['observations'][0]['observed_at'], self.selection['observed_at'])
         self.assertTrue(bundle['evidence_objects'])
@@ -138,6 +139,18 @@ class NormalizeCliTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(self.output.exists())
         self.assertNotIn(str(alias), result.stderr)
+
+    def test_invalid_run_identifiers_never_produce_output_or_disclose_values(self):
+        for run_id in ('PRIVATE_RUN_SECRET', '1a2b3c4', '1A2B3C4D', '1a2b3c4d5', '../1a2b3c4d'):
+            with self.subTest(case=run_id):
+                self.output.unlink(missing_ok=True)
+                self.config['run_id'] = run_id
+                self.write_config()
+                result = self.run_cli()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(self.output.exists())
+                self.assertNotIn(run_id, result.stdout + result.stderr)
+                self.assertNotIn('Traceback', result.stderr)
 
     def test_changed_source_and_invalid_manifest_do_not_replace_output(self):
         self.output.write_text('existing output')
@@ -210,7 +223,7 @@ class NormalizeCliTests(unittest.TestCase):
                     exposed += self.output.read_text()
                 else:
                     self.assertNotEqual(result.returncode, 0)
-                self.assertNotIn('PRIVATE_PROFILE_SECRET', exposed)
+                self.assertFalse('PRIVATE_PROFILE_SECRET' in exposed, 'private profile text was published')
 
 
 if __name__ == '__main__':
