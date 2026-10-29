@@ -1385,6 +1385,33 @@ def _projection_component_cost(field: str, quantity: int, snapshot: dict[str, An
     return unit_price * quantity
 
 
+def _projection_possible_snapshot(field: str, snapshot: dict[str, Any],
+                                  scenario: dict[str, Any], execution_time: str) -> bool:
+    """Keep unknown applicability as a possible match, never silently exclude it."""
+    components = {"input_uncached": "input_uncached", "input_cache_read": "input_cache_read",
+                  "output_total": "output"}
+    component = components.get(field)
+    if component is None or not any(rate["component"] == component for rate in snapshot["rates"]):
+        return False
+    parameters = scenario["source_parameters"]
+    for name in ("model", "service_tier", "region", "modality"):
+        parameter = parameters[name]
+        selected = scenario["assumptions"].get(name)
+        if selected is None and parameter is not None:
+            selected = parameter["value"]
+        available = snapshot[name]
+        if name == "model" and selected is not None and selected != available:
+            if selected not in {alias["alias"] for alias in snapshot["aliases"]}:
+                return False
+        elif name != "model" and selected is not None and available is not None and selected != available:
+            return False
+    period = snapshot["effective_period"]
+    if (scenario["basis"] == "at_execution" and period["state"] == "known" and
+            not _instant(period["start"]) <= _instant(execution_time) < _instant(period["end"])):
+        return False
+    return True
+
+
 def validate_lifecycle_projection(value: Any) -> dict[str, Any]:
     """Validate a self-contained projection without asserting external evidence provenance.
 
@@ -1529,6 +1556,10 @@ def validate_lifecycle_projection(value: Any) -> dict[str, Any]:
                     item["source_hash"] != time_evidence["source_hash"] or
                     item["record_number"] != time_evidence["record_number"]):
                 raise ValueError("measurement evidence does not match")
+            matches = [snapshot for snapshot in prices.values()
+                       if _projection_possible_snapshot(field, snapshot, value["scenario"], execution["value"])]
+            if len(matches) != 1 or matches[0] is not prices[price_id]:
+                raise ValueError("projection component price is ambiguous")
             amount += _projection_component_cost(field, measurement["value"], prices[price_id],
                                                  value["scenario"], execution["value"])
         validate_decimal(contributor["priced_usd"])
