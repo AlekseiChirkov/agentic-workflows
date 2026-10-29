@@ -346,6 +346,27 @@ class LifecycleProjectionSchemaTests(unittest.TestCase):
             with self.subTest(index=index), self.assertRaises(ValueError):
                 call('validate_lifecycle_projection', bad)
 
+    def test_historical_component_requires_one_applicable_snapshot(self):
+        value = projection()
+        self.assert_valid(value)
+        alternative = copy.deepcopy(value['price_snapshots'][0])
+        alternative['rates'][0]['usd'] = '20'
+        value['price_snapshots'].append(alternative)
+        value['scenario']['snapshot_ids'].append(contract.content_id(alternative))
+        conflicting = copy.deepcopy(value)
+        # An independently evidenced, nonoverlapping historical period is harmless.
+        alternative['effective_period']['start'] = '2027-01-01T00:00:00Z'
+        alternative['effective_period']['end'] = '2029-01-01T00:00:00Z'
+        period_evidence = {'schema_version': 1, 'kind': 'price_period_evidence',
+                           'source_hash': 'd' * 64, 'start': '2027-01-01T00:00:00Z',
+                           'end': '2029-01-01T00:00:00Z'}
+        alternative['effective_period']['evidence'] = contract.content_id(period_evidence)
+        value['evidence_objects'].append(period_evidence)
+        value['scenario']['snapshot_ids'][-1] = contract.content_id(alternative)
+        self.assert_valid(value)
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', conflicting)
+
     def test_complete_cost_requires_known_multiplier_applicability(self):
         value = projection()
         self.assert_valid(value)
