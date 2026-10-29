@@ -148,6 +148,9 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
             ("inventories",), ("segments",), ("diagnostics",),
         }
 
+    if any(schema_set(path) for path in keys):
+        raise ValueError("schema set ordering cannot be overridden")
+
     def normalize(item: Any, path: tuple[str, ...]) -> Any:
         if isinstance(item, dict):
             if any(not isinstance(key, str) for key in item):
@@ -349,10 +352,15 @@ def validate_usage_bundle(value: Any) -> dict[str, Any]:
     if value["inventories"] or value["segments"] or value["diagnostics"]:
         raise ValueError("unsupported bundle entity")
     source_hashes = set()
+    source_members = set()
     for source in value["sources"]:
         _fields(source, {"source_id", "sha256"})
         _private_identifier(source["source_id"])
         _hash(source["sha256"])
+        member = canonical_bytes(source)
+        if member in source_members:
+            raise ValueError("duplicate source")
+        source_members.add(member)
         source_hashes.add(source["sha256"])
     evidence_by_hash = {}
     for evidence in value["evidence_objects"]:
@@ -361,8 +369,13 @@ def validate_usage_bundle(value: Any) -> dict[str, Any]:
         if digest in evidence_by_hash:
             raise ValueError("duplicate evidence")
         evidence_by_hash[digest] = evidence
+    observation_members = set()
     for observation in value["observations"]:
         validate_observation(observation)
+        member = observation_id(observation)
+        if member in observation_members:
+            raise ValueError("duplicate observation")
+        observation_members.add(member)
         if (observation["profile_id"] != value["profile_id"] or
                 observation["profile_version"] != value["profile_version"] or
                 observation["source_hash"] not in source_hashes):
