@@ -38,6 +38,15 @@ class CanonicalEncodingTests(unittest.TestCase):
         self.assertEqual(contract.content_id(first, set_paths=(("members",),)),
                          hashlib.sha256(first_bytes).hexdigest())
 
+    def test_schema_set_key_controls_order_and_identity(self):
+        first = {"schema_version": 1, "items": [{"id": "b", "value": 1}, {"id": "a", "value": 9}]}
+        second = {"schema_version": 1, "items": list(reversed(first["items"]))}
+        keys = {("items",): lambda item: item["value"]}
+        expected = b'{"items":[{"id":"b","value":1},{"id":"a","value":9}],"schema_version":1}'
+        self.assertEqual(contract.canonical_bytes(first, set_keys=keys), expected)
+        self.assertEqual(contract.content_id(first, set_keys=keys),
+                         contract.content_id(second, set_keys=keys))
+
     def test_stream_order_changes_bytes_and_identity(self):
         first = {"schema_version": 1, "stream": ["first", "second"]}
         second = {"schema_version": 1, "stream": ["second", "first"]}
