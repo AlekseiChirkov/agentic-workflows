@@ -137,5 +137,58 @@ class CurrentRunSnapshotTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             call('validate_current_run_snapshot', bad)
 
+    def test_explicit_private_part_manifest_is_valid_without_opening_files(self):
+        value = snapshot()
+        value.update(segments=[], accepted_receipts=[], bundles=[], inventories=[],
+                     inventory_evidence=[], warning_delivery=[])
+        value['parts'] = [{'kind': 'usage_bundle', 'local_path': '/selected/bundle.json',
+                           'sha256': 'a' * 64, 'size_bytes': 123}]
+        with patch('builtins.open', side_effect=AssertionError('part opened')), \
+             patch.object(Path, 'open', side_effect=AssertionError('part opened')):
+            self.assert_valid(value)
+        self.assertEqual(value['parts'][0]['sha256'], 'a' * 64)
+        self.assertEqual(value['parts'][0]['local_path'], '/selected/bundle.json')
+
+    def test_part_manifest_rejects_implicit_or_unbounded_inputs(self):
+        value = snapshot()
+        value.update(segments=[], accepted_receipts=[], bundles=[], inventories=[],
+                     inventory_evidence=[], warning_delivery=[])
+        part = {'kind': 'usage_bundle', 'local_path': '/selected/bundle.json',
+                'sha256': 'a' * 64, 'size_bytes': 123}
+        value['parts'] = [part]
+        self.assert_valid(value)
+        variants = []
+        for key in part:
+            bad = copy.deepcopy(value); del bad['parts'][0][key]; variants.append(bad)
+        for change in ({'local_path': '/selected/*.json'}, {'local_path': ''},
+                       {'sha256': 'a' * 63}, {'size_bytes': -1}, {'size_bytes': True},
+                       {'kind': 'history'}, {'raw_content': 'private'}):
+            bad = copy.deepcopy(value); bad['parts'][0].update(change); variants.append(bad)
+        bad = copy.deepcopy(value); bad['parts'] *= 2; variants.append(bad)
+        bad = copy.deepcopy(value); bad['parts'] = [part] * 10001; variants.append(bad)
+        bad = copy.deepcopy(value); bad['bounds']['max_entries'] = 1
+        bad['parts'].append(part | {'local_path': '/selected/second.json', 'sha256': 'b' * 64})
+        variants.append(bad)
+        for index, bad in enumerate(variants):
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                call('validate_current_run_snapshot', bad)
+
+    def test_snapshot_schema_sets_have_stable_canonical_identity(self):
+        value = snapshot()
+        value['warning_delivery'].append({'warning_id': opaque('e'),
+                                           'crossing_state': 'below', 'delivery_state': 'pending'})
+        value['bundles'][0]['sources'].append({'source_id': opaque('f'), 'sha256': 'b' * 64})
+        value['accepted_receipts'][0]['bundle_sha256'] = contract.content_id(value['bundles'][0])
+        self.assert_valid(value)
+        other = copy.deepcopy(value)
+        other['warning_delivery'].reverse()
+        other['bundles'][0]['sources'].reverse()
+        other['inventories'][0]['expected_responses'].reverse()
+        self.assert_valid(other)
+        self.assertEqual(contract.canonical_bytes(value), contract.canonical_bytes(other))
+        self.assertEqual(contract.content_id(value), contract.content_id(other))
+        with self.assertRaises(ValueError):
+            contract.canonical_bytes(value, set_keys={('warning_delivery',): lambda item: item['warning_id']})
+
 if __name__ == '__main__':
     unittest.main()
