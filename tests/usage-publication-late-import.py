@@ -112,6 +112,29 @@ class LateImportTests(unittest.TestCase):
                                                    self.fixture.config, bytes.fromhex(self.fixture.config['key_hex']))
         self.assertFalse(self.fixture.artifact().exists())
 
+    def test_rewrapped_same_rsa_key_cannot_self_certify_registration(self):
+        lines = rsa_tests.PUBLIC.splitlines()
+        body = b''.join(lines[1:-1])
+        rewrapped = b'-----BEGIN PUBLIC KEY-----\n' + b'\n'.join(
+            body[offset:offset + 60] for offset in range(0, len(body), 60)) + b'\n-----END PUBLIC KEY-----\n'
+        self.assertNotEqual(rewrapped, rsa_tests.PUBLIC)
+        fingerprint = hashlib.sha256(rewrapped).hexdigest()
+        registration = self.registration_body | {'authority_key_sha256': fingerprint}
+        registration = registration | {'signature': rsa_tests.sign(
+            b'orchestrail:usage-registration-certificate:v1\0' + contract.canonical_bytes(registration))}
+        late = self.body | {'authority_key_sha256': fingerprint,
+                            'registration_sha256': contract.content_id(registration)}
+        late = late | {'signature': rsa_tests.sign(b'orchestrail:usage-late-import:v1\0' + contract.canonical_bytes(late))}
+        self.certificate_path.write_bytes(contract.canonical_bytes({'registration': registration, 'authorization': late}))
+        with patch.dict(os.environ, self.fixture.env | {'USAGE_TELEMETRY_REGISTRATION_KEY':
+                        '/etc/orchestrail/usage-registration-authorities/test.pem'}, clear=True), \
+             patch.object(ingest, 'trusted_authority_key', return_value=rewrapped), \
+             patch.object(ingest, 'trusted_registration_key', return_value=rsa_tests.PUBLIC):
+            with self.assertRaises(ValueError):
+                ingest.certified_late_registration(str(self.certificate_path), self.fixture.bundle,
+                                                   self.fixture.config, bytes.fromhex(self.fixture.config['key_hex']))
+        self.assertFalse(self.fixture.artifact().exists())
+
     def test_real_registration_key_loader_rejects_caller_owned_key(self):
         user_key = self.fixture.root / 'caller-owned.pem'
         user_key.write_bytes(rsa_tests.PUBLIC)
