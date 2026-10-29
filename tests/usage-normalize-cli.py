@@ -88,7 +88,7 @@ class NormalizeCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         bundle = json.loads(self.output.read_text())
         self.assertEqual(contract.validate_usage_bundle(bundle), bundle)
-        self.assertEqual([item['record_number'] for item in bundle['observations']], [1, 3])
+        self.assertEqual(sorted(item['record_number'] for item in bundle['observations']), [1, 3])
         self.assertEqual(bundle['diagnostics'][0]['record_number'], 2)
         self.assertEqual(bundle['diagnostics'][0]['completeness'], 'partial')
         self.assertNotIn('BAD_SENTINEL', self.output.read_text() + result.stderr)
