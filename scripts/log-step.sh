@@ -627,6 +627,17 @@ cmd_run_start() {
     warn 'run-start metadata persistence failed'
     return 0
   fi
+  if [ -n "$usage_key_fingerprint" ] && [ -n "${USAGE_TELEMETRY_AUTHORITY_KEY:-}" ]; then
+    local usage_authority_fingerprint=''
+    usage_authority_fingerprint="$(python3 "$SCRIPT_DIR/usage_telemetry_ingest.py" register-authority 2>/dev/null)" || usage_authority_fingerprint=''
+    if [[ "$usage_authority_fingerprint" =~ ^[0-9a-f]{64}$ ]]; then
+      meta_set "$run_id" usage_authority_key_sha256 "$usage_authority_fingerprint" || {
+        rm -f "$active" 2>/dev/null
+        warn 'run-start metadata persistence failed'
+        return 0
+      }
+    fi
+  fi
   if [ -n "$usage_key_fingerprint" ]; then
     meta_set "$run_id" usage_key_fingerprint "$usage_key_fingerprint" || {
       rm -f "$active" 2>/dev/null
