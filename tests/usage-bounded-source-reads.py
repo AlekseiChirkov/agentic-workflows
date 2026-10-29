@@ -186,6 +186,29 @@ class BoundedSourceTests(unittest.TestCase):
         with patch('socket.socket', side_effect=AssertionError('network')):
             self.assertEqual(read(self.selection)[0]['data'], self.content)
 
+    def test_opened_source_descriptor_is_closed_when_fstat_fails(self):
+        self.assertEqual(read(self.selection)[0]['data'], self.content)
+        opened = []
+        original_open = os.open
+
+        def track_open(*args, **kwargs):
+            descriptor = original_open(*args, **kwargs)
+            opened.append(descriptor)
+            return descriptor
+
+        with patch('os.open', side_effect=track_open), patch('os.fstat', side_effect=OSError('fstat failed')):
+            with self.assertRaises(ValueError):
+                read(self.selection)
+        self.assertGreater(len(opened), 1)
+        try:
+            with self.assertRaises(OSError):
+                os.fstat(opened[-1])
+        finally:
+            try:
+                os.close(opened[-1])
+            except OSError:
+                pass
+
     def test_unknown_finite_float_does_not_invalidate_raw_record(self):
         self.assertEqual(parse(b'{"usage":{"input":1},"unknown":1.5}\n', 1),
                          [{'usage': {'input': 1}, 'unknown': 1.5}])
