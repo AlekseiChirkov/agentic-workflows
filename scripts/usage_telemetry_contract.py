@@ -13,6 +13,7 @@ import json
 import re
 import unicodedata
 from typing import Any, Callable, Iterable, Mapping
+from urllib.parse import urlsplit
 
 MAX_COUNTER = 9007199254740991
 _DECIMAL = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]*[1-9])?\Z")
@@ -185,6 +186,7 @@ def observation_id(value: dict[str, Any], *, set_paths: Iterable[tuple[str, ...]
 # Envelope bounds apply to UTF-8 bytes, not character counts.
 OBSERVATION_LIMIT = 1024 * 1024
 BUNDLE_LIMIT = 32 * 1024 * 1024
+PROFILE_LIMIT = 1024 * 1024
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 _COUNTER_SCOPES = frozenset({"response_total", "incremental_delta", "cumulative_epoch",
                              "provider_aggregate", "caller_aggregate"})
@@ -249,6 +251,98 @@ def _bounded_tree(value: Any, depth: int = 0) -> None:
 def _choice(value: Any, choices: frozenset[str]) -> None:
     if not isinstance(value, str) or value not in choices:
         raise ValueError("invalid envelope value")
+
+
+def validate_source_profile(value: Any) -> dict[str, Any]:
+    """Validate a bounded profile without inferring unverified capabilities."""
+    required = {"schema_version", "kind", "profile_id", "profile_version", "provider",
+                "runtime", "format_version", "counter_fields", "identity_scope",
+                "finality", "inventory", "capabilities", "known_gaps", "verified_at",
+                "source"}
+    _fields(value, required, {"capability_evidence"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"source_profile"}))
+    for field in ("profile_id", "profile_version", "provider", "runtime", "format_version"):
+        _identifier(value[field])
+    counters = value["counter_fields"]
+    if not isinstance(counters, list) or not 1 <= len(counters) <= 256:
+        raise ValueError("invalid counter fields")
+    seen = set()
+    for counter in counters:
+        _fields(counter, {"path", "measurement", "counter_scope"})
+        path = counter["path"]
+        if not isinstance(path, list) or not 1 <= len(path) <= 32:
+            raise ValueError("invalid counter path")
+        for part in path:
+            _identifier(part)
+        key = tuple(path)
+        if key in seen:
+            raise ValueError("duplicate counter path")
+        seen.add(key)
+        _choice(counter["measurement"], _MEASUREMENT_FIELDS)
+        _choice(counter["counter_scope"], _COUNTER_SCOPES)
+    identity = value["identity_scope"]
+    _fields(identity, {"account", "response"})
+    for field in ("account", "response"):
+        _identifier(identity[field])
+    finality = value["finality"]
+    _fields(finality, {"signals", "status"})
+    _choice(finality["status"], frozenset({"verified", "unknown"}))
+    signals = finality["signals"]
+    if not isinstance(signals, list) or len(signals) > 256:
+        raise ValueError("invalid finality signals")
+    for signal in signals:
+        _identifier(signal)
+    if (len(set(signals)) != len(signals) or
+            (finality["status"] == "unknown" and signals) or
+            (finality["status"] == "verified" and not signals)):
+        raise ValueError("invalid finality evidence")
+    inventory = value["inventory"]
+    _fields(inventory, {"status", "evidence"})
+    _choice(inventory["status"], frozenset({"verified", "unknown"}))
+    if inventory["status"] == "unknown":
+        if inventory["evidence"] is not None:
+            raise ValueError("unknown inventory has evidence")
+    else:
+        _identifier(inventory["evidence"])
+    capabilities = value["capabilities"]
+    _fields(capabilities, {"cache", "effort", "tools"})
+    evidence = value.get("capability_evidence", {})
+    if not isinstance(evidence, dict) or evidence.keys() - capabilities.keys():
+        raise ValueError("invalid capability evidence")
+    for name, state in capabilities.items():
+        _choice(state, frozenset({"unknown", "supported", "unsupported"}))
+        if state == "unknown":
+            if name in evidence:
+                raise ValueError("unknown capability has evidence")
+        else:
+            _identifier(evidence.get(name))
+    gaps = value["known_gaps"]
+    if not isinstance(gaps, list) or len(gaps) > 256:
+        raise ValueError("invalid known gaps")
+    for gap in gaps:
+        _identifier(gap)
+    if len(set(gaps)) != len(gaps):
+        raise ValueError("duplicate known gap")
+    _timestamp(value["verified_at"])
+    source = value["source"]
+    if not isinstance(source, str) or len(source) > 2048:
+        raise ValueError("invalid source reference")
+    try:
+        if len(source.encode("utf-8")) > 2048:
+            raise ValueError("invalid source reference")
+        url = urlsplit(source)
+        if (url.scheme != "https" or not url.hostname or url.username is not None or
+                url.password is not None or url.query or url.fragment or
+                any(char.isspace() or unicodedata.category(char).startswith("C") for char in source)):
+            raise ValueError("invalid source reference")
+        url.port
+    except (ValueError, UnicodeError):
+        raise ValueError("invalid source reference") from None
+    if len(canonical_bytes(value)) > PROFILE_LIMIT:
+        raise ValueError("profile exceeds byte limit")
+    return value
 
 
 def validate_observation(value: Any) -> dict[str, Any]:
@@ -403,6 +497,10 @@ def _validate_json(data: str | bytes, limit: int, validator: Callable[[Any], Any
 
 def validate_observation_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, OBSERVATION_LIMIT, validate_observation)
+
+
+def validate_source_profile_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, PROFILE_LIMIT, validate_source_profile)
 
 
 def validate_usage_bundle_json(data: str | bytes) -> dict[str, Any]:
