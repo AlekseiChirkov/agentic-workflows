@@ -188,6 +188,19 @@ class LifecycleProjectionSchemaTests(unittest.TestCase):
             with self.subTest(dimension=dimension), self.assertRaises(ValueError):
                 call('validate_lifecycle_projection', value)
 
+    def test_lower_bound_requires_verified_scope_attribution(self):
+        value = projection()
+        del value['cost_usd']
+        value['completeness']['inventory'] = 'unknown'
+        value['priced_subtotal_usd'] = '1.5'
+        value['subtotal_quality'] = 'proven_lower_bound'
+        self.assert_valid(value)
+        for quality in ('unknown', 'asserted', 'inferred'):
+            bad = copy.deepcopy(value)
+            bad['scope']['attribution_quality'] = quality
+            with self.subTest(quality=quality), self.assertRaises(ValueError):
+                call('validate_lifecycle_projection', bad)
+
     def test_reprice_assumptions_must_match_price_applicability(self):
         value = projection()
         value['scenario']['basis'] = 'reprice'
