@@ -77,12 +77,19 @@ def normalize_selection(selection, *, profile, expected_owner_scope, project_ide
                        'candidates': [_opaque(key, 'owner-candidate', value)
                                       for value in mapping['candidates']]}
         partial |= source['partial']
+        if source['partial']:
+            bundle['diagnostics'].append({
+                'schema_version': 1, 'kind': 'source_issue', 'source_id': mapped_id,
+                'source_hash': entry['sha256'], 'record_number': None,
+                'reason': 'incomplete_source', 'completeness': 'partial',
+            })
         for number, line in enumerate(source['data'].splitlines(), 1):
             if not line.strip():
                 continue
             record_count += 1
             if record_count > selection['max_records']:
                 raise ValueError('source record limit exceeded')
+            reason = 'input_limit_exceeded' if len(line) > sources.RECORD_LIMIT else 'source_record_quarantined'
             try:
                 record = _record(line)
                 converted = normalize_source_counters(
@@ -106,7 +113,12 @@ def normalize_selection(selection, *, profile, expected_owner_scope, project_ide
                     evidence[content_id(item)] = item
             except (ValueError, UnicodeError, RecursionError, OverflowError):
                 quarantine.append({'source_id': mapped_id, 'record_number': number,
-                                   'reason': 'source_record_quarantined'})
+                                   'reason': reason})
+                bundle['diagnostics'].append({
+                    'schema_version': 1, 'kind': 'source_issue', 'source_id': mapped_id,
+                    'source_hash': entry['sha256'], 'record_number': number,
+                    'reason': reason, 'completeness': 'partial',
+                })
                 partial = True
     bundle['evidence_objects'] = list(evidence.values())
     validate_usage_bundle(bundle)
