@@ -202,6 +202,7 @@ BUNDLE_LIMIT = 32 * 1024 * 1024
 PROFILE_LIMIT = 1024 * 1024
 SELECTION_LIMIT = 1024 * 1024
 INVENTORY_LIMIT = 1024 * 1024
+SEGMENT_LIMIT = 1024 * 1024
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 _COUNTER_SCOPES = frozenset({"response_total", "incremental_delta", "cumulative_epoch",
                              "provider_aggregate", "caller_aggregate"})
@@ -660,6 +661,42 @@ def validate_inventory(value: Any) -> dict[str, Any]:
     return value
 
 
+def validate_collection_segment(value: Any) -> dict[str, Any]:
+    """Validate a scoped segment without inferring collection continuity."""
+    _fields(value, {"schema_version", "kind", "segment_id", "owner_scope", "mode",
+                    "start", "end", "gap_before"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"collection_segment"}))
+    _private_identifier(value["segment_id"])
+    scope = value["owner_scope"]
+    _fields(scope, {"owner_kind", "owner_id"})
+    _choice(scope["owner_kind"], frozenset({"run", "session"}))
+    _private_identifier(scope["owner_id"])
+    _choice(value["mode"], frozenset({"on", "off"}))
+    _timestamp(value["start"])
+    start = datetime.fromisoformat(value["start"][:-1] + "+00:00")
+    if value["end"] is not None:
+        _timestamp(value["end"])
+        if datetime.fromisoformat(value["end"][:-1] + "+00:00") < start:
+            raise ValueError("invalid segment boundaries")
+    gap = value["gap_before"]
+    _fields(gap, {"state", "start", "end"})
+    _choice(gap["state"], frozenset({"unknown", "none", "present"}))
+    if gap["state"] == "present":
+        _timestamp(gap["start"])
+        _timestamp(gap["end"])
+        gap_start = datetime.fromisoformat(gap["start"][:-1] + "+00:00")
+        gap_end = datetime.fromisoformat(gap["end"][:-1] + "+00:00")
+        if gap_start > gap_end or gap_end > start:
+            raise ValueError("invalid gap boundaries")
+    elif gap["start"] is not None or gap["end"] is not None:
+        raise ValueError("gap boundaries require a known gap")
+    if len(canonical_bytes(value)) > SEGMENT_LIMIT:
+        raise ValueError("segment exceeds byte limit")
+    return value
+
+
 def validate_usage_bundle(value: Any) -> dict[str, Any]:
     """Validate a self-contained, bounded sanitized bundle."""
     _fields(value, {"schema_version", "kind", "profile_id", "profile_version", "project_id",
@@ -675,8 +712,14 @@ def validate_usage_bundle(value: Any) -> dict[str, Any]:
         if not isinstance(value[field], list) or len(value[field]) > 10000:
             raise ValueError("invalid bundle collection")
     # Entity-specific schemas are supplied separately; fail closed until available.
-    if value["segments"] or value["diagnostics"]:
+    if value["diagnostics"]:
         raise ValueError("unsupported bundle entity")
+    segment_ids = set()
+    for segment in value["segments"]:
+        validate_collection_segment(segment)
+        if segment["segment_id"] in segment_ids:
+            raise ValueError("duplicate segment")
+        segment_ids.add(segment["segment_id"])
     source_hashes = set()
     source_members = set()
     for source in value["sources"]:
@@ -754,6 +797,10 @@ def validate_source_selection_json(data: str | bytes) -> dict[str, Any]:
 
 def validate_inventory_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, INVENTORY_LIMIT, validate_inventory)
+
+
+def validate_collection_segment_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, SEGMENT_LIMIT, validate_collection_segment)
 
 
 def validate_observation_json(data: str | bytes) -> dict[str, Any]:
