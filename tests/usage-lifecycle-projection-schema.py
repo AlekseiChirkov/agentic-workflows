@@ -201,6 +201,19 @@ class LifecycleProjectionSchemaTests(unittest.TestCase):
             with self.subTest(quality=quality), self.assertRaises(ValueError):
                 call('validate_lifecycle_projection', bad)
 
+    def test_invalid_lower_bound_scenario_fails_safely(self):
+        value = projection()
+        del value['cost_usd']
+        value['completeness']['inventory'] = 'unknown'
+        value['priced_subtotal_usd'] = '1.5'
+        value['subtotal_quality'] = 'proven_lower_bound'
+        self.assert_valid(value)
+        for invalid in (None, [], True, 'PRIVATE_CONTENT_SENTINEL', {}, {'basis': None}):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError) as error:
+                    call('validate_lifecycle_projection', value | {'scenario': invalid})
+                self.assertNotIn('PRIVATE_CONTENT_SENTINEL', str(error.exception))
+
     def test_reprice_assumptions_must_match_price_applicability(self):
         value = projection()
         value['scenario']['basis'] = 'reprice'
