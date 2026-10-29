@@ -13,7 +13,8 @@ if [ "${1:-}" = --usage-publication-only ]; then
   shift
   python3 "$REPO_ROOT/tests/usage-usage-publication.py" "$@"
   python3 "$REPO_ROOT/tests/usage-publication-cli.py" "$@"
-  exec python3 "$REPO_ROOT/tests/usage-publication-provenance.py" "$@"
+  python3 "$REPO_ROOT/tests/usage-publication-provenance.py" "$@"
+  exec python3 "$REPO_ROOT/tests/usage-authority-permit.py" "$@"
 fi
 
 if [ "${1:-}" = --usage-source-normalization-only ]; then
@@ -4694,7 +4695,7 @@ check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
 # Run immutable usage publication fixtures during ordinary validation as well.
 test_usage_publication_acceptance() {
   local output
-  output="$(python3 "$REPO_ROOT/tests/usage-usage-publication.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-publication-cli.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-publication-provenance.py" 2>&1)" || {
+  output="$(python3 "$REPO_ROOT/tests/usage-usage-publication.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-publication-cli.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-publication-provenance.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-authority-permit.py" 2>&1)" || {
     printf '%s\n' "$output" | tail -n 35
     return 1
   }
