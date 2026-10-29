@@ -7,6 +7,7 @@ private key; the key and selection are never included in the returned result.
 import hashlib
 import hmac
 import json
+import math
 
 import usage_telemetry_sources as sources
 from usage_telemetry_contract import (
@@ -22,17 +23,40 @@ def _opaque(key, domain, value):
     return 'sha256:' + digest
 
 
+class _RecordLimit(ValueError):
+    """A source record exceeded a structural or byte limit."""
+
+
+def _check_tree(value, depth=0):
+    if depth > 32:
+        raise _RecordLimit('source record depth exceeds limit')
+    if isinstance(value, dict):
+        if len(value) > 256:
+            raise _RecordLimit('source record keys exceed limit')
+        for child in value.values():
+            _check_tree(child, depth + 1)
+    elif isinstance(value, list):
+        for child in value:
+            _check_tree(child, depth + 1)
+    elif isinstance(value, float) and not math.isfinite(value):
+        raise ValueError('invalid source record number')
+
+
 def _record(line):
     if len(line) > sources.RECORD_LIMIT:
-        raise ValueError('source record exceeds limit')
+        raise _RecordLimit('source record exceeds limit')
     try:
         result = json.loads(line.decode('utf-8'), object_pairs_hook=sources._unique_pairs,
                             parse_constant=sources._invalid_constant)
-        sources._bounded_raw_tree(result)
+        _check_tree(result)
         if not isinstance(result, dict):
             raise ValueError('invalid source record')
         return result
-    except (ValueError, UnicodeError, RecursionError):
+    except RecursionError:
+        raise _RecordLimit('source record depth exceeds limit') from None
+    except _RecordLimit:
+        raise
+    except (ValueError, UnicodeError):
         raise ValueError('invalid source record') from None
 
 
@@ -89,7 +113,6 @@ def normalize_selection(selection, *, profile, expected_owner_scope, project_ide
             record_count += 1
             if record_count > selection['max_records']:
                 raise ValueError('source record limit exceeded')
-            reason = 'input_limit_exceeded' if len(line) > sources.RECORD_LIMIT else 'source_record_quarantined'
             try:
                 record = _record(line)
                 converted = normalize_source_counters(
@@ -111,7 +134,8 @@ def normalize_selection(selection, *, profile, expected_owner_scope, project_ide
                 bundle['observations'].append(observation)
                 for item in converted['evidence_objects']:
                     evidence[content_id(item)] = item
-            except (ValueError, UnicodeError, RecursionError, OverflowError):
+            except (ValueError, UnicodeError, RecursionError, OverflowError) as error:
+                reason = 'input_limit_exceeded' if isinstance(error, (_RecordLimit, RecursionError)) else 'source_record_quarantined'
                 quarantine.append({'source_id': mapped_id, 'record_number': number,
                                    'reason': reason})
                 bundle['diagnostics'].append({
