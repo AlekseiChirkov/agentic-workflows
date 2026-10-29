@@ -7,10 +7,11 @@ attribution. These helpers never discover neighboring files.
 
 import hashlib
 import json
+import math
 import os
 import stat
 
-from usage_telemetry_contract import _bounded_tree, validate_counter, validate_source_selection
+from usage_telemetry_contract import validate_counter, validate_source_profile, validate_source_selection
 
 RECORD_LIMIT = 16 * 1024 * 1024
 
@@ -110,6 +111,25 @@ def _invalid_constant(_value):
     raise ValueError('invalid record number')
 
 
+def _bounded_raw_tree(value, depth=0):
+    """Bound raw records without imposing normalized-envelope value types."""
+    if depth > 32:
+        raise ValueError('record nesting exceeds limit')
+    if isinstance(value, dict):
+        if len(value) > 256 or any(not isinstance(key, str) for key in value):
+            raise ValueError('invalid record keys')
+        for child in value.values():
+            _bounded_raw_tree(child, depth + 1)
+    elif isinstance(value, list):
+        for child in value:
+            _bounded_raw_tree(child, depth + 1)
+    elif isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError('invalid record number')
+    elif value is not None and type(value) not in (str, int, bool):
+        raise ValueError('invalid record value')
+
+
 def parse_json_records(data, *, max_records):
     """Parse bounded UTF-8 JSON lines; reject the batch on limit violations."""
     validate_counter(max_records)
@@ -124,8 +144,32 @@ def parse_json_records(data, *, max_records):
         try:
             value = json.loads(line.decode('utf-8'), object_pairs_hook=_unique_pairs,
                                parse_constant=_invalid_constant)
-            _bounded_tree(value)
+            _bounded_raw_tree(value)
         except (ValueError, UnicodeError, RecursionError):
             raise ValueError('invalid source record') from None
         records.append(value)
     return records
+
+
+def read_selected_records(selection, *, profile, expected_owner_scope):
+    """Read selected records using a caller-supplied, independently trusted profile.
+
+    Structural profile validation does not establish its provenance. The record
+    limit applies to the entire selection, including all selected files.
+    """
+    validate_source_profile(profile)
+    selected = read_selected_sources(
+        selection,
+        expected_profile=(profile['profile_id'], profile['profile_version']),
+        expected_owner_scope=expected_owner_scope,
+    )
+    remaining = selection['max_records']
+    result = []
+    for source in selected:
+        records = parse_json_records(source['data'], max_records=max(1, remaining))
+        if len(records) > remaining:
+            raise ValueError('record limit exceeded')
+        remaining -= len(records)
+        result.append({'source_id': source['source_id'], 'partial': source['partial'],
+                       'records': records})
+    return result
