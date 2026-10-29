@@ -1669,10 +1669,14 @@ def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
     _choice(value["mode"], frozenset({"on", "off"}))
     _choice(value["overlap_state"], frozenset({"unknown", "resolved", "unresolved"}))
     bounds = value["bounds"]
-    _fields(bounds, {"max_bytes", "max_entries"})
+    _fields(bounds, {"max_bytes", "max_entries", "max_source_bytes", "max_total_bytes", "max_records"})
     if (type(bounds["max_bytes"]) is not int or not 0 < bounds["max_bytes"] <= CURRENT_RUN_SNAPSHOT_LIMIT or
             type(bounds["max_entries"]) is not int or not 0 < bounds["max_entries"] <= 10000):
         raise ValueError("invalid snapshot bounds")
+    for field in ("max_source_bytes", "max_total_bytes", "max_records"):
+        validate_counter(bounds[field])
+    if bounds["max_records"] == 0:
+        raise ValueError("snapshot record limit must be positive")
     sections = ("segments", "accepted_receipts", "bundles", "inventories",
                 "inventory_evidence", "warning_delivery")
     if "parts" in value:
@@ -1696,6 +1700,7 @@ def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
             raise ValueError("foreign snapshot segment")
     part_paths = set()
     part_hashes = set()
+    selected_bytes = 0
     for part in value.get("parts", []):
         _fields(part, {"kind", "local_path", "sha256", "size_bytes"})
         _choice(part["kind"], frozenset({"usage_bundle", "usage_accepted", "inventory",
@@ -1706,8 +1711,11 @@ def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
             raise ValueError("invalid selected part path")
         _hash(part["sha256"])
         size = validate_counter(part["size_bytes"])
-        if size > BUNDLE_LIMIT:
+        if size > BUNDLE_LIMIT or size > bounds["max_source_bytes"]:
             raise ValueError("selected part exceeds byte limit")
+        selected_bytes += size
+        if selected_bytes > bounds["max_total_bytes"]:
+            raise ValueError("selected parts exceed total byte limit")
         if path in part_paths or part["sha256"] in part_hashes:
             raise ValueError("duplicate selected part")
         part_paths.add(path)
@@ -1749,14 +1757,26 @@ def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
                     any(item[key] != inventory[key] for key in ("profile_id", "profile_version", "source_hash"))):
                 raise ValueError("unverified snapshot inventory")
     warning_ids = set()
+    warning_scopes = set()
     for warning in value["warning_delivery"]:
-        _fields(warning, {"warning_id", "crossing_state", "delivery_state"})
+        _fields(warning, {"warning_id", "policy_id", "policy_version", "scope", "metric",
+                          "episode", "crossing_state", "delivery_state"})
         _private_identifier(warning["warning_id"])
+        _identifier(warning["policy_id"])
+        if validate_counter(warning["policy_version"]) == 0 or validate_counter(warning["episode"]) == 0:
+            raise ValueError("invalid warning version or episode")
+        if warning["scope"] != scope:
+            raise ValueError("foreign warning scope")
+        _choice(warning["metric"], frozenset({"duration_ms", "tokens", "cost_usd"}))
         _choice(warning["crossing_state"], frozenset({"unknown", "below", "crossed", "cleared"}))
         _choice(warning["delivery_state"], frozenset({"unknown", "pending", "delivered", "failed"}))
         if warning["warning_id"] in warning_ids:
             raise ValueError("duplicate warning state")
         warning_ids.add(warning["warning_id"])
+        identity = (warning["policy_id"], warning["policy_version"], warning["metric"])
+        if identity in warning_scopes:
+            raise ValueError("duplicate warning episode scope")
+        warning_scopes.add(identity)
     return value
 
 
