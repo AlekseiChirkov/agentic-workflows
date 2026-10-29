@@ -6,6 +6,8 @@ A bundle or a hash-shaped identifier cannot authorize its own publication. The
 caller's verifier must reject any bundle it has not independently established.
 """
 import copy
+import ctypes
+import errno
 import hashlib
 import os
 from pathlib import Path
@@ -38,7 +40,7 @@ def _verify_file(directory, name, expected):
     fd = os.open(name, _FILE_FLAGS, dir_fd=directory)
     try:
         info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode) or info.st_size != len(expected):
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size != len(expected):
             raise ValueError('publication conflict')
         offset = 0
         while offset < len(expected):
@@ -53,10 +55,25 @@ def _verify_file(directory, name, expected):
         if ((info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns) !=
                 (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)
                 or (named.st_dev, named.st_ino) != (info.st_dev, info.st_ino)
+                or after.st_nlink != 1 or named.st_nlink != 1
                 or not stat.S_ISREG(named.st_mode)):
             raise ValueError('publication changed')
     finally:
         os.close(fd)
+
+
+def _install(directory, temporary, name):
+    """Atomically rename without replacement; unsupported platforms fail closed."""
+    library = ctypes.CDLL(None, use_errno=True)
+    rename = getattr(library, 'renameat2', None)
+    if rename is None:
+        raise OSError(errno.ENOTSUP, 'atomic publication unavailable')
+    rename.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                       ctypes.c_char_p, ctypes.c_uint)
+    rename.restype = ctypes.c_int
+    if rename(directory, os.fsencode(temporary), directory, os.fsencode(name), 1) != 0:
+        code = ctypes.get_errno()
+        raise OSError(code, 'atomic publication failed')
 
 
 def publish_usage(bundle, *, root, mode, scope, authorize):
@@ -79,7 +96,13 @@ def publish_usage(bundle, *, root, mode, scope, authorize):
                'observation_ids': sorted(observation_id(item) for item in candidate['observations']),
                'scope': owner, 'duplicate': False, 'validator_version': '1'}
     validate_usage_receipt(receipt)
-    if not callable(authorize) or authorize(candidate, owner) is not True:
+    if not callable(authorize):
+        raise ValueError('publication provenance not authorized')
+    try:
+        authorized = authorize(candidate, owner)
+    except Exception:
+        raise ValueError('publication provenance not authorized') from None
+    if authorized is not True:
         raise ValueError('publication provenance not authorized')
     if canonical_bytes(candidate) != encoded or owner != scope:
         raise ValueError('publication authorization changed input')
@@ -108,6 +131,7 @@ def publish_usage(bundle, *, root, mode, scope, authorize):
         fd = os.open(temp_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
                      0o600, dir_fd=target_fd)
         try:
+            os.fchmod(fd, 0o600)
             view = memoryview(encoded)
             while view:
                 count = os.write(fd, view)
@@ -120,8 +144,7 @@ def publish_usage(bundle, *, root, mode, scope, authorize):
         _verify_directory(root_fd, 'usage', usage_fd)
         _verify_directory(usage_fd, 'v1', target_fd)
         try:
-            os.link(temp_name, name, src_dir_fd=target_fd, dst_dir_fd=target_fd,
-                    follow_symlinks=False)
+            _install(target_fd, temp_name, name)
         except FileExistsError:
             _verify_file(target_fd, name, encoded)
             receipt['duplicate'] = True
