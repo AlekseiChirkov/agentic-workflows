@@ -8,6 +8,7 @@ a complete envelope.
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime
 import json
 import re
 import unicodedata
@@ -132,6 +133,21 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
     if paths.intersection(keys):
         raise ValueError("set path has conflicting ordering declarations")
 
+    kind = value.get("kind") if isinstance(value, dict) else None
+    envelope = kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
+
+    def schema_set(path: tuple[str, ...]) -> bool:
+        if not envelope:
+            return False
+        if path[-2:] == ("attribution", "candidates"):
+            return True
+        if len(path) >= 3 and path[-3] == "measurements" and path[-1] == "reasons":
+            return True
+        return kind == "usage_bundle" and path in {
+            ("sources",), ("observations",), ("evidence_objects",),
+            ("inventories",), ("segments",), ("diagnostics",),
+        }
+
     def normalize(item: Any, path: tuple[str, ...]) -> Any:
         if isinstance(item, dict):
             if any(not isinstance(key, str) for key in item):
@@ -141,7 +157,7 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
             children = [normalize(child, path) for child in item]
             if path in keys:
                 return sorted(children, key=lambda child: (keys[path](child), _encode(child)))
-            return sorted(children, key=_encode) if path in paths else children
+            return sorted(children, key=_encode) if path in paths or schema_set(path) else children
         if item is None or type(item) in (str, int, bool):
             return item
         raise ValueError("unsupported JSON value")
@@ -186,8 +202,14 @@ def _identifier(value: Any) -> None:
 
 
 def _timestamp(value: Any) -> None:
-    if not isinstance(value, str) or not value or len(value) > 256:
-        raise ValueError("invalid timestamp")
+    if not isinstance(value, str) or re.fullmatch(
+            r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z", value
+    ) is None or len(value) > 256:
+        raise ValueError("invalid UTC timestamp")
+    try:
+        datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError:
+        raise ValueError("invalid UTC timestamp") from None
 
 
 def _private_identifier(value: Any) -> None:
