@@ -138,6 +138,8 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
     envelope = kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
 
     def schema_set(path: tuple[str, ...]) -> bool:
+        if kind == "usage_accepted" and path == ("observation_ids",):
+            return True
         if kind == "pricing_scenario" and path in {
             ("snapshot_ids",), ("threshold_rules",), ("threshold_rules", "components"),
         }:
