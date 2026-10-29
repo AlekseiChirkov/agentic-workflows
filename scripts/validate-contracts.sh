@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+# Check independent inventory declarations.
+if [ "${1:-}" = --usage-inventory-only ]; then
+  shift
+  exec python3 "$REPO_ROOT/tests/usage-inventory-schema.py" "$@"
+fi
+
 # Check explicit source selection schemas.
 if [ "${1:-}" = --usage-selection-only ]; then
   shift
@@ -4579,6 +4585,16 @@ check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
 # ── End public identity smoke checks ────────────────────────────────
 
 # Run explicit source-selection fixtures during ordinary validation as well.
+test_usage_inventory_acceptance() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/usage-inventory-schema.py" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_usage_inventory_acceptance" \
+  "$(test_usage_inventory_acceptance && echo pass || echo 'usage inventory fixtures must pass')"
+
 test_usage_selection_acceptance() {
   local output
   output="$(python3 "$REPO_ROOT/tests/usage-source-selection.py" 2>&1)" || {
