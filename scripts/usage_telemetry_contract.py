@@ -1652,6 +1652,8 @@ def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
 
     Receipt and attribution claims require independent authentication by the
     owner. A matching digest establishes structure, not provenance or consent.
+    The owner must verify that each warning request or span belongs to its scope;
+    a declared owner_scope is not proof of causal attribution.
     The owner must explicitly load selected parts, enforce input byte limits,
     and verify their size, digest, schema and scope before computing status.
     """
@@ -1759,21 +1761,28 @@ def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
     warning_ids = set()
     warning_scopes = set()
     for warning in value["warning_delivery"]:
-        _fields(warning, {"warning_id", "policy_id", "policy_version", "scope", "metric",
+        _fields(warning, {"warning_id", "policy_id", "policy_version", "scope", "owner_scope", "metric",
                           "episode", "crossing_state", "delivery_state"})
         _private_identifier(warning["warning_id"])
         _identifier(warning["policy_id"])
         if validate_counter(warning["policy_version"]) == 0 or validate_counter(warning["episode"]) == 0:
             raise ValueError("invalid warning version or episode")
-        if warning["scope"] != scope:
-            raise ValueError("foreign warning scope")
-        _choice(warning["metric"], frozenset({"duration_ms", "tokens", "cost_usd"}))
+        if warning["owner_scope"] != scope:
+            raise ValueError("foreign warning owner")
+        warning_scope = warning["scope"]
+        _fields(warning_scope, {"owner_kind", "owner_id"})
+        _choice(warning_scope["owner_kind"], frozenset({"request", "span", "run"}))
+        _private_identifier(warning_scope["owner_id"])
+        if scope["owner_kind"] == "run" and warning_scope["owner_kind"] == "run" and warning_scope != scope:
+            raise ValueError("foreign warning run")
+        _choice(warning["metric"], frozenset({"duration_ms", "tokens", "cost_usd", "completeness"}))
         _choice(warning["crossing_state"], frozenset({"unknown", "below", "crossed", "cleared"}))
         _choice(warning["delivery_state"], frozenset({"unknown", "pending", "delivered", "failed"}))
         if warning["warning_id"] in warning_ids:
             raise ValueError("duplicate warning state")
         warning_ids.add(warning["warning_id"])
-        identity = (warning["policy_id"], warning["policy_version"], warning["metric"])
+        identity = (warning["policy_id"], warning["policy_version"], warning["metric"],
+                    warning_scope["owner_kind"], warning_scope["owner_id"], warning["episode"])
         if identity in warning_scopes:
             raise ValueError("duplicate warning episode scope")
         warning_scopes.add(identity)
