@@ -94,6 +94,73 @@ class SourceProfileTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 call('validate_source_profile_json', data + b' ')
 
+    def test_counter_semantics_express_inclusion_and_cache_ttl(self):
+        value = profile()
+        value['counter_fields'] = [
+            {'path': ['usage', 'input'], 'measurement': 'input_total',
+             'counter_scope': 'response_total', 'semantics_status': 'verified',
+             'includes': ['input_cache_read', 'input_cache_write_unsplit']},
+            {'path': ['usage', 'output'], 'measurement': 'output_total',
+             'counter_scope': 'response_total', 'semantics_status': 'verified',
+             'includes': ['reasoning_subset']},
+            {'path': ['usage', 'cache_short'], 'measurement': 'input_cache_write',
+             'counter_scope': 'response_total', 'semantics_status': 'verified', 'ttl': '5m',
+             'includes': []},
+            {'path': ['usage', 'cache_long'], 'measurement': 'input_cache_write',
+             'counter_scope': 'response_total', 'semantics_status': 'verified', 'ttl': '1h',
+             'includes': []},
+        ]
+        self.assert_valid(value)
+        separate = copy.deepcopy(value)
+        separate['counter_fields'][0]['measurement'] = 'input_uncached'
+        separate['counter_fields'][0]['includes'] = []
+        self.assert_valid(separate)
+        unknown = copy.deepcopy(value)
+        unknown['counter_fields'][0]['semantics_status'] = 'unknown'
+        del unknown['counter_fields'][0]['includes']
+        self.assert_valid(unknown)
+        unknown['counter_fields'][0]['includes'] = ['input_cache_read']
+        with self.assertRaises(ValueError):
+            call('validate_source_profile', unknown)
+
+    def test_profile_sets_have_stable_canonical_bytes(self):
+        value = profile()
+        value['counter_fields'].append({'path': ['usage', 'output'], 'measurement': 'output_total',
+                                        'counter_scope': 'response_total'})
+        value['known_gaps'].append('tool_usage')
+        value['finality']['signals'].append('terminal')
+        self.assert_valid(value)
+        reordered = copy.deepcopy(value)
+        for items in (reordered['counter_fields'], reordered['known_gaps'], reordered['finality']['signals']):
+            items.reverse()
+        self.assert_valid(reordered)
+        self.assertEqual(contract.canonical_bytes(value), contract.canonical_bytes(reordered))
+        self.assertEqual(contract.content_id(value), contract.content_id(reordered))
+
+    def test_semantics_unknown_evidence_and_nested_boundaries(self):
+        value = profile()
+        value['counter_fields'][0].update({'semantics_status': 'unknown'})
+        self.assert_valid(value)
+        for reference in ('https://user:secret@example.invalid/doc',
+                          'https://example.invalid/doc?secret=token',
+                          'https://example.invalid/doc#secret'):
+            with self.subTest(reference=reference), self.assertRaises(ValueError) as error:
+                call('validate_source_profile', value | {'source': reference})
+            self.assertNotIn('secret', str(error.exception))
+        for field in ('inventory', 'finality'):
+            bad = copy.deepcopy(value)
+            bad[field]['status'] = 'unknown'
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                call('validate_source_profile', bad)
+        bad = copy.deepcopy(value)
+        bad['known_gaps'] = ['private source text']
+        with self.assertRaises(ValueError):
+            call('validate_source_profile', bad)
+        bad = copy.deepcopy(value)
+        bad['counter_fields'][0]['path'] = ['field'] * 33
+        with self.assertRaises(ValueError):
+            call('validate_source_profile', bad)
+
 
 if __name__ == '__main__':
     unittest.main()
