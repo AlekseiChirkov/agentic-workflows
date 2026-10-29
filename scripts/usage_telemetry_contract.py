@@ -63,7 +63,7 @@ MEASUREMENT_REASONS = frozenset({
 
 
 def validate_measurement(value: Any) -> dict[str, Any]:
-    """Validate an evidenced counter or an explicitly explained missing value."""
+    """Validate measurement structure; evidence provenance is checked by its owner."""
     if not isinstance(value, dict) or set(value) - {
         "measurement_state", "value", "reasons", "evidence"
     }:
@@ -80,9 +80,18 @@ def validate_measurement(value: Any) -> dict[str, Any]:
     if len(set(reasons)) != len(reasons):
         raise ValueError("duplicate measurement reason")
     evidence = value.get("evidence")
-    if "evidence" in value and (not isinstance(evidence, str) or not evidence or len(evidence) > 256):
-        raise ValueError("invalid measurement evidence")
+    if "evidence" in value and (
+        not isinstance(evidence, str) or not evidence or len(evidence) > 256
+        or evidence.casefold() == "unknown"
+        or any(character in evidence for character in "/\\")
+        or any(character.isspace() or ord(character) < 32 for character in evidence)
+    ):
+        raise ValueError("invalid measurement evidence reference")
+    if state == "conflicted" and not reasons:
+        raise ValueError("conflicted measurement requires a reason")
     if "value" not in value:
+        if state == "final":
+            raise ValueError("final measurement requires a value")
         if not reasons:
             raise ValueError("missing measurement requires a reason")
     else:
