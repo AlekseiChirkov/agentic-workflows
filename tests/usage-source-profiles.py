@@ -181,5 +181,98 @@ class SplitSchemaTests(unittest.TestCase):
                 contract.validate_usage_bundle(value)
 
 
+class NormalizationEvidenceTests(unittest.TestCase):
+    def test_large_derived_sum_is_exact_decimal_string_in_observation(self):
+        maximum = 9007199254740991
+        selected = profile(False)
+        result = normalize(selected, {'input': maximum, 'read': maximum, 'write': 1,
+                                      'short': 1, 'long': 0})
+        measurement = result['measurements']['tokens_in']
+        self.assertEqual(measurement['value'], str(maximum * 2 + 1))
+        obs = split_bundle()['observations'][0]
+        obs['measurements'] = {'tokens_in': measurement}
+        self.assertEqual(contract.validate_observation(obs), obs)
+        proof = next(obj for obj in result['evidence_objects']
+                     if contract.content_id(obj) == measurement['evidence'])
+        self.assertTrue(contract.verify_derived_measurement_evidence(
+            measurement, proof, result['evidence_objects'], selected))
+
+    def test_proven_total_remains_usable_when_one_ttl_is_unknown(self):
+        result = normalize(profile(), {'input': 1000, 'read': 200, 'write': 150,
+                                       'short': 100, 'output': 400})['measurements']
+        self.assertEqual(result['input_uncached']['value'], 650)
+        self.assertEqual(result['tokens_in']['value'], 1000)
+        pieces = {part['ttl']: part['tokens'] for part in result['input_cache_write']}
+        self.assertEqual(pieces['5m']['value'], 100)
+        self.assertEqual(pieces['1h']['measurement_state'], 'unavailable')
+        self.assertNotIn('value', pieces['1h'])
+        self.assertEqual(result['output_total']['value'], 400)
+
+    def test_known_part_above_total_conflicts_even_with_missing_ttl(self):
+        result = normalize(profile(), {'input': 1000, 'read': 200, 'write': 150,
+                                       'short': 200, 'output': 400})['measurements']
+        self.assertEqual(result['input_cache_write_unsplit']['measurement_state'], 'conflicted')
+        self.assertNotIn('value', result['tokens_in'])
+        self.assertNotEqual(result['tokens_in']['measurement_state'], 'final')
+        self.assertEqual(result['output_total']['value'], 400)
+
+    def test_derived_evidence_references_operands_and_verified_profile(self):
+        selected = profile()
+        result = normalize(selected, {'input': 1000, 'read': 200, 'write': 150,
+                                      'short': 100, 'long': 50})
+        by_hash = {contract.content_id(obj): obj for obj in result['evidence_objects']}
+        for field in ('input_uncached', 'tokens_in'):
+            with self.subTest(field=field):
+                measurement = result['measurements'][field]
+                proof = by_hash[measurement['evidence']]
+                self.assertEqual(proof['kind'], 'derived_measurement_evidence')
+                self.assertEqual(proof['profile_hash'], contract.content_id(selected))
+                self.assertIn(proof['operation'], ('sum', 'subtract'))
+                self.assertGreaterEqual(len(proof['operands']), 2)
+                operands = [by_hash[reference] for reference in proof['operands']]
+                self.assertTrue(all(obj['profile_id'] == selected['profile_id'] and
+                                    obj['source_hash'] == 'a' * 64 and obj['record_number'] == 1
+                                    for obj in operands))
+                self.assertTrue(contract.verify_derived_measurement_evidence(
+                    measurement, proof, result['evidence_objects'], selected))
+                self.assertFalse(contract.verify_derived_measurement_evidence(
+                    measurement, proof, [obj for obj in result['evidence_objects']
+                                         if contract.content_id(obj) != proof['operands'][0]], selected))
+        uncached_proof = by_hash[result['measurements']['input_uncached']['evidence']]
+        operand_fields = {by_hash[reference]['field'] for reference in uncached_proof['operands']}
+        self.assertEqual(operand_fields, {'input_total', 'input_cache_read', 'input_cache_write_unsplit'})
+
+    def test_derived_proof_rejects_rehashed_value_scope_and_profile_tampering(self):
+        selected = profile()
+        result = normalize(selected, {'input': 1000, 'read': 200, 'write': 150,
+                                      'short': 100, 'long': 50})
+        measurement = result['measurements']['input_uncached']
+        objects = result['evidence_objects']
+        proof = next(obj for obj in objects if contract.content_id(obj) == measurement['evidence'])
+        self.assertTrue(contract.verify_derived_measurement_evidence(measurement, proof, objects, selected))
+        for defect in ('value', 'scope', 'profile', 'operand'):
+            with self.subTest(defect=defect):
+                candidate = copy.deepcopy(proof)
+                altered_measurement = copy.deepcopy(measurement)
+                altered_objects = copy.deepcopy(objects)
+                altered_profile = copy.deepcopy(selected)
+                if defect == 'value':
+                    candidate['value'] += 1
+                    altered_measurement['value'] += 1
+                elif defect == 'scope':
+                    candidate['record_number'] += 1
+                elif defect == 'profile':
+                    altered_profile['counter_fields'][0]['includes'] = ['input_cache_read']
+                    candidate['profile_hash'] = contract.content_id(altered_profile)
+                else:
+                    original_hash = candidate['operands'][0]
+                    operand = next(obj for obj in altered_objects if contract.content_id(obj) == original_hash)
+                    operand['value'] += 1
+                    candidate['operands'][0] = contract.content_id(operand)
+                altered_measurement['evidence'] = contract.content_id(candidate)
+                self.assertFalse(contract.verify_derived_measurement_evidence(
+                    altered_measurement, candidate, altered_objects, altered_profile))
+
+
 if __name__ == '__main__':
     unittest.main()
