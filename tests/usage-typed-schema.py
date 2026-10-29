@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Offline checks for typed usage measurements."""
 
+import hashlib
 import importlib.util
 from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+EVIDENCE_ID = hashlib.sha256(b'{"record":"synthetic"}').hexdigest()
 spec = importlib.util.spec_from_file_location(
     "usage_telemetry_contract", ROOT / "scripts" / "usage_telemetry_contract.py"
 )
@@ -21,7 +23,7 @@ def validate(value):
 
 def known(value):
     return {"measurement_state": "final", "value": value,
-            "reasons": [], "evidence": "record-1"}
+            "reasons": [], "evidence": EVIDENCE_ID}
 
 
 class TypedMeasurementTests(unittest.TestCase):
@@ -40,7 +42,7 @@ class TypedMeasurementTests(unittest.TestCase):
         values = (
             known(1),
             {"measurement_state": "partial", "value": 1,
-             "reasons": ["incomplete_source"], "evidence": "record-1"},
+             "reasons": ["incomplete_source"], "evidence": EVIDENCE_ID},
             {"measurement_state": "unavailable", "reasons": ["source_unavailable"]},
             {"measurement_state": "conflicted", "reasons": ["conflicting_evidence"]},
         )
@@ -97,12 +99,20 @@ class TypedMeasurementTests(unittest.TestCase):
             with self.subTest(evidence=evidence), self.assertRaises(ValueError):
                 validate(known(0) | {"evidence": evidence})
 
+    def test_evidence_requires_a_canonical_sha256_reference(self):
+        self.assertEqual(validate(known(0)), known(0))
+        invalid = ("password=secret", "sk-secret-token", "a" * 63, "a" * 65,
+                   "g" * 64, "A" * 64)
+        for evidence in invalid:
+            with self.subTest(evidence=evidence), self.assertRaises(ValueError):
+                validate(known(0) | {"evidence": evidence})
+
     def test_final_requires_value_and_conflicted_requires_reason(self):
         self.assertEqual(validate(known(0)), known(0))
         invalid = (
             {"measurement_state": "final", "reasons": ["stream_incomplete"]},
             {"measurement_state": "conflicted", "value": 1, "reasons": [],
-             "evidence": "record-1"},
+             "evidence": EVIDENCE_ID},
         )
         for measurement in invalid:
             with self.subTest(measurement=measurement), self.assertRaises(ValueError):
