@@ -47,7 +47,8 @@ def entries(result):
 
 def isolated_path(directory, *, python):
     for name in ("dirname", "sort", "mkdir", "date", "tr", "od", "sed", "cat", "rm",
-                 "mktemp", "sleep", "flock", "basename", "wc", "chmod", "head"):
+                 "mktemp", "sleep", "flock", "basename", "wc", "chmod", "head",
+                 "touch", "mv", "grep"):
         source = shutil.which(name)
         if source:
             (directory / name).symlink_to(source)
