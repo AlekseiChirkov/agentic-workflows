@@ -21,6 +21,10 @@ if MODULE.exists():
 else:
     sources = None
 
+profile_spec = importlib.util.spec_from_file_location('profile_fixtures', ROOT / 'tests/usage-source-profiles.py')
+profile_fixtures = importlib.util.module_from_spec(profile_spec)
+profile_spec.loader.exec_module(profile_fixtures)
+
 OWNER = {'owner_kind': 'task', 'owner_id': 'sha256:' + '1' * 64}
 SOURCE = 'sha256:' + '2' * 64
 
@@ -181,6 +185,45 @@ class BoundedSourceTests(unittest.TestCase):
     def test_selected_reads_do_not_use_network(self):
         with patch('socket.socket', side_effect=AssertionError('network')):
             self.assertEqual(read(self.selection)[0]['data'], self.content)
+
+    def test_unknown_finite_float_does_not_invalidate_raw_record(self):
+        self.assertEqual(parse(b'{"usage":{"input":1},"unknown":1.5}\n', 1),
+                         [{'usage': {'input': 1}, 'unknown': 1.5}])
+
+    def test_record_limits_apply_across_all_selected_files(self):
+        second = self.path.parent / 'second.jsonl'
+        second.write_bytes(b'{"usage":{"input":2}}\n')
+        first = b'{"usage":{"input":1}}\n'
+        self.path.write_bytes(first)
+        selection = manifest(self.path, first, max_records=1)
+        entry = {'source_id': 'sha256:' + '3' * 64, 'local_path': str(second),
+                 'sha256': hashlib.sha256(second.read_bytes()).hexdigest(),
+                 'size_bytes': second.stat().st_size}
+        selection['sources'].append(entry)
+        selection['attribution_map'].append({'source_id': entry['source_id'],
+            'owner_kind': 'unattributed', 'quality': 'unknown', 'candidates': []})
+        selection['max_source_bytes'] = max(len(first), entry['size_bytes'])
+        selection['max_total_bytes'] = len(first) + entry['size_bytes']
+        selection['max_records'] = 2
+        result = sources.read_selected_records(selection, profile=profile_fixtures.profile(),
+                                               expected_owner_scope=OWNER)
+        self.assertEqual([len(item['records']) for item in result], [1, 1])
+        selection['max_records'] = 1
+        with self.assertRaises(ValueError):
+            sources.read_selected_records(selection, profile=profile_fixtures.profile(),
+                                          expected_owner_scope=OWNER)
+
+    def test_invalid_profile_and_owner_are_rejected_before_any_open(self):
+        invalid = profile_fixtures.profile()
+        invalid['profile_version'] = 'different'
+        malformed = profile_fixtures.profile()
+        del malformed['counter_fields']
+        for profile, owner in ((invalid, OWNER), (malformed, OWNER),
+                               (profile_fixtures.profile(), OWNER | {'owner_id': 'sha256:' + '9' * 64})):
+            with self.subTest(profile=profile, owner=owner), patch('os.open', side_effect=AssertionError('opened')):
+                with self.assertRaises(ValueError):
+                    sources.read_selected_records(self.selection, profile=profile,
+                                                  expected_owner_scope=owner)
 
 
 if __name__ == '__main__':
