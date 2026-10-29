@@ -96,11 +96,8 @@ def registration(root, run_id, config, key):
     return values.get('usage_authority_key_sha256', '')
 
 
-def trusted_authority_key(path):
-    """Read a root-controlled public key without trusting writable ancestors."""
-    # Only the administrator-owned authority registry confers trust. A merely
-    # root-owned file elsewhere may be a public example key with a known secret.
-    registry = '/etc/orchestrail/usage-authorities/'
+def _trusted_key(path, registry):
+    """Read an administrator-controlled registry key without writable ancestors."""
     if (not isinstance(path, str) or not path.startswith(registry) or
             re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.pem', path[len(registry):]) is None):
         raise ValueError('independent authority key unavailable')
@@ -132,6 +129,14 @@ def trusted_authority_key(path):
         if file_fd is not None:
             os.close(file_fd)
         os.close(directory)
+
+
+def trusted_authority_key(path):
+    return _trusted_key(path, '/etc/orchestrail/usage-authorities/')
+
+
+def trusted_registration_key(path):
+    return _trusted_key(path, '/etc/orchestrail/usage-registration-authorities/')
 
 
 def verify_rsa_sha256(public_key, message, signature):
@@ -245,12 +250,76 @@ def authorized_by_independent_authority(bundle, config, registered_key):
     return True
 
 
-def ingest(path, root):
+def _verify_signed_certificate(key, domain, candidate, expected, *, rsa_only=False):
+    if not isinstance(candidate, dict) or set(candidate) != set(expected) | {'signature'}:
+        raise ValueError('invalid certificate')
+    if {name: candidate[name] for name in expected} != expected:
+        raise ValueError('certificate scope mismatch')
+    signature = candidate['signature']
+    if not isinstance(signature, str) or re.fullmatch(r'(?:[0-9a-f]{128}|[0-9a-f]{512}|[0-9a-f]{768}|[0-9a-f]{1024})', signature) is None:
+        raise ValueError('invalid certificate signature')
+    message = domain + canonical_bytes(expected)
+    if len(signature) != 128:
+        if not verify_rsa_sha256(key, message, bytes.fromhex(signature)):
+            raise ValueError('invalid certificate signature')
+        return
+    if rsa_only:
+        raise ValueError('invalid certificate signature')
+    try:
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        from cryptography.exceptions import InvalidSignature
+    except ImportError:
+        raise ValueError('certificate verifier unavailable') from None
+    try:
+        public = serialization.load_pem_public_key(key)
+        if not isinstance(public, Ed25519PublicKey):
+            raise ValueError('invalid certificate key')
+        public.verify(bytes.fromhex(signature), message)
+    except (InvalidSignature, TypeError, ValueError):
+        raise ValueError('invalid certificate signature') from None
+
+
+def certified_late_registration(path, bundle, config, key):
+    """Verify explicitly authorized late import without reading lifecycle history.
+
+    A distinct root-controlled registration issuer certifies the original run,
+    owner and authority key. The registered run authority then signs a separate
+    domain-bound authorization for the exact late bundle. Neither assertion can
+    be replaced by the bundle author's MAC or by a run authority self-attestation.
+    """
+    if config['owner_scope'] != {'owner_kind': 'run', 'owner_id': adapter._opaque(key, 'run', bundle['run_id'])}:
+        raise ValueError('unregistered scope')
+    raw = json.loads(cli._read_file(path, private=True), object_pairs_hook=sources._unique_pairs,
+                     parse_constant=sources._invalid_constant)
+    sources._bounded_raw_tree(raw)
+    if not isinstance(raw, dict) or set(raw) != {'registration', 'authorization'}:
+        raise ValueError('invalid late import certificate')
+    registration_key = trusted_registration_key(os.environ.get('USAGE_TELEMETRY_REGISTRATION_KEY'))
+    authority_key = trusted_authority_key(os.environ.get('USAGE_TELEMETRY_AUTHORITY_KEY'))
+    fingerprint = hashlib.sha256(authority_key).hexdigest()
+    common = {'run_id': bundle['run_id'], 'scope': config['owner_scope'],
+              'project_sha256': hashlib.sha256(config['project_identifier'].encode('utf-8')).hexdigest(),
+              'registration_key_fingerprint': key_fingerprint(key), 'authority_key_sha256': fingerprint}
+    expected_registration = {'schema_version': 1, 'kind': 'usage_registration_certificate', **common}
+    _verify_signed_certificate(registration_key, b'orchestrail:usage-registration-certificate:v1\0',
+                               raw['registration'], expected_registration, rsa_only=True)
+    expected_late = {'schema_version': 1, 'kind': 'usage_late_import_certificate', **common,
+                     'profile_id': bundle['profile_id'], 'profile_version': bundle['profile_version'],
+                     'bundle_sha256': hashlib.sha256(canonical_bytes(bundle)).hexdigest(),
+                     'registration_sha256': hashlib.sha256(canonical_bytes(raw['registration'])).hexdigest()}
+    _verify_signed_certificate(authority_key, b'orchestrail:usage-late-import:v1\0',
+                               raw['authorization'], expected_late)
+    return fingerprint
+
+
+def ingest(path, root, *, late_certificate=None):
     bundle = read_bundle(path)
     config, profile, key = config_and_key(os.environ.get('USAGE_TELEMETRY_CONFIG'), bundle['profile_id'])
     if (bundle['profile_version'] != profile['profile_version'] or bundle['run_id'] != config['run_id']):
         raise ValueError('profile or run mismatch')
-    registered_key = registration(root, bundle['run_id'], config, key)
+    registered_key = (registration(root, bundle['run_id'], config, key) if late_certificate is None else
+                      certified_late_registration(late_certificate, bundle, config, key))
     proof_path = os.environ.get('USAGE_TELEMETRY_PROVENANCE')
     if not proof_path:
         raise ValueError('provenance missing')
@@ -281,9 +350,10 @@ def main():
         _, _, key = config_and_key(os.environ.get('USAGE_TELEMETRY_CONFIG'))
         print(key_fingerprint(key))
         return
-    if len(sys.argv) != 4 or sys.argv[1] != 'ingest':
+    if sys.argv[1:2] != ['ingest'] or len(sys.argv) not in (4, 5):
         raise ValueError('invalid invocation')
-    print(json.dumps(ingest(sys.argv[2], sys.argv[3]), separators=(',', ':'), sort_keys=True))
+    late_certificate = sys.argv[4] if len(sys.argv) == 5 else None
+    print(json.dumps(ingest(sys.argv[2], sys.argv[3], late_certificate=late_certificate), separators=(',', ':'), sort_keys=True))
 
 
 if __name__ == '__main__':
