@@ -4584,7 +4584,7 @@ check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
   "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
 # ── End public identity smoke checks ────────────────────────────────
 
-# Run explicit source-selection fixtures during ordinary validation as well.
+# Run independent inventory fixtures during ordinary validation as well.
 test_usage_inventory_acceptance() {
   local output
   output="$(python3 "$REPO_ROOT/tests/usage-inventory-schema.py" 2>&1)" || {
@@ -4595,6 +4595,7 @@ test_usage_inventory_acceptance() {
 check "test_usage_inventory_acceptance" \
   "$(test_usage_inventory_acceptance && echo pass || echo 'usage inventory fixtures must pass')"
 
+# Run explicit source-selection fixtures during ordinary validation as well.
 test_usage_selection_acceptance() {
   local output
   output="$(python3 "$REPO_ROOT/tests/usage-source-selection.py" 2>&1)" || {
