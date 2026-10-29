@@ -1437,6 +1437,7 @@ def validate_lifecycle_projection(value: Any) -> dict[str, Any]:
     _fields(completeness, dimensions)
     for state in completeness.values():
         _choice(state, frozenset({"complete", "partial", "unknown", "not_applicable"}))
+    prices = _projection_prices(value)
     complete = all(state == "complete" for state in completeness.values())
     if complete and "cost_usd" not in value:
         raise ValueError("complete projection requires full cost")
@@ -1459,7 +1460,6 @@ def validate_lifecycle_projection(value: Any) -> dict[str, Any]:
         display = value["display_cost_usd"]
         if not isinstance(display, str) or re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", display) is None:
             raise ValueError("invalid display amount")
-    prices = _projection_prices(value)
     objects = value["evidence_objects"]
     if not isinstance(objects, list) or len(objects) > 10000:
         raise ValueError("invalid projection evidence")
