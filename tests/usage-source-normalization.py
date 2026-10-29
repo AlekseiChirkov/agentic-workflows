@@ -183,6 +183,27 @@ class SourceNormalizationTests(unittest.TestCase):
         self.assertEqual(contract.validate_usage_bundle(bundle), bundle)
         self.assertNotIn('bbbbbbbb', json.dumps(bundle))
 
+    def test_record_tree_limits_report_input_limit_without_leaking_payload(self):
+        nested = {'private': 'PRIVATE_NESTED_SENTINEL'}
+        for _ in range(34):
+            nested = {'child': nested}
+        excessive_keys = {f'key_{number}': number for number in range(257)}
+        excessive_keys['secret'] = 'PRIVATE_KEYS_SENTINEL'
+        for invalid, secret in ((nested, 'PRIVATE_NESTED_SENTINEL'),
+                                (excessive_keys, 'PRIVATE_KEYS_SENTINEL')):
+            with self.subTest(secret=secret):
+                self.write([self.raw, invalid])
+                result = normalize(self.selection)
+                bundle = result['bundle']
+                self.assertEqual(contract.validate_usage_bundle(bundle), bundle)
+                self.assertEqual([item['record_number'] for item in bundle['observations']], [1])
+                self.assertEqual(result['quarantine'][0]['reason'], 'input_limit_exceeded')
+                issue = bundle['diagnostics'][0]
+                self.assertEqual(issue['reason'], 'input_limit_exceeded')
+                self.assertEqual(issue['record_number'], 2)
+                self.assertEqual(issue['completeness'], 'partial')
+                self.assertNotIn(secret, json.dumps(result))
+
     def test_invalid_selection_profile_and_changed_file_reject_atomically_without_private_errors(self):
         if adapter is None:
             self.fail('source normalizer is unavailable')
