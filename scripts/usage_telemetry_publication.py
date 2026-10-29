@@ -62,16 +62,17 @@ def _verify_file(directory, name, expected):
         os.close(fd)
 
 
-def _install(directory, temporary, name):
-    """Atomically rename without replacement; unsupported platforms fail closed."""
+def _install(temporary_fd, directory, name):
+    """Link an unnamed file without replacement; unsupported systems fail closed."""
     library = ctypes.CDLL(None, use_errno=True)
-    rename = getattr(library, 'renameat2', None)
-    if rename is None:
+    link = getattr(library, 'linkat', None)
+    if link is None:
         raise OSError(errno.ENOTSUP, 'atomic publication unavailable')
-    rename.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
-                       ctypes.c_char_p, ctypes.c_uint)
-    rename.restype = ctypes.c_int
-    if rename(directory, os.fsencode(temporary), directory, os.fsencode(name), 1) != 0:
+    link.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                     ctypes.c_char_p, ctypes.c_int)
+    link.restype = ctypes.c_int
+    # AT_EMPTY_PATH links the already-open anonymous file, not a replaceable path.
+    if link(temporary_fd, b'', directory, os.fsencode(name), 0x1000) != 0:
         code = ctypes.get_errno()
         raise OSError(code, 'atomic publication failed')
 
@@ -107,8 +108,7 @@ def publish_usage(bundle, *, root, mode, scope, authorize):
     if canonical_bytes(candidate) != encoded or owner != scope:
         raise ValueError('publication authorization changed input')
 
-    root_fd = usage_fd = target_fd = None
-    temp_name = None
+    root_fd = usage_fd = target_fd = temporary_fd = None
     try:
         # Resolve the configured root once, then use directory-relative operations.
         root_fd = os.open(str(Path(root).resolve(strict=True)), _DIR_FLAGS)
@@ -127,39 +127,37 @@ def publish_usage(bundle, *, root, mode, scope, authorize):
             _verify_directory(usage_fd, 'v1', target_fd)
             return receipt
 
-        temp_name = '.usage-' + secrets.token_hex(16) + '.tmp'
-        fd = os.open(temp_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
-                     0o600, dir_fd=target_fd)
-        try:
-            os.fchmod(fd, 0o600)
-            view = memoryview(encoded)
-            while view:
-                count = os.write(fd, view)
-                if count <= 0:
-                    raise OSError('publication write failed')
-                view = view[count:]
-            os.fsync(fd)
-        finally:
-            os.close(fd)
+        if not hasattr(os, 'O_TMPFILE'):
+            raise OSError(errno.ENOTSUP, 'anonymous publication unavailable')
+        temporary_fd = os.open('.', os.O_TMPFILE | os.O_RDWR | os.O_CLOEXEC,
+                               0o600, dir_fd=target_fd)
+        os.fchmod(temporary_fd, 0o600)
+        view = memoryview(encoded)
+        while view:
+            count = os.write(temporary_fd, view)
+            if count <= 0:
+                raise OSError('publication write failed')
+            view = view[count:]
+        os.fsync(temporary_fd)
         _verify_directory(root_fd, 'usage', usage_fd)
         _verify_directory(usage_fd, 'v1', target_fd)
         try:
-            _install(target_fd, temp_name, name)
+            _install(temporary_fd, target_fd, name)
         except FileExistsError:
             _verify_file(target_fd, name, encoded)
             receipt['duplicate'] = True
         else:
             os.fsync(target_fd)
             _verify_file(target_fd, name, encoded)
+            installed = os.stat(name, dir_fd=target_fd, follow_symlinks=False)
+            staged = os.fstat(temporary_fd)
+            if ((installed.st_dev, installed.st_ino) != (staged.st_dev, staged.st_ino)
+                    or staged.st_nlink != 1):
+                raise ValueError('publication changed')
         _verify_directory(root_fd, 'usage', usage_fd)
         _verify_directory(usage_fd, 'v1', target_fd)
         return receipt
     finally:
-        if target_fd is not None and temp_name is not None:
-            try:
-                os.unlink(temp_name, dir_fd=target_fd)
-            except FileNotFoundError:
-                pass
-        for fd in (target_fd, usage_fd, root_fd):
+        for fd in (temporary_fd, target_fd, usage_fd, root_fd):
             if fd is not None:
                 os.close(fd)
