@@ -48,6 +48,52 @@ def validate_counter(value: Any) -> int:
     return value
 
 
+MEASUREMENT_STATES = frozenset({"partial", "final", "unavailable", "conflicted"})
+MEASUREMENT_REASONS = frozenset({
+    "source_unavailable", "incomplete_source", "conflicting_evidence",
+    "unsupported_profile", "invalid_schema", "invalid_counter", "counter_conflict",
+    "inventory_unknown", "stream_incomplete", "identity_unresolved", "revision_conflict",
+    "unpriced_component", "attribution_unverified", "timing_unavailable",
+    "source_record_quarantined", "source_changed", "digest_mismatch", "scope_violation",
+    "forbidden_field", "input_limit_exceeded", "projection_mismatch", "publication_conflict",
+    "stored_artifact_corrupt", "io_unavailable", "collection_disabled",
+    "dependency_unavailable", "policy_unavailable", "delivery_pending",
+    "accepted_denominator_zero", "comparison_ineligible",
+})
+
+
+def validate_measurement(value: Any) -> dict[str, Any]:
+    """Validate an evidenced counter or an explicitly explained missing value."""
+    if not isinstance(value, dict) or set(value) - {
+        "measurement_state", "value", "reasons", "evidence"
+    }:
+        raise ValueError("invalid measurement fields")
+    state = value.get("measurement_state")
+    if not isinstance(state, str) or state not in MEASUREMENT_STATES:
+        raise ValueError("invalid measurement state")
+    reasons = value.get("reasons")
+    if not isinstance(reasons, list) or any(
+        not isinstance(reason, str) or reason not in MEASUREMENT_REASONS
+        for reason in reasons
+    ):
+        raise ValueError("invalid measurement reasons")
+    if len(set(reasons)) != len(reasons):
+        raise ValueError("duplicate measurement reason")
+    evidence = value.get("evidence")
+    if "evidence" in value and (not isinstance(evidence, str) or not evidence or len(evidence) > 256):
+        raise ValueError("invalid measurement evidence")
+    if "value" not in value:
+        if not reasons:
+            raise ValueError("missing measurement requires a reason")
+    else:
+        if state == "unavailable":
+            raise ValueError("unavailable measurement must omit its value")
+        counter = validate_counter(value["value"])
+        if counter == 0 and evidence is None:
+            raise ValueError("zero measurement requires evidence")
+    return value
+
+
 def validate_decimal(value: Any) -> str:
     """Validate a nonnegative canonical decimal string."""
     if not isinstance(value, str) or _DECIMAL.fullmatch(value) is None:
