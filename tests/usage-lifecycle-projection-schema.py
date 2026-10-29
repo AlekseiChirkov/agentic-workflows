@@ -66,12 +66,6 @@ def projection():
                        'source_hash': 'd' * 64, 'start': period['start'], 'end': period['end']}
     period['evidence'] = contract.content_id(period_evidence)
     value['evidence_objects'].append(period_evidence)
-    for name, parameter in value['scenario']['source_parameters'].items():
-        item = {'schema_version': 1, 'kind': 'source_parameter_evidence',
-                'profile_id': 'profile', 'source_hash': 'a' * 64,
-                'field': name, 'value': parameter['value']}
-        value['evidence_objects'].append(item)
-        parameter['evidence'] = contract.content_id(item)
     price_id = contract.content_id(price)
     value['scenario']['snapshot_ids'] = [price_id]
     for index, contributor in enumerate(value['contributors'], 1):
@@ -82,6 +76,16 @@ def projection():
                 'record_number': index, 'value': time}
         value['evidence_objects'].append(item)
         contributor['execution_time'] = {'value': time, 'evidence': contract.content_id(item)}
+        contributor['parameter_evidence'] = {}
+        for name, parameter in value['scenario']['source_parameters'].items():
+            item = {'schema_version': 1, 'kind': 'source_parameter_evidence',
+                    'profile_id': 'profile', 'source_hash': 'a' * 64,
+                    'record_number': index, 'field': name, 'value': parameter['value']}
+            value['evidence_objects'].append(item)
+            digest = contract.content_id(item)
+            contributor['parameter_evidence'][name] = digest
+            if index == 1:
+                parameter['evidence'] = digest
     return value
 
 class LifecycleProjectionSchemaTests(unittest.TestCase):
@@ -171,6 +175,51 @@ class LifecycleProjectionSchemaTests(unittest.TestCase):
         value['subtotal_quality'] = 'proven_lower_bound'
         with self.assertRaises(ValueError):
             call('validate_lifecycle_projection', value)
+
+    def test_uncertain_attribution_or_measurements_cannot_prove_lower_bound(self):
+        for dimension in ('attribution', 'measurements'):
+            value = projection()
+            del value['cost_usd']
+            value['completeness'][dimension] = 'partial'
+            value['priced_subtotal_usd'] = '1.5'
+            value['subtotal_quality'] = 'subtotal_only'
+            self.assert_valid(value)
+            value['subtotal_quality'] = 'proven_lower_bound'
+            with self.subTest(dimension=dimension), self.assertRaises(ValueError):
+                call('validate_lifecycle_projection', value)
+
+    def test_reprice_assumptions_must_match_price_applicability(self):
+        value = projection()
+        value['scenario']['basis'] = 'reprice'
+        value['scenario']['assumptions'] = {'service_tier': 'standard', 'region': 'example-region'}
+        self.assert_valid(value)
+        for field, assumption in (('service_tier', 'premium'), ('region', 'other-region'),
+                                  ('modality', 'image')):
+            bad = copy.deepcopy(value)
+            bad['scenario']['assumptions'][field] = assumption
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                call('validate_lifecycle_projection', bad)
+
+    def test_parameter_evidence_is_scoped_to_each_contributor_record(self):
+        value = projection()
+        self.assert_valid(value)
+        first, second = value['contributors']
+        bad = copy.deepcopy(value)
+        bad['contributors'][1]['parameter_evidence']['model'] = first['parameter_evidence']['model']
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', bad)
+        bad = copy.deepcopy(value)
+        del bad['contributors'][1]['parameter_evidence']['region']
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', bad)
+        bad = copy.deepcopy(value)
+        item = next(item for item in bad['evidence_objects']
+                    if item['kind'] == 'source_parameter_evidence' and
+                    item['field'] == 'model' and item['record_number'] == 2)
+        item['record_number'] = 3
+        bad['contributors'][1]['parameter_evidence']['model'] = contract.content_id(item)
+        with self.assertRaises(ValueError):
+            call('validate_lifecycle_projection', bad)
 
     def test_display_amount_is_correct_half_even_rounding(self):
         value = projection()
