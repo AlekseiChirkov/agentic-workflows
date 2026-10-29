@@ -121,6 +121,21 @@ class ReceiptSchemaTests(unittest.TestCase):
             with self.subTest(output=output), self.assertRaises(ValueError):
                 call('validate_usage_receipt', output)
 
+    def test_observation_identifiers_are_a_canonical_set(self):
+        first = receipt()
+        second = copy.deepcopy(first)
+        second['observation_ids'].reverse()
+        self.assert_valid(first)
+        self.assert_valid(second)
+        self.assertEqual(contract.canonical_bytes(first), contract.canonical_bytes(second))
+        self.assertEqual(contract.content_id(first), contract.content_id(second))
+
+    def test_callers_cannot_override_receipt_set_order(self):
+        value = receipt()
+        self.assert_valid(value)
+        with self.assertRaises(ValueError):
+            contract.canonical_bytes(value, set_keys={('observation_ids',): lambda item: -int(item, 16)})
+
 
 if __name__ == '__main__':
     unittest.main()
