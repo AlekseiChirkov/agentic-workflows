@@ -209,6 +209,8 @@ DIAGNOSTIC_METRICS = {
     "orchestration.tool_calls": "count",
     "verification.evidence_reuses": "count",
     "tool_output.full_bytes": "bytes",
+    "tool_output.shown_bytes": "bytes",
+    "tool_output.additional_read_bytes": "bytes",
     "repair.attempts": "count",
     "decomposition.rework": "count",
 }
@@ -713,7 +715,8 @@ def validate_diagnostic_measurement(value: Any) -> dict[str, Any]:
     producers must establish these independently before publication.
     """
     _fields(value, {"schema_version", "kind", "metric", "value", "unit",
-                    "scope", "source_id", "quality"})
+                    "scope", "source_id", "quality"},
+            {"event_id", "attempt_id", "context_hash"})
     _bounded_tree(value)
     _version(value["schema_version"])
     _choice(value["kind"], frozenset({"diagnostic_measurement"}))
@@ -727,6 +730,9 @@ def validate_diagnostic_measurement(value: Any) -> dict[str, Any]:
     _choice(scope["owner_kind"], frozenset({"run", "session"}))
     _private_identifier(scope["owner_id"])
     _private_identifier(value["source_id"])
+    for field in ("event_id", "attempt_id", "context_hash"):
+        if field in value and value[field] is not None:
+            _private_identifier(value[field])
     _choice(value["quality"], frozenset({"measured", "unknown"}))
     if value["quality"] == "unknown":
         if value["value"] is not None:
