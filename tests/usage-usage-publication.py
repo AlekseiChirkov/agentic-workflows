@@ -183,10 +183,10 @@ class PublicationTests(unittest.TestCase):
         installed = threading.Event()
         duplicate_read = threading.Event()
         writer_done = threading.Event()
-        original_link, original_read = os.link, os.read
+        original_install, original_read = publication._install, os.read
 
-        def synchronized_link(*args, **kwargs):
-            result = original_link(*args, **kwargs)
+        def synchronized_install(*args, **kwargs):
+            result = original_install(*args, **kwargs)
             installed.set()
             if not duplicate_read.wait(3):
                 raise AssertionError('duplicate did not reach visible file')
@@ -216,7 +216,7 @@ class PublicationTests(unittest.TestCase):
             except Exception as error:
                 errors.append(error)
 
-        with patch.object(os, 'link', synchronized_link), patch.object(os, 'read', synchronized_read):
+        with patch.object(publication, '_install', synchronized_install), patch.object(os, 'read', synchronized_read):
             writer = threading.Thread(target=run_writer, name='writer')
             writer.start()
             installed.wait(0.3)
@@ -230,6 +230,50 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(len(results), 2)
         self.assertEqual(sum(not result['duplicate'] for result in results), 1)
         self.assertEqual(self.artifact.read_bytes(), self.expected)
+        self.assert_lifecycle_intact()
+
+    def test_substituted_temporary_name_cannot_enter_shared_store(self):
+        external = Path(self.tmp.name) / 'external-private-file'
+        external.write_bytes(self.expected)
+        install = publication._install
+
+        def substitute(*args):
+            # Named staging files are attacker-replaceable after they are closed.
+            # An unnamed staging descriptor has no path for this substitution.
+            if len(args) == 3 and isinstance(args[1], str):
+                directory, temporary, _ = args
+                os.unlink(temporary, dir_fd=directory)
+                os.symlink(external, temporary, dir_fd=directory)
+            return install(*args)
+
+        with patch.object(publication, '_install', substitute):
+            try:
+                receipt = self.publish()
+            except (ValueError, OSError):
+                receipt = None
+        self.assertFalse(self.artifact.is_symlink())
+        self.assertEqual(external.read_bytes(), self.expected)
+        if receipt is not None:
+            self.assertEqual(self.artifact.read_bytes(), self.expected)
+        self.assert_lifecycle_intact()
+
+    def test_foreign_temporary_collision_is_never_deleted_or_modified(self):
+        self.artifact.parent.mkdir(parents=True)
+        foreign = self.artifact.parent / ('.usage-' + 'a' * 32 + '.tmp')
+        foreign.write_bytes(b'foreign private data')
+        with patch.object(publication.secrets, 'token_hex', return_value='a' * 32):
+            try:
+                self.publish()
+            except (ValueError, OSError):
+                pass
+        self.assertEqual(foreign.read_bytes(), b'foreign private data')
+        self.assert_lifecycle_intact()
+
+    def test_atomic_install_unavailable_fails_closed_without_receipt(self):
+        with patch.object(publication, '_install', side_effect=OSError('unsupported atomic installation')):
+            with self.assertRaises(OSError):
+                self.publish()
+        self.assertFalse(self.artifact.exists())
         self.assert_lifecycle_intact()
 
     def test_failed_atomic_install_never_returns_receipt_or_changes_lifecycle(self):
