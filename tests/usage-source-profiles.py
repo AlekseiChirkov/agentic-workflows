@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""Offline source-counter normalization and split cache evidence checks."""
+import copy
+import importlib.util
+from pathlib import Path
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location('contract', ROOT / 'scripts/usage_telemetry_contract.py')
+contract = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(contract)
+
+
+def field(name, measurement, includes=(), ttl=None):
+    result = {'path': ['usage', name], 'measurement': measurement,
+              'counter_scope': 'response_total', 'semantics_status': 'verified',
+              'includes': list(includes)}
+    if ttl is not None:
+        result['ttl'] = ttl
+    return result
+
+
+def profile(included=True):
+    first = field('input', 'input_total', ('input_cache_read', 'input_cache_write')) if included else field('input', 'input_uncached')
+    return {'schema_version': 1, 'kind': 'source_profile', 'profile_id': 'synthetic-profile',
+            'profile_version': '1', 'provider': 'synthetic-provider', 'runtime': 'synthetic-runtime',
+            'format_version': '1', 'counter_fields': [first,
+                field('read', 'input_cache_read'), field('write', 'input_cache_write_unsplit'),
+                field('short', 'input_cache_write', ttl='5m'),
+                field('long', 'input_cache_write', ttl='1h'),
+                field('output', 'output_total', ('reasoning_subset',)),
+                field('reasoning', 'reasoning_subset')],
+            'identity_scope': {'account': 'provider_account', 'response': 'response_id'},
+            'finality': {'signals': ['complete'], 'status': 'verified'},
+            'inventory': {'status': 'verified', 'evidence': 'synthetic-inventory-evidence'},
+            'capabilities': {'cache': 'supported', 'effort': 'unknown', 'tools': 'unknown'},
+            'capability_evidence': {'cache': 'synthetic-cache-evidence'},
+            'known_gaps': [], 'verified_at': '2026-01-02T03:04:05Z',
+            'source': 'https://example.invalid/synthetic-format'}
+
+
+def normalize(selected_profile, counters, version='1'):
+    return contract.normalize_source_counters(selected_profile, {'usage': counters},
+                                              profile_version=version, source_hash='a' * 64,
+                                              record_number=1)
+
+
+def evidence(ttl, value):
+    return {'schema_version': 1, 'kind': 'measurement_evidence', 'profile_id': 'synthetic-profile',
+            'source_hash': 'a' * 64, 'record_number': 1, 'field': 'input_cache_write',
+            'ttl': ttl, 'value': value}
+
+
+def split_bundle():
+    objects = [evidence('5m', 100), evidence('1h', 50)]
+    pieces = [{'ttl': obj['ttl'], 'tokens': {'measurement_state': 'final', 'value': obj['value'],
+                                           'reasons': [], 'evidence': contract.content_id(obj)}}
+              for obj in objects]
+    obs = {'schema_version': 1, 'kind': 'request_usage', 'profile_id': 'synthetic-profile',
+           'profile_version': '1', 'source_hash': 'a' * 64, 'record_number': 1,
+           'counter_scope': 'response_total', 'provider_scope': 'sha256:' + 'c' * 64,
+           'source_time': None, 'source_time_quality': 'unknown',
+           'observed_at': '2026-01-02T03:04:05Z', 'state': 'final', 'outcome': 'succeeded',
+           'attribution': {'owner_kind': 'unattributed', 'quality': 'asserted', 'candidates': []},
+           'measurements': {'input_cache_write': pieces,
+                            'input_cache_write_unsplit': {'measurement_state': 'final', 'value': 150, 'reasons': []}}}
+    return {'schema_version': 1, 'kind': 'usage_bundle', 'profile_id': 'synthetic-profile',
+            'profile_version': '1', 'project_id': 'sha256:' + 'd' * 64, 'run_id': 'run',
+            'sources': [{'source_id': 'sha256:' + 'e' * 64, 'sha256': 'a' * 64}],
+            'observations': [obs], 'evidence_objects': objects,
+            'inventories': [], 'segments': [], 'diagnostics': []}
+
+
+class SourceNormalizationTests(unittest.TestCase):
+    def test_included_and_separate_inputs_have_equal_nonoverlapping_totals(self):
+        raw = {'input': 1000, 'read': 200, 'write': 150, 'short': 100, 'long': 50,
+               'output': 500, 'reasoning': 100}
+        included = profile()
+        separate = profile(False)
+        self.assertEqual(contract.validate_source_profile(included), included)
+        self.assertEqual(contract.validate_source_profile(separate), separate)
+        one = normalize(included, raw)['measurements']
+        two = normalize(separate, raw | {'input': 650})['measurements']
+        for result in (one, two):
+            self.assertEqual(result['input_uncached']['value'], 650)
+            self.assertEqual(result['tokens_in']['value'], 1000)
+            self.assertEqual(result['output_total']['value'], 500)
+            self.assertEqual(result['reasoning_subset']['value'], 100)
+            self.assertEqual({part['ttl']: part['tokens']['value'] for part in result['input_cache_write']},
+                             {'5m': 100, '1h': 50})
+        no_write = copy.deepcopy(included)
+        no_write['counter_fields'] = [entry for entry in no_write['counter_fields']
+                                      if entry['measurement'] not in ('input_cache_write', 'input_cache_write_unsplit')]
+        no_write['counter_fields'][0]['includes'] = ['input_cache_read']
+        self.assertEqual(contract.validate_source_profile(no_write), no_write)
+        self.assertEqual(normalize(no_write, {'input': 1000, 'read': 200})['measurements']['input_uncached']['value'], 800)
+
+    def test_matching_split_retains_evidence_and_does_not_double_count(self):
+        result = normalize(profile(), {'input': 1000, 'read': 200, 'write': 150, 'short': 100, 'long': 50})
+        measurements = result['measurements']
+        self.assertEqual(measurements['tokens_in']['value'], 1000)
+        by_digest = {contract.content_id(obj): obj for obj in result['evidence_objects']}
+        for part in measurements['input_cache_write']:
+            obj = by_digest[part['tokens']['evidence']]
+            self.assertEqual(obj['ttl'], part['ttl'])
+            self.assertEqual(obj['value'], part['tokens']['value'])
+            self.assertEqual(obj['profile_id'], 'synthetic-profile')
+            self.assertEqual(obj['source_hash'], 'a' * 64)
+            self.assertEqual(obj['record_number'], 1)
+
+    def test_mismatch_and_negative_remainder_preserve_unaffected_output(self):
+        for raw in ({'input': 1000, 'read': 200, 'write': 151, 'short': 100, 'long': 50, 'output': 500},
+                    {'input': 100, 'read': 200, 'write': 150, 'short': 100, 'long': 50, 'output': 500}):
+            with self.subTest(raw=raw):
+                result = normalize(profile(), raw)['measurements']
+                self.assertEqual(result['output_total']['value'], 500)
+                self.assertNotEqual(result['tokens_in']['measurement_state'], 'final')
+                self.assertNotIn('value', result['tokens_in'])
+                self.assertTrue(any(item.get('measurement_state') == 'conflicted'
+                                    for item in result.values() if isinstance(item, dict)))
+
+    def test_reasoning_exceeding_output_is_conflicted(self):
+        result = normalize(profile(), {'input': 1000, 'read': 200, 'write': 150, 'short': 100,
+                                       'long': 50, 'output': 100, 'reasoning': 101})['measurements']
+        self.assertEqual(result['reasoning_subset']['measurement_state'], 'conflicted')
+        self.assertEqual(result['tokens_in']['value'], 1000)
+
+    def test_unsupported_version_and_unknown_cache_are_never_invented_zero(self):
+        raw = {'input': 1000, 'read': 200, 'output': 400}
+        unsupported = normalize(profile(), raw, version='unknown')['measurements']
+        for measurement in unsupported.values():
+            if isinstance(measurement, dict):
+                self.assertNotEqual(measurement['measurement_state'], 'final')
+                self.assertNotEqual(measurement.get('value'), 0)
+        unknown = normalize(profile(), raw)['measurements']
+        self.assertNotEqual(unknown['tokens_in']['measurement_state'], 'final')
+        self.assertNotIn('value', unknown['tokens_in'])
+        self.assertNotEqual(unknown.get('input_cache_write_unsplit', {}).get('value'), 0)
+        self.assertEqual(unknown['output_total']['value'], 400)
+
+    def test_unverified_counter_semantics_cannot_be_used_to_infer_remainder(self):
+        selected = profile()
+        selected['counter_fields'][0]['semantics_status'] = 'unknown'
+        del selected['counter_fields'][0]['includes']
+        self.assertEqual(contract.validate_source_profile(selected), selected)
+        result = normalize(selected, {'input': 1000, 'read': 200, 'write': 150, 'short': 100,
+                                      'long': 50, 'output': 500})['measurements']
+        self.assertNotEqual(result['input_uncached']['measurement_state'], 'final')
+        self.assertNotIn('value', result['input_uncached'])
+        self.assertEqual(result['output_total']['value'], 500)
+
+
+class SplitSchemaTests(unittest.TestCase):
+    def test_observation_and_bundle_validate_per_component_evidence_and_canonical_order(self):
+        one = split_bundle()
+        two = copy.deepcopy(one)
+        two['observations'][0]['measurements']['input_cache_write'].reverse()
+        two['evidence_objects'].reverse()
+        for bundle in (one, two):
+            obs = bundle['observations'][0]
+            self.assertEqual(contract.validate_observation(obs), obs)
+            for obj in bundle['evidence_objects']:
+                self.assertEqual(contract.validate_evidence_object(obj), obj)
+            self.assertEqual(contract.validate_usage_bundle(bundle), bundle)
+        self.assertEqual(contract.canonical_bytes(one), contract.canonical_bytes(two))
+        self.assertEqual(contract.content_id(one), contract.content_id(two))
+        self.assertEqual(contract.observation_id(one['observations'][0]), contract.observation_id(two['observations'][0]))
+
+    def test_duplicate_ttl_mismatched_total_and_wrong_evidence_are_rejected(self):
+        for defect in ('duplicate', 'total', 'evidence'):
+            value = split_bundle()
+            obs = value['observations'][0]
+            pieces = obs['measurements']['input_cache_write']
+            if defect == 'duplicate':
+                pieces.append(copy.deepcopy(pieces[0]))
+            elif defect == 'total':
+                obs['measurements']['input_cache_write_unsplit']['value'] = 151
+            else:
+                pieces[0]['tokens']['evidence'] = pieces[1]['tokens']['evidence']
+            with self.subTest(defect=defect), self.assertRaises(ValueError):
+                contract.validate_usage_bundle(value)
+
+
+if __name__ == '__main__':
+    unittest.main()
