@@ -298,6 +298,8 @@ def certified_late_registration(path, bundle, config, key):
     registration_key = trusted_registration_key(os.environ.get('USAGE_TELEMETRY_REGISTRATION_KEY'))
     authority_key = trusted_authority_key(os.environ.get('USAGE_TELEMETRY_AUTHORITY_KEY'))
     fingerprint = hashlib.sha256(authority_key).hexdigest()
+    if hmac.compare_digest(hashlib.sha256(registration_key).hexdigest(), fingerprint):
+        raise ValueError('registration issuer must be independent')
     common = {'run_id': bundle['run_id'], 'scope': config['owner_scope'],
               'project_sha256': hashlib.sha256(config['project_identifier'].encode('utf-8')).hexdigest(),
               'registration_key_fingerprint': key_fingerprint(key), 'authority_key_sha256': fingerprint}
