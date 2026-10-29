@@ -80,6 +80,26 @@ class LateImportTests(unittest.TestCase):
         self.assertEqual(self.run_file.read_bytes(), self.closed)
         self.assertFalse(self.fixture.lifecycle.exists())
 
+    def test_late_import_does_not_open_lifecycle_registration_or_history(self):
+        original = ingest.sources._open_regular
+        opened = []
+        def checked(path):
+            opened.append(str(path))
+            if str(path) == str(self.run_file) or str(path) == str(self.fixture.lifecycle):
+                raise AssertionError('late import read lifecycle history')
+            return original(path)
+        with patch.object(ingest.sources, '_open_regular', side_effect=checked):
+            receipt = self.invoke()
+        self.assertEqual(receipt['kind'], 'usage_accepted')
+        self.assertNotIn(str(self.run_file), opened)
+        self.assertNotIn(str(self.fixture.lifecycle), opened)
+
+    def test_real_registration_key_loader_rejects_caller_owned_key(self):
+        user_key = self.fixture.root / 'caller-owned.pem'
+        user_key.write_bytes(rsa_tests.PUBLIC)
+        with self.assertRaises(ValueError):
+            ingest.trusted_registration_key(str(user_key))
+
     def test_real_cli_requires_explicit_late_certificate(self):
         authority_file = self.fixture.root / 'authority-public.pem'
         issuer_file = self.fixture.root / 'issuer-public.pem'
