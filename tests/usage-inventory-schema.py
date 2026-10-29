@@ -22,7 +22,7 @@ def opaque(digit):
 
 
 def inventory():
-    return {
+    value = {
         'schema_version': 1, 'kind': 'inventory',
         'profile_id': 'profile', 'profile_version': '1', 'source_hash': 'a' * 64,
         'owner_scope': {'owner_kind': 'run', 'owner_id': opaque('b')},
@@ -35,13 +35,25 @@ def inventory():
         'unresolved_slots': [{'call_id': opaque('1'), 'reason': 'identity_unresolved'}],
         'coverage': {'children': 'unknown', 'internal_checks': 'unknown', 'tools': 'unknown'},
     }
+    value['evidence'] = contract.content_id(inventory_evidence(value))
+    return value
+
+
+def inventory_evidence(value):
+    """Bind a separate evidence record to the full declaration without a cycle."""
+    declaration = {key: item for key, item in value.items() if key != 'evidence'}
+    return {'schema_version': 1, 'kind': 'inventory_evidence',
+            'profile_id': value['profile_id'], 'profile_version': value['profile_version'],
+            'source_hash': value['source_hash'],
+            'inventory_digest': contract.content_id(declaration)}
 
 
 def bundle():
+    entry = inventory()
     return {'schema_version': 1, 'kind': 'usage_bundle', 'profile_id': 'profile',
             'profile_version': '1', 'project_id': opaque('d'), 'run_id': 'run',
             'sources': [{'source_id': opaque('e'), 'sha256': 'a' * 64}],
-            'observations': [], 'evidence_objects': [], 'inventories': [inventory()],
+            'observations': [], 'evidence_objects': [inventory_evidence(entry)], 'inventories': [entry],
             'segments': [], 'diagnostics': []}
 
 
@@ -141,6 +153,42 @@ class InventoryTests(unittest.TestCase):
         invalid['inventories'].append(copy.deepcopy(invalid['inventories'][0]))
         with self.assertRaises(ValueError):
             call('validate_usage_bundle', invalid)
+
+    def test_complete_inventory_requires_response_or_unresolved_call(self):
+        value = inventory()
+        value.update(state='complete', unresolved_slots=[])
+        self.assert_valid(value)
+        missing = copy.deepcopy(value)
+        missing['expected_responses'] = []
+        with self.assertRaises(ValueError):
+            call('validate_inventory', missing)
+        partial = copy.deepcopy(missing)
+        partial['state'] = 'partial'
+        partial['unresolved_slots'] = [{'call_id': opaque('1'), 'reason': 'identity_unresolved'}]
+        self.assert_valid(partial)
+
+    def test_bundle_requires_linked_inventory_evidence(self):
+        value = bundle()
+        self.assertEqual(call('validate_usage_bundle', value), value)
+        missing = copy.deepcopy(value)
+        missing['evidence_objects'] = []
+        with self.assertRaises(ValueError):
+            call('validate_usage_bundle', missing)
+        unrelated = copy.deepcopy(value)
+        unrelated['inventories'][0]['evidence'] = 'f' * 64
+        with self.assertRaises(ValueError):
+            call('validate_usage_bundle', unrelated)
+        tampered = copy.deepcopy(value)
+        tampered['inventories'][0]['coverage']['tools'] = 'included'
+        with self.assertRaises(ValueError):
+            call('validate_usage_bundle', tampered)
+
+    def test_missing_inventory_evidence_never_proves_complete(self):
+        value = bundle()
+        value['evidence_objects'] = []
+        value['inventories'][0].update(state='complete', unresolved_slots=[], evidence='f' * 64)
+        with self.assertRaises(ValueError):
+            call('validate_usage_bundle', value)
 
 
 if __name__ == '__main__':
