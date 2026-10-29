@@ -129,6 +129,60 @@ class SourceNormalizationTests(unittest.TestCase):
         self.assertEqual(result['quarantine'][0]['record_number'], 2)
         self.assertNotIn('PRIVATE_BAD_JSON', json.dumps(result))
 
+    def test_quarantine_diagnostics_survive_bundle_extraction_and_preserve_source_scope(self):
+        self.write([self.raw, {'usage': {'input': -1}, 'private': 'PRIVATE_BAD_RECORD'}])
+        bundle = normalize(self.selection)['bundle']
+        self.assertEqual(contract.validate_usage_bundle(bundle), bundle)
+        self.assertEqual(len(bundle['diagnostics']), 1)
+        diagnostic = bundle['diagnostics'][0]
+        self.assertEqual(diagnostic['kind'], 'source_issue')
+        self.assertEqual(diagnostic['source_id'], bundle['sources'][0]['source_id'])
+        self.assertEqual(diagnostic['source_hash'], bundle['sources'][0]['sha256'])
+        self.assertEqual(diagnostic['record_number'], 2)
+        self.assertEqual(diagnostic['reason'], 'source_record_quarantined')
+        self.assertEqual(diagnostic['completeness'], 'partial')
+        self.assertNotIn('PRIVATE_BAD_RECORD', json.dumps(bundle))
+        self.assertNotIn(str(self.path), json.dumps(bundle))
+
+    def test_prefix_diagnostic_survives_bundle_extraction(self):
+        content = self.path.read_bytes()
+        self.path.write_bytes(content + b'PRIVATE_SUFFIX')
+        self.selection['sources'][0]['verified_prefix_bytes'] = len(content)
+        self.selection['sources'][0]['size_bytes'] = self.path.stat().st_size
+        bundle = normalize(self.selection)['bundle']
+        self.assertEqual(contract.validate_usage_bundle(bundle), bundle)
+        self.assertEqual(len(bundle['diagnostics']), 1)
+        diagnostic = bundle['diagnostics'][0]
+        self.assertEqual(diagnostic['kind'], 'source_issue')
+        self.assertEqual(diagnostic['source_id'], bundle['sources'][0]['source_id'])
+        self.assertEqual(diagnostic['source_hash'], bundle['sources'][0]['sha256'])
+        self.assertIsNone(diagnostic['record_number'])
+        self.assertEqual(diagnostic['reason'], 'incomplete_source')
+        self.assertEqual(diagnostic['completeness'], 'partial')
+        self.assertNotIn('PRIVATE_SUFFIX', json.dumps(bundle))
+
+    def test_record_byte_limit_accepts_boundary_and_quarantines_larger_record(self):
+        prefix = b'{"usage":{"output":2},"unknown":"'
+        suffix = b'"}'
+        limit = 256
+        boundary = prefix + b'a' * (limit - len(prefix) - len(suffix)) + suffix
+        too_large = prefix + b'b' * (limit + 1 - len(prefix) - len(suffix)) + suffix
+        content = boundary + b'\n' + too_large + b'\n'
+        self.path.write_bytes(content)
+        self.selection = fixtures.manifest(self.path, content)
+        with patch('usage_telemetry_sources.RECORD_LIMIT', limit):
+            result = normalize(self.selection)
+        bundle = result['bundle']
+        self.assertEqual([item['record_number'] for item in bundle['observations']], [1])
+        self.assertTrue(result['partial'])
+        self.assertEqual(result['quarantine'][0]['reason'], 'input_limit_exceeded')
+        diagnostic = bundle['diagnostics'][0]
+        self.assertEqual(diagnostic['record_number'], 2)
+        self.assertEqual(diagnostic['reason'], 'input_limit_exceeded')
+        self.assertEqual(diagnostic['completeness'], 'partial')
+        self.assertEqual(contract.validate_usage_bundle(bundle), bundle)
+        self.assertNotIn('bbbbbbbb', json.dumps(bundle))
+
     def test_invalid_selection_profile_and_changed_file_reject_atomically_without_private_errors(self):
         if adapter is None:
             self.fail('source normalizer is unavailable')
