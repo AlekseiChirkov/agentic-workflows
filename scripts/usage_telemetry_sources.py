@@ -15,16 +15,21 @@ from usage_telemetry_contract import _bounded_tree, validate_counter, validate_s
 RECORD_LIMIT = 16 * 1024 * 1024
 
 
-def _open_regular(path):
-    """Open each path component without following symlinks, including races."""
-    if not hasattr(os, 'O_NOFOLLOW') or not hasattr(os, 'O_DIRECTORY'):
-        raise ValueError('safe local file access is unavailable')
+def _path_parts(path):
     parts = path.split('/')
     if any(part in ('.', '..') for part in parts):
         raise ValueError('invalid local source path')
     parts = [part for part in parts if part]
     if not parts:
         raise ValueError('invalid local source path')
+    return parts
+
+
+def _open_regular(path):
+    """Open each path component without following symlinks, including races."""
+    if not hasattr(os, 'O_NOFOLLOW') or not hasattr(os, 'O_DIRECTORY'):
+        raise ValueError('safe local file access is unavailable')
+    parts = _path_parts(path)
     directory = None
     try:
         directory = os.open('/' if path.startswith('/') else '.',
@@ -58,6 +63,8 @@ def read_selected_sources(selection, *, expected_profile, expected_owner_scope):
     if ((selection['profile_id'], selection['profile_version']) != expected_profile or
             selection['owner_scope'] != expected_owner_scope):
         raise ValueError('selection profile or owner scope mismatch')
+    for source in selection['sources']:
+        _path_parts(source['local_path'])
     result = []
     for source in selection['sources']:
         prefix = source.get('verified_prefix_bytes')
@@ -76,7 +83,7 @@ def read_selected_sources(selection, *, expected_profile, expected_owner_scope):
                     raise ValueError('selected source ended prematurely')
                 chunks.append(chunk)
                 remaining -= len(chunk)
-            if prefix is None and os.read(descriptor, 1):
+            if prefix is None and os.fstat(descriptor).st_size != size:
                 raise ValueError('selected source size changed')
             data = b''.join(chunks)
             if hashlib.sha256(data).hexdigest() != source['sha256']:
