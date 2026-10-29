@@ -139,8 +139,8 @@ def trusted_registration_key(path):
     return _trusted_key(path, '/etc/orchestrail/usage-registration-authorities/')
 
 
-def verify_rsa_sha256(public_key, message, signature):
-    """Verify a strict RSA SPKI and PKCS#1 v1.5 SHA-256 signature."""
+def _rsa_public_numbers(public_key):
+    """Parse a strict RSA SPKI into canonical modulus and exponent."""
     def tlv(data, position, tag):
         if position >= len(data) or data[position] != tag:
             raise ValueError('invalid DER tag')
@@ -163,45 +163,58 @@ def verify_rsa_sha256(public_key, message, signature):
         return data[position:end], end
 
     try:
-        if not isinstance(public_key, bytes) or not isinstance(message, bytes) or not isinstance(signature, bytes):
-            return False
+        if not isinstance(public_key, bytes):
+            return None
         lines = public_key.splitlines()
         if (len(lines) < 3 or lines[0] != b'-----BEGIN PUBLIC KEY-----' or
                 lines[-1] != b'-----END PUBLIC KEY-----' or
                 any(not line or len(line) > 64 for line in lines[1:-1])):
-            return False
+            return None
         der = base64.b64decode(b''.join(lines[1:-1]), validate=True)
         sequence, end = tlv(der, 0, 0x30)
         if end != len(der):
-            return False
+            return None
         algorithm, pos = tlv(sequence, 0, 0x30)
         if algorithm != bytes.fromhex('06092a864886f70d0101010500'):
-            return False
+            return None
         bits, end = tlv(sequence, pos, 0x03)
         if end != len(sequence) or not bits or bits[0] != 0:
-            return False
+            return None
         encoded_key, end = tlv(bits[1:], 0, 0x30)
         if end != len(bits) - 1:
-            return False
+            return None
         modulus_bytes, pos = tlv(encoded_key, 0, 0x02)
         exponent_bytes, end = tlv(encoded_key, pos, 0x02)
         if (end != len(encoded_key) or len(modulus_bytes) not in (257, 385, 513) or
                 modulus_bytes[0] != 0 or not modulus_bytes[1] & 0x80 or
                 exponent_bytes != b'\x01\x00\x01'):
-            return False
+            return None
         modulus = int.from_bytes(modulus_bytes, 'big')
-        size = len(modulus_bytes) - 1
-        if not modulus & 1 or len(signature) != size:
-            return False
-        value = int.from_bytes(signature, 'big')
-        if value >= modulus:
-            return False
-        digest_info = bytes.fromhex('3031300d060960864801650304020105000420') + hashlib.sha256(message).digest()
-        expected = b'\x00\x01' + b'\xff' * (size - len(digest_info) - 3) + b'\x00' + digest_info
-        actual = pow(value, 65537, modulus).to_bytes(size, 'big')
-        return hmac.compare_digest(actual, expected)
+        if not modulus & 1:
+            return None
+        return modulus, int.from_bytes(exponent_bytes, 'big')
     except (ValueError, TypeError, binascii.Error, IndexError):
+        return None
+
+
+def verify_rsa_sha256(public_key, message, signature):
+    """Verify a strict RSA SPKI and PKCS#1 v1.5 SHA-256 signature."""
+    if not isinstance(message, bytes) or not isinstance(signature, bytes):
         return False
+    numbers = _rsa_public_numbers(public_key)
+    if numbers is None:
+        return False
+    modulus, exponent = numbers
+    size = (modulus.bit_length() + 7) // 8
+    if len(signature) != size:
+        return False
+    value = int.from_bytes(signature, 'big')
+    if value >= modulus:
+        return False
+    digest_info = bytes.fromhex('3031300d060960864801650304020105000420') + hashlib.sha256(message).digest()
+    expected = b'\x00\x01' + b'\xff' * (size - len(digest_info) - 3) + b'\x00' + digest_info
+    actual = pow(value, exponent, modulus).to_bytes(size, 'big')
+    return hmac.compare_digest(actual, expected)
 
 
 def authorized_by_independent_authority(bundle, config, registered_key):
@@ -298,7 +311,11 @@ def certified_late_registration(path, bundle, config, key):
     registration_key = trusted_registration_key(os.environ.get('USAGE_TELEMETRY_REGISTRATION_KEY'))
     authority_key = trusted_authority_key(os.environ.get('USAGE_TELEMETRY_AUTHORITY_KEY'))
     fingerprint = hashlib.sha256(authority_key).hexdigest()
-    if hmac.compare_digest(hashlib.sha256(registration_key).hexdigest(), fingerprint):
+    registration_numbers = _rsa_public_numbers(registration_key)
+    if registration_numbers is None:
+        raise ValueError('invalid registration issuer key')
+    authority_numbers = _rsa_public_numbers(authority_key)
+    if authority_numbers is not None and authority_numbers == registration_numbers:
         raise ValueError('registration issuer must be independent')
     common = {'run_id': bundle['run_id'], 'scope': config['owner_scope'],
               'project_sha256': hashlib.sha256(config['project_identifier'].encode('utf-8')).hexdigest(),
