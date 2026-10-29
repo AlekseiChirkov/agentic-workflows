@@ -1819,3 +1819,59 @@ def validate_source_profile_json(data: str | bytes) -> dict[str, Any]:
 
 def validate_usage_bundle_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, BUNDLE_LIMIT, validate_usage_bundle)
+
+
+def schema_registry(version: int = 1) -> dict[str, Any]:
+    """Describe the available versioned validators and their input byte limits.
+
+    Validator names refer to the executable definitions in this module. The
+    registry is discovery metadata; consumers must still validate actual inputs.
+    """
+    if type(version) is not int or version != 1:
+        raise ValueError("unsupported schema version")
+    definitions = {
+        "source_profile": (validate_source_profile_json, PROFILE_LIMIT),
+        "source_selection": (validate_source_selection_json, SELECTION_LIMIT),
+        "observation": (validate_observation_json, OBSERVATION_LIMIT),
+        "usage_bundle": (validate_usage_bundle_json, BUNDLE_LIMIT),
+        "inventory": (validate_inventory_json, INVENTORY_LIMIT),
+        "collection_segment": (validate_collection_segment_json, SEGMENT_LIMIT),
+        "diagnostic_measurement": (validate_diagnostic_measurement_json, DIAGNOSTIC_LIMIT),
+        "price_snapshot": (validate_price_snapshot_json, PRICE_SNAPSHOT_LIMIT),
+        "pricing_scenario": (validate_pricing_scenario_json, PRICING_SCENARIO_LIMIT),
+        "warning_policy": (validate_warning_policy_json, WARNING_POLICY_LIMIT),
+        "analysis_corpus": (validate_analysis_corpus_json, ANALYSIS_CORPUS_LIMIT),
+        "usage_accepted": (validate_usage_receipt_json, RECEIPT_LIMIT),
+        "lifecycle_projection": (validate_lifecycle_projection_json, LIFECYCLE_PROJECTION_LIMIT),
+        "current_run_snapshot": (validate_current_run_snapshot_json, CURRENT_RUN_SNAPSHOT_LIMIT),
+    }
+    return {
+        "schema_version": version,
+        "measurement_states": sorted(MEASUREMENT_STATES),
+        "measurement_reasons": sorted(MEASUREMENT_REASONS),
+        "kinds": {kind: {"validator": validator.__name__, "max_bytes": limit}
+                  for kind, (validator, limit) in definitions.items()},
+    }
+
+
+def export_schema_registry() -> str:
+    """Return compact registry JSON only after checking its executable bindings."""
+    registry = schema_registry()
+    if not isinstance(registry, dict) or set(registry) != {
+        "schema_version", "measurement_states", "measurement_reasons", "kinds"
+    } or type(registry["schema_version"]) is not int or registry["schema_version"] != 1:
+        raise ValueError("invalid schema registry")
+    if (registry["measurement_states"] != sorted(MEASUREMENT_STATES) or
+            registry["measurement_reasons"] != sorted(MEASUREMENT_REASONS)):
+        raise ValueError("invalid schema vocabulary")
+    kinds = registry["kinds"]
+    if not isinstance(kinds, dict) or not kinds:
+        raise ValueError("invalid schema kinds")
+    for kind, definition in kinds.items():
+        if (not isinstance(kind, str) or not kind or not isinstance(definition, dict) or
+                set(definition) != {"validator", "max_bytes"} or
+                not isinstance(definition["validator"], str) or
+                not callable(globals().get(definition["validator"])) or
+                type(definition["max_bytes"]) is not int or definition["max_bytes"] <= 0):
+            raise ValueError("invalid schema definition")
+    return json.dumps(registry, sort_keys=True, separators=(",", ":"), ensure_ascii=True)

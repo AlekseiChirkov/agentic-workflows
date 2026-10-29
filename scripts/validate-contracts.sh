@@ -293,6 +293,18 @@ try:
         if not separator or key in runtime:
             fail(key, 'malformed or duplicate runtime definition')
         runtime[key] = value
+    availability = runtime.pop('usage.availability', None)
+    registry = runtime.pop('usage.registry', None)
+    if availability not in ('available', 'unavailable'):
+        fail('usage.availability', 'missing or invalid usage availability')
+    elif (availability == 'available') != (registry is not None):
+        fail('usage.registry', 'registry availability does not match the export')
+    elif registry is not None:
+        try:
+            if not isinstance(json.loads(registry), dict):
+                raise ValueError('expected object')
+        except ValueError:
+            fail('usage.registry', 'invalid registry JSON')
     documented = {}
     for heading in ('Runtime vocabulary', 'Legacy normalization'):
         matches = list(re.finditer(r'^### '+re.escape(heading)+r'\s*$', text, re.M))

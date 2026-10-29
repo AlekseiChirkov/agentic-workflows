@@ -1029,11 +1029,38 @@ cmd_path() {
 }
 
 cmd_contract() {
-  local key
+  local key registry=''
   [ "$#" -eq 0 ] || { reject_invocation contract argument unexpected; return 0; }
-  for key in "${!RUN_LOG_CONTRACT[@]}"; do
-    printf '%s=%s\n' "$key" "${RUN_LOG_CONTRACT[$key]}"
-  done | LC_ALL=C sort
+  if command -v python3 >/dev/null 2>&1; then
+    registry="$(python3 -c '
+import importlib.util
+import json
+import sys
+spec = importlib.util.spec_from_file_location("usage_telemetry_contract", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+raw = module.export_schema_registry()
+registry = json.loads(raw)
+if (not isinstance(registry, dict) or registry != module.schema_registry() or
+        type(registry.get("schema_version")) is not int or registry["schema_version"] != 1 or
+        set(registry) != {"schema_version", "measurement_states", "measurement_reasons", "kinds"} or
+        registry["measurement_states"] != sorted(module.MEASUREMENT_STATES) or
+        registry["measurement_reasons"] != sorted(module.MEASUREMENT_REASONS) or
+        not isinstance(registry["kinds"], dict) or not registry["kinds"]):
+    raise ValueError("invalid registry")
+print(json.dumps(registry, sort_keys=True, separators=(",", ":"), ensure_ascii=True))
+' "$SCRIPT_DIR/usage_telemetry_contract.py" 2>/dev/null)" || registry=''
+  fi
+  {
+    for key in "${!RUN_LOG_CONTRACT[@]}"; do
+      printf '%s=%s\n' "$key" "${RUN_LOG_CONTRACT[$key]}"
+    done
+    if [ -n "$registry" ]; then
+      printf 'usage.availability=available\nusage.registry=%s\n' "$registry"
+    else
+      printf 'usage.availability=unavailable\n'
+    fi
+  } | LC_ALL=C sort
 }
 
 cmd_active() {
