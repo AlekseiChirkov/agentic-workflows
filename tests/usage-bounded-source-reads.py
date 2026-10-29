@@ -145,6 +145,39 @@ class BoundedSourceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse(b'{bad json}\n', 1)
 
+    def test_all_paths_are_checked_before_reading_any_selected_contents(self):
+        second = self.path.parent / 'second'
+        second.write_bytes(self.content)
+        value = copy.deepcopy(self.selection)
+        entry = copy.deepcopy(value['sources'][0])
+        entry['source_id'] = 'sha256:' + '3' * 64
+        entry['local_path'] = str(self.path.parent / '..' / self.path.parent.name / second.name)
+        value['sources'].append(entry)
+        value['attribution_map'].append({'source_id': entry['source_id'],
+            'owner_kind': 'unattributed', 'quality': 'unknown', 'candidates': []})
+        value['max_total_bytes'] *= 2
+        with patch('os.read', side_effect=AssertionError('contents read')) as observed:
+            with self.assertRaises(ValueError):
+                read(value)
+        observed.assert_not_called()
+
+    def test_concurrent_append_never_reads_beyond_the_selected_extent(self):
+        actual_read = os.read
+        bytes_returned = 0
+        def append_after_read(fd, count):
+            nonlocal bytes_returned
+            self.assertLessEqual(count, len(self.content) - bytes_returned)
+            data = actual_read(fd, count)
+            bytes_returned += len(data)
+            if bytes_returned == len(self.content):
+                with self.path.open('ab') as stream:
+                    stream.write(b'x')
+            return data
+        with patch('os.read', side_effect=append_after_read):
+            with self.assertRaises(ValueError):
+                read(self.selection)
+        self.assertEqual(bytes_returned, len(self.content))
+
     def test_selected_reads_do_not_use_network(self):
         with patch('socket.socket', side_effect=AssertionError('network')):
             self.assertEqual(read(self.selection)[0]['data'], self.content)
