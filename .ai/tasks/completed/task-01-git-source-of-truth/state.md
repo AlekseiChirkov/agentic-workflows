@@ -203,7 +203,7 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 | `docs/analysis/2026-09-16-comparative-analysis.ru.md` | 429 | `AGENTIC_WORKFLOWS` × 1 |
 | `docs/audits/2026-07-21-logic-audit-fixes.md` | 1, 8, 568 | `agentic_workflows` × 1 per line |
 | `docs/USAGE.md` | 254 | `agentic-workflows` × 1 |
-| `.ai/specs/05-cost-and-duration-telemetry.md` | 678 | `agentic-workflows` × 5 |
+| `.ai/specs/05-cost-and-duration-telemetry.md` | 688 | `agentic-workflows` × 5 |
 | `.ai/specs/06-harness-git-rails.md` | 9 | `agentic-workflows` × 2 |
 | `.ai/specs/07-state-tool.md` | 9 | `agentic-workflows` × 2 |
 | `.ai/specs/07-state-tool.md` | 11 | `agentic-workflows` × 1 |

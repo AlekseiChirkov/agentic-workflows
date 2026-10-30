@@ -19,7 +19,7 @@ phases — Discovery, Execution, Validation — with all progress persisted in t
 project's `.ai/tasks/…/state.md`, and every orchestrated run appends telemetry to a
 central log store that `/retro` reads.
 
-Current inventory: 42 workflows, 14 rules, 4 principles, 10 shell scripts and five Python
+Current inventory: 42 workflows, 14 rules, 4 principles, 10 shell scripts and 30 Python
 helpers under `scripts/`, with automated consistency and smoke checks.
 
 ## Components
@@ -184,21 +184,21 @@ rules own the classifier, promotion stops and permitted specification writes.
 
 Finalization records completion after evidence, qualifying ADRs and authorized spec
 reconciliation. Source cleanup does not implement the planned naming/harness migration,
-usage telemetry, packet tooling or parallel composite execution. The optional catalog
+packet tooling or parallel composite execution. The optional catalog
 helpers below are a separate additive feature.
 
-## Optional model catalog helpers
+## Usage telemetry
 
-### Usage telemetry on the review stack
-
-The review stack adds optional explicit-input telemetry normalization, immutable usage
+The current source provides optional explicit-input telemetry normalization, immutable usage
 publication, evidence-based resolution and exact pricing, retrospective reports, and
 owner-controlled warnings. Normalization, analysis and status emit to pipes or sockets.
 Report publication and warning delivery require operator-protected directories; warning
 state has one authorized cooperative writer. The only built-in reviewed source profile is
 synthetic, and an independent signing authority is an external deployment requirement.
 Existing lifecycle logging remains nonblocking and optional telemetry failures preserve
-accepted evidence. These changes remain on unmerged review branches.
+accepted evidence.
+
+## Optional model catalog helpers
 
 `scripts/model-catalog.py` validates a versioned Markdown payload and its derived tier table,
 inspects freshness, and atomically installs an explicitly supplied validated candidate. Public
