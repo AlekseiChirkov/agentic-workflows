@@ -234,6 +234,26 @@ class LifecycleProjectionTests(unittest.TestCase):
         self.assertTrue(json.loads(replay.stdout)['duplicate'])
         self.assertEqual(self.snapshot(), accepted)
 
+    def test_explicit_dash_cost_rejects_without_receipt_or_state_change(self):
+        self.env = self.authority_env
+        before = self.snapshot()
+        result = self.correlated('--usage-file', str(self.path), '--cost-usd', '-')
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(self.snapshot(), before)
+
+    def test_omitted_cost_accepts_projection_and_replay(self):
+        self.env = self.authority_env
+        args = ('--usage-file', str(self.path))
+        first = self.correlated(*args)
+        self.assertFalse(json.loads(first.stdout)['duplicate'])
+        row = json.loads(self.log.read_text().splitlines()[-1])
+        self.assertNotIn('cost_usd', row)
+        self.assertTrue(contains(row, self.value))
+        before = self.snapshot()
+        replay = self.correlated(*args)
+        self.assertTrue(json.loads(replay.stdout)['duplicate'])
+        self.assertEqual(self.snapshot(), before)
+
     def test_valid_exact_projection_and_replay_preserve_first_payload(self):
         args = ('--usage-file', str(self.path), '--cost-usd', '0.00264',
                 '--tokens-in', '1320', '--tokens-out', '0')
