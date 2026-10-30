@@ -1211,6 +1211,54 @@ def validate_diagnostic_measurement(value: Any) -> dict[str, Any]:
     return value
 
 
+def diagnostic_registry_view(records: Any, metrics: Any, scope: Any,
+                             source_id: Any) -> list[dict[str, Any]]:
+    """Select diagnostic evidence without turning it into usage or cost.
+
+    Equal event deliveries are returned once per metric; conflicting values
+    for the same event and metric fail closed. Distinct metrics of an event
+    remain independent measurements. An absent requested metric is unknown.
+    """
+    _fields(scope, {"owner_kind", "owner_id"})
+    _choice(scope["owner_kind"], frozenset({"run", "session"}))
+    _private_identifier(scope["owner_id"])
+    _private_identifier(source_id)
+    if (not isinstance(records, list) or len(records) > 10000 or
+            not isinstance(metrics, list) or len(metrics) > len(DIAGNOSTIC_METRICS)):
+        raise ValueError("invalid diagnostic selection")
+    if any(not isinstance(metric, str) or metric not in DIAGNOSTIC_METRICS
+           for metric in metrics) or len(set(metrics)) != len(metrics):
+        raise ValueError("invalid diagnostic selection")
+
+    selected = []
+    events = {}
+    present = set()
+    for record in records:
+        validate_diagnostic_measurement(record)
+        if (record["scope"] != scope or record["source_id"] != source_id or
+                record["metric"] not in metrics):
+            continue
+        encoded = canonical_bytes(record)
+        event = record.get("event_id")
+        if event is not None:
+            identity = (record["metric"], event)
+            if identity in events and events[identity] != encoded:
+                raise ValueError("conflicting diagnostic event")
+            if identity in events:
+                continue
+            events[identity] = encoded
+        selected.append((encoded, record))
+        present.add(record["metric"])
+
+    for metric in metrics:
+        if metric not in present:
+            unknown = {"schema_version": 1, "kind": "diagnostic_measurement",
+                       "metric": metric, "value": None, "unit": DIAGNOSTIC_METRICS[metric],
+                       "scope": dict(scope), "source_id": source_id, "quality": "unknown"}
+            selected.append((canonical_bytes(unknown), unknown))
+    return [record for _, record in sorted(selected, key=lambda item: item[0])]
+
+
 def validate_usage_bundle(value: Any) -> dict[str, Any]:
     """Validate a self-contained, bounded sanitized bundle."""
     _fields(value, {"schema_version", "kind", "profile_id", "profile_version", "project_id",
