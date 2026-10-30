@@ -21,6 +21,19 @@ class TokenComponentTests(unittest.TestCase):
             self.assertEqual(response['token_components'], {
                 key: {'value': value, 'quality': 'complete'} for key, value in expected.items()})
 
+    def test_conflicting_unsplit_writes_do_not_recreate_input_totals(self):
+        for included in (False, True):
+            with self.subTest(included=included):
+                selected = base.profiles.profile(included)
+                selected['counter_fields'].append(base.profiles.field('other_write', 'input_cache_write_unsplit'))
+                raw = {'input': 1000 if included else 600, 'read': 200, 'write': 200,
+                       'other_write': 999, 'short': 100, 'long': 100, 'output': 100, 'reasoning': 25}
+                data, allowed = base.fixture(raw_override=raw, profile_override=selected)
+                result = base.resolve(data, base.Verifier(allowed))
+                for response in result['responses']:
+                    self.assertEqual(response['tokens']['input'], {'quality': 'unavailable'})
+                    self.assertEqual(response['tokens']['output'], {'value': '100', 'quality': 'complete'})
+
     def test_partial_component_is_never_reported_complete(self):
         data, _ = revisions.snapshot_fixture()
         observation = data['bundle']['observations'][1]
