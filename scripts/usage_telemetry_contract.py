@@ -147,6 +147,12 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
     envelope = kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
 
     def schema_set(path: tuple[str, ...]) -> bool:
+        if kind == "tool_usage" and path == ("evidence_objects",):
+            return True
+        if (kind == "resolution_context_evidence" and path == ("context", "evidence_objects") or
+                kind == "usage_bundle" and path == ("evidence_objects", "context", "evidence_objects") or
+                kind == "current_run_snapshot" and path == ("bundles", "evidence_objects", "context", "evidence_objects")):
+            return True
         if kind == "derived_measurement_evidence" and path in {
             ("operands",), ("profile", "counter_fields"), ("profile", "counter_fields", "includes"),
             ("profile", "known_gaps"), ("profile", "finality", "signals"),
@@ -369,7 +375,7 @@ def validate_source_profile(value: Any) -> dict[str, Any]:
                 "runtime", "format_version", "counter_fields", "identity_scope",
                 "finality", "inventory", "capabilities", "known_gaps", "verified_at",
                 "source"}
-    _fields(value, required, {"capability_evidence"})
+    _fields(value, required, {"capability_evidence", "resolution_fields", "epoch_fields"})
     _bounded_tree(value)
     _version(value["schema_version"])
     _choice(value["kind"], frozenset({"source_profile"}))
@@ -415,6 +421,76 @@ def validate_source_profile(value: Any) -> dict[str, Any]:
                 _identifier(counter.get("ttl"))
             elif "ttl" in counter:
                 raise ValueError("TTL requires split cache write")
+    epoch_fields = value.get("epoch_fields")
+    if epoch_fields is not None:
+        if not isinstance(epoch_fields, dict):
+            raise ValueError("invalid epoch fields")
+        if epoch_fields.get("status") == "unknown":
+            _fields(epoch_fields, {"status"})
+        elif epoch_fields.get("status") == "verified":
+            _fields(epoch_fields, {"status", "epoch", "model", "sequence", "position"})
+            for name in ("epoch", "model", "sequence", "position"):
+                path = epoch_fields[name]
+                if not isinstance(path, list) or not 1 <= len(path) <= 32:
+                    raise ValueError("invalid epoch source path")
+                for part in path:
+                    _identifier(part)
+            if (len(counters) != 1 or counters[0]["counter_scope"] != "cumulative_epoch" or
+                    counters[0]["measurement"] != "input_uncached" or
+                    counters[0].get("semantics_status") != "verified"):
+                raise ValueError("invalid epoch counter profile")
+        else:
+            raise ValueError("invalid epoch status")
+    resolution = value.get("resolution_fields")
+    if resolution is not None:
+        if not isinstance(resolution, dict):
+            raise ValueError("invalid resolution fields")
+        if resolution.get("status") == "unknown":
+            _fields(resolution, {"status"})
+        elif resolution.get("status") == "verified":
+            _fields(resolution, {"status", "response_id", "call_id", "session_id", "execution_time",
+                                 "finality", "parameters", "cache_ttl_seconds"})
+            def source_path(path: Any) -> None:
+                if not isinstance(path, list) or not 1 <= len(path) <= 32:
+                    raise ValueError("invalid source field path")
+                for part in path:
+                    _identifier(part)
+            for name in ("response_id", "call_id", "session_id", "execution_time"):
+                source_path(resolution[name])
+            finality_mapping = resolution["finality"]
+            if value["finality"]["status"] != "verified":
+                raise ValueError("unverified source finality")
+            if finality_mapping.get("kind") == "snapshot":
+                _fields(finality_mapping, {"path", "kind", "final_value"})
+                source_path(finality_mapping["path"])
+                if type(finality_mapping["final_value"]) is not bool:
+                    raise ValueError("invalid source finality")
+            elif finality_mapping.get("kind") == "stream":
+                _fields(finality_mapping, {"kind", "kind_path", "sequence_path", "final_path",
+                                          "correction_record_path", "kinds"})
+                for name in ("kind_path", "sequence_path", "final_path", "correction_record_path"):
+                    source_path(finality_mapping[name])
+                kinds = finality_mapping["kinds"]
+                _fields(kinds, {"snapshot", "delta", "terminal"})
+                for label in kinds.values():
+                    _identifier(label)
+                if len(set(kinds.values())) != len(kinds):
+                    raise ValueError("ambiguous stream event mapping")
+            else:
+                raise ValueError("invalid source finality")
+            parameters = resolution["parameters"]
+            _fields(parameters, {"model", "service_tier", "region", "modality"})
+            for path in parameters.values():
+                source_path(path)
+            ttls = resolution["cache_ttl_seconds"]
+            if not isinstance(ttls, dict) or len(ttls) > 256:
+                raise ValueError("invalid source cache durations")
+            for ttl, seconds in ttls.items():
+                _identifier(ttl)
+                if validate_counter(seconds) == 0:
+                    raise ValueError("invalid source cache duration")
+        else:
+            raise ValueError("invalid resolution status")
     identity = value["identity_scope"]
     _fields(identity, {"account", "response"})
     for field in ("account", "response"):
@@ -451,6 +527,11 @@ def validate_source_profile(value: Any) -> dict[str, Any]:
                 raise ValueError("unknown capability has evidence")
         else:
             _identifier(evidence.get(name))
+    if capabilities["cache"] == "unsupported":
+        cache_fields = {"input_cache_read", "input_cache_write", "input_cache_write_unsplit"}
+        if any(counter["measurement"] in cache_fields or
+               cache_fields.intersection(counter.get("includes", [])) for counter in counters):
+            raise ValueError("unsupported cache contradicts counter semantics")
     gaps = value["known_gaps"]
     if not isinstance(gaps, list) or len(gaps) > 256:
         raise ValueError("invalid known gaps")
@@ -500,6 +581,12 @@ def normalize_source_counters(profile: Any, source: Any, *, profile_version: str
         return {"measurements": {name: missing("unsupported_profile") for name in fields},
                 "evidence_objects": []}
 
+    source_scopes = {entry["counter_scope"] for entry in profile["counter_fields"]}
+    source_scope = next(iter(source_scopes)) if len(source_scopes) == 1 else None
+    if (source_scope not in {"response_total", "incremental_delta"} and
+            not (source_scope == "cumulative_epoch" and profile.get("epoch_fields", {}).get("status") == "verified")):
+        return {"measurements": {name: missing("source_unavailable") for name in fields},
+                "evidence_objects": []}
     observations: dict[str, list[tuple[dict[str, Any], int | None]]] = {}
     absent = object()
     for definition in profile["counter_fields"]:
@@ -548,7 +635,7 @@ def normalize_source_counters(profile: Any, source: Any, *, profile_version: str
         if len(entries) != 1:
             return None, None, True
         definition, amount = entries[0]
-        if definition.get("semantics_status") != "verified" or definition["counter_scope"] != "response_total":
+        if definition.get("semantics_status") != "verified" or definition["counter_scope"] != source_scope:
             return definition, None, False
         return definition, amount, False
 
@@ -571,7 +658,7 @@ def normalize_source_counters(profile: Any, source: Any, *, profile_version: str
             split_conflict = True
             continue
         split_seen.add(ttl)
-        if definition["counter_scope"] != "response_total" or amount is None:
+        if definition["counter_scope"] != source_scope or amount is None:
             split_complete = False
             split_values.append({"ttl": ttl, "tokens": missing()})
         else:
@@ -837,6 +924,71 @@ def validate_observation(value: Any) -> dict[str, Any]:
 
 def validate_evidence_object(value: Any) -> dict[str, Any]:
     """Validate the separate evidence record; the hash is not an authenticity claim."""
+    if isinstance(value, dict) and value.get("kind") == "epoch_interval_evidence":
+        _fields(value, {"schema_version", "kind", "pack"})
+        _version(value["schema_version"])
+        pack = value["pack"]
+        _fields(pack, {"profile", "observations", "evidence_objects", "interval", "observed_at"})
+        _bounded_tree(pack)
+        validate_source_profile(pack["profile"])
+        _timestamp(pack["observed_at"])
+        if not isinstance(pack["observations"], list) or len(pack["observations"]) != 2:
+            raise ValueError("invalid epoch observations")
+        if not isinstance(pack["evidence_objects"], list) or len(pack["evidence_objects"]) > 10000:
+            raise ValueError("invalid epoch evidence")
+        objects = {}
+        for item in pack["evidence_objects"]:
+            if not isinstance(item, dict) or item.get("kind") == "epoch_interval_evidence":
+                raise ValueError("recursive epoch evidence")
+            validate_evidence_object(item)
+            digest = content_id(item)
+            if digest in objects:
+                raise ValueError("duplicate epoch evidence")
+            objects[digest] = item
+        interval = pack["interval"]
+        _fields(interval, {"before", "after", "coverage"})
+        for observation, name in zip(pack["observations"], ("before", "after")):
+            validate_observation(observation)
+            snapshot = interval[name]
+            _fields(snapshot, {"provider", "account", "model", "units", "epoch", "sequence", "position", "value"})
+            _identifier(snapshot["provider"])
+            _private_identifier(snapshot["account"])
+            _private_identifier(snapshot["epoch"])
+            _identifier(snapshot["units"])
+            if not isinstance(snapshot["model"], str) or not snapshot["model"] or len(snapshot["model"]) > 256:
+                raise ValueError("invalid epoch model")
+            for field in ("sequence", "position", "value"):
+                validate_counter(snapshot[field])
+            measurement = observation["measurements"].get("input_uncached", {})
+            if (observation["counter_scope"] != "cumulative_epoch" or
+                    observation["profile_id"] != pack["profile"]["profile_id"] or
+                    observation["profile_version"] != pack["profile"]["profile_version"] or
+                    snapshot["account"] != observation["provider_scope"] or
+                    snapshot["provider"] != pack["profile"]["provider"] or
+                    snapshot["units"] != "input_uncached_tokens" or
+                    snapshot["value"] != measurement.get("value") or
+                    not verify_measurement_evidence(observation, "input_uncached", objects.get(measurement.get("evidence")))):
+                raise ValueError("epoch observation mismatch")
+        coverage = interval["coverage"]
+        _fields(coverage, {"complete", "before_clear", "after_clear", "atomic_on_completion", "requests"})
+        for flag in ("complete", "before_clear", "after_clear", "atomic_on_completion"):
+            if type(coverage[flag]) is not bool:
+                raise ValueError("invalid epoch coverage")
+        if not isinstance(coverage["requests"], list) or len(coverage["requests"]) > 10000:
+            raise ValueError("invalid epoch requests")
+        for request in coverage["requests"]:
+            _fields(request, {"id", "start", "end"})
+            _private_identifier(request["id"])
+            validate_counter(request["start"])
+            validate_counter(request["end"])
+        if len(canonical_bytes(value)) > BUNDLE_LIMIT:
+            raise ValueError("epoch evidence exceeds limit")
+        return value
+    if isinstance(value, dict) and value.get("kind") == "resolution_context_evidence":
+        _fields(value, {"schema_version", "kind", "context"})
+        _version(value["schema_version"])
+        validate_resolution_context(value["context"])
+        return value
     if isinstance(value, dict) and value.get("kind") == "derived_measurement_evidence":
         _fields(value, {"schema_version", "kind", "profile_id", "profile_version", "profile_hash",
                         "profile", "source_hash", "record_number", "field", "value", "operation", "operands"})
@@ -894,6 +1046,60 @@ def validate_evidence_object(value: Any) -> dict[str, Any]:
         validate_counter(value["record_number"])
         _timestamp(value["value"])
         return value
+    if isinstance(value, dict) and value.get("kind") == "tool_quantity_evidence":
+        _fields(value, {"schema_version", "kind", "profile_id", "source_hash", "record_number", "tool_id", "unit", "value"})
+        _version(value["schema_version"])
+        _identifier(value["profile_id"])
+        _hash(value["source_hash"])
+        validate_counter(value["record_number"])
+        _identifier(value["tool_id"])
+        _identifier(value["unit"])
+        validate_counter(value["value"])
+        return value
+    if isinstance(value, dict) and value.get("kind") == "model_alias_evidence":
+        _fields(value, {"schema_version", "kind", "source_hash", "alias", "model"})
+        _version(value["schema_version"])
+        _hash(value["source_hash"])
+        for name in ("alias", "model"):
+            item = value[name]
+            if (not isinstance(item, str) or len(item) > 256 or
+                    re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]*(?:/[A-Za-z0-9][A-Za-z0-9._:-]*)?", item) is None):
+                raise ValueError("invalid model alias")
+        if value["alias"] == value["model"]:
+            raise ValueError("redundant model alias")
+        return value
+    if isinstance(value, dict) and value.get("kind") == "price_snapshot_evidence":
+        _fields(value, {"schema_version", "kind", "snapshot_id", "source_hash"})
+        _version(value["schema_version"])
+        _hash(value["snapshot_id"])
+        _hash(value["source_hash"])
+        return value
+    if isinstance(value, dict) and value.get("kind") in {"rate_parameter_evidence", "multiplier_evidence"}:
+        common = {"schema_version", "kind", "profile_id", "source_hash", "record_number"}
+        fields = ({"field", "value"} if value["kind"] == "rate_parameter_evidence" else
+                  {"snapshot_id", "rate_id", "scope", "factor", "applies"})
+        _fields(value, common | fields)
+        _bounded_tree(value)
+        _version(value["schema_version"])
+        _identifier(value["profile_id"])
+        _hash(value["source_hash"])
+        validate_counter(value["record_number"])
+        if value["kind"] == "rate_parameter_evidence":
+            if value["field"] == "cache_ttl_seconds":
+                if validate_counter(value["value"]) == 0:
+                    raise ValueError("invalid cache duration")
+            elif value["field"] == "tool_id":
+                _identifier(value["value"])
+            else:
+                raise ValueError("invalid rate parameter")
+        else:
+            _hash(value["snapshot_id"])
+            _hash(value["rate_id"])
+            _identifier(value["scope"])
+            validate_decimal(value["factor"])
+            if type(value["applies"]) is not bool:
+                raise ValueError("invalid multiplier applicability")
+        return value
     if isinstance(value, dict) and value.get("kind") == "inventory_evidence":
         _fields(value, {"schema_version", "kind", "profile_id", "profile_version",
                         "source_hash", "inventory_digest"})
@@ -936,6 +1142,10 @@ def verify_derived_measurement_evidence(measurement: Any, evidence: Any, evidenc
         if len(by_hash) != len(evidence_objects):
             return False
         active: set[str] = set()
+        profile_scopes = {entry["counter_scope"] for entry in profile["counter_fields"]}
+        if len(profile_scopes) != 1 or next(iter(profile_scopes)) not in {"response_total", "incremental_delta"}:
+            return False
+        source_scope = next(iter(profile_scopes))
 
         def verify(proof: Any) -> bool:
             validate_evidence_object(proof)
@@ -961,7 +1171,7 @@ def verify_derived_measurement_evidence(measurement: Any, evidence: Any, evidenc
                                   if entry["path"] == item.get("path") and
                                   entry["measurement"] == item["field"] and
                                   entry.get("semantics_status") == "verified" and
-                                  entry["counter_scope"] == "response_total" and
+                                  entry["counter_scope"] == source_scope and
                                   (item["field"] != "input_cache_write" or entry.get("ttl") == item.get("ttl"))]
                     if len(candidates) != 1:
                         return False
@@ -994,7 +1204,7 @@ def verify_derived_measurement_evidence(measurement: Any, evidence: Any, evidenc
                         definition = definitions.get(item.get("ttl"))
                         if (definition is None or item.get("path") != definition["path"] or
                                 definition.get("semantics_status") != "verified" or
-                                definition["counter_scope"] != "response_total"):
+                                definition["counter_scope"] != source_scope):
                             continue
                         validate_evidence_object(item)
                         if item["ttl"] in known:
@@ -1384,6 +1594,29 @@ def validate_usage_bundle(value: Any) -> dict[str, Any]:
             if "evidence" in measurement and not verify_measurement_evidence(
                     observation, field, evidence_by_hash.get(measurement["evidence"])):
                 raise ValueError("unverified measurement evidence")
+    contexts = set()
+    observations_by_id = {observation_id(item): item for item in value["observations"]}
+    for evidence in value["evidence_objects"]:
+        if evidence.get("kind") != "resolution_context_evidence":
+            continue
+        context = evidence["context"]
+        identifier = context["observation_id"]
+        observation = observations_by_id.get(identifier)
+        if identifier in contexts or observation is None:
+            raise ValueError("ambiguous context evidence")
+        if any(context[name] != observation[name] for name in
+               ("profile_id", "profile_version", "source_hash", "record_number", "provider_scope", "counter_scope")):
+            raise ValueError("context evidence scope mismatch")
+        contexts.add(identifier)
+    for evidence in value["evidence_objects"]:
+        if evidence.get("kind") != "epoch_interval_evidence":
+            continue
+        pack = evidence["pack"]
+        if (pack["profile"]["profile_id"] != value["profile_id"] or
+                pack["profile"]["profile_version"] != value["profile_version"] or
+                any(observation_id(item) not in observation_members for item in pack["observations"]) or
+                any(content_id(item) not in evidence_by_hash for item in pack["evidence_objects"])):
+            raise ValueError("epoch evidence is outside bundle scope")
     if len(canonical_bytes(value)) > BUNDLE_LIMIT:
         raise ValueError("bundle exceeds byte limit")
     return value
@@ -2353,6 +2586,10 @@ def validate_usage_bundle_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, BUNDLE_LIMIT, validate_usage_bundle)
 
 
+def validate_tool_usage_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, OBSERVATION_LIMIT, validate_tool_usage)
+
+
 def schema_registry(version: int = 1) -> dict[str, Any]:
     """Describe the available versioned validators and their input byte limits.
 
@@ -2366,6 +2603,7 @@ def schema_registry(version: int = 1) -> dict[str, Any]:
         "source_profile": (validate_source_profile_json, PROFILE_LIMIT),
         "source_selection": (validate_source_selection_json, SELECTION_LIMIT),
         "observation": (validate_observation_json, OBSERVATION_LIMIT),
+        "tool_usage": (validate_tool_usage_json, OBSERVATION_LIMIT),
         "usage_bundle": (validate_usage_bundle_json, BUNDLE_LIMIT),
         "inventory": (validate_inventory_json, INVENTORY_LIMIT),
         "collection_segment": (validate_collection_segment_json, SEGMENT_LIMIT),
@@ -2416,3 +2654,122 @@ def export_schema_registry() -> str:
                 type(definition["max_bytes"]) is not int or definition["max_bytes"] <= 0):
             raise ValueError("invalid schema definition")
     return json.dumps(registry, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def validate_resolution_context(value: Any) -> dict[str, Any]:
+    """Validate bounded per-observation facts; provenance requires a verifier."""
+    _fields(value, {'observation_id', 'profile_id', 'profile_version', 'source_hash',
+                    'record_number', 'provider_scope', 'counter_scope', 'provider', 'session_id',
+                    'event', 'execution_time', 'parameters', 'cache_ttl_seconds', 'evidence_objects'})
+    _bounded_tree(value)
+    _hash(value['observation_id'])
+    for field in ('profile_id', 'profile_version', 'provider'):
+        _identifier(value[field])
+    _hash(value['source_hash'])
+    validate_counter(value['record_number'])
+    _private_identifier(value['provider_scope'])
+    _private_identifier(value['session_id'])
+    _choice(value['counter_scope'], _COUNTER_SCOPES)
+    event = value['event']
+    if not isinstance(event, dict) or event.get('kind') not in ('snapshot', 'delta', 'terminal'):
+        raise ValueError('invalid event')
+    required = {'kind', 'final'} if event['kind'] == 'snapshot' else {'kind', 'sequence'}
+    optional = {'sequence', 'correction_of'} if event['kind'] == 'snapshot' else set()
+    _fields(event, required, optional)
+    if 'final' in event and type(event['final']) is not bool:
+        raise ValueError('invalid finality')
+    if 'sequence' in event and validate_counter(event['sequence']) == 0:
+        raise ValueError('invalid sequence')
+    if 'correction_of' in event:
+        _private_identifier(event['correction_of'])
+        if not event['final'] or 'sequence' not in event:
+            raise ValueError('invalid correction reference')
+    if value['execution_time'] is not None:
+        _timestamp(value['execution_time'])
+    parameters = value['parameters']
+    _fields(parameters, {'model', 'service_tier', 'region', 'modality'})
+    for name, item in parameters.items():
+        if item is None:
+            continue
+        if name == 'model':
+            if not isinstance(item, str) or len(item) > 256 or re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]*(?:/[A-Za-z0-9][A-Za-z0-9._:-]*)?', item) is None:
+                raise ValueError('invalid model')
+        else:
+            _identifier(item)
+    ttls = value['cache_ttl_seconds']
+    if not isinstance(ttls, dict) or len(ttls) > 256:
+        raise ValueError('invalid cache durations')
+    for ttl, seconds in ttls.items():
+        _identifier(ttl)
+        if validate_counter(seconds) == 0:
+            raise ValueError('invalid cache duration')
+    proofs = value['evidence_objects']
+    if not isinstance(proofs, list) or len(proofs) > 10000:
+        raise ValueError('invalid context evidence')
+    for proof in proofs:
+        if isinstance(proof, dict) and proof.get('kind') == 'rate_parameter_evidence':
+            _fields(proof, {'schema_version', 'kind', 'profile_id', 'source_hash', 'record_number', 'field', 'value'})
+            _version(proof['schema_version'])
+            _identifier(proof['profile_id'])
+            _hash(proof['source_hash'])
+            validate_counter(proof['record_number'])
+            _choice(proof['field'], frozenset({'cache_ttl_seconds'}))
+            if validate_counter(proof['value']) == 0:
+                raise ValueError('invalid cache duration')
+        else:
+            validate_evidence_object(proof)
+    if len(canonical_bytes(value)) > OBSERVATION_LIMIT:
+        raise ValueError('context exceeds byte limit')
+    return value
+
+
+
+def validate_tool_usage(value: Any) -> dict[str, Any]:
+    """Validate an explicit tool usage record without asserting provenance."""
+    _fields(value, {"schema_version", "kind", "usage_id", "profile_id", "profile_version", "source_hash",
+                    "record_number", "provider_scope", "tool_id", "unit", "quantity", "observed_at",
+                    "execution_time", "parameters", "evidence_objects"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"tool_usage"}))
+    _private_identifier(value["usage_id"])
+    _private_identifier(value["provider_scope"])
+    for name in ("profile_id", "profile_version", "tool_id", "unit"):
+        _identifier(value[name])
+    _hash(value["source_hash"])
+    validate_counter(value["record_number"])
+    validate_counter(value["quantity"])
+    _timestamp(value["observed_at"])
+    if value["execution_time"] is not None:
+        _timestamp(value["execution_time"])
+    _fields(value["parameters"], {"model", "service_tier", "region", "modality"})
+    for name, item in value["parameters"].items():
+        if item is None:
+            continue
+        if name == "model":
+            if (not isinstance(item, str) or len(item) > 256 or
+                    re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]*(?:/[A-Za-z0-9][A-Za-z0-9._:-]*)?", item) is None):
+                raise ValueError("invalid model")
+        else:
+            _identifier(item)
+    proofs = value["evidence_objects"]
+    if not isinstance(proofs, list) or not 1 <= len(proofs) <= 10000:
+        raise ValueError("invalid tool evidence")
+    identities = set()
+    quantities = []
+    for proof in proofs:
+        validate_evidence_object(proof)
+        identity = content_id(proof)
+        if identity in identities:
+            raise ValueError("duplicate tool evidence")
+        identities.add(identity)
+        if proof.get("kind") == "tool_quantity_evidence":
+            quantities.append(proof)
+    if (len(quantities) != 1 or
+            any(quantities[0].get(name) != value[name] for name in
+                ("profile_id", "source_hash", "record_number", "tool_id", "unit")) or
+            quantities[0]["value"] != value["quantity"]):
+        raise ValueError("tool quantity evidence mismatch")
+    if len(canonical_bytes(value)) > OBSERVATION_LIMIT:
+        raise ValueError("tool usage exceeds limit")
+    return value

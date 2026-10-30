@@ -5,13 +5,14 @@ import hashlib
 import hmac
 import json
 import os
+from pathlib import Path
 import re
 import stat
 import sys
 
 import usage_telemetry_adapter as adapter
 import usage_telemetry_sources as sources
-from usage_telemetry_contract import (canonical_bytes, validate_source_profile,
+from usage_telemetry_contract import (canonical_bytes, content_id, validate_source_profile,
                                       validate_source_selection_json, validate_usage_bundle)
 
 LIMIT = 1024 * 1024
@@ -51,7 +52,7 @@ def _read_file(path, *, private=False):
         os.close(fd)
 
 
-def _config(path, profile_id):
+def _config(path, profile_id, *, authorized_epoch_profile=None):
     if not path:
         raise ValueError('private configuration required')
     try:
@@ -71,7 +72,8 @@ def _config(path, profile_id):
                 raise ValueError('invalid trusted profile')
             profile = validate_source_profile(entry['profile'])
             digest = hashlib.sha256(canonical_bytes(profile)).hexdigest()
-            if entry['sha256'] != digest or digest not in PUBLIC_PROFILE_DIGESTS:
+            if (entry['sha256'] != digest or
+                    digest not in PUBLIC_PROFILE_DIGESTS and digest != authorized_epoch_profile):
                 raise ValueError('trusted profile digest mismatch')
             if profile['profile_id'] == profile_id:
                 matches.append(profile)
@@ -95,6 +97,47 @@ def _config(path, profile_id):
         raise ValueError('invalid private configuration') from None
 
 
+def _epoch_permit(path):
+    """Verify root-authorized exact epoch source decisions before using them."""
+    import usage_telemetry_ingest as authority
+    value = json.loads(_read_file(path, private=True), object_pairs_hook=sources._unique_pairs,
+                       parse_constant=sources._invalid_constant)
+    sources._bounded_raw_tree(value)
+    fields = {'schema_version', 'kind', 'profile_sha256', 'scope', 'source_sha256',
+              'run_id', 'epoch_coverages', 'attestations', 'signature'}
+    if (not isinstance(value, dict) or set(value) != fields or type(value['schema_version']) is not int or
+            value['schema_version'] != 1 or value['kind'] != 'epoch_source_authority_permit'):
+        raise ValueError('invalid epoch authority permit')
+    for name in ('profile_sha256', 'source_sha256'):
+        if not isinstance(value[name], str) or re.fullmatch(r'[0-9a-f]{64}', value[name]) is None:
+            raise ValueError('invalid epoch authority digest')
+    if not isinstance(value['run_id'], str) or re.fullmatch(r'[0-9a-f]{8}', value['run_id']) is None:
+        raise ValueError('invalid epoch authority run')
+    for name in ('epoch_coverages', 'attestations'):
+        if not isinstance(value[name], list) or len(value[name]) > 10000:
+            raise ValueError('invalid epoch authority records')
+    signatures = set()
+    for item in value['attestations']:
+        if (not isinstance(item, dict) or set(item) != {'kind', 'subject_sha256', 'proof_sha256'} or
+                item['kind'] not in ('epoch_snapshot', 'epoch_coverage', 'epoch_privacy') or
+                any(not isinstance(item[field], str) or re.fullmatch(r'[0-9a-f]{64}', item[field]) is None
+                    for field in ('subject_sha256', 'proof_sha256'))):
+            raise ValueError('invalid epoch authority decision')
+        binding = (item['kind'], item['subject_sha256'], item['proof_sha256'])
+        if binding in signatures:
+            raise ValueError('duplicate epoch authority decision')
+        signatures.add(binding)
+    signature = value['signature']
+    if not isinstance(signature, str) or re.fullmatch(r'(?:[0-9a-f]{512}|[0-9a-f]{768}|[0-9a-f]{1024})', signature) is None:
+        raise ValueError('invalid epoch authority signature')
+    trusted_key = authority.trusted_authority_key(os.environ.get('USAGE_TELEMETRY_AUTHORITY_KEY'))
+    signed = {key: item for key, item in value.items() if key != 'signature'}
+    message = b'orchestrail:epoch-source-authority:v1\0' + canonical_bytes(signed)
+    if not authority.verify_rsa_sha256(trusted_key, message, bytes.fromhex(signature)):
+        raise ValueError('invalid epoch authority signature')
+    return signed, signatures, hashlib.sha256(trusted_key).hexdigest()
+
+
 def main(argv=None):
     parser = Parser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -102,8 +145,12 @@ def main(argv=None):
     normalize.add_argument('--profile', required=True)
     normalize.add_argument('--input-manifest', required=True)
     normalize.add_argument('--provenance-fd', type=int)
+    normalize.add_argument('--epoch-permit')
     args = parser.parse_args(argv)
-    config, profile, key = _config(os.environ.get('USAGE_TELEMETRY_CONFIG'), args.profile)
+    permit, decisions, authority_fingerprint = (_epoch_permit(args.epoch_permit) if args.epoch_permit
+                                               else (None, set(), None))
+    config, profile, key = _config(os.environ.get('USAGE_TELEMETRY_CONFIG'), args.profile,
+                                   authorized_epoch_profile=permit['profile_sha256'] if permit else None)
     selection = validate_source_selection_json(_read_file(args.input_manifest))
     if (selection['profile_id'] != args.profile or selection['profile_version'] != profile['profile_version'] or
             selection['owner_scope'] != config['owner_scope']):
@@ -119,9 +166,27 @@ def main(argv=None):
             raise ValueError('provenance must be a pipe or socket')
         if (proof_stat.st_dev, proof_stat.st_ino) == (output_stat.st_dev, output_stat.st_ino):
             raise ValueError('provenance and output must be separate')
+    epoch_coverages = []
+    verify_resolution = None
+    if permit is not None:
+        import usage_telemetry_ingest as authority
+        log_root = os.environ.get('ORCHESTRAIL_LOG_ROOT') or str(Path(__file__).resolve().parents[1] / 'logs')
+        registered_fingerprint = authority.registration(log_root, config['run_id'], config, key)
+        if not hmac.compare_digest(registered_fingerprint, authority_fingerprint):
+            raise ValueError('epoch authority is not registered for run')
+        if (profile.get('epoch_fields', {}).get('status') != 'verified' or
+                permit['profile_sha256'] != content_id(profile) or permit['scope'] != config['owner_scope'] or
+                permit['run_id'] != config['run_id'] or len(selection['sources']) != 1 or
+                permit['source_sha256'] != selection['sources'][0]['sha256']):
+            raise ValueError('epoch authority scope mismatch')
+        epoch_coverages = permit['epoch_coverages']
+        def verify_resolution(kind, candidate_profile, subject, proof):
+            return (candidate_profile == profile and
+                    (kind, content_id(subject), content_id(proof)) in decisions)
     result = adapter.normalize_selection(selection, profile=profile,
                 expected_owner_scope=config['owner_scope'], project_identifier=config['project_identifier'],
-                provider_identifier=config['provider_identifier'], run_id=config['run_id'], key=key)
+                provider_identifier=config['provider_identifier'], run_id=config['run_id'], key=key,
+                verify_resolution=verify_resolution, epoch_coverages=epoch_coverages)
     bundle = result['bundle']
     encoded = canonical_bytes(bundle)
     if args.provenance_fd is not None:
@@ -139,6 +204,7 @@ def main(argv=None):
             data = data[written:]
     sys.stdout.buffer.write(encoded)
     sys.stdout.buffer.flush()
+
 
 
 
