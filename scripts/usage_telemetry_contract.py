@@ -149,6 +149,14 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
             return True
         if len(path) >= 3 and path[-3] == "measurements" and path[-1] == "reasons":
             return True
+        if (kind == "inventory" and path in {("expected_calls",), ("expected_responses",),
+                                               ("unresolved_slots",)}):
+            return True
+        if (kind == "usage_bundle" and path in {
+            ("inventories", "expected_calls"), ("inventories", "expected_responses"),
+            ("inventories", "unresolved_slots"),
+        }):
+            return True
         return kind == "usage_bundle" and path in {
             ("sources",), ("observations",), ("evidence_objects",),
             ("inventories",), ("segments",), ("diagnostics",),
@@ -193,6 +201,7 @@ OBSERVATION_LIMIT = 1024 * 1024
 BUNDLE_LIMIT = 32 * 1024 * 1024
 PROFILE_LIMIT = 1024 * 1024
 SELECTION_LIMIT = 1024 * 1024
+INVENTORY_LIMIT = 1024 * 1024
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 _COUNTER_SCOPES = frozenset({"response_total", "incremental_delta", "cumulative_epoch",
                              "provider_aggregate", "caller_aggregate"})
@@ -511,6 +520,16 @@ def validate_observation(value: Any) -> dict[str, Any]:
 
 def validate_evidence_object(value: Any) -> dict[str, Any]:
     """Validate the separate evidence record; the hash is not an authenticity claim."""
+    if isinstance(value, dict) and value.get("kind") == "inventory_evidence":
+        _fields(value, {"schema_version", "kind", "profile_id", "profile_version",
+                        "source_hash", "inventory_digest"})
+        _bounded_tree(value)
+        _version(value["schema_version"])
+        _identifier(value["profile_id"])
+        _identifier(value["profile_version"])
+        _hash(value["source_hash"])
+        _hash(value["inventory_digest"])
+        return value
     _fields(value, {"schema_version", "kind", "profile_id", "source_hash", "record_number", "field", "value"})
     _bounded_tree(value)
     _version(value["schema_version"])
@@ -537,6 +556,82 @@ def verify_measurement_evidence(observation: Any, field: str, evidence: Any) -> 
         return False
 
 
+def validate_inventory(value: Any) -> dict[str, Any]:
+    """Validate a bounded inventory declaration, without asserting its provenance.
+
+    The evidence digest and declared scope do not by themselves establish
+    independent coverage. Consumers must verify the source and its evidence.
+    """
+    _fields(value, {"schema_version", "kind", "profile_id", "profile_version", "source_hash",
+                    "owner_scope", "window", "observed_at", "state", "evidence",
+                    "expected_calls", "expected_responses", "unresolved_slots", "coverage"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"inventory"}))
+    for field in ("profile_id", "profile_version"):
+        _identifier(value[field])
+    _hash(value["source_hash"])
+    scope = value["owner_scope"]
+    _fields(scope, {"owner_kind", "owner_id"})
+    _choice(scope["owner_kind"], frozenset({"run", "session", "task", "span", "shared_pool"}))
+    _private_identifier(scope["owner_id"])
+    window = value["window"]
+    _fields(window, {"start", "end"})
+    for field in ("start", "end"):
+        _timestamp(window[field])
+    _timestamp(value["observed_at"])
+    if datetime.fromisoformat(window["start"][:-1] + "+00:00") > datetime.fromisoformat(window["end"][:-1] + "+00:00"):
+        raise ValueError("invalid inventory window")
+    _choice(value["state"], frozenset({"complete", "partial", "unknown"}))
+    if value["state"] == "unknown":
+        if value["evidence"] is not None:
+            raise ValueError("unknown inventory cannot assert evidence")
+    else:
+        _hash(value["evidence"])
+    coverage = value["coverage"]
+    _fields(coverage, {"children", "internal_checks", "tools"})
+    for state in coverage.values():
+        _choice(state, frozenset({"included", "excluded", "unknown"}))
+    for field in ("expected_calls", "expected_responses", "unresolved_slots"):
+        if not isinstance(value[field], list) or len(value[field]) > 10000:
+            raise ValueError("invalid inventory collection")
+    calls = set()
+    for entry in value["expected_calls"]:
+        _fields(entry, {"call_id"})
+        _private_identifier(entry["call_id"])
+        if entry["call_id"] in calls:
+            raise ValueError("duplicate inventory call")
+        calls.add(entry["call_id"])
+    responses = set()
+    answered_calls = set()
+    for entry in value["expected_responses"]:
+        _fields(entry, {"response_id", "call_id"})
+        _private_identifier(entry["response_id"])
+        if entry["call_id"] is not None:
+            _private_identifier(entry["call_id"])
+        if ((entry["call_id"] is not None and entry["call_id"] not in calls) or
+                entry["response_id"] in responses):
+            raise ValueError("invalid inventory response link")
+        responses.add(entry["response_id"])
+        if entry["call_id"] is not None:
+            answered_calls.add(entry["call_id"])
+    slots = set()
+    for entry in value["unresolved_slots"]:
+        _fields(entry, {"call_id", "reason"})
+        _private_identifier(entry["call_id"])
+        _choice(entry["reason"], MEASUREMENT_REASONS)
+        identity = (entry["call_id"], entry["reason"])
+        if entry["call_id"] not in calls or identity in slots:
+            raise ValueError("invalid unresolved inventory slot")
+        slots.add(identity)
+    if value["state"] == "complete" and (slots or calls != answered_calls or any(
+            entry["call_id"] is None for entry in value["expected_responses"])):
+        raise ValueError("complete inventory has unresolved slots")
+    if len(canonical_bytes(value)) > INVENTORY_LIMIT:
+        raise ValueError("inventory exceeds byte limit")
+    return value
+
+
 def validate_usage_bundle(value: Any) -> dict[str, Any]:
     """Validate a self-contained, bounded sanitized bundle."""
     _fields(value, {"schema_version", "kind", "profile_id", "profile_version", "project_id",
@@ -552,7 +647,7 @@ def validate_usage_bundle(value: Any) -> dict[str, Any]:
         if not isinstance(value[field], list) or len(value[field]) > 10000:
             raise ValueError("invalid bundle collection")
     # Entity-specific schemas are supplied separately; fail closed until available.
-    if value["inventories"] or value["segments"] or value["diagnostics"]:
+    if value["segments"] or value["diagnostics"]:
         raise ValueError("unsupported bundle entity")
     source_hashes = set()
     source_members = set()
@@ -565,6 +660,17 @@ def validate_usage_bundle(value: Any) -> dict[str, Any]:
             raise ValueError("duplicate source")
         source_members.add(member)
         source_hashes.add(source["sha256"])
+    inventory_members = set()
+    for inventory in value["inventories"]:
+        validate_inventory(inventory)
+        member = canonical_bytes(inventory)
+        if member in inventory_members:
+            raise ValueError("duplicate inventory")
+        inventory_members.add(member)
+        if (inventory["profile_id"] != value["profile_id"] or
+                inventory["profile_version"] != value["profile_version"] or
+                inventory["source_hash"] not in source_hashes):
+            raise ValueError("inventory is outside bundle scope")
     evidence_by_hash = {}
     for evidence in value["evidence_objects"]:
         validate_evidence_object(evidence)
@@ -572,6 +678,16 @@ def validate_usage_bundle(value: Any) -> dict[str, Any]:
         if digest in evidence_by_hash:
             raise ValueError("duplicate evidence")
         evidence_by_hash[digest] = evidence
+    for inventory in value["inventories"]:
+        if inventory["evidence"] is None:
+            continue
+        evidence = evidence_by_hash.get(inventory["evidence"])
+        declaration = {key: item for key, item in inventory.items() if key != "evidence"}
+        if (not evidence or evidence.get("kind") != "inventory_evidence" or
+                evidence["inventory_digest"] != content_id(declaration) or
+                any(evidence[key] != inventory[key]
+                    for key in ("profile_id", "profile_version", "source_hash"))):
+            raise ValueError("unverified inventory evidence")
     observation_members = set()
     for observation in value["observations"]:
         validate_observation(observation)
@@ -606,6 +722,10 @@ def _validate_json(data: str | bytes, limit: int, validator: Callable[[Any], Any
 
 def validate_source_selection_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, SELECTION_LIMIT, validate_source_selection)
+
+
+def validate_inventory_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, INVENTORY_LIMIT, validate_inventory)
 
 
 def validate_observation_json(data: str | bytes) -> dict[str, Any]:
