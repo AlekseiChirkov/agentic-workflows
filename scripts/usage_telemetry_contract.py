@@ -139,6 +139,22 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
     envelope = kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
 
     def schema_set(path: tuple[str, ...]) -> bool:
+        if kind == "current_run_snapshot":
+            if path in {("segments",), ("accepted_receipts",), ("bundles",),
+                        ("inventories",), ("inventory_evidence",), ("warning_delivery",),
+                        ("parts",), ("accepted_receipts", "observation_ids"),
+                        ("inventories", "expected_calls"), ("inventories", "expected_responses"),
+                        ("inventories", "unresolved_slots"), ("bundles", "sources"),
+                        ("bundles", "observations"), ("bundles", "evidence_objects"),
+                        ("bundles", "inventories"), ("bundles", "segments"),
+                        ("bundles", "diagnostics"), ("bundles", "inventories", "expected_calls"),
+                        ("bundles", "inventories", "expected_responses"),
+                        ("bundles", "inventories", "unresolved_slots")}:
+                return True
+            if path[-2:] == ("attribution", "candidates"):
+                return True
+            if len(path) >= 3 and path[-3] == "measurements" and path[-1] == "reasons":
+                return True
         if kind == "lifecycle_projection" and path in {
             ("contributors",), ("contributors", "observation_ids"),
             ("evidence_objects",), ("price_snapshots",),
@@ -237,6 +253,7 @@ WARNING_POLICY_LIMIT = 1024 * 1024
 ANALYSIS_CORPUS_LIMIT = 1024 * 1024
 RECEIPT_LIMIT = 1024 * 1024
 LIFECYCLE_PROJECTION_LIMIT = 1024 * 1024
+CURRENT_RUN_SNAPSHOT_LIMIT = 1024 * 1024
 DIAGNOSTIC_METRICS = {
     "context.loaded_bytes": "bytes",
     "orchestration.tool_calls": "count",
@@ -1628,6 +1645,152 @@ def validate_usage_receipt(value: Any) -> dict[str, Any]:
 
 def validate_usage_receipt_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, RECEIPT_LIMIT, validate_usage_receipt)
+
+
+def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
+    """Validate a bounded explicit snapshot without accessing persistent history.
+
+    Receipt and attribution claims require independent authentication by the
+    owner. A matching digest establishes structure, not provenance or consent.
+    The owner must verify that each warning request or span belongs to its scope;
+    a declared owner_scope is not proof of causal attribution.
+    The owner must explicitly load selected parts, enforce input byte limits,
+    and verify their size, digest, schema and scope before computing status.
+    """
+    _fields(value, {"schema_version", "kind", "owner_scope", "revision", "mode",
+                    "segments", "accepted_receipts", "bundles", "inventories",
+                    "inventory_evidence", "overlap_state", "warning_delivery", "bounds"}, {"parts"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"current_run_snapshot"}))
+    scope = value["owner_scope"]
+    _fields(scope, {"owner_kind", "owner_id"})
+    _choice(scope["owner_kind"], frozenset({"run", "session"}))
+    _private_identifier(scope["owner_id"])
+    validate_counter(value["revision"])
+    _choice(value["mode"], frozenset({"on", "off"}))
+    _choice(value["overlap_state"], frozenset({"unknown", "resolved", "unresolved"}))
+    bounds = value["bounds"]
+    _fields(bounds, {"max_bytes", "max_entries", "max_source_bytes", "max_total_bytes", "max_records"})
+    if (type(bounds["max_bytes"]) is not int or not 0 < bounds["max_bytes"] <= CURRENT_RUN_SNAPSHOT_LIMIT or
+            type(bounds["max_entries"]) is not int or not 0 < bounds["max_entries"] <= 10000):
+        raise ValueError("invalid snapshot bounds")
+    for field in ("max_source_bytes", "max_total_bytes", "max_records"):
+        validate_counter(bounds[field])
+    if bounds["max_records"] == 0:
+        raise ValueError("snapshot record limit must be positive")
+    sections = ("segments", "accepted_receipts", "bundles", "inventories",
+                "inventory_evidence", "warning_delivery")
+    if "parts" in value:
+        sections += ("parts",)
+    if any(not isinstance(value[field], list) for field in sections):
+        raise ValueError("invalid snapshot collection")
+    if sum(len(value[field]) for field in sections) > bounds["max_entries"]:
+        raise ValueError("snapshot entry limit exceeded")
+    if len(canonical_bytes(value)) > bounds["max_bytes"]:
+        raise ValueError("snapshot byte limit exceeded")
+    for field in sections:
+        seen = set()
+        for item in value[field]:
+            member = canonical_bytes(item)
+            if member in seen:
+                raise ValueError("duplicate snapshot entry")
+            seen.add(member)
+    for segment in value["segments"]:
+        validate_collection_segment(segment)
+        if segment["owner_scope"] != scope:
+            raise ValueError("foreign snapshot segment")
+    part_paths = set()
+    part_hashes = set()
+    selected_bytes = 0
+    for part in value.get("parts", []):
+        _fields(part, {"kind", "local_path", "sha256", "size_bytes"})
+        _choice(part["kind"], frozenset({"usage_bundle", "usage_accepted", "inventory",
+                                         "inventory_evidence", "collection_segment", "warning_delivery"}))
+        path = part["local_path"]
+        if (not isinstance(path, str) or not path or
+                any(char in "*?[]" or unicodedata.category(char).startswith("C") for char in path)):
+            raise ValueError("invalid selected part path")
+        _hash(part["sha256"])
+        size = validate_counter(part["size_bytes"])
+        if size > BUNDLE_LIMIT or size > bounds["max_source_bytes"]:
+            raise ValueError("selected part exceeds byte limit")
+        selected_bytes += size
+        if selected_bytes > bounds["max_total_bytes"]:
+            raise ValueError("selected parts exceed total byte limit")
+        if path in part_paths or part["sha256"] in part_hashes:
+            raise ValueError("duplicate selected part")
+        part_paths.add(path)
+        part_hashes.add(part["sha256"])
+    bundles = {}
+    for bundle in value["bundles"]:
+        validate_usage_bundle(bundle)
+        for item in bundle["segments"] + bundle["inventories"]:
+            if item["owner_scope"] != scope:
+                raise ValueError("foreign bundle entry")
+        bundles[content_id(bundle)] = bundle
+    accepted = set()
+    for receipt in value["accepted_receipts"]:
+        validate_usage_receipt(receipt)
+        if any(receipt["scope"][key] != scope[key] for key in scope):
+            raise ValueError("foreign snapshot receipt")
+        digest = receipt["bundle_sha256"]
+        bundle = bundles.get(digest)
+        if bundle is None or set(receipt["observation_ids"]) != {
+                observation_id(item) for item in bundle["observations"]}:
+            raise ValueError("receipt is not bound to a snapshot bundle")
+        accepted.add(digest)
+    if accepted != set(bundles):
+        raise ValueError("snapshot contains an unaccepted bundle")
+    evidence = {}
+    for item in value["inventory_evidence"]:
+        validate_evidence_object(item)
+        if item["kind"] != "inventory_evidence":
+            raise ValueError("invalid inventory evidence")
+        evidence[content_id(item)] = item
+    for inventory in value["inventories"]:
+        validate_inventory(inventory)
+        if inventory["owner_scope"] != scope:
+            raise ValueError("foreign snapshot inventory")
+        if inventory["evidence"] is not None:
+            item = evidence.get(inventory["evidence"])
+            declaration = {key: entry for key, entry in inventory.items() if key != "evidence"}
+            if (item is None or item["inventory_digest"] != content_id(declaration) or
+                    any(item[key] != inventory[key] for key in ("profile_id", "profile_version", "source_hash"))):
+                raise ValueError("unverified snapshot inventory")
+    warning_ids = set()
+    warning_scopes = set()
+    for warning in value["warning_delivery"]:
+        _fields(warning, {"warning_id", "policy_id", "policy_version", "scope", "owner_scope", "metric",
+                          "episode", "crossing_state", "delivery_state"})
+        _private_identifier(warning["warning_id"])
+        _identifier(warning["policy_id"])
+        if validate_counter(warning["policy_version"]) == 0 or validate_counter(warning["episode"]) == 0:
+            raise ValueError("invalid warning version or episode")
+        if warning["owner_scope"] != scope:
+            raise ValueError("foreign warning owner")
+        warning_scope = warning["scope"]
+        _fields(warning_scope, {"owner_kind", "owner_id"})
+        _choice(warning_scope["owner_kind"], frozenset({"request", "span", "run"}))
+        _private_identifier(warning_scope["owner_id"])
+        if scope["owner_kind"] == "run" and warning_scope["owner_kind"] == "run" and warning_scope != scope:
+            raise ValueError("foreign warning run")
+        _choice(warning["metric"], frozenset({"duration_ms", "tokens", "cost_usd", "completeness"}))
+        _choice(warning["crossing_state"], frozenset({"unknown", "below", "crossed", "cleared"}))
+        _choice(warning["delivery_state"], frozenset({"unknown", "pending", "delivered", "failed"}))
+        if warning["warning_id"] in warning_ids:
+            raise ValueError("duplicate warning state")
+        warning_ids.add(warning["warning_id"])
+        identity = (warning["policy_id"], warning["policy_version"], warning["metric"],
+                    warning_scope["owner_kind"], warning_scope["owner_id"], warning["episode"])
+        if identity in warning_scopes:
+            raise ValueError("duplicate warning episode scope")
+        warning_scopes.add(identity)
+    return value
+
+
+def validate_current_run_snapshot_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, CURRENT_RUN_SNAPSHOT_LIMIT, validate_current_run_snapshot)
 
 
 def validate_source_selection_json(data: str | bytes) -> dict[str, Any]:
