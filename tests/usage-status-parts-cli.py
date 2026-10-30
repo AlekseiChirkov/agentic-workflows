@@ -80,6 +80,34 @@ class SelectedPartsTests(base.StatusCommandTests):
                 self.assertFalse(self.output.exists())
                 self.assertNotIn('PRIVATE_CONTENT_SENTINEL', result.stderr)
 
+    def test_selected_bundle_diagnostic_must_match_owner(self):
+        diagnostic_module = base.fixture.load('diagnostics', 'tests/usage-diagnostic-schema.py')
+        for owner_id, valid in ((self.original['owner_scope']['owner_id'], True),
+                                ('sha256:' + 'f' * 64, False)):
+            with self.subTest(valid=valid):
+                snapshot = copy.deepcopy(self.original)
+                bundle_path = Path(snapshot['parts'][0]['local_path'])
+                bundle = json.loads(bundle_path.read_text())
+                bundle['diagnostics'] = [diagnostic_module.diagnostic() | {
+                    'scope': {'owner_kind': snapshot['owner_scope']['owner_kind'], 'owner_id': owner_id}}]
+                encoded = contract.canonical_bytes(bundle)
+                bundle_path.write_bytes(encoded)
+                snapshot['parts'][0].update(sha256=hashlib.sha256(encoded).hexdigest(), size_bytes=len(encoded))
+                receipt_path = Path(snapshot['parts'][1]['local_path'])
+                receipt = json.loads(receipt_path.read_text())
+                receipt['bundle_sha256'] = contract.content_id(bundle)
+                encoded = contract.canonical_bytes(receipt)
+                receipt_path.write_bytes(encoded)
+                snapshot['parts'][1].update(sha256=hashlib.sha256(encoded).hexdigest(), size_bytes=len(encoded))
+                self.save(snapshot)
+                result = self.run_status()
+                if valid:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.output.unlink()
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(self.output.exists())
+
     def test_symlink_selected_part_is_not_followed(self):
         target = Path(self.parts[0]['local_path'])
         saved = self.root / 'replacement.json'
