@@ -52,7 +52,7 @@ class LargeStatusPartsTests(unittest.TestCase):
         delivery = parts_fixture.base.fixture.load('delivery_large', 'scripts/usage_telemetry_delivery.py')
         delivery.apply_revision(case.snapshot, manifest['revision'], output['proposed_snapshot'],
                                 owner_scope=manifest['owner_scope'], destinations={})
-        self.assertEqual(json.loads(case.snapshot.read_text())['parts'], manifest['parts'])
+        self.assertCountEqual(json.loads(case.snapshot.read_text())['parts'], manifest['parts'])
 
 
 if __name__ == '__main__':

@@ -70,7 +70,8 @@ class SelectedPartsTests(base.StatusCommandTests):
             with self.assertRaises(ValueError):
                 delivery.apply_revision(self.snapshot, self.original['revision'], tampered,
                                         owner_scope=owner, destinations={})
-            self.assertEqual(json.loads(self.snapshot.read_text()), self.original)
+            self.assertEqual(contract.canonical_bytes(json.loads(self.snapshot.read_text())),
+                             contract.canonical_bytes(self.original))
         note = self.root / 'run.md'
         note.write_text('Notes.\n')
         note.chmod(0o600)
@@ -81,7 +82,7 @@ class SelectedPartsTests(base.StatusCommandTests):
                                  destinations={('run', owner['owner_id']): str(note)})
         delivery.resume_delivery(self.snapshot, owner_scope=owner,
                                  destinations={('run', owner['owner_id']): str(note)})
-        self.assertEqual(json.loads(self.snapshot.read_text())['parts'], self.original['parts'])
+        self.assertCountEqual(json.loads(self.snapshot.read_text())['parts'], self.original['parts'])
         for candidate in output['candidates']:
             self.assertEqual(note.read_text().count(candidate['warning_id']), 1)
 

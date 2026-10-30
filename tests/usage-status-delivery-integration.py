@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise pure status proposals through the authorized delivery owner."""
 import importlib.util
+import hashlib
 import json
 import os
 import socket
@@ -210,6 +211,29 @@ class StatusDeliveryIntegrationTests(unittest.TestCase):
         delivery.resume_delivery(self.state_path, owner_scope=self.owner, destinations=self.destinations)
         self.assertEqual(self.state()['parts'], [])
         self.assertEqual(self.note_path.read_text().count(result['candidates'][0]['warning_id']), 1)
+
+    def test_selected_segment_and_warning_history_survive_delivery(self):
+        original = self.state()
+        warning = self.status()['candidates'][0]
+        segment = time_fixture.fixture.snapshots.snapshot()['segments'][0]
+        parts = []
+        for name, kind, item in (('segment', 'collection_segment', segment),
+                                 ('warning', 'warning_delivery', warning)):
+            data = json.dumps(item, sort_keys=True, separators=(',', ':')).encode()
+            path = self.root / (name + '.json')
+            path.write_bytes(data)
+            parts.append({'kind': kind, 'local_path': str(path),
+                          'sha256': hashlib.sha256(data).hexdigest(), 'size_bytes': len(data)})
+        original['parts'] = parts
+        self.state_path.write_text(json.dumps(original))
+        result = self.status()
+        self.assertEqual(result['candidates'][0]['warning_id'], warning['warning_id'])
+        self.apply(result, destinations={})
+        delivery.resume_delivery(self.state_path, owner_scope=self.owner, destinations=self.destinations)
+        self.assertEqual(self.state()['warning_delivery'][0]['delivery_state'], 'delivered')
+        self.assertEqual(self.status()['candidates'], [])
+        self.assertEqual(self.note_path.read_text().count(warning['warning_id']), 1)
+        self.assertCountEqual(self.state()['parts'], parts)
 
     def test_real_status_proposal_is_accepted_and_repeat_does_not_duplicate(self):
         first = self.status()
