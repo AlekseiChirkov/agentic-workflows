@@ -96,7 +96,14 @@ not a claim that nonexistent tests passed; retain the exemption and evidence.
    Once all checks pass, finalize the report with one line per plan row, apply the knowledge
    updates from step 3, set `execution: complete`, and run `/compress-state --auto`.
 
-7. Report outcomes, verification, and updated paths. On quick tasks report the inline TDD
+7. If the authorized run owner has explicitly selected a current telemetry state, private owner
+   authority, and status output, apply the proposal using `usage-telemetry.py owner-deliver`
+   as described in `docs/USAGE-TELEMETRY.md`. On recovery, omit the proposal to retry pending
+   notes. Include the returned warning identifiers and delivery states in the final report,
+   including pending destinations. Do not discover telemetry inputs or destinations. If the
+   optional helper fails, report warning delivery as unavailable and continue finalization.
+
+8. Report outcomes, verification, and updated paths. On quick tasks report the inline TDD
    record and changed files. Display: "Execution complete. Run `/phase-validation <task-directory>` to start validation."
 
 **STOP. Do not run `/phase-validation` automatically.** This completion is a progress
