@@ -235,6 +235,37 @@ class ResolutionIntegrationTests(unittest.TestCase):
                 self.assertEqual(report['cost'], baseline['cost'])
                 self.assertEqual(report['completeness'], baseline['completeness'])
 
+    def test_scoped_response_collisions_preserve_contributions_and_unknown_coverage(self):
+        for partial in (False, True):
+            for shared_call in (False, True):
+                with self.subTest(partial=partial, shared_call=shared_call):
+                    data, _ = fixture()
+                    first, second = data['bundle']['observations']
+                    second['response_id'] = first['response_id']
+                    second['provider_scope'] = opaque('f')
+                    if shared_call:
+                        second['call_id'] = first['call_id']
+                    context = data['contexts'][1]
+                    context['provider_scope'] = second['provider_scope']
+                    context['observation_id'] = contract.observation_id(second)
+                    if partial:
+                        inventory = data['bundle']['inventories'][0]
+                        inventory['state'] = 'partial'
+                        inventory, evidence = inventories.bind(inventory)
+                        data['bundle']['evidence_objects'][0] = evidence
+                    contract.validate_usage_bundle(data['bundle'])
+                    report = resolve(data, lambda *_: True)
+                    self.assertEqual(len(report['responses']), 2)
+                    self.assertEqual(len({item['identity']['provider_scope'] for item in report['responses']}), 2)
+                    self.assertEqual(report['tokens']['input']['value'], '2000')
+                    self.assertEqual(report['tokens']['output']['value'], '200')
+                    self.assertEqual(report['cost']['priced_subtotal_usd'], '0.00289')
+                    self.assertNotIn('cost_usd', report['cost'])
+                    self.assertEqual(report['identity']['state'], 'partial')
+                    self.assertEqual(report['completeness']['finality'], {'numerator': 2, 'denominator': None})
+                    self.assertEqual(report['completeness']['measurements']['input'], {'numerator': 2, 'denominator': None})
+                    self.assertEqual(report['completeness']['priced'], {'numerator': 1, 'denominator': None})
+
     def test_untrusted_inventory_never_proves_denominator_or_complete_cost(self):
         self.verifier.allowed = [item for item in self.allowed if item[0] != 'inventory']
         report = self.report()
