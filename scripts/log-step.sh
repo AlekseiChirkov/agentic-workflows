@@ -92,7 +92,7 @@ PARSE_ERROR_CODE=''
 event_option_allowed() { # event_option_allowed <event> <option>
   case "$1:$2" in
       run-start:--pipeline|run-start:--project|run-start:--task|run-start:--spec|run-start:--flow|run-start:--flags|\
-      step:--run|step:--step|step:--outcome|step:--stops|step:--escalations|step:--decisions|step:--questions|step:--gate|step:--tests|step:--fix-tasks|step:--promoted|step:--amendments|step:--files|step:--subtask|step:--blocker|step:--note|step:--session-id|step:--agent-id|step:--checkpoint-id|step:--parent-checkpoint-id|step:--span-start-ms|step:--span-end-ms|step:--timing-source|step:--boundary|step:--span-kind|\
+      step:--run|step:--step|step:--outcome|step:--stops|step:--escalations|step:--decisions|step:--questions|step:--gate|step:--tests|step:--fix-tasks|step:--promoted|step:--amendments|step:--files|step:--subtask|step:--blocker|step:--note|step:--session-id|step:--agent-id|step:--checkpoint-id|step:--parent-checkpoint-id|step:--span-start-ms|step:--span-end-ms|step:--timing-source|step:--boundary|step:--span-kind|step:--tokens-in|step:--tokens-out|step:--cost-usd|step:--usage-file|\
       run-end:--run|run-end:--outcome|run-end:--note) return 0 ;;
     *) return 1 ;;
   esac
@@ -192,7 +192,7 @@ validate_step_args() {
   validate_enum_arg step tests step.tests no || return 1
   validate_enum_arg step promoted step.promoted no || return 1
   local field
-  for field in ${RUN_LOG_CONTRACT[count.fields]}; do
+  for field in ${RUN_LOG_CONTRACT[count.fields]} tokens_in tokens_out; do
     if has_parsed_arg "$field" && ! valid_count "${PARSED_ARGS[$field]}"; then
       reject_invocation step "$field" invalid-integer
       return 1
@@ -455,9 +455,11 @@ emit_json_jq() {
        | {key: .[0:$i], value: (("\"" + .[$i+1:] + "\"") | fromjson)}]
       | from_entries
       | with_entries(
-          if (.key | IN("ts_ms","span_start_ms","span_end_ms","seq","duration_s","stops","escalations","decisions","questions","fix_tasks","amendments","files"))
+          if (.key | IN("ts_ms","span_start_ms","span_end_ms","seq","duration_s","stops","escalations","decisions","questions","fix_tasks","amendments","files","tokens_in","tokens_out"))
              and (.value | type == "string" and test("^(0|[1-9][0-9]*)$"))
-          then .value |= tonumber else . end)
+          then .value |= tonumber
+          elif .key == "usage_projection" then .value |= fromjson
+          else . end)
   '
 }
 
@@ -471,7 +473,7 @@ emit_json_legacy() {
     [ $first -eq 1 ] || printf ','
     first=0
     case "$key" in
-      ts_ms|span_start_ms|span_end_ms|seq|duration_s|stops|escalations|decisions|questions|fix_tasks|amendments|files)
+      ts_ms|span_start_ms|span_end_ms|seq|duration_s|stops|escalations|decisions|questions|fix_tasks|amendments|files|tokens_in|tokens_out)
         if [[ "$val" =~ ^(0|[1-9][0-9]*)$ ]]; then
           printf '"%s":%s' "$key" "$val"
           continue
@@ -568,6 +570,37 @@ meta_set() ( # meta_set <run_id> <key> <value>
   if ! mv "$tmp" "$f" 2>/dev/null; then rm -f "$tmp" 2>/dev/null; return 1; fi
 )
 
+# Registration is optional and never prevents existing lifecycle logging.
+register_run_usage_identity() {
+  if [ -n "${USAGE_TELEMETRY_CONFIG:-}" ] && command -v python3 >/dev/null 2>&1; then
+    usage_key_fingerprint="$(python3 "$SCRIPT_DIR/usage_telemetry_ingest.py" register 2>/dev/null)" || usage_key_fingerprint=''
+    [[ "$usage_key_fingerprint" =~ ^[0-9a-f]{64}$ ]] || usage_key_fingerprint=''
+  fi
+}
+
+# Persists optional usage identity in the invoking run-start context.
+persist_run_usage_identity() {
+  if [ -n "$usage_key_fingerprint" ] && [ -n "${USAGE_TELEMETRY_AUTHORITY_KEY:-}" ]; then
+    local usage_authority_fingerprint=''
+    usage_authority_fingerprint="$(python3 "$SCRIPT_DIR/usage_telemetry_ingest.py" register-authority 2>/dev/null)" || usage_authority_fingerprint=''
+    if [[ "$usage_authority_fingerprint" =~ ^[0-9a-f]{64}$ ]]; then
+      meta_set "$run_id" usage_authority_key_sha256 "$usage_authority_fingerprint" || {
+        rm -f "$active" 2>/dev/null
+        warn 'run-start metadata persistence failed'
+        return 1
+      }
+    fi
+  fi
+  if [ -n "$usage_key_fingerprint" ]; then
+    meta_set "$run_id" usage_key_fingerprint "$usage_key_fingerprint" || {
+      rm -f "$active" 2>/dev/null
+      warn 'run-start metadata persistence failed'
+      return 1
+    }
+  fi
+  return 0
+}
+
 # ── run-start ─────────────────────────────────────────────────────────
 cmd_run_start() {
   local pipeline="" project="" task="" spec="" flow="" flags=""
@@ -586,7 +619,8 @@ cmd_run_start() {
   ensure_store || { warn 'run-start storage unavailable'; return 0; }
 
   [ -n "$project" ] || project="$(pwd)"
-  local run_id ts file base file_pipeline contract_version="" start_epoch active recorded_file recorded_seq recorded_flow
+  local run_id ts file base file_pipeline contract_version="" start_epoch active recorded_file recorded_seq recorded_flow usage_key_fingerprint=''
+  register_run_usage_identity
   # The version belongs to this helper's checkout, independently of the caller.
   if [ -r "$REPO_ROOT/VERSION" ]; then
     contract_version="$(cat "$REPO_ROOT/VERSION" 2>/dev/null)" || contract_version=""
@@ -607,7 +641,6 @@ cmd_run_start() {
     warn 'run-start identifier collision'
     return 0
   fi
-
   if ! meta_set "$run_id" file "$file" ||
      ! meta_set "$run_id" pipeline "$pipeline" ||
      ! meta_set "$run_id" project "$project" ||
@@ -622,6 +655,7 @@ cmd_run_start() {
     warn 'run-start metadata persistence failed'
     return 0
   fi
+  persist_run_usage_identity || return 0
   meta_read "$run_id" file recorded_file 2>/dev/null || recorded_file=''
   recorded_seq="$(meta_get "$run_id" seq 2>/dev/null)"
   meta_read "$run_id" flow recorded_flow 2>/dev/null || recorded_flow=''
@@ -658,7 +692,6 @@ cmd_run_start() {
     warn 'run-start event persistence failed'
     return 0
   fi
-
   printf '%s\n' "$run_id"
 }
 
@@ -713,6 +746,27 @@ replay_step_delivery() {
     reject_invocation step checkpoint_id conflicting-delivery; return 1
   fi
   hook_receipt "$run" "$seq" true 2>/dev/null || warn 'step receipt unavailable'
+}
+
+validate_step_projection() {
+  local registered='' canonical=''
+  if ! has_parsed_arg usage_file; then
+    if has_parsed_arg cost_usd; then reject_invocation step cost_usd projection-required; return 1; fi
+    return 0
+  fi
+  if ! command -v python3 >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+    reject_invocation step usage_file dependency-unavailable; return 1
+  fi
+  meta_read "${step_context[run]}" usage_authority_key_sha256 registered || registered=''
+  canonical="$(python3 "$SCRIPT_DIR/usage_telemetry_ingest.py" lifecycle-projection \
+    "${PARSED_ARGS[usage_file]}" "${step_context[run]}" "$registered" \
+    "${PARSED_ARGS[tokens_in]--}" "${PARSED_ARGS[tokens_out]--}" "${PARSED_ARGS[cost_usd]--}" "$LOG_ROOT" 2>/dev/null)" || {
+    reject_invocation step usage_file projection-mismatch; return 1;
+  }
+  [ -n "$canonical" ] || { reject_invocation step usage_file projection-mismatch; return 1; }
+  step_context[projection]="${canonical#*$'\n'}"
+  PARSED_ARGS[usage_file]="${canonical%%$'\n'*}"
+  [[ "${PARSED_ARGS[usage_file]}" =~ ^[0-9a-f]{64}$ ]] || return 1
 }
 
 prepare_step_delivery() {
@@ -809,9 +863,10 @@ emit_step_optional_fields() {
   json_kv project "${step_context[project]}"
   [ -z "${step_context[task]}" ] || json_kv task "${step_context[task]}"
   json_kv flow "${step_context[flow]}"
-  for field in subtask stops escalations decisions questions gate tests fix_tasks promoted amendments files blocker note; do
+  for field in subtask stops escalations decisions questions gate tests fix_tasks promoted amendments files blocker note tokens_in tokens_out cost_usd; do
     [ -z "${PARSED_ARGS[$field]-}" ] || json_kv "$field" "${PARSED_ARGS[$field]}"
   done
+  if has_parsed_arg usage_file; then json_kv usage_projection "${step_context[projection]}"; fi
   true
 }
 
@@ -873,6 +928,7 @@ cmd_step() {
   step_context[run]="${PARSED_ARGS[run]-}"
   if ! validate_step_args; then return 0; fi
   prepare_step_storage || return 0
+  validate_step_projection || return 0
   prepare_step_delivery || return 0
   read_step_clock || return 0
   read_step_metadata
@@ -1028,11 +1084,8 @@ cmd_path() {
   meta_get "$run" file || { reject_invocation path run not-found; return 0; }
 }
 
-cmd_contract() {
-  local key registry=''
-  [ "$#" -eq 0 ] || { reject_invocation contract argument unexpected; return 0; }
-  if command -v python3 >/dev/null 2>&1; then
-    registry="$(python3 -c '
+# This verifier is passed as data to Python only for the contract command.
+USAGE_REGISTRY_VERIFIER='
 import importlib.util
 import hashlib
 import json
@@ -1073,7 +1126,13 @@ if (not isinstance(registry, dict) or registry != module.schema_registry() or
             for name, limit in expected.values())):
     raise ValueError("invalid registry")
 print(json.dumps(registry, sort_keys=True, separators=(",", ":"), ensure_ascii=True))
-' "$SCRIPT_DIR/usage_telemetry_contract.py" 2>/dev/null)" || registry=''
+'
+
+cmd_contract() {
+  local key registry=''
+  [ "$#" -eq 0 ] || { reject_invocation contract argument unexpected; return 0; }
+  if command -v python3 >/dev/null 2>&1; then
+    registry="$(python3 -c "$USAGE_REGISTRY_VERIFIER" "$SCRIPT_DIR/usage_telemetry_contract.py" 2>/dev/null)" || registry=''
   fi
   {
     for key in "${!RUN_LOG_CONTRACT[@]}"; do
@@ -1290,9 +1349,41 @@ cmd_lint() {
   return 0
 }
 
+cmd_usage_ingest() {
+  local mode="${ORCHESTRAIL_USAGE_MODE:-off}" receipt
+  if [ "$mode" != on ]; then
+    warn 'usage collection_disabled'
+    return 0
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    warn 'usage dependency_unavailable'
+    return 0
+  fi
+  if { [ "$#" -ne 2 ] && [ "$#" -ne 4 ]; } || [ "$1" != --manifest ] || [ -z "$2" ]; then
+    warn 'usage invalid_schema'
+    return 0
+  fi
+  local -a ingest_args=(ingest "$2" "$LOG_ROOT")
+  shift 2
+  if [ "$#" -eq 2 ]; then
+    if [ "$1" != --late-certificate ] || [ -z "$2" ]; then
+      warn 'usage invalid_schema'
+      return 0
+    fi
+    ingest_args+=("$2")
+  fi
+  receipt="$(python3 "$SCRIPT_DIR/usage_telemetry_ingest.py" "${ingest_args[@]}" 2>/dev/null)" || {
+    warn 'usage ingestion_unavailable'
+    return 0
+  }
+  [ -n "$receipt" ] || { warn 'usage ingestion_unavailable'; return 0; }
+  printf '%s\n' "$receipt"
+}
+
 # ── dispatch ──────────────────────────────────────────────────────────
 case "${1-}" in
   run-start) shift; cmd_run_start "$@" ;;
+  usage-ingest) shift; cmd_usage_ingest "$@" ;;
   step)      shift; cmd_step "$@" ;;
   run-end)   shift; cmd_run_end "$@" ;;
   path)      shift; cmd_path "$@" ;;

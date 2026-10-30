@@ -2,6 +2,7 @@
 """Offline helpers for explicitly selected, private usage telemetry."""
 import argparse
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -100,20 +101,43 @@ def main(argv=None):
     normalize = commands.add_parser('normalize')
     normalize.add_argument('--profile', required=True)
     normalize.add_argument('--input-manifest', required=True)
+    normalize.add_argument('--provenance-fd', type=int)
     args = parser.parse_args(argv)
     config, profile, key = _config(os.environ.get('USAGE_TELEMETRY_CONFIG'), args.profile)
     selection = validate_source_selection_json(_read_file(args.input_manifest))
     if (selection['profile_id'] != args.profile or selection['profile_version'] != profile['profile_version'] or
             selection['owner_scope'] != config['owner_scope']):
         raise ValueError('selection does not match trusted configuration')
-    mode = os.fstat(sys.stdout.fileno()).st_mode
-    if not (stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode)):
+    output_stat = os.fstat(sys.stdout.fileno())
+    if not (stat.S_ISFIFO(output_stat.st_mode) or stat.S_ISSOCK(output_stat.st_mode)):
         raise ValueError('output must be a pipe or socket')
+    if args.provenance_fd is not None:
+        if args.provenance_fd < 3:
+            raise ValueError('invalid provenance descriptor')
+        proof_stat = os.fstat(args.provenance_fd)
+        if not (stat.S_ISFIFO(proof_stat.st_mode) or stat.S_ISSOCK(proof_stat.st_mode)):
+            raise ValueError('provenance must be a pipe or socket')
+        if (proof_stat.st_dev, proof_stat.st_ino) == (output_stat.st_dev, output_stat.st_ino):
+            raise ValueError('provenance and output must be separate')
     result = adapter.normalize_selection(selection, profile=profile,
                 expected_owner_scope=config['owner_scope'], project_identifier=config['project_identifier'],
                 provider_identifier=config['provider_identifier'], run_id=config['run_id'], key=key)
-    data = canonical_bytes(result['bundle'])
-    sys.stdout.buffer.write(data)
+    bundle = result['bundle']
+    encoded = canonical_bytes(bundle)
+    if args.provenance_fd is not None:
+        proof = {'schema_version': 1, 'kind': 'usage_provenance',
+                 'bundle_sha256': hashlib.sha256(encoded).hexdigest(),
+                 'profile_id': bundle['profile_id'], 'profile_version': bundle['profile_version'],
+                 'scope': config['owner_scope']}
+        proof['mac'] = hmac.new(key, b'orchestrail:usage-provenance:v1\0' +
+                                canonical_bytes(proof), hashlib.sha256).hexdigest()
+        data = memoryview(canonical_bytes(proof))
+        while data:
+            written = os.write(args.provenance_fd, data)
+            if written <= 0:
+                raise OSError('provenance write failed')
+            data = data[written:]
+    sys.stdout.buffer.write(encoded)
     sys.stdout.buffer.flush()
 
 
