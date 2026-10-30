@@ -4,9 +4,7 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
-import secrets
 import stat
 import sys
 
@@ -96,81 +94,28 @@ def _config(path, profile_id):
         raise ValueError('invalid private configuration') from None
 
 
-def _output_directory(path):
-    """Open a destination directory without following symlinks or shared-store aliases."""
-    path = os.path.abspath(path)
-    parent, name = os.path.split(path)
-    if not name or name in ('.', '..'):
-        raise ValueError('invalid output')
-    log_root = os.environ.get('ORCHESTRAIL_LOG_ROOT') or str(Path(__file__).resolve().parents[1] / 'logs')
-    shared = os.path.realpath(os.path.join(log_root, 'usage', 'v1'))
-    if os.path.commonpath((os.path.realpath(parent), shared)) == shared:
-        raise ValueError('output is in shared storage')
-    parts = [part for part in parent.split('/') if part]
-    directory = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    try:
-        for part in parts:
-            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
-            os.close(directory)
-            directory = child
-        return directory, name, parent, log_root
-    except BaseException:
-        os.close(directory)
-        raise
-
-
-def _check_destination(directory, parent, log_root):
-    # Fail closed if the opened directory was moved or the kernel cannot expose
-    # its current location. The operator must still prevent concurrent renames.
-    actual = os.readlink('/proc/self/fd/' + str(directory))
-    shared = os.path.realpath(os.path.join(log_root, 'usage', 'v1'))
-    if actual != parent or os.path.commonpath((actual, shared)) == shared:
-        raise ValueError('output directory changed')
-
-
-def _publish(directory, name, parent, log_root, data):
-    temp = '.usage-' + secrets.token_hex(16) + '.tmp'
-    fd = None
-    try:
-        _check_destination(directory, parent, log_root)
-        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
-        with os.fdopen(fd, 'wb') as stream:
-            fd = None
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-        _check_destination(directory, parent, log_root)
-        os.replace(temp, name, src_dir_fd=directory, dst_dir_fd=directory)
-    finally:
-        if fd is not None:
-            os.close(fd)
-        try:
-            os.unlink(temp, dir_fd=directory)
-        except FileNotFoundError:
-            pass
-
-
 def main(argv=None):
     parser = Parser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     normalize = commands.add_parser('normalize')
     normalize.add_argument('--profile', required=True)
     normalize.add_argument('--input-manifest', required=True)
-    normalize.add_argument('--output', required=True)
     args = parser.parse_args(argv)
     config, profile, key = _config(os.environ.get('USAGE_TELEMETRY_CONFIG'), args.profile)
     selection = validate_source_selection_json(_read_file(args.input_manifest))
     if (selection['profile_id'] != args.profile or selection['profile_version'] != profile['profile_version'] or
             selection['owner_scope'] != config['owner_scope']):
         raise ValueError('selection does not match trusted configuration')
-    directory, name, parent, log_root = _output_directory(args.output)
-    try:
-        result = adapter.normalize_selection(selection, profile=profile,
-                    expected_owner_scope=config['owner_scope'], project_identifier=config['project_identifier'],
-                    provider_identifier=config['provider_identifier'], run_id=config['run_id'], key=key)
-        _publish(directory, name, parent, log_root, canonical_bytes(result['bundle']))
-    finally:
-        os.close(directory)
+    mode = os.fstat(sys.stdout.fileno()).st_mode
+    if not (stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode)):
+        raise ValueError('output must be a pipe or socket')
+    result = adapter.normalize_selection(selection, profile=profile,
+                expected_owner_scope=config['owner_scope'], project_identifier=config['project_identifier'],
+                provider_identifier=config['provider_identifier'], run_id=config['run_id'], key=key)
+    data = canonical_bytes(result['bundle'])
+    sys.stdout.buffer.write(data)
+    sys.stdout.buffer.flush()
+
 
 
 if __name__ == '__main__':
