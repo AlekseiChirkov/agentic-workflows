@@ -119,6 +119,37 @@ class SourceNormalizationTests(unittest.TestCase):
                 self.assertTrue(any(item.get('measurement_state') == 'conflicted'
                                     for item in result.values() if isinstance(item, dict)))
 
+    def assert_conflicting_write_counters_are_unavailable(self, included):
+        selected = profile(included)
+        selected['counter_fields'].append(field('other_write', 'input_cache_write_unsplit'))
+        contract.validate_source_profile(selected)
+        result = normalize(selected, {'input': 1000 if included else 650, 'read': 200,
+                                      'write': 150, 'other_write': 999, 'short': 100,
+                                      'long': 50, 'output': 500, 'reasoning': 100})
+        measurements = result['measurements']
+        self.assertEqual(measurements['input_cache_write_unsplit']['measurement_state'], 'conflicted')
+        self.assertNotIn('value', measurements['tokens_in'])
+        self.assertIn(measurements['tokens_in']['measurement_state'], ('unavailable', 'conflicted'))
+        if included:
+            self.assertNotIn('value', measurements['input_uncached'])
+        else:
+            self.assertEqual(measurements['input_uncached']['value'], 650)
+        self.assertEqual(measurements['output_total']['value'], 500)
+        self.assertEqual(measurements['reasoning_subset']['value'], 100)
+        self.assertFalse(any(obj['kind'] == 'derived_measurement_evidence' and
+                             obj['field'] in ('tokens_in', 'input_uncached')
+                             for obj in result['evidence_objects']))
+        bundle = split_bundle()
+        bundle['observations'][0]['measurements'] = measurements
+        bundle['evidence_objects'] = result['evidence_objects']
+        self.assertEqual(contract.validate_usage_bundle(bundle), bundle)
+
+    def test_conflicting_unsplit_writes_block_separate_input_total(self):
+        self.assert_conflicting_write_counters_are_unavailable(False)
+
+    def test_conflicting_unsplit_writes_block_included_input_remainder(self):
+        self.assert_conflicting_write_counters_are_unavailable(True)
+
     def test_reasoning_exceeding_output_is_conflicted(self):
         result = normalize(profile(), {'input': 1000, 'read': 200, 'write': 150, 'short': 100,
                                        'long': 50, 'output': 100, 'reasoning': 101})['measurements']
