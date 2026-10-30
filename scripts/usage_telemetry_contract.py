@@ -2538,7 +2538,7 @@ def validate_current_run_snapshot(value: Any, *, materialized_limit: int | None 
             if item["owner_scope"] != scope:
                 raise ValueError("foreign bundle entry")
         for diagnostic in bundle["diagnostics"]:
-            if diagnostic["scope"] != scope:
+            if diagnostic["kind"] == "diagnostic_measurement" and diagnostic["scope"] != scope:
                 raise ValueError("foreign bundle diagnostic")
         bundles[content_id(bundle)] = bundle
     accepted = set()
