@@ -65,5 +65,7 @@ USAGE_TELEMETRY_AUTHORITY_PERMIT=/absolute/private/permit.json \
   bash scripts/log-step.sh usage-ingest --manifest /absolute/private/bundle.json
 ```
 
+Active publication is authorized when its registered scope is checked. A publication already in progress may finish installing its immutable bundle after the run closes; if closure is detected, it returns no receipt. Closing a run does not wait for an in-progress installation. A new publication started after closure requires an explicitly authorized late import.
+
 The verifier needs the optional Python `cryptography` package with Ed25519 support. Missing dependencies, an unregistered key, invalid permissions, a missing permit or an invalid signature produce no receipt and no publication. Publication does not reread the selected source files or search the run history.
 
