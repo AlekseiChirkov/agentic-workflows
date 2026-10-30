@@ -5,7 +5,7 @@ flow: full
 ## Phases
 - discovery: complete
 - execution: complete
-- validation: in-progress
+- validation: complete
 
 ## Open Questions (batch)
 None.
@@ -57,7 +57,7 @@ None.
 ## Decomposition
 - decomposition: complete
 - subtasks: T-01, T-01a, T-01b, T-01e, T-01f, T-01h, T-01i, T-01j, T-01k, T-01l, T-01m, T-01n, T-01o, T-01p, T-01q, T-01r, T-01s, T-01g, T-01c, T-01d, T-02a, T-02b, T-02c, T-02, T-03, T-04, T-06, T-07, T-08, T-01t, T-01u, T-01v, T-01w, T-01x, T-01y, T-02d, T-02e, T-09, T-10, T-11, T-12, T-13, T-14, T-15, T-01z, T-16, T-17
-- composites: T-01 (26 contract and corrective leaves); T-02 (5 adapter and corrective leaves); final combined integration validation pending
+- composites: T-01 (26 contract and corrective leaves); T-02 (5 adapter and corrective leaves); final combined integration validation complete
 - consolidation: user requested five capability-oriented work items; original descriptions, plan and progress are preserved in `superseded/`.
 
 ## Solution Design
@@ -110,7 +110,7 @@ No prompts, responses, source contents, credentials or source paths enter shared
 
 ## Subtask Progress
 
-[composite] T-01 | Usage contract | rollup: in-progress | integration-validation: not-started
+[composite] T-01 | Usage contract | rollup: done | integration-validation: complete
   children: T-01a, T-01b, T-01e, T-01f, T-01h, T-01i, T-01j, T-01k, T-01l, T-01m, T-01n, T-01o, T-01p, T-01q, T-01r, T-01s, T-01g, T-01c, T-01d, T-01t, T-01u, T-01v, T-01w, T-01x, T-01y, T-01z
   blocker: none
   notes: S2=19, S5=19; independent composite validation passed on feat/usage-diagnostic-metrics at 4c85c8d: 190 child tests and both integration criteria passed; the additional integrated scenario was exercised in memory, not saved as a separate regression.
@@ -336,7 +336,7 @@ T-01d | typed diagnostic metrics | atomic-tests: green | atomic-execution: compl
   blocker: none
   notes: registry 6/6, diagnostic 7/7, envelope 23/23, canonical 8/8; pricing integration must exclude diagnostics from paid requests
 
-[composite] T-02 | Bounded source adapters | rollup: in-progress | integration-validation: not-started
+[composite] T-02 | Bounded source adapters | rollup: done | integration-validation: complete
   children: T-02a, T-02b, T-02c, T-02d, T-02e
   blocker: none
   notes: Independent integration revalidation passed after the destination safety fix; 58 focused tests and shell lint passed. The original destination move race was reproduced on 4a5643d.
@@ -582,12 +582,13 @@ T-14 | Retain conditional pricing semantics in warnings | atomic-tests: green | 
   notes: tdd: red digest — test_empty_parts_manifest_survives_status_and_recovery, test_repricing_does_not_create_factual_owner_spend_warning, test_repricing_does_not_create_factual_scoped_spend_warning, test_selected_parts_proposal_delivers_and_preserves_manifest, test_selected_segment_and_warning_history_survive_delivery, test_valid_large_bundle_within_part_and_total_limits_is_not_rejected; commits: 81f2be9b2f4db41933611fdcfa369d4c78a06dd6, da62e6e82e4a4c8689894606e31d7d752c69e08a, 2af541d0287b9a0b013911d2ab5f61140cd9f08e, b611888621eebd8e2acf3563160f0580b976be9f, 9ce65ff30ff7c17c38c302da8e1670fea68c7e79, 72795bbfc7f9e83946db40b68b71072a4bd70e2d, 782b79aa0c3241c5c1ef2c1f5824d0dc75852b66, 161abac14c5d7d5a82da087d6e27c885ac291f13
   notes: Independent recheck PASS — test_empty_parts_manifest_survives_status_and_recovery, test_repricing_does_not_create_factual_owner_spend_warning, test_repricing_does_not_create_factual_scoped_spend_warning, test_selected_parts_proposal_delivers_and_preserves_manifest, test_selected_segment_and_warning_history_survive_delivery; commits: 72795bbfc7f9e83946db40b68b71072a4bd70e2d, 991b8bf76920016656d40d59fb16ef20998b2e01, a9ed6ea0ca1e656aa17a7feccc54cb3c30ef7231, bda1f59fa1a577c8bcb9254d2ba28f7c4f7c3167, 81f2be9b2f4db41933611fdcfa369d4c78a06dd6, 782b79aa0c3241c5c1ef2c1f5824d0dc75852b66, da62e6e82e4a4c8689894606e31d7d752c69e08a, 2af541d0287b9a0b013911d2ab5f61140cd9f08e, b611888621eebd8e2acf3563160f0580b976be9f, 9ce65ff30ff7c17c38c302da8e1670fea68c7e79, 161abac14c5d7d5a82da087d6e27c885ac291f13
 
-T-15 | Restore complete validation metadata | atomic-tests: n-a | atomic-execution: complete | atomic-validation: in-progress
-  last_action: repair verified; independent recheck pending
+T-15 | Restore complete validation metadata | atomic-tests: n-a | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
   target_files: .ai/tasks/todo/task-05-cost-and-duration-telemetry/state.md, .ai/tasks/completed/task-01-git-source-of-truth/state.md, .ai/memory/architecture.md
   blocker: none
   notes: Owner-authorized repair of PR #63; preserve existing validators and frozen behavioral checks.
   notes: tdd: none — metadata-only repair; unchanged existing validators verify the exact documentary contract; commits: 41cea8393f227e5dd8b2ef7ca109aab39e248e1c
+  notes: Independent recheck PASS at 524367a446c2456ac2c81ddfa143cd2da47bd51e — 36 exact identity tuples and all 52 baseline knowledge paths verified; task validator 21/0/1; helper inventory 30 Python and 10 shell scripts; unchanged validator and historical patch blobs. Metadata repair commit: 41cea8393f227e5dd8b2ef7ca109aab39e248e1c.
 
 T-01z | Preserve scope-free quarantine diagnostics in snapshots | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: independent repair recheck passed; all repair criteria met
@@ -616,7 +617,10 @@ T-17 | Preserve pricing snapshots across partial responses | atomic-tests: green
   notes: Independent recheck PASS — test_conflicting_unsplit_writes_block_included_input_remainder, test_conflicting_unsplit_writes_block_separate_input_total, test_conflicting_unsplit_writes_do_not_recreate_input_totals, test_final_snapshot_supersedes_conflicted_partial_snapshot, test_mixed_partial_and_final_responses_preserve_price_snapshots, test_verified_correction_supersedes_conflicted_write_snapshot; commits: 540fdd29c279c2c5fc68baa536f135f3a4d5388c, 28fce94ac9bc22cfc859c83cce3f4430bf750d04, 35ea852bc94fe97c1266918b8684494d4b19c259, 172e1f3fe50a7f20e4e31da904a3c29e886778bd, 296284ad40df5d18b28030bac24e2ae8e79c28c0, 545b550dde5a1bc2ccc3876d70b2d7f9072042a1, 39a078893b3e516617a9cbf4d8323507cd45a610, 97a60a2c12835c5ef19776dd9655d665162d43b9, 47df9a76fee926000326755ff5e2a092becb39c3
 
 ## Execution Report
-- Original execution is complete according to the preserved per-leaf audit. Eighteen validation repairs are pending independent implementation and recheck.
+- Original execution, all 27 isolated PR reviews and all 18 repair validations are complete. Full combined verification at 524367a446c2456ac2c81ddfa143cd2da47bd51e: 619 passed, 0 failed, 2 optional private-hygiene skips. All 45 leaves and both composites are reviewed; no item is deferred.
+- Original per-leaf notes and git fields preserve execution history; intermediate pending statements in those notes are superseded by this final report.
+- Root-file decisions: architecture updated for the factual helper inventory and present telemetry component; architecture principles retained because existing boundaries remain unchanged; project_state skipped because no system-level item is deferred.
+- Existing accepted telemetry decision remains authoritative. Repairs enforce its contracts and require no new architectural decision. Specification reconciliation retains the three accepted interface and trust-boundary deltas and all 24 acceptance criteria.
 
 ## Integration Issues (T-02)
 
@@ -643,30 +647,30 @@ None.
 ### Acceptance Criteria
 | Criterion | Scope | Registered evidence (under tests/) | Final combined result |
 |---|---|---|---|
-| AC-01 | Explicit sources, unknown metadata and bounded access | usage-source-profiles.py; usage-source-normalization.py; usage-bounded-source-reads.py | Pending final combined validation |
-| AC-02 | Exact included/separate counters and partial pricing | usage-exact-cost.py; usage-resolution-token-components.py; usage-resolution-integration.py | Pending final combined validation |
-| AC-03 | Response deduplication, branching, pools and time kinds | usage-response-identity.py; usage-causal-ownership.py; usage-duration-analysis.py | Pending final combined validation |
-| AC-04 | Cache lifetime, price applicability and conditional scenarios | usage-price-applicability.py; usage-resolution-conditional.py; usage-resolution-tools.py | Pending final combined validation |
-| AC-05 | Invalid lifecycle scalars preserve all accepted state | usage-lifecycle-projection.py; usage-lifecycle-projection-token-scalars.py; usage-legacy-recovery.py | Pending final combined validation |
-| AC-06 | Exact duration cohort boundaries and time-only status | usage-duration-warnings.py; usage-status-duration-integration.py; usage-status-duration-precision.py | Pending final combined validation |
-| AC-07 | Independent accepted opportunities and descriptive cost ratios | usage-accepted-outcomes.py; usage-outcome-tool-cost.py; usage-retrospective-integration.py | Pending final combined validation |
-| AC-08 | Offline operation, disable/resume and recovery guidance | usage-offline-acceptance.py; usage-legacy-recovery.py; usage-report-consumer.py | Pending final combined validation |
-| AC-09 | Stream snapshot finality, delta gaps and verified corrections | usage-stream-revisions.py; usage-resolution-revisions.py; usage-resolution-partial-stream.py | Pending final combined validation |
-| AC-10 | Cumulative epoch containment and exact deltas | usage-cumulative-epochs.py; usage-resolution-epochs.py; usage-producer-epochs.py | Pending final combined validation |
-| AC-11 | Independent inventory, unknown denominators and proven empty scopes | usage-inventory-completeness.py; usage-resolution-coverage.py; usage-resolution-empty-scope.py | Pending final combined validation |
-| AC-12 | Single shared pools, late evidence and unmeasured repeated marks | usage-causal-ownership.py; usage-report-overlap-ownership.py; usage-retrospective-outcome-timing.py | Pending final combined validation |
-| AC-13 | Late evidence and scenarios preserve accepted events and prior reports | usage-frozen-pricing-inputs.py; usage-multibundle-report.py; usage-lifecycle-projection.py | Pending final combined validation |
-| AC-14 | Concurrent publication, interruption and exact retry receipts | usage-usage-publication.py; usage-publication-run-race.py; usage-publication-late-import.py | Pending final combined validation |
-| AC-15 | Strict parsing, source paths, hashes, mutation and privacy | usage-canonical-encoding.py; usage-bounded-source-reads.py; usage-resolution-privacy.py | Pending final combined validation |
-| AC-16 | Exact derived integers, summed decimals and evidenced scalars | usage-exact-cost.py; usage-lifecycle-projection.py; usage-outcome-tool-cost.py | Pending final combined validation |
-| AC-17 | Threshold episodes, idempotent notes, revisions and restart recovery | usage-alert-status.py; usage-warning-delivery.py; usage-warning-delivery-durability.py; usage-status-delivery-integration.py | Pending final combined validation |
-| AC-18 | Group statistics, coverage separation and deterministic exports | usage-group-statistics.py; usage-report-exports.py; usage-fixed-corpus.py | Pending final combined validation |
-| AC-19 | Resumed opportunities, independent evaluation and comparison limits | usage-accepted-outcomes.py; usage-outcome-unattributed-workload.py; usage-retrospective-integration.py | Pending final combined validation |
-| AC-20 | Typed diagnostic units and isolation from paid accounting | usage-diagnostic-registry.py; usage-diagnostic-schema.py; usage-resolution-integration.py | Pending final combined validation |
-| AC-21 | Canonical sets, ordered streams, fixed time and strict numbers | usage-canonical-encoding.py; usage-typed-schema.py; usage-source-normalization.py | Pending final combined validation |
-| AC-22 | Exact interval unions, exclusive time and unknown clock relations | usage-duration-analysis.py; usage-retrospective-outcome-timing.py; usage-context-evidence-timing.py | Pending final combined validation |
-| AC-23 | Causal parent pools, external ownership and separate tool costs | usage-causal-ownership.py; usage-resolution-tool-ownership.py; usage-outcome-tool-cost.py | Pending final combined validation |
-| AC-24 | Source and bundle limits, partial quarantine and depth limits | usage-bounded-source-reads.py; usage-source-normalization.py; usage-observation-bundle-schema.py | Pending final combined validation |
+| AC-01 | Explicit sources, unknown metadata and bounded access | usage-source-profiles.py; usage-source-normalization.py; usage-bounded-source-reads.py | PASS (synthetic offline fixtures) |
+| AC-02 | Exact included/separate counters and partial pricing | usage-exact-cost.py; usage-resolution-token-components.py; usage-resolution-integration.py | PASS (synthetic offline fixtures) |
+| AC-03 | Response deduplication, branching, pools and time kinds | usage-response-identity.py; usage-causal-ownership.py; usage-duration-analysis.py | PASS (synthetic offline fixtures) |
+| AC-04 | Cache lifetime, price applicability and conditional scenarios | usage-price-applicability.py; usage-resolution-conditional.py; usage-resolution-tools.py | PASS (synthetic offline fixtures) |
+| AC-05 | Invalid lifecycle scalars preserve all accepted state | usage-lifecycle-projection.py; usage-lifecycle-projection-token-scalars.py; usage-legacy-recovery.py | PASS (synthetic offline fixtures) |
+| AC-06 | Exact duration cohort boundaries and time-only status | usage-duration-warnings.py; usage-status-duration-integration.py; usage-status-duration-precision.py | PASS (synthetic offline fixtures) |
+| AC-07 | Independent accepted opportunities and descriptive cost ratios | usage-accepted-outcomes.py; usage-outcome-tool-cost.py; usage-retrospective-integration.py | PASS (synthetic offline fixtures) |
+| AC-08 | Offline operation, disable/resume and recovery guidance | usage-offline-acceptance.py; usage-legacy-recovery.py; usage-report-consumer.py | PASS (synthetic offline fixtures) |
+| AC-09 | Stream snapshot finality, delta gaps and verified corrections | usage-stream-revisions.py; usage-resolution-revisions.py; usage-resolution-partial-stream.py | PASS (synthetic offline fixtures) |
+| AC-10 | Cumulative epoch containment and exact deltas | usage-cumulative-epochs.py; usage-resolution-epochs.py; usage-producer-epochs.py | PASS (synthetic offline fixtures) |
+| AC-11 | Independent inventory, unknown denominators and proven empty scopes | usage-inventory-completeness.py; usage-resolution-coverage.py; usage-resolution-empty-scope.py | PASS (synthetic offline fixtures) |
+| AC-12 | Single shared pools, late evidence and unmeasured repeated marks | usage-causal-ownership.py; usage-report-overlap-ownership.py; usage-retrospective-outcome-timing.py | PASS (synthetic offline fixtures) |
+| AC-13 | Late evidence and scenarios preserve accepted events and prior reports | usage-frozen-pricing-inputs.py; usage-multibundle-report.py; usage-lifecycle-projection.py | PASS (synthetic offline fixtures) |
+| AC-14 | Concurrent publication, interruption and exact retry receipts | usage-usage-publication.py; usage-publication-run-race.py; usage-publication-late-import.py | PASS (synthetic offline fixtures) |
+| AC-15 | Strict parsing, source paths, hashes, mutation and privacy | usage-canonical-encoding.py; usage-bounded-source-reads.py; usage-resolution-privacy.py | PASS (synthetic offline fixtures) |
+| AC-16 | Exact derived integers, summed decimals and evidenced scalars | usage-exact-cost.py; usage-lifecycle-projection.py; usage-outcome-tool-cost.py | PASS (synthetic offline fixtures) |
+| AC-17 | Threshold episodes, idempotent notes, revisions and restart recovery | usage-alert-status.py; usage-warning-delivery.py; usage-warning-delivery-durability.py; usage-status-delivery-integration.py | PASS (synthetic offline fixtures) |
+| AC-18 | Group statistics, coverage separation and deterministic exports | usage-group-statistics.py; usage-report-exports.py; usage-fixed-corpus.py | PASS (synthetic offline fixtures) |
+| AC-19 | Resumed opportunities, independent evaluation and comparison limits | usage-accepted-outcomes.py; usage-outcome-unattributed-workload.py; usage-retrospective-integration.py | PASS (synthetic offline fixtures) |
+| AC-20 | Typed diagnostic units and isolation from paid accounting | usage-diagnostic-registry.py; usage-diagnostic-schema.py; usage-resolution-integration.py | PASS (synthetic offline fixtures) |
+| AC-21 | Canonical sets, ordered streams, fixed time and strict numbers | usage-canonical-encoding.py; usage-typed-schema.py; usage-source-normalization.py | PASS (synthetic offline fixtures) |
+| AC-22 | Exact interval unions, exclusive time and unknown clock relations | usage-duration-analysis.py; usage-retrospective-outcome-timing.py; usage-context-evidence-timing.py | PASS (synthetic offline fixtures) |
+| AC-23 | Causal parent pools, external ownership and separate tool costs | usage-causal-ownership.py; usage-resolution-tool-ownership.py; usage-outcome-tool-cost.py | PASS (synthetic offline fixtures) |
+| AC-24 | Source and bundle limits, partial quarantine and depth limits | usage-bounded-source-reads.py; usage-source-normalization.py; usage-observation-bundle-schema.py | PASS (synthetic offline fixtures) |
 
 ### Off-limits
 | Constraint | Status |
@@ -783,5 +787,11 @@ spec: .ai/specs/05-cost-and-duration-telemetry.md
 - Integration review baseline: bda1f59. Original review records remain historical evidence until replaced by fresh verification.
 
 ### Review progress
-- Reviewed independently: PRs #37–#63 (27 of 27). Reports are retained under /tmp/orchestrail-review-pr<number>.md until final consolidation. Sequential source repairs and rechecks are pending; no remote mutations have started.
+- Reviewed independently: PRs #37–#63 (27 of 27); affected PRs received sequential repairs and fresh independent rechecks. All required corrections are complete. Public evidence: docs/audits/2026-10-30-usage-telemetry-review.md.
 - Baseline full validation: 618 passed, 1 failed (exact identity ledger line drift), 2 skipped (unavailable private hygiene patterns). Task validation also lacks the mandatory Created marker.
+
+## Final Validation
+- Complete source verification: 524367a446c2456ac2c81ddfa143cd2da47bd51e; 619 passed, 0 failed, 2 optional private-hygiene skips.
+- Original branch/base/commit/PR fields are preserved byte-for-byte. All repository knowledge and historical patch context are retained.
+- Integration authorization: merge PRs #37–#63 in dependency order, pin every expected head and preserve ancestry with merge commits; verify the resulting main tree against the validated integration tree.
+- Run logging was skipped because the configured helper was unavailable. No deployment or paid model calls were performed.

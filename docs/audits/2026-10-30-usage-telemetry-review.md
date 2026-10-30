@@ -46,8 +46,20 @@ additional real-pipe regression now requires the sanitized exit and diagnostic.
 
 ## Verification
 
-Final combined validation and integration results are pending. Focused repair
-checks and independent rechecks are recorded as each affected surface completes.
+Full combined source validation at `524367a446c2456ac2c81ddfa143cd2da47bd51e`:
+619 checks passed, zero failed, and two optional private-pattern hygiene checks
+were skipped because their local configuration was unavailable. Every required
+correction received an independent recheck; no finding is deferred.
+
+Completion records were then reconciled without changing implementation or test
+files. Final task validation passed 22 checks with zero failures or skips. The
+unchanged strict identity validator passed again and confirmed retained knowledge
+tracking. Bash syntax passed for all 17 tracked shell files; ShellCheck was
+unavailable. New changes pass the whitespace check. The historical patch and its
+intentional context whitespace remain byte-for-byte unchanged.
+
+Integration uses merge commits in dependency order with pinned expected heads.
+The resulting main tree must match the validated integration tree exactly.
 
 The complete check is `bash scripts/validate-contracts.sh`. Additional checks cover
 the task artifact contract and Bash syntax. Test fixtures use disposable roots,

@@ -6,7 +6,7 @@ Accepted
 
 ## Date
 
-2026-10-29
+2026-10-30
 
 ## Related Task
 
@@ -117,10 +117,10 @@ Do not infer finality, ownership, completeness, prices or model identity from ab
 
 ## Verification
 
-Independent review and the full suite on the integration tip passed 619 checks with no failures and two private-pattern hygiene skips. Focused source, publication, pricing, reporting, warnings and recovery suites passed. Real source profiles and external signing infrastructure were not demonstrated.
+All 27 PRs received isolated reviews, sequential repairs and fresh independent rechecks. Full combined source verification at 524367a446c2456ac2c81ddfa143cd2da47bd51e: 619 passed, 0 failed and 2 optional private-pattern hygiene skips. Focused regressions cover canonical ordering, exact times and ratios, scoped accounting, complete stdout, lifecycle rejection, contract-valid exports, private selected-part delivery and conditional pricing. Historical knowledge and patch context are retained. Real source profiles and external signing infrastructure were not demonstrated.
 
 ## References
 
 - Task: [Cost and duration telemetry](../tasks/todo/task-05-cost-and-duration-telemetry/state.md).
-- Pull request: not yet available.
+- Pull requests: #37–#63; corrections and the combined validation record are included in #63.
 - Related documents: existing correlated hook logging decision and telemetry specification.
