@@ -90,6 +90,29 @@ class CollectionSegmentTests(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 call('validate_collection_segment', value | change)
 
+    def test_arbitrary_precision_boundary_ordering(self):
+        base = '2026-01-02T03:00:00.'
+        invalid = (
+            {'start': base + '0000009Z', 'end': base + '0000001Z'},
+            {'start': base + '0000009Z', 'gap_before': {
+                'state': 'present', 'start': base + '0000008Z', 'end': base + '0000001Z'}},
+            {'start': base + '0000001Z', 'gap_before': {
+                'state': 'present', 'start': base + '0000000Z', 'end': base + '0000009Z'}},
+        )
+        for change in invalid:
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                call('validate_collection_segment', segment() | change)
+
+        valid = (
+            {'start': base + '0000001Z', 'end': base + '0000009Z', 'gap_before': {
+                'state': 'present', 'start': base + '0000000Z', 'end': base + '0000001Z'}},
+            {'start': base + '000000100Z', 'end': base + '0000001Z', 'gap_before': {
+                'state': 'present', 'start': base + '00000010Z', 'end': base + '0000001000Z'}},
+        )
+        for change in valid:
+            with self.subTest(change=change):
+                self.assert_valid(segment() | change)
+
     def test_size_limit_and_duplicate_json_keys(self):
         value = segment()
         self.assert_valid(value)
