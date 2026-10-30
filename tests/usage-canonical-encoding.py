@@ -47,6 +47,74 @@ class CanonicalEncodingTests(unittest.TestCase):
         self.assertEqual(contract.content_id(first, set_keys=keys),
                          contract.content_id(second, set_keys=keys))
 
+    def test_nested_arrays_keep_order_within_declared_set(self):
+        first = {"members": [[2, 1], [4, 3]]}
+        permuted = {"members": [[4, 3], [2, 1]]}
+        reordered = {"members": [[1, 2], [4, 3]]}
+        options = {"set_paths": (("members",),)}
+        expected = b'{"members":[[2,1],[4,3]]}'
+        self.assertEqual(contract.canonical_bytes(first, **options), expected)
+        self.assertEqual(contract.canonical_bytes(first, **options),
+                         contract.canonical_bytes(permuted, **options))
+        self.assertEqual(contract.content_id(first, **options),
+                         contract.content_id(permuted, **options))
+        self.assertNotEqual(contract.canonical_bytes(first, **options),
+                            contract.canonical_bytes(reordered, **options))
+        self.assertNotEqual(contract.content_id(first, **options),
+                            contract.content_id(reordered, **options))
+
+    def test_nested_arrays_keep_order_with_key_sorted_set(self):
+        first = {"items": [[2, 1], [4, 3]]}
+        permuted = {"items": [[4, 3], [2, 1]]}
+        reordered = {"items": [[1, 2], [4, 3]]}
+        options = {"set_keys": {("items",): lambda item: sum(item)}}
+        self.assertEqual(contract.canonical_bytes(first, **options),
+                         b'{"items":[[2,1],[4,3]]}')
+        self.assertEqual(contract.content_id(first, **options),
+                         contract.content_id(permuted, **options))
+        self.assertNotEqual(contract.canonical_bytes(first, **options),
+                            contract.canonical_bytes(reordered, **options))
+        self.assertNotEqual(contract.content_id(first, **options),
+                            contract.content_id(reordered, **options))
+
+    def test_schema_sets_apply_to_fields_inside_array_members(self):
+        first = {"kind": "source_profile", "counter_fields": [
+            {"name": "b", "includes": ["z", "a"], "sequence": [2, 1]},
+            {"name": "a", "includes": ["y", "b"], "sequence": [4, 3]},
+        ]}
+        second = {"counter_fields": [
+            {"sequence": [4, 3], "includes": ["b", "y"], "name": "a"},
+            {"sequence": [2, 1], "includes": ["a", "z"], "name": "b"},
+        ], "kind": "source_profile"}
+        expected = (b'{"counter_fields":[{"includes":["a","z"],"name":"b",'
+                    b'"sequence":[2,1]},{"includes":["b","y"],"name":"a",'
+                    b'"sequence":[4,3]}],"kind":"source_profile"}')
+        self.assertEqual(contract.canonical_bytes(first), expected)
+        self.assertEqual(contract.canonical_bytes(first), contract.canonical_bytes(second))
+        self.assertEqual(contract.content_id(first), contract.content_id(second))
+
+    def test_json_array_and_object_discriminators_are_canonical(self):
+        cases = (
+            ({"kind": ["inventory", {"z": 2, "a": 1}], "items": [2, 1]},
+             b'{"items":[2,1],"kind":["inventory",{"a":1,"z":2}]}'),
+            ({"kind": {"z": [2, 1], "a": "usage_bundle"}, "items": [2, 1]},
+             b'{"items":[2,1],"kind":{"a":"usage_bundle","z":[2,1]}}'),
+        )
+        for value, expected in cases:
+            for function, result in ((contract.canonical_bytes, expected),
+                                     (contract.content_id, hashlib.sha256(expected).hexdigest())):
+                with self.subTest(value=value, function=function.__name__):
+                    self.assertEqual(function(value), result)
+
+    def test_envelope_discriminator_preserves_schema_set_ordering(self):
+        first = {"kind": "request_usage", "attribution": {"candidates": ["z", "a"]}}
+        second = {"kind": "request_usage", "attribution": {"candidates": ["a", "z"]}}
+        expected = b'{"attribution":{"candidates":["a","z"]},"kind":"request_usage"}'
+        self.assertEqual(contract.canonical_bytes(first), expected)
+        self.assertEqual(contract.content_id(first), hashlib.sha256(expected).hexdigest())
+        self.assertEqual(contract.canonical_bytes(first), contract.canonical_bytes(second))
+        self.assertEqual(contract.content_id(first), contract.content_id(second))
+
     def test_stream_order_changes_bytes_and_identity(self):
         first = {"schema_version": 1, "stream": ["first", "second"]}
         second = {"schema_version": 1, "stream": ["second", "first"]}

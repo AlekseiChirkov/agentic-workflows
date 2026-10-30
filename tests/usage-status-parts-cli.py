@@ -49,6 +49,43 @@ class SelectedPartsTests(base.StatusCommandTests):
         self.assertNotIn('PRIVATE_CONTENT_SENTINEL', json.dumps(output))
         self.assertNotIn(str(self.root), json.dumps(output))
 
+    def test_selected_parts_proposal_delivers_and_preserves_manifest(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('delivery', ROOT / 'scripts/usage_telemetry_delivery.py')
+        delivery = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(delivery)
+        result = self.run_status()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(self.output.read_text())
+        proposal = output['proposed_snapshot']
+        self.assertCountEqual(proposal['part_references'], [{key: part[key] for key in ('kind', 'sha256', 'size_bytes')}
+                                                            for part in self.original['parts']])
+        owner = self.original['owner_scope']
+        for change in ('reference', 'mode'):
+            tampered = copy.deepcopy(proposal)
+            if change == 'reference':
+                tampered['part_references'][0]['sha256'] = 'f' * 64
+            else:
+                tampered['mode'] = 'on' if tampered['mode'] == 'off' else 'off'
+            with self.assertRaises(ValueError):
+                delivery.apply_revision(self.snapshot, self.original['revision'], tampered,
+                                        owner_scope=owner, destinations={})
+            self.assertEqual(contract.canonical_bytes(json.loads(self.snapshot.read_text())),
+                             contract.canonical_bytes(self.original))
+        note = self.root / 'run.md'
+        note.write_text('Notes.\n')
+        note.chmod(0o600)
+        pending = delivery.apply_revision(self.snapshot, self.original['revision'], proposal,
+                                          owner_scope=owner, destinations={})
+        self.assertTrue(pending['warnings'])
+        delivery.resume_delivery(self.snapshot, owner_scope=owner,
+                                 destinations={('run', owner['owner_id']): str(note)})
+        delivery.resume_delivery(self.snapshot, owner_scope=owner,
+                                 destinations={('run', owner['owner_id']): str(note)})
+        self.assertCountEqual(json.loads(self.snapshot.read_text())['parts'], self.original['parts'])
+        for candidate in output['candidates']:
+            self.assertEqual(note.read_text().count(candidate['warning_id']), 1)
+
     def test_incorrect_hash_size_and_changed_file_fail_before_output(self):
         for change in ({'sha256': 'f' * 64}, {'size_bytes': self.parts[0]['size_bytes'] + 1}):
             with self.subTest(change=change):
@@ -79,6 +116,64 @@ class SelectedPartsTests(base.StatusCommandTests):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse(self.output.exists())
                 self.assertNotIn('PRIVATE_CONTENT_SENTINEL', result.stderr)
+
+    def test_selected_bundle_diagnostic_must_match_owner(self):
+        diagnostic_module = base.fixture.load('diagnostics', 'tests/usage-diagnostic-schema.py')
+        for owner_id, valid in ((self.original['owner_scope']['owner_id'], True),
+                                ('sha256:' + 'f' * 64, False)):
+            with self.subTest(valid=valid):
+                snapshot = copy.deepcopy(self.original)
+                bundle_path = Path(snapshot['parts'][0]['local_path'])
+                bundle = json.loads(bundle_path.read_text())
+                bundle['diagnostics'] = [diagnostic_module.diagnostic() | {
+                    'scope': {'owner_kind': snapshot['owner_scope']['owner_kind'], 'owner_id': owner_id}}]
+                encoded = contract.canonical_bytes(bundle)
+                bundle_path.write_bytes(encoded)
+                snapshot['parts'][0].update(sha256=hashlib.sha256(encoded).hexdigest(), size_bytes=len(encoded))
+                receipt_path = Path(snapshot['parts'][1]['local_path'])
+                receipt = json.loads(receipt_path.read_text())
+                receipt['bundle_sha256'] = contract.content_id(bundle)
+                encoded = contract.canonical_bytes(receipt)
+                receipt_path.write_bytes(encoded)
+                snapshot['parts'][1].update(sha256=hashlib.sha256(encoded).hexdigest(), size_bytes=len(encoded))
+                self.save(snapshot)
+                result = self.run_status()
+                if valid:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.output.unlink()
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(self.output.exists())
+
+    def test_selected_bundle_quarantine_diagnostic_preserves_source_binding(self):
+        for valid in (True, False):
+            with self.subTest(valid=valid):
+                snapshot = copy.deepcopy(self.original)
+                bundle_path = Path(snapshot['parts'][0]['local_path'])
+                bundle = json.loads(bundle_path.read_text())
+                source = bundle['sources'][0]
+                bundle['diagnostics'] = [{'schema_version': 1, 'kind': 'source_issue',
+                    'source_id': source['source_id'],
+                    'source_hash': source['sha256'] if valid else 'f' * 64,
+                    'record_number': 1, 'reason': 'source_record_quarantined',
+                    'completeness': 'partial'}]
+                encoded = contract.canonical_bytes(bundle)
+                bundle_path.write_bytes(encoded)
+                snapshot['parts'][0].update(sha256=hashlib.sha256(encoded).hexdigest(), size_bytes=len(encoded))
+                receipt_path = Path(snapshot['parts'][1]['local_path'])
+                receipt = json.loads(receipt_path.read_text())
+                receipt['bundle_sha256'] = contract.content_id(bundle)
+                encoded = contract.canonical_bytes(receipt)
+                receipt_path.write_bytes(encoded)
+                snapshot['parts'][1].update(sha256=hashlib.sha256(encoded).hexdigest(), size_bytes=len(encoded))
+                self.save(snapshot)
+                result = self.run_status()
+                if valid:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.output.unlink()
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(self.output.exists())
 
     def test_symlink_selected_part_is_not_followed(self):
         target = Path(self.parts[0]['local_path'])

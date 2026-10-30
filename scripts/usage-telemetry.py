@@ -299,6 +299,7 @@ def _snapshot_with_parts(data):
     destinations = {'usage_bundle': 'bundles', 'usage_accepted': 'accepted_receipts',
                     'inventory': 'inventories', 'inventory_evidence': 'inventory_evidence',
                     'collection_segment': 'segments', 'warning_delivery': 'warning_delivery'}
+    selected_warnings = []
     for part in parts:
         fd = sources._open_regular(part['local_path'])
         try:
@@ -322,8 +323,14 @@ def _snapshot_with_parts(data):
             raise ValueError('selected part digest mismatch')
         item = contract.parse_json(encoded)
         contract._bounded_tree(item)
-        if not isinstance(item, dict) or item.get('kind') != part['kind']:
+        if not isinstance(item, dict) or (part['kind'] != 'warning_delivery' and item.get('kind') != part['kind']):
             raise ValueError('selected part kind mismatch')
+        if part['kind'] == 'warning_delivery':
+            selected_warnings.append(item)
+            records += 1
+            if records > declared['max_records']:
+                raise ValueError('selected record limit exceeded')
+            continue
         if part['kind'] == 'usage_bundle':
             contract.validate_usage_bundle(item)
             records += max(1, len(item['observations']))
@@ -334,17 +341,40 @@ def _snapshot_with_parts(data):
         snapshot[destinations[part['kind']]].append(item)
     snapshot.pop('parts', None)
     limit = declared['max_bytes'] + declared['max_total_bytes']
+    if selected_warnings:
+        selected = deepcopy(snapshot)
+        selected['warning_delivery'] = selected_warnings
+        contract.validate_current_run_snapshot(selected, materialized_limit=limit)
+        overlays = {entry['warning_id']: entry for entry in snapshot['warning_delivery']}
+        for warning in selected_warnings:
+            overlay = overlays.get(warning['warning_id'])
+            if overlay is None:
+                snapshot['warning_delivery'].append(warning)
+                continue
+            immutable = ('warning_id', 'policy_id', 'policy_version', 'scope', 'owner_scope', 'metric', 'episode', 'details')
+            if any(overlay.get(key) != warning.get(key) for key in immutable):
+                raise ValueError('selected warning history changed')
+            if warning['delivery_state'] == 'delivered' and overlay['delivery_state'] != 'delivered':
+                raise ValueError('selected warning confirmation changed')
     contract.validate_current_run_snapshot(snapshot, materialized_limit=limit)
-    if len(contract.canonical_bytes(snapshot)) <= declared['max_bytes']:
-        return snapshot, None, None
-    proposal = manifest
-    proposal['part_references'] = [{key: part[key] for key in ('kind', 'sha256', 'size_bytes')}
-                                   for part in proposal.pop('parts', [])
-                                   if part['kind'] not in ('collection_segment', 'warning_delivery')]
-    proposal['segments'] = deepcopy(snapshot['segments'])
-    proposal['warning_delivery'] = deepcopy(snapshot['warning_delivery'])
+    if 'parts' not in manifest:
+        return snapshot, None, limit
+    proposal = contract.sanitized_snapshot(manifest)
+    existing = {entry['warning_id'] for entry in proposal['warning_delivery']}
+    proposal['warning_delivery'].extend(deepcopy(entry) for entry in snapshot['warning_delivery']
+                                        if entry['warning_id'] not in existing)
     contract.validate_current_run_snapshot(proposal)
     return snapshot, proposal, limit
+
+
+def _write_stdout(data):
+    remaining = memoryview(data)
+    while remaining:
+        written = sys.stdout.buffer.write(remaining)
+        if written is None or written <= 0:
+            raise OSError('stdout write failed')
+        remaining = remaining[written:]
+    sys.stdout.buffer.flush()
 
 
 def _status(args):
@@ -358,8 +388,7 @@ def _status(args):
     observed_at = args.observed_at or datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     result = alerts.evaluate_status(snapshot, policy, observed_at=observed_at, verifier=verifier,
                                     _materialized_limit=materialized_limit, _proposal=proposal)
-    sys.stdout.buffer.write(canonical_bytes(result))
-    sys.stdout.buffer.flush()
+    _write_stdout(canonical_bytes(result))
 
 
 def _owner_delivery(args):
@@ -398,8 +427,7 @@ def _owner_delivery(args):
         contract.validate_current_run_snapshot(proposal)
         report = delivery.apply_revision(args.state, proposal['revision'] - 1, proposal,
                                          owner_scope=authority['owner_scope'], destinations=destinations)
-    sys.stdout.buffer.write(canonical_bytes(report))
-    sys.stdout.buffer.flush()
+    _write_stdout(canonical_bytes(report))
 
 
 def main(argv=None):
@@ -437,8 +465,7 @@ def main(argv=None):
             raise ValueError('output must be a pipe or socket')
         verify_input, verify_evidence = _analysis_authority(args.authority, args.authority_key, manifest)
         result = report.analyze_corpus(manifest, verify_input=verify_input, verify_evidence=verify_evidence)
-        sys.stdout.buffer.write(exports.archive_exports(exports.render_exports(result)))
-        sys.stdout.buffer.flush()
+        _write_stdout(exports.archive_exports(exports.render_exports(result)))
         return
     if args.command == 'owner-deliver':
         _owner_delivery(args)
@@ -501,8 +528,7 @@ def main(argv=None):
             if written <= 0:
                 raise OSError('provenance write failed')
             data = data[written:]
-    sys.stdout.buffer.write(encoded)
-    sys.stdout.buffer.flush()
+    _write_stdout(encoded)
 
 
 
@@ -521,6 +547,12 @@ if __name__ == '__main__':
         print('usage telemetry: ' + operation + ' failed', file=sys.stderr)
         sys.exit(2)
     except OSError:
+        # Discard pending buffered bytes so interpreter shutdown cannot retry the pipe.
+        null_fd = os.open(os.devnull, os.O_WRONLY)
+        try:
+            os.dup2(null_fd, sys.stdout.fileno())
+        finally:
+            os.close(null_fd)
         operation = {'analyze': 'analysis', 'status': 'status', 'owner-deliver': 'owner delivery'}.get(
             sys.argv[1] if len(sys.argv) > 1 else '', 'normalization')
         print('usage telemetry: ' + operation + ' failed', file=sys.stderr)

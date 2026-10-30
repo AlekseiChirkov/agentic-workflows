@@ -44,12 +44,21 @@ def _ratio_text(numerator, denominator):
     """Use a reduced fraction when no finite decimal representation exists."""
     value = Fraction(numerator) / denominator
     rest = value.denominator
+    powers = []
     for factor in (2, 5):
+        count = 0
         while rest % factor == 0:
             rest //= factor
+            count += 1
+        powers.append(count)
     if rest != 1:
         return f'{value.numerator}/{value.denominator}'
-    return _text(Decimal(value.numerator) / Decimal(value.denominator))
+    scale = max(powers)
+    digits = str(value.numerator * 2 ** (scale - powers[0]) * 5 ** (scale - powers[1]))
+    if not scale:
+        return digits
+    digits = digits.zfill(scale + 1)
+    return (digits[:-scale] + '.' + digits[-scale:]).rstrip('0').rstrip('.')
 
 
 def _comparison_amount(value):

@@ -1,3 +1,9 @@
+---
+status: done
+completed_task: task-05-cost-and-duration-telemetry
+completed_at: 2026-10-30
+---
+
 # 05. Достоверный учёт использования моделей, стоимости и времени
 
 ## Паспорт и статус
@@ -259,10 +265,10 @@
 Предлагаемые команды не являются подтверждением наличия этих программ:
 
 ```text
-python3 scripts/usage-telemetry.py normalize --profile ID --input-manifest FILE --output FILE
+python3 scripts/usage-telemetry.py normalize --profile ID --input-manifest FILE
 bash scripts/log-step.sh usage-ingest --manifest FILE
-python3 scripts/usage-telemetry.py analyze --corpus-manifest FILE --scenario ID --output-dir DIR
-python3 scripts/usage-telemetry.py status --receipt-snapshot FILE [--policy FILE] --output FILE
+python3 scripts/usage-telemetry.py analyze --corpus-manifest FILE --scenario ID
+python3 scripts/usage-telemetry.py status --receipt-snapshot FILE [--policy FILE]
 ```
 
 | Оболочка | Обязательный контракт |
@@ -297,6 +303,8 @@ python3 scripts/usage-telemetry.py status --receipt-snapshot FILE [--policy FILE
 
 `usage-ingest` — единственный писатель общего хранилища использования. Он использует определения, экспортируемые `log-step.sh contract`; новый пакет не становится четвёртым событием жизненного цикла.
 
+Active-run authorization is established when the registered scope is checked. A publication already authorized at that point may install its immutable artifact after the run closes; if closure is detected before the receipt, no receipt is returned. An invocation first checked after closure requires independent late-import authorization. Artifact presence alone does not prove acceptance. This boundary preserves nonblocking lifecycle closure without relying on a publisher-held lock.
+
 Порядок операции:
 
 1. Установить режим сбора и разрешённую зарегистрированную область. При отключении выйти по правилам отключения.
@@ -325,7 +333,7 @@ python3 scripts/usage-telemetry.py status --receipt-snapshot FILE [--policy FILE
 
 Диагностика содержит причины и непрозрачные идентификаторы, не исходное содержимое. Ошибочная проверка не публикует отчёт с утверждением полноты. Эти коды относятся к новым чистым помощникам; нулевой контракт `log-step.sh` сохраняется. Ошибка вспомогательного вычисления не останавливает основную задачу.
 
-Чистый помощник также формирует результат во временном файле вне общего хранилища и делает его видимым только после полной записи/проверки. Ошибка не уничтожает прежний корректный результат. Неизменяемые отчёты получают новый адрес редакции; существующий отличающийся отчёт не заменяется молча. Точный повтор может подтвердить совпадение. Обычный результат чистого преобразования не имеет вида `usage_accepted` и не подменяет квитанцию общей публикации.
+The normalizer prepares the complete validated bundle in memory and emits it only to a pipe or socket, without creating output files. The analyzer likewise emits a complete deterministic report archive to a pipe or socket, and status emits its complete result through a pipe or socket. The report publisher invokes the analyzer, waits for successful completion, validates the archive, and installs a revision without replacing an existing one; an exact retry confirms matching bytes and a conflicting revision is rejected. The operator must protect the publisher destination and its ancestors against relocation and mutation, including by processes with the same UID; an acknowledgement does not enforce that boundary. Shell redirection can create or truncate a file before a helper starts. Other pure helpers prepare output in a temporary file outside the shared store and make it visible only after a complete write and validation. Failure must not destroy a previous valid result. A pure transformation result is not `usage_accepted` and does not replace a shared-publication receipt.
 
 ## Проекции в жизненном цикле
 
@@ -432,6 +440,8 @@ C_r=\frac{U_rP_U}{K_U}+\frac{R_rP_R}{K_R}
 ### Доставка и аварийное восстановление
 
 Единственный уполномоченный писатель атомарно принимает следующую редакцию закрытого состояния, затем идемпотентно обновляет заметки/отчёт по идентификатору предупреждения. Состояния доставки должны различать по меньшей мере ожидающее и подтверждённое применение; потеря процесса между ними оставляет восстанавливаемую доставку, не обещание безусловного единственного уведомления.
+
+The authorized owner is the sole writer of delivery state and notes; all cooperating writers must honor its lock. The operator must protect the selected state and note directories and their ancestors against relocation or mutation, including by same-UID processes. These destinations must be outside shared usage storage. Metadata checks and advisory locks do not provide atomic compare-and-swap against an uncooperative writer.
 
 Предупреждение листа относится к его заметкам; предупреждение всего запуска — к заметкам запуска. Все предупреждения отражаются в итоговом отчёте. При недоступном месте заметок сохраняется ожидающая причина для итогового отчёта; нельзя писать в посторонний файл или останавливать исполнение. Повтор, возобновление и отключение сбора не добавляют новую копию уже применённой заметки.
 
@@ -701,3 +711,10 @@ C_{accepted,observed}=\frac{C_{all\ observed\ workload}}{N_{independently\ accep
 | Независимая проверка реализации | Не выполнена этой редактурой; потребуется по установленному процессу. |
 
 Документ подготовлен к этапу исследования и проектирования. Переход к реализации следует существующему процессу и конкретному решению о публичных форматах. Отметка готовности документа не является приёмкой работающей функции, человеческим согласованием эксперимента или доказательством снижения стоимости.
+
+## Change Log
+
+### 2026-10-30 — reconciled from task-05-cost-and-duration-telemetry
+- Helper output | implemented-differently | Normalization, analysis and status use pipe or socket output; report publication validates a successful analyzer result before installation. Source: task state, T-02c, T-06 and T-07 progress.
+- Publication timing | implemented-differently | Active authorization is established at registration; an already authorized installation may finish after closure without a receipt. Source: task state, T-03 progress.
+- Writer protection | implemented-differently | Report and warning destinations require operator-protected directories; warning writers cooperate on the owner lock. Source: task state, T-06 and T-07 progress.

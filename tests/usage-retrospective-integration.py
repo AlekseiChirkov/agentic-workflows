@@ -88,6 +88,22 @@ class RetrospectiveIntegrationTests(unittest.TestCase):
         self.assertIn(decoded['corpus_id'], artifacts['markdown'])
         self.assertEqual(artifacts, exports.render_exports(self.analyze()))
 
+    def test_contract_identifiers_flow_from_corpus_to_archive(self):
+        import tarfile
+        identifier = 'baseline:' + 'x' * 247
+        self.manifest['scenario_id'] = identifier
+        self.manifest['versions']['normalizer_version'] = identifier
+        contract.validate_analysis_corpus(self.manifest)
+        artifacts = exports.render_exports(self.analyze())
+        self.assertEqual(artifacts, exports.render_exports(self.analyze()))
+        for content in artifacts.values():
+            self.assertIn(identifier, content)
+        archive = exports.archive_exports(artifacts)
+        self.assertEqual(archive, exports.archive_exports(artifacts))
+        with tarfile.open(fileobj=io.BytesIO(archive)) as bundle:
+            for key, name in exports._FILES.items():
+                self.assertEqual(bundle.extractfile(name).read().decode(), artifacts[key])
+
     def test_uninventoried_unattributed_record_does_not_create_coverage_or_cost(self):
         result = self.analyze()
         self.assertEqual(result['completeness']['inventory'], 'unknown')

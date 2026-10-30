@@ -144,7 +144,7 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
         raise ValueError("set path has conflicting ordering declarations")
 
     kind = value.get("kind") if isinstance(value, dict) else None
-    envelope = kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
+    envelope = isinstance(kind, str) and kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
 
     def schema_set(path: tuple[str, ...]) -> bool:
         if kind == "tool_usage" and path == ("evidence_objects",):
@@ -253,13 +253,15 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
     if any(schema_set(path) for path in keys):
         raise ValueError("schema set ordering cannot be overridden")
 
-    def normalize(item: Any, path: tuple[str, ...]) -> Any:
+    def normalize(item: Any, path: tuple[str, ...], array_member: bool = False) -> Any:
         if isinstance(item, dict):
             if any(not isinstance(key, str) for key in item):
                 raise ValueError("JSON object keys must be strings")
             return {key: normalize(child, path + (key,)) for key, child in item.items()}
         if isinstance(item, list):
-            children = [normalize(child, path) for child in item]
+            children = [normalize(child, path, array_member=True) for child in item]
+            if array_member:
+                return children
             if path in keys:
                 return sorted(children, key=lambda child: (keys[path](child), _encode(child)))
             return sorted(children, key=_encode) if path in paths or schema_set(path) else children
@@ -666,7 +668,7 @@ def normalize_source_counters(profile: Any, source: Any, *, profile_version: str
     split = observations.get("input_cache_write", [])
     split_values: list[dict[str, Any]] = []
     split_seen: set[str] = set()
-    split_conflict = False
+    split_conflict = resolved["input_cache_write_unsplit"][2]
     split_complete = bool(split)
     for definition, amount in split:
         ttl = definition["ttl"]
@@ -1379,10 +1381,10 @@ def validate_collection_segment(value: Any) -> dict[str, Any]:
     _private_identifier(scope["owner_id"])
     _choice(value["mode"], frozenset({"on", "off"}))
     _timestamp(value["start"])
-    start = datetime.fromisoformat(value["start"][:-1] + "+00:00")
+    start = _instant(value["start"])
     if value["end"] is not None:
         _timestamp(value["end"])
-        if datetime.fromisoformat(value["end"][:-1] + "+00:00") < start:
+        if _instant(value["end"]) < start:
             raise ValueError("invalid segment boundaries")
     gap = value["gap_before"]
     _fields(gap, {"state", "start", "end"})
@@ -1390,8 +1392,8 @@ def validate_collection_segment(value: Any) -> dict[str, Any]:
     if gap["state"] == "present":
         _timestamp(gap["start"])
         _timestamp(gap["end"])
-        gap_start = datetime.fromisoformat(gap["start"][:-1] + "+00:00")
-        gap_end = datetime.fromisoformat(gap["end"][:-1] + "+00:00")
+        gap_start = _instant(gap["start"])
+        gap_end = _instant(gap["end"])
         if gap_start > gap_end or gap_end > start:
             raise ValueError("invalid gap boundaries")
     elif gap["start"] is not None or gap["end"] is not None:
@@ -2528,13 +2530,18 @@ def validate_current_run_snapshot(value: Any, *, materialized_limit: int | None 
         if selected_bytes > bounds["max_total_bytes"] or reference["sha256"] in part_hashes:
             raise ValueError("invalid part reference")
         part_hashes.add(reference["sha256"])
-    deferred_bundles = any(item["kind"] == "usage_bundle" for item in value.get("part_references", []))
+    deferred_kinds = {item["kind"] for field in ("parts", "part_references")
+                      for item in value.get(field, [])}
+    deferred_bundles = "usage_bundle" in deferred_kinds
     bundles = {}
     for bundle in value["bundles"]:
         validate_usage_bundle(bundle)
         for item in bundle["segments"] + bundle["inventories"]:
             if item["owner_scope"] != scope:
                 raise ValueError("foreign bundle entry")
+        for diagnostic in bundle["diagnostics"]:
+            if diagnostic["kind"] == "diagnostic_measurement" and diagnostic["scope"] != scope:
+                raise ValueError("foreign bundle diagnostic")
         bundles[content_id(bundle)] = bundle
     accepted = set()
     for receipt in value["accepted_receipts"]:
@@ -2543,11 +2550,14 @@ def validate_current_run_snapshot(value: Any, *, materialized_limit: int | None 
             raise ValueError("foreign snapshot receipt")
         digest = receipt["bundle_sha256"]
         bundle = bundles.get(digest)
-        if bundle is None or set(receipt["observation_ids"]) != {
-                observation_id(item) for item in bundle["observations"]}:
+        if ((bundle is None and not deferred_bundles) or
+                (bundle is not None and set(receipt["observation_ids"]) != {
+                    observation_id(item) for item in bundle["observations"]})):
             raise ValueError("receipt is not bound to a snapshot bundle")
         accepted.add(digest)
-    if accepted != set(bundles):
+    if not accepted.issubset(set(bundles)) and not deferred_bundles:
+        raise ValueError("snapshot contains an unbound receipt")
+    if not set(bundles).issubset(accepted) and "usage_accepted" not in deferred_kinds:
         raise ValueError("snapshot contains an unaccepted bundle")
     evidence = {}
     for item in value["inventory_evidence"]:
@@ -2562,8 +2572,9 @@ def validate_current_run_snapshot(value: Any, *, materialized_limit: int | None 
         if inventory["evidence"] is not None:
             item = evidence.get(inventory["evidence"])
             declaration = {key: entry for key, entry in inventory.items() if key != "evidence"}
-            if (item is None or item["inventory_digest"] != content_id(declaration) or
-                    any(item[key] != inventory[key] for key in ("profile_id", "profile_version", "source_hash"))):
+            if ((item is None and "inventory_evidence" not in deferred_kinds) or
+                    (item is not None and (item["inventory_digest"] != content_id(declaration) or
+                     any(item[key] != inventory[key] for key in ("profile_id", "profile_version", "source_hash"))))):
                 raise ValueError("unverified snapshot inventory")
     if "analysis_inputs" in value:
         analysis = value["analysis_inputs"]
@@ -2758,6 +2769,16 @@ def validate_current_run_snapshot(value: Any, *, materialized_limit: int | None 
             raise ValueError("duplicate warning episode scope")
         warning_scopes.add(identity)
     return value
+
+
+def sanitized_snapshot(value):
+    """Bind selected part identities without exposing their local paths."""
+    result = copy.deepcopy(value)
+    if 'parts' in result:
+        references = result.setdefault('part_references', [])
+        references.extend({key: part[key] for key in ('kind', 'sha256', 'size_bytes')}
+                          for part in result.pop('parts'))
+    return result
 
 
 def validate_current_run_snapshot_json(data: str | bytes) -> dict[str, Any]:

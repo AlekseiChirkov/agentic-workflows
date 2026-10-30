@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import secrets
 import stat
+import unicodedata
 
 _SET_FIELDS = frozenset(('metrics', 'groups', 'exclusions', 'contributors', 'terms',
                          'late_data', 'identity_conflicts', 'unpriced', 'durations', 'diagnostics',
@@ -53,6 +54,21 @@ def _shape(value, fields):
 def _label(value):
     if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}', value):
         raise ValueError('invalid report identifier')
+
+
+def _source_identifier(value):
+    if (not isinstance(value, str) or not value or len(value) > 256
+            or any(char in '/\\' or char.isspace() or unicodedata.category(char).startswith('C')
+                   for char in value)):
+        raise ValueError('invalid report identifier')
+
+
+def _group_identifier(value):
+    if isinstance(value, str) and len(value) > 256:
+        for suffix in ('_proven_lower_bound', '_subtotal_only'):
+            if value.endswith(suffix):
+                return _source_identifier(value[:-len(suffix)])
+    _source_identifier(value)
 
 
 def _decimal(value, nullable=False):
@@ -104,9 +120,13 @@ def _validate(value):
             if 'conditional' in row and type(row['conditional']) is not bool:
                 raise ValueError('invalid conditional cost slice')
             _label(row['dimension'])
-            if (not isinstance(row['value'], str) or not
-                    (re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.\-/]{0,127}', row['value']) or
-                     re.fullmatch(r'sha256:[0-9a-f]{64}', row['value']))):
+            slice_value = row['value']
+            if row['dimension'] == 'model':
+                valid = (isinstance(slice_value, str) and len(slice_value) <= 256 and
+                         re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]*(?:/[A-Za-z0-9][A-Za-z0-9._:-]*)?', slice_value))
+            else:
+                valid = isinstance(slice_value, str) and re.fullmatch(r'sha256:[0-9a-f]{64}', slice_value)
+            if not valid:
                 raise ValueError('invalid slice value')
             if type(row['count']) is not int or row['count'] < 0:
                 raise ValueError('invalid slice count')
@@ -153,7 +173,7 @@ def _validate(value):
         for item in value['durations']:
             _shape(item, ('group', 'wall_ms', 'worker_sum_ms', 'coverage_ms', 'exclusive_ms',
                           'coverage_complete', 'unit', 'diagnostics'))
-            _label(item['group'])
+            _source_identifier(item['group'])
             if item['unit'] != 'ms' or type(item['coverage_complete']) is not bool:
                 raise ValueError('invalid duration metadata')
             for field in ('wall_ms', 'worker_sum_ms', 'coverage_ms', 'exclusive_ms'):
@@ -187,7 +207,7 @@ def _validate(value):
         raise ValueError('invalid report version')
     if not isinstance(value['corpus_id'], str) or not re.fullmatch(r'sha256:[0-9a-f]{64}', value['corpus_id']):
         raise ValueError('invalid corpus identifier')
-    _label(value['scenario_id'])
+    _source_identifier(value['scenario_id'])
     for field in ('source_hash', 'expanded_hash'):
         if value[field] is not None and (not isinstance(value[field], str) or not re.fullmatch(r'[0-9a-f]{64}', value[field])):
             raise ValueError('invalid revision hash')
@@ -199,8 +219,8 @@ def _validate(value):
     except ValueError:
         raise ValueError('invalid report timestamp') from None
     _shape(value['versions'], ('normalizer', 'prices'))
-    for version in value['versions'].values():
-        _label(version)
+    _source_identifier(value['versions']['normalizer'])
+    _label(value['versions']['prices'])
     _shape(value['completeness'], ('inventory', 'identity', 'measurements', 'pricing', 'attribution'))
     if any(status not in ('complete', 'partial', 'unknown', 'not_applicable')
            for status in value['completeness'].values()):
@@ -218,7 +238,7 @@ def _validate(value):
         _decimal(metric['value'], nullable=True)
     for group in value['groups']:
         _shape(group, ('name', 'count', 'median', 'p90', 'small_sample'))
-        _label(group['name'])
+        _group_identifier(group['name'])
         if type(group['count']) is not int or group['count'] < 0 or type(group['small_sample']) is not bool:
             raise ValueError('invalid report sample')
         _decimal(group['median'], nullable=True)

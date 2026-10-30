@@ -54,6 +54,32 @@ class ScopedEvidenceTests(unittest.TestCase):
                 policy['money_threshold']['value'] = '0.00289'
                 self.assertEqual(evaluate(snapshot, extra, allowed, policy)['candidates'], [])
 
+    def test_repricing_does_not_create_factual_scoped_spend_warning(self):
+        for kind in ('request', 'span'):
+            with self.subTest(kind=kind):
+                snapshot, extra, allowed, policy, target = scoped(kind)
+                policy['money_threshold']['value'] = '0.004'
+                self.assertEqual(evaluate(snapshot, extra, allowed, policy)['candidates'], [])
+                extra['scenario']['basis'] = 'reprice'
+                price = extra['snapshots'][0]
+                for rate in price['rates']:
+                    rate['usd'] = str(float(rate['usd']) * 2).rstrip('0').rstrip('.')
+                price_id = fixture.contract.price_snapshot_id(price)
+                extra['scenario']['snapshot_ids'] = [price_id]
+                for proof in extra['price_evidence']:
+                    if proof['kind'] == 'price_snapshot_evidence':
+                        proof['snapshot_id'] = price_id
+                allowed = [item for item in allowed if item[0] != 'price']
+                allowed.extend(('price', snapshot['owner_scope'], price, proof)
+                               for proof in extra['price_evidence'])
+                result = evaluate(snapshot, extra, allowed, policy)
+                self.assertEqual(result['candidates'], [])
+                metrics = next(item['metrics'] for item in result['scoped_measurements'] if item['scope'] == target)
+                self.assertNotIn('cost_usd', metrics)
+                snapshot, extra, allowed, policy, target = scoped(kind)
+                policy['money_threshold']['value'] = '0.002'
+                self.assertEqual(evaluate(snapshot, extra, allowed, policy)['candidates'][0]['metric'], 'cost_usd')
+
     def test_span_needs_independently_verified_completion_for_token_warning(self):
         snapshot, extra, allowed, policy, _ = scoped('span')
         policy['money_threshold'] = None

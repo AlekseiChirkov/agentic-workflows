@@ -750,6 +750,9 @@ replay_step_delivery() {
 
 validate_step_projection() {
   local registered='' canonical=''
+  if has_parsed_arg cost_usd && [ "${PARSED_ARGS[cost_usd]}" = '-' ]; then
+    reject_invocation step cost_usd invalid-value; return 1
+  fi
   if ! has_parsed_arg usage_file; then
     if has_parsed_arg cost_usd; then reject_invocation step cost_usd projection-required; return 1; fi
     return 0

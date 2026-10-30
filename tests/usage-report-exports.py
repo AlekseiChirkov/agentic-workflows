@@ -211,6 +211,50 @@ class ExportTests(unittest.TestCase):
             for key, name in exports._FILES.items():
                 self.assertEqual(archive.extractfile(name).read().decode(), artifacts[key])
 
+    def test_contract_identifiers_reach_all_exports_at_boundaries(self):
+        import tarfile
+        value = report()
+        identifier = 'baseline:' + 'x' * 247
+        value['scenario_id'] = identifier
+        value['versions']['normalizer'] = identifier
+        value['groups'][0]['name'] = identifier
+        value['durations'] = [{'group': identifier, 'wall_ms': '1', 'worker_sum_ms': '1',
+                               'coverage_ms': '1', 'exclusive_ms': '1',
+                               'coverage_complete': True, 'unit': 'ms', 'diagnostics': []}]
+        model = 'v/' + 'm' * 254
+        value['slices'] = [{'dimension': 'model', 'value': model, 'count': 1,
+                            'cost_usd': '1', 'coverage': 'complete'}]
+        rendered = render(value)
+        self.assertEqual(rendered, render(copy.deepcopy(value)))
+        for content in rendered.values():
+            self.assertIn(identifier, content)
+            self.assertIn(model, content)
+        archive = exports.archive_exports(rendered)
+        self.assertEqual(archive, exports.archive_exports(render(value)))
+        with tarfile.open(fileobj=io.BytesIO(archive)) as bundle:
+            for key, name in exports._FILES.items():
+                self.assertEqual(bundle.extractfile(name).read().decode(), rendered[key])
+
+    def test_contract_identifier_boundaries_reject_unsafe_values(self):
+        for field in ('scenario', 'normalizer', 'group', 'duration', 'model'):
+            for bad in ('x' * 257, '/private/path', 'bad\nvalue'):
+                item = report()
+                if field == 'scenario':
+                    item['scenario_id'] = bad
+                elif field == 'normalizer':
+                    item['versions']['normalizer'] = bad
+                elif field == 'group':
+                    item['groups'][0]['name'] = bad
+                elif field == 'duration':
+                    item['durations'] = [{'group': bad, 'wall_ms': '1', 'worker_sum_ms': '1',
+                                          'coverage_ms': '1', 'exclusive_ms': '1',
+                                          'coverage_complete': True, 'unit': 'ms', 'diagnostics': []}]
+                else:
+                    item['slices'] = [{'dimension': 'model', 'value': bad, 'count': 1,
+                                       'cost_usd': '1', 'coverage': 'complete'}]
+                with self.subTest(field=field, value=bad), self.assertRaises(ValueError):
+                    render(item)
+
     def test_render_does_not_read_history_or_use_network(self):
         with (patch('socket.create_connection', side_effect=AssertionError('network')),
               patch('pathlib.Path.open', side_effect=AssertionError('implicit read'))):

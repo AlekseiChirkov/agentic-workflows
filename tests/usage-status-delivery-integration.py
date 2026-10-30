@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Exercise pure status proposals through the authorized delivery owner."""
 import importlib.util
+import copy
+import hashlib
 import json
 import os
 import socket
@@ -192,6 +194,51 @@ class StatusDeliveryIntegrationTests(unittest.TestCase):
         self.assertIn('1000', note)
         self.assertIn('unknown', note)
         self.assertIn(self.owner['owner_id'], note)
+
+    def test_empty_parts_manifest_survives_status_and_recovery(self):
+        original = self.state()
+        original['parts'] = []
+        self.state_path.write_text(json.dumps(original), encoding='utf-8')
+        result = self.status()
+        self.assertNotIn('parts', result['proposed_snapshot'])
+        self.assertEqual(result['proposed_snapshot']['part_references'], [])
+        self.assertEqual(len(result['candidates']), 1)
+        report = self.apply(result, destinations={})
+        self.assertEqual(report['warnings'][0]['delivery_state'], 'pending')
+        with self.assertRaisesRegex(ValueError, 'stale owner state'):
+            delivery.apply_revision(self.state_path, original['revision'], result['proposed_snapshot'],
+                                    owner_scope=self.owner, destinations=self.destinations)
+        delivery.resume_delivery(self.state_path, owner_scope=self.owner, destinations=self.destinations)
+        delivery.resume_delivery(self.state_path, owner_scope=self.owner, destinations=self.destinations)
+        self.assertEqual(self.state()['parts'], [])
+        self.assertEqual(self.note_path.read_text().count(result['candidates'][0]['warning_id']), 1)
+
+    def test_selected_segment_and_warning_history_survive_delivery(self):
+        original = self.state()
+        warning = self.status()['candidates'][0]
+        segment = time_fixture.fixture.snapshots.snapshot()['segments'][0]
+        parts = []
+        for name, kind, item in (('segment', 'collection_segment', segment),
+                                 ('warning', 'warning_delivery', warning)):
+            data = json.dumps(item, sort_keys=True, separators=(',', ':')).encode()
+            path = self.root / (name + '.json')
+            path.write_bytes(data)
+            parts.append({'kind': kind, 'local_path': str(path),
+                          'sha256': hashlib.sha256(data).hexdigest(), 'size_bytes': len(data)})
+        original['parts'] = parts
+        self.state_path.write_text(json.dumps(original))
+        result = self.status()
+        self.assertEqual(result['candidates'][0]['warning_id'], warning['warning_id'])
+        altered = copy.deepcopy(result)
+        altered['proposed_snapshot']['warning_delivery'][0]['delivery_state'] = 'delivered'
+        with self.assertRaises(ValueError):
+            self.apply(altered, destinations={})
+        self.apply(result, destinations={})
+        delivery.resume_delivery(self.state_path, owner_scope=self.owner, destinations=self.destinations)
+        self.assertEqual(self.state()['warning_delivery'][0]['delivery_state'], 'delivered')
+        self.assertEqual(self.status()['candidates'], [])
+        self.assertEqual(self.note_path.read_text().count(warning['warning_id']), 1)
+        self.assertCountEqual(self.state()['parts'], parts)
 
     def test_real_status_proposal_is_accepted_and_repeat_does_not_duplicate(self):
         first = self.status()

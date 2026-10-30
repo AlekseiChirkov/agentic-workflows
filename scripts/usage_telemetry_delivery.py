@@ -303,9 +303,16 @@ def apply_revision(state_path, expected_revision, proposal, *, owner_scope, dest
             raise ValueError('stale owner state')
         protected = lambda state: {key: value for key, value in state.items()
                                    if key not in ('revision', 'warning_delivery')}
-        if protected(current) != protected(proposal):
+        expected = _contract.sanitized_snapshot(current)
+        if _contract.canonical_bytes(protected(expected)) != _contract.canonical_bytes(protected(proposal)):
             raise ValueError('status proposal changed owner evidence')
         previous = {item['warning_id']: item for item in current['warning_delivery']}
+        if any(part['kind'] == 'warning_delivery' for part in current.get('parts', [])):
+            spec = importlib.util.spec_from_file_location('_usage_status_cli', Path(__file__).with_name('usage-telemetry.py'))
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            materialized, _, _ = module._snapshot_with_parts(_contract.canonical_bytes(current))
+            previous.update({item['warning_id']: item for item in materialized['warning_delivery']})
         proposed = {item['warning_id']: item for item in proposal['warning_delivery']}
         if not previous.keys() <= proposed.keys():
             raise ValueError('warning history cannot be removed')
@@ -326,10 +333,14 @@ def apply_revision(state_path, expected_revision, proposal, *, owner_scope, dest
                     raise ValueError('pending warning cannot be reset')
                 if old['delivery_state'] != 'delivered' and item['delivery_state'] == 'delivered':
                     raise ValueError('warning confirmation requires delivery')
-        _save(directory, name, proposal, info)
+        accepted = copy.deepcopy(current)
+        accepted['revision'] = proposal['revision']
+        accepted['warning_delivery'] = copy.deepcopy(proposal['warning_delivery'])
+        _contract.validate_current_run_snapshot(accepted)
+        _save(directory, name, accepted, info)
         if checkpoint is not None:
             checkpoint('after_accept')
-        return _deliver(directory, name, copy.deepcopy(proposal), destinations, checkpoint)
+        return _deliver(directory, name, accepted, destinations, checkpoint)
 
 
 def resume_delivery(state_path, *, owner_scope, destinations, checkpoint=None):

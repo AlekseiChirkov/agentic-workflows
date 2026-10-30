@@ -70,6 +70,108 @@ class NormalizeCliTests(unittest.TestCase):
                                '--input-manifest', str(self.manifest)],
                               capture_output=True, text=True, env=env or self.env, timeout=10)
 
+    def test_nonblocking_pipe_never_reports_success_for_truncated_bundle(self):
+        import fcntl
+        self.write_records([self.raw, self.raw, self.raw])
+        expected = self.run_cli().stdout.encode()
+        read_fd, write_fd = os.pipe()
+        try:
+            fcntl.fcntl(write_fd, fcntl.F_SETPIPE_SZ, 4096)
+            os.set_blocking(write_fd, False)
+            result = subprocess.run([sys.executable, '-u', str(CLI), 'normalize',
+                                     '--profile', 'synthetic-profile', '--input-manifest', str(self.manifest)],
+                                    stdout=write_fd, stderr=subprocess.PIPE, env=self.env, timeout=10)
+            os.close(write_fd)
+            write_fd = -1
+            received = os.read(read_fd, len(expected) + 1)
+            if result.returncode == 0:
+                self.assertEqual(received, expected)
+            else:
+                self.assertEqual(result.returncode, 3)
+                self.assertEqual(result.stderr, b'usage telemetry: normalization failed\n')
+        finally:
+            os.close(read_fd)
+            if write_fd >= 0:
+                os.close(write_fd)
+
+    def test_buffered_nonblocking_pipe_reports_sanitized_failure(self):
+        import fcntl
+        self.write_records([self.raw, self.raw, self.raw])
+        env = self.env.copy()
+        env.pop('PYTHONUNBUFFERED', None)
+        read_fd, write_fd = os.pipe()
+        try:
+            fcntl.fcntl(write_fd, fcntl.F_SETPIPE_SZ, 4096)
+            os.set_blocking(write_fd, False)
+            result = subprocess.run([sys.executable, str(CLI), 'normalize',
+                                     '--profile', 'synthetic-profile', '--input-manifest', str(self.manifest)],
+                                    stdout=write_fd, stderr=subprocess.PIPE, env=env, timeout=10)
+            self.assertEqual(result.returncode, 3)
+            self.assertEqual(result.stderr, b'usage telemetry: normalization failed\n')
+        finally:
+            os.close(read_fd)
+            os.close(write_fd)
+
+    def test_all_output_commands_handle_short_and_no_progress_writes(self):
+        import io
+        import usage_telemetry_contract as runtime_contract
+        import usage_telemetry_delivery as delivery
+        import usage_telemetry_report as report
+        import usage_telemetry_exports as exports
+        import usage_telemetry_alerts as alerts
+        cli = load('stream_cli', CLI)
+        class Stream:
+            def __init__(self, fd, mode):
+                self.fd = fd
+                self.buffer = self
+                self.mode = mode
+                self.data = bytearray()
+            def fileno(self):
+                return self.fd
+            def write(self, data):
+                if self.mode in (None, 0):
+                    return self.mode
+                count = min(self.mode, len(data))
+                self.data.extend(data[:count])
+                return count
+            def flush(self):
+                pass
+        read_fd, write_fd = os.pipe()
+        self.addCleanup(os.close, read_fd)
+        self.addCleanup(os.close, write_fd)
+        authority = {'schema_version': 1, 'kind': 'warning_owner_authority',
+                     'owner_scope': {'owner_kind': 'run', 'owner_id': 'sha256:' + 'b' * 64}, 'destinations': []}
+        cases = [
+            (['normalize', '--profile', 'synthetic-profile', '--input-manifest', str(self.manifest)], None),
+            (['status', '--receipt-snapshot', 'snapshot'], b'{"ok":true}'),
+            (['owner-deliver', '--state', 'state', '--owner-authority', 'authority'], b'{"ok":true}'),
+            (['analyze', '--corpus-manifest', 'manifest', '--scenario', 'baseline'], b'archive payload'),
+        ]
+        for args, expected in cases:
+            for mode in (3, None, 0):
+                with self.subTest(command=args[0], mode=mode):
+                    stream = Stream(write_fd, mode)
+                    with patch.object(sys, 'stdout', stream), patch.dict(os.environ, self.env), \
+                         patch.object(cli, '_read_file', side_effect=lambda path, **kw: json.dumps(authority).encode() if path == 'authority' else b'{}' if path in ('snapshot', 'manifest') else Path(path).read_bytes()), \
+                         patch.object(cli, '_snapshot_with_parts', return_value=({}, None, None)), \
+                         patch.object(cli, '_status_authority', return_value=None), \
+                         patch.object(alerts, 'evaluate_status', return_value={'ok': True}), \
+                         patch.object(delivery, 'resume_delivery', return_value={'ok': True}), \
+                         patch.object(runtime_contract, 'validate_analysis_corpus_json', return_value={'scenario_id': 'baseline'}), \
+                         patch.object(cli, '_analysis_authority', return_value=(None, None)), \
+                         patch.object(report, 'analyze_corpus', return_value={}), \
+                         patch.object(exports, 'render_exports', return_value={}), \
+                         patch.object(exports, 'archive_exports', return_value=b'archive payload'):
+                        if mode in (None, 0):
+                            with self.assertRaises(OSError):
+                                cli.main(args)
+                        else:
+                            cli.main(args)
+                            if expected is None:
+                                contract.validate_usage_bundle(json.loads(stream.data))
+                            else:
+                                self.assertEqual(stream.data, expected)
+
     def test_normalize_emits_self_contained_sanitized_bundle(self):
         (self.root / 'private-unselected').write_text('NEIGHBOR_SENTINEL')
         result = self.run_cli()

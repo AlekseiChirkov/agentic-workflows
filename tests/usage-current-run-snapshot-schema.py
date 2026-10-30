@@ -18,6 +18,7 @@ def load(name, path):
 contract = load('contract', 'scripts/usage_telemetry_contract.py')
 fixtures = load('fixtures', 'tests/usage-observation-bundle-schema.py')
 inventories = load('inventories', 'tests/usage-inventory-schema.py')
+diagnostics = load('diagnostics', 'tests/usage-diagnostic-schema.py')
 
 def call(name, *args):
     return getattr(contract, name, lambda *args: None)(*args)
@@ -116,6 +117,51 @@ class CurrentRunSnapshotTests(unittest.TestCase):
         bad = copy.deepcopy(value); bad['inventories'][0]['expected_calls'] = []; variants.append(bad)
         for index, bad in enumerate(variants):
             with self.subTest(index=index), self.assertRaises(ValueError):
+                call('validate_current_run_snapshot', bad)
+
+    def test_bundle_diagnostics_match_snapshot_owner_and_receipt(self):
+        for kind in ('run', 'session'):
+            value = snapshot()
+            owner = {'owner_kind': kind, 'owner_id': opaque('b')}
+            value['owner_scope'] = owner
+            value['segments'][0]['owner_scope'] = owner
+            value['accepted_receipts'][0]['scope'] = owner | {'attribution_quality': 'asserted'}
+            value['inventories'] = []
+            value['inventory_evidence'] = []
+            value['warning_delivery'] = []
+            diagnostic = diagnostics.diagnostic() | {'scope': owner}
+            value['bundles'][0]['diagnostics'] = [diagnostic]
+            value['accepted_receipts'][0]['bundle_sha256'] = contract.content_id(value['bundles'][0])
+            with self.subTest(kind=kind):
+                self.assert_valid(value)
+                for foreign in ({'owner_kind': kind, 'owner_id': opaque('f')},
+                                {'owner_kind': 'session' if kind == 'run' else 'run', 'owner_id': opaque('b')}):
+                    bad = copy.deepcopy(value)
+                    bad['bundles'][0]['diagnostics'][0]['scope'] = foreign
+                    bad['accepted_receipts'][0]['bundle_sha256'] = contract.content_id(bad['bundles'][0])
+                    with self.subTest(foreign=foreign), self.assertRaises(ValueError):
+                        call('validate_current_run_snapshot', bad)
+                bad = copy.deepcopy(value)
+                bad['bundles'][0]['diagnostics'][0]['value'] += 1
+                with self.assertRaises(ValueError):
+                    call('validate_current_run_snapshot', bad)
+
+    def test_receipt_bound_quarantine_diagnostic_preserves_source_binding(self):
+        value = snapshot()
+        bundle = value['bundles'][0]
+        source = bundle['sources'][0]
+        issue = {'schema_version': 1, 'kind': 'source_issue',
+                 'source_id': source['source_id'], 'source_hash': source['sha256'],
+                 'record_number': 1, 'reason': 'source_record_quarantined',
+                 'completeness': 'partial'}
+        bundle['diagnostics'] = [issue, diagnostics.diagnostic() | {'scope': value['owner_scope']}]
+        value['accepted_receipts'][0]['bundle_sha256'] = contract.content_id(bundle)
+        self.assert_valid(value)
+        for field, replacement in (('source_id', opaque('f')), ('source_hash', 'f' * 64)):
+            bad = copy.deepcopy(value)
+            bad['bundles'][0]['diagnostics'][0][field] = replacement
+            bad['accepted_receipts'][0]['bundle_sha256'] = contract.content_id(bad['bundles'][0])
+            with self.subTest(field=field), self.assertRaises(ValueError):
                 call('validate_current_run_snapshot', bad)
 
     def test_delivery_state_is_closed_bounded_and_unique(self):

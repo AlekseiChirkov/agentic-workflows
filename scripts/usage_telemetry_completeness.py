@@ -58,7 +58,9 @@ def calculate_completeness(inventory, evidence, responses, *, scope, verify_inve
     unique = {}
     conflicts = set()
     for item in responses:
-        if (not isinstance(item, dict) or set(item) != {'response_id', 'call_id', 'final', 'measurements', 'priced'}
+        if (not isinstance(item, dict) or set(item) not in (
+                {'response_id', 'call_id', 'final', 'measurements', 'priced'},
+                {'response_id', 'provider', 'provider_scope', 'call_id', 'final', 'measurements', 'priced'})
                 or not isinstance(item['response_id'], str)
                 or not isinstance(item['call_id'], str)
                 or type(item['final']) is not bool or type(item['priced']) is not bool
@@ -66,7 +68,10 @@ def calculate_completeness(inventory, evidence, responses, *, scope, verify_inve
                 or set(item['measurements']) != {'input', 'output'}
                 or any(type(value) is not bool for value in item['measurements'].values())):
             raise ValueError('invalid resolved response')
-        identifier = item['response_id']
+        if 'provider' in item and (not isinstance(item['provider'], str) or
+                                   not isinstance(item['provider_scope'], str)):
+            raise ValueError('invalid resolved response')
+        identifier = (item.get('provider'), item.get('provider_scope'), item['response_id'])
         if identifier in unique and unique[identifier] != item:
             conflicts.add(identifier)
         else:
@@ -76,14 +81,18 @@ def calculate_completeness(inventory, evidence, responses, *, scope, verify_inve
                 and all(inventory['coverage'][dimension] == 'included'
                         for dimension in ('children', 'internal_checks')))
     expected = {item['response_id']: item['call_id'] for item in inventory.get('expected_responses', [])} if verified else {}
-    if complete and any(key not in expected or expected[key] != item['call_id']
-                        for key, item in unique.items()):
+    raw_ids = [item['response_id'] for item in unique.values()]
+    collisions = len(raw_ids) != len(set(raw_ids))
+    if complete and (collisions or any(item['response_id'] not in expected or
+                                      expected[item['response_id']] != item['call_id']
+                                      for item in unique.values())):
         complete = False
     if conflicts:
         complete = False
     denominator = len(expected) if complete else None
     counted = [item for key, item in unique.items() if key not in conflicts and
-               (not verified or key in expected and expected[key] == item['call_id'])]
+               (collisions or not verified or item['response_id'] in expected and
+                expected[item['response_id']] == item['call_id'])]
     finalized = [item for item in counted if item['final']]
     empty = complete and denominator == 0
     finality = _fraction(len(finalized), denominator, empty)

@@ -64,6 +64,7 @@ usage_report_acceptance() {
     tests/usage-multibundle-report.py \
     tests/usage-outcome-tool-cost.py \
     tests/usage-outcome-unattributed-workload.py \
+    tests/usage-offline-acceptance.py \
     tests/usage-report-consumer.py \
     tests/usage-report-dimensions.py \
     tests/usage-report-epochs.py \
@@ -139,15 +140,16 @@ fi
 
 if [ "${1:-}" = --usage-publication-only ]; then
   shift
-  python3 "$REPO_ROOT/tests/usage-usage-publication.py" "$@"
-  python3 "$REPO_ROOT/tests/usage-publication-cli.py" "$@"
-  python3 "$REPO_ROOT/tests/usage-publication-provenance.py" "$@"
-  python3 "$REPO_ROOT/tests/usage-authority-permit.py" "$@"
-  python3 "$REPO_ROOT/tests/usage-authority-rsa.py" "$@"
-  python3 "$REPO_ROOT/tests/usage-authority-rsa-permit.py" "$@"
-  python3 "$REPO_ROOT/tests/usage-publication-run-race.py" "$@"
-  python3 "$REPO_ROOT/tests/usage-publication-close-nonblocking.py" "$@"
-  exec python3 "$REPO_ROOT/tests/usage-publication-late-import.py" "$@"
+  python3 "$REPO_ROOT/tests/usage-usage-publication.py" "$@" || exit $?
+  python3 "$REPO_ROOT/tests/usage-publication-cli.py" "$@" || exit $?
+  python3 "$REPO_ROOT/tests/usage-publication-provenance.py" "$@" || exit $?
+  python3 "$REPO_ROOT/tests/usage-authority-permit.py" "$@" || exit $?
+  python3 "$REPO_ROOT/tests/usage-authority-rsa.py" "$@" || exit $?
+  python3 "$REPO_ROOT/tests/usage-authority-rsa-permit.py" "$@" || exit $?
+  python3 "$REPO_ROOT/tests/usage-publication-run-race.py" "$@" || exit $?
+  python3 "$REPO_ROOT/tests/usage-publication-close-nonblocking.py" "$@" || exit $?
+  python3 "$REPO_ROOT/tests/usage-publication-late-import.py" "$@" || exit $?
+  exec python3 "$REPO_ROOT/tests/usage-legacy-recovery.py" "$@"
 fi
 
 if [ "${1:-}" = --usage-source-normalization-only ]; then

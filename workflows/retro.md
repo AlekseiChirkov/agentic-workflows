@@ -256,6 +256,22 @@ jq '
 ' "$RETRO_DATA"
 ```
 
+### Explicit offline usage analysis
+
+When usage analysis is requested, select its inputs explicitly and freeze a private corpus manifest before analysis. Record each selected input's kind, schema version, absolute path, byte size and SHA-256 digest, the scope, cutoff, scenario, versions, exclusions and bounded read limits. Keep the manifest and its selected bytes unchanged for a reproducible rerun. Obtain an independent signed analysis authority for that exact manifest and its evidence; a digest alone does not establish authenticity or completeness. Do not discover historical usage inputs from active workflows.
+
+Invoke the analyzer with the frozen manifest, matching scenario and authority. Its standard output must be a pipe or socket; a trusted consumer must wait for a successful exit and validate the complete archive before retaining it:
+
+```sh
+python3 scripts/usage-telemetry.py analyze \
+  --corpus-manifest /absolute/private/corpus.json \
+  --scenario SCENARIO_ID \
+  --authority /absolute/private/analysis-authority.json \
+  --authority-key /etc/orchestrail/usage-authorities/authority.pem | trusted-consumer
+```
+
+The archive contains JSON, CSV and Markdown reports. Report missing evidence and coverage separately from measured zero; do not claim savings or complete cost from partial data. See `docs/USAGE-TELEMETRY.md` for trust and publication boundaries.
+
 ### Measured hook intervals
 
 Run the timing helper from the same source checkout as `HELPER`, using the original

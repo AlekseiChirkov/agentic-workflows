@@ -711,6 +711,13 @@ def resolve_usage(*, bundle, profile, contexts, snapshots, scenario, price_evide
         for key, events in measures.items():
             try:
                 event_list = [entry[0] for entry in events]
+                # Finality has already validated revision edges across all snapshots.
+                # Resolve each quantity from the surviving final records only.
+                if final and anchor is not None and anchor['kind'] == 'snapshot':
+                    tip_ids = {event['observation_id'] for event in tips}
+                    event_list = [{key: value for key, value in event.items()
+                                   if key not in ('correction_of', 'correction_verified')}
+                                  for event in event_list if event['observation_id'] in tip_ids]
                 if any(item['kind'] == 'delta' for item in event_list):
                     event_list += terminal_events
                 resolved = stream.resolve_stream(event_list)
@@ -764,7 +771,20 @@ def resolve_usage(*, bundle, profile, contexts, snapshots, scenario, price_evide
             # Unknown or unsplit TTL is still a measured quantity, but cannot
             # select one of the time-specific prices.
             required.extend(split_writes or [('input_cache_write_unsplit', None)])
-        input_known = all(key in values for key in required if key[0] != 'output_total') and not unverified
+        conflict_events = finality_events
+        if finality_result['measurement_state'] == 'final' and anchor is not None and anchor['kind'] == 'snapshot':
+            conflict_events = tips
+        elif finality_result['measurement_state'] == 'partial':
+            event_snapshots = [event for event in finality_events if event['kind'] == 'snapshot']
+            if event_snapshots and len(event_snapshots) == len(finality_events) and all('sequence' in event for event in event_snapshots):
+                latest_sequence = max(event['sequence'] for event in event_snapshots)
+                conflict_events = [event for event in event_snapshots if event['sequence'] == latest_sequence]
+        write_conflict = any(
+            event_sources[event['observation_id']][0]['measurements'].get(
+                'input_cache_write_unsplit', {}).get('measurement_state') == 'conflicted'
+            for event in conflict_events if event['kind'] != 'terminal')
+        input_known = (all(key in values for key in required if key[0] != 'output_total') and
+                       not unverified and not write_conflict)
         output_known = ('output_total', None) in values and not unverified
         final = final and not unverified
         record_priced = final and input_known and output_known and group['additive'] and not ambiguous_context
@@ -787,10 +807,12 @@ def resolve_usage(*, bundle, profile, contexts, snapshots, scenario, price_evide
             if price is None:
                 record_priced = False
                 all_prices = False
-            components.append({'id': response_id[7:] + '_' + str(index), 'quantity': quantity,
+            components.append({'id': contract.content_id(group['identity'])[7:] + '_' + str(index), 'quantity': quantity,
                                'price_usd': None if price is None else price[0],
                                'unit': None if price is None else price[1]})
-        responses.append({'response_id': response_id, 'call_id': next(iter(calls)), 'final': final,
+        responses.append({'response_id': response_id, 'provider': group['identity']['provider'],
+                          'provider_scope': group['identity']['provider_scope'],
+                          'call_id': next(iter(calls)), 'final': final,
                           'measurements': {'input': input_known, 'output': output_known}, 'priced': record_priced})
         per_tokens = {}
         for name, known, value in (
@@ -799,7 +821,7 @@ def resolve_usage(*, bundle, profile, contexts, snapshots, scenario, price_evide
             keys = [key for key in required if (key[0] == 'output_total') == (name == 'output')]
             if known and final:
                 per_tokens[name] = {'value': str(value), 'quality': 'complete'}
-            elif keys and all(key in partial_values for key in keys):
+            elif keys and not (name == 'input' and write_conflict) and all(key in partial_values for key in keys):
                 per_tokens[name] = {'value': str(sum(partial_values[key] for key in keys)), 'quality': 'partial'}
             else:
                 per_tokens[name] = {'quality': 'unavailable'}
@@ -918,7 +940,7 @@ def resolve_usage(*, bundle, profile, contexts, snapshots, scenario, price_evide
     identities_complete = (inventory_verified and inventory['state'] == 'complete' and
                            not inventory['unresolved_slots'] and
                            all(inventory['coverage'][name] == 'included' for name in ('children', 'internal_checks')) and
-                           not identity_uncertain and expected == actual)
+                           not identity_uncertain and len(actual) == len(responses) and expected == actual)
     result = {'completeness': coverage, 'cost': cost, 'tokens': tokens, 'responses': response_details,
               'identity': {'state': 'complete' if identities_complete else 'partial'}}
     if tool_result is not None:

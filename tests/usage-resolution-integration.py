@@ -198,6 +198,94 @@ class ResolutionIntegrationTests(unittest.TestCase):
         self.assertTrue(any(call[2].get('ttl') == '5m' and call[3]['value'] == 100 for call in measurements))
         self.assertTrue(any(call[2].get('ttl') == '1h' and call[3]['value'] == 100 for call in measurements))
 
+    def test_diagnostic_and_replay_leave_paid_accounting_unchanged(self):
+        baseline = self.report()
+        observation_ids = [contract.observation_id(item) for item in self.data['bundle']['observations']]
+        self.assertEqual(len(observation_ids), 2)
+        self.assertEqual(len(set(observation_ids)), 2)
+        self.assertEqual([item['identity']['id'] for item in baseline['responses']],
+                         [opaque('1'), opaque('2')])
+        self.assertEqual([item['observation_ids'] for item in baseline['responses']],
+                         [['sha256:' + observation_ids[0]], ['sha256:' + observation_ids[1]]])
+        self.assertEqual(baseline['tokens'], {
+            'input': {'value': '2000', 'quality': 'complete'},
+            'output': {'value': '200', 'quality': 'complete'}})
+        self.assertEqual(baseline['completeness']['priced'], {'numerator': 1, 'denominator': 2})
+        self.assertEqual(baseline['cost']['priced_subtotal_usd'], '0.00289')
+        self.assertEqual(baseline['cost']['subtotal_quality'], 'proven_lower_bound')
+        self.assertEqual(baseline['responses'][0]['model_cost']['cost_usd'], '0.00289')
+
+        diagnostic = {'schema_version': 1, 'kind': 'diagnostic_measurement',
+                      'metric': 'tool_output.full_bytes', 'value': 8192, 'unit': 'bytes',
+                      'scope': copy.deepcopy(self.data['scope']), 'source_id': opaque('d'),
+                      'quality': 'measured', 'event_id': opaque('f')}
+        contract.validate_diagnostic_measurement(diagnostic)
+        for deliveries in ([diagnostic], [diagnostic, copy.deepcopy(diagnostic)]):
+            with self.subTest(deliveries=len(deliveries)):
+                selected = contract.diagnostic_registry_view(
+                    deliveries, [diagnostic['metric']], diagnostic['scope'], diagnostic['source_id'])
+                self.assertEqual(selected, [diagnostic])
+                self.data['bundle']['diagnostics'] = selected
+                contract.validate_usage_bundle(self.data['bundle'])
+                self.assertEqual([contract.observation_id(item) for item in self.data['bundle']['observations']],
+                                 observation_ids)
+                report = self.report()
+                self.assertEqual(report['responses'], baseline['responses'])
+                self.assertEqual(report['tokens'], baseline['tokens'])
+                self.assertEqual(report['cost'], baseline['cost'])
+                self.assertEqual(report['completeness'], baseline['completeness'])
+
+    def test_scoped_response_collisions_preserve_contributions_and_unknown_coverage(self):
+        for partial in (False, True):
+            for shared_call in (False, True):
+                with self.subTest(partial=partial, shared_call=shared_call):
+                    data, _ = fixture()
+                    first, second = data['bundle']['observations']
+                    second['response_id'] = first['response_id']
+                    second['provider_scope'] = opaque('f')
+                    if shared_call:
+                        second['call_id'] = first['call_id']
+                    context = data['contexts'][1]
+                    context['provider_scope'] = second['provider_scope']
+                    context['observation_id'] = contract.observation_id(second)
+                    if partial:
+                        inventory = data['bundle']['inventories'][0]
+                        inventory['state'] = 'partial'
+                        inventory, evidence = inventories.bind(inventory)
+                        data['bundle']['evidence_objects'][0] = evidence
+                    contract.validate_usage_bundle(data['bundle'])
+                    report = resolve(data, lambda *_: True)
+                    self.assertEqual(len(report['responses']), 2)
+                    self.assertEqual(len({item['identity']['provider_scope'] for item in report['responses']}), 2)
+                    self.assertEqual(report['tokens']['input']['value'], '2000')
+                    self.assertEqual(report['tokens']['output']['value'], '200')
+                    self.assertEqual(report['cost']['priced_subtotal_usd'], '0.00289')
+                    self.assertNotIn('cost_usd', report['cost'])
+                    self.assertEqual(report['identity']['state'], 'partial')
+                    self.assertEqual(report['completeness']['finality'], {'numerator': 2, 'denominator': None})
+                    self.assertEqual(report['completeness']['measurements']['input'], {'numerator': 2, 'denominator': None})
+                    self.assertEqual(report['completeness']['priced'], {'numerator': 1, 'denominator': None})
+
+    def test_scoped_collisions_preserve_both_exact_priced_contributions(self):
+        data, _ = fixture()
+        first, second = data['bundle']['observations']
+        second['response_id'] = first['response_id']
+        second['provider_scope'] = opaque('f')
+        second['source_time'] = first['source_time']
+        context = data['contexts'][1]
+        context['provider_scope'] = second['provider_scope']
+        context['observation_id'] = contract.observation_id(second)
+        context['execution_time'] = data['contexts'][0]['execution_time']
+        next(item for item in context['evidence_objects']
+             if item['kind'] == 'execution_time_evidence')['value'] = context['execution_time']
+        contract.validate_usage_bundle(data['bundle'])
+        report = resolve(data, lambda *_: True)
+        self.assertEqual([item['model_cost']['cost_usd'] for item in report['responses']],
+                         ['0.00289', '0.00289'])
+        self.assertEqual(report['cost']['priced_subtotal_usd'], '0.00578')
+        self.assertNotIn('cost_usd', report['cost'])
+        self.assertEqual(report['completeness']['priced'], {'numerator': 2, 'denominator': None})
+
     def test_untrusted_inventory_never_proves_denominator_or_complete_cost(self):
         self.verifier.allowed = [item for item in self.allowed if item[0] != 'inventory']
         report = self.report()

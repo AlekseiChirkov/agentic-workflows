@@ -194,6 +194,8 @@ def normalize_selection(selection, *, profile, expected_owner_scope, project_ide
     record_count = 0
     evidence = {}
     contexts = []
+    observation_ids = set()
+    context_ids = set()
     for source in selected:
         entry = source_entries[source['source_id']]
         mapped_id = _opaque(key, 'source', source['source_id'])
@@ -256,7 +258,10 @@ def normalize_selection(selection, *, profile, expected_owner_scope, project_ide
                 # Check record-specific output bounds before accepting siblings.
                 from usage_telemetry_contract import validate_observation
                 validate_observation(observation)
-                bundle['observations'].append(observation)
+                identity = observation_id(observation)
+                if identity not in observation_ids:
+                    observation_ids.add(identity)
+                    bundle['observations'].append(observation)
                 epoch_mapping = profile.get('epoch_fields', {})
                 if (epoch_mapping.get('status') == 'verified' and callable(verify_resolution) and
                         observation['counter_scope'] == 'cumulative_epoch' and not source['partial']):
@@ -289,7 +294,10 @@ def normalize_selection(selection, *, profile, expected_owner_scope, project_ide
                 if context is not None:
                     prior[number] = {'observation_id': 'sha256:' + context['observation_id'],
                                      'response_id': observation['response_id'], 'call_id': observation['call_id']}
-                    contexts.append(context)
+                    context_identity = content_id(context)
+                    if context_identity not in context_ids:
+                        context_ids.add(context_identity)
+                        contexts.append(context)
                     wrapper = {'schema_version': 1, 'kind': 'resolution_context_evidence', 'context': context}
                     evidence[content_id(wrapper)] = wrapper
                 for item in converted['evidence_objects']:
