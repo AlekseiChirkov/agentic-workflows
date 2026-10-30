@@ -299,6 +299,7 @@ def _snapshot_with_parts(data):
     destinations = {'usage_bundle': 'bundles', 'usage_accepted': 'accepted_receipts',
                     'inventory': 'inventories', 'inventory_evidence': 'inventory_evidence',
                     'collection_segment': 'segments', 'warning_delivery': 'warning_delivery'}
+    selected_warnings = []
     for part in parts:
         fd = sources._open_regular(part['local_path'])
         try:
@@ -322,8 +323,14 @@ def _snapshot_with_parts(data):
             raise ValueError('selected part digest mismatch')
         item = contract.parse_json(encoded)
         contract._bounded_tree(item)
-        if not isinstance(item, dict) or item.get('kind') != part['kind']:
+        if not isinstance(item, dict) or (part['kind'] != 'warning_delivery' and item.get('kind') != part['kind']):
             raise ValueError('selected part kind mismatch')
+        if part['kind'] == 'warning_delivery':
+            selected_warnings.append(item)
+            records += 1
+            if records > declared['max_records']:
+                raise ValueError('selected record limit exceeded')
+            continue
         if part['kind'] == 'usage_bundle':
             contract.validate_usage_bundle(item)
             records += max(1, len(item['observations']))
@@ -334,15 +341,28 @@ def _snapshot_with_parts(data):
         snapshot[destinations[part['kind']]].append(item)
     snapshot.pop('parts', None)
     limit = declared['max_bytes'] + declared['max_total_bytes']
+    if selected_warnings:
+        selected = deepcopy(snapshot)
+        selected['warning_delivery'] = selected_warnings
+        contract.validate_current_run_snapshot(selected, materialized_limit=limit)
+        overlays = {entry['warning_id']: entry for entry in snapshot['warning_delivery']}
+        for warning in selected_warnings:
+            overlay = overlays.get(warning['warning_id'])
+            if overlay is None:
+                snapshot['warning_delivery'].append(warning)
+                continue
+            immutable = ('warning_id', 'policy_id', 'policy_version', 'scope', 'owner_scope', 'metric', 'episode', 'details')
+            if any(overlay.get(key) != warning.get(key) for key in immutable):
+                raise ValueError('selected warning history changed')
+            if warning['delivery_state'] == 'delivered' and overlay['delivery_state'] != 'delivered':
+                raise ValueError('selected warning confirmation changed')
     contract.validate_current_run_snapshot(snapshot, materialized_limit=limit)
-    if len(contract.canonical_bytes(snapshot)) <= declared['max_bytes']:
-        return snapshot, None, None
-    proposal = manifest
-    proposal['part_references'] = [{key: part[key] for key in ('kind', 'sha256', 'size_bytes')}
-                                   for part in proposal.pop('parts', [])
-                                   if part['kind'] not in ('collection_segment', 'warning_delivery')]
-    proposal['segments'] = deepcopy(snapshot['segments'])
-    proposal['warning_delivery'] = deepcopy(snapshot['warning_delivery'])
+    if 'parts' not in manifest:
+        return snapshot, None, limit
+    proposal = contract.sanitized_snapshot(manifest)
+    existing = {entry['warning_id'] for entry in proposal['warning_delivery']}
+    proposal['warning_delivery'].extend(deepcopy(entry) for entry in snapshot['warning_delivery']
+                                        if entry['warning_id'] not in existing)
     contract.validate_current_run_snapshot(proposal)
     return snapshot, proposal, limit
 

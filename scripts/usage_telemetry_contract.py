@@ -2530,7 +2530,9 @@ def validate_current_run_snapshot(value: Any, *, materialized_limit: int | None 
         if selected_bytes > bounds["max_total_bytes"] or reference["sha256"] in part_hashes:
             raise ValueError("invalid part reference")
         part_hashes.add(reference["sha256"])
-    deferred_bundles = any(item["kind"] == "usage_bundle" for item in value.get("part_references", []))
+    deferred_kinds = {item["kind"] for field in ("parts", "part_references")
+                      for item in value.get(field, [])}
+    deferred_bundles = "usage_bundle" in deferred_kinds
     bundles = {}
     for bundle in value["bundles"]:
         validate_usage_bundle(bundle)
@@ -2548,11 +2550,14 @@ def validate_current_run_snapshot(value: Any, *, materialized_limit: int | None 
             raise ValueError("foreign snapshot receipt")
         digest = receipt["bundle_sha256"]
         bundle = bundles.get(digest)
-        if bundle is None or set(receipt["observation_ids"]) != {
-                observation_id(item) for item in bundle["observations"]}:
+        if ((bundle is None and not deferred_bundles) or
+                (bundle is not None and set(receipt["observation_ids"]) != {
+                    observation_id(item) for item in bundle["observations"]})):
             raise ValueError("receipt is not bound to a snapshot bundle")
         accepted.add(digest)
-    if accepted != set(bundles):
+    if not accepted.issubset(set(bundles)) and not deferred_bundles:
+        raise ValueError("snapshot contains an unbound receipt")
+    if not set(bundles).issubset(accepted) and "usage_accepted" not in deferred_kinds:
         raise ValueError("snapshot contains an unaccepted bundle")
     evidence = {}
     for item in value["inventory_evidence"]:
@@ -2567,8 +2572,9 @@ def validate_current_run_snapshot(value: Any, *, materialized_limit: int | None 
         if inventory["evidence"] is not None:
             item = evidence.get(inventory["evidence"])
             declaration = {key: entry for key, entry in inventory.items() if key != "evidence"}
-            if (item is None or item["inventory_digest"] != content_id(declaration) or
-                    any(item[key] != inventory[key] for key in ("profile_id", "profile_version", "source_hash"))):
+            if ((item is None and "inventory_evidence" not in deferred_kinds) or
+                    (item is not None and (item["inventory_digest"] != content_id(declaration) or
+                     any(item[key] != inventory[key] for key in ("profile_id", "profile_version", "source_hash"))))):
                 raise ValueError("unverified snapshot inventory")
     if "analysis_inputs" in value:
         analysis = value["analysis_inputs"]
@@ -2763,6 +2769,16 @@ def validate_current_run_snapshot(value: Any, *, materialized_limit: int | None 
             raise ValueError("duplicate warning episode scope")
         warning_scopes.add(identity)
     return value
+
+
+def sanitized_snapshot(value):
+    """Bind selected part identities without exposing their local paths."""
+    result = copy.deepcopy(value)
+    if 'parts' in result:
+        references = result.setdefault('part_references', [])
+        references.extend({key: part[key] for key in ('kind', 'sha256', 'size_bytes')}
+                          for part in result.pop('parts'))
+    return result
 
 
 def validate_current_run_snapshot_json(data: str | bytes) -> dict[str, Any]:
