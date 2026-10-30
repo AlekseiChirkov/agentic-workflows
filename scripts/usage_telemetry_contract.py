@@ -151,6 +151,10 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
             ("known_gaps",), ("finality", "signals"),
         }:
             return True
+        if kind == "analysis_corpus" and path in {
+            ("inputs",), ("exclusions",), ("identifier_mappings",),
+        }:
+            return True
         if not envelope:
             return False
         if path[-2:] == ("attribution", "candidates"):
@@ -215,6 +219,7 @@ DIAGNOSTIC_LIMIT = 1024 * 1024
 PRICE_SNAPSHOT_LIMIT = 1024 * 1024
 PRICING_SCENARIO_LIMIT = 1024 * 1024
 WARNING_POLICY_LIMIT = 1024 * 1024
+ANALYSIS_CORPUS_LIMIT = 1024 * 1024
 DIAGNOSTIC_METRICS = {
     "context.loaded_bytes": "bytes",
     "orchestration.tool_calls": "count",
@@ -1170,6 +1175,109 @@ def warning_policy_id(value: Any) -> str:
 
 def validate_warning_policy_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, WARNING_POLICY_LIMIT, validate_warning_policy)
+
+
+def validate_analysis_corpus(value: Any) -> dict[str, Any]:
+    """Validate a closed local selection without accessing or trusting inputs.
+
+    Consumers must check selected bytes, authorization, schema applicability,
+    identifier mappings, and evidence availability at the declared cutoff.
+    """
+    _fields(value, {"schema_version", "kind", "as_of", "scope", "scenario_id",
+                    "versions", "identifier_mappings", "inputs", "exclusions",
+                    "max_source_bytes", "max_total_bytes", "max_records"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"analysis_corpus"}))
+    _timestamp(value["as_of"])
+    _identifier(value["scenario_id"])
+    scope = value["scope"]
+    _fields(scope, {"owner_kind", "owner_id"})
+    _choice(scope["owner_kind"], frozenset({"run", "session", "task", "span", "shared_pool"}))
+    _private_identifier(scope["owner_id"])
+    versions = value["versions"]
+    _fields(versions, {"bundle_schema_version", "receipt_schema_version", "price_schema_version",
+                       "normalizer_version"})
+    for key in ("bundle_schema_version", "receipt_schema_version", "price_schema_version"):
+        _version(versions[key])
+    _identifier(versions["normalizer_version"])
+    for key in ("max_source_bytes", "max_total_bytes", "max_records"):
+        validate_counter(value[key])
+    if value["max_records"] == 0:
+        raise ValueError("record limit must be positive")
+
+    inputs = value["inputs"]
+    if not isinstance(inputs, list) or not 1 <= len(inputs) <= 10000:
+        raise ValueError("invalid selected input count")
+    paths: set[str] = set()
+    total = 0
+    for item in inputs:
+        _fields(item, {"kind", "schema_version", "local_path", "sha256", "size_bytes"},
+                {"verified_prefix_bytes"})
+        _choice(item["kind"], frozenset({"lifecycle_event", "usage_bundle", "inventory",
+                                         "price_snapshot", "acceptance_revision"}))
+        _version(item["schema_version"])
+        path = item["local_path"]
+        if (not isinstance(path, str) or not path or
+                any(char in "*?[]" or unicodedata.category(char).startswith("C") for char in path)):
+            raise ValueError("invalid local input path")
+        if path in paths:
+            raise ValueError("duplicate selected input")
+        paths.add(path)
+        _hash(item["sha256"])
+        size = validate_counter(item["size_bytes"])
+        selected = size
+        if "verified_prefix_bytes" in item:
+            selected = validate_counter(item["verified_prefix_bytes"])
+            if selected > size:
+                raise ValueError("selected prefix exceeds declared input size")
+        if selected > value["max_source_bytes"]:
+            raise ValueError("selected input exceeds byte limit")
+        total += selected
+    if total > value["max_total_bytes"]:
+        raise ValueError("selected inputs exceed total byte limit")
+
+    mappings = value["identifier_mappings"]
+    if not isinstance(mappings, list) or len(mappings) > 10000:
+        raise ValueError("invalid identifier mapping count")
+    mapped: set[str] = set()
+    for mapping in mappings:
+        _fields(mapping, {"from_id", "to_id", "quality"})
+        _private_identifier(mapping["from_id"])
+        if mapping["from_id"] in mapped:
+            raise ValueError("duplicate identifier mapping")
+        mapped.add(mapping["from_id"])
+        _choice(mapping["quality"], frozenset({"unknown", "asserted", "verified", "inferred"}))
+        if mapping["quality"] == "unknown":
+            if mapping["to_id"] is not None:
+                raise ValueError("unknown mapping has no destination")
+        else:
+            _private_identifier(mapping["to_id"])
+
+    exclusions = value["exclusions"]
+    if not isinstance(exclusions, list) or len(exclusions) > 10000:
+        raise ValueError("invalid exclusion count")
+    seen_exclusions: set[bytes] = set()
+    for exclusion in exclusions:
+        _fields(exclusion, {"input_sha256", "reason"})
+        _hash(exclusion["input_sha256"])
+        _identifier(exclusion["reason"])
+        encoded = canonical_bytes(exclusion)
+        if encoded in seen_exclusions:
+            raise ValueError("duplicate exclusion")
+        seen_exclusions.add(encoded)
+    if len(canonical_bytes(value)) > ANALYSIS_CORPUS_LIMIT:
+        raise ValueError("analysis corpus exceeds byte limit")
+    return value
+
+
+def analysis_corpus_id(value: Any) -> str:
+    """Identify the declared local selection, not evidence validity."""
+    return content_id(validate_analysis_corpus(value))
+
+
+def validate_analysis_corpus_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, ANALYSIS_CORPUS_LIMIT, validate_analysis_corpus)
 
 
 def validate_source_selection_json(data: str | bytes) -> dict[str, Any]:
