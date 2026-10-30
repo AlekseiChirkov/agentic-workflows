@@ -94,6 +94,24 @@ class NormalizeCliTests(unittest.TestCase):
             if write_fd >= 0:
                 os.close(write_fd)
 
+    def test_buffered_nonblocking_pipe_reports_sanitized_failure(self):
+        import fcntl
+        self.write_records([self.raw, self.raw, self.raw])
+        env = self.env.copy()
+        env.pop('PYTHONUNBUFFERED', None)
+        read_fd, write_fd = os.pipe()
+        try:
+            fcntl.fcntl(write_fd, fcntl.F_SETPIPE_SZ, 4096)
+            os.set_blocking(write_fd, False)
+            result = subprocess.run([sys.executable, str(CLI), 'normalize',
+                                     '--profile', 'synthetic-profile', '--input-manifest', str(self.manifest)],
+                                    stdout=write_fd, stderr=subprocess.PIPE, env=env, timeout=10)
+            self.assertEqual(result.returncode, 3)
+            self.assertEqual(result.stderr, b'usage telemetry: normalization failed\n')
+        finally:
+            os.close(read_fd)
+            os.close(write_fd)
+
     def test_all_output_commands_handle_short_and_no_progress_writes(self):
         import io
         import usage_telemetry_contract as runtime_contract
