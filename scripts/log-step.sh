@@ -1162,6 +1162,26 @@ cmd_active() {
 }
 
 
+# The caller supplies the selector and receives the selected paths via dynamic scope.
+lint_select_files() {
+  local file
+  # Bash glob expansion follows LC_ALL=C and preserves arbitrary filename bytes.
+  if [ "$selector" = --stdin ]; then
+    selected+=(/dev/stdin)
+  elif [ -n "$selector" ]; then
+    for file in "$RUNS_DIR"/*-"$selector".jsonl; do
+      [ -e "$file" ] || [ -L "$file" ] || continue
+      selected+=("$file")
+    done
+  else
+    for file in "$RUNS_DIR"/*.jsonl; do
+      [ -e "$file" ] || [ -L "$file" ] || continue
+      selected+=("$file")
+    done
+  fi
+}
+
+
 # Lint is a read-only consumer: no initialization or metadata lookup is needed.
 cmd_lint() {
   local selector='' status=ok files=0 lines=0 invalid_lines=0 violations=0
@@ -1197,20 +1217,7 @@ cmd_lint() {
   if [ "$selector" != --stdin ] && { [ ! -d "$RUNS_DIR" ] || [ ! -r "$RUNS_DIR" ] || [ ! -x "$RUNS_DIR" ]; }; then
     warn 'lint corpus unavailable'; status=unavailable; lint_summary; return 0
   fi
-  # Bash glob expansion follows LC_ALL=C and preserves arbitrary filename bytes.
-  if [ "$selector" = --stdin ]; then
-    selected+=(/dev/stdin)
-  elif [ -n "$selector" ]; then
-    for file in "$RUNS_DIR"/*-"$selector".jsonl; do
-      [ -e "$file" ] || [ -L "$file" ] || continue
-      selected+=("$file")
-    done
-  else
-    for file in "$RUNS_DIR"/*.jsonl; do
-      [ -e "$file" ] || [ -L "$file" ] || continue
-      selected+=("$file")
-    done
-  fi
+  lint_select_files
   for key in "${!RUN_LOG_CONTRACT[@]}"; do
     contract+="$separator\"$(json_escape "$key")\":\"$(json_escape "${RUN_LOG_CONTRACT[$key]}")\""
     separator=,
