@@ -5,8 +5,7 @@ The offline normalizer reads only the ordinary files explicitly listed in a sour
 ```sh
 USAGE_TELEMETRY_CONFIG=/absolute/private/config.json \
   python3 scripts/usage-telemetry.py normalize \
-  --profile PROFILE_ID --input-manifest /absolute/selection.json \
-  --output /absolute/private/bundle.json
+  --profile PROFILE_ID --input-manifest /absolute/selection.json | trusted-consumer
 ```
 
 The configuration is an explicit operator trust decision. It must be a regular file owned by the current user with mode `0600`, accessed without symlinks. Keep it and its parent directories private. It has this structure:
@@ -27,6 +26,6 @@ Replace `profile` with a complete validated source profile and its digest with t
 
 Set `run_id` to the existing lifecycle run identifier: exactly eight lowercase hexadecimal characters. The helper does not verify that this identifier proves ownership or that the run exists.
 
-The manifest declares source paths, digests, observation time, attribution and all required byte and record limits. The helper verifies the profile, scope and limits before opening source files. Invalid containers produce no output; invalid individual records are omitted and recorded as sanitized partial diagnostics. The output is a self-contained usage bundle and must be outside `ORCHESTRAIL_LOG_ROOT/usage/v1` (or `logs/usage/v1` if unset). Only the logging producer can publish to shared storage. Errors intentionally omit local paths and payloads.
+The manifest declares source paths, digests, observation time, attribution and all required byte and record limits. The helper verifies the profile, scope and limits before opening source files. Invalid containers produce no bundle; invalid individual records are omitted and recorded as sanitized partial diagnostics. The complete canonical bundle is emitted to standard output only after validation and normalization. Standard output must be a pipe or socket; file and terminal output are rejected. The former `--output FILE` interface is no longer supported. Errors intentionally omit local paths and payloads.
 
-Use an output directory whose location and all parent directories are controlled by the operator for the entire command. Do not run concurrent processes that can rename that directory or move it into the shared store. The helper rejects symlinked destinations and detects a directory moved before its checks, failing closed when its current location cannot be verified through `/proc/self/fd`. These checks cannot prevent a concurrent rename between a check and a filesystem operation; ordinary permissions do not isolate mutually untrusted processes running under the same user ID. An environment with such processes needs separate operating-system isolation before using this command.
+The helper does not create output files. The receiving process is responsible for preserving the bundle and for any atomic installation; it must keep its output outside the shared usage store. Only the logging producer may publish there. This boundary does not prevent a caller or receiving process from independently writing or redirecting data into the store. A shell may create or truncate a redirected file before the helper starts, so do not redirect standard output directly to a file. A broken pipe can leave the receiver with partial bytes; consumers must check the helper's exit status and validate the complete bundle before using it.
