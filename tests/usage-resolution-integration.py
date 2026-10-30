@@ -266,6 +266,26 @@ class ResolutionIntegrationTests(unittest.TestCase):
                     self.assertEqual(report['completeness']['measurements']['input'], {'numerator': 2, 'denominator': None})
                     self.assertEqual(report['completeness']['priced'], {'numerator': 1, 'denominator': None})
 
+    def test_scoped_collisions_preserve_both_exact_priced_contributions(self):
+        data, _ = fixture()
+        first, second = data['bundle']['observations']
+        second['response_id'] = first['response_id']
+        second['provider_scope'] = opaque('f')
+        second['source_time'] = first['source_time']
+        context = data['contexts'][1]
+        context['provider_scope'] = second['provider_scope']
+        context['observation_id'] = contract.observation_id(second)
+        context['execution_time'] = data['contexts'][0]['execution_time']
+        next(item for item in context['evidence_objects']
+             if item['kind'] == 'execution_time_evidence')['value'] = context['execution_time']
+        contract.validate_usage_bundle(data['bundle'])
+        report = resolve(data, lambda *_: True)
+        self.assertEqual([item['model_cost']['cost_usd'] for item in report['responses']],
+                         ['0.00289', '0.00289'])
+        self.assertEqual(report['cost']['priced_subtotal_usd'], '0.00578')
+        self.assertNotIn('cost_usd', report['cost'])
+        self.assertEqual(report['completeness']['priced'], {'numerator': 2, 'denominator': None})
+
     def test_untrusted_inventory_never_proves_denominator_or_complete_cost(self):
         self.verifier.allowed = [item for item in self.allowed if item[0] != 'inventory']
         report = self.report()
