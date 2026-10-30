@@ -2,6 +2,8 @@
 """Exercise pure status proposals through the authorized delivery owner."""
 import importlib.util
 import json
+import os
+import socket
 from pathlib import Path
 import subprocess
 import tempfile
@@ -75,8 +77,11 @@ class StatusDeliveryIntegrationTests(unittest.TestCase):
         shared_note.write_text('Shared evidence.\n', encoding='utf-8')
         shared_note.chmod(0o600)
         authority = self.root / 'owner.json'
-        env = {**__import__('os').environ, 'ORCHESTRAIL_LOG_ROOT': str(self.root / 'logs')}
-        for state, note in ((shared_state, self.note_path), (self.state_path, shared_note)):
+        alias = self.root / 'shared-alias'
+        alias.symlink_to(shared, target_is_directory=True)
+        env = {**os.environ, 'ORCHESTRAIL_LOG_ROOT': str(self.root / 'logs')}
+        for state, note in ((shared_state, self.note_path), (self.state_path, shared_note),
+                            (alias / 'state.json', self.note_path), (self.state_path, alias / 'note.md')):
             with self.subTest(shared_state=state == shared_state):
                 authority.write_text(json.dumps({'schema_version': 1, 'kind': 'warning_owner_authority',
                     'owner_scope': self.owner, 'destinations': [{'scope': self.owner, 'path': str(note)}]}))
@@ -89,6 +94,31 @@ class StatusDeliveryIntegrationTests(unittest.TestCase):
                 self.assertNotEqual(process.returncode, 0)
                 self.assertEqual([path.read_bytes() for path in paths], before)
                 self.assertEqual(process.stdout, b'')
+                self.assertFalse((shared / '.state.json.lock').exists())
+                self.assertFalse((self.root / '.state.json.lock').exists())
+
+    def test_owner_command_accepts_socket_output(self):
+        authority = self.root / 'owner-socket.json'
+        authority.write_text(json.dumps({'schema_version': 1, 'kind': 'warning_owner_authority',
+            'owner_scope': self.owner, 'destinations': []}), encoding='utf-8')
+        authority.chmod(0o600)
+        command = ['python3', str(ROOT / 'scripts/usage-telemetry.py'), 'owner-deliver',
+                   '--state', str(self.state_path), '--owner-authority', str(authority)]
+        reader, writer = socket.socketpair()
+        try:
+            result = subprocess.run(command, stdout=writer, stderr=subprocess.PIPE)
+            writer.close()
+            output = b''
+            while True:
+                chunk = reader.recv(4096)
+                if not chunk:
+                    break
+                output += chunk
+        finally:
+            reader.close()
+            writer.close()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(output)['warnings'], [])
 
     def test_owner_command_rejects_regular_output_before_any_mutation(self):
         result = self.status()
