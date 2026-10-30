@@ -5,9 +5,7 @@ import hashlib
 import hmac
 import json
 import os
-from pathlib import Path
 import re
-import secrets
 import stat
 import sys
 
@@ -97,98 +95,51 @@ def _config(path, profile_id):
         raise ValueError('invalid private configuration') from None
 
 
-def _output_directory(path):
-    """Open a destination directory without following symlinks or shared-store aliases."""
-    path = os.path.abspath(path)
-    parent, name = os.path.split(path)
-    if not name or name in ('.', '..'):
-        raise ValueError('invalid output')
-    log_root = os.environ.get('ORCHESTRAIL_LOG_ROOT') or str(Path(__file__).resolve().parents[1] / 'logs')
-    shared = os.path.realpath(os.path.join(log_root, 'usage', 'v1'))
-    if os.path.commonpath((os.path.realpath(parent), shared)) == shared:
-        raise ValueError('output is in shared storage')
-    parts = [part for part in parent.split('/') if part]
-    directory = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    try:
-        for part in parts:
-            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
-            os.close(directory)
-            directory = child
-        return directory, name, parent, log_root
-    except BaseException:
-        os.close(directory)
-        raise
-
-
-def _check_destination(directory, parent, log_root):
-    # Fail closed if the opened directory was moved or the kernel cannot expose
-    # its current location. The operator must still prevent concurrent renames.
-    actual = os.readlink('/proc/self/fd/' + str(directory))
-    shared = os.path.realpath(os.path.join(log_root, 'usage', 'v1'))
-    if actual != parent or os.path.commonpath((actual, shared)) == shared:
-        raise ValueError('output directory changed')
-
-
-def _publish(directory, name, parent, log_root, data):
-    temp = '.usage-' + secrets.token_hex(16) + '.tmp'
-    fd = None
-    try:
-        _check_destination(directory, parent, log_root)
-        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
-        with os.fdopen(fd, 'wb') as stream:
-            fd = None
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-        _check_destination(directory, parent, log_root)
-        os.replace(temp, name, src_dir_fd=directory, dst_dir_fd=directory)
-    finally:
-        if fd is not None:
-            os.close(fd)
-        try:
-            os.unlink(temp, dir_fd=directory)
-        except FileNotFoundError:
-            pass
-
-
 def main(argv=None):
     parser = Parser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     normalize = commands.add_parser('normalize')
     normalize.add_argument('--profile', required=True)
     normalize.add_argument('--input-manifest', required=True)
-    normalize.add_argument('--output', required=True)
-    normalize.add_argument('--provenance-output')
+    normalize.add_argument('--provenance-fd', type=int)
     args = parser.parse_args(argv)
     config, profile, key = _config(os.environ.get('USAGE_TELEMETRY_CONFIG'), args.profile)
     selection = validate_source_selection_json(_read_file(args.input_manifest))
     if (selection['profile_id'] != args.profile or selection['profile_version'] != profile['profile_version'] or
             selection['owner_scope'] != config['owner_scope']):
         raise ValueError('selection does not match trusted configuration')
-    directory, name, parent, log_root = _output_directory(args.output)
-    try:
-        result = adapter.normalize_selection(selection, profile=profile,
-                    expected_owner_scope=config['owner_scope'], project_identifier=config['project_identifier'],
-                    provider_identifier=config['provider_identifier'], run_id=config['run_id'], key=key)
-        bundle = result['bundle']
-        encoded = canonical_bytes(bundle)
-        if args.provenance_output:
-            proof = {'schema_version': 1, 'kind': 'usage_provenance',
-                     'bundle_sha256': hashlib.sha256(encoded).hexdigest(),
-                     'profile_id': bundle['profile_id'], 'profile_version': bundle['profile_version'],
-                     'scope': config['owner_scope']}
-            proof['mac'] = hmac.new(key, b'orchestrail:usage-provenance:v1\0' +
-                                    canonical_bytes(proof), hashlib.sha256).hexdigest()
-            proof_dir, proof_name, proof_parent, proof_log = _output_directory(args.provenance_output)
-            try:
-                if os.path.abspath(args.output) == os.path.abspath(args.provenance_output):
-                    raise ValueError('provenance output must be separate')
-                _publish(proof_dir, proof_name, proof_parent, proof_log, canonical_bytes(proof))
-            finally:
-                os.close(proof_dir)
-        _publish(directory, name, parent, log_root, encoded)
-    finally:
-        os.close(directory)
+    output_stat = os.fstat(sys.stdout.fileno())
+    if not (stat.S_ISFIFO(output_stat.st_mode) or stat.S_ISSOCK(output_stat.st_mode)):
+        raise ValueError('output must be a pipe or socket')
+    if args.provenance_fd is not None:
+        if args.provenance_fd < 3:
+            raise ValueError('invalid provenance descriptor')
+        proof_stat = os.fstat(args.provenance_fd)
+        if not (stat.S_ISFIFO(proof_stat.st_mode) or stat.S_ISSOCK(proof_stat.st_mode)):
+            raise ValueError('provenance must be a pipe or socket')
+        if (proof_stat.st_dev, proof_stat.st_ino) == (output_stat.st_dev, output_stat.st_ino):
+            raise ValueError('provenance and output must be separate')
+    result = adapter.normalize_selection(selection, profile=profile,
+                expected_owner_scope=config['owner_scope'], project_identifier=config['project_identifier'],
+                provider_identifier=config['provider_identifier'], run_id=config['run_id'], key=key)
+    bundle = result['bundle']
+    encoded = canonical_bytes(bundle)
+    if args.provenance_fd is not None:
+        proof = {'schema_version': 1, 'kind': 'usage_provenance',
+                 'bundle_sha256': hashlib.sha256(encoded).hexdigest(),
+                 'profile_id': bundle['profile_id'], 'profile_version': bundle['profile_version'],
+                 'scope': config['owner_scope']}
+        proof['mac'] = hmac.new(key, b'orchestrail:usage-provenance:v1\0' +
+                                canonical_bytes(proof), hashlib.sha256).hexdigest()
+        data = memoryview(canonical_bytes(proof))
+        while data:
+            written = os.write(args.provenance_fd, data)
+            if written <= 0:
+                raise OSError('provenance write failed')
+            data = data[written:]
+    sys.stdout.buffer.write(encoded)
+    sys.stdout.buffer.flush()
+
 
 
 if __name__ == '__main__':

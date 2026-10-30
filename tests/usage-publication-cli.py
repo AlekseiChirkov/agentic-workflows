@@ -51,7 +51,8 @@ class PublicationCliTests(unittest.TestCase):
         fixture.write_manifest()
         result = self.run_cli()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.bundle = json.loads(self.output.read_text())
+        self.bundle = json.loads(result.stdout)
+        self.output.write_text(result.stdout)
         self.provenance = self.root / 'private-provenance.json'
         self.env.update(ORCHESTRAIL_USAGE_MODE='on',
                         USAGE_TELEMETRY_PROVENANCE=str(self.provenance))
@@ -148,12 +149,49 @@ class PublicationCliTests(unittest.TestCase):
     def test_normalizer_produces_verifiable_private_provenance(self):
         self.output.unlink()
         self.provenance.unlink()
-        result = subprocess.run([sys.executable, str(base.CLI), 'normalize', '--profile',
-            'synthetic-profile', '--input-manifest', str(self.manifest), '--output', str(self.output),
-            '--provenance-output', str(self.provenance)], env=self.env, capture_output=True, text=True, timeout=10)
+        read_fd, write_fd = os.pipe()
+        try:
+            result = subprocess.run([sys.executable, str(base.CLI), 'normalize', '--profile',
+                'synthetic-profile', '--input-manifest', str(self.manifest),
+                '--provenance-fd', str(write_fd)], env=self.env, capture_output=True,
+                pass_fds=(write_fd,), timeout=10)
+        finally:
+            os.close(write_fd)
+        with os.fdopen(read_fd, 'rb') as stream:
+            proof = stream.read()
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.output.write_bytes(result.stdout)
+        self.provenance.write_bytes(proof)
+        self.provenance.chmod(0o600)
         self.assertEqual(self.provenance.stat().st_mode & 0o777, 0o600)
         self.no_receipt(self.ingest())
+
+    def test_provenance_regular_file_descriptor_is_rejected_without_output(self):
+        self.provenance.write_bytes(b'existing evidence')
+        with self.provenance.open('ab') as target:
+            result = subprocess.run([sys.executable, str(base.CLI), 'normalize', '--profile',
+                'synthetic-profile', '--input-manifest', str(self.manifest),
+                '--provenance-fd', str(target.fileno())], env=self.env, capture_output=True,
+                pass_fds=(target.fileno(),), timeout=10)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'')
+        self.assertEqual(self.provenance.read_bytes(), b'existing evidence')
+        self.assertNotIn(str(self.source).encode(), result.stderr)
+
+    def test_closed_provenance_pipe_fails_without_bundle(self):
+        read_fd, write_fd = os.pipe()
+        os.close(read_fd)
+        try:
+            result = subprocess.run([sys.executable, str(base.CLI), 'normalize', '--profile',
+                'synthetic-profile', '--input-manifest', str(self.manifest),
+                '--provenance-fd', str(write_fd)], env=self.env, capture_output=True,
+                pass_fds=(write_fd,), timeout=10)
+        finally:
+            os.close(write_fd)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'')
+        self.assertNotIn(str(self.source).encode(), result.stderr)
+        self.assertNotIn(b'Traceback', result.stderr)
 
     def test_concurrent_publications_create_one_file_and_valid_receipts(self):
         # Concurrent author-controlled submissions cannot bypass authority.
