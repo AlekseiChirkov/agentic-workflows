@@ -108,6 +108,36 @@ class SelectedPartsTests(base.StatusCommandTests):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertFalse(self.output.exists())
 
+    def test_selected_bundle_quarantine_diagnostic_preserves_source_binding(self):
+        for valid in (True, False):
+            with self.subTest(valid=valid):
+                snapshot = copy.deepcopy(self.original)
+                bundle_path = Path(snapshot['parts'][0]['local_path'])
+                bundle = json.loads(bundle_path.read_text())
+                source = bundle['sources'][0]
+                bundle['diagnostics'] = [{'schema_version': 1, 'kind': 'source_issue',
+                    'source_id': source['source_id'],
+                    'source_hash': source['sha256'] if valid else 'f' * 64,
+                    'record_number': 1, 'reason': 'source_record_quarantined',
+                    'completeness': 'partial'}]
+                encoded = contract.canonical_bytes(bundle)
+                bundle_path.write_bytes(encoded)
+                snapshot['parts'][0].update(sha256=hashlib.sha256(encoded).hexdigest(), size_bytes=len(encoded))
+                receipt_path = Path(snapshot['parts'][1]['local_path'])
+                receipt = json.loads(receipt_path.read_text())
+                receipt['bundle_sha256'] = contract.content_id(bundle)
+                encoded = contract.canonical_bytes(receipt)
+                receipt_path.write_bytes(encoded)
+                snapshot['parts'][1].update(sha256=hashlib.sha256(encoded).hexdigest(), size_bytes=len(encoded))
+                self.save(snapshot)
+                result = self.run_status()
+                if valid:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.output.unlink()
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(self.output.exists())
+
     def test_symlink_selected_part_is_not_followed(self):
         target = Path(self.parts[0]['local_path'])
         saved = self.root / 'replacement.json'

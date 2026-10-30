@@ -146,6 +146,24 @@ class CurrentRunSnapshotTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     call('validate_current_run_snapshot', bad)
 
+    def test_receipt_bound_quarantine_diagnostic_preserves_source_binding(self):
+        value = snapshot()
+        bundle = value['bundles'][0]
+        source = bundle['sources'][0]
+        issue = {'schema_version': 1, 'kind': 'source_issue',
+                 'source_id': source['source_id'], 'source_hash': source['sha256'],
+                 'record_number': 1, 'reason': 'source_record_quarantined',
+                 'completeness': 'partial'}
+        bundle['diagnostics'] = [issue, diagnostics.diagnostic() | {'scope': value['owner_scope']}]
+        value['accepted_receipts'][0]['bundle_sha256'] = contract.content_id(bundle)
+        self.assert_valid(value)
+        for field, replacement in (('source_id', opaque('f')), ('source_hash', 'f' * 64)):
+            bad = copy.deepcopy(value)
+            bad['bundles'][0]['diagnostics'][0][field] = replacement
+            bad['accepted_receipts'][0]['bundle_sha256'] = contract.content_id(bad['bundles'][0])
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                call('validate_current_run_snapshot', bad)
+
     def test_delivery_state_is_closed_bounded_and_unique(self):
         value = snapshot()
         self.assert_valid(value)
