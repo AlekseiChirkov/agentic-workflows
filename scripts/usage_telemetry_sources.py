@@ -26,6 +26,10 @@ def _path_parts(path):
     return parts
 
 
+class SourceReadError(ValueError, OSError):
+    """A selected local source could not be read safely."""
+
+
 def _open_regular(path):
     """Open each path component without following symlinks, including races."""
     if not hasattr(os, 'O_NOFOLLOW') or not hasattr(os, 'O_DIRECTORY'):
@@ -50,7 +54,7 @@ def _open_regular(path):
             raise
         return descriptor
     except (OSError, OverflowError):
-        raise ValueError('cannot safely open selected source') from None
+        raise SourceReadError('cannot safely open selected source') from None
     finally:
         if directory is not None:
             os.close(directory)

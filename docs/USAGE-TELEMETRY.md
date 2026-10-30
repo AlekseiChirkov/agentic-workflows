@@ -69,3 +69,45 @@ Active publication is authorized when its registered scope is checked. A publica
 
 The verifier needs the optional Python `cryptography` package with Ed25519 support. Missing dependencies, an unregistered key, invalid permissions, a missing permit or an invalid signature produce no receipt and no publication. Publication does not reread the selected source files or search the run history.
 
+
+## Offline retrospective reports
+
+The `analyze` command takes an explicitly selected corpus manifest, a matching
+scenario ID, and an independently signed analysis authority and trusted key.
+It emits a deterministic tar archive containing `report.json`, `report.csv`,
+and `report.md` to standard output, which must be a pipe or socket. The
+analyzer itself does not publish files. A separate publisher invokes the analyzer
+and waits for successful completion before installing the complete archive.
+A broken pipe or other write failure can leave a partial archive; the caller must
+discard it unless the command succeeds and the archive validates.
+Inputs are hash checked and bounded by the manifest cutoff; unavailable evidence
+remains unavailable in the report.
+
+Cumulative intervals remain separate from response token and cost totals. A
+selected interval is evaluated only when independent first-observed timestamps
+are supplied for its wrapper and each nested evidence object, all at or before
+the corpus cutoff. The existing interval, snapshot, boundary, inventory and
+privacy authorizations are also required. Missing or late evidence is excluded.
+
+The separate `usage-report-publish.py` command requires `--directory-fd FD`,
+`--name NAME`, `--protected-directory-acknowledged`, and the same corpus,
+scenario, authority and authority-key options as `analyze`. It invokes the
+analyzer itself; an arbitrary incoming pipe is not accepted. It validates the
+entire archive, regenerates all three formats from the JSON, and
+refuses truncated or inconsistent input. It writes an unnamed temporary inode
+and installs the archive under the requested name with an atomic no-replace
+link. An exact retry succeeds; different existing content is a conflict. A producer failure prevents publication even if it emitted a complete archive.
+Exit code 2 indicates invalid or unsupported input; 3 indicates a read or write
+failure. A failure after the
+link may leave a complete installed archive; retrying the exact bytes resolves
+that uncertainty. Unsupported unnamed temporary files or atomic linking fail
+closed.
+
+The acknowledgement enables publication only for a protected deployment; it
+does not itself enforce protection. The directory descriptor is an explicit
+trust boundary: the operator must supply
+a directory outside shared usage storage and prevent all concurrent mutation or
+relocation of it and its ancestors, including by processes with the same UID.
+The consumer checks the location but cannot make that concurrency guarantee.
+The operator must also protect published files against later modification or
+deletion; the consumer alone does not provide durable filesystem immutability.

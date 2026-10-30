@@ -1162,39 +1162,13 @@ cmd_active() {
 }
 
 
-# Lint is a read-only consumer: no initialization or metadata lookup is needed.
-cmd_lint() {
-  local selector='' status=ok files=0 lines=0 invalid_lines=0 violations=0
-  local key contract='{' separator='' file record diagnostics issue encoded_lines line_number checked failed=0
-  local -a selected=()
-  local LC_ALL=C
-  lint_summary() {
-    printf '{"kind":"summary","status":"%s","files":%d,"lines":%d,"invalid_lines":%d,"violations":%d}\n' \
-      "$status" "$files" "$lines" "$invalid_lines" "$violations"
-  }
-  if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != --all ] && ! valid_run_id "$1"; }; then
-    warn 'lint argument invalid-selection'
-    status=unavailable; lint_summary; return 0
-  fi
-  [ "$#" -eq 0 ] || [ "$1" = --all ] || selector="$1"
-  if ! command -v jq >/dev/null 2>&1 || ! jq -n -e 'true' >/dev/null 2>&1; then
-    warn 'lint tooling unavailable'
-    status=unavailable; lint_summary; return 0
-  fi
-  if [ ! -e "$RUNS_DIR" ] && [ ! -L "$RUNS_DIR" ]; then
-    # A missing store is an empty corpus, unless a present ancestor cannot be searched.
-    local ancestor="$RUNS_DIR"
-    while [ ! -e "$ancestor" ] && [ "$ancestor" != / ]; do ancestor="${ancestor%/*}"; [ -n "$ancestor" ] || ancestor=/; done
-    if [ ! -d "$ancestor" ] || [ ! -x "$ancestor" ]; then
-      warn 'lint corpus unavailable'; status=unavailable
-    fi
-    lint_summary; return 0
-  fi
-  if [ ! -d "$RUNS_DIR" ] || [ ! -r "$RUNS_DIR" ] || [ ! -x "$RUNS_DIR" ]; then
-    warn 'lint corpus unavailable'; status=unavailable; lint_summary; return 0
-  fi
+# The caller supplies the selector and receives the selected paths via dynamic scope.
+lint_select_files() {
+  local file
   # Bash glob expansion follows LC_ALL=C and preserves arbitrary filename bytes.
-  if [ -n "$selector" ]; then
+  if [ "$selector" = --stdin ]; then
+    selected+=(/dev/stdin)
+  elif [ -n "$selector" ]; then
     for file in "$RUNS_DIR"/*-"$selector".jsonl; do
       [ -e "$file" ] || [ -L "$file" ] || continue
       selected+=("$file")
@@ -1205,13 +1179,52 @@ cmd_lint() {
       selected+=("$file")
     done
   fi
+}
+
+
+# Lint is a read-only consumer: no initialization or metadata lookup is needed.
+cmd_lint() {
+  local selector='' status=ok files=0 lines=0 invalid_lines=0 violations=0
+  local key contract='{' separator='' file record diagnostics issue encoded_lines line_number checked failed=0
+  local -a selected=()
+  local LC_ALL=C
+  lint_summary() {
+    printf '{"kind":"summary","status":"%s","files":%d,"lines":%d,"invalid_lines":%d,"violations":%d}\n' \
+      "$status" "$files" "$lines" "$invalid_lines" "$violations"
+  }
+  if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != --all ] && [ "$1" != --stdin ] && ! valid_run_id "$1"; }; then
+    warn 'lint argument invalid-selection'
+    status=unavailable; lint_summary; return 0
+  fi
+  if [ "$#" -eq 1 ] && [ "$1" = --stdin ]; then
+    selector=--stdin
+  else
+    [ "$#" -eq 0 ] || [ "$1" = --all ] || selector="$1"
+  fi
+  if ! command -v jq >/dev/null 2>&1 || ! jq -n -e 'true' >/dev/null 2>&1; then
+    warn 'lint tooling unavailable'
+    status=unavailable; lint_summary; return 0
+  fi
+  if [ "$selector" != --stdin ] && [ ! -e "$RUNS_DIR" ] && [ ! -L "$RUNS_DIR" ]; then
+    # A missing store is an empty corpus, unless a present ancestor cannot be searched.
+    local ancestor="$RUNS_DIR"
+    while [ ! -e "$ancestor" ] && [ "$ancestor" != / ]; do ancestor="${ancestor%/*}"; [ -n "$ancestor" ] || ancestor=/; done
+    if [ ! -d "$ancestor" ] || [ ! -x "$ancestor" ]; then
+      warn 'lint corpus unavailable'; status=unavailable
+    fi
+    lint_summary; return 0
+  fi
+  if [ "$selector" != --stdin ] && { [ ! -d "$RUNS_DIR" ] || [ ! -r "$RUNS_DIR" ] || [ ! -x "$RUNS_DIR" ]; }; then
+    warn 'lint corpus unavailable'; status=unavailable; lint_summary; return 0
+  fi
+  lint_select_files
   for key in "${!RUN_LOG_CONTRACT[@]}"; do
     contract+="$separator\"$(json_escape "$key")\":\"$(json_escape "${RUN_LOG_CONTRACT[$key]}")\""
     separator=,
   done
   contract+='}'
   for file in "${selected[@]}"; do
-    if [ ! -f "$file" ] || [ ! -r "$file" ]; then
+    if [ "$selector" != --stdin ] && { [ ! -f "$file" ] || [ ! -r "$file" ]; }; then
       warn 'lint file unreadable'; failed=1; continue
     fi
     # Encode raw physical lines before Bash sees them: shell variables cannot retain NUL.

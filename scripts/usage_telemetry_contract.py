@@ -153,6 +153,11 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
                 kind == "usage_bundle" and path == ("evidence_objects", "context", "evidence_objects") or
                 kind == "current_run_snapshot" and path == ("bundles", "evidence_objects", "context", "evidence_objects")):
             return True
+        if ((kind == "outcome_attempt" and path == ("response_ids",)) or
+                (kind == "duration_graph" and path == ("event_hashes",)) or
+                (kind == "experimental_inventory" and path == ("expected_attempt_ids",)) or
+                (kind == "ownership_selection" and path in {("owner_scopes",), ("entries",), ("entries", "attribution", "candidates")})):
+            return True
         if kind == "derived_measurement_evidence" and path in {
             ("operands",), ("profile", "counter_fields"), ("profile", "counter_fields", "includes"),
             ("profile", "known_gaps"), ("profile", "finality", "signals"),
@@ -1991,7 +1996,10 @@ def validate_analysis_corpus(value: Any) -> dict[str, Any]:
         _fields(item, {"kind", "schema_version", "local_path", "sha256", "size_bytes"},
                 {"verified_prefix_bytes"})
         _choice(item["kind"], frozenset({"lifecycle_event", "usage_bundle", "inventory",
-                                         "price_snapshot", "acceptance_revision"}))
+                                         "price_snapshot", "acceptance_revision", "source_profile",
+                                         "pricing_scenario", "resolution_context", "price_evidence", "outcome_opportunity",
+                                         "outcome_attempt", "duration_graph", "experimental_inventory",
+                                         "revision_metadata", "ownership_selection", "dimension_evidence", "tool_usage"}))
         _version(item["schema_version"])
         path = item["local_path"]
         if (not isinstance(path, str) or not path or
@@ -2584,6 +2592,216 @@ def validate_source_profile_json(data: str | bytes) -> dict[str, Any]:
 
 def validate_usage_bundle_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, BUNDLE_LIMIT, validate_usage_bundle)
+
+
+def validate_tool_usage_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, OBSERVATION_LIMIT, validate_tool_usage)
+
+
+def _opportunity_identity(value: Any) -> None:
+    _fields(value, {"task_revision", "input_revision", "acceptance_contract", "strategy", "repetition"})
+    for name in ("task_revision", "input_revision", "acceptance_contract", "strategy"):
+        _identifier(value[name])
+    if validate_counter(value["repetition"]) == 0:
+        raise ValueError("invalid opportunity repetition")
+
+
+def validate_outcome_opportunity(value: Any) -> dict[str, Any]:
+    _fields(value, {"schema_version", "kind", "identity", "observed_at"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"outcome_opportunity"}))
+    _opportunity_identity(value["identity"])
+    _timestamp(value["observed_at"])
+    return value
+
+
+def validate_outcome_attempt(value: Any) -> dict[str, Any]:
+    _fields(value, {"schema_version", "kind", "attempt_id", "opportunity", "response_ids",
+                    "category", "complete", "observed_at"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"outcome_attempt"}))
+    _identifier(value["attempt_id"])
+    _opportunity_identity(value["opportunity"])
+    _choice(value["category"], frozenset({"workload", "production_verification", "experimental_evaluation"}))
+    if type(value["complete"]) is not bool:
+        raise ValueError("invalid attempt completeness")
+    references = value["response_ids"]
+    if not isinstance(references, list) or len(references) > 10000:
+        raise ValueError("invalid response references")
+    for reference in references:
+        _private_identifier(reference)
+    if len(set(references)) != len(references):
+        raise ValueError("duplicate response reference")
+    _timestamp(value["observed_at"])
+    return value
+
+
+def validate_acceptance_revision(value: Any) -> dict[str, Any]:
+    _fields(value, {"schema_version", "kind", "opportunity", "status", "revision", "observed_at",
+                    "acceptance_contract", "evaluator_id", "evidence_id"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"acceptance_revision"}))
+    _opportunity_identity(value["opportunity"])
+    _choice(value["status"], frozenset({"accepted", "rejected", "defect"}))
+    if validate_counter(value["revision"]) == 0:
+        raise ValueError("invalid acceptance revision")
+    _timestamp(value["observed_at"])
+    _identifier(value["acceptance_contract"])
+    if value["acceptance_contract"] != value["opportunity"]["acceptance_contract"]:
+        raise ValueError("acceptance contract mismatch")
+    _private_identifier(value["evaluator_id"])
+    _private_identifier(value["evidence_id"])
+    return value
+
+
+def validate_duration_graph(value: Any) -> dict[str, Any]:
+    _fields(value, {"schema_version", "kind", "run_id", "root_checkpoint_id", "group",
+                    "event_hashes", "complete", "observed_at"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"duration_graph"}))
+    for field in ("run_id", "root_checkpoint_id", "group"):
+        _identifier(value[field])
+    if type(value["complete"]) is not bool:
+        raise ValueError("invalid graph completeness")
+    hashes = value["event_hashes"]
+    if not isinstance(hashes, list) or not 1 <= len(hashes) <= 10000:
+        raise ValueError("invalid graph event references")
+    for digest in hashes:
+        _hash(digest)
+    if len(set(hashes)) != len(hashes):
+        raise ValueError("duplicate graph event reference")
+    _timestamp(value["observed_at"])
+    return value
+
+
+def validate_dimension_evidence(value: Any) -> dict[str, Any]:
+    _fields(value, {'schema_version', 'kind', 'scope', 'observation_id', 'dimensions', 'observed_at'})
+    _bounded_tree(value)
+    _version(value['schema_version'])
+    _choice(value['kind'], frozenset({'dimension_evidence'}))
+    _fields(value['scope'], {'owner_kind', 'owner_id'})
+    _choice(value['scope']['owner_kind'], frozenset({'run', 'session', 'task', 'span', 'shared_pool'}))
+    _private_identifier(value['scope']['owner_id'])
+    _hash(value['observation_id'])
+    _timestamp(value['observed_at'])
+    dimensions = value['dimensions']
+    allowed = {'run', 'opportunity', 'root_approach', 'stage', 'role', 'effort', 'attempt'}
+    if not isinstance(dimensions, dict) or not dimensions or not set(dimensions) <= allowed:
+        raise ValueError('invalid report dimensions')
+    for identifier in dimensions.values():
+        _private_identifier(identifier)
+    return value
+
+
+def validate_dimension_evidence_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, OBSERVATION_LIMIT, validate_dimension_evidence)
+
+
+def validate_revision_metadata(value: Any) -> dict[str, Any]:
+    _fields(value, {'schema_version', 'kind', 'scope', 'source_hash', 'expanded_hash', 'observed_at'})
+    _bounded_tree(value)
+    _version(value['schema_version'])
+    _choice(value['kind'], frozenset({'revision_metadata'}))
+    _fields(value['scope'], {'owner_kind', 'owner_id'})
+    _choice(value['scope']['owner_kind'], frozenset({'run', 'session', 'task', 'span', 'shared_pool'}))
+    _private_identifier(value['scope']['owner_id'])
+    _hash(value['source_hash'])
+    _hash(value['expanded_hash'])
+    _timestamp(value['observed_at'])
+    return value
+
+
+def validate_ownership_selection(value: Any) -> dict[str, Any]:
+    _fields(value, {'schema_version', 'kind', 'owner_scopes', 'entries', 'observed_at'})
+    _bounded_tree(value)
+    _version(value['schema_version'])
+    _choice(value['kind'], frozenset({'ownership_selection'}))
+    _timestamp(value['observed_at'])
+    scopes = value['owner_scopes']
+    entries = value['entries']
+    if not isinstance(scopes, list) or len(scopes) > 256 or not isinstance(entries, list) or len(entries) > 10000:
+        raise ValueError('invalid ownership selection')
+    seen = set()
+    for scope in scopes:
+        _fields(scope, {'owner_kind', 'owner_id'})
+        _choice(scope['owner_kind'], frozenset({'run', 'session', 'task', 'span', 'shared_pool'}))
+        _private_identifier(scope['owner_id'])
+        key = canonical_bytes(scope)
+        if key in seen:
+            raise ValueError('duplicate ownership scope')
+        seen.add(key)
+    for entry in entries:
+        _fields(entry, {'observation_id', 'observed_at', 'attribution'})
+        _hash(entry['observation_id'])
+        _timestamp(entry['observed_at'])
+        attr = entry['attribution']
+        _fields(attr, {'response_id', 'provider', 'provider_scope', 'owner_kind', 'owner_id', 'candidates', 'basis'})
+        for key in ('response_id', 'provider_scope', 'owner_id'):
+            _private_identifier(attr[key])
+        _identifier(attr['provider'])
+        _choice(attr['owner_kind'], frozenset({'task', 'span', 'shared_pool', 'unattributed'}))
+        _choice(attr['basis'], frozenset({'submission', 'correlation', 'verified_import'}))
+        candidates = attr['candidates']
+        if not isinstance(candidates, list) or len(candidates) > 64:
+            raise ValueError('invalid attribution candidates')
+        for candidate in candidates:
+            _private_identifier(candidate)
+        if len(set(candidates)) != len(candidates):
+            raise ValueError('duplicate attribution candidate')
+    return value
+
+
+def validate_revision_metadata_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, OBSERVATION_LIMIT, validate_revision_metadata)
+
+
+def validate_ownership_selection_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, OBSERVATION_LIMIT, validate_ownership_selection)
+
+
+def validate_experimental_inventory(value: Any) -> dict[str, Any]:
+    _fields(value, {"schema_version", "kind", "scope", "state", "expected_attempt_ids", "observed_at"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"experimental_inventory"}))
+    scope = value["scope"]
+    _fields(scope, {"owner_kind", "owner_id"})
+    _choice(scope["owner_kind"], frozenset({"run", "session", "task", "span", "shared_pool"}))
+    _private_identifier(scope["owner_id"])
+    _choice(value["state"], frozenset({"complete", "partial", "unknown"}))
+    attempts = value["expected_attempt_ids"]
+    if not isinstance(attempts, list) or len(attempts) > 10000:
+        raise ValueError("invalid experimental inventory")
+    for attempt in attempts:
+        _identifier(attempt)
+    if len(set(attempts)) != len(attempts) or (value["state"] == "unknown" and attempts):
+        raise ValueError("invalid experimental inventory")
+    _timestamp(value["observed_at"])
+    return value
+
+
+def validate_experimental_inventory_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, OBSERVATION_LIMIT, validate_experimental_inventory)
+
+
+def validate_outcome_opportunity_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, OBSERVATION_LIMIT, validate_outcome_opportunity)
+
+
+def validate_outcome_attempt_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, OBSERVATION_LIMIT, validate_outcome_attempt)
+
+
+def validate_acceptance_revision_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, OBSERVATION_LIMIT, validate_acceptance_revision)
+
+
+def validate_duration_graph_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, OBSERVATION_LIMIT, validate_duration_graph)
 
 
 def validate_tool_usage_json(data: str | bytes) -> dict[str, Any]:
