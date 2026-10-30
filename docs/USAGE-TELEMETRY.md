@@ -34,9 +34,9 @@ The helper does not create output files. The receiving process is responsible fo
 
 Publication requires an independent authority. The bundle author and the local configuration key cannot authorize the bundle themselves. This repository verifies permits but does not supply or deploy the external authority that reviews sources and issues them. Without that authority, publication fails closed and returns no acceptance receipt. The existing lifecycle logger continues to exit successfully when publication is unavailable.
 
-An administrator must install the authority's Ed25519 public key in PEM format under `/etc/orchestrail/usage-authorities/`, with a filename ending in `.pem`. The file and every directory from `/` must be owned by root and must not be writable by the group or others; symbolic links are rejected. Keep the signing key outside the bundle author's control. A root-owned public key outside this registry is not an authority registration.
+An administrator must install the authority's RSA SubjectPublicKeyInfo public key in PEM format under `/etc/orchestrail/usage-authorities/`, with a filename ending in `.pem`. The file and every directory from `/` must be owned by root and must not be writable by the group or others; symbolic links are rejected. Keep the signing key outside the bundle author's control. A root-owned public key outside this registry is not an authority registration.
 
-Set `USAGE_TELEMETRY_AUTHORITY_KEY` to the registered public-key path before `run-start`. The producer records its fingerprint for that run. The active run's project must match `project_identifier` in the private configuration; the configuration and bundle must name the same run. For a run-scoped owner, `owner_id` is the domain-separated keyed identifier derived from the registered run ID. A different key, run, owner, project, profile or bundle is rejected. Only active runs are currently eligible; a closed run has no active registration and is rejected.
+Set `USAGE_TELEMETRY_AUTHORITY_KEY` to the registered public-key path before `run-start`. The producer records its fingerprint for that run. The active run's project must match `project_identifier` in the private configuration; the configuration and bundle must name the same run. For a run-scoped owner, `owner_id` is the domain-separated keyed identifier derived from the registered run ID. A different key, run, owner, project, profile or bundle is rejected. Ordinary publication requires an active run. An independently authorized late import can publish after closure.
 
 The independent authority must verify the selected sources and the normalized bundle before it signs a permit. It signs the following canonical JSON object, excluding the `signature` field, prefixed with the bytes `orchestrail:usage-authority:v1` followed by one NUL byte:
 
@@ -52,7 +52,7 @@ The independent authority must verify the selected sources and the normalized bu
 }
 ```
 
-Add the Ed25519 signature as a lowercase hexadecimal `signature` field and save the resulting permit in an explicitly selected, current-user-owned `0600` file. The permit contains no source paths or raw source content. A signature verifies the authority's approval of this exact bundle and scope; it is not a substitute for the authority's independent source verification.
+Sign using RSA PKCS#1 v1.5 and SHA-256, then add the signature as a lowercase hexadecimal `signature` field and save the resulting permit in an explicitly selected, current-user-owned `0600` file. The permit contains no source paths or raw source content. A signature verifies the authority's approval of this exact bundle and scope; it is not a substitute for the authority's independent source verification.
 
 Provide `--provenance-fd N` with an inherited writable pipe or socket descriptor distinct from standard output to receive the canonical provenance object. A trusted consumer must persist both streams in private files only after checking the normalizer's exit status. Either stream can be incomplete on an I/O failure; do not use either unless the command succeeds. The provenance file must be owned by the current user with mode `0600`. Its MAC checks consistency with the local configuration, but cannot by itself establish independent provenance. With the registered key and a separately issued permit, invoke publication as follows:
 
@@ -67,8 +67,17 @@ USAGE_TELEMETRY_AUTHORITY_PERMIT=/absolute/private/permit.json \
 
 Active publication is authorized when its registered scope is checked. A publication already in progress may finish installing its immutable bundle after the run closes; if closure is detected, it returns no receipt. Closing a run does not wait for an in-progress installation. A new publication started after closure requires an explicitly authorized late import.
 
-The verifier needs the optional Python `cryptography` package with Ed25519 support. Missing dependencies, an unregistered key, invalid permissions, a missing permit or an invalid signature produce no receipt and no publication. Publication does not reread the selected source files or search the run history.
+RSA verification uses the Python standard library. Ed25519 verification additionally requires the optional `cryptography` package. An unregistered key, invalid permissions, a missing permit or an invalid signature produce no receipt and no publication. Publication does not reread the selected source files or search the run history.
 
+
+
+## Disable, resume and recover
+
+Collection is off by default. Set `ORCHESTRAIL_USAGE_MODE=off` or omit it to disable publication; leave the existing usage store and lifecycle files intact. Legacy lifecycle logging remains available without the optional usage dependencies. To resume, set the mode to `on` for an eligible run and use the same private configuration, explicitly selected source and independently authorized permit. Disabling collection does not fill gaps or change earlier evidence.
+
+An absent receipt is not a confirmed rejection: installation may have completed before the response was lost, or the run may have closed while installation was in progress. Retain the exact canonical bundle bytes, provenance, configuration and authority permit. Once the cause is understood, retry publication with those exact bytes and the same authorization; an already installed identical bundle is recognized as a duplicate. Do not regenerate the observation time or invoke a model for recovery. If the run has closed, use the separately authorized late-import path with `--late-certificate` and the registration authority key. A confirmed validation or authorization rejection requires correcting the cause and obtaining any required new authorization; do not treat a missing response as proof of rejection. Never overwrite accepted evidence.
+
+Pricing uses explicitly selected, independently supported price evidence. Preserve the original scenario and inputs when updating rates; use a new scenario for changed prices, and leave unavailable prices unknown. API-rate estimates are distinct from subscription charges. Token and price coverage must be reported separately; a receipt does not establish completeness or pricing accuracy.
 
 ## Offline retrospective reports
 
