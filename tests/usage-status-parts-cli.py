@@ -61,6 +61,16 @@ class SelectedPartsTests(base.StatusCommandTests):
         self.assertCountEqual(proposal['part_references'], [{key: part[key] for key in ('kind', 'sha256', 'size_bytes')}
                                                             for part in self.original['parts']])
         owner = self.original['owner_scope']
+        for change in ('reference', 'mode'):
+            tampered = copy.deepcopy(proposal)
+            if change == 'reference':
+                tampered['part_references'][0]['sha256'] = 'f' * 64
+            else:
+                tampered['mode'] = 'on' if tampered['mode'] == 'off' else 'off'
+            with self.assertRaises(ValueError):
+                delivery.apply_revision(self.snapshot, self.original['revision'], tampered,
+                                        owner_scope=owner, destinations={})
+            self.assertEqual(json.loads(self.snapshot.read_text()), self.original)
         note = self.root / 'run.md'
         note.write_text('Notes.\n')
         note.chmod(0o600)
