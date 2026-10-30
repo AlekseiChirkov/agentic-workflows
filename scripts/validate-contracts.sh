@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+# Check canonical usage encoding with isolated offline fixtures.
+if [ "${1:-}" = --usage-canonical-only ]; then
+  shift
+  exec python3 "$REPO_ROOT/tests/usage-canonical-encoding.py" "$@"
+fi
+
 # Run every cached-selection contract with fictional isolated inputs and no providers.
 if [ "${1:-}" = --model-workflow-only ]; then
   shift
@@ -4547,6 +4553,17 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
 check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
   "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
 # ── End public identity smoke checks ────────────────────────────────
+
+# Run the canonical encoding fixtures during ordinary validation as well.
+test_usage_canonical_acceptance() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/usage-canonical-encoding.py" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_usage_canonical_acceptance" \
+  "$(test_usage_canonical_acceptance && echo pass || echo 'canonical usage encoding fixtures must pass')"
 
 # Workflow entry points and bootstrap contracts are checked without model calls.
 test_model_catalog_acceptance() {
