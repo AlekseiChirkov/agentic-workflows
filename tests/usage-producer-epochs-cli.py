@@ -103,7 +103,7 @@ class EpochCliTests(unittest.TestCase):
 
     def invoke(self, *, permit=True):
         args = [sys.executable, str(self.bootstrap), str(ROOT / 'scripts/usage-telemetry.py'), 'normalize',
-                '--profile', self.profile['profile_id'], '--input-manifest', str(self.manifest), '--output', str(self.output)]
+                '--profile', self.profile['profile_id'], '--input-manifest', str(self.manifest)]
         if permit:
             args += ['--epoch-permit', str(self.permit)]
         return subprocess.run(args, env=self.env, capture_output=True, text=True, timeout=20)
@@ -111,12 +111,12 @@ class EpochCliTests(unittest.TestCase):
     def test_real_cli_with_signed_exact_decisions_emits_resolvable_own_bundle(self):
         run = self.invoke()
         self.assertEqual(run.returncode, 0, run.stderr)
-        bundle = json.loads(self.output.read_text())
+        bundle = json.loads(run.stdout)
         self.assertEqual(contract.validate_usage_bundle(bundle), bundle)
         self.assertEqual(len([item for item in bundle['evidence_objects'] if item.get('kind') == 'epoch_interval_evidence']), 1)
         result = self.fixture.resolve({'bundle': bundle})
         self.assertEqual(result['epochs']['aggregate']['total'], '20')
-        self.assertNotIn('PRIVATE_EPOCH', self.output.read_text())
+        self.assertNotIn('PRIVATE_EPOCH', run.stdout)
 
     def test_different_root_authority_key_cannot_replace_registered_key(self):
         other_private = self.root / 'other-private.pem'
@@ -132,25 +132,25 @@ class EpochCliTests(unittest.TestCase):
         before = self.active.read_bytes()
         result = self.invoke()
         self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(self.output.exists())
+        self.assertEqual(result.stdout, '')
         self.assertEqual(self.active.read_bytes(), before)
 
     def test_missing_forged_or_wrong_scope_permit_never_authorizes(self):
         run = self.invoke(permit=False)
         self.assertNotEqual(run.returncode, 0)
-        self.assertFalse(self.output.exists())
+        self.assertEqual(run.stdout, '')
         forged = self.body | {'scope': self.fixture.scope | {'owner_id': base.opaque('f')}}
         self.write_permit(forged)
         run = self.invoke()
         self.assertNotEqual(run.returncode, 0)
-        self.assertFalse(self.output.exists())
+        self.assertEqual(run.stdout, '')
         self.write_permit(self.body)
         data = json.loads(self.permit.read_text())
         data['signature'] = '00' * 256
         self.permit.write_bytes(contract.canonical_bytes(data))
         run = self.invoke()
         self.assertNotEqual(run.returncode, 0)
-        self.assertFalse(self.output.exists())
+        self.assertEqual(run.stdout, '')
 
 
 if __name__ == '__main__':
