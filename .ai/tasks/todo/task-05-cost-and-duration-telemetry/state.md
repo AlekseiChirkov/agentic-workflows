@@ -5,7 +5,7 @@ flow: full
 ## Phases
 - discovery: complete
 - execution: complete
-- validation: complete
+- validation: in-progress
 
 ## Open Questions (batch)
 None.
@@ -56,8 +56,8 @@ None.
 
 ## Decomposition
 - decomposition: complete
-- subtasks: T-01, T-01a, T-01b, T-01e, T-01f, T-01h, T-01i, T-01j, T-01k, T-01l, T-01m, T-01n, T-01o, T-01p, T-01q, T-01r, T-01s, T-01g, T-01c, T-01d, T-02a, T-02b, T-02c, T-02, T-03, T-04, T-06, T-07, T-08
-- composites: T-01 (completed contract leaves; integration validation pending); T-02 (T-02a, T-02b, T-02c; integration validation pending)
+- subtasks: T-01, T-01a, T-01b, T-01e, T-01f, T-01h, T-01i, T-01j, T-01k, T-01l, T-01m, T-01n, T-01o, T-01p, T-01q, T-01r, T-01s, T-01g, T-01c, T-01d, T-02a, T-02b, T-02c, T-02, T-03, T-04, T-06, T-07, T-08, T-01t, T-01u, T-01v, T-01w, T-01x, T-01y, T-02d, T-02e, T-09, T-10, T-11, T-12, T-13, T-14, T-15, T-01z, T-16, T-17
+- composites: T-01 (26 contract and corrective leaves); T-02 (5 adapter and corrective leaves); final combined integration validation pending
 - consolidation: user requested five capability-oriented work items; original descriptions, plan and progress are preserved in `superseded/`.
 
 ## Solution Design
@@ -68,7 +68,7 @@ None.
 ### Decision
 Choose A. The Python 3.10+ standard-library helper is optional, explicitly invoked and works only on selected inputs. The existing producer remains the sole shared usage-store writer, exits zero on every path and preserves legacy operation without Python or jq. The source modules identified by leaf descriptions are initial boundaries, subject to adjustment when independently validated; no service or background process is introduced.
 
-adr: .ai/adr/0016-task-05-additive-usage-telemetry.md (Provisional)
+adr: .ai/adr/0016-task-05-additive-usage-telemetry.md (Accepted)
 
 The public format change is additive: export a telemetry schema section from the existing producer contract, retaining the existing lifecycle event vocabulary. Version 1 telemetry envelopes use the specification's named kinds, fields, measurement states, fixed observation time, bounds and canonical UTF-8 JSON/SHA-256 rules. Usage bundles are self-contained and content-addressed under `usage/v1/`; receipt identity proves publication only. Optional first-acceptance projections carry their own evidence and never enrich an accepted replay. Unknown data remains absent or explicitly typed rather than zero. Existing historical records retain their original interpretation. Schema definitions, serialization and validation are shared by normalization, producer publication and offline analysis; no reader may invent a second incompatible schema. Exact field definitions and test vectors must be established in the contract component before an adapter or producer is published.
 
@@ -110,8 +110,8 @@ No prompts, responses, source contents, credentials or source paths enter shared
 
 ## Subtask Progress
 
-[composite] T-01 | Usage contract | rollup: done | integration-validation: complete
-  children: T-01a, T-01b, T-01e, T-01f, T-01h, T-01i, T-01j, T-01k, T-01l, T-01m, T-01n, T-01o, T-01p, T-01q, T-01r, T-01s, T-01g, T-01c, T-01d
+[composite] T-01 | Usage contract | rollup: in-progress | integration-validation: not-started
+  children: T-01a, T-01b, T-01e, T-01f, T-01h, T-01i, T-01j, T-01k, T-01l, T-01m, T-01n, T-01o, T-01p, T-01q, T-01r, T-01s, T-01g, T-01c, T-01d, T-01t, T-01u, T-01v, T-01w, T-01x, T-01y, T-01z
   blocker: none
   notes: S2=19, S5=19; independent composite validation passed on feat/usage-diagnostic-metrics at 4c85c8d: 190 child tests and both integration criteria passed; the additional integrated scenario was exercised in memory, not saved as a separate regression.
 
@@ -336,8 +336,8 @@ T-01d | typed diagnostic metrics | atomic-tests: green | atomic-execution: compl
   blocker: none
   notes: registry 6/6, diagnostic 7/7, envelope 23/23, canonical 8/8; pricing integration must exclude diagnostics from paid requests
 
-[composite] T-02 | Bounded source adapters | rollup: done | integration-validation: complete
-  children: T-02a, T-02b, T-02c
+[composite] T-02 | Bounded source adapters | rollup: in-progress | integration-validation: not-started
+  children: T-02a, T-02b, T-02c, T-02d, T-02e
   blocker: none
   notes: Independent integration revalidation passed after the destination safety fix; 58 focused tests and shell lint passed. The original destination move race was reproduced on 4a5643d.
 
@@ -461,9 +461,169 @@ T-08 | Compatibility, recovery and operating guidance | atomic-tests: green | at
   notes: Parallel compatibility branch includes 8 recovery tests and 2 offline acceptance tests; these characterize integrated behavior and were not observed RED. Tests use synthetic RSA key lookup and independent verifier. Stack reconciliation and independent validation remain pending.
   notes: tdd: red digest — recovery and end-to-end tests characterize already integrated behavior; they were not observed RED. test_disable_and_resume_preserves_evidence_without_backfill, test_disable_resume_status_preserves_receipts_and_reports_segment_gap, test_signed_cli_disable_resume_replays_installed_bundle and offline acceptance cover recovery, independent signed publication, 2/2 token and 1/2 pricing coverage, three exports, and 0.00264 projection. Test key lookup is substituted with an explicit synthetic public key.
 
+T-01t | Preserve nested ordered arrays in canonical sets | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage_telemetry_contract.py, tests/usage-canonical-encoding.py
+  blocker: none
+  notes: Owner-authorized repair of PR #37; preserve existing validators and frozen behavioral checks. Test commit ef03dda1a4d25bb0eec7c87993cda8e7621c3512; fix commit 3fe1273a52b52449f75863d09268372b8d40c1cd. Canonical, schema, envelope and source-profile suites pass (58 tests); independent recheck pending.
+  notes: tdd: red digest — test_nested_arrays_keep_order_within_declared_set fails on lost inner ordering; test_nested_arrays_keep_order_with_key_sorted_set fails because the outer key reaches inner integers. Schema-field preservation regression passes before implementation.
+  notes: Independent recheck PASS — test_nested_arrays_keep_order_with_key_sorted_set, test_nested_arrays_keep_order_within_declared_set, test_schema_set_key_controls_order_and_identity, test_schema_sets_apply_to_fields_inside_array_members; commits: 3fe1273a52b52449f75863d09268372b8d40c1cd, ef03dda1a4d25bb0eec7c87993cda8e7621c3512
+
+T-01u | Accept general JSON discriminator values in canonical primitives | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage_telemetry_contract.py, tests/usage-canonical-encoding.py
+  blocker: none
+  notes: Owner-authorized repair of PR #39; preserve existing validators and frozen behavioral checks.
+  notes: tdd: red digest — behavioral evidence retained in the consolidated validation report; commits: 7e924e9e5f6dce73d260ef5203d999dbc0d83bd6, b43621c6d5a0207a02e5b5efac2bd69f8a2b6e69
+  notes: tdd: red digest — test_envelope_discriminator_preserves_schema_set_ordering, test_json_array_and_object_discriminators_are_canonical; commits: 7e924e9e5f6dce73d260ef5203d999dbc0d83bd6, b43621c6d5a0207a02e5b5efac2bd69f8a2b6e69
+  notes: Independent recheck PASS — test_envelope_discriminator_preserves_schema_set_ordering, test_json_array_and_object_discriminators_are_canonical; commits: b43621c6d5a0207a02e5b5efac2bd69f8a2b6e69, 7e924e9e5f6dce73d260ef5203d999dbc0d83bd6
+
+T-01v | Compare collection boundaries without precision loss | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage_telemetry_contract.py, tests/usage-collection-segment-schema.py
+  blocker: none
+  notes: Owner-authorized repair of PR #44; preserve existing validators and frozen behavioral checks.
+  notes: tdd: red digest — test_arbitrary_precision_boundary_ordering; commits: ca49879cb00dbafedf1c83d9c348be632616b608, 1564ad1d570f98a2628567e10dae47dd23222822
+  notes: Independent recheck PASS — test_arbitrary_precision_boundary_ordering; commits: 1564ad1d570f98a2628567e10dae47dd23222822, ca49879cb00dbafedf1c83d9c348be632616b608
+
+T-01w | Bind snapshot diagnostic records to the owner scope | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage_telemetry_contract.py, tests/usage-current-run-snapshot-schema.py, tests/usage-status-parts-cli.py
+  blocker: none
+  notes: Owner-authorized repair of PR #52; preserve existing validators and frozen behavioral checks.
+  notes: tdd: red digest — behavioral evidence retained in the consolidated validation report; commits: ea1a269abd5b8d7f8ca431235cc0ff8aace259a7
+  notes: tdd: red digest — test_bundle_diagnostics_match_snapshot_owner_and_receipt, test_selected_bundle_diagnostic_must_match_owner; commits: c00cbdc7b8696283afce4c3d5ed77c8e2d988cd6, ea1a269abd5b8d7f8ca431235cc0ff8aace259a7
+  notes: tdd: red digest — test_bundle_diagnostics_match_snapshot_owner_and_receipt, test_receipt_bound_quarantine_diagnostic_preserves_source_binding, test_selected_bundle_diagnostic_must_match_owner, test_selected_bundle_quarantine_diagnostic_preserves_source_binding; commits: c00cbdc7b8696283afce4c3d5ed77c8e2d988cd6, ea1a269abd5b8d7f8ca431235cc0ff8aace259a7, f8ce9b2faf37935724dae2627ab35186a92077a1, 503eeab350384613fdebae65fa0069b76da8eb9f
+  notes: Independent recheck PASS — test_bundle_diagnostics_match_snapshot_owner_and_receipt, test_receipt_bound_quarantine_diagnostic_preserves_source_binding, test_selected_bundle_diagnostic_must_match_owner, test_selected_bundle_quarantine_diagnostic_preserves_source_binding; commits: 503eeab350384613fdebae65fa0069b76da8eb9f, f8ce9b2faf37935724dae2627ab35186a92077a1, c00cbdc7b8696283afce4c3d5ed77c8e2d988cd6, ea1a269abd5b8d7f8ca431235cc0ff8aace259a7
+
+T-01x | Propagate contradictory cache write evidence | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage_telemetry_contract.py, scripts/usage_telemetry_resolution.py, tests/usage-source-profiles.py, tests/usage-resolution-token-components.py
+  blocker: none
+  notes: Owner-authorized repair of PR #54; preserve existing validators and frozen behavioral checks.
+  notes: tdd: red digest — test_conflicting_unsplit_writes_block_included_input_remainder, test_conflicting_unsplit_writes_block_separate_input_total, test_conflicting_unsplit_writes_do_not_recreate_input_totals; commits: 35ea852bc94fe97c1266918b8684494d4b19c259, 172e1f3fe50a7f20e4e31da904a3c29e886778bd, 545b550dde5a1bc2ccc3876d70b2d7f9072042a1
+  notes: tdd: red digest — test_conflicting_unsplit_writes_block_included_input_remainder, test_conflicting_unsplit_writes_block_separate_input_total, test_conflicting_unsplit_writes_do_not_recreate_input_totals, test_final_snapshot_supersedes_conflicted_partial_snapshot, test_verified_correction_supersedes_conflicted_write_snapshot; commits: 35ea852bc94fe97c1266918b8684494d4b19c259, 172e1f3fe50a7f20e4e31da904a3c29e886778bd, 545b550dde5a1bc2ccc3876d70b2d7f9072042a1, 296284ad40df5d18b28030bac24e2ae8e79c28c0, 39a078893b3e516617a9cbf4d8323507cd45a610
+  notes: tdd: red digest — test_conflicting_unsplit_writes_block_included_input_remainder, test_conflicting_unsplit_writes_block_separate_input_total, test_conflicting_unsplit_writes_do_not_recreate_input_totals, test_final_snapshot_supersedes_conflicted_partial_snapshot, test_mixed_partial_and_final_responses_preserve_price_snapshots, test_verified_correction_replaces_old_final_and_untrusted_correction_conflicts, test_verified_correction_supersedes_conflicted_write_snapshot; commits: 35ea852bc94fe97c1266918b8684494d4b19c259, 172e1f3fe50a7f20e4e31da904a3c29e886778bd, 545b550dde5a1bc2ccc3876d70b2d7f9072042a1, 296284ad40df5d18b28030bac24e2ae8e79c28c0, 39a078893b3e516617a9cbf4d8323507cd45a610, 28fce94ac9bc22cfc859c83cce3f4430bf750d04, 540fdd29c279c2c5fc68baa536f135f3a4d5388c
+  notes: Independent recheck PASS — test_conflicting_unsplit_writes_block_included_input_remainder, test_conflicting_unsplit_writes_block_separate_input_total, test_conflicting_unsplit_writes_do_not_recreate_input_totals, test_final_snapshot_supersedes_conflicted_partial_snapshot, test_mixed_partial_and_final_responses_preserve_price_snapshots, test_verified_correction_supersedes_conflicted_write_snapshot; commits: 540fdd29c279c2c5fc68baa536f135f3a4d5388c, 28fce94ac9bc22cfc859c83cce3f4430bf750d04, 35ea852bc94fe97c1266918b8684494d4b19c259, 172e1f3fe50a7f20e4e31da904a3c29e886778bd, 296284ad40df5d18b28030bac24e2ae8e79c28c0, 545b550dde5a1bc2ccc3876d70b2d7f9072042a1, 39a078893b3e516617a9cbf4d8323507cd45a610, 97a60a2c12835c5ef19776dd9655d665162d43b9, 47df9a76fee926000326755ff5e2a092becb39c3
+
+T-01y | Pin diagnostic isolation from paid accounting | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: tests/usage-resolution-integration.py
+  blocker: none
+  notes: Owner-authorized repair of PR #55; characterization coverage only.
+  notes: tdd: characterize — test_diagnostic_and_replay_leave_paid_accounting_unchanged; commits: db59b52f9bee8ff5b75a6006aab6d65b07b8d3c2
+  notes: Independent recheck PASS — test_diagnostic_and_replay_leave_paid_accounting_unchanged; commits: db59b52f9bee8ff5b75a6006aab6d65b07b8d3c2, 540fdd29c279c2c5fc68baa536f135f3a4d5388c, 4c85c8d52e5fc96e95aa877ac68fd7685479f17a, bda1f59fa1a577c8bcb9254d2ba28f7c4f7c3167
+
+T-02d | Deduplicate identical selected observations | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage_telemetry_adapter.py, tests/usage-source-normalization.py
+  blocker: none
+  notes: Owner-authorized repair of PR #57; preserve existing validators and frozen behavioral checks.
+  notes: tdd: red digest — test_duplicate_selected_sources_preserve_distinct_records_and_contexts; commits: e826df8da5c8885a10b34028bb8e57a8b86b5e37, 6f4166274f3014423ec07dba880670f5dafd8728
+  notes: Independent recheck PASS — test_duplicate_selected_sources_preserve_distinct_records_and_contexts; commits: 6f4166274f3014423ec07dba880670f5dafd8728, e826df8da5c8885a10b34028bb8e57a8b86b5e37
+
+T-02e | Detect incomplete telemetry stream output | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  notes: Independent recheck rejected buffered stdout shutdown: pending bytes trigger interpreter traceback and exit 120; a separate corrective worker must add a regression and preserve sanitized exit 3.
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage-telemetry.py, tests/usage-normalize-cli.py
+  blocker: none
+  notes: Owner-authorized repair of PR #58; preserve existing validators and frozen behavioral checks.
+  notes: tdd: red digest — test_all_output_commands_handle_short_and_no_progress_writes, test_nonblocking_pipe_never_reports_success_for_truncated_bundle; commits: 47bd642e0ebbd682ec9503c863d5c6ff538bc783, 0930e42c63d6bdc35143cd6033ba8d28e8263d97
+  notes: tdd: red digest — test_all_output_commands_handle_short_and_no_progress_writes, test_buffered_nonblocking_pipe_reports_sanitized_failure, test_nonblocking_pipe_never_reports_success_for_truncated_bundle; commits: 47bd642e0ebbd682ec9503c863d5c6ff538bc783, 0930e42c63d6bdc35143cd6033ba8d28e8263d97, b43e2127549b2c8b713a1763c4deb8113a53384d, 5a2b4975f1fa28fb204fb9ad2a0e6ac10b1ae5e2
+  notes: Independent recheck PASS — test_all_output_commands_handle_short_and_no_progress_writes, test_buffered_nonblocking_pipe_reports_sanitized_failure, test_closed_pipe_returns_failure_with_sanitized_diagnostics, test_nonblocking_pipe_never_reports_success_for_truncated_bundle, test_socket_stdout_emits_valid_bundle; commits: 5a2b4975f1fa28fb204fb9ad2a0e6ac10b1ae5e2, 47bd642e0ebbd682ec9503c863d5c6ff538bc783, 0930e42c63d6bdc35143cd6033ba8d28e8263d97, b43e2127549b2c8b713a1763c4deb8113a53384d, 7a6cf8495989bfcd3b4b9a091a18b6cacb65a77f, bda1f59fa1a577c8bcb9254d2ba28f7c4f7c3167, 6f4166274f3014423ec07dba880670f5dafd8728
+
+T-09 | Reject malformed explicit lifecycle cost scalars | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/log-step.sh, scripts/usage_telemetry_ingest.py, tests/usage-lifecycle-projection.py
+  blocker: none
+  notes: Owner-authorized repair of PR #59; preserve existing validators and frozen behavioral checks.
+  notes: tdd: red digest — test_explicit_dash_cost_rejects_without_receipt_or_state_change, test_omitted_cost_accepts_projection_and_replay; commits: 07456698c590f5dc767d343bea08a6a530f10b66, c935f1a582955e77082dd939d171d36ac410dd89
+  notes: Independent recheck PASS — test_closed_pipe_returns_failure_with_sanitized_diagnostics, test_explicit_dash_cost_rejects_without_receipt_or_state_change, test_omitted_cost_accepts_projection_and_replay, test_socket_stdout_emits_valid_bundle, test_unavailable_dependency_preserves_legacy_logging, test_valid_exact_projection_and_replay_preserve_first_payload; commits: c935f1a582955e77082dd939d171d36ac410dd89, 07456698c590f5dc767d343bea08a6a530f10b66, bda1f59fa1a577c8bcb9254d2ba28f7c4f7c3167, 03d55702eb8480ea2ae0f9f9c918e058f2b149c5, 7a6cf8495989bfcd3b4b9a091a18b6cacb65a77f
+
+T-10 | Keep account-scoped responses distinct in accounting | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage_telemetry_resolution.py, scripts/usage_telemetry_completeness.py, tests/usage-resolution-integration.py
+  blocker: none
+  notes: Owner-authorized repair of PR #60; preserve existing validators and frozen behavioral checks.
+  notes: tdd: red digest — test_scoped_collisions_preserve_both_exact_priced_contributions, test_scoped_response_collisions_preserve_contributions_and_unknown_coverage; commits: 5604bee5d30d44a90ba82dc4e509341b0afdb143, e60c7a18a9c342b56fb920f533555ceac0ceba41, 5d1492f938a961ca35811809f2cbb5b97a18ed83
+  notes: Independent recheck PASS — test_scoped_collisions_preserve_both_exact_priced_contributions, test_scoped_response_collisions_preserve_contributions_and_unknown_coverage; commits: 5d1492f938a961ca35811809f2cbb5b97a18ed83, 5604bee5d30d44a90ba82dc4e509341b0afdb143, e60c7a18a9c342b56fb920f533555ceac0ceba41, 55c8c07461054a646d2a90c1b5ff1e48be57e444, bda1f59fa1a577c8bcb9254d2ba28f7c4f7c3167
+
+T-11 | Preserve exact accepted-outcome ratios | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage_telemetry_outcomes.py, tests/usage-accepted-outcomes.py, tests/usage-outcome-tool-cost.py
+  blocker: none
+  notes: Owner-authorized repair of PR #61; preserve existing validators and frozen behavioral checks.
+  notes: tdd: red digest — test_all_output_commands_handle_short_and_no_progress_writes, test_contract_identifier_boundaries_reject_unsafe_values, test_contract_identifiers_flow_from_corpus_to_archive, test_contract_identifiers_reach_all_exports_at_boundaries, test_long_terminating_ratio_preserves_all_digits, test_verified_empty_inventory_preserves_long_exact_ratio; commits: cd3c8d7255ae061a263375d67ddaedb745f24945, 76477a644488eed42f63cb986c856f9cb494a4c7, 56c891091028836876ca03fedcd72988b784bf8e, 904b3182166139bd5b3cabd4636eb6d648294290, f3f49855abba218deeb763146d2b5136d7f827cc
+  notes: Independent recheck PASS — test_contract_identifier_boundaries_reject_unsafe_values, test_contract_identifiers_flow_from_corpus_to_archive, test_contract_identifiers_reach_all_exports_at_boundaries, test_long_terminating_ratio_preserves_all_digits, test_verified_empty_inventory_preserves_long_exact_ratio; commits: f3f49855abba218deeb763146d2b5136d7f827cc, cd3c8d7255ae061a263375d67ddaedb745f24945, 76477a644488eed42f63cb986c856f9cb494a4c7, 56c891091028836876ca03fedcd72988b784bf8e, 904b3182166139bd5b3cabd4636eb6d648294290
+
+T-12 | Export every permitted input identifier | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  notes: tdd: test amended — added a corpus-to-archive integration regression after the initial export RED commit and observed invalid report identifier on unchanged implementation; original boundary and safety assertions remain intact.
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage_telemetry_exports.py, tests/usage-report-exports.py, tests/usage-retrospective-integration.py
+  blocker: none
+  notes: Owner-authorized repair of PR #61; preserve existing validators and frozen behavioral checks.
+  notes: tdd: red digest — test_all_output_commands_handle_short_and_no_progress_writes, test_contract_identifier_boundaries_reject_unsafe_values, test_contract_identifiers_flow_from_corpus_to_archive, test_contract_identifiers_reach_all_exports_at_boundaries, test_long_terminating_ratio_preserves_all_digits, test_verified_empty_inventory_preserves_long_exact_ratio; commits: cd3c8d7255ae061a263375d67ddaedb745f24945, 76477a644488eed42f63cb986c856f9cb494a4c7, 56c891091028836876ca03fedcd72988b784bf8e, 904b3182166139bd5b3cabd4636eb6d648294290, f3f49855abba218deeb763146d2b5136d7f827cc
+  notes: Independent recheck PASS — test_contract_identifier_boundaries_reject_unsafe_values, test_contract_identifiers_flow_from_corpus_to_archive, test_contract_identifiers_reach_all_exports_at_boundaries, test_long_terminating_ratio_preserves_all_digits, test_verified_empty_inventory_preserves_long_exact_ratio; commits: f3f49855abba218deeb763146d2b5136d7f827cc, cd3c8d7255ae061a263375d67ddaedb745f24945, 76477a644488eed42f63cb986c856f9cb494a4c7, 56c891091028836876ca03fedcd72988b784bf8e, 904b3182166139bd5b3cabd4636eb6d648294290
+
+T-13 | Preserve owner evidence in selected-part warning delivery | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  notes: tdd: test amended — the initial new proposal expectation was overconstrained; preserve the original local-path privacy assertions and require hash-bound sanitized proposals with exact persisted manifest preservation. Corrected regressions were observed RED before manifest implementation; both original path assertions are restored. Later additions cover valid warning-record parts, canonical selected-part ordering and delivery-confirmation tampering.
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage-telemetry.py, scripts/usage_telemetry_delivery.py, scripts/usage_telemetry_contract.py, tests/usage-status-delivery-integration.py, tests/usage-status-parts-cli.py, tests/usage-status-large-parts.py
+  blocker: none
+  notes: Owner-authorized repair of PR #62; preserve existing validators and frozen behavioral checks.
+  notes: tdd: red digest — test_empty_parts_manifest_survives_status_and_recovery, test_repricing_does_not_create_factual_owner_spend_warning, test_repricing_does_not_create_factual_scoped_spend_warning, test_selected_parts_proposal_delivers_and_preserves_manifest, test_selected_segment_and_warning_history_survive_delivery, test_valid_large_bundle_within_part_and_total_limits_is_not_rejected; commits: 81f2be9b2f4db41933611fdcfa369d4c78a06dd6, da62e6e82e4a4c8689894606e31d7d752c69e08a, 2af541d0287b9a0b013911d2ab5f61140cd9f08e, b611888621eebd8e2acf3563160f0580b976be9f, 9ce65ff30ff7c17c38c302da8e1670fea68c7e79, 72795bbfc7f9e83946db40b68b71072a4bd70e2d, 782b79aa0c3241c5c1ef2c1f5824d0dc75852b66, 161abac14c5d7d5a82da087d6e27c885ac291f13
+  notes: Independent recheck PASS — test_empty_parts_manifest_survives_status_and_recovery, test_repricing_does_not_create_factual_owner_spend_warning, test_repricing_does_not_create_factual_scoped_spend_warning, test_selected_parts_proposal_delivers_and_preserves_manifest, test_selected_segment_and_warning_history_survive_delivery; commits: 72795bbfc7f9e83946db40b68b71072a4bd70e2d, 991b8bf76920016656d40d59fb16ef20998b2e01, a9ed6ea0ca1e656aa17a7feccc54cb3c30ef7231, bda1f59fa1a577c8bcb9254d2ba28f7c4f7c3167, 81f2be9b2f4db41933611fdcfa369d4c78a06dd6, 782b79aa0c3241c5c1ef2c1f5824d0dc75852b66, da62e6e82e4a4c8689894606e31d7d752c69e08a, 2af541d0287b9a0b013911d2ab5f61140cd9f08e, b611888621eebd8e2acf3563160f0580b976be9f, 9ce65ff30ff7c17c38c302da8e1670fea68c7e79, 161abac14c5d7d5a82da087d6e27c885ac291f13
+
+T-14 | Retain conditional pricing semantics in warnings | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage_telemetry_alerts.py, tests/usage-status-cli-integration.py, tests/usage-status-scope-evidence.py
+  blocker: none
+  notes: Owner-authorized repair of PR #62; preserve existing validators and frozen behavioral checks.
+  notes: tdd: red digest — test_empty_parts_manifest_survives_status_and_recovery, test_repricing_does_not_create_factual_owner_spend_warning, test_repricing_does_not_create_factual_scoped_spend_warning, test_selected_parts_proposal_delivers_and_preserves_manifest, test_selected_segment_and_warning_history_survive_delivery, test_valid_large_bundle_within_part_and_total_limits_is_not_rejected; commits: 81f2be9b2f4db41933611fdcfa369d4c78a06dd6, da62e6e82e4a4c8689894606e31d7d752c69e08a, 2af541d0287b9a0b013911d2ab5f61140cd9f08e, b611888621eebd8e2acf3563160f0580b976be9f, 9ce65ff30ff7c17c38c302da8e1670fea68c7e79, 72795bbfc7f9e83946db40b68b71072a4bd70e2d, 782b79aa0c3241c5c1ef2c1f5824d0dc75852b66, 161abac14c5d7d5a82da087d6e27c885ac291f13
+  notes: Independent recheck PASS — test_empty_parts_manifest_survives_status_and_recovery, test_repricing_does_not_create_factual_owner_spend_warning, test_repricing_does_not_create_factual_scoped_spend_warning, test_selected_parts_proposal_delivers_and_preserves_manifest, test_selected_segment_and_warning_history_survive_delivery; commits: 72795bbfc7f9e83946db40b68b71072a4bd70e2d, 991b8bf76920016656d40d59fb16ef20998b2e01, a9ed6ea0ca1e656aa17a7feccc54cb3c30ef7231, bda1f59fa1a577c8bcb9254d2ba28f7c4f7c3167, 81f2be9b2f4db41933611fdcfa369d4c78a06dd6, 782b79aa0c3241c5c1ef2c1f5824d0dc75852b66, da62e6e82e4a4c8689894606e31d7d752c69e08a, 2af541d0287b9a0b013911d2ab5f61140cd9f08e, b611888621eebd8e2acf3563160f0580b976be9f, 9ce65ff30ff7c17c38c302da8e1670fea68c7e79, 161abac14c5d7d5a82da087d6e27c885ac291f13
+
+T-15 | Restore complete validation metadata | atomic-tests: n-a | atomic-execution: complete | atomic-validation: in-progress
+  last_action: repair verified; independent recheck pending
+  target_files: .ai/tasks/todo/task-05-cost-and-duration-telemetry/state.md, .ai/tasks/completed/task-01-git-source-of-truth/state.md, .ai/memory/architecture.md
+  blocker: none
+  notes: Owner-authorized repair of PR #63; preserve existing validators and frozen behavioral checks.
+  notes: tdd: none — metadata-only repair; unchanged existing validators verify the exact documentary contract; commits: 41cea8393f227e5dd8b2ef7ca109aab39e248e1c
+
+T-01z | Preserve scope-free quarantine diagnostics in snapshots | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage_telemetry_contract.py, tests/usage-current-run-snapshot-schema.py, tests/usage-status-parts-cli.py
+  blocker: none
+  notes: Original owner-scope repair remains failed until this regression is independently corrected; initial fix and recheck reports are retained.
+  notes: tdd: red digest — test_bundle_diagnostics_match_snapshot_owner_and_receipt, test_receipt_bound_quarantine_diagnostic_preserves_source_binding, test_selected_bundle_diagnostic_must_match_owner, test_selected_bundle_quarantine_diagnostic_preserves_source_binding; commits: c00cbdc7b8696283afce4c3d5ed77c8e2d988cd6, ea1a269abd5b8d7f8ca431235cc0ff8aace259a7, f8ce9b2faf37935724dae2627ab35186a92077a1, 503eeab350384613fdebae65fa0069b76da8eb9f
+  notes: Independent recheck PASS — test_bundle_diagnostics_match_snapshot_owner_and_receipt, test_receipt_bound_quarantine_diagnostic_preserves_source_binding, test_selected_bundle_diagnostic_must_match_owner, test_selected_bundle_quarantine_diagnostic_preserves_source_binding; commits: 503eeab350384613fdebae65fa0069b76da8eb9f, f8ce9b2faf37935724dae2627ab35186a92077a1, c00cbdc7b8696283afce4c3d5ed77c8e2d988cd6, ea1a269abd5b8d7f8ca431235cc0ff8aace259a7
+
+T-16 | Apply counter conflicts only to active revisions | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage_telemetry_resolution.py, tests/usage-resolution-revisions.py
+  blocker: none
+  notes: Preserve active conflict protection and all prior tests; independently verify corrected revision behavior.
+  notes: tdd: red digest — test_conflicting_unsplit_writes_block_included_input_remainder, test_conflicting_unsplit_writes_block_separate_input_total, test_conflicting_unsplit_writes_do_not_recreate_input_totals, test_final_snapshot_supersedes_conflicted_partial_snapshot, test_verified_correction_supersedes_conflicted_write_snapshot; commits: 35ea852bc94fe97c1266918b8684494d4b19c259, 172e1f3fe50a7f20e4e31da904a3c29e886778bd, 545b550dde5a1bc2ccc3876d70b2d7f9072042a1, 296284ad40df5d18b28030bac24e2ae8e79c28c0, 39a078893b3e516617a9cbf4d8323507cd45a610
+  notes: tdd: red digest — test_conflicting_unsplit_writes_block_included_input_remainder, test_conflicting_unsplit_writes_block_separate_input_total, test_conflicting_unsplit_writes_do_not_recreate_input_totals, test_final_snapshot_supersedes_conflicted_partial_snapshot, test_mixed_partial_and_final_responses_preserve_price_snapshots, test_verified_correction_replaces_old_final_and_untrusted_correction_conflicts, test_verified_correction_supersedes_conflicted_write_snapshot; commits: 35ea852bc94fe97c1266918b8684494d4b19c259, 172e1f3fe50a7f20e4e31da904a3c29e886778bd, 545b550dde5a1bc2ccc3876d70b2d7f9072042a1, 296284ad40df5d18b28030bac24e2ae8e79c28c0, 39a078893b3e516617a9cbf4d8323507cd45a610, 28fce94ac9bc22cfc859c83cce3f4430bf750d04, 540fdd29c279c2c5fc68baa536f135f3a4d5388c
+  notes: Independent recheck PASS — test_conflicting_unsplit_writes_block_included_input_remainder, test_conflicting_unsplit_writes_block_separate_input_total, test_conflicting_unsplit_writes_do_not_recreate_input_totals, test_final_snapshot_supersedes_conflicted_partial_snapshot, test_mixed_partial_and_final_responses_preserve_price_snapshots, test_verified_correction_supersedes_conflicted_write_snapshot; commits: 540fdd29c279c2c5fc68baa536f135f3a4d5388c, 28fce94ac9bc22cfc859c83cce3f4430bf750d04, 35ea852bc94fe97c1266918b8684494d4b19c259, 172e1f3fe50a7f20e4e31da904a3c29e886778bd, 296284ad40df5d18b28030bac24e2ae8e79c28c0, 545b550dde5a1bc2ccc3876d70b2d7f9072042a1, 39a078893b3e516617a9cbf4d8323507cd45a610, 97a60a2c12835c5ef19776dd9655d665162d43b9, 47df9a76fee926000326755ff5e2a092becb39c3
+
+T-17 | Preserve pricing snapshots across partial responses | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: independent repair recheck passed; all repair criteria met
+  target_files: scripts/usage_telemetry_resolution.py, tests/usage-resolution-revisions.py
+  blocker: none
+  notes: Keep selected price evidence separate from observation event selection; retain prior tests.
+  notes: tdd: test amended — mixed partial/final fixture now binds the complete response to supported in-period execution evidence; expected assertions remain intact and the same RED failure was observed again before implementation.
+  notes: tdd: red digest — test_conflicting_unsplit_writes_block_included_input_remainder, test_conflicting_unsplit_writes_block_separate_input_total, test_conflicting_unsplit_writes_do_not_recreate_input_totals, test_final_snapshot_supersedes_conflicted_partial_snapshot, test_mixed_partial_and_final_responses_preserve_price_snapshots, test_verified_correction_replaces_old_final_and_untrusted_correction_conflicts, test_verified_correction_supersedes_conflicted_write_snapshot; commits: 35ea852bc94fe97c1266918b8684494d4b19c259, 172e1f3fe50a7f20e4e31da904a3c29e886778bd, 545b550dde5a1bc2ccc3876d70b2d7f9072042a1, 296284ad40df5d18b28030bac24e2ae8e79c28c0, 39a078893b3e516617a9cbf4d8323507cd45a610, 28fce94ac9bc22cfc859c83cce3f4430bf750d04, 540fdd29c279c2c5fc68baa536f135f3a4d5388c
+  notes: Independent recheck PASS — test_conflicting_unsplit_writes_block_included_input_remainder, test_conflicting_unsplit_writes_block_separate_input_total, test_conflicting_unsplit_writes_do_not_recreate_input_totals, test_final_snapshot_supersedes_conflicted_partial_snapshot, test_mixed_partial_and_final_responses_preserve_price_snapshots, test_verified_correction_supersedes_conflicted_write_snapshot; commits: 540fdd29c279c2c5fc68baa536f135f3a4d5388c, 28fce94ac9bc22cfc859c83cce3f4430bf750d04, 35ea852bc94fe97c1266918b8684494d4b19c259, 172e1f3fe50a7f20e4e31da904a3c29e886778bd, 296284ad40df5d18b28030bac24e2ae8e79c28c0, 545b550dde5a1bc2ccc3876d70b2d7f9072042a1, 39a078893b3e516617a9cbf4d8323507cd45a610, 97a60a2c12835c5ef19776dd9655d665162d43b9, 47df9a76fee926000326755ff5e2a092becb39c3
+
+## Execution Report
+- Original execution is complete according to the preserved per-leaf audit. Eighteen validation repairs are pending independent implementation and recheck.
+
 ## Integration Issues (T-02)
 
 ### Approved
+- T-17: preserve pricing snapshot inputs across mixed response groups after the revision correction.
+- T-16: restore independently proven corrections after counter conflict propagation (PR #54 recheck).
+- T-01z: repair the scope-free quarantine regression found during independent recheck of PR #52.
 1. Important — a concurrent destination-directory move between validation and installation can publish normalized output inside the shared usage store. Reproduce the race, enforce a safe destination boundary and retain the existing normalization checks. Fix sibling: T-02c.
 
 ### Deferred
@@ -481,11 +641,32 @@ None.
 | Authorized owner controls shared state | PASS within documented operator-protected directories and cooperating-writer boundary; status remains pure. |
 
 ### Acceptance Criteria
-| Criterion | Status |
-|---|---|
-| Specification criteria 01–24 | PASS on synthetic scenarios: each mapped to source, pricing, ownership, publication, lifecycle, warning, report, duration, schema or offline acceptance tests. The complete run on fc74183 passed 619 checks with two private-pattern hygiene skips. |
-| Existing lifecycle and optional-dependency behavior | PASS: recovery and publication tests; full suite passed. |
-| Reproducible explicit-file analysis with evidence-limited results | PASS: fixed-corpus, report, exact-cost and offline acceptance tests. |
+| Criterion | Scope | Registered evidence (under tests/) | Final combined result |
+|---|---|---|---|
+| AC-01 | Explicit sources, unknown metadata and bounded access | usage-source-profiles.py; usage-source-normalization.py; usage-bounded-source-reads.py | Pending final combined validation |
+| AC-02 | Exact included/separate counters and partial pricing | usage-exact-cost.py; usage-resolution-token-components.py; usage-resolution-integration.py | Pending final combined validation |
+| AC-03 | Response deduplication, branching, pools and time kinds | usage-response-identity.py; usage-causal-ownership.py; usage-duration-analysis.py | Pending final combined validation |
+| AC-04 | Cache lifetime, price applicability and conditional scenarios | usage-price-applicability.py; usage-resolution-conditional.py; usage-resolution-tools.py | Pending final combined validation |
+| AC-05 | Invalid lifecycle scalars preserve all accepted state | usage-lifecycle-projection.py; usage-lifecycle-projection-token-scalars.py; usage-legacy-recovery.py | Pending final combined validation |
+| AC-06 | Exact duration cohort boundaries and time-only status | usage-duration-warnings.py; usage-status-duration-integration.py; usage-status-duration-precision.py | Pending final combined validation |
+| AC-07 | Independent accepted opportunities and descriptive cost ratios | usage-accepted-outcomes.py; usage-outcome-tool-cost.py; usage-retrospective-integration.py | Pending final combined validation |
+| AC-08 | Offline operation, disable/resume and recovery guidance | usage-offline-acceptance.py; usage-legacy-recovery.py; usage-report-consumer.py | Pending final combined validation |
+| AC-09 | Stream snapshot finality, delta gaps and verified corrections | usage-stream-revisions.py; usage-resolution-revisions.py; usage-resolution-partial-stream.py | Pending final combined validation |
+| AC-10 | Cumulative epoch containment and exact deltas | usage-cumulative-epochs.py; usage-resolution-epochs.py; usage-producer-epochs.py | Pending final combined validation |
+| AC-11 | Independent inventory, unknown denominators and proven empty scopes | usage-inventory-completeness.py; usage-resolution-coverage.py; usage-resolution-empty-scope.py | Pending final combined validation |
+| AC-12 | Single shared pools, late evidence and unmeasured repeated marks | usage-causal-ownership.py; usage-report-overlap-ownership.py; usage-retrospective-outcome-timing.py | Pending final combined validation |
+| AC-13 | Late evidence and scenarios preserve accepted events and prior reports | usage-frozen-pricing-inputs.py; usage-multibundle-report.py; usage-lifecycle-projection.py | Pending final combined validation |
+| AC-14 | Concurrent publication, interruption and exact retry receipts | usage-usage-publication.py; usage-publication-run-race.py; usage-publication-late-import.py | Pending final combined validation |
+| AC-15 | Strict parsing, source paths, hashes, mutation and privacy | usage-canonical-encoding.py; usage-bounded-source-reads.py; usage-resolution-privacy.py | Pending final combined validation |
+| AC-16 | Exact derived integers, summed decimals and evidenced scalars | usage-exact-cost.py; usage-lifecycle-projection.py; usage-outcome-tool-cost.py | Pending final combined validation |
+| AC-17 | Threshold episodes, idempotent notes, revisions and restart recovery | usage-alert-status.py; usage-warning-delivery.py; usage-warning-delivery-durability.py; usage-status-delivery-integration.py | Pending final combined validation |
+| AC-18 | Group statistics, coverage separation and deterministic exports | usage-group-statistics.py; usage-report-exports.py; usage-fixed-corpus.py | Pending final combined validation |
+| AC-19 | Resumed opportunities, independent evaluation and comparison limits | usage-accepted-outcomes.py; usage-outcome-unattributed-workload.py; usage-retrospective-integration.py | Pending final combined validation |
+| AC-20 | Typed diagnostic units and isolation from paid accounting | usage-diagnostic-registry.py; usage-diagnostic-schema.py; usage-resolution-integration.py | Pending final combined validation |
+| AC-21 | Canonical sets, ordered streams, fixed time and strict numbers | usage-canonical-encoding.py; usage-typed-schema.py; usage-source-normalization.py | Pending final combined validation |
+| AC-22 | Exact interval unions, exclusive time and unknown clock relations | usage-duration-analysis.py; usage-retrospective-outcome-timing.py; usage-context-evidence-timing.py | Pending final combined validation |
+| AC-23 | Causal parent pools, external ownership and separate tool costs | usage-causal-ownership.py; usage-resolution-tool-ownership.py; usage-outcome-tool-cost.py | Pending final combined validation |
+| AC-24 | Source and bundle limits, partial quarantine and depth limits | usage-bounded-source-reads.py; usage-source-normalization.py; usage-observation-bundle-schema.py | Pending final combined validation |
 
 ### Off-limits
 | Constraint | Status |
@@ -497,17 +678,93 @@ None.
 Operational limitations: the only built-in reviewed source profile is synthetic; external signing authority is not supplied. End-to-end tests use a synthetic key and construct some evidence. Protected directories and cooperation by same-UID writers are deployment requirements, not guarantees enforced by advisory locks.
 
 ## Code Review
+### Findings
+| Repair | PR | Severity | Required correction |
+|---|---|---|---|
+| T-01t | #37 | important | Preserve nested ordered arrays in canonical sets |
+| T-01u | #39 | important | Accept general JSON discriminator values in canonical primitives |
+| T-01v | #44 | important | Compare collection boundaries without precision loss |
+| T-01w | #52 | important | Bind snapshot diagnostic records to the owner scope |
+| T-01x | #54 | important | Propagate contradictory cache write evidence |
+| T-01y | #55 | important | Pin diagnostic isolation from paid accounting |
+| T-02d | #57 | important | Deduplicate identical selected observations |
+| T-02e | #58 | important | Detect incomplete telemetry stream output |
+| T-09 | #59 | important | Reject malformed explicit lifecycle cost scalars |
+| T-10 | #60 | important | Keep account-scoped responses distinct in accounting |
+| T-11 | #61 | important | Preserve exact accepted-outcome ratios |
+| T-12 | #61 | important | Export every permitted input identifier |
+| T-13 | #62 | important | Preserve owner evidence in selected-part warning delivery |
+| T-14 | #62 | important | Retain conditional pricing semantics in warnings |
+| T-15 | #63 | important | Restore complete validation metadata |
+
+| T-01z | #52 | important | Preserve scope-free quarantine diagnostics in snapshots |
+| T-16 | #54 | important | Apply counter conflicts only to active revisions |
+| T-17 | #54 | important | Preserve pricing snapshots across partial responses |
+### Summary
+- All 27 PRs were reviewed in fresh sequential GPT 6.1 Terra Medium contexts at the same baseline.
+- Initial findings are consolidated into fifteen initial repair tasks; final metadata defects share one task and all short-write paths share one repair. Three additional corrective tasks address regressions caught by independent rechecks. The output repair also received a second test/fix round after default-buffered shutdown was independently rejected. No finding is deferred.
+- The proven-empty projection finding is already fixed downstream.
+
+### Previous validation (historical)
 - Independent targeted review found no confirmed critical, important or optional defects on fc74183. It inspected security boundaries, source adapters, ingestion, pricing, ownership, epochs, corpus, exports, warning delivery and selected CLI/producer paths; large schema, report and resolver modules were reviewed selectively, not line by line.
 - Full stable suite: 619 passed, 0 failed, 2 skipped for absent private hygiene patterns. ShellCheck unavailable; Bash syntax passed.
 
 ## Issue List
 ### Approved
-(none)
+- The owner explicitly authorized all necessary corrections and integration on 2026-10-30.
+- T-01t: Preserve nested ordered arrays in canonical sets (PR #37).
+- T-01u: Accept general JSON discriminator values in canonical primitives (PR #39).
+- T-01v: Compare collection boundaries without precision loss (PR #44).
+- T-01w: Bind snapshot diagnostic records to the owner scope (PR #52).
+- T-01x: Propagate contradictory cache write evidence (PR #54).
+- T-01y: Pin diagnostic isolation from paid accounting (PR #55).
+- T-02d: Deduplicate identical selected observations (PR #57).
+- T-02e: Detect incomplete telemetry stream output (PR #58).
+- T-09: Reject malformed explicit lifecycle cost scalars (PR #59).
+- T-10: Keep account-scoped responses distinct in accounting (PR #60).
+- T-11: Preserve exact accepted-outcome ratios (PR #61).
+- T-12: Export every permitted input identifier (PR #61).
+- T-13: Preserve owner evidence in selected-part warning delivery (PR #62).
+- T-14: Retain conditional pricing semantics in warnings (PR #62).
+- T-15: Restore complete validation metadata (PR #63).
+
+- T-01z: Preserve scope-free quarantine diagnostics in snapshots (PR #52).
+
+- T-16: Apply counter conflicts only to active revisions (PR #54).
+
+- T-17: Preserve pricing snapshots across partial responses (PR #54).
+
 ### Deferred
 (none)
 
 ## Fix-Tasks
-fixes-count: 0
+fixes-created: complete
+fixes-count: 18
+Created: T-01t-fix-canonical-order, T-01u-fix-json-discriminator, T-01v-fix-segment-time-precision, T-01w-fix-diagnostic-owner-scope, T-01x-fix-cache-conflict-propagation, T-01y-fix-diagnostic-accounting-regression, T-02d-fix-duplicate-selected-sources, T-02e-fix-complete-stream-output, T-09-fix-explicit-cost-scalar, T-10-fix-account-scoped-cost-identities, T-11-fix-exact-outcome-ratios, T-12-fix-contract-report-identifiers, T-13-fix-owner-part-manifests, T-14-fix-conditional-money-warnings, T-15-fix-validation-metadata, T-01z-fix-quarantine-snapshot-compatibility, T-16-fix-active-revision-conflicts, T-17-fix-preserve-pricing-snapshots
+
+### Fix Classification
+| Issue | Severity | Gate 1 | Gate 2 | Gate 3 | Gate 4 | Grouping | Branch |
+|---|---|---|---|---|---|---|---|
+| Preserve nested ordered arrays in canonical sets | important | pass | pass | pass | pass | shared | T-01t-fix-canonical-order |
+| Accept general JSON discriminator values in canonical primitives | important | pass | pass | pass | pass | shared | T-01u-fix-json-discriminator |
+| Compare collection boundaries without precision loss | important | pass | pass | pass | pass | shared | T-01v-fix-segment-time-precision |
+| Bind snapshot diagnostic records to the owner scope | important | pass | pass | pass | pass | shared | T-01w-fix-diagnostic-owner-scope |
+| Propagate contradictory cache write evidence | important | fail | pass | pass | pass | dedicated | T-01x-fix-cache-conflict-propagation |
+| Pin diagnostic isolation from paid accounting | important | pass | pass | pass | pass | shared | T-01y-fix-diagnostic-accounting-regression |
+| Deduplicate identical selected observations | important | pass | pass | pass | pass | shared | T-02d-fix-duplicate-selected-sources |
+| Detect incomplete telemetry stream output | important | fail | pass | pass | pass | dedicated | T-02e-fix-complete-stream-output |
+| Reject malformed explicit lifecycle cost scalars | important | pass | pass | pass | pass | shared | T-09-fix-explicit-cost-scalar |
+| Keep account-scoped responses distinct in accounting | important | pass | pass | pass | pass | shared | T-10-fix-account-scoped-cost-identities |
+| Preserve exact accepted-outcome ratios | important | fail | pass | pass | pass | dedicated | T-11-fix-exact-outcome-ratios |
+| Export every permitted input identifier | important | pass | pass | pass | pass | shared | T-12-fix-contract-report-identifiers |
+| Preserve owner evidence in selected-part warning delivery | important | fail | pass | pass | pass | dedicated | T-13-fix-owner-part-manifests |
+| Retain conditional pricing semantics in warnings | important | pass | pass | pass | pass | shared | T-14-fix-conditional-money-warnings |
+| Restore complete validation metadata | important | pass | pass | pass | pass | shared | T-15-fix-validation-metadata |
+| Preserve scope-free quarantine diagnostics in snapshots | important | pass | pass | pass | pass | shared | T-01z-fix-quarantine-snapshot-compatibility |
+| Apply counter conflicts only to active revisions | important | pass | pass | pass | pass | shared | T-16-fix-active-revision-conflicts |
+| Preserve pricing snapshots across partial responses | important | pass | pass | pass | pass | shared | T-17-fix-preserve-pricing-snapshots |
+
+This manual validation continuation uses owner-requested isolation per PR. Repair groups execute sequentially and are independently rechecked; publication uses the existing final review branch. Original branch and commit audit fields remain unchanged.
 
 ## Deferred
 (none)
@@ -520,3 +777,11 @@ spec: .ai/specs/05-cost-and-duration-telemetry.md
 
 ## Pull Request Promotion
 - PRs #37–#63 promoted to ready for review in stack order using the connected GitHub application. The command-line token lacked permission for this transition.
+
+## Owner-authorized PR Review
+- 2026-10-30: Owner requested a fresh review of every PR and all subtasks, autonomous fixes and integration including the complete knowledge base. A separate GPT 6.1 Terra Medium worker reviews each PR without inherited conversation context; reviews, fixes and revalidation proceed sequentially.
+- Integration review baseline: bda1f59. Original review records remain historical evidence until replaced by fresh verification.
+
+### Review progress
+- Reviewed independently: PRs #37–#63 (27 of 27). Reports are retained under /tmp/orchestrail-review-pr<number>.md until final consolidation. Sequential source repairs and rechecks are pending; no remote mutations have started.
+- Baseline full validation: 618 passed, 1 failed (exact identity ledger line drift), 2 skipped (unavailable private hygiene patterns). Task validation also lacks the mandatory Created marker.

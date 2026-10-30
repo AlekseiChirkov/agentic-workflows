@@ -4,7 +4,7 @@
 
 | ID | Name | Key Steps (summary) | Depends On | Type | Status |
 |---|---|---|---|---|---|
-| T-01 | Usage contract | (children: T-01a, T-01b, T-01e, T-01f, T-01h, T-01i, T-01j, T-01k, T-01l, T-01m, T-01n, T-01o, T-01p, T-01q, T-01r, T-01s, T-01g, T-01c, T-01d) | — | composite | reviewed |
+| T-01 | Usage contract | (children: T-01a, T-01b, T-01e, T-01f, T-01h, T-01i, T-01j, T-01k, T-01l, T-01m, T-01n, T-01o, T-01p, T-01q, T-01r, T-01s, T-01g, T-01c, T-01d, T-01t, T-01u, T-01v, T-01w, T-01x, T-01y, T-01z) | — | composite | in-progress |
 | T-01a | canonical encoding and content identities | validate inputs → compute → integrate | — | leaf | reviewed |
 | T-01b | typed usage measurements | define states → validate evidence → test bounds | T-01a | leaf | reviewed |
 | T-01e | observation and bundle schema | define envelopes → validate → reject unsafe inputs | T-01b | leaf | reviewed |
@@ -24,19 +24,37 @@
 | T-01g | producer schema export | expose registry → preserve compatibility → verify parity | T-01s | leaf | reviewed |
 | T-01c | versioned source profiles and counter normalization | validate inputs → compute → integrate | T-01g | leaf | reviewed |
 | T-01d | typed diagnostic metrics | validate inputs → compute → integrate | T-01c | leaf | reviewed |
-| T-02 | Bounded source adapters | (children: T-02a, T-02b, T-02c) | T-01d | composite | reviewed |
+| T-01t | Preserve nested ordered arrays in canonical sets | reproduce → repair → independently recheck | T-01a | leaf | reviewed |
+| T-01u | Accept general JSON discriminator values in canonical primitives | reproduce → repair → independently recheck | T-01e | leaf | reviewed |
+| T-01v | Compare collection boundaries without precision loss | reproduce → repair → independently recheck | T-01k | leaf | reviewed |
+| T-01w | Bind snapshot diagnostic records to the owner scope | reproduce → repair → independently recheck | T-01s | leaf | reviewed |
+| T-01x | Propagate contradictory cache write evidence | reproduce → repair → independently recheck | T-01c | leaf | reviewed |
+| T-01y | Pin diagnostic isolation from paid accounting | reproduce → repair → independently recheck | T-01d | leaf | reviewed |
+| T-01z | Preserve scope-free quarantine diagnostics in snapshots | reproduce → repair → independently recheck | T-01w | leaf | reviewed |
+| T-02 | Bounded source adapters | (children: T-02a, T-02b, T-02c, T-02d, T-02e) | T-01d | composite | in-progress |
 | T-02a | bounded explicit source selection | validate inputs → compute → integrate | T-01d | leaf | reviewed |
 | T-02b | profile-driven source normalization and quarantine | validate inputs → compute → integrate | T-02a | leaf | reviewed |
 | T-02c | normalization destination safety | reproduce race → protect destination → validate | T-02b | leaf | reviewed |
+| T-02d | Deduplicate identical selected observations | reproduce → repair → independently recheck | T-02b | leaf | reviewed |
+| T-02e | Detect incomplete telemetry stream output | reproduce → repair → independently recheck | T-02c | leaf | reviewed |
 | T-03 | Immutable publication and lifecycle projection | integrate → verify → review | T-02 | leaf | reviewed |
 | T-04 | Usage resolution, ownership and exact pricing | integrate → verify → review | T-03 | leaf | reviewed |
 | T-06 | Retrospective reports and duration analysis | integrate → verify → review | T-04 | leaf | reviewed |
 | T-07 | Current status and warning delivery | integrate → verify → review | T-04, T-06 | leaf | reviewed |
 | T-08 | Compatibility, recovery and operating guidance | integrate → verify → review | T-03, T-04, T-06, T-07 | leaf | reviewed |
+| T-09 | Reject malformed explicit lifecycle cost scalars | reproduce → repair → independently recheck | T-03 | leaf | reviewed |
+| T-10 | Keep account-scoped responses distinct in accounting | reproduce → repair → independently recheck | T-04 | leaf | reviewed |
+| T-11 | Preserve exact accepted-outcome ratios | reproduce → repair → independently recheck | T-06 | leaf | reviewed |
+| T-12 | Export every permitted input identifier | reproduce → repair → independently recheck | T-06 | leaf | reviewed |
+| T-13 | Preserve owner evidence in selected-part warning delivery | reproduce → repair → independently recheck | T-07 | leaf | reviewed |
+| T-14 | Retain conditional pricing semantics in warnings | reproduce → repair → independently recheck | T-07 | leaf | reviewed |
+| T-15 | Restore complete validation metadata | reproduce → repair → independently recheck | T-08 | leaf | done |
+| T-16 | Apply counter conflicts only to active revisions | reproduce → repair → independently recheck | T-01x | leaf | reviewed |
+| T-17 | Preserve pricing snapshots across partial responses | reproduce → repair → independently recheck | T-16 | leaf | reviewed |
 
 ## Execution Strategy
 
-The contract composite passed independent integration validation. Execute the approved source-adapter destination-safety fix, then rerun its composite integration validation before the publication work item. The existing publication branch predates this newly discovered fix; reconcile the stacked branch with the reviewed fix before resuming it without changing its recorded original base_commit. The five remaining work items group the original acceptance clusters by capability. Independent work may proceed in parallel in isolated worktrees; integration and review follow dependency order. The user explicitly requested this consolidation despite the normal leaf-health classifier: each grouped work item retains multiple independently testable clusters and must be independently reviewed in full. No previous progress or branch history is discarded.
+Original execution and the 27 independent pull request reviews are complete. Approved validation repairs execute sequentially in isolated per-PR contexts, followed by a fresh independent recheck before the next repair. Corrections append to the existing final integration branch; original branches, base commits and test history are preserved. The five capability-oriented original work items retain every acceptance cluster and the user-approved consolidation rationale. Final combined verification gates dependency-ordered merges, including all repository knowledge files.
 
 ## Decomposition Decisions
 

@@ -12,6 +12,7 @@ Everything here is *about* the system; the system itself is `workflows/`, `rules
 
 ## Audits (`audits/`)
 
+- [Usage telemetry review](audits/2026-10-30-usage-telemetry-review.md) — isolated per-PR reviews, behavioral repairs, independent rechecks and integration evidence
 - [Workflow clarity and size audit](audits/2026-10-28-workflow-clarity-and-size.md) — all workflow files, corrected execution contracts, source-size comparison and specification reconciliation
 - [2026-10-26-hook-logging-final-review.md](audits/2026-10-26-hook-logging-final-review.md) — independent per-PR reviews, producer repairs, complete validation and verified integration
 - [AUDIT-PROMPT.md](audits/AUDIT-PROMPT.md) — prompt for an independent audit of `/spec-run`

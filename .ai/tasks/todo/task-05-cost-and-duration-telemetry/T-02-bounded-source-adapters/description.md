@@ -3,7 +3,7 @@ Integrate bounded source adapters into the complete telemetry contract.
 
 ## Context
 - type: composite
-- children: T-02a, T-02b, T-02c
+- children: T-02a, T-02b, T-02c, T-02d, T-02e
 - Dependencies: T-01d
 - Constraints: Preserve explicit scope, immutable evidence and unknown values throughout.
 - Reason: The components are separately testable and require integrated verification.
@@ -11,12 +11,12 @@ Integrate bounded source adapters into the complete telemetry contract.
 Off-limits: Paid model calls, automatic model or policy changes, unsolicited history discovery and changes to existing evidence.
 
 ## Scope
-- **In scope:** T-02a bounded explicit source selection; T-02b profile-driven source normalization and quarantine; T-02c destination safety.
+- **In scope:** T-02a bounded explicit source selection; T-02b profile-driven source normalization and quarantine; T-02c destination safety; T-02d deduplicate identical selected observations; T-02e detect incomplete telemetry stream output.
 - **Out of scope:** Other telemetry components and unrelated workflow behavior.
 - **Target files:** scripts/usage_telemetry_sources.py, tests/usage-source-selection.py, scripts/usage-telemetry.py, tests/usage-source-normalization.py.
 
 ## Steps
-See children: T-02a bounded explicit source selection; T-02b profile-driven source normalization and quarantine; T-02c destination safety.
+See children: T-02a bounded explicit source selection; T-02b profile-driven source normalization and quarantine; T-02c destination safety; T-02d deduplicate identical selected observations; T-02e detect incomplete telemetry stream output.
 
 ## Acceptance Criteria
 - An explicitly selected, digest-verified file is normalized using its declared profile and fixed observation time into a sanitized bundle.
