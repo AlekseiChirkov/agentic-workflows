@@ -7,7 +7,6 @@ import hashlib
 import hmac
 import json
 import os
-import secrets
 from pathlib import Path
 import re
 import stat
@@ -218,60 +217,6 @@ def _authority_binding_key(kind, scope, subject, evidence):
     return tuple(contract.canonical_bytes(value) for value in (kind, scope, subject, evidence))
 
 
-def _output_directory(path):
-    """Open a destination directory without following symlinks or shared-store aliases."""
-    path = os.path.abspath(path)
-    parent, name = os.path.split(path)
-    if not name or name in ('.', '..'):
-        raise ValueError('invalid output')
-    log_root = os.environ.get('ORCHESTRAIL_LOG_ROOT') or str(Path(__file__).resolve().parents[1] / 'logs')
-    shared = os.path.realpath(os.path.join(log_root, 'usage', 'v1'))
-    if os.path.commonpath((os.path.realpath(parent), shared)) == shared:
-        raise ValueError('output is in shared storage')
-    parts = [part for part in parent.split('/') if part]
-    directory = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    try:
-        for part in parts:
-            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
-            os.close(directory)
-            directory = child
-        return directory, name, parent, log_root
-    except BaseException:
-        os.close(directory)
-        raise
-
-
-def _check_destination(directory, parent, log_root):
-    # Fail closed if the opened directory was moved or the kernel cannot expose
-    # its current location. The operator must still prevent concurrent renames.
-    actual = os.readlink('/proc/self/fd/' + str(directory))
-    shared = os.path.realpath(os.path.join(log_root, 'usage', 'v1'))
-    if actual != parent or os.path.commonpath((actual, shared)) == shared:
-        raise ValueError('output directory changed')
-
-
-def _publish(directory, name, parent, log_root, data):
-    temp = '.usage-' + secrets.token_hex(16) + '.tmp'
-    fd = None
-    try:
-        _check_destination(directory, parent, log_root)
-        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory)
-        with os.fdopen(fd, 'wb') as stream:
-            fd = None
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-        _check_destination(directory, parent, log_root)
-        os.replace(temp, name, src_dir_fd=directory, dst_dir_fd=directory)
-    finally:
-        if fd is not None:
-            os.close(fd)
-        try:
-            os.unlink(temp, dir_fd=directory)
-        except FileNotFoundError:
-            pass
-
-
 def _status_authority(path):
     """Load explicit owner-controlled authorizations; hashes alone are not trust.
 
@@ -403,24 +348,18 @@ def _snapshot_with_parts(data):
 
 
 def _status(args):
+    output = os.fstat(sys.stdout.fileno())
+    if not (stat.S_ISFIFO(output.st_mode) or stat.S_ISSOCK(output.st_mode)):
+        raise ValueError('output must be a pipe or socket')
     raw_snapshot = _read_file(args.receipt_snapshot)
-    manifest = contract.parse_json(raw_snapshot)
-    selected_parts = manifest.get('parts', []) if isinstance(manifest, dict) else []
     snapshot, proposal, materialized_limit = _snapshot_with_parts(raw_snapshot)
     policy = None if args.policy is None else contract.validate_warning_policy_json(_read_file(args.policy))
     verifier = _status_authority(args.authority)
-    selected = [path for path in (args.receipt_snapshot, args.policy, args.authority) if path]
-    selected.extend(part['local_path'] for part in selected_parts)
-    if os.path.realpath(args.output) in {os.path.realpath(path) for path in selected}:
-        raise ValueError('output conflicts with an input')
     observed_at = args.observed_at or datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     result = alerts.evaluate_status(snapshot, policy, observed_at=observed_at, verifier=verifier,
                                     _materialized_limit=materialized_limit, _proposal=proposal)
-    directory, name, parent, log_root = _output_directory(args.output)
-    try:
-        _publish(directory, name, parent, log_root, canonical_bytes(result))
-    finally:
-        os.close(directory)
+    sys.stdout.buffer.write(canonical_bytes(result))
+    sys.stdout.buffer.flush()
 
 
 def _owner_delivery(args):
@@ -477,7 +416,6 @@ def main(argv=None):
     status.add_argument('--receipt-snapshot', required=True)
     status.add_argument('--policy')
     status.add_argument('--observed-at')
-    status.add_argument('--output', required=True)
     status.add_argument('--authority')
     owner = commands.add_parser('owner-deliver')
     owner.add_argument('--state', required=True)
@@ -570,14 +508,17 @@ if __name__ == '__main__':
     try:
         main()
     except sources.SourceReadError:
-        operation = 'analysis' if len(sys.argv) > 1 and sys.argv[1] == 'analyze' else 'normalization'
+        operation = {'analyze': 'analysis', 'status': 'status', 'owner-deliver': 'owner delivery'}.get(
+            sys.argv[1] if len(sys.argv) > 1 else '', 'normalization')
         print('usage telemetry: ' + operation + ' failed', file=sys.stderr)
         sys.exit(3)
     except (ValueError, UnicodeError, RecursionError, OverflowError, TypeError, KeyError):
-        operation = 'analysis' if len(sys.argv) > 1 and sys.argv[1] == 'analyze' else 'normalization'
+        operation = {'analyze': 'analysis', 'status': 'status', 'owner-deliver': 'owner delivery'}.get(
+            sys.argv[1] if len(sys.argv) > 1 else '', 'normalization')
         print('usage telemetry: ' + operation + ' failed', file=sys.stderr)
         sys.exit(2)
     except OSError:
-        operation = 'analysis' if len(sys.argv) > 1 and sys.argv[1] == 'analyze' else 'normalization'
+        operation = {'analyze': 'analysis', 'status': 'status', 'owner-deliver': 'owner delivery'}.get(
+            sys.argv[1] if len(sys.argv) > 1 else '', 'normalization')
         print('usage telemetry: ' + operation + ' failed', file=sys.stderr)
         sys.exit(3)

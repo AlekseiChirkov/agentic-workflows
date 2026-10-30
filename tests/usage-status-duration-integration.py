@@ -86,7 +86,6 @@ class TimeOnlyStatusTests(unittest.TestCase):
             root = Path(directory)
             source = root / 'snapshot.json'
             authority = root / 'authority.json'
-            output = root / 'output.json'
             source.write_text(json.dumps(snapshot), encoding='utf-8')
             authority.write_text(json.dumps({'schema_version': 1, 'kind': 'status_authority',
                 'bindings': [{'kind': kind, 'scope': scope, 'subject': subject, 'evidence': evidence}
@@ -94,10 +93,10 @@ class TimeOnlyStatusTests(unittest.TestCase):
             authority.chmod(0o600)
             result = subprocess.run(['python3', str(ROOT / 'scripts/usage-telemetry.py'), 'status',
                     '--receipt-snapshot', str(source), '--authority', str(authority),
-                    '--observed-at', NOW, '--output', str(output)],
+                    '--observed-at', NOW],
                     cwd=root, capture_output=True, text=True, timeout=20)
             self.assertEqual(result.returncode, 0, result.stderr)
-            status = json.loads(output.read_text())
+            status = json.loads(result.stdout)
             self.assertEqual([item['metric'] for item in status['candidates']], ['duration_ms'])
             self.assertEqual(status['measurements']['duration_ms']['value'], 7201000)
             self.assertNotIn(str(root), json.dumps(status))
