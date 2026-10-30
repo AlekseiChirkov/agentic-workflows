@@ -30,6 +30,7 @@ usage_warning_acceptance() {
     tests/usage-status-multiple-bundles.py \
     tests/usage-status-no-pricing.py \
     tests/usage-status-owner-scopes.py \
+    tests/usage-status-output-relocation.py \
     tests/usage-status-parts-cli.py \
     tests/usage-status-revision.py \
     tests/usage-status-scope-evidence.py \
