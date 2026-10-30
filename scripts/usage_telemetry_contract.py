@@ -1381,10 +1381,10 @@ def validate_collection_segment(value: Any) -> dict[str, Any]:
     _private_identifier(scope["owner_id"])
     _choice(value["mode"], frozenset({"on", "off"}))
     _timestamp(value["start"])
-    start = datetime.fromisoformat(value["start"][:-1] + "+00:00")
+    start = _instant(value["start"])
     if value["end"] is not None:
         _timestamp(value["end"])
-        if datetime.fromisoformat(value["end"][:-1] + "+00:00") < start:
+        if _instant(value["end"]) < start:
             raise ValueError("invalid segment boundaries")
     gap = value["gap_before"]
     _fields(gap, {"state", "start", "end"})
@@ -1392,8 +1392,8 @@ def validate_collection_segment(value: Any) -> dict[str, Any]:
     if gap["state"] == "present":
         _timestamp(gap["start"])
         _timestamp(gap["end"])
-        gap_start = datetime.fromisoformat(gap["start"][:-1] + "+00:00")
-        gap_end = datetime.fromisoformat(gap["end"][:-1] + "+00:00")
+        gap_start = _instant(gap["start"])
+        gap_end = _instant(gap["end"])
         if gap_start > gap_end or gap_end > start:
             raise ValueError("invalid gap boundaries")
     elif gap["start"] is not None or gap["end"] is not None:
