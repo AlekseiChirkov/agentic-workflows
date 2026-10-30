@@ -118,6 +118,13 @@ class EpochCliTests(unittest.TestCase):
         self.assertEqual(result['epochs']['aggregate']['total'], '20')
         self.assertNotIn('PRIVATE_EPOCH', run.stdout)
 
+    def test_default_log_root_fails_closed_without_registration(self):
+        self.env.pop('ORCHESTRAIL_LOG_ROOT', None)
+        result = self.invoke()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(result.stderr.strip(), 'usage telemetry: normalization failed')
+
     def test_different_root_authority_key_cannot_replace_registered_key(self):
         other_private = self.root / 'other-private.pem'
         other_public = self.root / 'other-public.pem'
