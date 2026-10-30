@@ -21,6 +21,20 @@ class CloseDuringPublicationTests(unittest.TestCase):
         self.race.setUp()
         self.addCleanup(self.race.doCleanups)
 
+    def test_run_closed_during_install_does_not_install_active_bundle(self):
+        original = ingest.publication._install
+
+        def close_before_install(*args):
+            ended = self.race.end_run()
+            self.assertEqual(ended.returncode, 0)
+            self.assertFalse(self.race.fixture.lifecycle.exists())
+            return original(*args)
+
+        with patch.object(ingest.publication, '_install', side_effect=close_before_install):
+            with self.assertRaises((ValueError, OSError)):
+                self.race.invoke()
+        self.assertFalse(self.race.fixture.artifact().exists())
+
     def test_paused_install_never_delays_close_or_returns_stale_receipt(self):
         entered, resume = threading.Event(), threading.Event()
         original = ingest.publication.publish_usage
