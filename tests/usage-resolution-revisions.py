@@ -144,6 +144,36 @@ def delta_fixture():
 
 
 class RevisionIntegrationTests(unittest.TestCase):
+    def test_mixed_partial_and_final_responses_preserve_price_snapshots(self):
+        for partial_index in (0, 1):
+            for reverse in (False, True):
+                with self.subTest(partial_index=partial_index, reverse=reverse):
+                    data, _ = base.fixture()
+                    second = data['bundle']['observations'][1]
+                    second['source_time'] = '2026-01-01T00:00:00Z'
+                    context = data['contexts'][1]
+                    context['observation_id'] = contract.observation_id(second)
+                    context['execution_time'] = second['source_time']
+                    for proof in context['evidence_objects']:
+                        if proof['kind'] == 'execution_time_evidence':
+                            proof['value'] = context['execution_time']
+                    data['contexts'][partial_index]['event']['final'] = False
+                    allowed = authorize(data)
+                    if reverse:
+                        data['bundle']['observations'].reverse()
+                        data['contexts'].reverse()
+                    result = base.resolve(data, base.Verifier(allowed))
+                    partial = result['responses'][partial_index]
+                    complete = result['responses'][1 - partial_index]
+                    self.assertEqual(partial['tokens']['input'], {'value': '1000', 'quality': 'partial'})
+                    self.assertEqual(partial['model_cost']['subtotal_quality'], 'subtotal_only')
+                    self.assertNotIn('cost_usd', partial['model_cost'])
+                    self.assertEqual(complete['tokens']['input'], {'value': '1000', 'quality': 'complete'})
+                    self.assertEqual(complete['model_cost']['cost_usd'], '0.00289')
+                    self.assertEqual(result['cost']['priced_subtotal_usd'], '0.00289')
+                    self.assertEqual(result['cost']['subtotal_quality'], 'subtotal_only')
+                    self.assertEqual(result['completeness']['priced'], {'numerator': 1, 'denominator': 2})
+
     def test_partial_snapshot_replaced_by_final_without_double_count(self):
         data, allowed = snapshot_fixture()
         result = base.resolve(data, base.Verifier(allowed))
