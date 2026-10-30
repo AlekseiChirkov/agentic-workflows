@@ -9,6 +9,46 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+usage_report_acceptance() {
+  local file
+  for file in \
+    tests/usage-accepted-outcomes.py \
+    tests/usage-analyze-cli-errors.py \
+    tests/usage-analyze-cli-evidence.py \
+    tests/usage-context-evidence-timing.py \
+    tests/usage-duration-analysis.py \
+    tests/usage-empty-retrospective.py \
+    tests/usage-fixed-corpus.py \
+    tests/usage-frozen-context-evidence.py \
+    tests/usage-frozen-pricing-inputs.py \
+    tests/usage-group-statistics.py \
+    tests/usage-multibundle-report.py \
+    tests/usage-outcome-tool-cost.py \
+    tests/usage-outcome-unattributed-workload.py \
+    tests/usage-report-consumer.py \
+    tests/usage-report-dimensions.py \
+    tests/usage-report-epochs.py \
+    tests/usage-report-evidence-fields.py \
+    tests/usage-report-exports.py \
+    tests/usage-report-multibundle-fields.py \
+    tests/usage-report-optional-pricing.py \
+    tests/usage-report-overlap-ownership.py \
+    tests/usage-report-overlap-tools.py \
+    tests/usage-resolved-report-integration.py \
+    tests/usage-retrospective-integration.py \
+    tests/usage-retrospective-outcome-timing.py \
+    tests/usage-unpriced-accepted-outcome.py \
+    tests/usage-unpriced-report.py; do
+    python3 "$REPO_ROOT/$file" "$@" || return 1
+  done
+}
+
+if [ "${1:-}" = --usage-report-only ]; then
+  shift
+  usage_report_acceptance "$@"
+  exit $?
+fi
+
 usage_resolution_acceptance() {
   local file
   for file in \
@@ -4751,6 +4791,9 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
 check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
   "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
 # ── End public identity smoke checks ────────────────────────────────
+
+check "test_usage_report_acceptance" \
+  "$(usage_report_acceptance >/dev/null 2>&1 && echo pass || echo 'usage retrospective report fixtures must pass')"
 
 check "test_usage_resolution_acceptance" \
   "$(usage_resolution_acceptance >/dev/null 2>&1 && echo pass || echo 'usage resolution and pricing fixtures must pass')"

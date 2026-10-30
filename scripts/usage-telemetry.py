@@ -138,6 +138,71 @@ def _epoch_permit(path):
     return signed, signatures, hashlib.sha256(trusted_key).hexdigest()
 
 
+def _analysis_authority(path, key_path, manifest):
+    """Verify an exact signed selection and scoped independent decisions."""
+    import usage_telemetry_contract as contract
+    import usage_telemetry_ingest as ingest
+    if not path or not key_path:
+        raise ValueError('independent authority unavailable')
+    value = contract.parse_json(_read_file(path, private=True))
+    if not isinstance(value, dict) or set(value) != {
+            'schema_version', 'kind', 'manifest_sha256', 'inputs', 'evidence', 'signature'}:
+        raise ValueError('invalid analysis authority')
+    if (type(value['schema_version']) is not int or value['schema_version'] != 1 or
+            value['kind'] != 'analysis_authority' or value['manifest_sha256'] != contract.content_id(manifest)):
+        raise ValueError('analysis authority mismatch')
+    signature = value['signature']
+    if not isinstance(signature, str) or re.fullmatch(r'(?:[0-9a-f]{128}|[0-9a-f]{512}|[0-9a-f]{768}|[0-9a-f]{1024})', signature) is None:
+        raise ValueError('invalid analysis signature')
+    public = ingest.trusted_authority_key(key_path)
+    body = {key: item for key, item in value.items() if key != 'signature'}
+    message = b'orchestrail:analysis-authority:v1\0' + contract.canonical_bytes(body)
+    if len(signature) == 128:
+        try:
+            from cryptography.hazmat.primitives import serialization
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+            from cryptography.exceptions import InvalidSignature
+        except ImportError:
+            raise ValueError('analysis authority verifier unavailable') from None
+        try:
+            key = serialization.load_pem_public_key(public)
+            if not isinstance(key, Ed25519PublicKey):
+                raise ValueError('invalid analysis authority key')
+            key.verify(bytes.fromhex(signature), message)
+        except (ValueError, TypeError, InvalidSignature):
+            raise ValueError('invalid analysis authority') from None
+    elif not ingest.verify_rsa_sha256(public, message, bytes.fromhex(signature)):
+        raise ValueError('invalid analysis authority')
+    inputs = value['inputs']
+    evidence = value['evidence']
+    if not isinstance(inputs, list) or len(inputs) > 10000 or not isinstance(evidence, list) or len(evidence) > 10000:
+        raise ValueError('invalid analysis decisions')
+    input_proofs = {}
+    for entry in inputs:
+        if not isinstance(entry, dict) or set(entry) != {'sha256', 'proof'}:
+            raise ValueError('invalid input decision')
+        digest = entry['sha256']
+        contract._hash(digest)
+        if digest in input_proofs and input_proofs[digest] != entry['proof']:
+            raise ValueError('conflicting input decisions')
+        input_proofs[digest] = entry['proof']
+    authorized = set()
+    for entry in evidence:
+        if not isinstance(entry, dict) or set(entry) != {'kind', 'scope', 'subject', 'evidence'}:
+            raise ValueError('invalid evidence decision')
+        authorized.add(contract.canonical_bytes(entry))
+    def verify_input(entry, decoded, scope):
+        proof = input_proofs.get(entry['sha256'])
+        if not isinstance(proof, dict) or proof.get('scope') != scope:
+            raise ValueError('input is not independently authorized')
+        return proof
+    def verify_evidence(kind, scope, subject, proof):
+        return contract.canonical_bytes({'kind': kind, 'scope': scope, 'subject': subject,
+                                         'evidence': proof}) in authorized
+    return verify_input, verify_evidence
+
+
+
 def main(argv=None):
     parser = Parser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -146,7 +211,27 @@ def main(argv=None):
     normalize.add_argument('--input-manifest', required=True)
     normalize.add_argument('--provenance-fd', type=int)
     normalize.add_argument('--epoch-permit')
+    analyze = commands.add_parser('analyze')
+    analyze.add_argument('--corpus-manifest', required=True)
+    analyze.add_argument('--scenario', required=True)
+    analyze.add_argument('--authority')
+    analyze.add_argument('--authority-key')
     args = parser.parse_args(argv)
+    if args.command == 'analyze':
+        import usage_telemetry_contract as contract
+        import usage_telemetry_report as report
+        import usage_telemetry_exports as exports
+        manifest = contract.validate_analysis_corpus_json(_read_file(args.corpus_manifest))
+        if args.scenario != manifest['scenario_id']:
+            raise ValueError('analysis scenario mismatch')
+        output = os.fstat(sys.stdout.fileno())
+        if not (stat.S_ISFIFO(output.st_mode) or stat.S_ISSOCK(output.st_mode)):
+            raise ValueError('output must be a pipe or socket')
+        verify_input, verify_evidence = _analysis_authority(args.authority, args.authority_key, manifest)
+        result = report.analyze_corpus(manifest, verify_input=verify_input, verify_evidence=verify_evidence)
+        sys.stdout.buffer.write(exports.archive_exports(exports.render_exports(result)))
+        sys.stdout.buffer.flush()
+        return
     permit, decisions, authority_fingerprint = (_epoch_permit(args.epoch_permit) if args.epoch_permit
                                                else (None, set(), None))
     config, profile, key = _config(os.environ.get('USAGE_TELEMETRY_CONFIG'), args.profile,
@@ -211,6 +296,15 @@ def main(argv=None):
 if __name__ == '__main__':
     try:
         main()
-    except (ValueError, OSError, UnicodeError, RecursionError, OverflowError, TypeError):
-        print('usage telemetry: normalization failed', file=sys.stderr)
-        sys.exit(1)
+    except sources.SourceReadError:
+        operation = 'analysis' if len(sys.argv) > 1 and sys.argv[1] == 'analyze' else 'normalization'
+        print('usage telemetry: ' + operation + ' failed', file=sys.stderr)
+        sys.exit(3)
+    except (ValueError, UnicodeError, RecursionError, OverflowError, TypeError):
+        operation = 'analysis' if len(sys.argv) > 1 and sys.argv[1] == 'analyze' else 'normalization'
+        print('usage telemetry: ' + operation + ' failed', file=sys.stderr)
+        sys.exit(2)
+    except OSError:
+        operation = 'analysis' if len(sys.argv) > 1 and sys.argv[1] == 'analyze' else 'normalization'
+        print('usage telemetry: ' + operation + ' failed', file=sys.stderr)
+        sys.exit(3)
