@@ -160,6 +160,14 @@ class PublicationCliTests(unittest.TestCase):
         with os.fdopen(read_fd, 'rb') as stream:
             proof = stream.read()
         self.assertEqual(result.returncode, 0, result.stderr)
+        body = {'schema_version': 1, 'kind': 'usage_provenance',
+                'bundle_sha256': hashlib.sha256(result.stdout).hexdigest(),
+                'profile_id': self.bundle['profile_id'], 'profile_version': self.bundle['profile_version'],
+                'scope': self.config['owner_scope']}
+        body['mac'] = hmac.new(bytes.fromhex(self.config['key_hex']),
+                               b'orchestrail:usage-provenance:v1\0' + contract.canonical_bytes(body),
+                               hashlib.sha256).hexdigest()
+        self.assertEqual(proof, contract.canonical_bytes(body))
         self.output.write_bytes(result.stdout)
         self.provenance.write_bytes(proof)
         self.provenance.chmod(0o600)
