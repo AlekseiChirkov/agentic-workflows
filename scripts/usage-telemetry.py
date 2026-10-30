@@ -364,6 +364,9 @@ def _status(args):
 
 def _owner_delivery(args):
     """Apply an explicit owner-authorized proposal or recover pending notes."""
+    output = os.fstat(sys.stdout.fileno())
+    if not (stat.S_ISFIFO(output.st_mode) or stat.S_ISSOCK(output.st_mode)):
+        raise ValueError("output must be a pipe or socket")
     import usage_telemetry_delivery as delivery
     authority = contract.parse_json(_read_file(args.owner_authority, private=True))
     contract._fields(authority, {'schema_version', 'kind', 'owner_scope', 'destinations'})
