@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+# Check collection segment schemas with offline fixtures.
+if [ "${1:-}" = --usage-segment-only ]; then
+  shift
+  exec python3 "$REPO_ROOT/tests/usage-collection-segment-schema.py" "$@"
+fi
+
 # Check bounded attribution metadata.
 if [ "${1:-}" = --usage-attribution-only ]; then
   shift
@@ -4589,6 +4595,17 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
 check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
   "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
 # ── End public identity smoke checks ────────────────────────────────
+
+# Run collection segment fixtures during ordinary validation as well.
+test_usage_segment_acceptance() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/usage-collection-segment-schema.py" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_usage_segment_acceptance" \
+  "$(test_usage_segment_acceptance && echo pass || echo 'usage segment fixtures must pass')"
 
 # Run attribution fixtures during ordinary validation as well.
 test_usage_attribution_acceptance() {
