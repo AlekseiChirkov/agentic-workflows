@@ -84,6 +84,12 @@ if [ "${1:-}" = --usage-selection-only ]; then
   exec python3 "$REPO_ROOT/tests/usage-source-selection.py" "$@"
 fi
 
+# Check counter normalization using explicit offline profiles.
+if [ "${1:-}" = --usage-source-profiles-only ]; then
+  shift
+  exec python3 "$REPO_ROOT/tests/usage-source-profiles.py" "$@"
+fi
+
 # Check synthetic source-profile schemas.
 if [ "${1:-}" = --usage-entity-only ]; then
   shift
@@ -4803,6 +4809,17 @@ test_usage_selection_acceptance() {
 }
 check "test_usage_selection_acceptance" \
   "$(test_usage_selection_acceptance && echo pass || echo 'usage selection fixtures must pass')"
+
+# Run source normalization fixtures during ordinary validation as well.
+test_usage_source_profiles_acceptance() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/usage-source-profiles.py" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_usage_source_profiles_acceptance" \
+  "$(test_usage_source_profiles_acceptance && echo pass || echo 'usage source normalization fixtures must pass')"
 
 # Run synthetic source-profile fixtures during ordinary validation as well.
 test_usage_entity_acceptance() {

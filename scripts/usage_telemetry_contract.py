@@ -7,6 +7,7 @@ a complete envelope.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 from datetime import datetime
 from fractions import Fraction
@@ -67,7 +68,7 @@ MEASUREMENT_REASONS = frozenset({
 })
 
 
-def validate_measurement(value: Any) -> dict[str, Any]:
+def validate_measurement(value: Any, *, allow_derived: bool = False) -> dict[str, Any]:
     """Validate structure only; consumers must verify evidence and its scope.
 
     An evidence reference is the SHA-256 of a sanitized evidence object. Its
@@ -104,7 +105,13 @@ def validate_measurement(value: Any) -> dict[str, Any]:
     else:
         if state == "unavailable":
             raise ValueError("unavailable measurement must omit its value")
-        counter = validate_counter(value["value"])
+        counter = value["value"]
+        if allow_derived and isinstance(counter, str):
+            if re.fullmatch(r"0|[1-9][0-9]*", counter) is None:
+                raise ValueError("invalid derived counter")
+            counter = int(counter)
+        else:
+            counter = validate_counter(counter)
         if counter == 0 and evidence is None:
             raise ValueError("zero measurement requires evidence")
     return value
@@ -140,6 +147,18 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
     envelope = kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
 
     def schema_set(path: tuple[str, ...]) -> bool:
+        if kind == "derived_measurement_evidence" and path in {
+            ("operands",), ("profile", "counter_fields"), ("profile", "counter_fields", "includes"),
+            ("profile", "known_gaps"), ("profile", "finality", "signals"),
+        }:
+            return True
+        if kind == "usage_bundle" and path in {
+            ("evidence_objects", "operands"), ("evidence_objects", "profile", "counter_fields"),
+            ("evidence_objects", "profile", "counter_fields", "includes"),
+            ("evidence_objects", "profile", "known_gaps"),
+            ("evidence_objects", "profile", "finality", "signals"),
+        }:
+            return True
         if kind == "current_run_snapshot":
             if path in {("segments",), ("accepted_receipts",), ("bundles",),
                         ("inventories",), ("inventory_evidence",), ("warning_delivery",),
@@ -187,11 +206,14 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
             ("inputs",), ("exclusions",), ("identifier_mappings",),
         }:
             return True
+        if path[-2:] == ("measurements", "input_cache_write"):
+            return True
         if not envelope:
             return False
         if path[-2:] == ("attribution", "candidates"):
             return True
-        if len(path) >= 3 and path[-3] == "measurements" and path[-1] == "reasons":
+        if (len(path) >= 3 and path[-1] == "reasons" and
+                "measurements" in path[:-1]):
             return True
         if (kind == "inventory" and path in {("expected_calls",), ("expected_responses",),
                                                ("unresolved_slots",)}):
@@ -456,6 +478,186 @@ def validate_source_profile(value: Any) -> dict[str, Any]:
     return value
 
 
+def normalize_source_counters(profile: Any, source: Any, *, profile_version: str,
+                              source_hash: str, record_number: int) -> dict[str, Any]:
+    """Normalize one selected record without reading files or assuming provenance.
+
+    Profile and record authenticity must be established by the caller. Counter
+    categories are only combined when the selected profile proves their meaning.
+    """
+    validate_source_profile(profile)
+    _hash(source_hash)
+    validate_counter(record_number)
+    if not isinstance(source, dict):
+        raise ValueError("invalid source record")
+    fields = ("input_uncached", "input_cache_read", "input_cache_write_unsplit",
+              "output_total", "reasoning_subset", "tokens_in")
+
+    def missing(reason: str = "source_unavailable", state: str = "unavailable") -> dict[str, Any]:
+        return {"measurement_state": state, "reasons": [reason]}
+
+    if profile_version != profile["profile_version"]:
+        return {"measurements": {name: missing("unsupported_profile") for name in fields},
+                "evidence_objects": []}
+
+    observations: dict[str, list[tuple[dict[str, Any], int | None]]] = {}
+    absent = object()
+    for definition in profile["counter_fields"]:
+        item: Any = source
+        for segment in definition["path"]:
+            if not isinstance(item, dict) or segment not in item:
+                item = absent
+                break
+            item = item[segment]
+        if item is not absent:
+            validate_counter(item)
+        else:
+            item = None
+        observations.setdefault(definition["measurement"], []).append((definition, item))
+
+    evidence_objects: list[dict[str, Any]] = []
+    def observed(field: str, value: int, ttl: str | None = None,
+                 definition: dict[str, Any] | None = None) -> dict[str, Any]:
+        validate_counter(value)
+        evidence = {"schema_version": 1, "kind": "measurement_evidence",
+                    "profile_id": profile["profile_id"], "source_hash": source_hash,
+                    "record_number": record_number, "field": field, "value": value}
+        if ttl is not None:
+            evidence["ttl"] = ttl
+        if definition is not None:
+            evidence["path"] = list(definition["path"])
+        evidence_objects.append(evidence)
+        return {"measurement_state": "partial", "value": value,
+                "reasons": [], "evidence": content_id(evidence)}
+
+    def derived(field: str, value: int, operation: str, operands: list[str]) -> dict[str, Any]:
+        encoded: int | str = value if value <= MAX_COUNTER else str(value)
+        evidence = {"schema_version": 1, "kind": "derived_measurement_evidence",
+                    "profile_id": profile["profile_id"], "profile_version": profile["profile_version"],
+                    "profile_hash": content_id(profile), "profile": copy.deepcopy(profile),
+                    "source_hash": source_hash, "record_number": record_number,
+                    "field": field, "value": encoded, "operation": operation, "operands": operands}
+        evidence_objects.append(evidence)
+        return {"measurement_state": "partial", "value": encoded,
+                "reasons": [], "evidence": content_id(evidence)}
+
+    def resolve(name: str) -> tuple[dict[str, Any] | None, int | None, bool]:
+        entries = observations.get(name, [])
+        if not entries:
+            return None, None, False
+        if len(entries) != 1:
+            return None, None, True
+        definition, amount = entries[0]
+        if definition.get("semantics_status") != "verified" or definition["counter_scope"] != "response_total":
+            return definition, None, False
+        return definition, amount, False
+
+    resolved = {name: resolve(name) for name in fields if name != "tokens_in"}
+    resolved["input_total"] = resolve("input_total")
+    measurements: dict[str, Any] = {}
+    for name in ("input_cache_read", "input_cache_write_unsplit", "output_total", "reasoning_subset"):
+        definition, amount, conflict = resolved[name]
+        measurements[name] = (missing("counter_conflict", "conflicted") if conflict else
+                              observed(name, amount, definition=definition) if amount is not None else missing())
+
+    split = observations.get("input_cache_write", [])
+    split_values: list[dict[str, Any]] = []
+    split_seen: set[str] = set()
+    split_conflict = False
+    split_complete = bool(split)
+    for definition, amount in split:
+        ttl = definition["ttl"]
+        if ttl in split_seen:
+            split_conflict = True
+            continue
+        split_seen.add(ttl)
+        if definition["counter_scope"] != "response_total" or amount is None:
+            split_complete = False
+            split_values.append({"ttl": ttl, "tokens": missing()})
+        else:
+            split_values.append({"ttl": ttl, "tokens": observed("input_cache_write", amount, ttl, definition)})
+    if split_values:
+        measurements["input_cache_write"] = split_values
+    split_total = sum(part["tokens"]["value"] for part in split_values if "value" in part["tokens"])
+    write_total = resolved["input_cache_write_unsplit"][1]
+    if split_conflict or (write_total is not None and
+                          (split_total > write_total or (split_complete and split_total != write_total))):
+        split_conflict = True
+        measurements["input_cache_write_unsplit"] = missing("counter_conflict", "conflicted")
+    write = (None if split_conflict else write_total if write_total is not None else
+             split_total if split_complete else None)
+
+    _, read, read_conflict = resolved["input_cache_read"]
+    total_definition, total, total_conflict = resolved["input_total"]
+    _, uncached, uncached_conflict = resolved["input_uncached"]
+    uncached_operands: list[str] = []
+    if total is not None and uncached is not None:
+        total_conflict = True
+    if total is not None and total_definition is not None:
+        included = set(total_definition["includes"])
+        deductions: list[int] = []
+        uncertain = False
+        if "input_cache_read" in included:
+            if read is None or read_conflict:
+                uncertain = True
+            else:
+                deductions.append(read)
+        if included.intersection({"input_cache_write", "input_cache_write_unsplit"}):
+            if write is None:
+                uncertain = True
+            else:
+                deductions.append(write)
+        if not uncertain and not total_conflict:
+            remainder = total - sum(deductions)
+            if remainder < 0:
+                total_conflict = True
+            else:
+                uncached = remainder
+                uncached_operands.append(observed("input_total", total, definition=total_definition)["evidence"])
+                if "input_cache_read" in included:
+                    uncached_operands.append(measurements["input_cache_read"]["evidence"])
+                if included.intersection({"input_cache_write", "input_cache_write_unsplit"}):
+                    if write_total is not None:
+                        uncached_operands.append(measurements["input_cache_write_unsplit"]["evidence"])
+                    else:
+                        uncached_operands.extend(part["tokens"]["evidence"] for part in split_values)
+    if total_conflict or uncached_conflict:
+        measurements["input_uncached"] = missing("counter_conflict", "conflicted")
+    elif uncached is None:
+        measurements["input_uncached"] = missing()
+    else:
+        measurements["input_uncached"] = (derived("input_uncached", uncached, "subtract", uncached_operands)
+                                          if uncached_operands else observed(
+                                              "input_uncached", uncached, definition=resolved["input_uncached"][0]))
+
+    cache_not_applicable = profile["capabilities"]["cache"] == "unsupported"
+    if cache_not_applicable and not observations.get("input_cache_read"):
+        read = 0
+    if cache_not_applicable and not observations.get("input_cache_write") and not observations.get("input_cache_write_unsplit"):
+        write = 0
+    complete = (uncached is not None and read is not None and write is not None and
+                not any((split_conflict, read_conflict, total_conflict, uncached_conflict)))
+    input_sum = uncached + read + write if complete else None
+    if input_sum is not None:
+        operands = [measurements["input_uncached"]["evidence"]]
+        if not (cache_not_applicable and not observations.get("input_cache_read")):
+            operands.append(measurements["input_cache_read"]["evidence"])
+        if write_total is not None:
+            operands.append(measurements["input_cache_write_unsplit"]["evidence"])
+        elif split_complete:
+            operands.extend(part["tokens"]["evidence"] for part in split_values)
+        measurements["tokens_in"] = derived("tokens_in", input_sum, "sum", operands)
+    else:
+        measurements["tokens_in"] = missing("counter_conflict" if any(
+            (split_conflict, read_conflict, total_conflict, uncached_conflict)) else "source_unavailable")
+
+    output = resolved["output_total"][1]
+    reasoning = resolved["reasoning_subset"][1]
+    if output is not None and reasoning is not None and reasoning > output:
+        measurements["reasoning_subset"] = missing("counter_conflict", "conflicted")
+    return {"measurements": measurements, "evidence_objects": evidence_objects}
+
+
 def validate_source_selection(value: Any) -> dict[str, Any]:
     """Validate a local selection without opening or trusting any source.
 
@@ -602,10 +804,28 @@ def validate_observation(value: Any) -> dict[str, Any]:
     _choice(value["outcome"], frozenset({"succeeded", "failed", "cancelled", "timed_out", "unknown"}))
     validate_attribution(value["attribution"])
     measurements = value["measurements"]
-    if not isinstance(measurements, dict) or not measurements or measurements.keys() - _MEASUREMENT_FIELDS:
+    if (not isinstance(measurements, dict) or not measurements or
+            measurements.keys() - (_MEASUREMENT_FIELDS | {"input_cache_write"})):
         raise ValueError("invalid measurement fields")
-    for measurement in measurements.values():
-        validate_measurement(measurement)
+    for field, measurement in measurements.items():
+        if field != "input_cache_write":
+            validate_measurement(measurement, allow_derived=field == "tokens_in")
+            continue
+        if not isinstance(measurement, list) or not 1 <= len(measurement) <= 256:
+            raise ValueError("invalid cache write components")
+        ttls = set()
+        for component in measurement:
+            _fields(component, {"ttl", "tokens"})
+            _identifier(component["ttl"])
+            if component["ttl"] in ttls:
+                raise ValueError("duplicate cache write TTL")
+            ttls.add(component["ttl"])
+            validate_measurement(component["tokens"])
+        total = measurements.get("input_cache_write_unsplit")
+        if (total is not None and total["measurement_state"] == "final" and
+                all(part["tokens"]["measurement_state"] == "final" for part in measurement) and
+                total["value"] != sum(part["tokens"]["value"] for part in measurement)):
+            raise ValueError("cache write total conflicts with components")
     if len(canonical_bytes(value)) > OBSERVATION_LIMIT:
         raise ValueError("observation exceeds byte limit")
     if "id" in value:
@@ -617,6 +837,34 @@ def validate_observation(value: Any) -> dict[str, Any]:
 
 def validate_evidence_object(value: Any) -> dict[str, Any]:
     """Validate the separate evidence record; the hash is not an authenticity claim."""
+    if isinstance(value, dict) and value.get("kind") == "derived_measurement_evidence":
+        _fields(value, {"schema_version", "kind", "profile_id", "profile_version", "profile_hash",
+                        "profile", "source_hash", "record_number", "field", "value", "operation", "operands"})
+        _bounded_tree(value)
+        _version(value["schema_version"])
+        validate_source_profile(value["profile"])
+        for name in ("profile_id", "profile_version"):
+            _identifier(value[name])
+            if value[name] != value["profile"][name]:
+                raise ValueError("derived evidence profile mismatch")
+        _hash(value["profile_hash"])
+        if value["profile_hash"] != content_id(value["profile"]):
+            raise ValueError("derived evidence profile digest mismatch")
+        _hash(value["source_hash"])
+        validate_counter(value["record_number"])
+        _choice(value["field"], frozenset({"input_uncached", "tokens_in"}))
+        _choice(value["operation"], frozenset({"subtract", "sum"}))
+        validate_measurement({"measurement_state": "partial", "value": value["value"],
+                              "reasons": [], "evidence": "0" * 64},
+                             allow_derived=value["field"] == "tokens_in")
+        operands = value["operands"]
+        if not isinstance(operands, list) or not 1 <= len(operands) <= 256:
+            raise ValueError("invalid derived operands")
+        for operand in operands:
+            _hash(operand)
+        if len(set(operands)) != len(operands):
+            raise ValueError("duplicate derived operand")
+        return value
     if isinstance(value, dict) and value.get("kind") == "price_period_evidence":
         _fields(value, {"schema_version", "kind", "source_hash", "start", "end"})
         _version(value["schema_version"])
@@ -656,29 +904,162 @@ def validate_evidence_object(value: Any) -> dict[str, Any]:
         _hash(value["source_hash"])
         _hash(value["inventory_digest"])
         return value
-    _fields(value, {"schema_version", "kind", "profile_id", "source_hash", "record_number", "field", "value"})
+    _fields(value, {"schema_version", "kind", "profile_id", "source_hash", "record_number", "field", "value"}, {"ttl", "path"})
     _bounded_tree(value)
     _version(value["schema_version"])
     _choice(value["kind"], frozenset({"measurement_evidence"}))
     _identifier(value["profile_id"])
     _hash(value["source_hash"])
     validate_counter(value["record_number"])
-    _choice(value["field"], _MEASUREMENT_FIELDS)
+    _choice(value["field"], _MEASUREMENT_FIELDS | {"input_cache_write", "input_total"})
+    if value["field"] == "input_cache_write":
+        _identifier(value.get("ttl"))
+    elif "ttl" in value:
+        raise ValueError("TTL requires split cache write")
+    if "path" in value:
+        if not isinstance(value["path"], list) or not 1 <= len(value["path"]) <= 32:
+            raise ValueError("invalid source counter path")
+        for part in value["path"]:
+            _identifier(part)
     validate_counter(value["value"])
     return value
 
 
-def verify_measurement_evidence(observation: Any, field: str, evidence: Any) -> bool:
+def verify_derived_measurement_evidence(measurement: Any, evidence: Any, evidence_objects: Any,
+                                        profile: Any) -> bool:
+    """Verify arithmetic and declared profile semantics, not external provenance."""
+    try:
+        validate_source_profile(profile)
+        if not isinstance(evidence_objects, list):
+            return False
+        by_hash = {content_id(item): item for item in evidence_objects}
+        if len(by_hash) != len(evidence_objects):
+            return False
+        active: set[str] = set()
+
+        def verify(proof: Any) -> bool:
+            validate_evidence_object(proof)
+            digest = content_id(proof)
+            if proof.get("kind") != "derived_measurement_evidence" or digest in active:
+                return False
+            if proof["profile_hash"] != content_id(profile):
+                return False
+            active.add(digest)
+            items = []
+            for reference in proof["operands"]:
+                item = by_hash.get(reference)
+                if item is None:
+                    return False
+                validate_evidence_object(item)
+                if any(item.get(key) != proof[key] for key in ("profile_id", "source_hash", "record_number")):
+                    return False
+                if item["kind"] == "derived_measurement_evidence":
+                    if not verify(item):
+                        return False
+                elif item["kind"] == "measurement_evidence":
+                    candidates = [entry for entry in profile["counter_fields"]
+                                  if entry["path"] == item.get("path") and
+                                  entry["measurement"] == item["field"] and
+                                  entry.get("semantics_status") == "verified" and
+                                  entry["counter_scope"] == "response_total" and
+                                  (item["field"] != "input_cache_write" or entry.get("ttl") == item.get("ttl"))]
+                    if len(candidates) != 1:
+                        return False
+                else:
+                    return False
+                items.append(item)
+            active.remove(digest)
+            grouped: dict[str, list[dict[str, Any]]] = {}
+            for item in items:
+                grouped.setdefault(item["field"], []).append(item)
+
+            def valid_write(required: bool) -> bool:
+                totals = grouped.get("input_cache_write_unsplit", [])
+                splits = grouped.get("input_cache_write", [])
+                if totals and splits or len(totals) > 1:
+                    return False
+                if splits:
+                    expected = {entry["ttl"] for entry in profile["counter_fields"]
+                                if entry["measurement"] == "input_cache_write"}
+                    if len(splits) != len(expected) or {item["ttl"] for item in splits} != expected:
+                        return False
+                if totals:
+                    definitions = {entry["ttl"]: entry for entry in profile["counter_fields"]
+                                   if entry["measurement"] == "input_cache_write"}
+                    known = {}
+                    for item in by_hash.values():
+                        if (item.get("kind") != "measurement_evidence" or item.get("field") != "input_cache_write" or
+                                any(item.get(key) != proof[key] for key in ("profile_id", "source_hash", "record_number"))):
+                            continue
+                        definition = definitions.get(item.get("ttl"))
+                        if (definition is None or item.get("path") != definition["path"] or
+                                definition.get("semantics_status") != "verified" or
+                                definition["counter_scope"] != "response_total"):
+                            continue
+                        validate_evidence_object(item)
+                        if item["ttl"] in known:
+                            return False
+                        known[item["ttl"]] = item["value"]
+                    subtotal = sum(known.values())
+                    if subtotal > totals[0]["value"] or (len(known) == len(definitions) and definitions and
+                                                          subtotal != totals[0]["value"]):
+                        return False
+                if required and not totals and not splits:
+                    return False
+                return True
+
+            if proof["field"] == "input_uncached" and proof["operation"] == "subtract":
+                if len(grouped.get("input_total", [])) != 1 or set(grouped) - {
+                        "input_total", "input_cache_read", "input_cache_write_unsplit", "input_cache_write"}:
+                    return False
+                total = grouped["input_total"][0]
+                definition = next(entry for entry in profile["counter_fields"] if entry["path"] == total["path"])
+                includes = set(definition["includes"])
+                read_required = "input_cache_read" in includes
+                write_required = bool(includes.intersection({"input_cache_write", "input_cache_write_unsplit"}))
+                if len(grouped.get("input_cache_read", [])) != int(read_required) or not valid_write(write_required):
+                    return False
+                if not write_required and (grouped.get("input_cache_write") or grouped.get("input_cache_write_unsplit")):
+                    return False
+                expected = int(total["value"]) - sum(int(item["value"]) for item in items if item is not total)
+            elif proof["field"] == "tokens_in" and proof["operation"] == "sum":
+                if len(grouped.get("input_uncached", [])) != 1 or set(grouped) - {
+                        "input_uncached", "input_cache_read", "input_cache_write_unsplit", "input_cache_write"}:
+                    return False
+                cache_absent = profile["capabilities"]["cache"] == "unsupported"
+                has_read = any(entry["measurement"] == "input_cache_read" for entry in profile["counter_fields"])
+                has_write = any(entry["measurement"] in {"input_cache_write", "input_cache_write_unsplit"}
+                                for entry in profile["counter_fields"])
+                if len(grouped.get("input_cache_read", [])) != int(has_read or not cache_absent):
+                    return False
+                if not valid_write(has_write or not cache_absent):
+                    return False
+                expected = sum(int(item["value"]) for item in items)
+            else:
+                return False
+            return expected >= 0 and expected == int(proof["value"])
+
+        validate_measurement(measurement, allow_derived=evidence.get("field") == "tokens_in")
+        return (measurement.get("evidence") == content_id(evidence) and
+                measurement.get("value") == evidence.get("value") and verify(evidence))
+    except (ValueError, KeyError, TypeError, RecursionError, StopIteration, OverflowError):
+        return False
+
+
+def verify_measurement_evidence(observation: Any, field: str, evidence: Any, ttl: str | None = None) -> bool:
     """Verify digest and field/source linkage; external provenance remains unverified."""
     try:
         validate_observation(observation)
         validate_evidence_object(evidence)
         measurement = observation["measurements"][field]
+        if field == "input_cache_write":
+            measurement = next(part["tokens"] for part in measurement if part["ttl"] == ttl)
         return (measurement.get("evidence") == content_id(evidence)
                 and evidence["field"] == field and evidence["value"] == measurement.get("value")
+                and (field != "input_cache_write" or evidence.get("ttl") == ttl)
                 and all(evidence[key] == observation[key]
                         for key in ("profile_id", "source_hash", "record_number")))
-    except (ValueError, KeyError, TypeError, RecursionError):
+    except (ValueError, KeyError, TypeError, RecursionError, StopIteration):
         return False
 
 
@@ -908,6 +1289,20 @@ def validate_usage_bundle(value: Any) -> dict[str, Any]:
                 observation["source_hash"] not in source_hashes):
             raise ValueError("observation is outside bundle scope")
         for field, measurement in observation["measurements"].items():
+            if field == "input_cache_write":
+                for part in measurement:
+                    tokens = part["tokens"]
+                    if "evidence" in tokens and not verify_measurement_evidence(
+                            observation, field, evidence_by_hash.get(tokens["evidence"]), part["ttl"]):
+                        raise ValueError("unverified cache write evidence")
+                continue
+            proof = evidence_by_hash.get(measurement.get("evidence"))
+            if isinstance(proof, dict) and proof.get("kind") == "derived_measurement_evidence":
+                if (proof["field"] != field or any(proof[key] != observation[key]
+                        for key in ("profile_id", "profile_version", "source_hash", "record_number")) or
+                        not verify_derived_measurement_evidence(measurement, proof, value["evidence_objects"], proof["profile"])):
+                    raise ValueError("unverified derived measurement evidence")
+                continue
             if "evidence" in measurement and not verify_measurement_evidence(
                     observation, field, evidence_by_hash.get(measurement["evidence"])):
                 raise ValueError("unverified measurement evidence")
