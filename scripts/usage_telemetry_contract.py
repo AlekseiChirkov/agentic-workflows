@@ -144,7 +144,7 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
         raise ValueError("set path has conflicting ordering declarations")
 
     kind = value.get("kind") if isinstance(value, dict) else None
-    envelope = kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
+    envelope = isinstance(kind, str) and kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
 
     def schema_set(path: tuple[str, ...]) -> bool:
         if kind == "tool_usage" and path == ("evidence_objects",):
