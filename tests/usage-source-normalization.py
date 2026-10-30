@@ -75,6 +75,53 @@ class SourceNormalizationTests(unittest.TestCase):
                        'PRIVATE_PAYLOAD_SENTINEL', KEY.decode()):
             self.assertNotIn(secret, exposed)
 
+    def test_duplicate_selected_sources_preserve_distinct_records_and_contexts(self):
+        resolution = load('producer_resolution_fixture', ROOT / 'tests/usage-producer-resolution.py')
+        record = copy.deepcopy(self.raw)
+        record['metadata'] = {'response': 'response-1', 'call': 'call-1', 'session': 'session-1',
+                              'time': '2026-01-01T00:00:00Z', 'complete': True,
+                              'model': 'vendor/model', 'service_tier': 'standard',
+                              'region': 'example-region', 'modality': 'text'}
+        first = self.write([record])
+        duplicate = self.directory / 'duplicate.jsonl'
+        duplicate.write_bytes(first)
+        distinct = self.directory / 'distinct.jsonl'
+        second_record = copy.deepcopy(record)
+        second_record['metadata']['response'] = 'response-2'
+        second_record['metadata']['call'] = 'call-2'
+        second_record['usage']['output'] = 501
+        second = (json.dumps(second_record) + '\n' + json.dumps({'usage': {'input': -1}}) + '\n').encode()
+        distinct.write_bytes(second)
+        for index, path, content in ((3, duplicate, first), (4, distinct, second)):
+            source_id = 'sha256:' + str(index) * 64
+            self.selection['sources'].append({'source_id': source_id, 'local_path': str(path),
+                'sha256': hashlib.sha256(content).hexdigest(), 'size_bytes': len(content)})
+            self.selection['attribution_map'].append({'source_id': source_id, 'owner_kind': 'unattributed',
+                                                       'quality': 'unknown', 'candidates': []})
+        self.selection['max_source_bytes'] = max(len(first), len(second))
+        self.selection['max_total_bytes'] = 2 * len(first) + len(second)
+        contract.validate_source_selection(self.selection)
+        result = adapter.normalize_selection(self.selection, profile=resolution.profile(),
+            expected_owner_scope=fixtures.OWNER, project_identifier=PROJECT, provider_identifier=PROVIDER,
+            run_id=RUN, key=KEY, verify_resolution=lambda *_: True)
+        bundle = result['bundle']
+        self.assertEqual(contract.validate_usage_bundle(bundle), bundle)
+        self.assertEqual(len(bundle['sources']), 3)
+        self.assertEqual(len(bundle['observations']), 2)
+        self.assertEqual(sorted(item['measurements']['output_total']['value'] for item in bundle['observations']),
+                         [500, 501])
+        self.assertEqual(len(result['contexts']), 2)
+        self.assertEqual({item['observation_id'] for item in result['contexts']},
+                         {contract.observation_id(item) for item in bundle['observations']})
+        wrappers = [item['context'] for item in bundle['evidence_objects']
+                    if item['kind'] == 'resolution_context_evidence']
+        self.assertEqual(wrappers, result['contexts'])
+        self.assertTrue(result['partial'])
+        self.assertEqual(len(result['quarantine']), 1)
+        self.assertEqual(result['quarantine'][0]['record_number'], 2)
+        self.assertEqual(len(bundle['diagnostics']), 1)
+        self.assertEqual(bundle['diagnostics'][0]['source_id'], bundle['sources'][2]['source_id'])
+
     def test_keyed_ids_are_deterministic_domain_separated_and_keyed(self):
         first = normalize(self.selection)
         self.assertIsInstance(first, dict)
