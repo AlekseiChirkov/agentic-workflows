@@ -166,6 +166,38 @@ class RevisionIntegrationTests(unittest.TestCase):
         self.assertEqual(result['responses'][0]['model_cost']['cost_usd'], '0.00309')
         self.assertEqual(result['completeness']['priced'], {'numerator': 1, 'denominator': 1})
 
+    def test_verified_correction_supersedes_conflicted_write_snapshot(self):
+        data, _ = snapshot_fixture(correction=True)
+        first, second = data['bundle']['observations']
+        first['measurements']['input_cache_write_unsplit'] = {
+            'measurement_state': 'conflicted', 'reasons': ['counter_conflict']}
+        data['contexts'][0]['observation_id'] = contract.observation_id(first)
+        data['contexts'][1]['event']['correction_of'] = 'sha256:' + contract.observation_id(first)
+        contract.validate_usage_bundle(data['bundle'])
+        allowed = authorize(data)
+        untrusted = base.resolve(data, base.Verifier(allowed))
+        self.assertNotEqual(untrusted['tokens']['input'].get('quality'), 'complete')
+        self.assertNotIn('cost_usd', untrusted['responses'][0]['model_cost'])
+        allowed.append(('revision', data['scope'], second, data['contexts'][1]['event']))
+        result = base.resolve(data, base.Verifier(allowed))
+        self.assertEqual(result['tokens']['input'], {'value': '1100', 'quality': 'complete'})
+        self.assertEqual(result['tokens']['output'], {'value': '100', 'quality': 'complete'})
+        self.assertEqual(result['responses'][0]['model_cost']['cost_usd'], '0.00309')
+        self.assertEqual(result['completeness']['priced'], {'numerator': 1, 'denominator': 1})
+
+    def test_final_snapshot_supersedes_conflicted_partial_snapshot(self):
+        data, _ = snapshot_fixture()
+        first = data['bundle']['observations'][0]
+        first['measurements']['input_cache_write_unsplit'] = {
+            'measurement_state': 'conflicted', 'reasons': ['counter_conflict']}
+        data['contexts'][0]['observation_id'] = contract.observation_id(first)
+        contract.validate_usage_bundle(data['bundle'])
+        result = base.resolve(data, base.Verifier(authorize(data)))
+        self.assertEqual(result['tokens']['input'], {'value': '1100', 'quality': 'complete'})
+        self.assertEqual(result['tokens']['output'], {'value': '100', 'quality': 'complete'})
+        self.assertEqual(result['responses'][0]['model_cost']['cost_usd'], '0.00309')
+        self.assertEqual(result['completeness']['priced'], {'numerator': 1, 'denominator': 1})
+
     def test_contiguous_deltas_and_terminal_are_summed_once(self):
         data, allowed = delta_fixture()
         result = base.resolve(data, base.Verifier(allowed))
