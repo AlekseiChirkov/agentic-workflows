@@ -527,6 +527,12 @@ if __name__ == '__main__':
         print('usage telemetry: ' + operation + ' failed', file=sys.stderr)
         sys.exit(2)
     except OSError:
+        # Discard pending buffered bytes so interpreter shutdown cannot retry the pipe.
+        null_fd = os.open(os.devnull, os.O_WRONLY)
+        try:
+            os.dup2(null_fd, sys.stdout.fileno())
+        finally:
+            os.close(null_fd)
         operation = {'analyze': 'analysis', 'status': 'status', 'owner-deliver': 'owner delivery'}.get(
             sys.argv[1] if len(sys.argv) > 1 else '', 'normalization')
         print('usage telemetry: ' + operation + ' failed', file=sys.stderr)
