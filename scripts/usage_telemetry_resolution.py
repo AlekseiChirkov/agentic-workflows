@@ -775,10 +775,10 @@ def resolve_usage(*, bundle, profile, contexts, snapshots, scenario, price_evide
         if finality_result['measurement_state'] == 'final' and anchor is not None and anchor['kind'] == 'snapshot':
             conflict_events = tips
         elif finality_result['measurement_state'] == 'partial':
-            snapshots = [event for event in finality_events if event['kind'] == 'snapshot']
-            if snapshots and len(snapshots) == len(finality_events) and all('sequence' in event for event in snapshots):
-                latest_sequence = max(event['sequence'] for event in snapshots)
-                conflict_events = [event for event in snapshots if event['sequence'] == latest_sequence]
+            event_snapshots = [event for event in finality_events if event['kind'] == 'snapshot']
+            if event_snapshots and len(event_snapshots) == len(finality_events) and all('sequence' in event for event in event_snapshots):
+                latest_sequence = max(event['sequence'] for event in event_snapshots)
+                conflict_events = [event for event in event_snapshots if event['sequence'] == latest_sequence]
         write_conflict = any(
             event_sources[event['observation_id']][0]['measurements'].get(
                 'input_cache_write_unsplit', {}).get('measurement_state') == 'conflicted'
