@@ -1100,6 +1100,7 @@ expected = {
     "source_profile": ("validate_source_profile_json", module.PROFILE_LIMIT),
     "source_selection": ("validate_source_selection_json", module.SELECTION_LIMIT),
     "observation": ("validate_observation_json", module.OBSERVATION_LIMIT),
+    "tool_usage": ("validate_tool_usage_json", module.OBSERVATION_LIMIT),
     "usage_bundle": ("validate_usage_bundle_json", module.BUNDLE_LIMIT),
     "inventory": ("validate_inventory_json", module.INVENTORY_LIMIT),
     "collection_segment": ("validate_collection_segment_json", module.SEGMENT_LIMIT),
