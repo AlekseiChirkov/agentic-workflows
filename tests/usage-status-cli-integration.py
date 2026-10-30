@@ -61,6 +61,28 @@ class StatusCommandTests(unittest.TestCase):
         self.assertEqual(json.loads(self.output.read_text()), one)
         self.assertNotIn(str(self.root), json.dumps(one))
 
+    def test_repricing_does_not_create_factual_owner_spend_warning(self):
+        snapshot = json.loads(self.snapshot.read_text())
+        policy = json.loads(self.policy.read_text())
+        policy['token_threshold'] = None
+        policy['money_threshold']['value'] = '0.004'
+        self.write('policy.json', policy)
+        for basis, expected in (('at_execution', False), ('reprice', False)):
+            with self.subTest(basis=basis):
+                snapshot['analysis_inputs']['scenario']['basis'] = basis
+                self.write('snapshot.json', snapshot)
+                result = self.run_status()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                output = json.loads(self.output.read_text())
+                self.assertEqual(any(w['metric'] == 'cost_usd' for w in output['candidates']), expected)
+                self.assertNotEqual(output['measurements'].get('cost_usd', {}).get('value'), '0.00578')
+        snapshot['analysis_inputs']['scenario']['basis'] = 'at_execution'
+        self.write('snapshot.json', snapshot)
+        policy['money_threshold']['value'] = '0.002'
+        self.write('policy.json', policy)
+        self.assertEqual(self.run_status().returncode, 0)
+        self.assertEqual(json.loads(self.output.read_text())['candidates'][0]['metric'], 'cost_usd')
+
     def test_absent_authority_cannot_promote_snapshot_claims_to_proof(self):
         result = self.run_status(authority=False)
         self.assertEqual(result.returncode, 0, result.stderr)
