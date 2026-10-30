@@ -93,6 +93,28 @@ class CanonicalEncodingTests(unittest.TestCase):
         self.assertEqual(contract.canonical_bytes(first), contract.canonical_bytes(second))
         self.assertEqual(contract.content_id(first), contract.content_id(second))
 
+    def test_json_array_and_object_discriminators_are_canonical(self):
+        cases = (
+            ({"kind": ["inventory", {"z": 2, "a": 1}], "items": [2, 1]},
+             b'{"items":[2,1],"kind":["inventory",{"a":1,"z":2}]}'),
+            ({"kind": {"z": [2, 1], "a": "usage_bundle"}, "items": [2, 1]},
+             b'{"items":[2,1],"kind":{"a":"usage_bundle","z":[2,1]}}'),
+        )
+        for value, expected in cases:
+            for function, result in ((contract.canonical_bytes, expected),
+                                     (contract.content_id, hashlib.sha256(expected).hexdigest())):
+                with self.subTest(value=value, function=function.__name__):
+                    self.assertEqual(function(value), result)
+
+    def test_envelope_discriminator_preserves_schema_set_ordering(self):
+        first = {"kind": "request_usage", "attribution": {"candidates": ["z", "a"]}}
+        second = {"kind": "request_usage", "attribution": {"candidates": ["a", "z"]}}
+        expected = b'{"attribution":{"candidates":["a","z"]},"kind":"request_usage"}'
+        self.assertEqual(contract.canonical_bytes(first), expected)
+        self.assertEqual(contract.content_id(first), hashlib.sha256(expected).hexdigest())
+        self.assertEqual(contract.canonical_bytes(first), contract.canonical_bytes(second))
+        self.assertEqual(contract.content_id(first), contract.content_id(second))
+
     def test_stream_order_changes_bytes_and_identity(self):
         first = {"schema_version": 1, "stream": ["first", "second"]}
         second = {"schema_version": 1, "stream": ["second", "first"]}
