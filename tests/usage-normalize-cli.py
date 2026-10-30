@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import socket
 from pathlib import Path
 import subprocess
 import sys
@@ -186,6 +187,39 @@ class NormalizeCliTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(evidence.read_bytes(), b'existing evidence')
         self.assertEqual(list(shared.iterdir()), [evidence])
+
+    def test_socket_stdout_emits_valid_bundle(self):
+        reader, writer = socket.socketpair()
+        self.addCleanup(reader.close)
+        self.addCleanup(writer.close)
+        result = subprocess.run([sys.executable, str(CLI), 'normalize', '--profile',
+                                 'synthetic-profile', '--input-manifest', str(self.manifest)],
+                                stdout=writer, stderr=subprocess.PIPE, env=self.env, timeout=10)
+        writer.close()
+        chunks = []
+        while True:
+            data = reader.recv(65536)
+            if not data:
+                break
+            chunks.append(data)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        bundle = json.loads(b''.join(chunks))
+        self.assertEqual(contract.validate_usage_bundle(bundle)['run_id'], '1a2b3c4d')
+
+    def test_closed_pipe_returns_failure_with_sanitized_diagnostics(self):
+        read_fd, write_fd = os.pipe()
+        os.close(read_fd)
+        try:
+            result = subprocess.run([sys.executable, str(CLI), 'normalize', '--profile',
+                                     'synthetic-profile', '--input-manifest', str(self.manifest)],
+                                    stdout=write_fd, stderr=subprocess.PIPE, env=self.env, timeout=10)
+        finally:
+            os.close(write_fd)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'normalization failed', result.stderr)
+        for secret in (str(self.source), str(self.config_path), 'PAYLOAD_SENTINEL', 'PRIVATE_PROJECT'):
+            self.assertNotIn(secret.encode(), result.stderr)
+        self.assertNotIn(b'Traceback', result.stderr)
 
     def test_destination_moved_after_final_check_never_publishes_to_shared_store(self):
         module = load('usage_cli_stream_race', CLI)
