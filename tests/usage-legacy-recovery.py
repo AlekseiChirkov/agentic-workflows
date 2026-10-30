@@ -179,6 +179,51 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(self.lifecycle_snapshot(), after_disabled)
         self.assertEqual(list(self.artifact.parent.glob('*.json')), [self.artifact])
 
+    def test_signed_cli_disable_resume_replays_installed_bundle(self):
+        rsa = load('recovery_rsa_fixture', ROOT / 'tests/usage-authority-rsa-permit.py')
+        authority = rsa.RsaPermitTests('test_valid_permit_publishes_without_external_libraries')
+        authority.setUp()
+        self.addCleanup(authority.doCleanups)
+        authority.write_permit(authority.body)
+        fixture = authority.fixture
+        public = fixture.root / 'test-public.pem'
+        public.write_bytes(rsa.PUBLIC)
+        bootstrap = fixture.root / 'recovery-bootstrap.py'
+        bootstrap.write_text(
+            'import os, runpy, sys\n'
+            'sys.path.insert(0, os.environ["TEST_SCRIPTS"])\n'
+            'import usage_telemetry_ingest as ingest\n'
+            'ingest.trusted_authority_key = lambda path: open(os.environ["TEST_PUBLIC_KEY"], "rb").read()\n'
+            'script = sys.argv[1]\n'
+            'sys.argv = sys.argv[1:]\n'
+            'ingest.main() if script.endswith("usage_telemetry_ingest.py") else runpy.run_path(script, run_name="__main__")\n')
+        bindir = fixture.root / 'recovery-bin'
+        bindir.mkdir()
+        wrapper = bindir / 'python3'
+        wrapper.write_text('#!/bin/sh\nexec ' + sys.executable + ' ' + str(bootstrap) + ' "$@"\n')
+        wrapper.chmod(0o755)
+        env = fixture.env | {'PATH': str(bindir) + os.pathsep + fixture.env['PATH'],
+                             'TEST_SCRIPTS': str(ROOT / 'scripts'), 'TEST_PUBLIC_KEY': str(public)}
+        def invoke(mode):
+            result = subprocess.run(['/bin/bash', str(ROOT / 'scripts/log-step.sh'), 'usage-ingest',
+                                     '--manifest', str(fixture.output)],
+                                    env=env | {'ORCHESTRAIL_USAGE_MODE': mode},
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return result
+        before = fixture.lifecycle.read_bytes()
+        first = invoke('on')
+        self.assertFalse(json.loads(first.stdout)['duplicate'])
+        installed = fixture.artifact().read_bytes()
+        self.assertEqual(installed, contract.canonical_bytes(fixture.bundle))
+        disabled = invoke('off')
+        self.assertEqual(disabled.stdout, '')
+        self.assertEqual(fixture.artifact().read_bytes(), installed)
+        resumed = invoke('on')
+        self.assertTrue(json.loads(resumed.stdout)['duplicate'])
+        self.assertEqual(fixture.artifact().read_bytes(), installed)
+        self.assertEqual(fixture.lifecycle.read_bytes(), before)
+
     def test_disable_resume_status_preserves_receipts_and_reports_segment_gap(self):
         status = load('recovery_status_fixture', ROOT / 'tests/usage-status-integration.py')
         modes = load('recovery_modes', ROOT / 'scripts/usage_telemetry_modes.py')
