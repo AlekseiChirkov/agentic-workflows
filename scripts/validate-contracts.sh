@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+# Check named pricing scenarios with offline fixtures.
+if [ "${1:-}" = --usage-pricing-scenario-only ]; then
+  shift
+  exec python3 "$REPO_ROOT/tests/usage-pricing-scenario-schema.py" "$@"
+fi
+
 # Check immutable price snapshot schemas with offline fixtures.
 if [ "${1:-}" = --usage-price-snapshot-only ]; then
   shift
@@ -4607,6 +4613,17 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
 check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
   "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
 # ── End public identity smoke checks ────────────────────────────────
+
+# Run pricing scenario fixtures during ordinary validation as well.
+test_usage_pricing_scenario_acceptance() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/usage-pricing-scenario-schema.py" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_usage_pricing_scenario_acceptance" \
+  "$(test_usage_pricing_scenario_acceptance && echo pass || echo 'usage pricing scenario fixtures must pass')"
 
 # Run price snapshot fixtures during ordinary validation as well.
 test_usage_price_snapshot_acceptance() {

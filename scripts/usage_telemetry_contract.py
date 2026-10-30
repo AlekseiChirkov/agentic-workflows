@@ -138,6 +138,10 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
     envelope = kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
 
     def schema_set(path: tuple[str, ...]) -> bool:
+        if kind == "pricing_scenario" and path in {
+            ("snapshot_ids",), ("threshold_rules",), ("threshold_rules", "components"),
+        }:
+            return True
         if kind == "price_snapshot" and path in {
             ("aliases",), ("rates",), ("primary_sources",),
         }:
@@ -209,6 +213,7 @@ INVENTORY_LIMIT = 1024 * 1024
 SEGMENT_LIMIT = 1024 * 1024
 DIAGNOSTIC_LIMIT = 1024 * 1024
 PRICE_SNAPSHOT_LIMIT = 1024 * 1024
+PRICING_SCENARIO_LIMIT = 1024 * 1024
 DIAGNOSTIC_METRICS = {
     "context.loaded_bytes": "bytes",
     "orchestration.tool_calls": "count",
@@ -994,6 +999,97 @@ def price_snapshot_id(value: Any) -> str:
 
 def validate_price_snapshot_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, PRICE_SNAPSHOT_LIMIT, validate_price_snapshot)
+
+
+
+def validate_pricing_scenario(value: Any) -> dict[str, Any]:
+    """Validate scenario shape, not price applicability or evidence provenance.
+
+    A null source parameter remains unknown. Consumers must independently
+    verify source evidence and snapshots, prove their scope and timing, and
+    reconcile threshold rules with the actual measured work and rates.
+    Assumptions never establish the actual model or any measured quantities.
+    """
+    _fields(value, {"schema_version", "kind", "scenario_id", "basis", "currency",
+                    "display_precision", "snapshot_ids", "source_parameters",
+                    "assumptions", "threshold_rules"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"pricing_scenario"}))
+    _identifier(value["scenario_id"])
+    _choice(value["basis"], frozenset({"at_execution", "reprice"}))
+    _choice(value["currency"], frozenset({"USD"}))
+    if validate_counter(value["display_precision"]) > 18:
+        raise ValueError("display precision exceeds limit")
+
+    snapshots = value["snapshot_ids"]
+    if not isinstance(snapshots, list) or not 1 <= len(snapshots) <= 10000:
+        raise ValueError("invalid snapshot references")
+    seen_snapshots = set()
+    for snapshot in snapshots:
+        _hash(snapshot)
+        if snapshot in seen_snapshots:
+            raise ValueError("duplicate snapshot reference")
+        seen_snapshots.add(snapshot)
+
+    parameters = value["source_parameters"]
+    _fields(parameters, {"model", "service_tier", "region", "modality"})
+    for name, parameter in parameters.items():
+        if parameter is None:
+            continue
+        _fields(parameter, {"value", "evidence"})
+        if name == "model":
+            model = parameter["value"]
+            if (not isinstance(model, str) or len(model) > 256 or
+                    re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]*(?:/[A-Za-z0-9][A-Za-z0-9._:-]*)?", model) is None):
+                raise ValueError("invalid model identifier")
+        else:
+            _identifier(parameter["value"])
+        _hash(parameter["evidence"])
+
+    assumptions = value["assumptions"]
+    _fields(assumptions, set(), {"service_tier", "region", "modality"})
+    if value["basis"] != "reprice" and assumptions:
+        raise ValueError("historical scenario cannot use assumptions")
+    for assumption in assumptions.values():
+        _identifier(assumption)
+
+    rules = value["threshold_rules"]
+    if not isinstance(rules, list) or len(rules) > 10000:
+        raise ValueError("invalid threshold rules")
+    seen_rules = set()
+    for rule in rules:
+        _fields(rule, {"operand", "operator", "value", "components"})
+        _identifier(rule["operand"])
+        _choice(rule["operator"], frozenset({">", ">="}))
+        validate_counter(rule["value"])
+        components = rule["components"]
+        if not isinstance(components, list) or not 1 <= len(components) <= 6:
+            raise ValueError("invalid threshold components")
+        seen_components = set()
+        for component in components:
+            _choice(component, frozenset({"input_uncached", "input_cache_read",
+                                          "input_cache_write", "output", "reasoning", "tool"}))
+            if component in seen_components:
+                raise ValueError("duplicate threshold component")
+            seen_components.add(component)
+        canonical_rule = canonical_bytes(rule, set_paths={("components",)})
+        if canonical_rule in seen_rules:
+            raise ValueError("duplicate threshold rule")
+        seen_rules.add(canonical_rule)
+
+    if len(canonical_bytes(value)) > PRICING_SCENARIO_LIMIT:
+        raise ValueError("pricing scenario exceeds byte limit")
+    return value
+
+
+def pricing_scenario_id(value: Any) -> str:
+    """Identify scenario content without asserting historical applicability."""
+    return content_id(validate_pricing_scenario(value))
+
+
+def validate_pricing_scenario_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, PRICING_SCENARIO_LIMIT, validate_pricing_scenario)
 
 
 def validate_source_selection_json(data: str | bytes) -> dict[str, Any]:
