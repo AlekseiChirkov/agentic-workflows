@@ -9,6 +9,45 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+usage_warning_acceptance() {
+  local file
+  for file in \
+    tests/usage-alert-status.py \
+    tests/usage-collection-segments.py \
+    tests/usage-duration-warnings.py \
+    tests/usage-status-canonical-bindings.py \
+    tests/usage-status-cli-integration.py \
+    tests/usage-status-coverage-integration.py \
+    tests/usage-status-delivery-integration.py \
+    tests/usage-status-duration-integration.py \
+    tests/usage-status-duration-kinds.py \
+    tests/usage-status-duration-precision.py \
+    tests/usage-status-fraction-coverage.py \
+    tests/usage-status-input-schema.py \
+    tests/usage-status-integration.py \
+    tests/usage-status-large-authority.py \
+    tests/usage-status-large-parts.py \
+    tests/usage-status-multiple-bundles.py \
+    tests/usage-status-no-pricing.py \
+    tests/usage-status-owner-scopes.py \
+    tests/usage-status-output-relocation.py \
+    tests/usage-status-parts-cli.py \
+    tests/usage-status-revision.py \
+    tests/usage-status-scope-evidence.py \
+    tests/usage-status-scoped-completeness.py \
+    tests/usage-warning-delivery-boundary.py \
+    tests/usage-warning-delivery-durability.py \
+    tests/usage-warning-delivery.py; do
+    python3 "$REPO_ROOT/$file" "$@" || return 1
+  done
+}
+
+if [ "${1:-}" = --usage-warning-only ]; then
+  shift
+  usage_warning_acceptance "$@"
+  exit $?
+fi
+
 usage_report_acceptance() {
   local file
   for file in \
@@ -4791,6 +4830,9 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
 check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
   "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
 # ── End public identity smoke checks ────────────────────────────────
+
+check "test_usage_warning_acceptance" \
+  "$(usage_warning_acceptance >/dev/null 2>&1 && echo pass || echo 'usage status and warning fixtures must pass')"
 
 check "test_usage_report_acceptance" \
   "$(usage_report_acceptance >/dev/null 2>&1 && echo pass || echo 'usage retrospective report fixtures must pass')"

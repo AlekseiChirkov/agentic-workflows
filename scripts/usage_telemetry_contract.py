@@ -173,14 +173,25 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
         if kind == "current_run_snapshot":
             if path in {("segments",), ("accepted_receipts",), ("bundles",),
                         ("inventories",), ("inventory_evidence",), ("warning_delivery",),
-                        ("parts",), ("accepted_receipts", "observation_ids"),
+                        ("parts",), ("part_references",), ("duration_inputs",), ("duration_inputs", "history", "samples"), ("accepted_receipts", "observation_ids"),
                         ("inventories", "expected_calls"), ("inventories", "expected_responses"),
                         ("inventories", "unresolved_slots"), ("bundles", "sources"),
                         ("bundles", "observations"), ("bundles", "evidence_objects"),
                         ("bundles", "inventories"), ("bundles", "segments"),
                         ("bundles", "diagnostics"), ("bundles", "inventories", "expected_calls"),
                         ("bundles", "inventories", "expected_responses"),
-                        ("bundles", "inventories", "unresolved_slots")}:
+                        ("bundles", "inventories", "unresolved_slots"),
+                        ("analysis_inputs", "contexts"), ("analysis_inputs", "contexts", "evidence_objects"),
+                        ("analysis_inputs", "snapshots"), ("analysis_inputs", "snapshots", "aliases"),
+                        ("analysis_inputs", "snapshots", "rates"), ("analysis_inputs", "snapshots", "primary_sources"),
+                        ("analysis_inputs", "price_evidence"), ("analysis_inputs", "ownership_evidence"),
+                        ("analysis_inputs", "profile", "counter_fields"),
+                        ("analysis_inputs", "profile", "counter_fields", "includes"),
+                        ("analysis_inputs", "profile", "known_gaps"),
+                        ("analysis_inputs", "profile", "finality", "signals"),
+                        ("analysis_inputs", "scenario", "snapshot_ids"),
+                        ("analysis_inputs", "scenario", "threshold_rules"),
+                        ("analysis_inputs", "scenario", "threshold_rules", "components")}:
                 return True
             if path[-2:] == ("attribution", "candidates"):
                 return True
@@ -2420,7 +2431,7 @@ def validate_usage_receipt_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, RECEIPT_LIMIT, validate_usage_receipt)
 
 
-def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
+def validate_current_run_snapshot(value: Any, *, materialized_limit: int | None = None) -> dict[str, Any]:
     """Validate a bounded explicit snapshot without accessing persistent history.
 
     Receipt and attribution claims require independent authentication by the
@@ -2432,7 +2443,7 @@ def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
     """
     _fields(value, {"schema_version", "kind", "owner_scope", "revision", "mode",
                     "segments", "accepted_receipts", "bundles", "inventories",
-                    "inventory_evidence", "overlap_state", "warning_delivery", "bounds"}, {"parts"})
+                    "inventory_evidence", "overlap_state", "warning_delivery", "bounds"}, {"parts", "part_references", "analysis_inputs", "duration_inputs"})
     _bounded_tree(value)
     _version(value["schema_version"])
     _choice(value["kind"], frozenset({"current_run_snapshot"}))
@@ -2456,11 +2467,21 @@ def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
                 "inventory_evidence", "warning_delivery")
     if "parts" in value:
         sections += ("parts",)
+    if "part_references" in value:
+        sections += ("part_references",)
+    if "duration_inputs" in value:
+        sections += ("duration_inputs",)
     if any(not isinstance(value[field], list) for field in sections):
         raise ValueError("invalid snapshot collection")
     if sum(len(value[field]) for field in sections) > bounds["max_entries"]:
         raise ValueError("snapshot entry limit exceeded")
-    if len(canonical_bytes(value)) > bounds["max_bytes"]:
+    byte_limit = bounds["max_bytes"]
+    if materialized_limit is not None:
+        if (type(materialized_limit) is not int or materialized_limit < byte_limit or
+                materialized_limit > byte_limit + bounds["max_total_bytes"]):
+            raise ValueError("invalid materialized limit")
+        byte_limit = materialized_limit
+    if len(canonical_bytes(value)) > byte_limit:
         raise ValueError("snapshot byte limit exceeded")
     for field in sections:
         seen = set()
@@ -2495,6 +2516,19 @@ def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
             raise ValueError("duplicate selected part")
         part_paths.add(path)
         part_hashes.add(part["sha256"])
+    for reference in value.get("part_references", []):
+        _fields(reference, {"kind", "sha256", "size_bytes"})
+        _choice(reference["kind"], frozenset({"usage_bundle", "usage_accepted", "inventory",
+                                              "inventory_evidence", "collection_segment", "warning_delivery"}))
+        _hash(reference["sha256"])
+        size = validate_counter(reference["size_bytes"])
+        if size > BUNDLE_LIMIT or size > bounds["max_source_bytes"]:
+            raise ValueError("part reference exceeds byte limit")
+        selected_bytes += size
+        if selected_bytes > bounds["max_total_bytes"] or reference["sha256"] in part_hashes:
+            raise ValueError("invalid part reference")
+        part_hashes.add(reference["sha256"])
+    deferred_bundles = any(item["kind"] == "usage_bundle" for item in value.get("part_references", []))
     bundles = {}
     for bundle in value["bundles"]:
         validate_usage_bundle(bundle)
@@ -2531,11 +2565,175 @@ def validate_current_run_snapshot(value: Any) -> dict[str, Any]:
             if (item is None or item["inventory_digest"] != content_id(declaration) or
                     any(item[key] != inventory[key] for key in ("profile_id", "profile_version", "source_hash"))):
                 raise ValueError("unverified snapshot inventory")
+    if "analysis_inputs" in value:
+        analysis = value["analysis_inputs"]
+        _fields(analysis, {"profile", "contexts", "snapshots", "scenario", "price_evidence", "ownership_evidence"})
+        validate_source_profile(analysis["profile"])
+        for field in ("contexts", "snapshots", "price_evidence", "ownership_evidence"):
+            items = analysis[field]
+            if not isinstance(items, list) or len(items) > 10000:
+                raise ValueError("invalid analysis inputs")
+            identities = [canonical_bytes(item) for item in items]
+            if len(set(identities)) != len(identities):
+                raise ValueError("duplicate analysis input")
+        def count_nested_lists(item):
+            if isinstance(item, list):
+                return len(item) + sum(count_nested_lists(child) for child in item)
+            if isinstance(item, dict):
+                return sum(count_nested_lists(child) for child in item.values())
+            return 0
+        if sum(len(value[field]) for field in sections) + count_nested_lists(analysis) > bounds["max_entries"]:
+            raise ValueError("snapshot analysis entry limit exceeded")
+        observations = {observation_id(item): item for bundle in value["bundles"] for item in bundle["observations"]}
+        seen_contexts = set()
+        for context in analysis["contexts"]:
+            validate_resolution_context(context)
+            identity = context["observation_id"]
+            observation = observations.get(identity)
+            if (identity in seen_contexts or (observation is None and not deferred_bundles) or
+                    (observation is not None and any(context[key] != observation[key] for key in ("profile_id", "profile_version", "source_hash", "record_number", "provider_scope", "counter_scope")))):
+                raise ValueError("invalid context binding")
+            seen_contexts.add(identity)
+        snapshot_ids = []
+        for price in analysis["snapshots"]:
+            validate_price_snapshot(price)
+            snapshot_ids.append(price_snapshot_id(price))
+        if len(set(snapshot_ids)) != len(snapshot_ids):
+            raise ValueError("duplicate price snapshot")
+        scenario = analysis["scenario"]
+        if scenario is not None:
+            validate_pricing_scenario(scenario)
+            if set(scenario["snapshot_ids"]) != set(snapshot_ids):
+                raise ValueError("pricing snapshot mismatch")
+        elif snapshot_ids or analysis["price_evidence"]:
+            raise ValueError("pricing scenario required")
+        for proof in analysis["price_evidence"]:
+            validate_evidence_object(proof)
+        seen_owners = set()
+        for proof in analysis["ownership_evidence"]:
+            _fields(proof, {"owner_scope", "observation_id", "basis"}, {"target_scope", "completion", "tool_coverage"})
+            if (proof["owner_scope"] != scope or
+                    (proof["observation_id"] not in observations and not deferred_bundles)):
+                raise ValueError("invalid ownership binding")
+            _choice(proof["basis"], frozenset({"verified_import", "correlation", "submission_metadata"}))
+            if "target_scope" in proof:
+                target = proof["target_scope"]
+                _fields(target, {"owner_kind", "owner_id"})
+                _choice(target["owner_kind"], frozenset({"request", "span"}))
+                _private_identifier(target["owner_id"])
+            for field, state in (("completion", "complete"), ("tool_coverage", "empty")):
+                if field in proof:
+                    evidence = proof[field]
+                    _fields(evidence, {"scope", "state", "observed_at"})
+                    if "target_scope" not in proof or evidence["scope"] != proof["target_scope"]:
+                        raise ValueError("invalid scoped evidence")
+                    _choice(evidence["state"], frozenset({state}))
+                    _timestamp(evidence["observed_at"])
+            if proof["observation_id"] in seen_owners:
+                raise ValueError("duplicate ownership binding")
+            seen_owners.add(proof["observation_id"])
+    duration_inputs = value.get("duration_inputs", [])
+    if len(duration_inputs) > 10000:
+        raise ValueError("too many duration inputs")
+    duration_scopes = set()
+    for entry in duration_inputs:
+        _fields(entry, {"candidate", "evidence", "history"}, {"scope"})
+        target = entry.get("scope", scope)
+        _fields(target, {"owner_kind", "owner_id"})
+        _choice(target["owner_kind"], frozenset({"run", "span"}))
+        _private_identifier(target["owner_id"])
+        if target["owner_kind"] == "run" and target != scope:
+            raise ValueError("foreign duration scope")
+        candidate = entry["candidate"]
+        _fields(candidate, {"id", "seconds", "closed", "clock_quality", "collection", "group"})
+        _private_identifier(candidate["id"])
+        seconds = candidate["seconds"]
+        if seconds is not None:
+            if isinstance(seconds, str):
+                if len(seconds) > 256 or re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.[0-9]{1,3})?", seconds) is None:
+                    raise ValueError("invalid millisecond duration")
+            else:
+                validate_counter(seconds)
+        if type(candidate["closed"]) is not bool:
+            raise ValueError("invalid duration closure")
+        _choice(candidate["clock_quality"], frozenset({"measured", "approximate", "unknown"}))
+        _choice(candidate["collection"], frozenset({"on", "off"}))
+        group = candidate["group"]
+        _fields(group, {"stage", "duration_kind", "clock_quality", "environment", "profile", "contract", "configuration"})
+        for key, item in group.items():
+            _identifier(item)
+        _choice(group["duration_kind"], frozenset({"work", "run"}))
+        key = (target["owner_kind"], target["owner_id"], group["duration_kind"])
+        if key in duration_scopes:
+            raise ValueError("ambiguous duration scope")
+        duration_scopes.add(key)
+        if group["clock_quality"] != candidate["clock_quality"]:
+            raise ValueError("duration clock mismatch")
+        evidence = entry["evidence"]
+        _fields(evidence, {"owner_scope", "candidate_id", "clock_source", "observed_at"}, {"scope"})
+        if (evidence["owner_scope"] != scope or evidence["candidate_id"] != candidate["id"] or
+                (target != scope and (evidence.get("scope") != target or candidate["id"] != target["owner_id"])) or
+                ("scope" in evidence and evidence["scope"] != target)):
+            raise ValueError("invalid duration evidence binding")
+        _choice(evidence["clock_source"], frozenset({"monotonic", "wall", "unknown"}))
+        _timestamp(evidence["observed_at"])
+        history = entry["history"]
+        if history is not None:
+            _fields(history, {"schema_version", "group", "corpus_hash", "window_start", "window_end",
+                              "created_at", "expires_at", "sample_size", "median", "samples"})
+            _version(history["schema_version"])
+            _private_identifier(history["corpus_hash"])
+            _fields(history["group"], set(group))
+            for item in history["group"].values():
+                _identifier(item)
+            for field in ("window_start", "window_end", "created_at", "expires_at"):
+                _timestamp(history[field])
+            validate_counter(history["sample_size"])
+            if history["median"] is not None:
+                validate_decimal(history["median"])
+            samples = history["samples"]
+            if not isinstance(samples, list) or len(samples) > 10000:
+                raise ValueError("invalid duration samples")
+            for sample in samples:
+                _fields(sample, {"id", "seconds", "closed", "clock_quality", "kind", "group"})
+                _private_identifier(sample["id"])
+                validate_counter(sample["seconds"])
+                if type(sample["closed"]) is not bool:
+                    raise ValueError("invalid sample closure")
+                _choice(sample["clock_quality"], frozenset({"measured", "approximate", "unknown"}))
+                _choice(sample["kind"], frozenset({"work", "run", "wait", "summary"}))
+                _fields(sample["group"], set(group))
+                for item in sample["group"].values():
+                    _identifier(item)
     warning_ids = set()
     warning_scopes = set()
     for warning in value["warning_delivery"]:
         _fields(warning, {"warning_id", "policy_id", "policy_version", "scope", "owner_scope", "metric",
-                          "episode", "crossing_state", "delivery_state"})
+                          "episode", "crossing_state", "delivery_state"}, {"details"})
+        if "details" in warning:
+            details = warning["details"]
+            _fields(details, {"measurement", "threshold", "completeness"})
+            for item_name in ("measurement", "threshold", "completeness"):
+                item = details[item_name]
+                _fields(item, {"state", "value", "unit"})
+                _choice(item["state"], frozenset({"final", "proven_lower_bound", "partial", "unknown"}))
+                _choice(item["unit"], frozenset({"tokens", "USD", "fraction", "ms"}))
+                number = item["value"]
+                if item["state"] == "unknown":
+                    if number is not None:
+                        raise ValueError("unknown warning value")
+                elif isinstance(number, dict):
+                    _fields(number, {"numerator", "denominator"})
+                    validate_counter(number["numerator"])
+                    if validate_counter(number["denominator"]) == 0:
+                        raise ValueError("invalid warning fraction")
+                elif type(number) is int:
+                    validate_counter(number)
+                else:
+                    if not isinstance(number, str) or re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", number) is None:
+                        raise ValueError("invalid warning value")
+                    if len(number) > 256:
+                        raise ValueError("warning value too long")
         _private_identifier(warning["warning_id"])
         _identifier(warning["policy_id"])
         if validate_counter(warning["policy_version"]) == 0 or validate_counter(warning["episode"]) == 0:
