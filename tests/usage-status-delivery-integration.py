@@ -198,7 +198,8 @@ class StatusDeliveryIntegrationTests(unittest.TestCase):
         original['parts'] = []
         self.state_path.write_text(json.dumps(original), encoding='utf-8')
         result = self.status()
-        self.assertEqual(result['proposed_snapshot']['parts'], [])
+        self.assertNotIn('parts', result['proposed_snapshot'])
+        self.assertEqual(result['proposed_snapshot']['part_references'], [])
         self.assertEqual(len(result['candidates']), 1)
         report = self.apply(result, destinations={})
         self.assertEqual(report['warnings'][0]['delivery_state'], 'pending')

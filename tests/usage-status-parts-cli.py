@@ -47,8 +47,7 @@ class SelectedPartsTests(base.StatusCommandTests):
         self.assertEqual(self.snapshot.read_bytes(), before)
         self.assertEqual(neighbor.read_text(), 'PRIVATE_CONTENT_SENTINEL')
         self.assertNotIn('PRIVATE_CONTENT_SENTINEL', json.dumps(output))
-        self.assertEqual(output['proposed_snapshot']['parts'], self.original['parts'])
-        self.assertNotIn(str(neighbor), json.dumps(output))
+        self.assertNotIn(str(self.root), json.dumps(output))
 
     def test_selected_parts_proposal_delivers_and_preserves_manifest(self):
         import importlib.util
@@ -59,7 +58,8 @@ class SelectedPartsTests(base.StatusCommandTests):
         self.assertEqual(result.returncode, 0, result.stderr)
         output = json.loads(self.output.read_text())
         proposal = output['proposed_snapshot']
-        self.assertEqual(proposal['parts'], self.original['parts'])
+        self.assertCountEqual(proposal['part_references'], [{key: part[key] for key in ('kind', 'sha256', 'size_bytes')}
+                                                            for part in self.original['parts']])
         owner = self.original['owner_scope']
         note = self.root / 'run.md'
         note.write_text('Notes.\n')

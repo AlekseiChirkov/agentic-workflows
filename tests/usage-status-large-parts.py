@@ -45,7 +45,10 @@ class LargeStatusPartsTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         output = json.loads(case.output.read_text())
         self.assertEqual(output['candidates'], [])
-        self.assertEqual(output['proposed_snapshot']['parts'], manifest['parts'])
+        self.assertNotIn(str(case.root), json.dumps(output))
+        self.assertCountEqual(output['proposed_snapshot']['part_references'],
+                         [{key: part[key] for key in ('kind', 'sha256', 'size_bytes')}
+                          for part in manifest['parts']])
         delivery = parts_fixture.base.fixture.load('delivery_large', 'scripts/usage_telemetry_delivery.py')
         delivery.apply_revision(case.snapshot, manifest['revision'], output['proposed_snapshot'],
                                 owner_scope=manifest['owner_scope'], destinations={})
