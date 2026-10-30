@@ -1211,6 +1211,28 @@ def validate_diagnostic_measurement(value: Any) -> dict[str, Any]:
     return value
 
 
+def validate_source_issue(value: Any) -> dict[str, Any]:
+    """Validate a bounded record or prefix exclusion without source contents."""
+    _fields(value, {"schema_version", "kind", "source_id", "source_hash",
+                    "record_number", "reason", "completeness"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"source_issue"}))
+    _private_identifier(value["source_id"])
+    _hash(value["source_hash"])
+    _choice(value["reason"], frozenset({"source_record_quarantined",
+                                        "input_limit_exceeded", "incomplete_source"}))
+    _choice(value["completeness"], frozenset({"partial"}))
+    if value["reason"] == "incomplete_source":
+        if value["record_number"] is not None:
+            raise ValueError("prefix issue cannot identify a record")
+    elif validate_counter(value["record_number"]) == 0:
+        raise ValueError("source issue record number must be positive")
+    if len(canonical_bytes(value)) > DIAGNOSTIC_LIMIT:
+        raise ValueError("source issue exceeds byte limit")
+    return value
+
+
 def diagnostic_registry_view(records: Any, metrics: Any, scope: Any,
                              source_id: Any) -> list[dict[str, Any]]:
     """Select diagnostic evidence without turning it into usage or cost.
@@ -1275,7 +1297,10 @@ def validate_usage_bundle(value: Any) -> dict[str, Any]:
             raise ValueError("invalid bundle collection")
     diagnostic_members = set()
     for diagnostic in value["diagnostics"]:
-        validate_diagnostic_measurement(diagnostic)
+        if isinstance(diagnostic, dict) and diagnostic.get("kind") == "source_issue":
+            validate_source_issue(diagnostic)
+        else:
+            validate_diagnostic_measurement(diagnostic)
         member = canonical_bytes(diagnostic)
         if member in diagnostic_members:
             raise ValueError("duplicate diagnostic")
@@ -1297,6 +1322,11 @@ def validate_usage_bundle(value: Any) -> dict[str, Any]:
             raise ValueError("duplicate source")
         source_members.add(member)
         source_hashes.add(source["sha256"])
+    for diagnostic in value["diagnostics"]:
+        if diagnostic.get("kind") == "source_issue":
+            source = {"source_id": diagnostic["source_id"], "sha256": diagnostic["source_hash"]}
+            if canonical_bytes(source) not in source_members:
+                raise ValueError("source issue is outside bundle scope")
     inventory_members = set()
     for inventory in value["inventories"]:
         validate_inventory(inventory)
