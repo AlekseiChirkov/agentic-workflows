@@ -25,6 +25,18 @@ _spec.loader.exec_module(_contract)
 _LIMIT = 1024 * 1024
 
 
+def _check_destinations(state_path, destinations):
+    """Reject obvious shared-store targets before opening the owner lock."""
+    if not isinstance(destinations, dict):
+        raise ValueError('invalid destinations')
+    log_root = os.environ.get('ORCHESTRAIL_LOG_ROOT') or str(Path(__file__).resolve().parents[1] / 'logs')
+    shared = os.path.realpath(os.path.join(log_root, 'usage', 'v1'))
+    for path in [state_path, *destinations.values()]:
+        resolved = os.path.realpath(os.fspath(path))
+        if os.path.commonpath((resolved, shared)) == shared:
+            raise ValueError('destination is in shared storage')
+
+
 def _directory(path):
     path = os.path.abspath(os.fspath(path))
     parent, name = os.path.split(path)
@@ -281,6 +293,7 @@ def apply_revision(state_path, expected_revision, proposal, *, owner_scope, dest
         _contract.validate_current_run_snapshot(proposal)
     except (ValueError, TypeError, KeyError, RecursionError):
         raise ValueError('invalid proposed state') from None
+    _check_destinations(state_path, destinations)
     with _locked(state_path) as (directory, name):
         current, info = _load(directory, name)
         _check_owner(current, owner_scope)
@@ -321,6 +334,7 @@ def apply_revision(state_path, expected_revision, proposal, *, owner_scope, dest
 
 def resume_delivery(state_path, *, owner_scope, destinations, checkpoint=None):
     """Retry pending notes without accepting a new status proposal."""
+    _check_destinations(state_path, destinations)
     with _locked(state_path) as (directory, name):
         state, _ = _load(directory, name)
         _check_owner(state, owner_scope)

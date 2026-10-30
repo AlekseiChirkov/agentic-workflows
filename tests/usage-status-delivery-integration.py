@@ -2,6 +2,8 @@
 """Exercise pure status proposals through the authorized delivery owner."""
 import importlib.util
 import json
+import os
+import socket
 from pathlib import Path
 import subprocess
 import tempfile
@@ -61,6 +63,87 @@ class StatusDeliveryIntegrationTests(unittest.TestCase):
             result['proposed_snapshot'], owner_scope=self.owner,
             destinations=self.destinations if destinations is None else destinations,
             checkpoint=checkpoint)
+
+    def test_owner_command_rejects_shared_state_or_note_before_mutation(self):
+        result = self.status()
+        proposal = self.root / 'proposal.json'
+        proposal.write_text(json.dumps(result), encoding='utf-8')
+        shared = self.root / 'logs' / 'usage' / 'v1'
+        shared.mkdir(parents=True)
+        shared_state = shared / 'state.json'
+        shared_state.write_bytes(self.state_path.read_bytes())
+        shared_state.chmod(0o600)
+        shared_note = shared / 'note.md'
+        shared_note.write_text('Shared evidence.\n', encoding='utf-8')
+        shared_note.chmod(0o600)
+        authority = self.root / 'owner.json'
+        alias = self.root / 'shared-alias'
+        alias.symlink_to(shared, target_is_directory=True)
+        env = {**os.environ, 'ORCHESTRAIL_LOG_ROOT': str(self.root / 'logs')}
+        for state, note in ((shared_state, self.note_path), (self.state_path, shared_note),
+                            (alias / 'state.json', self.note_path), (self.state_path, alias / 'note.md')):
+            with self.subTest(shared_state=state == shared_state):
+                authority.write_text(json.dumps({'schema_version': 1, 'kind': 'warning_owner_authority',
+                    'owner_scope': self.owner, 'destinations': [{'scope': self.owner, 'path': str(note)}]}))
+                authority.chmod(0o600)
+                paths = (self.state_path, shared_state, self.note_path, shared_note)
+                before = [path.read_bytes() for path in paths]
+                command = ['python3', str(ROOT / 'scripts/usage-telemetry.py'), 'owner-deliver',
+                           '--state', str(state), '--owner-authority', str(authority), '--proposal', str(proposal)]
+                process = subprocess.run(command, capture_output=True, env=env)
+                self.assertNotEqual(process.returncode, 0)
+                self.assertEqual([path.read_bytes() for path in paths], before)
+                self.assertEqual(process.stdout, b'')
+                self.assertFalse((shared / '.state.json.lock').exists())
+                self.assertFalse((self.root / '.state.json.lock').exists())
+
+    def test_owner_command_accepts_socket_output(self):
+        authority = self.root / 'owner-socket.json'
+        authority.write_text(json.dumps({'schema_version': 1, 'kind': 'warning_owner_authority',
+            'owner_scope': self.owner, 'destinations': []}), encoding='utf-8')
+        authority.chmod(0o600)
+        command = ['python3', str(ROOT / 'scripts/usage-telemetry.py'), 'owner-deliver',
+                   '--state', str(self.state_path), '--owner-authority', str(authority)]
+        reader, writer = socket.socketpair()
+        try:
+            result = subprocess.run(command, stdout=writer, stderr=subprocess.PIPE)
+            writer.close()
+            output = b''
+            while True:
+                chunk = reader.recv(4096)
+                if not chunk:
+                    break
+                output += chunk
+        finally:
+            reader.close()
+            writer.close()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(output)['warnings'], [])
+
+    def test_owner_command_rejects_regular_output_before_any_mutation(self):
+        result = self.status()
+        proposal = self.root / 'proposal.json'
+        proposal.write_text(json.dumps(result), encoding='utf-8')
+        authority = self.root / 'owner.json'
+        authority.write_text(json.dumps({'schema_version': 1, 'kind': 'warning_owner_authority',
+            'owner_scope': self.owner, 'destinations': [{'scope': self.owner, 'path': str(self.note_path)}]}))
+        authority.chmod(0o600)
+        shared = self.root / 'logs' / 'usage' / 'v1'
+        shared.mkdir(parents=True)
+        output = shared / 'existing.json'
+        output.write_bytes(b'existing evidence\n')
+        before_state = self.state_path.read_bytes()
+        before_note = self.note_path.read_bytes()
+        command = ['python3', str(ROOT / 'scripts/usage-telemetry.py'), 'owner-deliver',
+                   '--state', str(self.state_path), '--owner-authority', str(authority),
+                   '--proposal', str(proposal)]
+        with output.open('ab') as stream:
+            process = subprocess.run(command, stdout=stream, stderr=subprocess.PIPE)
+        self.assertNotEqual(process.returncode, 0)
+        self.assertEqual(output.read_bytes(), b'existing evidence\n')
+        self.assertEqual(self.state_path.read_bytes(), before_state)
+        self.assertEqual(self.note_path.read_bytes(), before_note)
+        self.assertIn(b'owner delivery failed', process.stderr)
 
     def test_owner_command_delivers_and_reports_pending_recovery(self):
         authority = self.root / 'owner.json'
