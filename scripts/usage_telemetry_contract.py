@@ -668,7 +668,7 @@ def normalize_source_counters(profile: Any, source: Any, *, profile_version: str
     split = observations.get("input_cache_write", [])
     split_values: list[dict[str, Any]] = []
     split_seen: set[str] = set()
-    split_conflict = False
+    split_conflict = resolved["input_cache_write_unsplit"][2]
     split_complete = bool(split)
     for definition, amount in split:
         ttl = definition["ttl"]

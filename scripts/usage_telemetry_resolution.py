@@ -764,7 +764,12 @@ def resolve_usage(*, bundle, profile, contexts, snapshots, scenario, price_evide
             # Unknown or unsplit TTL is still a measured quantity, but cannot
             # select one of the time-specific prices.
             required.extend(split_writes or [('input_cache_write_unsplit', None)])
-        input_known = all(key in values for key in required if key[0] != 'output_total') and not unverified
+        write_conflict = any(
+            contract.observation_id(record) in trusted_contexts and
+            record['measurements'].get('input_cache_write_unsplit', {}).get('measurement_state') == 'conflicted'
+            for record in records)
+        input_known = (all(key in values for key in required if key[0] != 'output_total') and
+                       not unverified and not write_conflict)
         output_known = ('output_total', None) in values and not unverified
         final = final and not unverified
         record_priced = final and input_known and output_known and group['additive'] and not ambiguous_context
@@ -799,7 +804,7 @@ def resolve_usage(*, bundle, profile, contexts, snapshots, scenario, price_evide
             keys = [key for key in required if (key[0] == 'output_total') == (name == 'output')]
             if known and final:
                 per_tokens[name] = {'value': str(value), 'quality': 'complete'}
-            elif keys and all(key in partial_values for key in keys):
+            elif keys and not (name == 'input' and write_conflict) and all(key in partial_values for key in keys):
                 per_tokens[name] = {'value': str(sum(partial_values[key] for key in keys)), 'quality': 'partial'}
             else:
                 per_tokens[name] = {'quality': 'unavailable'}
