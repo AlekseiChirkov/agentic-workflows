@@ -15,7 +15,8 @@ import secrets
 import stat
 
 from usage_telemetry_contract import (canonical_bytes, observation_id,
-    validate_usage_bundle, validate_usage_receipt)
+    validate_usage_bundle, validate_usage_receipt, validate_decimal,
+    validate_lifecycle_projection)
 
 _DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 _FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
@@ -161,3 +162,36 @@ def publish_usage(bundle, *, root, mode, scope, authorize):
         for fd in (temporary_fd, target_fd, usage_fd, root_fd):
             if fd is not None:
                 os.close(fd)
+
+
+def validate_lifecycle_projection_for_owner(projection, *, scope, authorize, cost_usd=None):
+    """Validate a projection using an independently supplied trust boundary.
+
+    The trusted caller supplies the registered owner and a verifier that checks
+    profile, source, inventory, contributor identity, scope, privacy, pricing
+    applicability and each evidence association independently. Structural
+    validation and content hashes alone do not establish any of these facts.
+    The verifier must return exactly True for the original candidate and owner.
+    The caller must protect the verifier from control by the candidate's author.
+    """
+    candidate = copy.deepcopy(projection)
+    owner = copy.deepcopy(scope)
+    validate_lifecycle_projection(candidate)
+    if candidate['scope'] != owner:
+        raise ValueError('projection owner mismatch')
+    if cost_usd is not None:
+        validate_decimal(cost_usd)
+        if candidate.get('cost_usd') != cost_usd:
+            raise ValueError('projection scalar mismatch')
+    encoded = canonical_bytes(candidate)
+    if not callable(authorize):
+        raise ValueError('projection provenance not authorized')
+    try:
+        accepted = authorize(candidate, owner)
+    except Exception:
+        raise ValueError('projection provenance not authorized') from None
+    if accepted is not True:
+        raise ValueError('projection provenance not authorized')
+    if canonical_bytes(candidate) != encoded or owner != scope:
+        raise ValueError('projection authorization changed input')
+    return candidate

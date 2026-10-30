@@ -11,6 +11,7 @@ reading source records or discovering history. Until such an authority is
 available, ingestion fails closed before any shared storage is modified.
 """
 import hashlib
+import fcntl
 import hmac
 import base64
 import binascii
@@ -94,6 +95,31 @@ def registration(root, run_id, config, key):
     if config['owner_scope'] != {'owner_kind': 'run', 'owner_id': adapter._opaque(key, 'run', run_id)}:
         raise ValueError('unregistered scope')
     return values.get('usage_authority_key_sha256', '')
+
+
+def check_active_registration(root, run_id, config, key, expected):
+    """Check registration under the lifecycle event lock without delaying closure."""
+    path = os.path.join(root, '.active', run_id)
+    fd = sources._open_regular(path)
+    try:
+        data = os.read(fd, cli.LIMIT + 1)
+    finally:
+        os.close(fd)
+    lines = data.decode('utf-8').splitlines()
+    files = [line[5:] for line in lines if line.startswith('file=')]
+    if len(files) != 1:
+        raise ValueError('invalid registration event path')
+    event_path = files[0].replace('%0A', '\n').replace('%25', '%')
+    runs_dir = os.path.realpath(os.path.join(root, 'runs'))
+    if os.path.dirname(os.path.abspath(event_path)) != runs_dir:
+        raise ValueError('invalid registration event path')
+    event_fd = sources._open_regular(event_path)
+    try:
+        fcntl.flock(event_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if not hmac.compare_digest(registration(root, run_id, config, key), expected):
+            raise ValueError('registration changed')
+    finally:
+        os.close(event_fd)
 
 
 def _trusted_key(path, registry):
@@ -332,6 +358,76 @@ def certified_late_registration(path, bundle, config, key):
     return fingerprint
 
 
+def authorize_lifecycle_projection(projection, *, scope, run_id, registered_key, permit, key_path):
+    """Verify an independently issued permit bound to a projection and run."""
+    expected = {'schema_version': 1, 'kind': 'lifecycle_authority_permit',
+                'projection_sha256': hashlib.sha256(canonical_bytes(projection)).hexdigest(),
+                'scope': scope, 'run_id': run_id}
+    if (not isinstance(permit, dict) or set(permit) != set(expected) | {'signature'} or
+            {key: permit[key] for key in expected} != expected or projection.get('scope') != scope):
+        raise ValueError('invalid lifecycle authority permit')
+    signature = permit['signature']
+    if not isinstance(signature, str) or re.fullmatch(r'(?:[0-9a-f]{512}|[0-9a-f]{768}|[0-9a-f]{1024})', signature) is None:
+        raise ValueError('invalid lifecycle authority signature')
+    trusted = trusted_authority_key(key_path)
+    if (not isinstance(registered_key, str) or not re.fullmatch(r'[0-9a-f]{64}', registered_key) or
+            not hmac.compare_digest(hashlib.sha256(trusted).hexdigest(), registered_key)):
+        raise ValueError('lifecycle authority is not registered')
+    message = b'orchestrail:lifecycle-authority:v1\0' + canonical_bytes(expected)
+    if not verify_rsa_sha256(trusted, message, bytes.fromhex(signature)):
+        raise ValueError('invalid lifecycle authority signature')
+    return True
+
+
+def lifecycle_projection(path, run_id, registered_key, tokens_in, tokens_out, cost, root):
+    from usage_telemetry_contract import (validate_lifecycle_projection_json, validate_decimal)
+    candidate = validate_lifecycle_projection_json(cli._read_file(path))
+    permit_path = os.environ.get('USAGE_TELEMETRY_LIFECYCLE_PERMIT')
+    key_path = os.environ.get('USAGE_TELEMETRY_AUTHORITY_KEY')
+    if not permit_path or not key_path:
+        raise ValueError('lifecycle authority unavailable')
+    permit = json.loads(cli._read_file(permit_path, private=True), object_pairs_hook=sources._unique_pairs,
+                        parse_constant=sources._invalid_constant)
+    sources._bounded_raw_tree(permit)
+    config, _, key = config_and_key(os.environ.get('USAGE_TELEMETRY_CONFIG'))
+    if config['run_id'] != run_id:
+        raise ValueError('lifecycle registration run mismatch')
+    registered_authority = registration(root, run_id, config, key)
+    if not hmac.compare_digest(registered_authority, registered_key):
+        raise ValueError('lifecycle authority registration mismatch')
+    declared = candidate['scope']
+    scope = config['owner_scope'] | {'attribution_quality': declared['attribution_quality']}
+    if declared != scope:
+        raise ValueError('lifecycle owner scope mismatch')
+    authorize_lifecycle_projection(candidate, scope=scope, run_id=run_id,
+                                   registered_key=registered_key, permit=permit, key_path=key_path)
+    projection = publication.validate_lifecycle_projection_for_owner(
+        candidate, scope=scope, cost_usd=None if cost == '-' else cost,
+        authorize=lambda item, owner: item == candidate and owner == scope)
+    if cost != '-':
+        validate_decimal(cost)
+    for scalar, fields in ((tokens_in, {'input_uncached', 'input_cache_read', 'input_cache_write',
+                                      'input_cache_write_unsplit'}),
+                           (tokens_out, {'output_total'})):
+        if scalar != '-':
+            dimensions = ('inventory', 'identity', 'measurements', 'attribution')
+            if any(projection['completeness'][name] not in ('complete', 'not_applicable') for name in dimensions):
+                raise ValueError('incomplete projection scalar')
+            amount = 0
+            for contributor in projection['contributors']:
+                for field, measurement in contributor['measurements'].items():
+                    if field in fields:
+                        if isinstance(measurement, list):
+                            amount += sum(part['tokens']['value'] for part in measurement)
+                        else:
+                            amount += measurement['value']
+            if str(amount) != scalar:
+                raise ValueError('projection scalar mismatch')
+    encoded = canonical_bytes(projection)
+    return hashlib.sha256(encoded).hexdigest() + '\n' + encoded.decode('utf-8')
+
+
+
 def ingest(path, root, *, late_certificate=None):
     bundle = read_bundle(path)
     config, profile, key = config_and_key(os.environ.get('USAGE_TELEMETRY_CONFIG'), bundle['profile_id'])
@@ -356,11 +452,19 @@ def ingest(path, root, *, late_certificate=None):
         raise ValueError('invalid provenance')
     authorized_by_independent_authority(bundle, config, registered_key)
     scope = config['owner_scope'] | {'attribution_quality': 'asserted'}
-    return publication.publish_usage(bundle, root=root, mode='on', scope=scope,
+    if late_certificate is None:
+        check_active_registration(root, bundle['run_id'], config, key, registered_key)
+    receipt = publication.publish_usage(bundle, root=root, mode='on', scope=scope,
         authorize=lambda candidate, owner: candidate == bundle and owner == scope)
+    if late_certificate is None:
+        check_active_registration(root, bundle['run_id'], config, key, registered_key)
+    return receipt
 
 
 def main():
+    if len(sys.argv) == 9 and sys.argv[1] == 'lifecycle-projection':
+        print(lifecycle_projection(*sys.argv[2:]))
+        return
     if len(sys.argv) == 2 and sys.argv[1] == 'register-authority':
         trusted_key = trusted_authority_key(os.environ.get('USAGE_TELEMETRY_AUTHORITY_KEY'))
         print(hashlib.sha256(trusted_key).hexdigest())

@@ -17,6 +17,8 @@ if [ "${1:-}" = --usage-publication-only ]; then
   python3 "$REPO_ROOT/tests/usage-authority-permit.py" "$@"
   python3 "$REPO_ROOT/tests/usage-authority-rsa.py" "$@"
   python3 "$REPO_ROOT/tests/usage-authority-rsa-permit.py" "$@"
+  python3 "$REPO_ROOT/tests/usage-publication-run-race.py" "$@"
+  python3 "$REPO_ROOT/tests/usage-publication-close-nonblocking.py" "$@"
   exec python3 "$REPO_ROOT/tests/usage-publication-late-import.py" "$@"
 fi
 
@@ -44,7 +46,13 @@ fi
 # Check publication receipt schemas with offline fixtures.
 if [ "${1:-}" = --usage-projection-only ]; then
   shift
-  exec python3 "$REPO_ROOT/tests/usage-lifecycle-projection-schema.py" "$@"
+  python3 "$REPO_ROOT/tests/usage-lifecycle-projection-schema.py" "$@"
+  python3 "$REPO_ROOT/tests/usage-lifecycle-projection-states.py" "$@"
+  python3 "$REPO_ROOT/tests/usage-lifecycle-projection-no-prices.py" "$@"
+  python3 "$REPO_ROOT/tests/usage-lifecycle-projection-token-scalars.py" "$@"
+  python3 "$REPO_ROOT/tests/usage-lifecycle-projection-trust.py" "$@"
+  python3 "$REPO_ROOT/tests/usage-lifecycle-authority.py" "$@"
+  exec python3 "$REPO_ROOT/tests/usage-lifecycle-projection.py" "$@"
 fi
 
 if [ "${1:-}" = --usage-receipt-only ]; then
@@ -4698,7 +4706,7 @@ check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
 # Run immutable usage publication fixtures during ordinary validation as well.
 test_usage_publication_acceptance() {
   local output
-  output="$(python3 "$REPO_ROOT/tests/usage-usage-publication.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-publication-cli.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-publication-provenance.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-authority-permit.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-authority-rsa.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-authority-rsa-permit.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-publication-late-import.py" 2>&1)" || {
+  output="$(python3 "$REPO_ROOT/tests/usage-usage-publication.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-publication-cli.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-publication-provenance.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-authority-permit.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-authority-rsa.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-authority-rsa-permit.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-publication-run-race.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-publication-close-nonblocking.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-publication-late-import.py" 2>&1)" || {
     printf '%s\n' "$output" | tail -n 35
     return 1
   }
@@ -4731,7 +4739,7 @@ check "test_usage_current_snapshot_acceptance" \
 # Run lifecycle projection fixtures during ordinary validation as well.
 test_usage_projection_acceptance() {
   local output
-  output="$(python3 "$REPO_ROOT/tests/usage-lifecycle-projection-schema.py" 2>&1)" || {
+  output="$(python3 "$REPO_ROOT/tests/usage-lifecycle-projection-schema.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-lifecycle-projection-states.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-lifecycle-projection-no-prices.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-lifecycle-projection-token-scalars.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-lifecycle-projection-trust.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-lifecycle-authority.py" 2>&1 && python3 "$REPO_ROOT/tests/usage-lifecycle-projection.py" 2>&1)" || {
     printf '%s\n' "$output" | tail -n 35
     return 1
   }
