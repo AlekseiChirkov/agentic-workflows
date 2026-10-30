@@ -463,6 +463,44 @@ def validate_source_selection(value: Any) -> dict[str, Any]:
     return value
 
 
+def validate_attribution(value: Any) -> dict[str, Any]:
+    """Validate ownership claims without establishing their factual provenance.
+
+    Opaque identifiers and evidence digests are structural references only;
+    consumers must verify their origin, scope, and causal relationship.
+    """
+    _fields(value, {"owner_kind", "quality", "candidates"},
+            {"owner_scope", "parent_span_id", "root_command", "stage", "role",
+             "execution_path", "attempt", "capability", "basis", "evidence"})
+    _bounded_tree(value)
+    _choice(value["owner_kind"], frozenset({"span", "task", "shared_pool", "unattributed"}))
+    _choice(value["quality"], frozenset({"unknown", "asserted", "verified", "inferred"}))
+    candidates = value["candidates"]
+    if not isinstance(candidates, list) or len(candidates) > 64:
+        raise ValueError("invalid owner candidates")
+    for candidate in candidates:
+        _private_identifier(candidate)
+    if len(set(candidates)) != len(candidates):
+        raise ValueError("duplicate owner candidate")
+    if value.get("owner_scope") is not None:
+        scope = value["owner_scope"]
+        _fields(scope, {"owner_kind", "owner_id"})
+        _choice(scope["owner_kind"], frozenset({"run", "session", "task", "span", "shared_pool"}))
+        _private_identifier(scope["owner_id"])
+    for key in ("parent_span_id", "root_command", "stage", "role", "capability"):
+        if value.get(key) is not None:
+            _private_identifier(value[key])
+    if value.get("execution_path") is not None:
+        _choice(value["execution_path"], frozenset({"full", "fast"}))
+    if value.get("attempt") is not None:
+        validate_counter(value["attempt"])
+    if "basis" in value:
+        _choice(value["basis"], frozenset({"unknown", "submission_metadata", "correlation", "verified_import"}))
+    if value.get("evidence") is not None:
+        _hash(value["evidence"])
+    return value
+
+
 def validate_observation(value: Any) -> dict[str, Any]:
     """Validate a bounded, sanitized observation without resolving evidence."""
     required = {"schema_version", "kind", "profile_id", "profile_version", "source_hash",
@@ -493,17 +531,7 @@ def validate_observation(value: Any) -> dict[str, Any]:
     _timestamp(value["observed_at"])
     _choice(value["state"], MEASUREMENT_STATES)
     _choice(value["outcome"], frozenset({"succeeded", "failed", "cancelled", "timed_out", "unknown"}))
-    attribution = value["attribution"]
-    _fields(attribution, {"owner_kind", "quality", "candidates"})
-    _choice(attribution["owner_kind"], frozenset({"span", "task", "shared_pool", "unattributed"}))
-    _choice(attribution["quality"], frozenset({"asserted", "verified", "inferred"}))
-    candidates = attribution["candidates"]
-    if not isinstance(candidates, list) or len(candidates) > 64:
-        raise ValueError("invalid owner candidates")
-    for candidate in candidates:
-        _private_identifier(candidate)
-    if len(set(candidates)) != len(candidates):
-        raise ValueError("duplicate owner candidate")
+    validate_attribution(value["attribution"])
     measurements = value["measurements"]
     if not isinstance(measurements, dict) or not measurements or measurements.keys() - _MEASUREMENT_FIELDS:
         raise ValueError("invalid measurement fields")
