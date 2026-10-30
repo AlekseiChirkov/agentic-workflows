@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise pure status proposals through the authorized delivery owner."""
 import importlib.util
+import copy
 import hashlib
 import json
 import os
@@ -228,6 +229,10 @@ class StatusDeliveryIntegrationTests(unittest.TestCase):
         self.state_path.write_text(json.dumps(original))
         result = self.status()
         self.assertEqual(result['candidates'][0]['warning_id'], warning['warning_id'])
+        altered = copy.deepcopy(result)
+        altered['proposed_snapshot']['warning_delivery'][0]['delivery_state'] = 'delivered'
+        with self.assertRaises(ValueError):
+            self.apply(altered, destinations={})
         self.apply(result, destinations={})
         delivery.resume_delivery(self.state_path, owner_scope=self.owner, destinations=self.destinations)
         self.assertEqual(self.state()['warning_delivery'][0]['delivery_state'], 'delivered')
