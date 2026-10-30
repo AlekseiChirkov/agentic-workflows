@@ -197,6 +197,36 @@ class NormalizeCliTests(unittest.TestCase):
                 module.main(args)
         self.assertEqual(list(shared.iterdir()), [])
 
+    def test_destination_moved_after_final_check_never_publishes_to_shared_store(self):
+        module = load('usage_cli_final_check_race', CLI)
+        destination = self.root / 'destination'
+        destination.mkdir()
+        shared = self.log_root / 'usage' / 'v1'
+        shared.parent.mkdir(parents=True)
+        evidence = self.log_root / 'lifecycle.jsonl'
+        evidence.write_bytes(b'existing lifecycle evidence\n')
+        original = module._check_destination
+        checks = 0
+
+        def move_after_final_check(*args):
+            nonlocal checks
+            original(*args)
+            checks += 1
+            if checks == 2:
+                destination.rename(shared)
+
+        args = ['normalize', '--profile', 'synthetic-profile', '--input-manifest',
+                str(self.manifest), '--output', str(destination / 'bundle.json')]
+        with patch.dict(os.environ, self.env, clear=True), \
+                patch.object(module, '_check_destination', side_effect=move_after_final_check):
+            try:
+                module.main(args)
+            except (ValueError, OSError):
+                pass
+        self.assertFalse(shared.exists() and any(shared.iterdir()),
+                         'normalization wrote to the shared usage store')
+        self.assertEqual(evidence.read_bytes(), b'existing lifecycle evidence\n')
+
     def test_unreviewed_profile_strings_never_appear_in_output(self):
         def source(profile):
             profile['source'] = 'https://example.invalid/PRIVATE_PROFILE_SECRET'
