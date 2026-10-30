@@ -99,7 +99,7 @@ def _evaluate_snapshot(snapshot, *, analysis_inputs=None, verifier=None, observe
                             resolution._authorized(verifier, 'scope_tools_empty', owner, target, proof['tool_coverage'])
                             for proof in response_proofs)
         model_cost = response.get('model_cost', {})
-        if tool_verified and 'cost_usd' in model_cost:
+        if tool_verified and not model_cost.get('conditional', False) and 'cost_usd' in model_cost:
             entry['costs'].append(Fraction(model_cost['cost_usd']))
         else:
             entry['costs'].append(None)
@@ -126,7 +126,9 @@ def _evaluate_snapshot(snapshot, *, analysis_inputs=None, verifier=None, observe
         result['metrics']['tokens'] = {'state': state, 'value': total if total <= contract.MAX_COUNTER else str(total),
                                         'unit': 'tokens'}
     cost = report['cost']
-    if 'cost_usd' in cost:
+    if cost.get('conditional') is True:
+        result['metrics']['cost_usd'] = {'state': 'unpriced', 'value': None, 'unit': 'USD'}
+    elif 'cost_usd' in cost:
         result['metrics']['cost_usd'] = {'state': 'final', 'value': cost['cost_usd'], 'unit': 'USD'}
     elif cost.get('subtotal_quality') == 'proven_lower_bound' and cost.get('priced_subtotal_usd') != '0':
         result['metrics']['cost_usd'] = {'state': 'proven_lower_bound',
