@@ -6,12 +6,12 @@ of every session. Updated after every phase transition.
 
 ## Active Tasks
 
-None.
 
 Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11 → 12; 07 is backlog. The roadmap is in `specs/README.md`; each spec becomes a task via
 `/phase-discovery .ai/specs/<NN>-<slug>.md`.
 
 ## Done
+- [Cost and duration telemetry](../tasks/todo/task-05-cost-and-duration-telemetry/state.md) | phase: validation | status: reviewed | note: synthetic offline acceptance passed; stacked PRs await review; protected writer and external authority requirements remain
 - [Cached model catalog](../tasks/completed/task-04-model-catalog-cache/state.md) | phase: validation | status: reviewed | note: owner-authorized independent review and integration complete; all six PRs #31–#36 merged; full validation 594/0/2, no required repairs; main 111455ac171c7356d083e00d4d307a7285ed2e35 exactly matches the tested tree
 - [Workflow instruction maintenance] | completed | note: all 42 workflows clarified and reduced in two passes; 18 active specs reconciled, four completed records preserved; 589 full-suite checks pass with two optional skips; the pre-existing unstaged archive condition passes the unchanged strict gate in a disposable index
 - [Hook-based logging](../tasks/completed/task-03-hook-based-logging/state.md) | phase: validation | status: reviewed | note: seven leaves and prerequisite reviewed; separate final PR reviews and producer hardening complete; PRs #22–#29 merged in order; final validation 594/0/2

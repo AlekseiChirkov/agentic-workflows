@@ -189,6 +189,17 @@ helpers below are a separate additive feature.
 
 ## Optional model catalog helpers
 
+### Usage telemetry on the review stack
+
+The review stack adds optional explicit-input telemetry normalization, immutable usage
+publication, evidence-based resolution and exact pricing, retrospective reports, and
+owner-controlled warnings. Normalization, analysis and status emit to pipes or sockets.
+Report publication and warning delivery require operator-protected directories; warning
+state has one authorized cooperative writer. The only built-in reviewed source profile is
+synthetic, and an independent signing authority is an external deployment requirement.
+Existing lifecycle logging remains nonblocking and optional telemetry failures preserve
+accepted evidence. These changes remain on unmerged review branches.
+
 `scripts/model-catalog.py` validates a versioned Markdown payload and its derived tier table,
 inspects freshness, and atomically installs an explicitly supplied validated candidate. Public
 APIs include validate_catalog, inspect_catalog, refresh_catalog, tier_rows and default_catalog_path.

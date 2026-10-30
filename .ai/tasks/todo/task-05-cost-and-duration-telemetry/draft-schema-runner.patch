@@ -1,0 +1,35 @@
+diff --git a/scripts/validate-contracts.sh b/scripts/validate-contracts.sh
+index 288f518..6477add 100755
+--- a/scripts/validate-contracts.sh
++++ b/scripts/validate-contracts.sh
+@@ -9,6 +9,12 @@ set -e
+ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
+ 
++# Check typed usage schema with isolated offline fixtures.
++if [ "${1:-}" = --usage-schema-only ]; then
++  shift
++  exec python3 "$REPO_ROOT/tests/usage-typed-schema.py" "$@"
++fi
++
+ # Check canonical usage encoding with isolated offline fixtures.
+ if [ "${1:-}" = --usage-canonical-only ]; then
+   shift
+@@ -4554,6 +4560,17 @@ check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
+   "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
+ # ── End public identity smoke checks ────────────────────────────────
+ 
++# Run typed usage schema fixtures during ordinary validation as well.
++test_usage_schema_acceptance() {
++  local output
++  output="$(python3 "$REPO_ROOT/tests/usage-typed-schema.py" 2>&1)" || {
++    printf '%s\n' "$output" | tail -n 35
++    return 1
++  }
++}
++check "test_usage_schema_acceptance" \
++  "$(test_usage_schema_acceptance && echo pass || echo 'typed usage schema fixtures must pass')"
++
+ # Run the canonical encoding fixtures during ordinary validation as well.
+ test_usage_canonical_acceptance() {
+   local output
