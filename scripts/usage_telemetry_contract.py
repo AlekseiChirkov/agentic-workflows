@@ -138,6 +138,8 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
     envelope = kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
 
     def schema_set(path: tuple[str, ...]) -> bool:
+        if kind == "usage_accepted" and path == ("observation_ids",):
+            return True
         if kind == "pricing_scenario" and path in {
             ("snapshot_ids",), ("threshold_rules",), ("threshold_rules", "components"),
         }:
@@ -220,6 +222,7 @@ PRICE_SNAPSHOT_LIMIT = 1024 * 1024
 PRICING_SCENARIO_LIMIT = 1024 * 1024
 WARNING_POLICY_LIMIT = 1024 * 1024
 ANALYSIS_CORPUS_LIMIT = 1024 * 1024
+RECEIPT_LIMIT = 1024 * 1024
 DIAGNOSTIC_METRICS = {
     "context.loaded_bytes": "bytes",
     "orchestration.tool_calls": "count",
@@ -1278,6 +1281,44 @@ def analysis_corpus_id(value: Any) -> str:
 
 def validate_analysis_corpus_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, ANALYSIS_CORPUS_LIMIT, validate_analysis_corpus)
+
+
+def validate_usage_receipt(value: Any) -> dict[str, Any]:
+    """Validate receipt structure; neither scope nor publication is proven here.
+
+    Consumers must independently authenticate the receipt and verify its bundle
+    and observation identities. Attribution quality is a claim, not proof.
+    """
+    _fields(value, {"schema_version", "kind", "bundle_sha256", "observation_ids",
+                    "scope", "duplicate", "validator_version"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"usage_accepted"}))
+    _hash(value["bundle_sha256"])
+    observations = value["observation_ids"]
+    if not isinstance(observations, list) or len(observations) > 10000:
+        raise ValueError("invalid receipt observations")
+    seen = set()
+    for observation in observations:
+        _hash(observation)
+        if observation in seen:
+            raise ValueError("duplicate receipt observation")
+        seen.add(observation)
+    scope = value["scope"]
+    _fields(scope, {"owner_kind", "owner_id", "attribution_quality"})
+    _choice(scope["owner_kind"], frozenset({"run", "session"}))
+    _private_identifier(scope["owner_id"])
+    _choice(scope["attribution_quality"], frozenset({"unknown", "asserted", "verified", "inferred"}))
+    if type(value["duplicate"]) is not bool:
+        raise ValueError("invalid duplicate flag")
+    _identifier(value["validator_version"])
+    if len(canonical_bytes(value)) > RECEIPT_LIMIT:
+        raise ValueError("receipt exceeds byte limit")
+    return value
+
+
+def validate_usage_receipt_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, RECEIPT_LIMIT, validate_usage_receipt)
 
 
 def validate_source_selection_json(data: str | bytes) -> dict[str, Any]:
