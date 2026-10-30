@@ -6,6 +6,7 @@ import importlib.util
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -110,6 +111,20 @@ class OutcomeToolCostTests(unittest.TestCase):
         self.assertEqual(report['outcomes']['cost_per_accepted'], '0.02578')
         self.assertEqual(report['outcomes']['coverage'], 'complete')
         self.assertEqual(report['outcomes']['experimental_evaluation_cost'], '0')
+
+    def test_verified_empty_inventory_preserves_long_exact_ratio(self):
+        import usage_telemetry_report as report_module
+        original = report_module._combine_resolved
+        amount = '0.12345678901234567890123456789'
+
+        def with_long_total(*args, **kwargs):
+            result = original(*args, **kwargs)
+            result['cost']['cost_usd'] = amount
+            return result
+
+        with patch.object(report_module, '_combine_resolved', side_effect=with_long_total):
+            result = self.analyze()
+        self.assertEqual(result['outcomes']['cost_per_accepted'], amount)
 
     def test_unverified_tool_inventory_does_not_claim_complete_total(self):
         positive = self.analyze()

@@ -179,6 +179,12 @@ class AcceptedOutcomesTests(unittest.TestCase):
             with self.subTest(labels=labels), self.assertRaises(ValueError):
                 summarize([attempt('a', 1, '0.4')], list(labels))
 
+    def test_long_terminating_ratio_preserves_all_digits(self):
+        amount = '0.12345678901234567890123456789'
+        self.assertEqual(outcomes._ratio_text(outcomes._amount(amount), 1), amount)
+        self.assertEqual(outcomes._ratio_text(outcomes._amount(amount), 2),
+                         '0.061728394506172839450617283945')
+
     def test_nonterminating_ratio_remains_exact_and_comparable(self):
         attempts = [attempt('a', 1, '1'), attempt('b', 2, '0'), attempt('c', 3, '0')]
         labels = [revision(number, 'accepted') for number in (1, 2, 3)]
