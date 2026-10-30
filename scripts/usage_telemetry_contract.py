@@ -253,13 +253,15 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
     if any(schema_set(path) for path in keys):
         raise ValueError("schema set ordering cannot be overridden")
 
-    def normalize(item: Any, path: tuple[str, ...]) -> Any:
+    def normalize(item: Any, path: tuple[str, ...], array_member: bool = False) -> Any:
         if isinstance(item, dict):
             if any(not isinstance(key, str) for key in item):
                 raise ValueError("JSON object keys must be strings")
             return {key: normalize(child, path + (key,)) for key, child in item.items()}
         if isinstance(item, list):
-            children = [normalize(child, path) for child in item]
+            children = [normalize(child, path, array_member=True) for child in item]
+            if array_member:
+                return children
             if path in keys:
                 return sorted(children, key=lambda child: (keys[path](child), _encode(child)))
             return sorted(children, key=_encode) if path in paths or schema_set(path) else children
