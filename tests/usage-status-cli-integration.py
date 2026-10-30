@@ -39,11 +39,14 @@ class StatusCommandTests(unittest.TestCase):
     def run_status(self, authority=True):
         args = ['python3', str(ROOT / 'scripts/usage-telemetry.py'), 'status',
                 '--receipt-snapshot', str(self.snapshot), '--policy', str(self.policy),
-                '--observed-at', fixture.NOW, '--output', str(self.output)]
+                '--observed-at', fixture.NOW]
         if authority:
             args.extend(['--authority', str(self.authority)])
-        return subprocess.run(args, cwd=self.root, capture_output=True, text=True,
-                              env={**os.environ, 'ORCHESTRAIL_USAGE_MODE': 'off'}, timeout=20)
+        result = subprocess.run(args, cwd=self.root, capture_output=True, text=True,
+                                env={**os.environ, 'ORCHESTRAIL_USAGE_MODE': 'off'}, timeout=20)
+        if result.returncode == 0:
+            self.output.write_text(result.stdout, encoding='utf-8')
+        return result
 
     def test_explicit_inputs_and_separate_authority_produce_stable_candidates_offline(self):
         initial = self.snapshot.read_bytes()

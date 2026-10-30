@@ -42,22 +42,19 @@ class StatusDeliveryIntegrationTests(unittest.TestCase):
                          for kind, scope, subject, evidence in allowed]}), encoding='utf-8')
         self.authority_path.chmod(0o600)
         self.destinations = {('run', self.owner['owner_id']): str(self.note_path)}
-        self.output_counter = 0
 
     def state(self):
         return json.loads(self.state_path.read_text(encoding='utf-8'))
 
     def status(self):
-        output = self.root / ('status-' + str(self.output_counter) + '.json')
-        self.output_counter += 1
         before = self.state_path.read_bytes(), self.note_path.read_bytes()
         process = subprocess.run(['python3', str(ROOT / 'scripts/usage-telemetry.py'), 'status',
             '--receipt-snapshot', str(self.state_path), '--authority', str(self.authority_path),
-            '--observed-at', time_fixture.NOW, '--output', str(output)],
+            '--observed-at', time_fixture.NOW],
             cwd=self.root, capture_output=True, text=True, timeout=20)
         self.assertEqual(process.returncode, 0, process.stderr)
         self.assertEqual((self.state_path.read_bytes(), self.note_path.read_bytes()), before)
-        return json.loads(output.read_text(encoding='utf-8'))
+        return json.loads(process.stdout)
 
     def apply(self, result, destinations=None, checkpoint=None):
         return delivery.apply_revision(self.state_path, self.state()['revision'],
