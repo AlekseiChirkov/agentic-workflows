@@ -807,10 +807,12 @@ def resolve_usage(*, bundle, profile, contexts, snapshots, scenario, price_evide
             if price is None:
                 record_priced = False
                 all_prices = False
-            components.append({'id': response_id[7:] + '_' + str(index), 'quantity': quantity,
+            components.append({'id': contract.content_id(group['identity'])[7:] + '_' + str(index), 'quantity': quantity,
                                'price_usd': None if price is None else price[0],
                                'unit': None if price is None else price[1]})
-        responses.append({'response_id': response_id, 'call_id': next(iter(calls)), 'final': final,
+        responses.append({'response_id': response_id, 'provider': group['identity']['provider'],
+                          'provider_scope': group['identity']['provider_scope'],
+                          'call_id': next(iter(calls)), 'final': final,
                           'measurements': {'input': input_known, 'output': output_known}, 'priced': record_priced})
         per_tokens = {}
         for name, known, value in (
@@ -938,7 +940,7 @@ def resolve_usage(*, bundle, profile, contexts, snapshots, scenario, price_evide
     identities_complete = (inventory_verified and inventory['state'] == 'complete' and
                            not inventory['unresolved_slots'] and
                            all(inventory['coverage'][name] == 'included' for name in ('children', 'internal_checks')) and
-                           not identity_uncertain and expected == actual)
+                           not identity_uncertain and len(actual) == len(responses) and expected == actual)
     result = {'completeness': coverage, 'cost': cost, 'tokens': tokens, 'responses': response_details,
               'identity': {'state': 'complete' if identities_complete else 'partial'}}
     if tool_result is not None:
