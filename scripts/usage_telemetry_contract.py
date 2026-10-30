@@ -203,6 +203,17 @@ PROFILE_LIMIT = 1024 * 1024
 SELECTION_LIMIT = 1024 * 1024
 INVENTORY_LIMIT = 1024 * 1024
 SEGMENT_LIMIT = 1024 * 1024
+DIAGNOSTIC_LIMIT = 1024 * 1024
+DIAGNOSTIC_METRICS = {
+    "context.loaded_bytes": "bytes",
+    "orchestration.tool_calls": "count",
+    "verification.evidence_reuses": "count",
+    "tool_output.full_bytes": "bytes",
+    "tool_output.shown_bytes": "bytes",
+    "tool_output.additional_read_bytes": "bytes",
+    "repair.attempts": "count",
+    "decomposition.rework": "count",
+}
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 _COUNTER_SCOPES = frozenset({"response_total", "incremental_delta", "cumulative_epoch",
                              "provider_aggregate", "caller_aggregate"})
@@ -697,6 +708,42 @@ def validate_collection_segment(value: Any) -> dict[str, Any]:
     return value
 
 
+def validate_diagnostic_measurement(value: Any) -> dict[str, Any]:
+    """Validate a registered diagnostic without deriving usage or cost.
+
+    Opaque reference syntax does not establish privacy, provenance, or scope;
+    producers must establish these independently before publication.
+    """
+    _fields(value, {"schema_version", "kind", "metric", "value", "unit",
+                    "scope", "source_id", "quality"},
+            {"event_id", "attempt_id", "context_hash"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"diagnostic_measurement"}))
+    metric = value["metric"]
+    if not isinstance(metric, str) or metric not in DIAGNOSTIC_METRICS:
+        raise ValueError("unregistered diagnostic metric")
+    if value["unit"] != DIAGNOSTIC_METRICS[metric]:
+        raise ValueError("invalid diagnostic unit")
+    scope = value["scope"]
+    _fields(scope, {"owner_kind", "owner_id"})
+    _choice(scope["owner_kind"], frozenset({"run", "session"}))
+    _private_identifier(scope["owner_id"])
+    _private_identifier(value["source_id"])
+    for field in ("event_id", "attempt_id", "context_hash"):
+        if field in value and value[field] is not None:
+            _private_identifier(value[field])
+    _choice(value["quality"], frozenset({"measured", "unknown"}))
+    if value["quality"] == "unknown":
+        if value["value"] is not None:
+            raise ValueError("unknown diagnostic must omit its value")
+    else:
+        validate_counter(value["value"])
+    if len(canonical_bytes(value)) > DIAGNOSTIC_LIMIT:
+        raise ValueError("diagnostic exceeds byte limit")
+    return value
+
+
 def validate_usage_bundle(value: Any) -> dict[str, Any]:
     """Validate a self-contained, bounded sanitized bundle."""
     _fields(value, {"schema_version", "kind", "profile_id", "profile_version", "project_id",
@@ -711,9 +758,13 @@ def validate_usage_bundle(value: Any) -> dict[str, Any]:
     for field in ("sources", "observations", "evidence_objects", "inventories", "segments", "diagnostics"):
         if not isinstance(value[field], list) or len(value[field]) > 10000:
             raise ValueError("invalid bundle collection")
-    # Entity-specific schemas are supplied separately; fail closed until available.
-    if value["diagnostics"]:
-        raise ValueError("unsupported bundle entity")
+    diagnostic_members = set()
+    for diagnostic in value["diagnostics"]:
+        validate_diagnostic_measurement(diagnostic)
+        member = canonical_bytes(diagnostic)
+        if member in diagnostic_members:
+            raise ValueError("duplicate diagnostic")
+        diagnostic_members.add(member)
     segment_ids = set()
     for segment in value["segments"]:
         validate_collection_segment(segment)
@@ -801,6 +852,10 @@ def validate_inventory_json(data: str | bytes) -> dict[str, Any]:
 
 def validate_collection_segment_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, SEGMENT_LIMIT, validate_collection_segment)
+
+
+def validate_diagnostic_measurement_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, DIAGNOSTIC_LIMIT, validate_diagnostic_measurement)
 
 
 def validate_observation_json(data: str | bytes) -> dict[str, Any]:
