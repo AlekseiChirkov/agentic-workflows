@@ -711,6 +711,13 @@ def resolve_usage(*, bundle, profile, contexts, snapshots, scenario, price_evide
         for key, events in measures.items():
             try:
                 event_list = [entry[0] for entry in events]
+                # Finality has already validated revision edges across all snapshots.
+                # Resolve each quantity from the surviving final records only.
+                if final and anchor is not None and anchor['kind'] == 'snapshot':
+                    tip_ids = {event['observation_id'] for event in tips}
+                    event_list = [{key: value for key, value in event.items()
+                                   if key not in ('correction_of', 'correction_verified')}
+                                  for event in event_list if event['observation_id'] in tip_ids]
                 if any(item['kind'] == 'delta' for item in event_list):
                     event_list += terminal_events
                 resolved = stream.resolve_stream(event_list)
@@ -764,10 +771,18 @@ def resolve_usage(*, bundle, profile, contexts, snapshots, scenario, price_evide
             # Unknown or unsplit TTL is still a measured quantity, but cannot
             # select one of the time-specific prices.
             required.extend(split_writes or [('input_cache_write_unsplit', None)])
+        conflict_events = finality_events
+        if finality_result['measurement_state'] == 'final' and anchor is not None and anchor['kind'] == 'snapshot':
+            conflict_events = tips
+        elif finality_result['measurement_state'] == 'partial':
+            snapshots = [event for event in finality_events if event['kind'] == 'snapshot']
+            if snapshots and len(snapshots) == len(finality_events) and all('sequence' in event for event in snapshots):
+                latest_sequence = max(event['sequence'] for event in snapshots)
+                conflict_events = [event for event in snapshots if event['sequence'] == latest_sequence]
         write_conflict = any(
-            contract.observation_id(record) in trusted_contexts and
-            record['measurements'].get('input_cache_write_unsplit', {}).get('measurement_state') == 'conflicted'
-            for record in records)
+            event_sources[event['observation_id']][0]['measurements'].get(
+                'input_cache_write_unsplit', {}).get('measurement_state') == 'conflicted'
+            for event in conflict_events if event['kind'] != 'terminal')
         input_known = (all(key in values for key in required if key[0] != 'output_total') and
                        not unverified and not write_conflict)
         output_known = ('output_total', None) in values and not unverified
