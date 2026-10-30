@@ -47,7 +47,33 @@ class SelectedPartsTests(base.StatusCommandTests):
         self.assertEqual(self.snapshot.read_bytes(), before)
         self.assertEqual(neighbor.read_text(), 'PRIVATE_CONTENT_SENTINEL')
         self.assertNotIn('PRIVATE_CONTENT_SENTINEL', json.dumps(output))
-        self.assertNotIn(str(self.root), json.dumps(output))
+        self.assertEqual(output['proposed_snapshot']['parts'], self.original['parts'])
+        self.assertNotIn(str(neighbor), json.dumps(output))
+
+    def test_selected_parts_proposal_delivers_and_preserves_manifest(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('delivery', ROOT / 'scripts/usage_telemetry_delivery.py')
+        delivery = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(delivery)
+        result = self.run_status()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(self.output.read_text())
+        proposal = output['proposed_snapshot']
+        self.assertEqual(proposal['parts'], self.original['parts'])
+        owner = self.original['owner_scope']
+        note = self.root / 'run.md'
+        note.write_text('Notes.\n')
+        note.chmod(0o600)
+        pending = delivery.apply_revision(self.snapshot, self.original['revision'], proposal,
+                                          owner_scope=owner, destinations={})
+        self.assertTrue(pending['warnings'])
+        delivery.resume_delivery(self.snapshot, owner_scope=owner,
+                                 destinations={('run', owner['owner_id']): str(note)})
+        delivery.resume_delivery(self.snapshot, owner_scope=owner,
+                                 destinations={('run', owner['owner_id']): str(note)})
+        self.assertEqual(json.loads(self.snapshot.read_text())['parts'], self.original['parts'])
+        for candidate in output['candidates']:
+            self.assertEqual(note.read_text().count(candidate['warning_id']), 1)
 
     def test_incorrect_hash_size_and_changed_file_fail_before_output(self):
         for change in ({'sha256': 'f' * 64}, {'size_bytes': self.parts[0]['size_bytes'] + 1}):

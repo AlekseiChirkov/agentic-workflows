@@ -193,6 +193,23 @@ class StatusDeliveryIntegrationTests(unittest.TestCase):
         self.assertIn('unknown', note)
         self.assertIn(self.owner['owner_id'], note)
 
+    def test_empty_parts_manifest_survives_status_and_recovery(self):
+        original = self.state()
+        original['parts'] = []
+        self.state_path.write_text(json.dumps(original), encoding='utf-8')
+        result = self.status()
+        self.assertEqual(result['proposed_snapshot']['parts'], [])
+        self.assertEqual(len(result['candidates']), 1)
+        report = self.apply(result, destinations={})
+        self.assertEqual(report['warnings'][0]['delivery_state'], 'pending')
+        with self.assertRaisesRegex(ValueError, 'stale owner state'):
+            delivery.apply_revision(self.state_path, original['revision'], result['proposed_snapshot'],
+                                    owner_scope=self.owner, destinations=self.destinations)
+        delivery.resume_delivery(self.state_path, owner_scope=self.owner, destinations=self.destinations)
+        delivery.resume_delivery(self.state_path, owner_scope=self.owner, destinations=self.destinations)
+        self.assertEqual(self.state()['parts'], [])
+        self.assertEqual(self.note_path.read_text().count(result['candidates'][0]['warning_id']), 1)
+
     def test_real_status_proposal_is_accepted_and_repeat_does_not_duplicate(self):
         first = self.status()
         self.assertEqual(len(first['candidates']), 1)
