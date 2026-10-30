@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime
+from fractions import Fraction
 import json
 import re
 import unicodedata
@@ -138,6 +139,18 @@ def canonical_bytes(value: Any, *, set_paths: Iterable[tuple[str, ...]] = (),
     envelope = kind in {"request_usage", "inventory", "reported_aggregate", "usage_bundle"}
 
     def schema_set(path: tuple[str, ...]) -> bool:
+        if kind == "lifecycle_projection" and path in {
+            ("contributors",), ("contributors", "observation_ids"),
+            ("evidence_objects",), ("price_snapshots",),
+            ("price_snapshots", "aliases"), ("price_snapshots", "rates"),
+            ("price_snapshots", "primary_sources"),
+            ("scenario", "snapshot_ids"), ("scenario", "threshold_rules"),
+            ("scenario", "threshold_rules", "components"),
+        }:
+            return True
+        if (kind == "lifecycle_projection" and len(path) >= 3
+                and path[-3] == "measurements" and path[-1] == "reasons"):
+            return True
         if kind == "usage_accepted" and path == ("observation_ids",):
             return True
         if kind == "pricing_scenario" and path in {
@@ -223,6 +236,7 @@ PRICING_SCENARIO_LIMIT = 1024 * 1024
 WARNING_POLICY_LIMIT = 1024 * 1024
 ANALYSIS_CORPUS_LIMIT = 1024 * 1024
 RECEIPT_LIMIT = 1024 * 1024
+LIFECYCLE_PROJECTION_LIMIT = 1024 * 1024
 DIAGNOSTIC_METRICS = {
     "context.loaded_bytes": "bytes",
     "orchestration.tool_calls": "count",
@@ -261,6 +275,12 @@ def _timestamp(value: Any) -> None:
         datetime.fromisoformat(value[:-1] + "+00:00")
     except ValueError:
         raise ValueError("invalid UTC timestamp") from None
+
+
+def _instant(timestamp: str) -> tuple[str, str]:
+    """Compare UTC timestamps without truncating arbitrary fractional precision."""
+    whole, _, fraction = timestamp[:-1].partition(".")
+    return whole, fraction.rstrip("0")
 
 
 def _private_identifier(value: Any) -> None:
@@ -579,6 +599,35 @@ def validate_observation(value: Any) -> dict[str, Any]:
 
 def validate_evidence_object(value: Any) -> dict[str, Any]:
     """Validate the separate evidence record; the hash is not an authenticity claim."""
+    if isinstance(value, dict) and value.get("kind") == "price_period_evidence":
+        _fields(value, {"schema_version", "kind", "source_hash", "start", "end"})
+        _version(value["schema_version"])
+        _hash(value["source_hash"])
+        _timestamp(value["start"])
+        _timestamp(value["end"])
+        return value
+    if isinstance(value, dict) and value.get("kind") == "source_parameter_evidence":
+        _fields(value, {"schema_version", "kind", "profile_id", "source_hash", "record_number", "field", "value"})
+        _version(value["schema_version"])
+        _identifier(value["profile_id"])
+        _hash(value["source_hash"])
+        validate_counter(value["record_number"])
+        _choice(value["field"], frozenset({"model", "service_tier", "region", "modality"}))
+        if value["field"] == "model":
+            if (not isinstance(value["value"], str) or len(value["value"]) > 256 or
+                    re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]*(?:/[A-Za-z0-9][A-Za-z0-9._:-]*)?", value["value"]) is None):
+                raise ValueError("invalid model identifier")
+        else:
+            _identifier(value["value"])
+        return value
+    if isinstance(value, dict) and value.get("kind") == "execution_time_evidence":
+        _fields(value, {"schema_version", "kind", "profile_id", "source_hash", "record_number", "value"})
+        _version(value["schema_version"])
+        _identifier(value["profile_id"])
+        _hash(value["source_hash"])
+        validate_counter(value["record_number"])
+        _timestamp(value["value"])
+        return value
     if isinstance(value, dict) and value.get("kind") == "inventory_evidence":
         _fields(value, {"schema_version", "kind", "profile_id", "profile_version",
                         "source_hash", "inventory_digest"})
@@ -1281,6 +1330,266 @@ def analysis_corpus_id(value: Any) -> str:
 
 def validate_analysis_corpus_json(data: str | bytes) -> dict[str, Any]:
     return _validate_json(data, ANALYSIS_CORPUS_LIMIT, validate_analysis_corpus)
+
+
+def _projection_prices(value: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    snapshots = value["price_snapshots"]
+    if not isinstance(snapshots, list) or not 1 <= len(snapshots) <= 10000:
+        raise ValueError("invalid projection price snapshots")
+    prices = {}
+    for snapshot in snapshots:
+        validate_price_snapshot(snapshot)
+        identity = price_snapshot_id(snapshot)
+        if identity in prices:
+            raise ValueError("duplicate projection price snapshot")
+        prices[identity] = snapshot
+    scenario = validate_pricing_scenario(value["scenario"])
+    if set(scenario["snapshot_ids"]) != set(prices):
+        raise ValueError("projection scenario snapshots do not match")
+    return prices
+
+
+def _projection_component_cost(field: str, quantity: int, snapshot: dict[str, Any],
+                               scenario: dict[str, Any], execution_time: str) -> Fraction:
+    # Conservative subset: no inferred thresholds, aliases, tool identities, or TTLs.
+    components = {"input_uncached": "input_uncached", "input_cache_read": "input_cache_read",
+                  "output_total": "output"}
+    if field not in components or scenario["threshold_rules"]:
+        raise ValueError("projection component is not demonstrably priced")
+    parameters = scenario["source_parameters"]
+    for name in ("model", "service_tier", "region", "modality"):
+        parameter = parameters[name]
+        assumed = scenario["assumptions"].get(name)
+        selected = assumed if assumed is not None else (parameter["value"] if parameter is not None else None)
+        if selected is None or selected != snapshot[name]:
+            raise ValueError("projection price parameters do not match")
+    period = snapshot["effective_period"]
+    if scenario["basis"] == "at_execution" and (period["state"] != "known" or
+            not _instant(period["start"]) <= _instant(execution_time) < _instant(period["end"])):
+        raise ValueError("projection price period is unavailable")
+    matches = [rate for rate in snapshot["rates"] if rate["component"] == components[field]]
+    if len(matches) != 1:
+        raise ValueError("projection component rate is ambiguous")
+    rate = matches[0]
+    if (rate["unit"] != "tokens" or rate["threshold"] is not None or
+            rate["cache_ttl_seconds"] is not None or
+            rate.get("multiplier", {}).get("state") != "none"):
+        raise ValueError("projection rate applicability is unknown")
+    unit_price = Fraction(rate["usd"]) / rate["unit_quantity"]
+    denominator = unit_price.denominator
+    for factor in (2, 5):
+        while denominator % factor == 0:
+            denominator //= factor
+    if denominator != 1:
+        raise ValueError("projection rate is not an exact decimal per unit")
+    return unit_price * quantity
+
+
+def _projection_possible_snapshot(field: str, snapshot: dict[str, Any],
+                                  scenario: dict[str, Any], execution_time: str) -> bool:
+    """Keep unknown applicability as a possible match, never silently exclude it."""
+    components = {"input_uncached": "input_uncached", "input_cache_read": "input_cache_read",
+                  "output_total": "output"}
+    component = components.get(field)
+    if component is None or not any(rate["component"] == component for rate in snapshot["rates"]):
+        return False
+    parameters = scenario["source_parameters"]
+    for name in ("model", "service_tier", "region", "modality"):
+        parameter = parameters[name]
+        selected = scenario["assumptions"].get(name)
+        if selected is None and parameter is not None:
+            selected = parameter["value"]
+        available = snapshot[name]
+        if name == "model" and selected is not None and selected != available:
+            if selected not in {alias["alias"] for alias in snapshot["aliases"]}:
+                return False
+        elif name != "model" and selected is not None and available is not None and selected != available:
+            return False
+    period = snapshot["effective_period"]
+    if (scenario["basis"] == "at_execution" and period["state"] == "known" and
+            not _instant(period["start"]) <= _instant(execution_time) < _instant(period["end"])):
+        return False
+    return True
+
+
+def validate_lifecycle_projection(value: Any) -> dict[str, Any]:
+    """Validate a self-contained projection without asserting external evidence provenance.
+
+    Completeness and ownership are declarations. The receiving producer must verify
+    their evidence and provenance, independently assess applicable quantities, and
+    compare scalar flags before accepting a projection. Unsupported pricing remains
+    unpriced rather than being rounded or guessed.
+    """
+    _fields(value, {"schema_version", "kind", "scope", "as_of", "contributors",
+                    "evidence_objects", "price_snapshots", "scenario", "completeness"},
+            {"cost_usd", "priced_subtotal_usd", "subtotal_quality", "display_cost_usd"})
+    _bounded_tree(value)
+    _version(value["schema_version"])
+    _choice(value["kind"], frozenset({"lifecycle_projection"}))
+    _timestamp(value["as_of"])
+    scope = value["scope"]
+    _fields(scope, {"owner_kind", "owner_id", "attribution_quality"})
+    _choice(scope["owner_kind"], frozenset({"run", "session"}))
+    _private_identifier(scope["owner_id"])
+    _choice(scope["attribution_quality"], frozenset({"unknown", "asserted", "verified", "inferred"}))
+    completeness = value["completeness"]
+    dimensions = {"inventory", "identity", "measurements", "pricing", "attribution"}
+    _fields(completeness, dimensions)
+    for state in completeness.values():
+        _choice(state, frozenset({"complete", "partial", "unknown", "not_applicable"}))
+    prices = _projection_prices(value)
+    complete = all(state == "complete" for state in completeness.values())
+    if complete and "cost_usd" not in value:
+        raise ValueError("complete projection requires full cost")
+    if "cost_usd" in value:
+        validate_decimal(value["cost_usd"])
+        if not complete or scope["attribution_quality"] != "verified":
+            raise ValueError("full cost requires complete verified scope")
+    if ("priced_subtotal_usd" in value) != ("subtotal_quality" in value):
+        raise ValueError("partial amount requires quality")
+    if "priced_subtotal_usd" in value:
+        validate_decimal(value["priced_subtotal_usd"])
+        _choice(value["subtotal_quality"], frozenset({"subtotal_only", "proven_lower_bound"}))
+        if value["subtotal_quality"] == "proven_lower_bound" and (
+                any(completeness[dimension] != "complete" for dimension in
+                    ("identity", "pricing", "measurements", "attribution")) or
+                value["scenario"]["basis"] != "at_execution" or
+                scope["attribution_quality"] != "verified"):
+            raise ValueError("lower bound requires resolved work and historical pricing")
+    if "display_cost_usd" in value:
+        display = value["display_cost_usd"]
+        if not isinstance(display, str) or re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", display) is None:
+            raise ValueError("invalid display amount")
+    objects = value["evidence_objects"]
+    if not isinstance(objects, list) or len(objects) > 10000:
+        raise ValueError("invalid projection evidence")
+    evidence = {}
+    for item in objects:
+        validate_evidence_object(item)
+        identity = content_id(item)
+        if identity in evidence:
+            raise ValueError("duplicate projection evidence")
+        evidence[identity] = item
+    for snapshot in prices.values():
+        period = snapshot["effective_period"]
+        if period["state"] == "known":
+            item = evidence.get(period["evidence"])
+            if (item is None or item["kind"] != "price_period_evidence" or
+                    item["start"] != period["start"] or item["end"] != period["end"]):
+                raise ValueError("price period evidence does not match")
+    for field, parameter in value["scenario"]["source_parameters"].items():
+        if parameter is None:
+            continue
+        item = evidence.get(parameter["evidence"])
+        if (item is None or item["kind"] != "source_parameter_evidence" or
+                item["field"] != field or item["value"] != parameter["value"]):
+            raise ValueError("source parameter evidence does not match")
+    contributors = value["contributors"]
+    if not isinstance(contributors, list) or not 1 <= len(contributors) <= 10000:
+        raise ValueError("invalid projection contributors")
+    seen_ids, seen_observations, seen_records = set(), set(), set()
+    total = Fraction(0)
+    for contributor in contributors:
+        _fields(contributor, {"contributor_id", "observation_ids", "profile_id", "profile_version",
+                              "measurements", "price_snapshot_id", "priced_usd", "execution_time",
+                              "parameter_evidence"})
+        identity = contributor["contributor_id"]
+        _private_identifier(identity)
+        if identity in seen_ids:
+            raise ValueError("duplicate contributor")
+        seen_ids.add(identity)
+        _identifier(contributor["profile_id"])
+        _identifier(contributor["profile_version"])
+        observations = contributor["observation_ids"]
+        if not isinstance(observations, list) or not 1 <= len(observations) <= 10000:
+            raise ValueError("invalid contributor observations")
+        for observation in observations:
+            _hash(observation)
+            if observation in seen_observations:
+                raise ValueError("overlapping contributor observations")
+            seen_observations.add(observation)
+        price_id = contributor["price_snapshot_id"]
+        _hash(price_id)
+        if price_id not in prices:
+            raise ValueError("missing contributor price")
+        execution = contributor["execution_time"]
+        _fields(execution, {"value", "evidence"})
+        _timestamp(execution["value"])
+        _hash(execution["evidence"])
+        time_evidence = evidence.get(execution["evidence"])
+        if (time_evidence is None or time_evidence["kind"] != "execution_time_evidence" or
+                time_evidence["value"] != execution["value"] or
+                time_evidence["profile_id"] != contributor["profile_id"]):
+            raise ValueError("execution time evidence does not match")
+        if _instant(execution["value"]) > _instant(value["as_of"]):
+            raise ValueError("execution is after observation")
+        record = (time_evidence["profile_id"], time_evidence["source_hash"], time_evidence["record_number"])
+        if record in seen_records:
+            raise ValueError("overlapping contributor source records")
+        seen_records.add(record)
+        parameters = value["scenario"]["source_parameters"]
+        parameter_evidence = contributor["parameter_evidence"]
+        known_fields = {name for name, parameter in parameters.items() if parameter is not None}
+        _fields(parameter_evidence, known_fields)
+        for field in known_fields:
+            _hash(parameter_evidence[field])
+            item = evidence.get(parameter_evidence[field])
+            if (item is None or item["kind"] != "source_parameter_evidence" or
+                    item["field"] != field or item["value"] != parameters[field]["value"] or
+                    item["profile_id"] != contributor["profile_id"] or
+                    item["source_hash"] != time_evidence["source_hash"] or
+                    item["record_number"] != time_evidence["record_number"]):
+                raise ValueError("parameter evidence is outside contributor record")
+        measurements = contributor["measurements"]
+        if not isinstance(measurements, dict) or not measurements:
+            raise ValueError("missing contributor measurements")
+        amount = Fraction(0)
+        for field, measurement in measurements.items():
+            _choice(field, _MEASUREMENT_FIELDS)
+            validate_measurement(measurement)
+            if measurement["measurement_state"] != "final" or "evidence" not in measurement:
+                raise ValueError("priced measurement requires final evidence")
+            item = evidence.get(measurement["evidence"])
+            if (item is None or item.get("kind") != "measurement_evidence" or
+                    item["field"] != field or item["value"] != measurement["value"] or
+                    item["profile_id"] != contributor["profile_id"] or
+                    item["source_hash"] != time_evidence["source_hash"] or
+                    item["record_number"] != time_evidence["record_number"]):
+                raise ValueError("measurement evidence does not match")
+            matches = [snapshot for snapshot in prices.values()
+                       if _projection_possible_snapshot(field, snapshot, value["scenario"], execution["value"])]
+            if len(matches) != 1 or matches[0] is not prices[price_id]:
+                raise ValueError("projection component price is ambiguous")
+            amount += _projection_component_cost(field, measurement["value"], prices[price_id],
+                                                 value["scenario"], execution["value"])
+        validate_decimal(contributor["priced_usd"])
+        if amount != Fraction(contributor["priced_usd"]):
+            raise ValueError("contributor amount does not match")
+        total += amount
+    for field in ("cost_usd", "priced_subtotal_usd"):
+        if field in value and total != Fraction(value[field]):
+            raise ValueError("projection total does not match")
+    for field, parameter in value["scenario"]["source_parameters"].items():
+        if parameter is not None and not any(
+                contributor["parameter_evidence"].get(field) == parameter["evidence"]
+                for contributor in contributors):
+            raise ValueError("scenario evidence is outside contributor records")
+    if "display_cost_usd" in value:
+        if "cost_usd" not in value:
+            raise ValueError("display cost requires full cost")
+        cents = total * 100
+        whole, remainder = divmod(cents.numerator, cents.denominator)
+        if remainder * 2 > cents.denominator or (remainder * 2 == cents.denominator and whole % 2):
+            whole += 1
+        if value["display_cost_usd"] != f"{whole // 100}.{whole % 100:02d}":
+            raise ValueError("display cost does not match rounded total")
+    if len(canonical_bytes(value)) > LIFECYCLE_PROJECTION_LIMIT:
+        raise ValueError("projection exceeds byte limit")
+    return value
+
+
+def validate_lifecycle_projection_json(data: str | bytes) -> dict[str, Any]:
+    return _validate_json(data, LIFECYCLE_PROJECTION_LIMIT, validate_lifecycle_projection)
 
 
 def validate_usage_receipt(value: Any) -> dict[str, Any]:
