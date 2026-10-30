@@ -2,6 +2,7 @@
 """Integration checks for immutable, evidence-bound lifecycle projections."""
 import copy
 import hashlib
+import hmac
 import sys
 import importlib.util
 import json
@@ -10,6 +11,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / 'scripts/log-step.sh'
@@ -134,6 +136,103 @@ class LifecycleProjectionTests(unittest.TestCase):
                          '--checkpoint-id', 'checkpoint-a', '--span-start-ms', '1000',
                          '--span-end-ms', '2000', '--timing-source', 'hook',
                          '--boundary', 'session', *extra)
+
+    def test_published_observations_match_first_projection_and_replay(self):
+        bundle_fixtures = load('bundle_fixtures', 'tests/usage-observation-bundle-schema.py')
+        bundle = bundle_fixtures.bundle()
+        bundle['run_id'] = self.run
+        bundle['observations'] = []
+        bundle['evidence_objects'] = []
+        projection = copy.deepcopy(self.value)
+        references = {}
+        for item in projection['evidence_objects']:
+            old_id = contract.content_id(item)
+            if item.get('profile_id') == 'profile':
+                item['profile_id'] = 'synthetic-profile'
+                references[old_id] = contract.content_id(item)
+        def remap(value):
+            if isinstance(value, dict):
+                return {key: remap(item) for key, item in value.items()}
+            if isinstance(value, list):
+                return [remap(item) for item in value]
+            if value == 'profile':
+                return 'synthetic-profile'
+            return references.get(value, value) if isinstance(value, str) else value
+        projection = remap(projection)
+        bundle['profile_id'] = 'synthetic-profile'
+        for index, contributor in enumerate(projection['contributors'], 1):
+            measurement = contributor['measurements']['input_uncached']
+            evidence = next(item for item in projection['evidence_objects']
+                            if contract.content_id(item) == measurement['evidence'])
+            observation = bundle_fixtures.observation()
+            observation['record_number'] = index
+            observation['profile_id'] = bundle['profile_id']
+            observation['measurements'] = {'input_uncached': copy.deepcopy(measurement)}
+            bundle['observations'].append(observation)
+            bundle['evidence_objects'].append(copy.deepcopy(evidence))
+            contributor['observation_ids'] = [contract.observation_id(observation)]
+        contract.validate_usage_bundle(bundle)
+        contract.validate_lifecycle_projection(projection)
+        scope = projection['scope']
+        bundle_path = self.root / 'bundle.json'
+        bundle_path.write_bytes(contract.canonical_bytes(bundle))
+        digest = hashlib.sha256(bundle_path.read_bytes()).hexdigest()
+        proof = {'schema_version': 1, 'kind': 'usage_provenance', 'bundle_sha256': digest,
+                 'profile_id': bundle['profile_id'], 'profile_version': bundle['profile_version'],
+                 'scope': self.registration.config['owner_scope']}
+        proof['mac'] = hmac.new(bytes.fromhex(self.registration.config['key_hex']),
+                                b'orchestrail:usage-provenance:v1\0' + contract.canonical_bytes(proof),
+                                hashlib.sha256).hexdigest()
+        proof_path = self.root / 'proof.json'
+        proof_path.write_bytes(contract.canonical_bytes(proof))
+        proof_path.chmod(0o600)
+        permit = {'schema_version': 1, 'kind': 'usage_authority_permit', 'bundle_sha256': digest,
+                  'profile_id': bundle['profile_id'], 'profile_version': bundle['profile_version'],
+                  'run_id': self.run, 'scope': self.registration.config['owner_scope']}
+        signature = subprocess.run(['openssl', 'dgst', '-sha256', '-sign', str(self.private_key)],
+                                   input=b'orchestrail:usage-authority:v1\0' + contract.canonical_bytes(permit),
+                                   capture_output=True, check=True).stdout.hex()
+        usage_permit = self.root / 'usage-permit.json'
+        usage_permit.write_bytes(contract.canonical_bytes(permit | {'signature': signature}))
+        usage_permit.chmod(0o600)
+        self.authority_env.update(ORCHESTRAIL_USAGE_MODE='on', USAGE_TELEMETRY_PROVENANCE=str(proof_path),
+                                  USAGE_TELEMETRY_AUTHORITY_PERMIT=str(usage_permit))
+        before = self.snapshot()
+        import usage_telemetry_ingest as ingest
+        def publish():
+            with patch.dict(os.environ, self.authority_env, clear=True), \
+                    patch.object(ingest, 'trusted_authority_key', return_value=self.public_key.read_bytes()):
+                return ingest.ingest(str(bundle_path), str(self.root / 'logs'))
+        receipt = publish()
+        self.assertFalse(receipt['duplicate'])
+        self.assertEqual((self.root / 'logs/usage/v1' / (digest + '.json')).read_bytes(), bundle_path.read_bytes())
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(set(receipt['observation_ids']),
+                         {item['observation_ids'][0] for item in projection['contributors']})
+        duplicate = publish()
+        self.assertTrue(duplicate['duplicate'])
+        self.assertEqual(self.snapshot(), before)
+        for observation, contributor in zip(bundle['observations'], projection['contributors']):
+            self.assertEqual(observation['measurements']['input_uncached'],
+                             contributor['measurements']['input_uncached'])
+        self.write(projection)
+        permit = {'schema_version': 1, 'kind': 'lifecycle_authority_permit',
+                  'projection_sha256': hashlib.sha256(contract.canonical_bytes(projection)).hexdigest(),
+                  'scope': scope, 'run_id': self.run}
+        signature = subprocess.run(['openssl', 'dgst', '-sha256', '-sign', str(self.private_key)],
+                                   input=b'orchestrail:lifecycle-authority:v1\0' + contract.canonical_bytes(permit),
+                                   capture_output=True, check=True).stdout.hex()
+        self.permit_path.write_bytes(contract.canonical_bytes(permit | {'signature': signature}))
+        self.env = self.authority_env
+        args = ('--usage-file', str(self.path), '--cost-usd', '0.00264',
+                '--tokens-in', '1320', '--tokens-out', '0')
+        first = self.correlated(*args)
+        self.assertFalse(json.loads(first.stdout)['duplicate'])
+        self.assertTrue(contains(json.loads(self.log.read_text().splitlines()[-1]), projection))
+        accepted = self.snapshot()
+        replay = self.correlated(*args)
+        self.assertTrue(json.loads(replay.stdout)['duplicate'])
+        self.assertEqual(self.snapshot(), accepted)
 
     def test_valid_exact_projection_and_replay_preserve_first_payload(self):
         args = ('--usage-file', str(self.path), '--cost-usd', '0.00264',
