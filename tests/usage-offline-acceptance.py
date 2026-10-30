@@ -2,12 +2,14 @@
 """Offline acceptance across selected sources, publication and reporting."""
 import copy
 import hashlib
+import io
 import importlib.util
 import json
 import os
 from pathlib import Path
 import sys
 import tempfile
+import tarfile
 import unittest
 from unittest.mock import patch
 
@@ -134,6 +136,52 @@ class OfflineAcceptance(unittest.TestCase):
             rendered = exports.render_exports(output)
             self.assertEqual(set(rendered), {'json', 'csv', 'markdown'})
             self.assertEqual(rendered, exports.render_exports(analyze()))
+            # Exercise the actual analyzer entry point and RSA decision checks.
+            # The test key lookup is isolated to this process; no system trust
+            # registry is modified.
+            import usage_telemetry_ingest as ingest
+            cli = load('acceptance_cli', 'scripts/usage-telemetry.py')
+            manifest_path = root / 'corpus.json'
+            manifest_path.write_bytes(contract.canonical_bytes(manifest))
+            authority_path = root / 'analysis-authority.json'
+            public_path = root / 'test-public.pem'
+            public_path.write_bytes(rsa.PUBLIC)
+            signed = {'schema_version': 1, 'kind': 'analysis_authority',
+                      'manifest_sha256': contract.content_id(manifest),
+                      'inputs': [{'sha256': item['sha256'],
+                                  'proof': verify_input(item, contract.parse_json(Path(item['local_path']).read_bytes()), fixture.scope)}
+                                 for item in manifest['inputs']],
+                      'evidence': [{'kind': kind, 'scope': scope, 'subject': subject, 'evidence': proof}
+                                   for kind, scope, subject, proof in verifier.allowed]}
+            signed['signature'] = rsa.sign(b'orchestrail:analysis-authority:v1\0' + contract.canonical_bytes(signed))
+            authority_path.write_bytes(contract.canonical_bytes(signed))
+            authority_path.chmod(0o600)
+            class Stream:
+                def __init__(self, fd):
+                    self.fd, self.buffer = fd, io.BytesIO()
+                def fileno(self):
+                    return self.fd
+            def signed_analyze():
+                read_fd, write_fd = os.pipe()
+                try:
+                    stream = Stream(write_fd)
+                    with patch.object(ingest, 'trusted_authority_key', return_value=rsa.PUBLIC), \
+                         patch.object(sys, 'stdout', stream):
+                        cli.main(['analyze', '--corpus-manifest', str(manifest_path),
+                                  '--scenario', manifest['scenario_id'], '--authority', str(authority_path),
+                                  '--authority-key', str(public_path)])
+                    with tarfile.open(fileobj=io.BytesIO(stream.buffer.getvalue())) as archive:
+                        return {member.name: archive.extractfile(member).read() for member in archive.getmembers()}
+                finally:
+                    os.close(read_fd)
+                    os.close(write_fd)
+            archive = signed_analyze()
+            self.assertEqual(set(archive), {'report.json', 'report.csv', 'report.md'})
+            signed_output = json.loads(archive['report.json'])
+            self.assertEqual(signed_output['coverage']['measurements'], {'numerator': 2, 'denominator': 2})
+            self.assertEqual(signed_output['coverage']['pricing'], {'numerator': 1, 'denominator': 2})
+            self.assertEqual(signed_output['pricing']['priced_subtotal_cost'], '0.00264')
+            self.assertEqual(archive, signed_analyze())
 
 
     def test_complete_resolved_price_is_accepted_as_lifecycle_projection(self):
