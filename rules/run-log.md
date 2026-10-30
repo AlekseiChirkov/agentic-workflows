@@ -191,6 +191,17 @@ are sets, strings are exact values. `scripts/log-step.sh contract` exports the
 shared runtime definitions consumed by writes and lint; contract validation compares
 both directions, rejects duplicate rows and values, and checks prefix boundaries.
 
+The contract also emits `usage.availability` as `available` when the optional
+Python helper can export its validated registry and `unavailable` otherwise.
+When available, `usage.registry` contains compact JSON with versioned kind names,
+validator names, byte limits, measurement states and reasons, and the executable
+Python schema definitions together with their SHA-256 digest. Consumers must
+authenticate the digest against a separately trusted source before executing
+the exported definitions; a self-reported digest alone proves no authenticity.
+The registry does not validate a payload or establish publication by itself. If
+Python is absent or the helper fails, the registry is omitted and lifecycle
+logging continues. Exporting the registry does not require jq.
+
 ### Runtime vocabulary
 
 | Runtime key | Canonical JSON value |

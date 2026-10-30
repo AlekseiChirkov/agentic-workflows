@@ -9,6 +9,11 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+if [ "${1:-}" = --usage-contract-export-only ]; then
+  shift
+  exec python3 "$REPO_ROOT/tests/usage-contract-export.py" "$@"
+fi
+
 if [ "${1:-}" = --usage-current-snapshot-only ]; then
   shift
   exec python3 "$REPO_ROOT/tests/usage-current-run-snapshot-schema.py" "$@"
@@ -288,6 +293,18 @@ try:
         if not separator or key in runtime:
             fail(key, 'malformed or duplicate runtime definition')
         runtime[key] = value
+    availability = runtime.pop('usage.availability', None)
+    registry = runtime.pop('usage.registry', None)
+    if availability not in ('available', 'unavailable'):
+        fail('usage.availability', 'missing or invalid usage availability')
+    elif (availability == 'available') != (registry is not None):
+        fail('usage.registry', 'registry availability does not match the export')
+    elif registry is not None:
+        try:
+            if not isinstance(json.loads(registry), dict):
+                raise ValueError('expected object')
+        except ValueError:
+            fail('usage.registry', 'invalid registry JSON')
     documented = {}
     for heading in ('Runtime vocabulary', 'Legacy normalization'):
         matches = list(re.finditer(r'^### '+re.escape(heading)+r'\s*$', text, re.M))
@@ -2208,6 +2225,8 @@ with tempfile.TemporaryDirectory(prefix='run-log-contract-') as temporary:
     gate()
     exported = subprocess.check_output(['bash',str(helper),'contract'], text=True)
     contract = dict(line.split('=',1) for line in exported.splitlines())
+    contract.pop('usage.availability', None)
+    contract.pop('usage.registry', None)
     rows = {}
     for line in original_rule.splitlines():
         match = re.fullmatch(r'\| `([^`]+)` \| (.+) \|', line)
@@ -4641,6 +4660,17 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
 check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
   "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
 # ── End public identity smoke checks ────────────────────────────────
+
+# Run producer contract export fixtures during ordinary validation as well.
+test_usage_contract_export_acceptance() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/usage-contract-export.py" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_usage_contract_export_acceptance" \
+  "$(test_usage_contract_export_acceptance && echo pass || echo 'usage contract export fixtures must pass')"
 
 # Run current run snapshot fixtures during ordinary validation as well.
 test_usage_current_snapshot_acceptance() {

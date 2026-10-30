@@ -1029,11 +1029,62 @@ cmd_path() {
 }
 
 cmd_contract() {
-  local key
+  local key registry=''
   [ "$#" -eq 0 ] || { reject_invocation contract argument unexpected; return 0; }
-  for key in "${!RUN_LOG_CONTRACT[@]}"; do
-    printf '%s=%s\n' "$key" "${RUN_LOG_CONTRACT[$key]}"
-  done | LC_ALL=C sort
+  if command -v python3 >/dev/null 2>&1; then
+    registry="$(python3 -c '
+import importlib.util
+import hashlib
+import json
+from pathlib import Path
+import sys
+spec = importlib.util.spec_from_file_location("usage_telemetry_contract", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+raw = module.export_schema_registry()
+registry = json.loads(raw)
+expected = {
+    "source_profile": ("validate_source_profile_json", module.PROFILE_LIMIT),
+    "source_selection": ("validate_source_selection_json", module.SELECTION_LIMIT),
+    "observation": ("validate_observation_json", module.OBSERVATION_LIMIT),
+    "usage_bundle": ("validate_usage_bundle_json", module.BUNDLE_LIMIT),
+    "inventory": ("validate_inventory_json", module.INVENTORY_LIMIT),
+    "collection_segment": ("validate_collection_segment_json", module.SEGMENT_LIMIT),
+    "diagnostic_measurement": ("validate_diagnostic_measurement_json", module.DIAGNOSTIC_LIMIT),
+    "price_snapshot": ("validate_price_snapshot_json", module.PRICE_SNAPSHOT_LIMIT),
+    "pricing_scenario": ("validate_pricing_scenario_json", module.PRICING_SCENARIO_LIMIT),
+    "warning_policy": ("validate_warning_policy_json", module.WARNING_POLICY_LIMIT),
+    "analysis_corpus": ("validate_analysis_corpus_json", module.ANALYSIS_CORPUS_LIMIT),
+    "usage_accepted": ("validate_usage_receipt_json", module.RECEIPT_LIMIT),
+    "lifecycle_projection": ("validate_lifecycle_projection_json", module.LIFECYCLE_PROJECTION_LIMIT),
+    "current_run_snapshot": ("validate_current_run_snapshot_json", module.CURRENT_RUN_SNAPSHOT_LIMIT),
+}
+source = Path(sys.argv[1]).read_bytes()
+if (not isinstance(registry, dict) or registry != module.schema_registry() or
+        type(registry.get("schema_version")) is not int or registry["schema_version"] != 1 or
+        set(registry) != {"schema_version", "measurement_states", "measurement_reasons", "kinds", "validator_source", "validator_source_sha256"} or
+        registry["measurement_states"] != sorted(module.MEASUREMENT_STATES) or
+        registry["measurement_reasons"] != sorted(module.MEASUREMENT_REASONS) or
+        registry["validator_source"].encode("utf-8") != source or
+        registry["validator_source_sha256"] != hashlib.sha256(source).hexdigest() or
+        registry["kinds"] != {kind: {"validator": name, "max_bytes": limit}
+                               for kind, (name, limit) in expected.items()} or
+        any(not callable(getattr(module, name, None)) or type(limit) is not int or limit <= 0
+            for name, limit in expected.values())):
+    raise ValueError("invalid registry")
+print(json.dumps(registry, sort_keys=True, separators=(",", ":"), ensure_ascii=True))
+' "$SCRIPT_DIR/usage_telemetry_contract.py" 2>/dev/null)" || registry=''
+  fi
+  {
+    for key in "${!RUN_LOG_CONTRACT[@]}"; do
+      printf '%s=%s\n' "$key" "${RUN_LOG_CONTRACT[$key]}"
+    done
+    if [ -n "$registry" ]; then
+      printf 'usage.availability=available\nusage.registry=%s\n' "$registry"
+    else
+      printf 'usage.availability=unavailable\n'
+    fi
+  } | LC_ALL=C sort
 }
 
 cmd_active() {
