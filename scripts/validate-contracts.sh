@@ -9,6 +9,55 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
+usage_resolution_acceptance() {
+  local file
+  for file in \
+    tests/usage-causal-ownership.py \
+    tests/usage-cumulative-epochs.py \
+    tests/usage-exact-cost.py \
+    tests/usage-inventory-completeness.py \
+    tests/usage-ownership-empty-scope.py \
+    tests/usage-price-applicability.py \
+    tests/usage-price-evidence-schema.py \
+    tests/usage-producer-epochs-bundle.py \
+    tests/usage-producer-epochs-cli.py \
+    tests/usage-producer-epochs.py \
+    tests/usage-producer-measurement-finality.py \
+    tests/usage-producer-resolution.py \
+    tests/usage-producer-streams.py \
+    tests/usage-resolution-cache-capabilities.py \
+    tests/usage-resolution-conditional.py \
+    tests/usage-resolution-correction-order.py \
+    tests/usage-resolution-coverage.py \
+    tests/usage-resolution-empty-scope.py \
+    tests/usage-resolution-epochs.py \
+    tests/usage-resolution-evidence.py \
+    tests/usage-resolution-integration.py \
+    tests/usage-resolution-measurement-finality.py \
+    tests/usage-resolution-no-prices.py \
+    tests/usage-resolution-ownership.py \
+    tests/usage-resolution-partial-stream.py \
+    tests/usage-resolution-privacy.py \
+    tests/usage-resolution-regressions.py \
+    tests/usage-resolution-report-evidence.py \
+    tests/usage-resolution-response-details.py \
+    tests/usage-resolution-revisions.py \
+    tests/usage-resolution-token-components.py \
+    tests/usage-resolution-tokens.py \
+    tests/usage-resolution-tool-ownership.py \
+    tests/usage-resolution-tools.py \
+    tests/usage-response-identity.py \
+    tests/usage-stream-revisions.py; do
+    python3 "$REPO_ROOT/$file" "$@" || return 1
+  done
+}
+
+if [ "${1:-}" = --usage-resolution-only ]; then
+  shift
+  usage_resolution_acceptance "$@"
+  exit $?
+fi
+
 if [ "${1:-}" = --usage-publication-only ]; then
   shift
   python3 "$REPO_ROOT/tests/usage-usage-publication.py" "$@"
@@ -4702,6 +4751,9 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
 check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
   "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
 # ── End public identity smoke checks ────────────────────────────────
+
+check "test_usage_resolution_acceptance" \
+  "$(usage_resolution_acceptance >/dev/null 2>&1 && echo pass || echo 'usage resolution and pricing fixtures must pass')"
 
 # Run immutable usage publication fixtures during ordinary validation as well.
 test_usage_publication_acceptance() {
