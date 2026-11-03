@@ -3025,6 +3025,106 @@ for graphql_case in GRAPHQL_MERGE_CASES:
     setattr(OperationTable, 'test_' + graphql_case.name, decision_test(graphql_case))
 
 
+class SymbolicBranchFixture(OperationFixture):
+    """Branch refs that are symbolic refs: forced creation writes the branch they point to."""
+
+    def setup_symbolic_chain(self) -> None:
+        self.setup_symbolic_alias()
+        self.git(self.project, 'symbolic-ref', 'refs/heads/alias2', 'refs/heads/alias')
+
+    def setup_symbolic_feature(self) -> None:
+        self.setup_push()
+        self.git(self.project, 'symbolic-ref', 'refs/heads/side', 'refs/heads/feat/x')
+
+
+# Forced creation through a symbolic branch ref moves its target (git 2.53); move and copy
+# replace the symbolic ref itself and leave the target unchanged.
+SYMBOLIC_BRANCH_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('branch_force_through_symbolic_alias_needs_owner_approval', 'git branch -f alias feat/y',
+                 'ask', REWRITE, 'R24', setup='symbolic-alias'),
+    DecisionCase('checkout_force_create_through_symbolic_alias_needs_owner_approval', 'git checkout -B alias feat/y',
+                 'ask', REWRITE, 'R24', setup='symbolic-alias'),
+    DecisionCase('switch_force_create_through_symbolic_alias_needs_owner_approval', 'git switch -C alias feat/y',
+                 'ask', REWRITE, 'R24', setup='symbolic-alias'),
+    DecisionCase('switch_long_force_create_through_symbolic_alias_needs_owner_approval',
+                 'git switch --force-create=alias feat/y', 'ask', REWRITE, 'R24', setup='symbolic-alias'),
+    DecisionCase('branch_force_through_symbolic_chain_needs_owner_approval', 'git branch -f alias2 feat/y',
+                 'ask', REWRITE, 'R24', setup='symbolic-chain'),
+    DecisionCase('branch_force_through_symbolic_alias_after_read_only_git_needs_owner_approval',
+                 'git status && git branch -f alias feat/y', 'ask', REWRITE, 'R24', setup='symbolic-alias'),
+    DecisionCase('branch_force_through_symbolic_alias_after_a_write_is_unsupported',
+                 'git checkout main && git branch -f alias feat/y', 'deny', UNSUPPORTED, 'R24', setup='symbolic-alias'),
+    DecisionCase('branch_force_through_symbolic_feature_is_allowed', 'git branch -f side feat/y', 'allow',
+                 setup='symbolic-feature'),
+    DecisionCase('branch_move_of_symbolic_alias_is_allowed', 'git branch -m alias feat/z', 'allow',
+                 setup='symbolic-alias'),
+    DecisionCase('branch_forced_move_onto_symbolic_alias_is_allowed', 'git branch -M feat/x alias', 'allow',
+                 setup='symbolic-alias'),
+    DecisionCase('branch_forced_copy_onto_symbolic_alias_is_allowed', 'git branch -C feat/x alias', 'allow',
+                 setup='symbolic-alias'),
+)
+
+# A merge-queue mutation merges a pull request like mergePullRequest; leaving the queue does not.
+GRAPHQL_QUEUE_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('graphql_enqueue_pull_request_needs_owner_approval',
+                 """gh api graphql -f query='mutation{enqueuePullRequest(input:{pullRequestId:"X"})"""
+                 """{clientMutationId}}'""", 'ask', PR_MERGE, 'R30'),
+    DecisionCase('graphql_lowercase_enqueue_mutation_needs_owner_approval',
+                 """gh api graphql -f query='mutation{enqueuepullrequest(input:{pullRequestId:"X"})"""
+                 """{clientMutationId}}'""", 'ask', PR_MERGE, 'R30'),
+    DecisionCase('graphql_dequeue_pull_request_is_allowed',
+                 """gh api graphql -f query='mutation{dequeuePullRequest(input:{id:"X"}){clientMutationId}}'""",
+                 'allow'),
+)
+
+# Git subcommands that run another command are opaque command runners.
+COMMAND_RUNNER_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('submodule_foreach_is_unsupported', "git submodule foreach 'git push -f'", 'deny', UNSUPPORTED),
+    DecisionCase('quiet_recursive_submodule_foreach_is_unsupported', 'git submodule --quiet foreach --recursive true',
+                 'deny', UNSUPPORTED),
+    DecisionCase('submodule_foreach_from_a_subdirectory_is_unsupported', 'git -C sub submodule foreach true',
+                 'deny', UNSUPPORTED),
+    DecisionCase('bisect_run_is_unsupported', 'git bisect run make test', 'deny', UNSUPPORTED),
+    DecisionCase('submodule_status_is_not_applicable', 'git submodule status', 'not_applicable'),
+    DecisionCase('bare_submodule_is_not_applicable', 'git submodule', 'not_applicable'),
+    DecisionCase('bisect_log_is_not_applicable', 'git bisect log', 'not_applicable'),
+    DecisionCase('filter_branch_tree_filter_is_unsupported', "git filter-branch --tree-filter 'git push -f' HEAD",
+                 'deny', UNSUPPORTED),
+    DecisionCase('filter_branch_index_filter_is_unsupported', "git filter-branch --index-filter 'git push -f' HEAD",
+                 'deny', UNSUPPORTED),
+    DecisionCase('filter_branch_msg_filter_is_unsupported', "git filter-branch --msg-filter 'git push -f' HEAD",
+                 'deny', UNSUPPORTED),
+    DecisionCase('filter_branch_env_filter_is_unsupported', "git filter-branch --env-filter 'git push -f' HEAD",
+                 'deny', UNSUPPORTED),
+    DecisionCase('filter_branch_commit_filter_is_unsupported', "git filter-branch --commit-filter 'git push -f' HEAD",
+                 'deny', UNSUPPORTED),
+    DecisionCase('filter_branch_parent_filter_is_unsupported', "git filter-branch --parent-filter 'git push -f' HEAD",
+                 'deny', UNSUPPORTED),
+    DecisionCase('filter_branch_tag_name_filter_is_unsupported',
+                 "git filter-branch --tag-name-filter 'git push -f' HEAD", 'deny', UNSUPPORTED),
+    DecisionCase('filter_branch_setup_is_unsupported', "git filter-branch --setup 'git push -f' --tree-filter true HEAD",
+                 'deny', UNSUPPORTED),
+    DecisionCase('filter_branch_subdirectory_filter_stays_not_applicable',
+                 'git filter-branch --subdirectory-filter sub HEAD', 'not_applicable'),
+    DecisionCase('difftool_extcmd_is_unsupported', "git difftool -x 'cmd'", 'deny', UNSUPPORTED),
+    DecisionCase('difftool_attached_long_extcmd_is_unsupported', 'git difftool --extcmd=cmd', 'deny', UNSUPPORTED),
+    DecisionCase('difftool_bundled_extcmd_is_unsupported', 'git difftool -yx cmd HEAD', 'deny', UNSUPPORTED),
+    DecisionCase('difftool_extcmd_prefix_is_unsupported', 'git difftool --ext cmd', 'deny', UNSUPPORTED),
+    DecisionCase('difftool_tool_help_stays_not_applicable', 'git difftool --tool-help', 'not_applicable'),
+    DecisionCase('difftool_of_a_commit_stays_not_applicable', 'git difftool HEAD', 'not_applicable'),
+)
+
+
+class SymbolicBranchTable(SymbolicBranchFixture):
+    """Table-driven decisions for symbolic branch refs, merge-queue mutations and command runners."""
+
+
+for repair_case in (*SYMBOLIC_BRANCH_CASES, *GRAPHQL_QUEUE_CASES, *COMMAND_RUNNER_CASES):
+    setattr(SymbolicBranchTable, 'test_' + repair_case.name, decision_test(repair_case))
+
+CLASSES = (*CLASSES, SymbolicBranchTable)
+
+
 def selected_suite() -> unittest.TestSuite:
     suite = unittest.TestSuite()
     for case_class in CLASSES:
