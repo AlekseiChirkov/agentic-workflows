@@ -1583,9 +1583,119 @@ class SlowRuleRead(RuleFixture):
         self.assertLess(elapsed, 4.5, 'a timed-out read must be stopped, including its children')
 
 
+class StateFixture(RuleFixture):
+    """Repository states where an earlier part of the command can change what a rule reads."""
+
+    def setup_published_main_on_feature(self) -> None:
+        self.setup_published()
+        self.git(self.project, 'switch', '-q', '-c', 'feature')
+        self.git(self.project, 'commit', '-q', '--allow-empty', '-m', 'Local work')
+
+    def setup_trailer_branch(self) -> None:
+        self.git(self.project, 'switch', '-q', '-c', 'trailered')
+        self.git(self.project, 'commit', '-q', '--allow-empty', '-m', 'Add parser', '-m', TRAILER)
+        self.git(self.project, 'switch', '-q', 'main')
+
+    def setup_clean_sub_message(self) -> None:
+        (self.project / 'sub/msg.txt').write_text('Add parser\n')
+
+
+# An earlier part of the same command that may write makes every later read of repository
+# or file state unverifiable; commands that read no state keep their decision.
+STATE_CHANGE_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('message_file_written_by_printf_is_unverifiable',
+                 "printf 'Add parser\\n\\nCo-authored-by: X\\n' > msg.txt && git commit -F msg.txt",
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_by_heredoc_is_unverifiable',
+                 "cat > msg.txt <<'EOF'\nAdd parser\n\nCo-authored-by: X\nEOF\ngit commit -F msg.txt",
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_appended_by_echo_is_unverifiable',
+                 "echo 'Co-authored-by: X' >> msg.txt; git commit -F msg.txt",
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_replaced_by_copy_is_unverifiable', 'cp trailer.txt msg.txt && git commit -F msg.txt',
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_in_a_subshell_is_unverifiable', '(printf x > msg.txt); git commit -F msg.txt',
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_in_a_substitution_is_unverifiable',
+                 'echo "$(printf x > msg.txt)" && git commit -F msg.txt',
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_by_a_pipeline_element_is_unverifiable',
+                 "echo 'Co-authored-by: X' | tee msg.txt && git commit -F msg.txt",
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_in_the_background_is_unverifiable', 'printf x > msg.txt & git commit -F msg.txt',
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_by_a_shell_string_is_unverifiable',
+                 "bash -c 'printf x > msg.txt'; git commit -F msg.txt",
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_by_read_only_git_output_is_unverifiable',
+                 'git log -1 > msg.txt && git commit -F msg.txt', 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_after_governed_git_is_unverifiable', 'git add a.txt && git commit -F msg.txt',
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('amend_after_switching_to_a_published_branch_is_unsupported',
+                 'git switch main && git commit --amend -m ok', 'deny', 'unsupported-form', 'R10',
+                 setup='published-main-on-feature'),
+    DecisionCase('amend_without_edit_after_switching_to_a_trailer_branch_is_unverifiable',
+                 'git switch trailered && git commit --amend --no-edit', 'deny', UNVERIFIABLE, 'R08',
+                 setup='trailer-branch'),
+    DecisionCase('amend_without_edit_after_governed_staging_is_unverifiable',
+                 'git add a.txt && git commit --amend --no-edit', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('amend_after_a_file_write_is_unsupported', 'echo x > a.txt && git commit --amend -m ok',
+                 'deny', 'unsupported-form', 'R10'),
+    DecisionCase('trailer_after_configuration_change_is_unverifiable',
+                 'git config trailer.cab.key Co-authored-by && git commit -m ok --trailer cab=Someone',
+                 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('alias_after_configuration_change_is_unsupported', "git config alias.p 'push -f' && git p",
+                 'deny', 'unsupported-form', 'R31'),
+    DecisionCase('governed_git_after_repository_creation_is_unsupported',
+                 'git -C @plain@ init -q && git -C @plain@ add note.txt', 'deny', 'unsupported-form'),
+    DecisionCase('staging_a_file_created_earlier_is_unsupported', 'touch new.txt && git add new.txt',
+                 'deny', 'unsupported-form', 'R02'),
+    DecisionCase('staging_a_file_written_earlier_is_unsupported', 'echo x > a.txt && git add a.txt',
+                 'deny', 'unsupported-form', 'R02'),
+    DecisionCase('second_staging_command_is_unsupported', 'git add a.txt && git add b.txt',
+                 'deny', 'unsupported-form', 'R02'),
+    DecisionCase('commit_path_written_earlier_is_unsupported', 'touch a.txt && git commit -m ok a.txt',
+                 'deny', 'unsupported-form', 'R07'),
+    DecisionCase('message_option_after_governed_staging_is_allowed', 'git add a.txt && git commit -m ok', 'allow'),
+    DecisionCase('message_file_after_cd_is_allowed', 'cd sub && git commit -F msg.txt', 'allow',
+                 setup='clean-sub-message'),
+    DecisionCase('message_file_after_echo_without_redirection_is_allowed', 'echo hi && git commit -F msg.txt',
+                 'allow', setup='message-files'),
+    DecisionCase('message_file_after_heredoc_into_a_data_program_is_allowed',
+                 "cat <<'EOF'\nx\nEOF\ngit commit -F msg.txt", 'allow', setup='message-files'),
+    DecisionCase('message_file_after_read_only_git_is_allowed', 'git status && git commit -F msg.txt', 'allow',
+                 setup='message-files'),
+    DecisionCase('message_file_after_plain_assignments_is_allowed', 'X=1; export FOO=2; git commit -F msg.txt',
+                 'allow', setup='message-files'),
+    DecisionCase('amend_without_edit_after_cd_is_allowed', 'cd sub && git commit --amend --no-edit', 'allow'),
+    DecisionCase('literal_message_input_after_a_write_is_allowed',
+                 "printf x > a.txt && git commit -F - <<'EOF'\nAdd parser\nEOF", 'allow'),
+    DecisionCase('message_heredoc_after_a_write_is_allowed', 'printf x > a.txt && ' + COMMIT_HEREDOC, 'allow'),
+    DecisionCase('write_after_the_commit_does_not_change_it', 'git commit -F msg.txt && echo x > msg.txt', 'allow',
+                 setup='message-files'),
+    DecisionCase('blanket_staging_after_a_write_keeps_its_reason', 'touch new.txt && git add -A',
+                 'deny', BLANKET, 'R01'),
+    DecisionCase('message_file_after_read_only_git_into_null_device_is_allowed',
+                 'git status 2>/dev/null; git commit -F msg.txt', 'allow', setup='message-files'),
+    DecisionCase('amend_without_edit_after_output_to_null_device_is_allowed',
+                 'git log -1 >/dev/null && git commit --amend --no-edit', 'allow'),
+    DecisionCase('message_file_after_read_only_git_into_a_file_is_unverifiable',
+                 'git status > out.txt; git commit -F msg.txt', 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+)
+
+
+class StateChangeTable(StateFixture):
+    """Table-driven decisions after an earlier part of the command may change state."""
+
+
+for state_case in STATE_CHANGE_CASES:
+    setattr(StateChangeTable, 'test_' + state_case.name, decision_test(state_case))
+
+
 CLASSES = (CoreSurface, DecisionCombination, OptionParsing, EventValidation, DecisionTable,
            ResolutionTable, InvocationDetails, GitReadIsolation, SlowGitRead, FailClosedTable,
-           DecidedTable, StagingTable, CommitTable, MessagePatterns, CommitDecisionOutput, SlowRuleRead)
+           DecidedTable, StagingTable, CommitTable, MessagePatterns, CommitDecisionOutput, SlowRuleRead,
+           StateChangeTable)
 
 
 def selected_suite() -> unittest.TestSuite:
