@@ -87,6 +87,16 @@ BRACE_EXPANSION = re.compile(r'\{[^{}]*(,|\.\.)[^{}]*\}')
 BRACKET_GLOB = re.compile(r'\[[^\]]*\]')
 DURATION = re.compile(r'\d+(\.\d+)?[smhd]?')
 DYNAMIC_NAME = '$'
+SENSITIVE_NAMES = frozenset({'HOME', 'XDG_CONFIG_HOME', 'PATH'})
+STACK_ROTATION = re.compile(r'[+-]\d+')
+SHELL_VALUE_OPTIONS = frozenset({'-o', '+o', '-O', '+O', '--rcfile', '--init-file'})
+GH_VALUE_FLAGS = frozenset({'-R', '--repo'})
+REDIRECTING_GLOBAL_OPTIONS = ('--git-dir', '--work-tree')
+
+# Programs that never execute their arguments; any other program given a git or gh
+# program word may run it, so that command is opaque inside a registered project.
+DATA_PROGRAMS = frozenset({'echo', 'printf', 'grep', 'egrep', 'fgrep', 'rg', 'cat', 'head', 'tail',
+                           'less', 'more', 'man', 'which', 'type', 'wc', 'file', 'ls', 'test', '['})
 
 SEVERITY = {'not_applicable': 0, 'allow': 1, 'ask': 2, 'deny': 3}
 
@@ -152,7 +162,10 @@ class Invocation:
     def layout(self: Invocation) -> GitLayout:
         if self.program == 'git':
             return git_layout(self.words)
-        return GitLayout(0, 0 if self.words else None, False)
+        positions = gh_positionals(self.words)
+        if not positions:
+            return GitLayout(len(self.words), None, False)
+        return GitLayout(positions[0], positions[0], False)
 
     @property
     def global_options(self: Invocation) -> tuple[str, ...]:
@@ -856,10 +869,15 @@ class Parser:
         return None
 
     def skip_balanced(self: Parser, node: Simple, opening: str, closing: str) -> None:
+        """Skip ${ … } or $(( … )); quoted and escaped braces do not close it, as in bash."""
         text, start = self.src.text, self.src.pos + 1
         level, index = 0, start
         while index < len(text):
-            level += (text[index] == opening) - (text[index] == closing)
+            char = text[index]
+            if char in ('\\', "'", '"'):
+                index = skip_quoted(text, index)
+                continue
+            level += (char == opening) - (char == closing)
             if level == 0:
                 break
             index += 1
@@ -955,22 +973,32 @@ def parse_script(command: str, budget: Budget, depth: int = 0) -> Script:
 
 # ── Effective directory and invocation discovery ───────────────────────
 
+Place = tuple[str | None, str, bool]
+
+
 @dataclass
 class Scope:
-    """Shell state that later commands of the same list inherit."""
+    """Shell state that later commands of the same list inherit.
+
+    ``directory`` is None after a dynamic cd: every later invocation is opaque.
+    ``uncertain`` marks a directory the walk cannot follow (a failed cd, stack rotation);
+    ``sticky`` marks shell features that keep every later directory uncertain (CDPATH,
+    shopt). Governed invocations in an uncertain directory cannot be verified.
+    """
     directory: str | None
+    logical: str
     last_known: str
-    stack: list[str | None] = field(default_factory=list)
-    git_names: tuple[str, ...] = ()
+    uncertain: bool = False
+    sticky: bool = False
+    stack: list[Place] = field(default_factory=list)
+    names: tuple[str, ...] = ()
 
     def copy(self: Scope) -> Scope:
         return replace(self, stack=list(self.stack))
 
-    def move(self: Scope, target: str) -> None:
-        if self.directory is None and not os.path.isabs(target):
-            return
-        self.directory = os.path.realpath(os.path.join(self.directory or '/', target))
-        self.last_known = self.directory
+    @property
+    def unsure(self: Scope) -> bool:
+        return self.uncertain or self.sticky
 
 
 @dataclass(frozen=True)
@@ -982,6 +1010,8 @@ class Found:
     directory: str
     inherited: tuple[str, ...]
     stdin: Word | None
+    anchors: tuple[str, ...] = ()
+    uncertain: bool = False
 
 
 @dataclass(frozen=True)
@@ -999,16 +1029,22 @@ class Command:
 
 @dataclass(frozen=True)
 class Opaque:
-    """An unsupported construct and the last directory known before it."""
-    directory: str
+    """An unsupported construct and the directories known before it."""
+    anchors: tuple[str, ...]
 
 
 class Walker:
-    """Walk the parsed command, tracking directories and exported git variables."""
+    """Walk the parsed command, tracking directories and environment statements.
 
-    def __init__(self: Walker, budget: Budget) -> None:
+    ``anchors`` lists every directory the command has named so far, in any scope: the
+    event directory, cd/pushd targets, CDPATH entries and absolute assignment values.
+    An unverifiable construct matters when any anchor recorded before it is registered.
+    """
+
+    def __init__(self: Walker, budget: Budget, cwd: str) -> None:
         self.budget = budget
         self.items: list[Found | Opaque] = []
+        self.anchors: list[str] = [cwd]
 
     def walk_script(self: Walker, script: Script, scope: Scope) -> None:
         for pipeline in script.pipelines:
@@ -1034,11 +1070,20 @@ class Walker:
             self.walk_script(script, scope.copy())
 
     def opaque(self: Walker, scope: Scope) -> None:
-        self.items.append(Opaque(scope.directory or scope.last_known))
+        self.items.append(Opaque(tuple(self.anchors)))
 
-    def assign(self: Walker, words: Iterable[Word], scope: Scope) -> None:
-        names = [assignment_name(word) for word in words]
-        scope.git_names += tuple(name for name in names if is_git_name(name))
+    def anchor_values(self: Walker, word: Word) -> None:
+        """Record absolute directories named by a literal NAME=value or export word."""
+        if word.dynamic or '=' not in word.text:
+            return
+        for part in word.text.split('=', 1)[1].split(':'):
+            if os.path.isabs(part):
+                self.anchors.append(os.path.realpath(part))
+
+    def assign(self: Walker, words: Sequence[Word], scope: Scope) -> None:
+        for word in words:
+            self.anchor_values(word)
+        note_names([assignment_name(word) for word in words], scope)
 
     def walk_command(self: Walker, node: Simple, scope: Scope) -> None:
         stripped = strip_wrappers(list(node.words), list(node.assignments))
@@ -1046,13 +1091,14 @@ class Walker:
             self.opaque(scope)
             return
         words, environment = stripped
+        for word in environment:
+            self.anchor_values(word)
         if not words:
             return
-        head = words[0]
-        if head.dynamic:
+        if words[0].dynamic:
             self.opaque(scope)
             return
-        self.dispatch(Command(head.text, words, environment, node), scope)
+        self.dispatch(Command(words[0].text, words, environment, node), scope)
 
     def dispatch(self: Walker, command: Command, scope: Scope) -> None:
         name, base, arguments = command.name, command.base, command.words[1:]
@@ -1061,11 +1107,15 @@ class Walker:
         elif is_opaque_program(name, base, arguments):
             self.opaque(scope)
         elif base in COMMAND_SHELLS:
-            self.shell(arguments, command.node.depth, scope)
+            self.shell(command, scope)
         elif name in ('cd', 'pushd', 'popd'):
-            change_directory(name, arguments, scope)
+            self.change_directory(command, scope)
         elif name in EXPORTING_BUILTINS:
-            scope.git_names += exported_git_names(arguments)
+            self.export(arguments, scope)
+        elif name == 'shopt':
+            scope.sticky = True
+        elif runs_git_word(base, arguments):
+            self.opaque(scope)
 
     def invocation(self: Walker, command: Command, scope: Scope) -> None:
         relative = '/' in command.name and not command.name.startswith('/')
@@ -1073,18 +1123,93 @@ class Walker:
             self.opaque(scope)
             return
         self.items.append(Found(command.base, tuple(command.words[1:]), tuple(command.environment),
-                                scope.directory, scope.git_names, command.node.stdin))
+                                scope.directory, scope.names, command.node.stdin,
+                                tuple(self.anchors), scope.unsure))
 
-    def shell(self: Walker, arguments: list[Word], depth: int, scope: Scope) -> None:
-        """Parse `bash -c '<literal>'` recursively; any other -c spelling is opaque."""
+    def shell(self: Walker, command: Command, scope: Scope) -> None:
+        """Parse `bash -c '<literal>'` recursively; other ways of feeding a shell are opaque."""
+        arguments = command.words[1:]
         if arguments and not arguments[0].dynamic and arguments[0].text == '-c':
             if len(arguments) < 2 or arguments[1].dynamic:
                 self.opaque(scope)
                 return
-            self.walk_script(parse_script(arguments[1].text, self.budget, child_depth(depth)),
-                             scope.copy())
-        elif shell_runs_string(arguments):
+            inner = scope.copy()
+            note_names([assignment_name(word) for word in command.environment], inner)
+            depth = child_depth(command.node.depth)
+            self.walk_script(parse_script(arguments[1].text, self.budget, depth), inner)
+        elif shell_runs_string(arguments) or shell_reads_stdin(arguments):
             self.opaque(scope)
+        elif runs_git_word(command.base, arguments):
+            self.opaque(scope)
+
+    def export(self: Walker, arguments: Sequence[Word], scope: Scope) -> None:
+        names: list[str] = []
+        for word in arguments:
+            if not word.dynamic and word.text.startswith('-'):
+                continue
+            self.anchor_values(word)
+            names.append(exported_name(word))
+        note_names(names, scope)
+
+    def change_directory(self: Walker, command: Command, scope: Scope) -> None:
+        """Literal cd/pushd/popd move the directory; other forms make it unknown."""
+        if any(assignment_name(word) == 'CDPATH' for word in command.environment):
+            scope.sticky = True
+        arguments = command.words[1:]
+        if arguments and not arguments[0].dynamic and arguments[0].text == '--':
+            arguments = arguments[1:]
+        single = arguments[0] if len(arguments) == 1 and not arguments[0].dynamic else None
+        if command.name == 'popd':
+            pop_directory(arguments, scope)
+        elif single is not None and STACK_ROTATION.fullmatch(single.text):
+            scope.uncertain = True
+        elif single is None or not single.text or single.text.startswith('-'):
+            scope.directory = None
+        else:
+            if command.name == 'pushd':
+                scope.stack.append((scope.directory, scope.logical, scope.uncertain))
+            self.move(scope, single.text)
+
+    def move(self: Walker, scope: Scope, target: str) -> None:
+        """Follow bash's logical cd: join, fold `..` lexically, then require a directory."""
+        absolute = os.path.isabs(target)
+        if scope.directory is None and not absolute:
+            return
+        logical = os.path.normpath(os.path.join(scope.logical, target))
+        canonical = os.path.realpath(logical)
+        self.anchors.append(canonical)
+        if scope.sticky or (scope.uncertain and not absolute) or not accessible_directory(canonical):
+            scope.uncertain = True
+            return
+        scope.directory, scope.logical, scope.last_known = canonical, logical, canonical
+        scope.uncertain = False
+
+
+def pop_directory(arguments: Sequence[Word], scope: Scope) -> None:
+    if arguments or not scope.stack:
+        scope.uncertain = True
+        return
+    directory, logical, uncertain = scope.stack.pop()
+    scope.directory, scope.logical, scope.uncertain = directory, logical, uncertain
+    scope.last_known = directory or scope.last_known
+
+
+def accessible_directory(path: str) -> bool:
+    return os.path.isdir(path) and os.access(path, os.X_OK)
+
+
+def note_names(names: Iterable[str], scope: Scope) -> None:
+    """Remember assigned or exported names that redirect git; CDPATH defeats the walk."""
+    listed = tuple(names)
+    scope.names += tuple(name for name in listed if is_sensitive_name(name))
+    if 'CDPATH' in listed or DYNAMIC_NAME in listed:
+        scope.sticky = True
+
+
+def exported_name(word: Word) -> str:
+    match = VARIABLE_NAME.match(word.text)
+    complete = match is not None and word.text[match.end():match.end() + 1] in ('', '=', '+')
+    return match.group(0) if match and complete else DYNAMIC_NAME
 
 
 def child_depth(depth: int) -> int:
@@ -1097,10 +1222,15 @@ def is_git_name(name: str) -> bool:
     return name.startswith('GIT_') or name == DYNAMIC_NAME
 
 
+def is_sensitive_name(name: str) -> bool:
+    """Names that decide which repository, configuration or git binary is used."""
+    return is_git_name(name) or name in SENSITIVE_NAMES
+
+
 def strip_wrappers(words: list[Word], environment: list[Word]) -> tuple[list[Word], list[Word]] | None:
-    """Remove supported wrappers; None when a wrapper is used in an unsupported way."""
+    """Remove supported wrappers, matched by basename; None for an unsupported use."""
     while words and not words[0].dynamic:
-        name, rest = words[0].text, words[1:]
+        name, rest = words[0].text.rsplit('/', 1)[-1], words[1:]
         if name in SIMPLE_WRAPPERS:
             if rest and (rest[0].dynamic or rest[0].text.startswith('-')):
                 return None
@@ -1124,50 +1254,79 @@ def is_opaque_program(name: str, base: str, arguments: list[Word]) -> bool:
         return True
     if base == 'find' and any(word.text in FIND_EXECUTION for word in arguments):
         return True
-    return base in OTHER_SHELLS and shell_runs_string(arguments)
+    return base in OTHER_SHELLS and (shell_runs_string(arguments) or shell_reads_stdin(arguments))
+
+
+def runs_git_word(base: str, arguments: Sequence[Word]) -> bool:
+    """A program that may execute its arguments is given a git or gh program word."""
+    if base in DATA_PROGRAMS:
+        return False
+    return any(not word.dynamic and word.text.rsplit('/', 1)[-1] in ('git', 'gh') for word in arguments)
 
 
 def shell_runs_string(arguments: list[Word]) -> bool:
     """Whether leading shell options include -c in any spelling, or cannot be read."""
-    for word in arguments:
+    index = 0
+    while index < len(arguments):
+        word = arguments[index]
         if word.dynamic:
             return True
-        if not word.text.startswith('-') or word.text in ('-', '--'):
+        if not word.text.startswith(('-', '+')) or word.text in ('-', '--'):
             return False
-        if not word.text.startswith('--') and 'c' in word.text[1:]:
+        if word.text[0] == '-' and not word.text.startswith('--') and 'c' in word.text[1:]:
             return True
+        index += 2 if word.text in SHELL_VALUE_OPTIONS else 1
     return False
 
 
-def change_directory(name: str, arguments: list[Word], scope: Scope) -> None:
-    """Literal cd/pushd/popd move the directory; anything else makes it unknown."""
-    if arguments and not arguments[0].dynamic and arguments[0].text == '--':
-        arguments = arguments[1:]
-    literal = (len(arguments) == 1 and not arguments[0].dynamic and arguments[0].text != ''
-               and not arguments[0].text.startswith('-'))
-    if name == 'popd':
-        restored = scope.stack.pop() if scope.stack and not arguments else None
-        scope.directory = restored
-        scope.last_known = restored or scope.last_known
-    elif literal:
-        if name == 'pushd':
-            scope.stack.append(scope.directory)
-        scope.move(arguments[0].text)
-    else:
-        scope.directory = None
+def shell_reads_stdin(arguments: Sequence[Word]) -> bool:
+    """Whether the shell takes its commands from stdin: no script operand, `-s` or `-`."""
+    index = 0
+    while index < len(arguments):
+        word = arguments[index]
+        if word.dynamic or word.text == '-':
+            return True
+        if word.text == '--':
+            return index + 1 >= len(arguments)
+        if word.text in SHELL_VALUE_OPTIONS:
+            index += 2
+        elif word.text.startswith('--'):
+            index += 1
+        elif word.text[:1] in ('-', '+') and len(word.text) > 1:
+            if word.text[0] == '-' and 's' in word.text[1:]:
+                return True
+            index += 1
+        else:
+            return False
+    return True
 
 
-def exported_git_names(arguments: list[Word]) -> tuple[str, ...]:
-    names: list[str] = []
-    for word in arguments:
-        if not word.dynamic and word.text.startswith('-'):
+def skip_quoted(text: str, index: int) -> int:
+    """The index after the escape, single-quoted or double-quoted span at index."""
+    char = text[index]
+    if char == '\\':
+        return index + 2
+    position = index + 1
+    while position < len(text) and text[position] != char:
+        position += 2 if char == '"' and text[position] == '\\' else 1
+    if position >= len(text):
+        raise ParseError('unterminated quote in expansion')
+    return position + 1
+
+
+def gh_positionals(words: Sequence[Word]) -> list[int]:
+    """Indexes of the first two gh command words, skipping flags and --repo values."""
+    positions: list[int] = []
+    index = 0
+    while index < len(words) and len(positions) < 2:
+        word = words[index]
+        if not word.dynamic and word.text in GH_VALUE_FLAGS:
+            index += 2
             continue
-        match = VARIABLE_NAME.match(word.text)
-        complete = match is not None and word.text[match.end():match.end() + 1] in ('', '=', '+')
-        name = match.group(0) if match and complete else DYNAMIC_NAME
-        if is_git_name(name):
-            names.append(name)
-    return tuple(names)
+        if word.dynamic or not word.text.startswith('-') or word.text == '-':
+            positions.append(index)
+        index += 1
+    return positions
 
 
 # ── Git command layout ─────────────────────────────────────────────────
@@ -1234,10 +1393,13 @@ def rule_key(invocation: Invocation) -> str | None:
     """The dispatch-table key of a governed invocation, or None."""
     words = invocation.words
     if invocation.program == 'gh':
-        if words and not words[0].dynamic and words[0].text == 'api':
+        command = [words[index] for index in gh_positionals(words)]
+        if not command or command[0].dynamic:
+            return None
+        if command[0].text == 'api':
             return 'gh api'
-        literal = len(words) > 1 and not words[0].dynamic and not words[1].dynamic
-        return 'gh pr merge' if literal and (words[0].text, words[1].text) == ('pr', 'merge') else None
+        literal = len(command) == 2 and not command[1].dynamic
+        return 'gh pr merge' if literal and [word.text for word in command] == ['pr', 'merge'] else None
     index = git_layout(words).index
     if index is None or words[index].dynamic or words[index].text not in GOVERNED_GIT_SUBCOMMANDS:
         return None
@@ -1250,8 +1412,9 @@ def needs_verification(invocation: Invocation) -> bool:
         return True
     words = invocation.words
     if invocation.program == 'gh':
-        return bool(words) and (words[0].dynamic or (words[0].text == 'pr' and len(words) > 1
-                                                     and words[1].dynamic))
+        command = [words[index] for index in gh_positionals(words)]
+        return bool(command) and (command[0].dynamic or (command[0].text == 'pr' and len(command) > 1
+                                                         and command[1].dynamic))
     layout = git_layout(words)
     if layout.unknown:
         return True
@@ -1323,26 +1486,26 @@ def resolve(command: str, context: Context) -> Resolution:
     registered = project_for(context.cwd, context.roots) is not None
     budget = Budget()
     try:
-        walker = Walker(budget)
-        walker.walk_script(parse_script(command, budget), Scope(context.cwd, context.cwd))
+        walker = Walker(budget, context.cwd)
+        walker.walk_script(parse_script(command, budget), Scope(context.cwd, context.cwd, context.cwd))
     except ParseError:
         return Resolution((), denial('unsupported-form') if registered else NOT_APPLICABLE)
     except LimitExceeded:
         return Resolution((), denial('limit-exceeded') if registered else NOT_APPLICABLE)
     try:
-        return resolve_items(walker.items, context, registered)
+        return resolve_items(walker.items, context)
     except GitReadTimeout:
         return Resolution((), denial('limit-exceeded'))
     except OSError:
         return Resolution((), denial('internal-error'))
 
 
-def resolve_items(items: Sequence[Found | Opaque], context: Context, registered: bool) -> Resolution:
+def resolve_items(items: Sequence[Found | Opaque], context: Context) -> Resolution:
     invocations: list[Invocation] = []
     denials: list[Decision] = []
     for item in items:
         if isinstance(item, Opaque):
-            if registered or project_for(item.directory, context.roots) is not None:
+            if anchored(item.anchors, context):
                 denials.append(denial('unsupported-form'))
             continue
         result = resolve_found(item, context)
@@ -1353,18 +1516,25 @@ def resolve_items(items: Sequence[Found | Opaque], context: Context, registered:
     return Resolution(tuple(invocations), combine(denials) if denials else None)
 
 
+def anchored(paths: Iterable[str], context: Context) -> bool:
+    return any(project_for(path, context.roots) is not None for path in paths)
+
+
 def resolve_found(found: Found, context: Context) -> Invocation | Decision | None:
     directory = effective_directory(found)
     project = project_for(directory, context.roots)
-    if project is None:
-        return None
-    draft = Invocation(found.program, found.words, directory, None, None, project,
+    draft = Invocation(found.program, found.words, directory, None, None, project or '',
                        found.environment, found.inherited, found.stdin)
+    if found.uncertain:
+        verify = needs_verification(draft) and anchored((*found.anchors, directory), context)
+        return denial('unsupported-form') if verify else None
+    if project is None:
+        return redirected(draft, found, context)
     if not os.path.isdir(directory):
         return denial('unsupported-form') if needs_verification(draft) else None
     location = read_repository(directory, context.environ)
     if location is None:
-        return None
+        return redirected(draft, found, context)
     subcommand = draft.subcommand if found.program == 'git' else None
     alias = (subcommand is not None and not draft.words[draft.layout.index or 0].dynamic
              and subcommand not in GIT_BUILTINS and is_alias(subcommand, directory, context.environ))
@@ -1387,12 +1557,14 @@ RULES: dict[str, tuple[Rule, ...]] = {
 def check_opaque_invocation(invocation: Invocation) -> Decision | None:
     """R31: a git environment assignment, unsupported global option, alias or dynamic word."""
     names = (*invocation.assignments, *invocation.inherited)
-    if any(is_git_name(name) for name in names):
+    if any(is_sensitive_name(name) for name in names):
         return denial('opaque-environment', 'R31')
     unsupported = denial('unsupported-form', 'R31')
     if any(word.dynamic for word in invocation.environment):
         return unsupported
     layout = invocation.layout
+    if any(word.dynamic for word in invocation.words[:layout.globals_end]):
+        return unsupported
     if invocation.program == 'git' and (layout.unknown or
                                         unsupported_global_options(invocation.words[:layout.globals_end])):
         return unsupported
@@ -1406,6 +1578,34 @@ def check_opaque_invocation(invocation: Invocation) -> Decision | None:
                                    for word in invocation.arguments):
         return unsupported
     return None
+
+
+def redirected(draft: Invocation, found: Found, context: Context) -> Decision | None:
+    """Outside a registered work tree, deny only options and variables that point back in."""
+    targets = (*found.anchors, *redirect_targets(draft))
+    if not needs_verification(draft) or not anchored(targets, context):
+        return None
+    if any(is_git_name(name) for name in (*draft.assignments, *draft.inherited)):
+        return denial('opaque-environment', 'R31')
+    if draft.program == 'git' and redirect_targets(draft, every=True):
+        return denial('unsupported-form', 'R31')
+    return None
+
+
+def redirect_targets(invocation: Invocation, every: bool = False) -> tuple[str, ...]:
+    """Literal --git-dir/--work-tree values; with every=True, any such option at all."""
+    if invocation.program != 'git':
+        return ()
+    words = invocation.words[:invocation.layout.globals_end]
+    targets: list[str] = []
+    for index, word in enumerate(words):
+        name, equals, value = word.text.partition('=')
+        if name not in REDIRECTING_GLOBAL_OPTIONS:
+            continue
+        if not equals:
+            value = words[index + 1].text if index + 1 < len(words) else ''
+        targets.append(os.path.realpath(value) if value and os.path.isabs(value) else value)
+    return tuple(targets) if every else tuple(target for target in targets if os.path.isabs(target))
 
 
 def exempt_word(invocation: Invocation, word: Word) -> bool:
