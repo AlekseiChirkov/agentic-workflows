@@ -3805,6 +3805,85 @@ class RestackVerifierInterface(RestackFixture):
 CLASSES = (*CLASSES, RestackJournalTable, RestackVerifierInterface)
 
 
+# rebase.updateRefs makes git also move every branch that points inside the replayed range,
+# so a configured value, wherever git reads it from, takes a replay outside the journal's proof.
+class UpdateRefsFixture(RestackFixture):
+    """Journals together with rebase.updateRefs in the repository or the user's global config."""
+
+    def update_refs(self, value: str, scope: str = '--local') -> None:
+        self.git(self.project, 'config', scope, 'rebase.updateRefs', value)
+
+    def setup_restack_update_refs(self) -> None:
+        self.setup_restack()
+        self.update_refs('true')
+
+    def setup_restack_update_refs_yes(self) -> None:
+        self.setup_restack()
+        self.update_refs('yes')
+
+    def setup_restack_update_refs_invalid(self) -> None:
+        self.setup_restack()
+        self.update_refs('sometimes')
+
+    def setup_restack_update_refs_false(self) -> None:
+        self.setup_restack()
+        self.update_refs('false')
+
+    def setup_restack_update_refs_global(self) -> None:
+        self.setup_restack()
+        self.update_refs('true', '--global')
+
+    def setup_restack_update_refs_global_overridden(self) -> None:
+        self.setup_restack_update_refs_global()
+        self.update_refs('false')
+
+    def setup_restack_conflict_update_refs(self) -> None:
+        self.setup_restack_conflict()
+        self.update_refs('true')
+
+    def setup_restack_conflict_apply_update_refs(self) -> None:
+        self.setup_restack_conflict_apply()
+        self.update_refs('true')
+
+    def setup_restack_replayed_update_refs(self) -> None:
+        self.setup_restack_replayed()
+        self.update_refs('true')
+
+
+UPDATE_REFS_CASES: tuple[RestackCase, ...] = (
+    rebase_row('replay_with_update_refs_configured_asks', ONTO_A, 'update-refs', setup='restack-update-refs'),
+    rebase_row('replay_with_update_refs_spelled_yes_asks', ONTO_A, 'update-refs', setup='restack-update-refs-yes'),
+    rebase_row('replay_with_an_invalid_update_refs_value_asks', ONTO_A, 'update-refs',
+               setup='restack-update-refs-invalid'),
+    rebase_row('replay_with_update_refs_in_the_global_config_asks', ONTO_A, 'update-refs',
+               setup='restack-update-refs-global'),
+    rebase_row('continue_with_update_refs_configured_asks', 'git rebase --continue', 'update-refs',
+               setup='restack-conflict-update-refs'),
+    rebase_row('skip_with_update_refs_configured_asks', 'git rebase --skip', 'update-refs',
+               setup='restack-conflict-apply-update-refs'),
+    rebase_row('replay_with_update_refs_false_is_allowed', ONTO_A, None, setup='restack-update-refs-false'),
+    rebase_row('replay_with_global_update_refs_overridden_by_the_repository_is_allowed', ONTO_A, None,
+               setup='restack-update-refs-global-overridden'),
+    rebase_row('replay_without_update_refs_configured_is_allowed', ONTO_A, None),
+    rebase_row('abort_with_update_refs_configured_is_allowed', 'git rebase --abort', None,
+               setup='restack-conflict-update-refs'),
+    RestackCase('update_refs_on_the_command_line_is_unsupported', 'git -c rebase.updateRefs=true ' + ONTO_A[4:],
+                'deny', UNSUPPORTED, 'R31'),
+    push_row('lease_push_with_update_refs_configured_is_allowed', PUSH_A, None,
+             setup='restack-replayed-update-refs'),
+)
+
+
+class UpdateRefsTable(UpdateRefsFixture):
+    """Table-driven replay decisions with rebase.updateRefs configured."""
+
+
+for update_refs_case in UPDATE_REFS_CASES:
+    setattr(UpdateRefsTable, 'test_' + update_refs_case.name, restack_test(update_refs_case))
+
+CLASSES = (*CLASSES, UpdateRefsTable)
+
+
 def selected_suite() -> unittest.TestSuite:
     suite = unittest.TestSuite()
     for case_class in CLASSES:
