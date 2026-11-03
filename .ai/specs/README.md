@@ -17,7 +17,7 @@ consumers reference its contract rather than redefining it.
 
 | # | Workstream | Owning spec | Boundary and evidence |
 |---|---|---|---|
-| 1 | Telemetry and baseline | [05 — telemetry](05-cost-and-duration-telemetry.md) | Actual usage, role/stage/attempt attribution, cache accounting, API-equivalent valuation, coverage and accepted-result cost |
+| 1 | Telemetry and baseline | [05 — telemetry](completed/05-cost-and-duration-telemetry.md) | Actual usage, role/stage/attempt attribution, cache accounting, API-equivalent valuation, coverage and accepted-result cost |
 | 2 | Compact context preparation | [14 — task context](14-task-context-and-reuse.md) | Stable context reuse, fresh leaf views, task contracts, relevant files, load-once behavior, cache-compatible ordering |
 | 3 | Shorter instructions and outputs | [08 — context tiering](08-context-tiering.md) | Compact rules, on-demand reference, explicit loads, concise reports with evidence |
 | 4 | Orchestrator overhead | [15 — controller overhead](15-orchestrator-overhead.md) | Fewer status turns, bounded history, deterministic inspection and delta rendering; shared state stays single-writer |
@@ -45,7 +45,7 @@ Cached catalog selection, conservative quality/economic filtering, compatible pl
 resolution and installed workflow guidance were subsequently delivered under
 [04](completed/04-model-catalog-cache.md), with 594 required checks passing and 87 focused model tests.
 Full rule inventory/naming, reference tiers/load metadata, content-hash packets,
-effort/repair policies and economic evaluation remain separate work. Completed 00–04
+effort/repair policies and economic evaluation remain separate work. Completed 00–05
 remain foundations, not work to repeat. No deployment or model-usage savings is claimed.
 
 ## Shared acceptance gates
@@ -82,7 +82,7 @@ script names in historical context identify their earlier locations.
 | 2 | [13 — harnesses/naming](13-model-only-harnesses-and-rule-naming.md) | 01, 13a | Preserve IDs; capability-based behavior and current script paths |
 | Done | [04 — catalog](completed/04-model-catalog-cache.md) | Current-invocation capabilities; wider 13 migration remains separate | Reviewed cached catalog, conservative selection and compatible plan resolution; PRs #31–#36 merged |
 | Done | [03 — logging](completed/03-hook-based-logging.md) | 02; minimal harness/registry scaffold | Reviewed explicit correlation, owned hooks and exact timing; minimal hook scaffold only, wider harness migration remains pending |
-| 4 | [05 — telemetry](05-cost-and-duration-telemetry.md) | 02, 03 | Expanded workstream 1 |
+| Done | [05 — telemetry](completed/05-cost-and-duration-telemetry.md) | 02, 03 | Reviewed offline telemetry and recovery; PRs #37–#63 merged; 619 required checks passed |
 | 5 | [06 — git rails](06-harness-git-rails.md) | 13, 05 | Enforcement remains effective through helpers and repairs |
 | 6 | [09 — regression/evaluation](09-golden-run-tests.md) | 01, 13, 05, 06 | Offline checks, paid goldens, independent quality comparisons |
 | 7 | [08 — instructions/output](08-context-tiering.md) | 13, 09 | Expanded workstream 3 |

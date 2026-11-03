@@ -1,4 +1,4 @@
-spec_path: .ai/specs/05-cost-and-duration-telemetry.md
+spec_path: .ai/specs/completed/05-cost-and-duration-telemetry.md
 contract_version: 0.9.0
 flow: full
 
@@ -584,7 +584,7 @@ T-14 | Retain conditional pricing semantics in warnings | atomic-tests: green | 
 
 T-15 | Restore complete validation metadata | atomic-tests: n-a | atomic-execution: complete | atomic-validation: complete
   last_action: independent repair recheck passed; all repair criteria met
-  target_files: .ai/tasks/todo/task-05-cost-and-duration-telemetry/state.md, .ai/tasks/completed/task-01-git-source-of-truth/state.md, .ai/memory/architecture.md
+  target_files: .ai/tasks/completed/task-05-cost-and-duration-telemetry/state.md, .ai/tasks/completed/task-01-git-source-of-truth/state.md, .ai/memory/architecture.md
   blocker: none
   notes: Owner-authorized repair of PR #63; preserve existing validators and frozen behavioral checks.
   notes: tdd: none — metadata-only repair; unchanged existing validators verify the exact documentary contract; commits: 41cea8393f227e5dd8b2ef7ca109aab39e248e1c
@@ -777,7 +777,7 @@ This manual validation continuation uses owner-requested isolation per PR. Repai
 sync: complete
 synced_at: 2026-10-30
 deltas: 3 (implemented-differently: 3, not-implemented: 0, implemented-beyond: 0)
-spec: .ai/specs/05-cost-and-duration-telemetry.md
+spec: .ai/specs/completed/05-cost-and-duration-telemetry.md
 
 ## Pull Request Promotion
 - PRs #37–#63 promoted to ready for review in stack order using the connected GitHub application. The command-line token lacked permission for this transition.

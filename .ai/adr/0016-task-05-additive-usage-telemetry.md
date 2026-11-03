@@ -10,7 +10,7 @@ Accepted
 
 ## Related Task
 
-- Task: [Cost and duration telemetry](../tasks/todo/task-05-cost-and-duration-telemetry/state.md).
+- Task: [Cost and duration telemetry](../tasks/completed/task-05-cost-and-duration-telemetry/state.md).
 - Related files: `scripts/log-step.sh`, `scripts/usage-telemetry.py`, `scripts/run-log-timing.py`, `rules/run-log.md`, `workflows/retro.md`.
 
 ## Summary
@@ -121,6 +121,6 @@ All 27 PRs received isolated reviews, sequential repairs and fresh independent r
 
 ## References
 
-- Task: [Cost and duration telemetry](../tasks/todo/task-05-cost-and-duration-telemetry/state.md).
+- Task: [Cost and duration telemetry](../tasks/completed/task-05-cost-and-duration-telemetry/state.md).
 - Pull requests: #37–#63; corrections and the combined validation record are included in #63.
 - Related documents: existing correlated hook logging decision and telemetry specification.

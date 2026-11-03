@@ -9,7 +9,7 @@ Restore complete validation metadata.
 ## Scope
 - **In scope:** restore complete validation metadata, exact identity inventory and factual architecture inventory using existing validators.
 - **Out of scope:** unrelated telemetry behavior, real deployments, network or paid model calls, and historical evidence rewriting.
-- **Target files:** .ai/tasks/todo/task-05-cost-and-duration-telemetry/state.md, .ai/tasks/completed/task-01-git-source-of-truth/state.md, .ai/memory/architecture.md.
+- **Target files:** .ai/tasks/completed/task-05-cost-and-duration-telemetry/state.md, .ai/tasks/completed/task-01-git-source-of-truth/state.md, .ai/memory/architecture.md.
 
 ## Steps
 1. Retain the independently observed static validator failures and exact inventory evidence.
