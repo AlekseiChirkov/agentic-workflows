@@ -5196,6 +5196,167 @@ hygiene_tracked_tree_result() {
 check "test_public_hygiene_tracked_tree_excludes_private_tokens" \
   "$(hygiene_tracked_tree_result)"
 
+# ── Harness git-rails capability records ─────────────────────────────
+# The Claude record pins the harness facts the git-rails adapter relies on: event,
+# exit/JSON protocol, permission modes that can show an ask to a human, permission
+# rule match semantics, failure mode and residual risks. The Codex record declares
+# that only textual rules apply there. Every field is read from its own anchored
+# line inside the "## git-rails" section, so each check fails independently.
+GIT_RAILS_CLAUDE_CAPS=harness/claude/capabilities.md
+GIT_RAILS_CODEX_CAPS=harness/codex/capabilities.md
+GIT_RAILS_ASK_PAYLOAD='{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"<diagnostic>"}}'
+
+git_rails_section() {
+  awk '$0 == "## git-rails" { inside = 1; next } inside && /^## / { exit } inside' \
+    "$GIT_RAILS_CLAUDE_CAPS" 2>/dev/null
+}
+
+# Succeeds when exactly one line of the git-rails section matches the extended regex.
+git_rails_field_once() {
+  [ "$(git_rails_section | grep -cE -- "$1")" = 1 ]
+}
+
+# The recorded runtime must be a release that offers the blocking failure option.
+git_rails_runtime_supports_blocking_failure() {
+  local version
+  git_rails_field_once '^runtime: ' || return 1
+  git_rails_field_once '^runtime: Claude Code [0-9]+\.[0-9]+\.[0-9]+$' || return 1
+  version="$(git_rails_section | sed -n 's/^runtime: Claude Code //p')"
+  [ "$(printf '%s\n%s\n' 2.1.295 "$version" | sort -V | head -n 1)" = 2.1.295 ]
+}
+
+git_rails_evidence_cites_official_pages() {
+  local page
+  for page in hooks permissions permission-modes; do
+    git_rails_field_once "^evidence: https://code\\.claude\\.com/docs/en/${page}\$" || return 1
+  done
+}
+
+git_rails_ask_modes_line_anchored() {
+  [ "$(grep -c '^git-rails ask-capable modes:' "$GIT_RAILS_CLAUDE_CAPS" 2>/dev/null)" = 1 ] || return 1
+  git_rails_field_once '^git-rails ask-capable modes: [A-Za-z]+(, [A-Za-z]+)*$'
+}
+
+# Only documented permission_mode values may be listed. dontAsk denies every prompt and
+# bypassPermissions approves without one, so neither can carry an ask to a human.
+git_rails_ask_modes_documented() {
+  local line mode seen=' '
+  local -a modes
+  line="$(git_rails_section | sed -n 's/^git-rails ask-capable modes: //p')"
+  [ -n "$line" ] || return 1
+  IFS=',' read -r -a modes <<< "$line"
+  for mode in "${modes[@]}"; do
+    mode="${mode# }"
+    case "$mode" in
+      default|plan|acceptEdits|auto) ;;
+      *) return 1 ;;
+    esac
+    case "$seen" in *" $mode "*) return 1 ;; esac
+    seen="$seen$mode "
+  done
+}
+
+git_rails_prefix_rule_forms_recorded() {
+  local line
+  git_rails_field_once '^deny-rule prefix: ' || return 1
+  line="$(git_rails_section | grep '^deny-rule prefix: ')"
+  [[ "$line" == *' *)'* && "$line" == *':*)'* ]]
+}
+
+# The logging record stays first and unchanged; the git-rails record is appended after it.
+git_rails_logging_record_precedes_section() {
+  local heading line
+  heading="$(grep -nx '## git-rails' "$GIT_RAILS_CLAUDE_CAPS" 2>/dev/null | head -n 1 | cut -d: -f1)"
+  [ -n "$heading" ] || return 1
+  [ "$(head -n 1 "$GIT_RAILS_CLAUDE_CAPS")" = '# Claude logging capabilities' ] || return 1
+  for line in 'hooks: yes' 'profile: claude-stop-v1' 'verified: 2026-10-25' 'runtime: Claude Code 2.1.309'; do
+    [ "$(grep -nxF "$line" "$GIT_RAILS_CLAUDE_CAPS" | head -n 1 | cut -d: -f1)" -lt "$heading" ] 2>/dev/null || return 1
+  done
+}
+
+git_rails_codex_declaration_follows_logging_record() {
+  local declaration
+  [ "$(grep -cxF 'git-rails: none (textual rules only)' "$GIT_RAILS_CODEX_CAPS" 2>/dev/null)" = 1 ] || return 1
+  declaration="$(grep -nxF 'git-rails: none (textual rules only)' "$GIT_RAILS_CODEX_CAPS" | cut -d: -f1)"
+  [ "$(head -n 1 "$GIT_RAILS_CODEX_CAPS")" = '# Codex logging capabilities' ] || return 1
+  [ "$(grep -nxF 'hooks: no' "$GIT_RAILS_CODEX_CAPS" | head -n 1 | cut -d: -f1)" -lt "$declaration" ] 2>/dev/null
+}
+
+check "GIT-RAILS: Claude capability record has exactly one git-rails section" \
+  "$([ "$(grep -cx '## git-rails' "$GIT_RAILS_CLAUDE_CAPS" 2>/dev/null)" = 1 ] && echo pass || echo "$GIT_RAILS_CLAUDE_CAPS must contain exactly one '## git-rails' heading")"
+
+check "GIT-RAILS: section names the capability" \
+  "$(git_rails_field_once '^name: git-rails$' && echo pass || echo "git-rails section must contain exactly one 'name: git-rails' line")"
+
+check "GIT-RAILS: section declares state yes" \
+  "$(git_rails_field_once '^state: ' && git_rails_field_once '^state: yes$' && echo pass || echo "git-rails section must contain exactly one state line, 'state: yes'")"
+
+check "GIT-RAILS: section pins a runtime that offers the blocking failure option" \
+  "$(git_rails_runtime_supports_blocking_failure && echo pass || echo "git-rails section must contain one 'runtime: Claude Code X.Y.Z' line at 2.1.295 or later")"
+
+check "GIT-RAILS: section records its verification date" \
+  "$(git_rails_field_once '^verified: ' && git_rails_field_once '^verified: [0-9]{4}-[0-9]{2}-[0-9]{2}$' && echo pass || echo "git-rails section must contain exactly one 'verified: YYYY-MM-DD' line")"
+
+check "GIT-RAILS: section cites the official hooks, permissions and permission-modes pages" \
+  "$(git_rails_evidence_cites_official_pages && echo pass || echo "git-rails section must contain one 'evidence: https://code.claude.com/docs/en/<page>' line for hooks, permissions and permission-modes")"
+
+check "GIT-RAILS: section names the PreToolUse event" \
+  "$(git_rails_field_once '^event: PreToolUse$' && echo pass || echo "git-rails section must contain exactly one 'event: PreToolUse' line")"
+
+check "GIT-RAILS: section names the Bash tool" \
+  "$(git_rails_field_once '^tool: Bash$' && echo pass || echo "git-rails section must contain exactly one 'tool: Bash' line")"
+
+check "GIT-RAILS: deny is exit 2 with the diagnostic on stderr" \
+  "$(git_rails_field_once '^deny: exit 2 .*stderr' && echo pass || echo "git-rails section must contain exactly one 'deny: exit 2 … stderr' line")"
+
+check "GIT-RAILS: ask is exit 0 with JSON on stdout and the diagnostic on stderr" \
+  "$(git_rails_field_once '^ask: exit 0 .*stdout.*stderr' && echo pass || echo "git-rails section must contain exactly one 'ask: exit 0 … stdout … stderr' line")"
+
+check "GIT-RAILS: ask payload carries permissionDecision and permissionDecisionReason" \
+  "$([ "$(git_rails_section | grep -cxF "ask-output: $GIT_RAILS_ASK_PAYLOAD")" = 1 ] && echo pass || echo "git-rails section must contain exactly one 'ask-output: $GIT_RAILS_ASK_PAYLOAD' line")"
+
+check "GIT-RAILS: allow is never emitted" \
+  "$(git_rails_field_once '^allow: never emitted' && echo pass || echo "git-rails section must contain exactly one 'allow: never emitted …' line")"
+
+check "GIT-RAILS: ask-capable permission modes are one anchored line" \
+  "$(git_rails_ask_modes_line_anchored && echo pass || echo "$GIT_RAILS_CLAUDE_CAPS must contain exactly one 'git-rails ask-capable modes: <mode>, <mode>' line, inside the git-rails section")"
+
+check "GIT-RAILS: ask-capable modes are documented modes that can reach a human" \
+  "$(git_rails_ask_modes_documented && echo pass || echo 'ask-capable modes must be distinct documented permission_mode values; dontAsk, bypassPermissions and unknown names are not ask-capable')"
+
+check "GIT-RAILS: exact Bash permission rule semantics are recorded" \
+  "$(git_rails_field_once '^deny-rule exact: Bash\(' && echo pass || echo "git-rails section must contain exactly one 'deny-rule exact: Bash(…)' line")"
+
+check "GIT-RAILS: prefix Bash permission rule semantics cover both wildcard forms" \
+  "$(git_rails_prefix_rule_forms_recorded && echo pass || echo "git-rails section must contain exactly one 'deny-rule prefix:' line naming both the ' *)' and ':*)' forms")"
+
+check "GIT-RAILS: compound-command rule matching is recorded" \
+  "$(git_rails_field_once '^deny-rule compound: ' && echo pass || echo "git-rails section must contain exactly one 'deny-rule compound:' line")"
+
+check "GIT-RAILS: precedence of permission rules over hook output is recorded" \
+  "$(git_rails_field_once '^deny-rule precedence: ' && echo pass || echo "git-rails section must contain exactly one 'deny-rule precedence:' line")"
+
+check "GIT-RAILS: handler failure mode is the blocking option" \
+  "$(git_rails_field_once '^failure-mode: onFailure "block"' && echo pass || echo "git-rails section must contain exactly one 'failure-mode: onFailure \"block\" …' line")"
+
+check "GIT-RAILS: handler timeout unit is recorded" \
+  "$(git_rails_field_once '^timeout-unit: seconds' && echo pass || echo "git-rails section must contain exactly one 'timeout-unit: seconds …' line")"
+
+check "GIT-RAILS: section lists its limitations" \
+  "$(git_rails_field_once '^limitations:$' && echo pass || echo "git-rails section must contain exactly one 'limitations:' line")"
+
+for git_rails_risk in 1 2 3 4 5 6 7 8 9 10; do
+  check "GIT-RAILS: residual risk X$git_rails_risk is recorded" \
+    "$(git_rails_field_once "^\\| X$git_rails_risk \\| " && echo pass || echo "git-rails section must contain exactly one '| X$git_rails_risk | …' residual-risk row")"
+done
+unset git_rails_risk
+
+check "GIT-RAILS: logging record stays first and precedes the git-rails section" \
+  "$(git_rails_logging_record_precedes_section && echo pass || echo "$GIT_RAILS_CLAUDE_CAPS must keep its logging record first, followed by one '## git-rails' section")"
+
+check "GIT-RAILS: Codex declares textual rules only" \
+  "$(git_rails_codex_declaration_follows_logging_record && echo pass || echo "$GIT_RAILS_CODEX_CAPS must keep its logging record and add exactly one 'git-rails: none (textual rules only)' line after it")"
+
 echo ""
 echo "=== Contract Validation ==="
 echo "  Passed: $PASS"
