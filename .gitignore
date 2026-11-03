@@ -5,3 +5,9 @@
 # Per-machine Claude Code settings
 /.claude/settings.local.json
 .env
+
+# Local generated artifacts (validation evidence, rendered diagrams)
+/output/
+
+# Python bytecode
+__pycache__/
