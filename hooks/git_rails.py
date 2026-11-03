@@ -2764,17 +2764,17 @@ def renamed_refs(parsed: ParsedOptions, invocation: Invocation, context: Context
 
 
 def branch_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
-    """R22 deletion through the exception verifier, else R24 for forced, moved or copied branches."""
+    """R22 deletion through the exception verifier, else R24 for moved or copied branches (the
+    symbolic ref itself) and forced ones (the branch a symbolic ref points to)."""
     request = branch_deletion(parsed)
     if request is not None:
         return None if excepted(request, invocation, context) else asking(BRANCH_DELETE, 'R22')
     if any(parsed.last(key) is True for key in ('move', 'M', 'copy', 'C')):
         refs = renamed_refs(parsed, invocation, context)
-    elif parsed.last('force') is True:
-        refs = [BRANCH_PREFIX + name for name in parsed.operands[:1]]
-    else:
-        return None
-    return refs if isinstance(refs, Decision) else rewrite_decision(refs, invocation, context)
+        return refs if isinstance(refs, Decision) else rewrite_decision(refs, invocation, context)
+    if parsed.last('force') is True:
+        return forced_rewrite([BRANCH_PREFIX + name for name in parsed.operands[:1]], invocation, context)
+    return None
 
 
 def dereferences(parsed: ParsedOptions) -> bool:
@@ -2783,11 +2783,9 @@ def dereferences(parsed: ParsedOptions) -> bool:
     return not choice or choice[-1] == 'deref'
 
 
-def update_target(parsed: ParsedOptions, invocation: Invocation, context: Context) -> str | None:
-    """The ref update-ref writes or deletes, after following symbolic refs; None when unreadable."""
-    ref = parsed.operands[0]
-    if not dereferences(parsed):
-        return ref
+def symbolic_target(ref: str, invocation: Invocation, context: Context) -> str | None:
+    """The ref a write to ref reaches after following symbolic refs; None when unreadable.
+    Callers check state_changed(invocation) first."""
     if ref.startswith('-'):
         return None
     result = read_git(['symbolic-ref', '-q', ref], invocation.directory, context.environ)
@@ -2795,6 +2793,25 @@ def update_target(parsed: ParsedOptions, invocation: Invocation, context: Contex
         return ref
     target = result.stdout.strip()
     return target if result.returncode == 0 and target else None
+
+
+def update_target(parsed: ParsedOptions, invocation: Invocation, context: Context) -> str | None:
+    """The ref update-ref writes or deletes, after following symbolic refs unless --no-deref."""
+    ref = parsed.operands[0]
+    return symbolic_target(ref, invocation, context) if dereferences(parsed) else ref
+
+
+def forced_rewrite(refs: list[str], invocation: Invocation, context: Context) -> Decision | None:
+    """R24 for forced creation, which writes the branch a symbolic branch ref points to."""
+    if not refs or any('@{' in ref for ref in refs):
+        return rewrite_decision(refs, invocation, context)
+    if state_changed(invocation):
+        return denial(UNSUPPORTED, 'R24')
+    targets = [symbolic_target(ref, invocation, context) for ref in refs]
+    resolved = [target for target in targets if target is not None]
+    if len(resolved) != len(targets):
+        return denial(UNSUPPORTED, 'R24')
+    return rewrite_decision(resolved, invocation, context)
 
 
 def update_ref_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
@@ -2824,13 +2841,13 @@ def forced_creation(parsed: ParsedOptions, key: str) -> list[str]:
 
 
 def checkout_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
-    """R24: checkout -B resets the named branch."""
-    return rewrite_decision(forced_creation(parsed, 'B'), invocation, context)
+    """R24: checkout -B resets the named branch, or the branch a symbolic one points to."""
+    return forced_rewrite(forced_creation(parsed, 'B'), invocation, context)
 
 
 def switch_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
-    """R24: switch -C/--force-create resets the named branch."""
-    return rewrite_decision(forced_creation(parsed, 'force-create'), invocation, context)
+    """R24: switch -C/--force-create resets the named branch, or the one it points to."""
+    return forced_rewrite(forced_creation(parsed, 'force-create'), invocation, context)
 
 
 def rebase_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
@@ -2877,7 +2894,8 @@ GRAPHQL_ENDPOINT = re.compile(r'/+(api/)?graphql')
 # GraphQL string literals (block and quoted) and comments, which never name a field.
 GRAPHQL_INERT_TEXT = re.compile(r'"""[\s\S]*?(?<!\\)"""|"(?:\\.|[^"\\\n])*"|#[^\n]*')
 GRAPHQL_NAME = re.compile(r'[_A-Za-z][_0-9A-Za-z]*')
-GRAPHQL_MERGE_FIELDS = frozenset({'mergepullrequest', 'enablepullrequestautomerge', 'mergebranch'})
+GRAPHQL_MERGE_FIELDS = frozenset({'mergepullrequest', 'enablepullrequestautomerge', 'mergebranch',
+                                  'enqueuepullrequest'})
 
 
 @dataclass(frozen=True)
@@ -3067,7 +3085,46 @@ def exempt_word(invocation: Invocation, word: Word) -> bool:
     return invocation.program == 'git' and invocation.subcommand == 'commit' and word.form == 'commit-message'
 
 
+# Git subcommands that run a command given on their own command line.
+FILTER_BRANCH_RUNNERS = ('--setup', '--tree-filter', '--index-filter', '--msg-filter', '--env-filter',
+                         '--commit-filter', '--parent-filter', '--tag-name-filter')
+EXTCMD = 'extcmd'
+
+
+def first_word(words: Sequence[str]) -> str | None:
+    """The action word of git submodule or git bisect, after any leading options."""
+    return next((word for word in words if not word.startswith('-')), None)
+
+
+def difftool_runner(words: Sequence[str]) -> bool:
+    """-x in any short bundle, or --extcmd or a prefix of it, before --."""
+    for word in words:
+        if word == '--':
+            return False
+        name = word[2:].partition('=')[0]
+        if word.startswith('--') and name and EXTCMD.startswith(name):
+            return True
+        if not word.startswith('--') and word.startswith('-') and 'x' in word[1:]:
+            return True
+    return False
+
+
+def command_runner(invocation: Invocation) -> bool:
+    """git submodule foreach, git bisect run, filter-branch filters and difftool --extcmd run
+    a command the core cannot see, so they are opaque."""
+    if invocation.program != 'git' or invocation.layout.index is None:
+        return False
+    subcommand, words = invocation.subcommand, invocation.argv
+    if subcommand in ('submodule', 'bisect'):
+        return first_word(words) == ('foreach' if subcommand == 'submodule' else 'run')
+    if subcommand == 'filter-branch':
+        return any(word.partition('=')[0] in FILTER_BRANCH_RUNNERS for word in words)
+    return subcommand == 'difftool' and difftool_runner(words)
+
+
 def evaluate_invocation(invocation: Invocation, context: Context) -> Decision:
+    if command_runner(invocation):
+        return denial(UNSUPPORTED)
     if not needs_verification(invocation):
         return NOT_APPLICABLE
     finding = check_opaque_invocation(invocation)
