@@ -4661,6 +4661,142 @@ CLASSES = (*CLASSES, *ENTRYPOINT_TABLE_CLASSES, EntrypointFastPath, EntrypointPr
            EntrypointFailureModes, EntrypointLimits, EntrypointIndependence)
 
 
+# ── Hook entrypoint in a degraded environment ──────────────────────────
+
+import io  # noqa: E402 - the degraded-environment block needs these only
+from types import SimpleNamespace  # noqa: E402
+
+
+def link_kept(directory: Path, target: Path, keep: Callable[[str], bool]) -> None:
+    if not directory.is_dir():
+        return
+    for program in sorted(directory.iterdir()):
+        link = target / program.name
+        if not keep(program.name) or link.exists() or link.is_symlink():
+            continue
+        if program.is_file() and os.access(program, os.X_OK):
+            link.symlink_to(program)
+
+
+def filtered_path(excluded: frozenset[str], python: bool) -> str:
+    """One directory linking every program on the current PATH except the excluded names,
+    and except Python unless python is true."""
+    key = ' '.join(sorted(excluded)) + (' +python' if python else ' -python')
+    if key not in TOOLS:
+        root = Path(os.path.realpath(tempfile.mkdtemp(prefix='entry tools ')))
+        atexit.register(shutil.rmtree, root, True)
+
+        def keep(name: str) -> bool:
+            return name not in excluded and (python or not name.startswith('python'))
+
+        for directory in os.environ.get('PATH', '/usr/bin:/bin').split(os.pathsep):
+            link_kept(Path(directory), root, keep)
+        TOOLS[key] = str(root)
+    return TOOLS[key]
+
+
+class EntrypointDegradedEnvironment(EntrypointFixture):
+    """Missing shell tools, a registry behind an unsearchable directory and CDPATH never let
+    a relevant command through undecided."""
+
+    def tools_missing(self, *names: str, python: bool = True) -> dict[str, str]:
+        return {**self.environ, 'PATH': filtered_path(frozenset(names), python)}
+
+    def run_relative(self, payload: bytes, environ: Mapping[str, str]) -> HookRun:
+        """The entrypoint started by a relative path from the source checkout."""
+        started = time.monotonic()
+        result = subprocess.run([BASH, 'hooks/git-rails.sh'], input=payload, capture_output=True,
+                                env=dict(environ), cwd=SOURCE, timeout=HOOK_TIMEOUT)
+        return HookRun(result.returncode, result.stdout, result.stderr, time.monotonic() - started)
+
+    def test_missing_read_tools_leave_the_decision_to_the_core(self) -> None:
+        for missing in (('head',), ('tr',), ('head', 'tr')):
+            environ = self.tools_missing(*missing)
+            with self.subTest(missing=missing):
+                self.assert_protocol(self.hook_twice(self.payload('git add -A'), environ),
+                                     Expected('deny', 'blanket-staging', 'R01'), environ)
+                self.assert_protocol(self.hook_twice(self.payload('ls', self.location('clean')), environ),
+                                     Expected('not_applicable'), environ)
+                self.assert_protocol(self.hook_twice(self.padded('git add a.txt', STDIN_LIMIT + 1), environ),
+                                     Expected('deny', 'malformed-input'), environ)
+
+    def test_missing_read_tools_and_python_are_runtime_unavailable(self) -> None:
+        for missing in (('head',), ('tr',)):
+            environ = self.tools_missing(*missing, python=False)
+            with self.subTest(missing=missing):
+                self.assert_protocol(self.hook_twice(self.payload('git add -A'), environ),
+                                     Expected('deny', 'runtime-unavailable'), environ)
+
+    def test_registry_behind_an_unsearchable_directory_is_a_registry_error(self) -> None:
+        if os.geteuid() == 0:
+            self.skipTest('file permissions do not restrict the superuser')
+        for directory in (self.registry.parent, self.config):
+            with self.subTest(directory=directory.name):
+                directory.chmod(0o600)
+                try:
+                    run = self.hook_twice(self.payload('git status'))
+                finally:
+                    directory.chmod(0o755)
+                self.assert_protocol(run, Expected('deny', 'registry-error'))
+
+    def test_runtime_diagnostic_without_sed_keeps_four_lines(self) -> None:
+        environ = self.tools_missing('sed', python=False)
+        run = self.hook_twice(self.payload('git add -A'), environ)
+        self.assertEqual((run.status, run.stdout), (2, b''), run.stderr[-300:])
+        lines = self.diagnostic_text(run).split('\n')
+        self.assertEqual(len(lines), 4, lines)
+        self.assertEqual(lines[0], 'git-rails: deny runtime-unavailable (none)')
+        for index, prefix in ((1, 'rule'), (2, 'operation'), (3, 'next')):
+            self.assertRegex(lines[index], rf'^{prefix}: \S')
+
+    def test_relative_invocation_ignores_cdpath(self) -> None:
+        decoys = self.probe / 'cdpath'
+        (decoys / 'hooks').mkdir(parents=True)
+        environ = {**self.environ, 'CDPATH': str(decoys)}
+        self.assert_protocol(self.run_relative(self.payload('git add -A'), environ),
+                             Expected('deny', 'blanket-staging', 'R01'), environ)
+        no_python = {**self.without_python(), 'CDPATH': str(decoys)}
+        self.assert_protocol(self.run_relative(self.payload('git add -A'), no_python),
+                             Expected('deny', 'runtime-unavailable'), no_python)
+
+
+class CoreEntryPoint(RailsFixture):
+    """The core entry point denies even when its budget signal lands inside a failure handler."""
+
+    def patch(self, name: str, value: object) -> None:
+        self.addCleanup(setattr, CORE, name, getattr(CORE, name))
+        setattr(CORE, name, value)
+
+    def test_budget_signal_inside_the_failure_handler_still_denies(self) -> None:
+        main, budget, denial = self.api('main'), self.api('BudgetExceeded'), self.api('denial')
+
+        def failing_decide(event: object, environ: Mapping[str, str]) -> Any:
+            raise RuntimeError('fault inside the decision')
+
+        def late_denial(reason: str, rule: str | None = None) -> Any:
+            if reason == 'internal-error':
+                raise budget()  # the budget signal arriving while the failure is handled
+            return denial(reason, rule)
+
+        self.patch('decide', failing_decide)
+        self.patch('denial', late_denial)
+        self.addCleanup(signal.signal, signal.SIGALRM, signal.getsignal(signal.SIGALRM))
+        stdout, stderr = io.BytesIO(), io.BytesIO()
+        for name, stream in (('stdin', io.BytesIO(b'{}')), ('stdout', stdout), ('stderr', stderr)):
+            self.addCleanup(setattr, sys, name, getattr(sys, name))
+            setattr(sys, name, SimpleNamespace(buffer=stream))
+        try:
+            status = main()
+        except BaseException as error:  # noqa: B902 - the escape itself is the failure under test
+            self.fail(f'{type(error).__name__} escaped the core entry point')
+        headline = stderr.getvalue().decode('utf-8').split('\n')[0]
+        self.assertEqual((status, stdout.getvalue()), (2, b''))
+        self.assertIn(headline, ('git-rails: deny limit-exceeded (none)', 'git-rails: deny internal-error (none)'))
+
+
+CLASSES = (*CLASSES, EntrypointDegradedEnvironment, CoreEntryPoint)
+
+
 def selected_suite() -> unittest.TestSuite:
     suite = unittest.TestSuite()
     for case_class in CLASSES:
