@@ -2417,6 +2417,10 @@ def journal_record(document: object) -> Journal:
                    required_sha(target, 'sha'), publication, order, journal_branches(document, order))
 
 
+def reject_constant(name: str) -> object:
+    raise ValueError('not a JSON number: ' + name)
+
+
 def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     if len({key for key, _ in pairs}) != len(pairs):
         raise ValueError('duplicate key')
@@ -2444,7 +2448,7 @@ def load_journal(directory: str, name: str) -> Journal:
     if data is None:
         raise JournalError(JOURNAL_UNREADABLE)
     try:
-        document = json.loads(data.decode('utf-8'), object_pairs_hook=unique_object)
+        document = json.loads(data.decode('utf-8'), object_pairs_hook=unique_object, parse_constant=reject_constant)
     except (UnicodeDecodeError, ValueError, RecursionError):
         raise JournalError(INVALID_JSON) from None
     journal = journal_record(document)
@@ -2638,12 +2642,11 @@ def explicit_leases(values: Sequence[OptionValue]) -> tuple[tuple[str, str], ...
 
 
 def lease_for(destination: str, leases: Sequence[tuple[str, str]]) -> str | None:
-    """The expected value of the last lease whose ref names the destination."""
-    found: str | None = None
-    for ref, expected in leases:
-        if destination in (ref, 'refs/' + ref, TAG_PREFIX + ref, BRANCH_PREFIX + ref):
-            found = expected
-    return found
+    """The expected value of the one lease whose ref names the destination; None when no lease
+    or several do, because git applies the first and a later one must not hide it."""
+    found = [expected for ref, expected in leases
+             if destination in (ref, 'refs/' + ref, TAG_PREFIX + ref, BRANCH_PREFIX + ref)]
+    return found[0] if len(found) == 1 else None
 
 
 # ── Push rules ─────────────────────────────────────────────────────────
@@ -3009,6 +3012,22 @@ def updates_refs(invocation: Invocation, context: Context) -> bool:
     return result.returncode != 0 or result.stdout.strip() != 'false'
 
 
+def stored_update_refs(invocation: Invocation, context: Context) -> bool:
+    """Whether the stopped rebase recorded other branches to move (rebase-merge/update-refs is
+    not empty); an unreadable git dir or state file counts as recorded."""
+    result = read_git(['rev-parse', '--path-format=absolute', '--git-dir'], invocation.directory, context.environ)
+    git_dir = result.stdout.strip()
+    if result.returncode != 0 or not git_dir:
+        return True
+    try:
+        info = os.lstat(os.path.join(git_dir, 'rebase-merge', 'update-refs'))
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    return not stat.S_ISREG(info.st_mode) or info.st_size > 0
+
+
 def replay_checks(request: ReplayRequest, invocation: Invocation, context: Context) -> list[JournalCheck] | str:
     """The exact replay, or --continue/--skip while a rebase of a stack branch is in progress."""
     head = request.rebase_head or ''
@@ -3016,7 +3035,7 @@ def replay_checks(request: ReplayRequest, invocation: Invocation, context: Conte
         return 'replay-form'
     if request.replay is None and not (request.in_progress and head.startswith(BRANCH_PREFIX)):
         return 'rebase-head'
-    if updates_refs(invocation, context):
+    if updates_refs(invocation, context) or (request.replay is None and stored_update_refs(invocation, context)):
         return 'update-refs'
     patterns = local_protected_branches(invocation, context)
     if patterns is None:
