@@ -2098,6 +2098,52 @@ for push_case in (*PUSH_CASES, *PUSH_STATE_CHANGE_CASES):
     setattr(PushTable, 'test_' + push_case.name, decision_test(push_case))
 
 
+# git resolves a short ref name that starts with heads/ or tags/ through refs/<name>, so
+# such a source or destination is the branch or tag it names (git 2.53, local bare remote).
+PARTIAL_REF_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('partial_branch_destination_onto_main_needs_owner_approval', 'git push origin feat/x:heads/main',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('partial_branch_source_alone_for_main_needs_owner_approval', 'git push origin heads/main',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('partial_tag_source_alone_needs_owner_approval', 'git push origin tags/v1',
+                 'ask', BULK, 'R14', setup='push-feature'),
+    DecisionCase('partial_tag_destination_needs_owner_approval', 'git push origin feat/x:tags/v1',
+                 'ask', BULK, 'R14', setup='push-feature'),
+    DecisionCase('head_onto_partial_main_needs_owner_approval', 'git push origin HEAD:heads/main',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('upstream_source_onto_partial_main_needs_owner_approval', "git push origin '@{u}:heads/main'",
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('partial_source_onto_partial_main_needs_owner_approval', 'git push origin heads/feat/x:heads/main',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('full_source_onto_partial_release_needs_owner_approval',
+                 'git push origin refs/heads/feat/x:heads/release/1.2', 'ask', PROTECTED, 'R16', setup='push-feature'),
+    # Neighbours that name no protected branch and no tag, and forms already decided.
+    DecisionCase('partial_branch_destination_onto_a_feature_is_allowed', 'git push origin feat/x:heads/feat/y',
+                 'allow', setup='push-feature'),
+    DecisionCase('full_branch_destination_onto_a_feature_is_allowed', 'git push origin feat/x:refs/heads/feat/y',
+                 'allow', setup='push-feature'),
+    DecisionCase('partial_branch_source_alone_for_a_feature_is_allowed', 'git push origin heads/feat/x',
+                 'allow', setup='push-feature'),
+    DecisionCase('capitalised_heads_prefix_is_an_ordinary_branch_name', 'git push origin feat/x:Heads/main',
+                 'allow', setup='push-feature'),
+    DecisionCase('full_ref_outside_heads_and_tags_is_allowed', 'git push origin feat/x:refs/main',
+                 'allow', setup='push-feature'),
+    DecisionCase('remote_tracking_source_alone_is_allowed', 'git push origin remotes/origin/main',
+                 'allow', setup='push-feature'),
+    DecisionCase('remote_tracking_short_destination_is_allowed', 'git push origin feat/x:remotes/origin/main',
+                 'allow', setup='push-feature'),
+    DecisionCase('remote_tracking_source_onto_main_needs_owner_approval', 'git push origin remotes/origin/main:main',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('upstream_source_onto_main_needs_owner_approval', "git push origin '@{u}:main'",
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('partial_deletion_needs_owner_approval', 'git push origin :heads/feat/y',
+                 'ask', DELETE, 'R15', setup='push-feature'),
+)
+
+for partial_case in PARTIAL_REF_CASES:
+    setattr(PushTable, 'test_' + partial_case.name, decision_test(partial_case))
+
+
 class ProtectedRefs(PushFixture):
     """The protected branch set of a target remote and the local set shared with other rules."""
 
