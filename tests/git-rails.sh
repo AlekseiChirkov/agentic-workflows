@@ -1076,6 +1076,26 @@ class FailClosedTable(RailsFixture):
 for fail_closed_case in FAIL_CLOSED_CASES:
     setattr(FailClosedTable, 'test_' + fail_closed_case.name, decision_test(fail_closed_case))
 
+# HOME, XDG_CONFIG_HOME and PATH are always exported, so a bare assignment or an export
+# earlier in the same shell changes which git runs and which configuration it reads.
+ENVIRONMENT_STATEMENT_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('bare_path_assignment_before_governed_git_is_opaque_environment',
+                 'PATH=/tmp; git push', 'deny', 'opaque-environment', 'R31'),
+    DecisionCase('exported_path_before_governed_git_is_opaque_environment',
+                 'export PATH=/tmp; git push', 'deny', 'opaque-environment', 'R31'),
+    DecisionCase('exported_home_before_governed_git_is_opaque_environment',
+                 'export HOME=/x; git push -f', 'deny', 'opaque-environment', 'R31'),
+    DecisionCase('bare_config_home_assignment_before_governed_git_is_opaque_environment',
+                 'XDG_CONFIG_HOME=/x; git add a.txt', 'deny', 'opaque-environment', 'R31'),
+    DecisionCase('path_export_inside_subshell_does_not_reach_later_commands',
+                 '(export PATH=/tmp); git add a.txt', 'allow'),
+    DecisionCase('path_export_before_read_only_git_stays_not_applicable',
+                 'export PATH=/tmp; git status', 'not_applicable'),
+)
+
+for environment_case in ENVIRONMENT_STATEMENT_CASES:
+    setattr(FailClosedTable, 'test_' + environment_case.name, decision_test(environment_case))
+
 
 @dataclass(frozen=True)
 class DecidedCase:
