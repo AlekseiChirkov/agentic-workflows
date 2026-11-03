@@ -218,6 +218,10 @@ class RailsFixture(unittest.TestCase):
     def setup_alias(self) -> None:
         self.git(self.project, 'config', 'alias.p', 'status')
 
+    def setup_symlinks(self) -> None:
+        for name in ('lnk', 'lnk2'):
+            (self.project / name).symlink_to(self.outside, target_is_directory=True)
+
     def setup_registry_missing(self) -> None:
         self.registry.unlink()
 
@@ -990,8 +994,139 @@ class CoreSurface(RailsFixture):
         self.assertNotRegex(text, r'\bADR-\d{4}\b')
 
 
+# Commands that run git in a registered project in ways the first grammar missed. Each
+# is denied, or its invocation is decided instead of being dropped as not applicable.
+FAIL_CLOSED_CASES: tuple[DecisionCase, ...] = (
+    # A cd target that is not an accessible directory leaves the shell where it was.
+    DecisionCase('failed_cd_to_missing_directory_makes_governed_git_unsupported',
+                 'cd /nonexistent-rails-dir; git push -f', 'deny', 'unsupported-form'),
+    DecisionCase('failed_cd_alternative_makes_governed_git_unsupported',
+                 'cd /nonexistent-rails-dir || git push -f', 'deny', 'unsupported-form'),
+    DecisionCase('cd_to_regular_file_makes_governed_git_unsupported',
+                 'cd @outside@/a.txt; git push -f', 'deny', 'unsupported-form'),
+    DecisionCase('read_only_git_after_failed_cd_stays_not_applicable',
+                 'cd /nonexistent-rails-dir; git status', 'not_applicable'),
+    # Programs that run their arguments are opaque when a git or gh word is passed.
+    DecisionCase('ssh_agent_running_git_is_unsupported', 'ssh-agent git push -f', 'deny', 'unsupported-form'),
+    DecisionCase('direnv_exec_running_git_is_unsupported', 'direnv exec . git push -f',
+                 'deny', 'unsupported-form'),
+    DecisionCase('systemd_run_running_git_is_unsupported', 'systemd-run --user git push -f',
+                 'deny', 'unsupported-form'),
+    DecisionCase('setpriv_running_git_is_unsupported', 'setpriv git push -f', 'deny', 'unsupported-form'),
+    DecisionCase('fakeroot_running_git_is_unsupported', 'fakeroot git push -f', 'deny', 'unsupported-form'),
+    DecisionCase('unlisted_program_running_gh_is_unsupported', 'ssh-agent gh pr merge 1',
+                 'deny', 'unsupported-form'),
+    DecisionCase('echo_of_git_word_stays_not_applicable', 'echo git', 'not_applicable'),
+    DecisionCase('absolute_echo_of_git_word_stays_not_applicable', '/bin/echo git', 'not_applicable'),
+    DecisionCase('grep_for_git_word_stays_not_applicable', 'grep git a.txt', 'not_applicable'),
+    DecisionCase('manual_for_git_stays_not_applicable', 'man git', 'not_applicable'),
+    DecisionCase('which_git_stays_not_applicable', 'which git', 'not_applicable'),
+    DecisionCase('git_path_component_is_not_a_git_word', 'cat .git/config', 'not_applicable'),
+    DecisionCase('git_prefixed_file_name_is_not_a_git_word', 'ls git-rails.sh', 'not_applicable'),
+    # Shells that read the command from stdin.
+    DecisionCase('command_piped_into_bash_is_unsupported', "echo 'git push -f' | bash",
+                 'deny', 'unsupported-form'),
+    DecisionCase('here_string_into_bash_is_unsupported', 'bash <<< "git push -f"', 'deny', 'unsupported-form'),
+    DecisionCase('here_string_into_bash_stdin_mode_is_unsupported', 'bash -s <<< "git push -f"',
+                 'deny', 'unsupported-form'),
+    DecisionCase('command_piped_into_sh_is_unsupported', 'echo git push -f | sh', 'deny', 'unsupported-form'),
+    # Environment prefixes reach a shell string's commands.
+    DecisionCase('git_assignment_on_shell_string_is_opaque_environment', 'GIT_DIR=/x bash -c "git push -f"',
+                 'deny', 'opaque-environment', 'R31'),
+    DecisionCase('work_tree_assignment_on_sh_string_is_opaque_environment',
+                 'GIT_WORK_TREE=/x sh -c "git add -A"', 'deny', 'opaque-environment', 'R31'),
+    # Repository-redirecting options and variables pointing back into a registered project.
+    DecisionCase('git_dir_and_work_tree_into_project_from_outside_directory_are_unsupported',
+                 'git -C /tmp --git-dir=@project@/.git --work-tree=@project@ add -A',
+                 'deny', 'unsupported-form', 'R31'),
+    DecisionCase('git_dir_into_project_from_unregistered_repository_is_unsupported',
+                 'git -C @outside@ --git-dir=@project@/.git push -f', 'deny', 'unsupported-form', 'R31'),
+    DecisionCase('git_dir_assignment_into_project_from_unregistered_repository_is_opaque_environment',
+                 'GIT_DIR=@project@/.git git -C @outside@ push -f', 'deny', 'opaque-environment', 'R31'),
+    DecisionCase('git_dir_assignment_from_registered_non_work_tree_is_opaque_environment',
+                 'cd @plain@ && GIT_DIR=@project@/.git git push -f', 'deny', 'opaque-environment', 'R31'),
+    # Variables that decide which git runs and which configuration it reads.
+    DecisionCase('home_assignment_on_possible_alias_is_opaque_environment', 'HOME=/tmp/elsewhere git p',
+                 'deny', 'opaque-environment', 'R31'),
+    DecisionCase('config_home_assignment_on_governed_git_is_opaque_environment',
+                 'XDG_CONFIG_HOME=/tmp/elsewhere git push', 'deny', 'opaque-environment', 'R31'),
+    DecisionCase('path_assignment_on_governed_git_is_opaque_environment', 'PATH=/tmp git push',
+                 'deny', 'opaque-environment', 'R31'),
+    DecisionCase('home_assignment_on_read_only_git_stays_not_applicable', 'HOME=/tmp/elsewhere git status',
+                 'not_applicable'),
+    # Bash directory features that move the shell where the walk cannot follow.
+    DecisionCase('cdpath_makes_later_governed_git_unsupported', 'CDPATH=@project@; cd sub && git push -f',
+                 'deny', 'unsupported-form', cwd='outside'),
+    DecisionCase('directory_stack_rotation_makes_later_governed_git_unsupported',
+                 'pushd @project@; pushd @outside@; pushd +1; git push -f', 'deny', 'unsupported-form',
+                 cwd='outside'),
+    DecisionCase('cdable_variables_make_later_governed_git_unsupported',
+                 'shopt -s cdable_vars; RR=@project@; cd RR && git push -f', 'deny', 'unsupported-form',
+                 cwd='outside'),
+    DecisionCase('last_pipe_makes_later_governed_git_unsupported',
+                 'shopt -s lastpipe; echo | cd @project@; git push -f', 'deny', 'unsupported-form',
+                 cwd='outside'),
+)
+
+
+class FailClosedTable(RailsFixture):
+    """Table-driven decisions for forms that must not be dropped as not applicable."""
+
+
+for fail_closed_case in FAIL_CLOSED_CASES:
+    setattr(FailClosedTable, 'test_' + fail_closed_case.name, decision_test(fail_closed_case))
+
+
+@dataclass(frozen=True)
+class DecidedCase:
+    """A command whose invocation must be decided, like its reference command when given."""
+    name: str
+    command: str
+    reference: str | None
+    setup: str = 'standard'
+
+
+DECIDED_CASES: tuple[DecidedCase, ...] = (
+    DecidedCase('logical_parent_of_symlink_stays_in_project', 'cd lnk/.. && git push -f', 'git push -f',
+                setup='symlinks'),
+    DecidedCase('logical_cd_back_from_symlink_returns_to_project', 'cd lnk2 && cd .. && git push -f',
+                'git push -f', setup='symlinks'),
+    DecidedCase('absolute_env_wrapper', '/usr/bin/env git push -f', 'git push -f'),
+    DecidedCase('absolute_timeout_wrapper', '/usr/bin/timeout 5 git push -f', 'git push -f'),
+    DecidedCase('absolute_nohup_wrapper', '/usr/bin/nohup git push -f', 'git push -f'),
+    DecidedCase('absolute_time_wrapper', '/usr/bin/time git push -f', 'git push -f'),
+    DecidedCase('absolute_env_wrapper_around_shell_string', '/usr/bin/env bash -c "git push -f"',
+                'git push -f'),
+    DecidedCase('quoted_brace_inside_parameter_expansion', "echo ${x:-'}'} ; git push -f ; echo \\'", None),
+    DecidedCase('gh_short_repository_flag_before_command', 'gh -R o/r pr merge 5', 'gh pr merge 5'),
+    DecidedCase('gh_long_repository_flag_before_command', 'gh --repo o/r pr merge 5', 'gh pr merge 5'),
+    DecidedCase('gh_attached_repository_flag_before_command', 'gh --repo=o/r pr merge 5', 'gh pr merge 5'),
+    DecidedCase('gh_repository_flag_inside_command', 'gh pr --repo o/r merge 5', 'gh pr merge 5'),
+)
+
+
+def decided_test(case: DecidedCase) -> Callable[[RailsFixture], None]:
+    def test(self: RailsFixture) -> None:
+        self.apply_setup(case.setup)
+        decision = self.decide(self.event(self.render(case.command), self.location('project')))
+        self.assertNotEqual(decision[0], 'not_applicable', case.command)
+        if case.reference is not None:
+            reference = self.decide(self.event(case.reference, self.location('project')))
+            self.assertEqual(decision, reference, case.command)
+    return test
+
+
+class DecidedTable(RailsFixture):
+    """Invocations that must reach rule evaluation exactly like their plain spelling."""
+
+
+for decided_case in DECIDED_CASES:
+    setattr(DecidedTable, 'test_decides_' + decided_case.name, decided_test(decided_case))
+
+
 CLASSES = (CoreSurface, DecisionCombination, OptionParsing, EventValidation, DecisionTable,
-           ResolutionTable, InvocationDetails, GitReadIsolation, SlowGitRead)
+           ResolutionTable, InvocationDetails, GitReadIsolation, SlowGitRead, FailClosedTable,
+           DecidedTable)
 
 
 def selected_suite() -> unittest.TestSuite:
