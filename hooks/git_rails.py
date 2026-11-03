@@ -101,6 +101,20 @@ DATA_PROGRAMS = frozenset({'echo', 'printf', 'grep', 'egrep', 'fgrep', 'rg', 'ca
 
 SEVERITY = {'not_applicable': 0, 'allow': 1, 'ask': 2, 'deny': 3}
 
+# Redirections that write a file, and the devices whose writes no later read can observe.
+WRITE_OPERATORS = frozenset({'>', '>>', '>|', '<>', '&>', '&>>'})
+DESCRIPTOR_TARGET = re.compile(r'\d+-?|-')
+UNOBSERVABLE_TARGETS = frozenset({'/dev/null', '/dev/stdout', '/dev/stderr'})
+# Git subcommands that only read; with no write redirection they leave state unchanged.
+READ_ONLY_GIT_SUBCOMMANDS = frozenset({
+    'status', 'diff', 'show', 'log', 'ls-files', 'ls-tree', 'rev-parse', 'rev-list', 'cat-file',
+    'show-ref', 'for-each-ref', 'describe', 'blame', 'annotate', 'grep', 'merge-base', 'shortlog',
+    'check-ignore', 'check-attr', 'check-mailmap', 'name-rev', 'var', 'version', 'help', 'whatchanged',
+    'diff-files', 'diff-index', 'diff-tree', 'count-objects', 'show-branch', 'cherry', 'range-diff',
+    'verify-commit', 'verify-tag'})
+# Read-only subcommand options that write a file or run another program.
+WRITING_GIT_OPTIONS = ('--output', '--open-files-in-pager', '-O')
+
 BLANKET_STAGING = 'blanket-staging'
 STAGING_NOT_FILE = 'staging-not-file'
 UNVERIFIABLE_MESSAGE = 'commit-message-unverifiable'
@@ -177,6 +191,7 @@ class Invocation:
     inherited: tuple[str, ...] = ()
     stdin: Word | None = None
     alias: bool = False
+    state_changed: bool = False
 
     @property
     def layout(self: Invocation) -> GitLayout:
@@ -487,6 +502,7 @@ class Simple:
     stdin_kind: str | None = None
     redirects: int = 0
     inputs: int = 0
+    writes: bool = False
     nested: list[Script] = field(default_factory=list)
     opaque: bool = False
 
@@ -708,6 +724,7 @@ class Parser:
             raise ParseError('missing redirection target')
         word, raw = self.read_word(node)
         node.redirects += 1
+        node.writes |= writes_file(operator, word)
         standard = operator.startswith('<') and match.group(1) in ('', '0')
         if standard:
             node.inputs += 1
@@ -979,6 +996,15 @@ class QuotedState:
         self.others += 1
 
 
+def writes_file(operator: str, target: Word) -> bool:
+    """Whether a redirection can change a file that a later read observes."""
+    if operator == '>&':
+        return target.dynamic or not DESCRIPTOR_TARGET.fullmatch(target.text)
+    if operator not in WRITE_OPERATORS:
+        return False
+    return target.dynamic or target.text not in UNOBSERVABLE_TARGETS
+
+
 def commit_message(script: Script) -> tuple[str | None, str | None]:
     """Recognise "$(cat <<D … D)": the form, and its message when the body is literal."""
     if len(script.pipelines) != 1 or script.pipelines[0].background:
@@ -1039,6 +1065,7 @@ class Found:
     stdin: Word | None
     anchors: tuple[str, ...] = ()
     uncertain: bool = False
+    changed: bool = False
 
 
 @dataclass(frozen=True)
@@ -1066,12 +1093,15 @@ class Walker:
     ``anchors`` lists every directory the command has named so far, in any scope: the
     event directory, cd/pushd targets, CDPATH entries and absolute assignment values.
     An unverifiable construct matters when any anchor recorded before it is registered.
+    ``changed`` is the state-may-change mark: once any command that may write has been
+    walked, in any scope, later invocations cannot trust repository or file reads.
     """
 
     def __init__(self: Walker, budget: Budget, cwd: str) -> None:
         self.budget = budget
         self.items: list[Found | Opaque] = []
         self.anchors: list[str] = [cwd]
+        self.changed = False
 
     def walk_script(self: Walker, script: Script, scope: Scope) -> None:
         for pipeline in script.pipelines:
@@ -1083,6 +1113,7 @@ class Walker:
         if isinstance(node, Group):
             self.walk_nested(node.redirections, scope)
             self.walk_script(node.body, scope.copy() if node.subshell else scope)
+            self.changed |= node.redirections.writes
             return
         self.walk_nested(node, scope)
         if node.opaque:
@@ -1091,6 +1122,7 @@ class Walker:
             self.walk_command(node, scope)
         else:
             self.assign(node.assignments, scope)
+        self.changed |= may_write(node)
 
     def walk_nested(self: Walker, node: Simple, scope: Scope) -> None:
         for script in node.nested:
@@ -1151,7 +1183,7 @@ class Walker:
             return
         self.items.append(Found(command.base, tuple(command.words[1:]), tuple(command.environment),
                                 scope.directory, scope.names, command.node.stdin,
-                                tuple(self.anchors), scope.unsure))
+                                tuple(self.anchors), scope.unsure, self.changed))
 
     def shell(self: Walker, command: Command, scope: Scope) -> None:
         """Parse `bash -c '<literal>'` recursively; other ways of feeding a shell are opaque."""
@@ -1210,6 +1242,47 @@ class Walker:
             return
         scope.directory, scope.logical, scope.last_known = canonical, logical, canonical
         scope.uncertain = False
+
+
+def may_write(node: Simple) -> bool:
+    """Whether a simple command may change files, the index, refs or configuration.
+
+    Directory changes, assignments and exports, data programs and read-only git only
+    write through a write redirection; a literal shell string is judged by its contents.
+    """
+    if node.writes:
+        return True
+    stripped = strip_wrappers(list(node.words), list(node.assignments))
+    if stripped is None:
+        return True
+    words = stripped[0]
+    if not words:
+        return False
+    if words[0].dynamic:
+        return True
+    name, arguments = words[0].text, words[1:]
+    base = name.rsplit('/', 1)[-1]
+    if name in ('cd', 'pushd', 'popd') or name in EXPORTING_BUILTINS or base in DATA_PROGRAMS:
+        return False
+    if base == 'git':
+        return not read_only_git(arguments)
+    if base in COMMAND_SHELLS:
+        return not (len(arguments) > 1 and arguments[0].text == '-c' and not arguments[0].dynamic)
+    return True
+
+
+def read_only_git(arguments: Sequence[Word]) -> bool:
+    """A git command that only reads: a listed subcommand without a file-writing option."""
+    layout = git_layout(arguments)
+    if layout.unknown:
+        return False
+    if layout.index is None:
+        return True
+    subcommand = arguments[layout.index]
+    if subcommand.dynamic or subcommand.text not in READ_ONLY_GIT_SUBCOMMANDS:
+        return False
+    return not any(word.dynamic or word.text.startswith(WRITING_GIT_OPTIONS)
+                   for word in arguments[layout.index + 1:])
 
 
 def pop_directory(arguments: Sequence[Word], scope: Scope) -> None:
@@ -1561,11 +1634,14 @@ def resolve_found(found: Found, context: Context) -> Invocation | Decision | Non
         return denial('unsupported-form') if needs_verification(draft) else None
     location = read_repository(directory, context.environ)
     if location is None:
+        if found.changed and needs_verification(draft):
+            return denial('unsupported-form')
         return redirected(draft, found, context)
     subcommand = draft.subcommand if found.program == 'git' else None
     alias = (subcommand is not None and not draft.words[draft.layout.index or 0].dynamic
              and subcommand not in GIT_BUILTINS and is_alias(subcommand, directory, context.environ))
-    return replace(draft, repository=location[0], common_dir=location[1], alias=alias)
+    return replace(draft, repository=location[0], common_dir=location[1], alias=alias,
+                   state_changed=found.changed)
 
 
 # ── Rules ──────────────────────────────────────────────────────────────
@@ -1638,6 +1714,12 @@ def spelled_out(words: Sequence[str], index: int, name: str) -> list[str]:
     return [*words[:index], '--' + option + equals + value, *words[index + 1:]]
 
 
+def state_changed(invocation: Invocation) -> bool:
+    """Call before reading repository or file state: an earlier part of the same command
+    may have written, so the read would describe state the invocation will not see."""
+    return invocation.state_changed
+
+
 def usable(variants: list[ParsedOptions] | None) -> list[ParsedOptions]:
     return [parsed for parsed in variants or [] if parsed.error is None]
 
@@ -1654,6 +1736,8 @@ def operand_reason(parsed: ParsedOptions, invocation: Invocation, context: Conte
         return BLANKET_STAGING
     if parsed.last('pathspec-from-file') not in (None, False):
         return STAGING_NOT_FILE
+    if parsed.operands and state_changed(invocation):
+        return 'unsupported-form'
     return None if literal_files(parsed.operands, invocation, context) else STAGING_NOT_FILE
 
 
@@ -1729,8 +1813,9 @@ def check_blanket_staging(invocation: Invocation, context: Context) -> Decision 
 def check_staging_not_file(invocation: Invocation, context: Context) -> Decision | None:
     """R02: directories, patterns, pathspec magic, unknown paths or a pathspec file."""
     for parsed in usable(staging_options(invocation)):
-        if operand_reason(parsed, invocation, context) == STAGING_NOT_FILE:
-            return denial(STAGING_NOT_FILE, 'R02')
+        reason = operand_reason(parsed, invocation, context)
+        if reason in (STAGING_NOT_FILE, 'unsupported-form'):
+            return denial(reason, 'R02')
     return None
 
 
@@ -1747,6 +1832,8 @@ def check_ignored_path(invocation: Invocation, context: Context) -> Decision | N
     for parsed in usable(staging_options(invocation)):
         if parsed.last('force') is not True or not parsed.operands:
             continue
+        if state_changed(invocation):
+            return denial('unsupported-form', 'R04')
         result = read_git(['check-ignore', '--', *parsed.operands], invocation.directory, context.environ)
         if result.returncode == 0:
             return asking('staging-ignored-path', 'R04')
@@ -1816,6 +1903,8 @@ def check_rewrite_published(invocation: Invocation, context: Context) -> Decisio
     """R10: amending a commit that any remote-tracking ref already contains."""
     if not any(parsed.last('amend') is True for parsed in usable(commit_options(invocation))):
         return None
+    if state_changed(invocation):
+        return denial('unsupported-form', 'R10')
     result = read_git(['for-each-ref', '--contains', 'HEAD', '--format=%(refname)', 'refs/remotes/'],
                       invocation.directory, context.environ)
     if result.returncode != 0:
@@ -1861,6 +1950,8 @@ def message_file(value: str, invocation: Invocation) -> str | None:
     if value == '-':
         stdin = invocation.stdin
         return None if stdin is None or stdin.dynamic else stdin.text
+    if state_changed(invocation):
+        return None
     return read_message_file(os.path.join(invocation.directory, value))
 
 
@@ -1881,12 +1972,16 @@ def read_message_file(path: str) -> str | None:
 
 
 def head_message(invocation: Invocation, context: Context) -> str | None:
+    if state_changed(invocation):
+        return None
     result = read_git(['log', '-1', '--format=%B', 'HEAD'], invocation.directory, context.environ)
     return result.stdout if result.returncode == 0 else None
 
 
 def trailers_configured(invocation: Invocation, context: Context) -> bool:
     """Trailer configuration can rename or generate trailers, so any of it is unverifiable."""
+    if state_changed(invocation):
+        return True
     result = read_git(['config', '--get-regexp', r'^trailer\.'], invocation.directory, context.environ)
     return result.returncode != 1
 
@@ -1944,7 +2039,8 @@ def check_opaque_invocation(invocation: Invocation) -> Decision | None:
     if invocation.program == 'git' and (layout.unknown or
                                         unsupported_global_options(invocation.words[:layout.globals_end])):
         return unsupported
-    if invocation.alias:
+    if invocation.alias or (invocation.program == 'git' and not invocation.governed
+                            and needs_verification(invocation) and state_changed(invocation)):
         return unsupported
     if layout.index is not None and invocation.words[layout.index].dynamic:
         return unsupported
