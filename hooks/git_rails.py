@@ -16,6 +16,7 @@ from dataclasses import dataclass, field, replace
 import os
 import re
 import signal
+import stat
 import subprocess
 from typing import Callable, Iterable, Mapping, Sequence
 
@@ -99,6 +100,25 @@ DATA_PROGRAMS = frozenset({'echo', 'printf', 'grep', 'egrep', 'fgrep', 'rg', 'ca
                            'less', 'more', 'man', 'which', 'type', 'wc', 'file', 'ls', 'test', '['})
 
 SEVERITY = {'not_applicable': 0, 'allow': 1, 'ask': 2, 'deny': 3}
+
+BLANKET_STAGING = 'blanket-staging'
+STAGING_NOT_FILE = 'staging-not-file'
+UNVERIFIABLE_MESSAGE = 'commit-message-unverifiable'
+MAX_MESSAGE_FILE_BYTES = 1024 * 1024
+MAX_OPTION_VARIANTS = 64
+GLOB_CHARACTERS = frozenset('*?[')
+INTERACTIVE_OPTIONS = ('interactive', 'patch', 'edit')
+REUSED_MESSAGE_OPTIONS = ('reedit-message', 'reuse-message', 'fixup', 'squash', 'template')
+# Shell words cannot contain NUL, so a NUL-led placeholder never equals a literal argument.
+MESSAGE_PLACEHOLDER = '\x00'
+
+# Forbidden commit-message patterns, applied to the full checked text: a co-author trailer
+# line, a task identifier and a decision-record identifier.
+FORBIDDEN_PATTERNS = (
+    re.compile(r'(?im)^[ \t]*co-authored-by[ \t]*:'),
+    re.compile(r'(?<![A-Za-z0-9_-])T-[0-9]+[A-Za-z]*(?![A-Za-z0-9_])'),
+    re.compile(r'(?<![A-Za-z0-9_-])ADR-[0-9]+'),
+)
 
 
 # ── Decisions and records ──────────────────────────────────────────────
@@ -466,6 +486,7 @@ class Simple:
     stdin: Word | None = None
     stdin_kind: str | None = None
     redirects: int = 0
+    inputs: int = 0
     nested: list[Script] = field(default_factory=list)
     opaque: bool = False
 
@@ -495,6 +516,7 @@ class PendingHeredoc:
     strip_tabs: bool
     quoted: bool
     owner: Simple
+    position: int | None = None
 
 
 @dataclass
@@ -686,14 +708,18 @@ class Parser:
             raise ParseError('missing redirection target')
         word, raw = self.read_word(node)
         node.redirects += 1
+        standard = operator.startswith('<') and match.group(1) in ('', '0')
+        if standard:
+            node.inputs += 1
         if operator in ('<<', '<<-'):
             if word.dynamic:
                 raise ParseError('dynamic heredoc delimiter')
             quoted = any(char in raw for char in '\'"\\')
-            self.src.pending.append(PendingHeredoc(word.text, operator == '<<-', quoted, node))
-        elif operator == '<<<':
+            position = node.inputs if standard else None
+            self.src.pending.append(PendingHeredoc(word.text, operator == '<<-', quoted, node, position))
+        elif standard and operator == '<<<':
             node.stdin, node.stdin_kind = Word(word.text + '\n', word.dynamic), 'herestring'
-        elif operator == '<':
+        elif standard:
             node.stdin, node.stdin_kind = None, 'file'
         return True
 
@@ -703,7 +729,8 @@ class Parser:
         for document in pending:
             body = self.read_heredoc_body(document)
             dynamic = not document.quoted and any(char in body for char in '$`\\')
-            document.owner.stdin, document.owner.stdin_kind = Word(body, dynamic), 'heredoc'
+            if document.position is not None and document.position == document.owner.inputs:
+                document.owner.stdin, document.owner.stdin_kind = Word(body, dynamic), 'heredoc'
             if not document.quoted:
                 self.scan_expansions(document.owner, body)
 
@@ -1545,10 +1572,359 @@ def resolve_found(found: Found, context: Context) -> Invocation | Decision | Non
 
 Rule = Callable[[Invocation, Context], Decision | None]
 
+# Options of the governed subcommands, as git's parse-options declares them.
+ADD_OPTIONS = (
+    OptionSpec('dry-run', 'n'), OptionSpec('verbose', 'v'), OptionSpec('interactive', 'i'),
+    OptionSpec('patch', 'p'), OptionSpec('unified', 'U', 'required', negatable=False),
+    OptionSpec('inter-hunk-context', None, 'required', negatable=False), OptionSpec('edit', 'e'),
+    OptionSpec('force', 'f'), OptionSpec('update', 'u'), OptionSpec('renormalize'),
+    OptionSpec('intent-to-add', 'N'), OptionSpec('all', 'A'), OptionSpec('ignore-removal'),
+    OptionSpec('refresh'), OptionSpec('ignore-errors'), OptionSpec('ignore-missing'), OptionSpec('sparse'),
+    OptionSpec('chmod', None, 'required'), OptionSpec('pathspec-from-file', None, 'required'),
+    OptionSpec('pathspec-file-nul'))
+COMMIT_OPTIONS = (
+    OptionSpec('quiet', 'q'), OptionSpec('verbose', 'v'), OptionSpec('file', 'F', 'required'),
+    OptionSpec('author', None, 'required'), OptionSpec('date', None, 'required'),
+    OptionSpec('message', 'm', 'required', repeatable=True), OptionSpec('reedit-message', 'c', 'required'),
+    OptionSpec('reuse-message', 'C', 'required'), OptionSpec('fixup', None, 'required'),
+    OptionSpec('squash', None, 'required'), OptionSpec('reset-author'),
+    OptionSpec('trailer', None, 'required', repeatable=True, negatable=False), OptionSpec('signoff', 's'),
+    OptionSpec('template', 't', 'required'), OptionSpec('edit', 'e'), OptionSpec('cleanup', None, 'required'),
+    OptionSpec('status'), OptionSpec('gpg-sign', 'S', 'optional'), OptionSpec('all', 'a'),
+    OptionSpec('include', 'i'), OptionSpec('interactive'), OptionSpec('patch', 'p'),
+    OptionSpec('unified', 'U', 'required', negatable=False),
+    OptionSpec('inter-hunk-context', None, 'required', negatable=False), OptionSpec('only', 'o'),
+    OptionSpec('no-verify', 'n', negatable=False), OptionSpec('verify'), OptionSpec('dry-run'),
+    OptionSpec('short'), OptionSpec('branch'), OptionSpec('ahead-behind'), OptionSpec('porcelain'),
+    OptionSpec('long'), OptionSpec('null', 'z'), OptionSpec('amend'),
+    OptionSpec('no-post-rewrite', negatable=False), OptionSpec('post-rewrite'),
+    OptionSpec('untracked-files', 'u', 'optional'), OptionSpec('pathspec-from-file', None, 'required'),
+    OptionSpec('pathspec-file-nul'), OptionSpec('allow-empty'), OptionSpec('allow-empty-message'))
+
+
+# ── Option variants ────────────────────────────────────────────────────
+
+def option_variants(words: Sequence[str], specs: Sequence[OptionSpec]) -> list[ParsedOptions] | None:
+    """Every reading of the words: an ambiguous long prefix stands for each candidate.
+
+    None means the readings exceed MAX_OPTION_VARIANTS and cannot all be checked.
+    """
+    pending, done = [list(words)], []
+    while pending:
+        current = pending.pop(0)
+        parsed = parse_options(current, specs)
+        if parsed.error != 'ambiguous-option':
+            done.append(parsed)
+            continue
+        index = ambiguous_index(current, specs)
+        pending.extend(spelled_out(current, index, name) for name in parsed.candidates)
+        if len(pending) + len(done) > MAX_OPTION_VARIANTS:
+            return None
+    return done
+
+
+def ambiguous_index(words: Sequence[str], specs: Sequence[OptionSpec]) -> int:
+    """The index of the first word that parse-options reports as ambiguous."""
+    for end in range(1, len(words) + 1):
+        if parse_options(words[:end], specs).error == 'ambiguous-option':
+            return end - 1
+    return len(words) - 1
+
+
+def spelled_out(words: Sequence[str], index: int, name: str) -> list[str]:
+    """The words with the ambiguous prefix replaced by one full candidate name."""
+    prefix, equals, value = words[index][2:].partition('=')
+    option = name if name.startswith(prefix) else 'no-' + name
+    return [*words[:index], '--' + option + equals + value, *words[index + 1:]]
+
+
+def usable(variants: list[ParsedOptions] | None) -> list[ParsedOptions]:
+    return [parsed for parsed in variants or [] if parsed.error is None]
+
+
+def asking(reason: str, rule: str) -> Decision:
+    return Decision('ask', reason, rule)
+
+
+# ── Path operands ──────────────────────────────────────────────────────
+
+def operand_reason(parsed: ParsedOptions, invocation: Invocation, context: Context) -> str | None:
+    """The staging reason an operand list fails with, or None when every operand is a file."""
+    if '.' in parsed.operands:
+        return BLANKET_STAGING
+    if parsed.last('pathspec-from-file') not in (None, False):
+        return STAGING_NOT_FILE
+    return None if literal_files(parsed.operands, invocation, context) else STAGING_NOT_FILE
+
+
+def path_kind(operand: str, directory: str) -> str:
+    """'file' (including any symlink), 'missing', or 'other' for directories and patterns."""
+    if not operand or operand.startswith(':') or '\x00' in operand:
+        return 'other'
+    if any(char in GLOB_CHARACTERS for char in operand):
+        return 'other'
+    path = os.path.join(directory, operand)
+    if os.path.islink(path):
+        return 'file'
+    if os.path.isdir(path):
+        return 'other'
+    return 'file' if os.path.lexists(path) else 'missing'
+
+
+def literal_files(operands: Sequence[str], invocation: Invocation, context: Context) -> bool:
+    """Every operand exists as a file or symlink, or is a tracked path deleted from the work tree."""
+    missing: list[str] = []
+    for operand in operands:
+        kind = path_kind(operand, invocation.directory)
+        if kind == 'other':
+            return False
+        if kind == 'missing':
+            missing.append(operand)
+    return not missing or tracked_paths(missing, invocation, context)
+
+
+def tracked_paths(paths: Sequence[str], invocation: Invocation, context: Context) -> bool:
+    result = read_git(['--literal-pathspecs', 'ls-files', '-z', '--', *paths], invocation.directory,
+                      context.environ)
+    if result.returncode != 0:
+        return False
+    directory = invocation.directory
+    listed = {os.path.normpath(os.path.join(directory, entry)) for entry in result.stdout.split('\x00') if entry}
+    return all(os.path.normpath(os.path.join(directory, path)) in listed for path in paths)
+
+
+# ── Staging rules ──────────────────────────────────────────────────────
+
+def staging_options(invocation: Invocation) -> list[ParsedOptions] | None:
+    return option_variants(invocation.argv, ADD_OPTIONS)
+
+
+def adds_everything(parsed: ParsedOptions) -> bool:
+    """--all and --ignore-removal share one setting in git; the last of them decides."""
+    removal: OptionValue | None = None
+    for name, value in parsed.options:
+        if name == 'all':
+            removal = value
+        elif name == 'ignore-removal':
+            removal = not value
+    return removal is True or parsed.last('update') is True or parsed.last('renormalize') is True
+
+
+def check_staging_options(invocation: Invocation, context: Context) -> Decision | None:
+    """Options git would reject, or more readings than can be checked, cannot be verified."""
+    variants = staging_options(invocation)
+    if variants is None or any(parsed.error for parsed in variants):
+        return denial('unsupported-form')
+    return None
+
+
+def check_blanket_staging(invocation: Invocation, context: Context) -> Decision | None:
+    """R01: update-all flags or the current directory as an operand."""
+    for parsed in usable(staging_options(invocation)):
+        if adds_everything(parsed) or '.' in parsed.operands:
+            return denial(BLANKET_STAGING, 'R01')
+    return None
+
+
+def check_staging_not_file(invocation: Invocation, context: Context) -> Decision | None:
+    """R02: directories, patterns, pathspec magic, unknown paths or a pathspec file."""
+    for parsed in usable(staging_options(invocation)):
+        if operand_reason(parsed, invocation, context) == STAGING_NOT_FILE:
+            return denial(STAGING_NOT_FILE, 'R02')
+    return None
+
+
+def check_interactive_staging(invocation: Invocation, context: Context) -> Decision | None:
+    """R03: interactive forms choose content that cannot be checked in advance."""
+    for parsed in usable(staging_options(invocation)):
+        if any(parsed.last(key) is True for key in INTERACTIVE_OPTIONS):
+            return denial('unsupported-form', 'R03')
+    return None
+
+
+def check_ignored_path(invocation: Invocation, context: Context) -> Decision | None:
+    """R04: forcing a path the repository's own ignore rules exclude needs the owner."""
+    for parsed in usable(staging_options(invocation)):
+        if parsed.last('force') is not True or not parsed.operands:
+            continue
+        result = read_git(['check-ignore', '--', *parsed.operands], invocation.directory, context.environ)
+        if result.returncode == 0:
+            return asking('staging-ignored-path', 'R04')
+        if result.returncode != 1:
+            return denial('unsupported-form', 'R04')
+    return None
+
+
+# ── Commit rules ───────────────────────────────────────────────────────
+
+def option_words(invocation: Invocation) -> list[str]:
+    """Argument texts; the commit-message heredoc word becomes a NUL-led placeholder."""
+    return [MESSAGE_PLACEHOLDER + str(index) if word.form == 'commit-message' else word.text
+            for index, word in enumerate(invocation.arguments)]
+
+
+def placeholder_messages(invocation: Invocation) -> dict[str, str | None]:
+    return {MESSAGE_PLACEHOLDER + str(index): word.message
+            for index, word in enumerate(invocation.arguments) if word.form == 'commit-message'}
+
+
+def commit_options(invocation: Invocation) -> list[ParsedOptions] | None:
+    return option_variants(option_words(invocation), COMMIT_OPTIONS)
+
+
+def check_commit_options(invocation: Invocation, context: Context) -> Decision | None:
+    """Rejected options, too many readings, or a message heredoc used as anything but -m."""
+    variants = commit_options(invocation)
+    if variants is None or any(parsed.error for parsed in variants):
+        return denial('unsupported-form')
+    placeholders = set(placeholder_messages(invocation))
+    for parsed in variants:
+        if placeholders - set(parsed.every('message')):
+            return denial('unsupported-form', 'R31')
+    return None
+
+
+def check_commit_all(invocation: Invocation, context: Context) -> Decision | None:
+    """R06: -a and --all, alone or bundled."""
+    if any(parsed.last('all') is True for parsed in usable(commit_options(invocation))):
+        return denial('commit-all', 'R06')
+    return None
+
+
+def check_commit_paths(invocation: Invocation, context: Context) -> Decision | None:
+    """R07: commit path operands, with or without -i/-o, are checked like staging operands."""
+    for parsed in usable(commit_options(invocation)):
+        reason = operand_reason(parsed, invocation, context)
+        if reason is not None:
+            return denial(reason, 'R07')
+    return None
+
+
+def check_commit_message(invocation: Invocation, context: Context) -> Decision | None:
+    """R08 and R09: the message must be readable statically and free of forbidden patterns."""
+    results: list[Decision] = []
+    for parsed in usable(commit_options(invocation)):
+        text = commit_text(parsed, invocation, context)
+        if text is None:
+            results.append(denial(UNVERIFIABLE_MESSAGE, 'R08'))
+        elif forbidden_message(text):
+            results.append(denial('commit-message-forbidden', 'R09'))
+    return combine(results) if results else None
+
+
+def check_rewrite_published(invocation: Invocation, context: Context) -> Decision | None:
+    """R10: amending a commit that any remote-tracking ref already contains."""
+    if not any(parsed.last('amend') is True for parsed in usable(commit_options(invocation))):
+        return None
+    result = read_git(['for-each-ref', '--contains', 'HEAD', '--format=%(refname)', 'refs/remotes/'],
+                      invocation.directory, context.environ)
+    if result.returncode != 0:
+        return denial('unsupported-form', 'R10')
+    return asking('rewrite-published', 'R10') if result.stdout.strip() else None
+
+
+# ── Commit messages ────────────────────────────────────────────────────
+
+def commit_text(parsed: ParsedOptions, invocation: Invocation, context: Context) -> str | None:
+    """The full text git would record, or None when it cannot be read statically."""
+    if any(parsed.last(key) not in (None, False) for key in REUSED_MESSAGE_OPTIONS):
+        return None
+    if parsed.last('edit') is True:
+        return None
+    body = message_body(parsed, invocation, context)
+    trailers = [str(value) for value in parsed.every('trailer')]
+    if body is None or (trailers and trailers_configured(invocation, context)):
+        return None
+    return join_message([body], trailers)
+
+
+def message_body(parsed: ParsedOptions, invocation: Invocation, context: Context) -> str | None:
+    """-F text, then every -m value; --amend --no-edit alone keeps the HEAD message."""
+    parts: list[str | None] = []
+    source = parsed.last('file')
+    if isinstance(source, str):
+        parts.append(message_file(source, invocation))
+    known = placeholder_messages(invocation)
+    parts.extend(known.get(value, value) if isinstance(value, str) else None
+                 for value in parsed.every('message'))
+    if not parts and parsed.last('amend') is True and parsed.last('edit') is False:
+        parts.append(head_message(invocation, context))
+    if not parts or any(part is None for part in parts):
+        return None
+    return '\n\n'.join(part for part in parts if part is not None)
+
+
+def message_file(value: str, invocation: Invocation) -> str | None:
+    """-F text: the literal heredoc or here-string for '-', else the file's bytes."""
+    if MESSAGE_PLACEHOLDER in value:
+        return None
+    if value == '-':
+        stdin = invocation.stdin
+        return None if stdin is None or stdin.dynamic else stdin.text
+    return read_message_file(os.path.join(invocation.directory, value))
+
+
+def read_message_file(path: str) -> str | None:
+    """A regular file of at most MAX_MESSAGE_FILE_BYTES; opening never blocks on a FIFO."""
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
+        return None
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        return None
+    with os.fdopen(descriptor, 'rb') as stream:
+        data = stream.read(MAX_MESSAGE_FILE_BYTES + 1)
+    if len(data) > MAX_MESSAGE_FILE_BYTES:
+        return None
+    return data.decode('utf-8', 'surrogateescape')
+
+
+def head_message(invocation: Invocation, context: Context) -> str | None:
+    result = read_git(['log', '-1', '--format=%B', 'HEAD'], invocation.directory, context.environ)
+    return result.stdout if result.returncode == 0 else None
+
+
+def trailers_configured(invocation: Invocation, context: Context) -> bool:
+    """Trailer configuration can rename or generate trailers, so any of it is unverifiable."""
+    result = read_git(['config', '--get-regexp', r'^trailer\.'], invocation.directory, context.environ)
+    return result.returncode != 1
+
+
+def trailer_line(value: str) -> str:
+    """A --trailer value in the 'token: value' form git records."""
+    cuts = [index for index in (value.find('='), value.find(':')) if index >= 0]
+    if not cuts:
+        return value.strip() + ':'
+    cut = min(cuts)
+    return f'{value[:cut].strip()}: {value[cut + 1:].strip()}'.rstrip()
+
+
+def join_message(messages: Sequence[str], trailers: Sequence[str]) -> str:
+    """Message values as paragraphs, as git joins repeated -m, then the trailers."""
+    text = '\n\n'.join(messages)
+    if trailers:
+        text += '\n\n' + '\n'.join(trailer_line(value) for value in trailers)
+    return text
+
+
+def forbidden_message(text: str) -> bool:
+    return any(pattern.search(text) for pattern in FORBIDDEN_PATTERNS)
+
+
+STAGING_RULES: tuple[Rule, ...] = (check_staging_options, check_blanket_staging, check_staging_not_file,
+                                   check_interactive_staging, check_ignored_path)
+COMMIT_RULES: tuple[Rule, ...] = (check_commit_options, check_commit_all, check_commit_paths,
+                                  check_commit_message, check_rewrite_published)
+
+
 # Per-subcommand rules, evaluated after the opaque-invocation rule has passed. Every
 # governed key is present; an empty tuple means the invocation is allowed.
 RULES: dict[str, tuple[Rule, ...]] = {
     **{name: () for name in sorted(GOVERNED_GIT_SUBCOMMANDS)},
+    'add': STAGING_RULES,
+    'stage': STAGING_RULES,
+    'commit': COMMIT_RULES,
     'gh pr merge': (),
     'gh api': (),
 }
@@ -1622,7 +1998,10 @@ def evaluate_invocation(invocation: Invocation, context: Context) -> Decision:
     key = rule_key(invocation)
     if key is None:
         return NOT_APPLICABLE
-    results = [rule(invocation, context) for rule in RULES.get(key, ())]
+    try:
+        results = [rule(invocation, context) for rule in RULES.get(key, ())]
+    except GitReadTimeout:
+        return denial('limit-exceeded')
     return combine([ALLOW, *[result for result in results if result is not None]])
 
 
