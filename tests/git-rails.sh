@@ -3884,6 +3884,82 @@ for update_refs_case in UPDATE_REFS_CASES:
 CLASSES = (*CLASSES, UpdateRefsTable)
 
 
+# git applies the first explicit lease that names a destination, so two leases for one branch are
+# never read as one; a rebase stopped with stored update-refs moves other branches on --continue;
+# JSON number constants outside the JSON grammar are not a journal.
+class StoredUpdateRefsFixture(UpdateRefsFixture):
+    """A journal-branch rebase stopped on a conflict, with or without stored update-refs."""
+
+    def stopped_update_refs_rebase(self, side_branch: bool) -> None:
+        self.build_stack(self.project, conflict=True)
+        self.git(self.project, 'switch', '-q', 'feat/a')
+        if side_branch:
+            self.git(self.project, 'branch', 'side-a')
+        self.commit_file(self.project, 'fa2.txt', 'feature a again\n')
+        self.git(self.project, 'switch', '-q', 'main')
+        self.shas['a_tip'] = self.tip_in(self.project, 'feat/a')
+        self.add_journal(self.journal(self.project, 'task one'))
+        self.git_may_fail('rebase', '--update-refs', '--onto', self.shas['target'], self.shas['a_base'], 'feat/a')
+        self.assertTrue((self.project / '.git/rebase-merge/head-name').is_file(), 'fixture rebase must stop')
+        stored = self.project / '.git/rebase-merge/update-refs'
+        self.assertEqual(stored.is_file() and stored.stat().st_size > 0, side_branch, 'fixture update-refs state')
+
+    def setup_restack_conflict_stored_update_refs(self) -> None:
+        self.stopped_update_refs_rebase(True)
+
+    def setup_restack_conflict_without_stored_update_refs(self) -> None:
+        self.stopped_update_refs_rebase(False)
+
+
+def double_lease(first: str, second: str) -> str:
+    return f'git push --force-with-lease={first} --force-with-lease={second} origin feat/a'
+
+
+VALIDATION_REPAIR_CASES: tuple[RestackCase, ...] = (
+    push_row('second_lease_cannot_hide_a_first_short_lease',
+             double_lease('feat/a:{other}', 'refs/heads/feat/a:{a_remote}'), 'explicit-lease'),
+    push_row('second_lease_cannot_hide_a_first_full_lease',
+             double_lease('refs/heads/feat/a:{other}', 'refs/heads/feat/a:{a_remote}'), 'explicit-lease'),
+    push_row('first_lease_of_two_short_leases_is_not_trusted',
+             double_lease('feat/a:{other}', 'feat/a:{a_remote}'), 'explicit-lease'),
+    push_row('verified_lease_first_and_another_lease_second_asks',
+             double_lease('refs/heads/feat/a:{a_remote}', 'feat/a:{other}'), 'explicit-lease'),
+    push_row('partial_heads_lease_counts_as_a_lease_of_the_branch',
+             double_lease('heads/feat/a:{other}', 'feat/a:{a_remote}'), 'explicit-lease'),
+    push_row('two_identical_leases_for_one_destination_ask',
+             double_lease('refs/heads/feat/a:{a_remote}', 'refs/heads/feat/a:{a_remote}'), 'explicit-lease'),
+    push_row('lease_of_another_branch_beside_one_explicit_lease_is_allowed',
+             double_lease('refs/heads/feat/b:', 'refs/heads/feat/a:{a_remote}'), None),
+    push_row('negated_earlier_lease_leaves_one_explicit_lease',
+             'git push --force-with-lease=feat/a:{other} --no-force-with-lease '
+             '--force-with-lease=refs/heads/feat/a:{a_remote} origin feat/a', None),
+    rebase_row('continue_with_stored_update_refs_asks', 'git rebase --continue', 'update-refs',
+               setup='restack-conflict-stored-update-refs'),
+    rebase_row('skip_with_stored_update_refs_asks', 'git rebase --skip', 'update-refs',
+               setup='restack-conflict-stored-update-refs'),
+    rebase_row('continue_of_an_update_refs_rebase_without_stored_refs_is_allowed', 'git rebase --continue', None,
+               setup='restack-conflict-without-stored-update-refs'),
+    rebase_row('abort_with_stored_update_refs_is_allowed', 'git rebase --abort', None,
+               setup='restack-conflict-stored-update-refs'),
+    rebase_row('journal_with_a_nan_constant_is_invalid_json', ONTO_A, 'journal-invalid-json',
+               edits=((('notes',), float('nan')),)),
+    rebase_row('journal_with_an_infinity_constant_is_invalid_json', ONTO_A, 'journal-invalid-json',
+               edits=((('notes',), float('inf')),)),
+    rebase_row('journal_with_a_negative_infinity_constant_is_invalid_json', ONTO_A, 'journal-invalid-json',
+               edits=((('notes',), float('-inf')),)),
+)
+
+
+class ValidationRepairTable(StoredUpdateRefsFixture):
+    """Table-driven decisions for repeated leases, stored update-refs and non-JSON constants."""
+
+
+for validation_case in VALIDATION_REPAIR_CASES:
+    setattr(ValidationRepairTable, 'test_' + validation_case.name, restack_test(validation_case))
+
+CLASSES = (*CLASSES, ValidationRepairTable)
+
+
 def selected_suite() -> unittest.TestSuite:
     suite = unittest.TestSuite()
     for case_class in CLASSES:
