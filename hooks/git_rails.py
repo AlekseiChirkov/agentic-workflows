@@ -2999,6 +2999,16 @@ def pending_checks(common: str, branch: str, patterns: Sequence[str]) -> list[Jo
             ('branch-replayed', lambda journal: journal.branches[branch].replayed_tip is None)]
 
 
+def updates_refs(invocation: Invocation, context: Context) -> bool:
+    """Whether rebase.updateRefs, read as git reads it, may make a rebase move other branches;
+    an invalid value counts as set. Callers check state_changed(invocation) first."""
+    result = read_git(['config', '--type=bool', '--get', 'rebase.updateRefs'], invocation.directory,
+                      context.environ)
+    if result.returncode == 1:
+        return False
+    return result.returncode != 0 or result.stdout.strip() != 'false'
+
+
 def replay_checks(request: ReplayRequest, invocation: Invocation, context: Context) -> list[JournalCheck] | str:
     """The exact replay, or --continue/--skip while a rebase of a stack branch is in progress."""
     head = request.rebase_head or ''
@@ -3006,6 +3016,8 @@ def replay_checks(request: ReplayRequest, invocation: Invocation, context: Conte
         return 'replay-form'
     if request.replay is None and not (request.in_progress and head.startswith(BRANCH_PREFIX)):
         return 'rebase-head'
+    if updates_refs(invocation, context):
+        return 'update-refs'
     patterns = local_protected_branches(invocation, context)
     if patterns is None:
         return 'protected-set'
