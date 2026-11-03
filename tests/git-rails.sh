@@ -2336,6 +2336,695 @@ class PushReadIsolation(PushFixture):
 CLASSES = (*CLASSES, PushTable, ProtectedRefs, LeaseVerifierInterface, PushReadIsolation)
 
 
+RESET_HARD = 'reset-hard'
+CLEAN = 'clean'
+BRANCH_DELETE = 'branch-delete'
+REWRITE = 'protected-ref-rewrite'
+OUTSIDE_RESTACK = 'rebase-outside-restack'
+INTO_PROTECTED = 'merge-into-protected'
+PR_MERGE = 'pr-merge'
+UNSUPPORTED = 'unsupported-form'
+OTHER_SHA = 'fedcba9876543210fedcba9876543210fedcba98'
+
+
+class OperationFixture(PushFixture):
+    """Repository states read by the destructive, ref-rewrite, rebase and merge rules: the
+    current branch, protected names, symbolic branch refs and rebases stopped on a conflict."""
+
+    def git_may_fail(self, *arguments: str) -> None:
+        subprocess.run([REAL_GIT, *arguments], cwd=self.project, env={**self.git_environ, 'GIT_EDITOR': 'true'},
+                       check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def setup_conflicting_feature(self) -> None:
+        self.git(self.project, 'switch', '-q', '-c', 'feat/a')
+        (self.project / 'a.txt').write_text('feature\n')
+        self.git(self.project, 'commit', '-q', '-am', 'Change a on the feature')
+        self.git(self.project, 'switch', '-q', 'main')
+        (self.project / 'a.txt').write_text('main\n')
+        self.git(self.project, 'commit', '-q', '-am', 'Change a on main')
+        self.git(self.project, 'switch', '-q', 'feat/a')
+
+    def setup_rebase_merge_in_progress(self) -> None:
+        self.setup_conflicting_feature()
+        self.git_may_fail('rebase', 'main')
+        self.assertTrue((self.project / '.git/rebase-merge/head-name').is_file(), 'fixture rebase must stop')
+
+    def setup_rebase_apply_in_progress(self) -> None:
+        self.setup_conflicting_feature()
+        self.git_may_fail('rebase', '--apply', 'main')
+        self.assertTrue((self.project / '.git/rebase-apply/head-name').is_file(), 'fixture rebase must stop')
+
+    def setup_symbolic_alias(self) -> None:
+        self.setup_push()
+        self.git(self.project, 'symbolic-ref', 'refs/heads/alias', 'refs/heads/main')
+
+    def setup_on_master(self) -> None:
+        self.setup_push()
+        self.git(self.project, 'switch', '-q', '-c', 'master')
+
+    def setup_on_release(self) -> None:
+        self.setup_push()
+        self.git(self.project, 'switch', '-q', '-c', 'release/1.2')
+
+    def setup_on_configured_pattern(self) -> None:
+        self.setup_push_extra_pattern()
+        self.git(self.project, 'switch', '-q', '-c', 'stable/a')
+
+    def setup_on_remote_default(self) -> None:
+        self.setup_push_develop_head()
+        self.git(self.project, 'switch', '-q', 'develop')
+
+    def setup_on_trunk_without_origin(self) -> None:
+        self.setup_push_without_origin()
+        self.git(self.project, 'switch', '-q', 'trunk')
+
+
+# git reset, clean, branch, update-ref, checkout, switch, rebase, merge, pull, gh pr merge
+# and gh api: owner-authorizable operations, their allowed neighbours and read-only forms.
+OPERATION_CASES: tuple[DecisionCase, ...] = (
+    # R20 reset --hard; the last mode option wins, as in git.
+    DecisionCase('reset_hard_needs_owner_approval', 'git reset --hard', 'ask', RESET_HARD, 'R20'),
+    DecisionCase('reset_hard_to_a_commit_needs_owner_approval', 'git reset -q --hard HEAD~0',
+                 'ask', RESET_HARD, 'R20'),
+    DecisionCase('reset_hard_prefix_needs_owner_approval', 'git reset --har', 'ask', RESET_HARD, 'R20'),
+    DecisionCase('reset_hard_after_soft_needs_owner_approval', 'git reset --soft --hard', 'ask', RESET_HARD, 'R20'),
+    DecisionCase('reset_hard_from_a_subdirectory_needs_owner_approval', 'git -C sub reset --hard',
+                 'ask', RESET_HARD, 'R20'),
+    DecisionCase('reset_soft_is_allowed', 'git reset --soft HEAD~0', 'allow'),
+    DecisionCase('reset_soft_after_hard_is_allowed', 'git reset --hard --soft', 'allow'),
+    DecisionCase('reset_mixed_is_allowed', 'git reset', 'allow'),
+    DecisionCase('reset_of_a_path_is_allowed', 'git reset -- a.txt', 'allow'),
+    DecisionCase('reset_keep_is_allowed', 'git reset --keep HEAD~0', 'allow'),
+    DecisionCase('reset_with_unknown_option_is_unsupported', 'git reset --bogus', 'deny', UNSUPPORTED),
+    # R21 clean without a dry run; interactive cleaning cannot be checked.
+    DecisionCase('clean_force_directories_needs_owner_approval', 'git clean -fd', 'ask', CLEAN, 'R21'),
+    DecisionCase('clean_without_options_needs_owner_approval', 'git clean', 'ask', CLEAN, 'R21'),
+    DecisionCase('clean_of_ignored_files_needs_owner_approval', 'git clean -fdx -e keep -- sub',
+                 'ask', CLEAN, 'R21'),
+    DecisionCase('clean_dry_run_negated_needs_owner_approval', 'git clean -n --no-dry-run -f', 'ask', CLEAN, 'R21'),
+    DecisionCase('clean_dry_run_is_allowed', 'git clean -n', 'allow'),
+    DecisionCase('clean_dry_run_bundled_first_is_allowed', 'git clean -nfd', 'allow'),
+    DecisionCase('clean_dry_run_bundled_last_is_allowed', 'git clean -fdn', 'allow'),
+    DecisionCase('clean_long_dry_run_is_allowed', 'git clean --dry-run -fdx', 'allow'),
+    DecisionCase('clean_dry_run_prefix_is_allowed', 'git clean --dry -fd', 'allow'),
+    DecisionCase('clean_interactive_is_unsupported', 'git clean -i', 'deny', UNSUPPORTED, 'R21'),
+    DecisionCase('clean_interactive_bundled_is_unsupported', 'git clean -fdi', 'deny', UNSUPPORTED, 'R21'),
+    DecisionCase('clean_interactive_with_dry_run_is_unsupported', 'git clean --interactive -n',
+                 'deny', UNSUPPORTED, 'R21'),
+    DecisionCase('clean_with_unknown_option_is_unsupported', 'git clean -fz', 'deny', UNSUPPORTED),
+    # R22 branch deletion, local or remote-tracking.
+    DecisionCase('branch_delete_needs_owner_approval', 'git branch -d feat/x', 'ask', BRANCH_DELETE, 'R22',
+                 setup='push'),
+    DecisionCase('branch_force_delete_needs_owner_approval', 'git branch -D feat/x', 'ask', BRANCH_DELETE, 'R22',
+                 setup='push'),
+    DecisionCase('remote_tracking_branch_delete_needs_owner_approval', 'git branch --delete -r origin/x',
+                 'ask', BRANCH_DELETE, 'R22', setup='push'),
+    DecisionCase('bundled_remote_branch_delete_needs_owner_approval', 'git branch -dr origin/feat/x',
+                 'ask', BRANCH_DELETE, 'R22', setup='push'),
+    DecisionCase('branch_delete_prefix_needs_owner_approval', 'git branch --del feat/x feat/y',
+                 'ask', BRANCH_DELETE, 'R22', setup='push'),
+    DecisionCase('branch_delete_with_force_needs_owner_approval', 'git branch -vdf feat/x',
+                 'ask', BRANCH_DELETE, 'R22', setup='push'),
+    DecisionCase('branch_delete_of_main_needs_owner_approval', 'git -C sub branch -D main',
+                 'ask', BRANCH_DELETE, 'R22', setup='push-feature'),
+    # R23 update-ref deletion of a branch, through a symbolic ref too; --stdin cannot be checked.
+    DecisionCase('update_ref_delete_of_a_branch_needs_owner_approval', 'git update-ref -d refs/heads/x',
+                 'ask', BRANCH_DELETE, 'R23'),
+    DecisionCase('update_ref_delete_with_old_value_needs_owner_approval',
+                 f'git update-ref -m drop -d refs/heads/feat/x {LEASE_SHA}', 'ask', BRANCH_DELETE, 'R23',
+                 setup='push'),
+    DecisionCase('update_ref_delete_of_head_deletes_the_current_branch', 'git update-ref -d HEAD',
+                 'ask', BRANCH_DELETE, 'R23'),
+    DecisionCase('update_ref_delete_through_a_symbolic_branch_needs_owner_approval',
+                 'git update-ref -d refs/heads/alias', 'ask', BRANCH_DELETE, 'R23', setup='symbolic-alias'),
+    DecisionCase('update_ref_delete_without_deref_needs_owner_approval',
+                 'git update-ref --no-deref -d refs/heads/feat/x', 'ask', BRANCH_DELETE, 'R23', setup='push'),
+    DecisionCase('update_ref_delete_of_a_tag_is_allowed', 'git update-ref -d refs/tags/v1', 'allow', setup='push'),
+    DecisionCase('update_ref_delete_of_a_remote_tracking_ref_is_allowed',
+                 'git update-ref -d refs/remotes/origin/feat/x', 'allow', setup='push'),
+    DecisionCase('update_ref_stdin_is_unsupported',
+                 "git update-ref --stdin <<'EOF'\ndelete refs/heads/feat/x\nEOF", 'deny', UNSUPPORTED, 'R23',
+                 setup='push'),
+    DecisionCase('update_ref_nul_stdin_is_unsupported', 'git update-ref -z --stdin < /dev/null',
+                 'deny', UNSUPPORTED, 'R23', setup='push'),
+    DecisionCase('update_ref_with_unknown_option_is_unsupported', 'git update-ref --bogus refs/heads/x HEAD',
+                 'deny', UNSUPPORTED),
+    # R24 rewriting a protected branch: forced creation, move, copy and update-ref.
+    DecisionCase('branch_force_onto_main_needs_owner_approval', 'git branch -f main', 'ask', REWRITE, 'R24',
+                 setup='push-feature'),
+    DecisionCase('branch_force_onto_main_with_start_needs_owner_approval', 'git branch --force main feat/x',
+                 'ask', REWRITE, 'R24', setup='push-feature'),
+    DecisionCase('branch_force_onto_master_needs_owner_approval', 'git branch -f master', 'ask', REWRITE, 'R24',
+                 setup='push-feature'),
+    DecisionCase('branch_force_onto_release_needs_owner_approval', 'git branch -f release/1.2',
+                 'ask', REWRITE, 'R24', setup='push-feature'),
+    DecisionCase('branch_force_onto_configured_pattern_needs_owner_approval', 'git branch -f stable/a',
+                 'ask', REWRITE, 'R24', setup='push-extra-pattern'),
+    DecisionCase('branch_force_onto_remote_default_needs_owner_approval', 'git branch -f develop',
+                 'ask', REWRITE, 'R24', setup='push-develop-head'),
+    DecisionCase('branch_force_onto_main_without_origin_needs_owner_approval', 'git branch -f main',
+                 'ask', REWRITE, 'R24', setup='push-without-origin'),
+    DecisionCase('branch_move_of_main_needs_owner_approval', 'git branch -m main old-main', 'ask', REWRITE, 'R24',
+                 setup='push-feature'),
+    DecisionCase('branch_move_onto_main_needs_owner_approval', 'git branch -m feat/x main', 'ask', REWRITE, 'R24',
+                 setup='push-feature'),
+    DecisionCase('branch_forced_move_onto_main_needs_owner_approval', 'git branch -M feat/x main',
+                 'ask', REWRITE, 'R24', setup='push-feature'),
+    DecisionCase('branch_move_of_current_main_needs_owner_approval', 'git branch -m old-main',
+                 'ask', REWRITE, 'R24', setup='push'),
+    DecisionCase('branch_copy_of_main_needs_owner_approval', 'git branch -c main backup', 'ask', REWRITE, 'R24',
+                 setup='push-feature'),
+    DecisionCase('branch_forced_copy_onto_master_needs_owner_approval', 'git branch -C feat/x master',
+                 'ask', REWRITE, 'R24', setup='push-feature'),
+    DecisionCase('branch_copy_of_current_main_needs_owner_approval', 'git branch --copy backup',
+                 'ask', REWRITE, 'R24', setup='push'),
+    DecisionCase('branch_ambiguous_prefix_counts_as_copy', 'git branch --c feat/x main', 'ask', REWRITE, 'R24',
+                 setup='push-feature'),
+    DecisionCase('branch_force_with_previous_branch_shorthand_is_unsupported', 'git branch -f @{-1}',
+                 'deny', UNSUPPORTED, 'R24', setup='push-feature'),
+    DecisionCase('checkout_force_create_main_needs_owner_approval', 'git checkout -B main', 'ask', REWRITE, 'R24',
+                 setup='push-feature'),
+    DecisionCase('checkout_bundled_force_create_main_needs_owner_approval', 'git checkout -fBmain feat/x',
+                 'ask', REWRITE, 'R24', setup='push-feature'),
+    DecisionCase('switch_force_create_main_needs_owner_approval', 'git switch -C main', 'ask', REWRITE, 'R24',
+                 setup='push-feature'),
+    DecisionCase('switch_long_force_create_main_needs_owner_approval', 'git switch --force-create main',
+                 'ask', REWRITE, 'R24', setup='push-feature'),
+    DecisionCase('switch_attached_force_create_main_needs_owner_approval', 'git switch --force-create=main feat/x',
+                 'ask', REWRITE, 'R24', setup='push-feature'),
+    DecisionCase('switch_ambiguous_force_prefix_counts_as_force_create', 'git switch --f main',
+                 'ask', REWRITE, 'R24', setup='push-feature'),
+    DecisionCase('update_ref_of_main_needs_owner_approval', 'git update-ref refs/heads/main HEAD',
+                 'ask', REWRITE, 'R24'),
+    DecisionCase('update_ref_of_release_needs_owner_approval',
+                 f'git update-ref -m move refs/heads/release/9 {LEASE_SHA}', 'ask', REWRITE, 'R24'),
+    DecisionCase('update_ref_of_head_on_main_needs_owner_approval', f'git update-ref HEAD {LEASE_SHA}',
+                 'ask', REWRITE, 'R24'),
+    DecisionCase('update_ref_through_a_symbolic_branch_onto_main_needs_owner_approval',
+                 'git update-ref refs/heads/alias HEAD', 'ask', REWRITE, 'R24', setup='symbolic-alias'),
+    DecisionCase('branch_force_onto_a_feature_is_allowed', 'git branch -f feat/y', 'allow', setup='push-feature'),
+    DecisionCase('branch_force_from_main_onto_a_feature_is_allowed', 'git branch -f feat/y main', 'allow',
+                 setup='push-feature'),
+    DecisionCase('branch_move_between_features_is_allowed', 'git branch -m feat/y feat/z', 'allow',
+                 setup='push-feature'),
+    DecisionCase('branch_move_of_current_feature_is_allowed', 'git branch -m feat/z', 'allow', setup='push-feature'),
+    DecisionCase('branch_move_while_detached_is_allowed', 'git branch -m feat/z', 'allow', setup='push-detached'),
+    DecisionCase('branch_copy_between_features_is_allowed', 'git branch -c feat/x feat/w', 'allow',
+                 setup='push-feature'),
+    DecisionCase('branch_force_onto_unprotected_develop_is_allowed', 'git branch -f develop', 'allow',
+                 setup='push-feature'),
+    DecisionCase('branch_force_onto_trunk_without_origin_is_allowed', 'git branch -f trunk', 'allow',
+                 setup='push-without-origin'),
+    DecisionCase('branch_creation_without_force_is_allowed', 'git branch feat/new main', 'allow',
+                 setup='push-feature'),
+    DecisionCase('checkout_force_create_feature_from_main_is_allowed', 'git checkout -B feat/x main', 'allow',
+                 setup='push-feature'),
+    DecisionCase('checkout_create_is_allowed', 'git checkout -b feat/new', 'allow', setup='push-feature'),
+    DecisionCase('checkout_of_main_is_allowed', 'git checkout main', 'allow', setup='push-feature'),
+    DecisionCase('checkout_of_a_path_is_allowed', 'git checkout -- a.txt', 'allow', setup='push-feature'),
+    DecisionCase('switch_force_create_feature_is_allowed', 'git switch -C feat/x main', 'allow',
+                 setup='push-feature'),
+    DecisionCase('switch_create_is_allowed', 'git switch -c feat/new', 'allow', setup='push-feature'),
+    DecisionCase('switch_to_main_is_allowed', 'git switch main', 'allow', setup='push-feature'),
+    DecisionCase('update_ref_of_a_feature_is_allowed', 'git update-ref refs/heads/feat/x HEAD', 'allow',
+                 setup='push'),
+    DecisionCase('update_ref_of_a_tag_is_allowed', 'git update-ref refs/tags/v2 HEAD', 'allow', setup='push'),
+    DecisionCase('update_ref_of_a_remote_tracking_ref_is_allowed', 'git update-ref refs/remotes/origin/main HEAD',
+                 'allow', setup='push'),
+    DecisionCase('update_ref_without_deref_of_head_is_allowed', f'git update-ref --no-deref HEAD {LEASE_SHA}',
+                 'allow'),
+    DecisionCase('update_ref_without_deref_of_a_symbolic_branch_is_allowed',
+                 'git update-ref --no-deref refs/heads/alias HEAD', 'allow', setup='symbolic-alias'),
+    DecisionCase('branch_with_unknown_option_is_unsupported', 'git branch --bogus', 'deny', UNSUPPORTED),
+    DecisionCase('checkout_with_unknown_option_is_unsupported', 'git checkout --bogus main', 'deny', UNSUPPORTED),
+    DecisionCase('switch_with_unknown_option_is_unsupported', 'git switch --bogus main', 'deny', UNSUPPORTED),
+    # Read-only and listing forms of governed subcommands.
+    DecisionCase('branch_listing_is_allowed', 'git branch', 'allow'),
+    DecisionCase('branch_list_pattern_is_allowed', "git branch --list 'feat/*'", 'allow'),
+    DecisionCase('branch_all_verbose_listing_is_allowed', 'git branch -avv', 'allow'),
+    DecisionCase('branch_remote_listing_is_allowed', 'git branch -r', 'allow'),
+    DecisionCase('branch_show_current_is_allowed', 'git branch --show-current', 'allow'),
+    DecisionCase('branch_merged_as_last_word_is_allowed', 'git branch --merged', 'allow'),
+    DecisionCase('branch_merged_with_commit_is_allowed', 'git branch --merged main -v', 'allow'),
+    DecisionCase('branch_no_merged_is_allowed', 'git branch --no-merged', 'allow'),
+    DecisionCase('branch_contains_is_allowed', 'git branch --contains HEAD', 'allow'),
+    DecisionCase('branch_format_and_sort_is_allowed',
+                 "git branch --format='%(refname:short)' --sort=-committerdate --points-at HEAD", 'allow'),
+    DecisionCase('rebase_show_current_patch_is_allowed', 'git rebase --show-current-patch', 'allow'),
+    DecisionCase('read_only_subcommands_stay_not_applicable',
+                 'git status; git log -1; git show HEAD; git diff; git rev-parse HEAD; git ls-files', 'not_applicable'),
+    # R25 abort and R26 replay outside a verified restack.
+    DecisionCase('rebase_onto_main_needs_owner_approval', 'git rebase main', 'ask', OUTSIDE_RESTACK, 'R26'),
+    DecisionCase('rebase_of_a_feature_needs_owner_approval', 'git rebase main', 'ask', OUTSIDE_RESTACK, 'R26',
+                 setup='push-feature'),
+    DecisionCase('rebase_exact_replay_form_without_journal_needs_owner_approval',
+                 f'git rebase --onto {LEASE_SHA} {OTHER_SHA} feat/x', 'ask', OUTSIDE_RESTACK, 'R26',
+                 setup='push-feature'),
+    DecisionCase('interactive_rebase_needs_owner_approval', 'git rebase -i HEAD~0', 'ask', OUTSIDE_RESTACK, 'R26'),
+    DecisionCase('rebase_continue_without_rebase_needs_owner_approval', 'git rebase --continue',
+                 'ask', OUTSIDE_RESTACK, 'R26'),
+    DecisionCase('rebase_continue_during_rebase_needs_owner_approval', 'git rebase --continue',
+                 'ask', OUTSIDE_RESTACK, 'R26', setup='rebase-merge-in-progress'),
+    DecisionCase('rebase_skip_during_rebase_needs_owner_approval', 'git rebase --skip',
+                 'ask', OUTSIDE_RESTACK, 'R26', setup='rebase-apply-in-progress'),
+    DecisionCase('rebase_quit_needs_owner_approval', 'git rebase --quit', 'ask', OUTSIDE_RESTACK, 'R26',
+                 setup='rebase-merge-in-progress'),
+    DecisionCase('rebase_edit_todo_needs_owner_approval', 'git rebase --edit-todo', 'ask', OUTSIDE_RESTACK, 'R26',
+                 setup='rebase-merge-in-progress'),
+    DecisionCase('rebase_ambiguous_prefix_counts_every_candidate', 'git rebase --a', 'ask', OUTSIDE_RESTACK, 'R26'),
+    DecisionCase('rebase_with_exec_needs_owner_approval', "git rebase --exec 'true' main",
+                 'ask', OUTSIDE_RESTACK, 'R26'),
+    DecisionCase('rebase_abort_is_allowed', 'git rebase --abort', 'allow'),
+    DecisionCase('rebase_abort_during_rebase_is_allowed', 'git rebase --abort', 'allow',
+                 setup='rebase-merge-in-progress'),
+    DecisionCase('rebase_abort_prefix_is_allowed', 'git rebase --ab', 'allow', setup='rebase-apply-in-progress'),
+    DecisionCase('rebase_with_unknown_option_is_unsupported', 'git rebase --bogus main', 'deny', UNSUPPORTED),
+    # R27 merge into a protected current branch.
+    DecisionCase('merge_on_main_needs_owner_approval', 'git merge feat/x', 'ask', INTO_PROTECTED, 'R27',
+                 setup='push'),
+    DecisionCase('merge_continue_on_main_needs_owner_approval', 'git merge --continue', 'ask', INTO_PROTECTED, 'R27',
+                 setup='push'),
+    DecisionCase('merge_quit_on_main_needs_owner_approval', 'git merge --quit', 'ask', INTO_PROTECTED, 'R27',
+                 setup='push'),
+    DecisionCase('fast_forward_merge_on_main_needs_owner_approval', 'git merge --ff-only feat/x',
+                 'ask', INTO_PROTECTED, 'R27', setup='push'),
+    DecisionCase('squash_merge_on_main_needs_owner_approval', 'git merge --squash feat/x',
+                 'ask', INTO_PROTECTED, 'R27', setup='push'),
+    DecisionCase('merge_from_a_subdirectory_on_main_needs_owner_approval', 'git -C sub merge feat/x',
+                 'ask', INTO_PROTECTED, 'R27', setup='push'),
+    DecisionCase('merge_on_master_needs_owner_approval', 'git merge feat/x', 'ask', INTO_PROTECTED, 'R27',
+                 setup='on-master'),
+    DecisionCase('merge_on_release_needs_owner_approval', 'git merge feat/x', 'ask', INTO_PROTECTED, 'R27',
+                 setup='on-release'),
+    DecisionCase('merge_on_configured_pattern_needs_owner_approval', 'git merge feat/x', 'ask', INTO_PROTECTED,
+                 'R27', setup='on-configured-pattern'),
+    DecisionCase('merge_on_remote_default_needs_owner_approval', 'git merge feat/x', 'ask', INTO_PROTECTED, 'R27',
+                 setup='on-remote-default'),
+    DecisionCase('merge_ambiguous_prefix_counts_every_candidate', 'git merge --a', 'ask', INTO_PROTECTED, 'R27',
+                 setup='push'),
+    DecisionCase('merge_on_a_feature_is_allowed', 'git merge main', 'allow', setup='push-feature'),
+    DecisionCase('merge_abort_on_main_is_allowed', 'git merge --abort', 'allow', setup='push'),
+    DecisionCase('merge_while_detached_is_allowed', 'git merge feat/x', 'allow', setup='push-detached'),
+    DecisionCase('merge_on_trunk_without_origin_is_allowed', 'git merge feat/x', 'allow',
+                 setup='on-trunk-without-origin'),
+    DecisionCase('merge_with_unknown_option_is_unsupported', 'git merge --bogus feat/x', 'deny', UNSUPPORTED,
+                 setup='push'),
+    # R28 pull into a protected current branch unless it can only fast-forward from the upstream.
+    DecisionCase('pull_on_main_needs_owner_approval', 'git pull', 'ask', INTO_PROTECTED, 'R28'),
+    DecisionCase('pull_rebase_on_main_needs_owner_approval', 'git pull --rebase', 'ask', INTO_PROTECTED, 'R28',
+                 setup='push'),
+    DecisionCase('pull_fast_forward_only_with_operands_needs_owner_approval', 'git pull --ff-only origin main',
+                 'ask', INTO_PROTECTED, 'R28', setup='push'),
+    DecisionCase('pull_fast_forward_only_with_repository_needs_owner_approval', 'git pull --ff-only origin',
+                 'ask', INTO_PROTECTED, 'R28', setup='push'),
+    DecisionCase('pull_fast_forward_only_overridden_needs_owner_approval', 'git pull --ff-only --no-ff',
+                 'ask', INTO_PROTECTED, 'R28', setup='push'),
+    DecisionCase('pull_ff_on_main_needs_owner_approval', 'git pull --ff', 'ask', INTO_PROTECTED, 'R28',
+                 setup='push'),
+    DecisionCase('pull_ambiguous_prefix_counts_every_candidate', 'git pull --f', 'ask', INTO_PROTECTED, 'R28',
+                 setup='push'),
+    DecisionCase('pull_on_remote_default_needs_owner_approval', 'git pull', 'ask', INTO_PROTECTED, 'R28',
+                 setup='on-remote-default'),
+    DecisionCase('pull_fast_forward_only_on_main_is_allowed', 'git pull --ff-only', 'allow', setup='push'),
+    DecisionCase('pull_fast_forward_only_last_is_allowed', 'git pull --no-ff --ff-only', 'allow', setup='push'),
+    DecisionCase('pull_fast_forward_only_prefix_is_allowed', 'git pull -q --ff-', 'allow', setup='push'),
+    DecisionCase('pull_on_a_feature_is_allowed', 'git pull', 'allow', setup='push-feature'),
+    DecisionCase('pull_of_main_into_a_feature_is_allowed', 'git pull origin main', 'allow', setup='push-feature'),
+    DecisionCase('pull_while_detached_is_allowed', 'git pull', 'allow', setup='push-detached'),
+    DecisionCase('pull_with_unknown_option_is_unsupported', 'git pull --bogus', 'deny', UNSUPPORTED, setup='push'),
+    # R29 gh pr merge and R30 gh api merge endpoints; gh is parsed, never run.
+    DecisionCase('gh_pr_merge_needs_owner_approval', 'gh pr merge 1', 'ask', PR_MERGE, 'R29'),
+    DecisionCase('gh_pr_merge_without_number_needs_owner_approval', 'gh pr merge', 'ask', PR_MERGE, 'R29'),
+    DecisionCase('gh_pr_merge_with_options_needs_owner_approval', 'gh pr merge 1 --squash --delete-branch',
+                 'ask', PR_MERGE, 'R29'),
+    DecisionCase('gh_pr_merge_with_repository_flag_needs_owner_approval', 'gh -R o/r pr merge 5',
+                 'ask', PR_MERGE, 'R29'),
+    DecisionCase('gh_api_put_pull_merge_needs_owner_approval', 'gh api -X PUT repos/o/r/pulls/1/merge',
+                 'ask', PR_MERGE, 'R30'),
+    DecisionCase('gh_api_method_flag_pull_merge_needs_owner_approval', 'gh api --method PUT repos/o/r/pulls/1/merge',
+                 'ask', PR_MERGE, 'R30'),
+    DecisionCase('gh_api_attached_method_pull_merge_needs_owner_approval', 'gh api -XPUT repos/o/r/pulls/1/merge',
+                 'ask', PR_MERGE, 'R30'),
+    DecisionCase('gh_api_method_equals_pull_merge_needs_owner_approval',
+                 'gh api --method=PUT /repos/o/r/pulls/12/merge', 'ask', PR_MERGE, 'R30'),
+    DecisionCase('gh_api_method_after_endpoint_needs_owner_approval', 'gh api repos/o/r/pulls/1/merge -X PUT',
+                 'ask', PR_MERGE, 'R30'),
+    DecisionCase('gh_api_merge_endpoint_with_fields_needs_owner_approval',
+                 'gh api -i repos/o/r/pulls/1/merge -f merge_method=squash -H Accept:x', 'ask', PR_MERGE, 'R30'),
+    DecisionCase('gh_api_merge_endpoint_with_query_needs_owner_approval',
+                 "gh api -X PUT 'repos/o/r/pulls/1/merge?merge_method=squash'", 'ask', PR_MERGE, 'R30'),
+    DecisionCase('gh_api_merge_endpoint_as_url_needs_owner_approval',
+                 'gh api -X PUT https://api.github.com/repos/o/r/pulls/1/merge', 'ask', PR_MERGE, 'R30'),
+    DecisionCase('gh_api_merge_endpoint_with_placeholders_needs_owner_approval',
+                 "gh api -X PUT 'repos/{owner}/{repo}/pulls/3/merge'", 'ask', PR_MERGE, 'R30'),
+    DecisionCase('gh_api_merge_endpoint_in_other_case_needs_owner_approval', 'gh api -X PUT repos/o/r/PULLS/1/MERGE',
+                 'ask', PR_MERGE, 'R30'),
+    DecisionCase('gh_api_merge_endpoint_after_double_dash_needs_owner_approval',
+                 'gh api -X PUT -- repos/o/r/pulls/1/merge', 'ask', PR_MERGE, 'R30'),
+    DecisionCase('gh_api_branch_merges_endpoint_needs_owner_approval',
+                 'gh api repos/o/r/merges -f base=main -f head=feat/x', 'ask', PR_MERGE, 'R30'),
+    DecisionCase('gh_api_with_unknown_flag_is_unsupported', 'gh api --bogus repos/o/r/pulls/1/merge',
+                 'deny', UNSUPPORTED),
+    DecisionCase('gh_api_with_dynamic_endpoint_is_unsupported', 'gh api -X PUT "repos/o/r/pulls/$N/merge"',
+                 'deny', UNSUPPORTED),
+    DecisionCase('gh_api_pull_request_read_is_allowed', 'gh api repos/o/r/pulls/1', 'allow'),
+    DecisionCase('gh_api_pull_request_list_is_allowed', "gh api --paginate repos/o/r/pulls -q '.[].number'", 'allow'),
+    DecisionCase('gh_api_merge_word_as_flag_value_is_allowed', 'gh api repos/o/r/issues -f title=/pulls/1/merge',
+                 'allow'),
+    DecisionCase('gh_pr_create_is_not_applicable', 'gh pr create --fill', 'not_applicable'),
+    DecisionCase('gh_pr_view_is_not_applicable', 'gh pr view 1', 'not_applicable'),
+)
+
+# A missing remote default branch with origin present leaves the local protected set unknown.
+OPERATION_DEFAULT_UNKNOWN_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('merge_without_origin_default_is_default_branch_unknown', 'git merge main',
+                 'deny', DEFAULT_UNKNOWN, 'R27', setup='push-no-default-head'),
+    DecisionCase('pull_without_origin_default_is_default_branch_unknown', 'git pull',
+                 'deny', DEFAULT_UNKNOWN, 'R28', setup='push-no-default-head'),
+    DecisionCase('branch_force_without_origin_default_is_default_branch_unknown', 'git branch -f feat/y',
+                 'deny', DEFAULT_UNKNOWN, 'R24', setup='push-no-default-head'),
+    DecisionCase('checkout_force_create_without_origin_default_is_default_branch_unknown', 'git checkout -B feat/y',
+                 'deny', DEFAULT_UNKNOWN, 'R24', setup='push-no-default-head'),
+    DecisionCase('update_ref_without_origin_default_is_default_branch_unknown', 'git update-ref refs/heads/feat/y HEAD',
+                 'deny', DEFAULT_UNKNOWN, 'R24', setup='push-no-default-head'),
+    DecisionCase('branch_delete_without_origin_default_still_asks', 'git branch -d feat/y',
+                 'ask', BRANCH_DELETE, 'R22', setup='push-no-default-head'),
+    DecisionCase('pull_fast_forward_only_without_origin_default_is_allowed', 'git pull --ff-only', 'allow',
+                 setup='push-no-default-head'),
+    DecisionCase('merge_abort_without_origin_default_is_allowed', 'git merge --abort', 'allow',
+                 setup='push-no-default-head'),
+    DecisionCase('reset_hard_without_origin_default_still_asks', 'git reset --hard',
+                 'ask', RESET_HARD, 'R20', setup='push-no-default-head'),
+)
+
+# An earlier part of the same command that may write makes the current-branch, protected-set,
+# symbolic-ref and rebase-state reads unverifiable; rules that read nothing keep their result.
+OPERATION_STATE_CHANGE_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('merge_after_checkout_is_unsupported', 'git checkout main && git merge feat/x',
+                 'deny', UNSUPPORTED, 'R27', setup='push-feature'),
+    DecisionCase('pull_after_switch_is_unsupported', 'git switch main && git pull', 'deny', UNSUPPORTED, 'R28',
+                 setup='push-feature'),
+    DecisionCase('rename_of_current_branch_after_checkout_is_unsupported', 'git checkout main; git branch -m old',
+                 'deny', UNSUPPORTED, 'R24', setup='push-feature'),
+    DecisionCase('forced_branch_after_fetch_is_unsupported', 'git fetch origin && git branch -f feat/x origin/feat/x',
+                 'deny', UNSUPPORTED, 'R24', setup='push-feature'),
+    DecisionCase('forced_checkout_after_protection_change_is_unsupported',
+                 "git config --add orchestrail.protectedBranch 'feat/*' && git checkout -B feat/x",
+                 'deny', UNSUPPORTED, 'R24', setup='push-feature'),
+    DecisionCase('update_ref_after_symbolic_ref_change_is_unsupported',
+                 'git symbolic-ref refs/heads/alias refs/heads/main && git update-ref refs/heads/alias HEAD',
+                 'deny', UNSUPPORTED, 'R24', setup='push'),
+    DecisionCase('update_ref_delete_after_a_write_is_unsupported',
+                 'git checkout main && git update-ref -d refs/heads/feat/x', 'deny', UNSUPPORTED, 'R23',
+                 setup='push-feature'),
+    DecisionCase('rebase_continue_after_a_switch_is_unsupported', 'git switch feat/x && git rebase --continue',
+                 'deny', UNSUPPORTED, 'R26', setup='rebase-merge-in-progress'),
+    DecisionCase('rebase_after_a_file_write_is_unsupported', 'echo x > a.txt && git rebase main',
+                 'deny', UNSUPPORTED, 'R26', setup='push-feature'),
+    DecisionCase('merge_in_subshell_after_a_write_is_unsupported', '(git switch -q main); git merge feat/x',
+                 'deny', UNSUPPORTED, 'R27', setup='push-feature'),
+    DecisionCase('reset_hard_after_checkout_still_asks', 'git checkout main && git reset --hard',
+                 'ask', RESET_HARD, 'R20', setup='push-feature'),
+    DecisionCase('clean_after_staging_still_asks', 'git add a.txt && git clean -fd', 'ask', CLEAN, 'R21'),
+    DecisionCase('clean_dry_run_after_a_commit_is_allowed', 'git commit -m ok && git clean -n', 'allow'),
+    DecisionCase('branch_delete_after_checkout_still_asks', 'git checkout main && git branch -d feat/x',
+                 'ask', BRANCH_DELETE, 'R22', setup='push-feature'),
+    DecisionCase('update_ref_delete_without_deref_after_a_write_still_asks',
+                 'git checkout main && git update-ref --no-deref -d refs/heads/feat/x', 'ask', BRANCH_DELETE, 'R23',
+                 setup='push-feature'),
+    DecisionCase('merge_abort_after_staging_is_allowed', 'git add a.txt && git merge --abort', 'allow', setup='push'),
+    DecisionCase('pull_fast_forward_only_after_switch_is_allowed', 'git switch main && git pull --ff-only', 'allow',
+                 setup='push-feature'),
+    DecisionCase('rebase_abort_after_checkout_is_allowed', 'git checkout main && git rebase --abort', 'allow',
+                 setup='push-feature'),
+    DecisionCase('pr_merge_after_checkout_still_asks', 'git checkout main && gh pr merge 1', 'ask', PR_MERGE, 'R29',
+                 setup='push-feature'),
+    DecisionCase('api_merge_after_checkout_still_asks', 'git checkout main && gh api -X PUT repos/o/r/pulls/1/merge',
+                 'ask', PR_MERGE, 'R30', setup='push-feature'),
+    DecisionCase('merge_after_read_only_git_still_asks', 'git status && git merge feat/x',
+                 'ask', INTO_PROTECTED, 'R27', setup='push'),
+    DecisionCase('merge_after_cd_still_asks', 'cd sub && git merge feat/x', 'ask', INTO_PROTECTED, 'R27',
+                 setup='push'),
+    DecisionCase('write_after_the_merge_does_not_change_it', 'git merge main && echo x > a.txt', 'allow',
+                 setup='push-feature'),
+)
+
+
+class OperationTable(OperationFixture):
+    """Table-driven decisions of the destructive, ref-rewrite, rebase and merge rules."""
+
+
+for operation_case in (*OPERATION_CASES, *OPERATION_DEFAULT_UNKNOWN_CASES, *OPERATION_STATE_CHANGE_CASES):
+    setattr(OperationTable, 'test_' + operation_case.name, decision_test(operation_case))
+
+
+class DeletionVerifierInterface(OperationFixture):
+    """Branch deletion hands the deleted refs to a replaceable exception verifier."""
+
+    def install(self, exception: bool) -> list[tuple[Any, Any, Any]]:
+        calls: list[tuple[Any, Any, Any]] = []
+        verdict = self.api('DeletionVerdict')
+        original = self.api('DELETION_VERIFIER')
+
+        def verifier(request: Any, invocation: Any, context: Any) -> Any:
+            calls.append((request, invocation, context))
+            return verdict(exception, None if exception else 'fixture verifier refused')
+        setattr(CORE, 'DELETION_VERIFIER', verifier)
+        self.addCleanup(setattr, CORE, 'DELETION_VERIFIER', original)
+        return calls
+
+    def run_command(self, command: str) -> tuple[str, str | None, str | None]:
+        return self.decide(self.event(command, str(self.project)))
+
+    def request(self, calls: list[tuple[Any, Any, Any]]) -> tuple[Any, ...]:
+        self.assertEqual(len(calls), 1)
+        request = calls[0][0]
+        return tuple(request.refs), tuple(request.expected), request.forced
+
+    def test_default_verifier_is_the_no_exception_implementation(self) -> None:
+        self.assertIs(self.api('DELETION_VERIFIER'), self.api('no_exception_verifier'))
+
+    def test_branch_delete_reaches_the_verifier(self) -> None:
+        self.setup_push()
+        calls = self.install(True)
+        self.assertEqual(self.run_command('git branch -d feat/x'), ('allow', None, None))
+        self.assertEqual(self.request(calls), (('refs/heads/feat/x',), (None,), False))
+        self.assertEqual(calls[0][1].common_dir, str(self.project / '.git'))
+
+    def test_forced_branch_delete_is_marked_forced(self) -> None:
+        self.setup_push()
+        calls = self.install(True)
+        self.run_command('git branch -D feat/x feat/y')
+        self.assertEqual(self.request(calls), (('refs/heads/feat/x', 'refs/heads/feat/y'), (None, None), True))
+
+    def test_remote_tracking_delete_names_the_remote_ref(self) -> None:
+        self.setup_push()
+        calls = self.install(True)
+        self.run_command('git branch --delete -r origin/feat/x')
+        self.assertEqual(self.request(calls), (('refs/remotes/origin/feat/x',), (None,), False))
+
+    def test_update_ref_delete_carries_the_expected_value(self) -> None:
+        self.setup_push()
+        calls = self.install(True)
+        self.assertEqual(self.run_command(f'git update-ref -d refs/heads/feat/x {LEASE_SHA}'), ('allow', None, None))
+        self.assertEqual(self.request(calls), (('refs/heads/feat/x',), (LEASE_SHA,), False))
+
+    def test_update_ref_delete_names_the_dereferenced_branch(self) -> None:
+        self.setup_symbolic_alias()
+        calls = self.install(True)
+        self.run_command('git update-ref -d refs/heads/alias')
+        self.assertEqual(self.request(calls), (('refs/heads/main',), (None,), False))
+
+    def test_refused_exception_asks(self) -> None:
+        self.setup_push()
+        self.install(False)
+        self.assertEqual(self.run_command('git branch -d feat/x'), ('ask', BRANCH_DELETE, 'R22'))
+        self.assertEqual(self.run_command('git update-ref -d refs/heads/feat/x'), ('ask', BRANCH_DELETE, 'R23'))
+
+    def test_no_exception_implementation_refuses(self) -> None:
+        self.setup_push()
+        calls = self.install(True)
+        self.run_command('git branch -d feat/x')
+        verdict = self.api('no_exception_verifier')(*calls[0])
+        self.assertFalse(verdict.exception)
+        self.assertTrue(verdict.failure)
+
+    def test_forms_that_delete_no_branch_never_reach_the_verifier(self) -> None:
+        self.setup_push()
+        calls = self.install(True)
+        for command in ('git update-ref -d refs/tags/v1', 'git branch -f feat/y', 'git branch --list',
+                        "git update-ref --stdin <<'EOF'\ndelete refs/heads/feat/x\nEOF"):
+            with self.subTest(command=command):
+                self.run_command(command)
+        self.assertEqual(calls, [])
+
+
+class ReplayVerifierInterface(OperationFixture):
+    """Every rebase other than abort or show-current-patch asks a replaceable replay verifier."""
+
+    def install(self, verified: bool) -> list[tuple[Any, Any, Any]]:
+        calls: list[tuple[Any, Any, Any]] = []
+        verdict = self.api('ReplayVerdict')
+        original = self.api('REPLAY_VERIFIER')
+
+        def verifier(request: Any, invocation: Any, context: Any) -> Any:
+            calls.append((request, invocation, context))
+            return verdict(verified, None if verified else 'fixture verifier refused')
+        setattr(CORE, 'REPLAY_VERIFIER', verifier)
+        self.addCleanup(setattr, CORE, 'REPLAY_VERIFIER', original)
+        return calls
+
+    def tip(self, ref: str) -> str:
+        return subprocess.run([REAL_GIT, 'rev-parse', ref], cwd=self.project, env=self.git_environ, check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    def rebase(self, arguments: str) -> tuple[str, str | None, str | None]:
+        return self.decide(self.event('git rebase ' + arguments, str(self.project)))
+
+    def only_request(self, calls: list[tuple[Any, Any, Any]]) -> Any:
+        self.assertEqual(len(calls), 1)
+        return calls[0][0]
+
+    def test_default_verifier_is_the_no_journal_implementation(self) -> None:
+        self.assertIs(self.api('REPLAY_VERIFIER'), self.api('no_journal_replay_verifier'))
+
+    def test_exact_replay_form_reaches_the_verifier(self) -> None:
+        self.setup_push_feature()
+        calls = self.install(True)
+        new, old = self.tip('main'), self.tip('feat/x')
+        self.assertEqual(self.rebase(f'--onto {new} {old} feat/y'), ('allow', None, None))
+        request = self.only_request(calls)
+        self.assertEqual((tuple(request.arguments), request.replay, request.action),
+                         (('--onto', new, old, 'feat/y'), (new, old, 'feat/y'), None))
+        self.assertEqual((request.in_progress, request.rebase_head), (False, None))
+        self.assertEqual(request.common_dir, str(self.project / '.git'))
+
+    def test_other_forms_carry_no_replay(self) -> None:
+        self.setup_push_feature()
+        calls = self.install(True)
+        new, old = self.tip('main'), self.tip('feat/x')
+        for arguments in ('main', f'--onto={new} {old} feat/y', f'-q --onto {new} {old} feat/y',
+                          f'--onto {new} {old}'):
+            with self.subTest(arguments=arguments):
+                calls.clear()
+                self.rebase(arguments)
+                request = self.only_request(calls)
+                self.assertEqual(tuple(request.arguments), tuple(shlex.split(arguments)))
+                self.assertIsNone(request.replay)
+
+    def test_continue_reports_the_merge_backend_head_name(self) -> None:
+        self.setup_rebase_merge_in_progress()
+        calls = self.install(True)
+        self.assertEqual(self.rebase('--continue'), ('allow', None, None))
+        request = self.only_request(calls)
+        self.assertEqual((request.action, request.in_progress, request.rebase_head),
+                         ('continue', True, 'refs/heads/feat/a'))
+
+    def test_skip_reports_the_apply_backend_head_name(self) -> None:
+        self.setup_rebase_apply_in_progress()
+        calls = self.install(True)
+        self.rebase('--skip')
+        request = self.only_request(calls)
+        self.assertEqual((request.action, request.in_progress, request.rebase_head),
+                         ('skip', True, 'refs/heads/feat/a'))
+
+    def test_refused_verification_asks(self) -> None:
+        self.setup_push_feature()
+        self.install(False)
+        self.assertEqual(self.rebase('main'), ('ask', OUTSIDE_RESTACK, 'R26'))
+
+    def test_no_journal_implementation_refuses_and_names_the_check(self) -> None:
+        self.setup_push_feature()
+        calls = self.install(True)
+        self.rebase('main')
+        verdict = self.api('no_journal_replay_verifier')(*calls[0])
+        self.assertFalse(verdict.verified)
+        self.assertIn('journal', verdict.failure)
+
+    def test_abort_and_show_current_patch_never_reach_the_verifier(self) -> None:
+        self.setup_rebase_merge_in_progress()
+        calls = self.install(False)
+        for arguments in ('--abort', '--show-current-patch'):
+            with self.subTest(arguments=arguments):
+                self.assertEqual(self.rebase(arguments), ('allow', None, None))
+        self.assertEqual(calls, [])
+
+    def test_state_change_denies_before_the_verifier(self) -> None:
+        self.setup_rebase_merge_in_progress()
+        calls = self.install(True)
+        decision = self.decide(self.event('git add a.txt && git rebase --continue', str(self.project)))
+        self.assertEqual(decision, ('deny', UNSUPPORTED, 'R26'))
+        self.assertEqual(calls, [])
+
+
+class OperationReadIsolation(OperationFixture):
+    """Destructive and merge decisions read only local state through the sanitized layer."""
+
+    def test_operation_decisions_never_run_network_git_or_gh(self) -> None:
+        self.setup_push_extra_pattern()
+        log = self.probe / 'calls.log'
+        git = self.probe / 'bin/git'
+        git.write_text('#!/bin/bash\n'
+                       'printf "locks=%s prompt=%s dir=%s args=%s\\n" "${GIT_OPTIONAL_LOCKS-unset}" '
+                       f'"${{GIT_TERMINAL_PROMPT-unset}}" "${{GIT_DIR-unset}}" "$*" >> {shlex.quote(str(log))}\n'
+                       f'exec {shlex.quote(REAL_GIT)} "$@"\n')
+        git.chmod(0o755)
+        gh = self.probe / 'bin/gh'
+        gh.write_text(f'#!/bin/bash\nprintf "gh %s\\n" "$*" >> {shlex.quote(str(log))}\n')
+        gh.chmod(0o755)
+        self.environ['PATH'] = f'{self.probe / "bin"}{os.pathsep}{self.environ["PATH"]}'
+        self.environ['GIT_DIR'] = str(self.outside / '.git')
+        for command in ('git merge main', 'git pull', 'git pull --ff-only origin main', 'git rebase main',
+                        'git rebase --continue', 'git branch -m feat/z', 'git branch -f stable/b',
+                        'git update-ref -d refs/heads/feat/y', 'git checkout -B feat/y', 'git reset --hard',
+                        'git clean -fd', 'gh pr merge 1', 'gh api -X PUT repos/o/r/pulls/1/merge'):
+            with self.subTest(command=command):
+                self.assertNotEqual(self.decide(self.event(command, str(self.project)))[0], 'not_applicable')
+        calls = log.read_text().splitlines()
+        self.assertFalse([call for call in calls if call.startswith('gh ')], 'the core never runs gh')
+        for call in calls:
+            self.assertTrue(call.startswith('locks=0 prompt=0 dir=unset '), call)
+            arguments = call.split('args=', 1)[1].split()
+            for network in NETWORK_SUBCOMMANDS:
+                self.assertNotIn(network, arguments, call)
+
+
+CLASSES = (*CLASSES, OperationTable, DeletionVerifierInterface, ReplayVerifierInterface, OperationReadIsolation)
+
+
+# gh api graphql: a merge mutation is named as a field identifier of the query document, outside
+# string literals and comments, in any letter case; a query read from a file or stdin cannot be checked.
+GRAPHQL_MERGE_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('graphql_merge_pull_request_needs_owner_approval',
+                 """gh api graphql -f query='mutation{mergePullRequest(input:{pullRequestId:"X"}){clientMutationId}}'""",
+                 'ask', PR_MERGE, 'R30'),
+    DecisionCase('graphql_enable_auto_merge_needs_owner_approval',
+                 """gh api graphql -f query='mutation{enablePullRequestAutoMerge(input:{pullRequestId:"X"})"""
+                 """{clientMutationId}}'""", 'ask', PR_MERGE, 'R30'),
+    DecisionCase('graphql_merge_branch_needs_owner_approval',
+                 """gh api graphql -f query='mutation{mergeBranch(input:{repositoryId:"X",base:"main",head:"x"})"""
+                 """{clientMutationId}}'""", 'ask', PR_MERGE, 'R30'),
+    DecisionCase('graphql_lowercase_merge_mutation_needs_owner_approval',
+                 """gh api graphql -f query='mutation{mergepullrequest(input:{pullRequestId:"X"}){clientMutationId}}'""",
+                 'ask', PR_MERGE, 'R30'),
+    DecisionCase('graphql_query_from_a_file_is_unsupported', 'gh api graphql -F query=@q.graphql',
+                 'deny', UNSUPPORTED),
+    DecisionCase('graphql_body_from_a_file_is_unsupported', 'gh api graphql --input body.json',
+                 'deny', UNSUPPORTED),
+    DecisionCase('graphql_dynamic_query_is_unsupported', 'gh api graphql -f query="$Q"', 'deny', UNSUPPORTED),
+    DecisionCase('graphql_read_query_is_allowed', "gh api graphql -f query='query{viewer{login}}'", 'allow'),
+    DecisionCase('graphql_other_mutation_mentioning_merge_is_allowed',
+                 """gh api graphql -f query='mutation{addComment(input:{subjectId:"X",body:"merge it"})"""
+                 """{clientMutationId}}'""", 'allow'),
+    DecisionCase('graphql_merge_mutation_name_inside_a_string_is_allowed',
+                 """gh api graphql -f query='mutation{addComment(input:{subjectId:"X",body:"mergePullRequest"})"""
+                 """{clientMutationId}}'""", 'allow'),
+)
+
+for graphql_case in GRAPHQL_MERGE_CASES:
+    setattr(OperationTable, 'test_' + graphql_case.name, decision_test(graphql_case))
+
+
 def selected_suite() -> unittest.TestSuite:
     suite = unittest.TestSuite()
     for case_class in CLASSES:
