@@ -2013,6 +2013,7 @@ def forbidden_message(text: str) -> bool:
 DEFAULT_PROTECTED = ('main', 'master', 'release/*')
 BRANCH_PREFIX = 'refs/heads/'
 TAG_PREFIX = 'refs/tags/'
+PARTIAL_PREFIXES = ('heads/', 'tags/')
 
 
 def protected_branches(remote: str | None, invocation: Invocation, context: Context) -> tuple[str, ...] | None:
@@ -2202,11 +2203,18 @@ def split_refspec(text: str, state: PushState) -> Refspec | None:
     source, colon, destination = body.partition(':')
     if colon and source and not destination:
         return None
+    source, destination = full_name(source), full_name(destination)
     if source in ('HEAD', '@'):
         if state.branch is None:
             return None
         source = BRANCH_PREFIX + state.branch
     return Refspec(forced, source, destination if colon else source)
+
+
+def full_name(name: str) -> str:
+    """git matches refs/<name> first, so a short name under heads/ or tags/ names that ref.
+    Where git would instead create refs/heads/heads/<name>, this reading fails closed."""
+    return 'refs/' + name if name.startswith(PARTIAL_PREFIXES) else name
 
 
 def default_refspecs(parsed: ParsedOptions, state: PushState) -> tuple[Refspec, ...] | None:
