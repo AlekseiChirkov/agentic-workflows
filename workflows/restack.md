@@ -39,8 +39,9 @@ for this task. Resolve task paths from the project root; operate in its single r
 
 The journal is this workflow's recovery record and the only evidence the git-rails hook
 accepts for a replay rebase or a lease push; without exactly one matching journal the hook
-asks the owner (`git-flow → ## Safety rails`). The file name is the SHA-256 hex digest of
-the UTF-8 `task_path`. Minimum schema; extra fields are allowed:
+asks the owner, or denies a form or target it cannot resolve (`git-flow → ## Safety rails`).
+The file name is the SHA-256 hex digest of the UTF-8 `task_path`. Minimum schema; extra
+fields are allowed:
 
 ```json
 {
@@ -82,7 +83,8 @@ the UTF-8 `task_path`. Minimum schema; extra fields are allowed:
 
 This workflow uses exactly these command forms, with full SHAs and literal branch names.
 The hook allows a replay or a forced push only when exactly one journal verifies it (a push:
-every destination), and asks the owner otherwise:
+every destination), and otherwise asks the owner, or denies a form or target it cannot
+resolve:
 
 - Replay: `git rebase --onto <new-sha> <old-sha> <branch>`. `<branch>` is the first entry of
   `order` whose `replayed_tip` is `null` and is at its `original_tip`; `<old-sha>` is its
@@ -96,7 +98,7 @@ every destination), and asks the owner otherwise:
   push, where `<sha>` is the branch's `expected_remote_tip` and the local branch is at its
   `replayed_tip`. For a branch recorded as `"absent"`, use
   `git push --force-with-lease=refs/heads/<b>: origin <b>`. Never add `--force` or a `+`
-  refspec.
+  refspec. A dry-run push (`--dry-run` or `-n`) is allowed.
 
 The journal records only what this workflow observed. Never edit it to make a command pass
 the hook; a command the hook asks about follows the owner-approval protocol in

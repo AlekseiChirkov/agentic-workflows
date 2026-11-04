@@ -227,7 +227,8 @@ Enforcement values for the safety rails: `hook: deny` | `hook: ask` | `hook: all
 | `git reset --hard`, `git clean -xfd` | **Forbidden** — would destroy untracked `.ai/` state | `hook: ask` |
 | Moving, renaming, copying or resetting a protected branch (`branch -f`/`-m`/`-c`, `checkout -B`, `switch -C`, `update-ref`) | Owner approval required | `hook: ask` |
 | `git merge` or `git pull` into a protected branch | **Forbidden** — merging is the human's action | `hook: ask` |
-| Rewriting a commit already pushed as part of an open PR, including `git commit --amend` of a published commit | Only inside `/restack` | `hook: ask` |
+| `git commit --amend` of a commit already pushed as part of an open PR | Only inside `/restack` | `hook: ask` |
+| Other local rewrites of a pushed branch: `git reset --soft`/`--mixed`/`--keep`, `git branch -f <b> <rev>` and `git checkout -B <b> <rev>` on an unprotected branch, `git pull --rebase` | Only inside `/restack`; publishing the rewrite needs a forced push, which the rows above gate | `text only` |
 | Creating a pull request, its title and body, and attribution beyond the hook's patterns | Only with `--allow-pr`; no attribution | `text only` |
 
 The rules check no read-only or unlisted operation. In a registered project the hook still
