@@ -1398,10 +1398,13 @@ def runs_git_word(base: str, arguments: Sequence[Word]) -> bool:
     return any(not word.dynamic and word.text.rsplit('/', 1)[-1] in ('git', 'gh') for word in arguments)
 
 
-def shell_takes_value(text: str) -> bool:
-    """-o/-O and their + forms take the next word, also last in a bundle such as -eo."""
+def shell_values(text: str) -> int:
+    """How many following words a shell option word takes: one for a value option, and in a
+    short bundle one for every o or O wherever it sits (`-oe pipefail`, `-oo a b`)."""
+    if text in SHELL_VALUE_OPTIONS:
+        return 1
     short = text[:1] in ('-', '+') and not text.startswith('--') and len(text) > 1
-    return text in SHELL_VALUE_OPTIONS or (short and text[-1] in 'oO')
+    return sum(letter in 'oO' for letter in text[1:]) if short else 0
 
 
 def shell_runs_string(arguments: list[Word]) -> bool:
@@ -1415,7 +1418,7 @@ def shell_runs_string(arguments: list[Word]) -> bool:
             return False
         if word.text[0] == '-' and not word.text.startswith('--') and 'c' in word.text[1:]:
             return True
-        index += 2 if shell_takes_value(word.text) else 1
+        index += 1 + shell_values(word.text)
     return False
 
 
@@ -1435,7 +1438,7 @@ def shell_reads_stdin(arguments: Sequence[Word]) -> bool:
         elif word.text[:1] in ('-', '+') and len(word.text) > 1:
             if word.text[0] == '-' and 's' in word.text[1:]:
                 return True
-            index += 2 if shell_takes_value(word.text) else 1
+            index += 1 + shell_values(word.text)
         else:
             return False
     return True
@@ -1676,7 +1679,8 @@ def resolve_found(found: Found, context: Context) -> Invocation | Decision | Non
     draft = Invocation(found.program, found.words, directory, None, None, project or '',
                        found.environment, found.inherited, found.stdin)
     if found.uncertain:
-        verify = needs_verification(draft) and anchored((*found.anchors, directory), context)
+        targets = (*found.anchors, directory, *redirect_targets(draft), *environment_targets(draft))
+        verify = needs_verification(draft) and anchored(targets, context)
         return denial('unsupported-form') if verify else None
     if project is None:
         return redirected(draft, found, context)
@@ -2829,17 +2833,16 @@ def dry_run_decision(parsed: ParsedOptions, invocation: Invocation, context: Con
     return ALLOW
 
 
-# The lease check that fails for the same reason an R16 or R17 ask is raised.
-LEASE_RULE_CHECKS = {'R16': 'branch-protected', 'R17': 'forced'}
-
-
 def named_check(result: Decision, asks: Sequence[Decision]) -> Decision:
-    """An R16 or R17 ask names the failed lease check when the lease fails on that ground."""
-    expected = LEASE_RULE_CHECKS.get(str(result.rule_id))
+    """With an unverified lease, an R16 ask names `branch-protected`, which fails for a protected
+    destination whichever journal check fails first; an R17 ask names `forced` when the
+    lease fails on that ground alone."""
     lease = next((ask for ask in asks if ask.rule_id == 'R18'), None)
-    if expected is None or lease is None or lease.failure != expected:
+    if lease is None:
         return result
-    return replace(result, failure=expected)
+    if result.rule_id == 'R16':
+        return replace(result, failure='branch-protected')
+    return replace(result, failure='forced') if result.rule_id == 'R17' and lease.failure == 'forced' else result
 
 
 def push_summary(plan: PushPlan) -> str:
