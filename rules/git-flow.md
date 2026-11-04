@@ -199,36 +199,46 @@ The no-attribution rule above applies verbatim to PR titles and bodies: no tool 
 
 The Policy column says what an agent may do. The Enforcement column says what the git-rails
 hook does when the harness runs it (Claude Code, in a registered project): `hook: deny`
-blocks the command, `hook: ask` blocks it until the owner approves that one execution,
+blocks the command, `hook: ask` blocks it until the owner approves that one execution, or
+denies it with `owner-approval-unavailable` where no person can be prompted,
 `hook: allow with restack journal` lets it through only when the `/restack` recovery
 journal verifies it, and `text only` means the hook does not check it. A harness without
 the hook applies the whole table as text.
 
 Enforcement values for the safety rails: `hook: deny` | `hook: ask` | `hook: allow with restack journal` | `text only`.
 
+Protected branches for the safety rails: the target remote's default branch, `main`, `master`, `release/*`, and every pattern in `git config orchestrail.protectedBranch`.
+
+A row that names a protected branch means a branch of this protected set. A pattern is a
+shell glob in which `*` also matches `/`. For an operation on a local branch the target
+remote is `origin`; without `origin`, only the fixed names and configured patterns apply.
+When the target remote's default branch is unknown, a rule that needs the protected set denies
+with `default-branch-unknown`; set it with `git remote set-head <remote> --auto`.
+
 | Operation | Policy | Enforcement |
 |---|---|---|
 | `git push` to a subtask branch | Allowed with `--allow-pr` | `text only` |
-| `git push` to `<base>` / `main` / any protected branch | **Forbidden, always** | `hook: ask` |
-| `git push --force` | **Forbidden.** Only `--force-with-lease`, only inside `/restack`, only on subtask branches of the current task | `hook: ask` |
+| `git push` to `main` or any protected branch (protected set above) | **Forbidden, always** | `hook: ask` |
+| `git push` to an unprotected `<base>` | **Forbidden, always** | `text only` |
+| `git push --force`; a dry run (`--dry-run` or `-n`) of any forced push is allowed | **Forbidden.** Only `--force-with-lease`, only inside `/restack`, only on subtask branches of the current task | `hook: ask` |
 | A `--force-with-lease` push whose explicit lease the restack journal verifies for every destination; `/restack` uses `git push --force-with-lease=refs/heads/<b>:<sha> origin <b>` | Only inside `/restack` with `--allow-pr` | `hook: allow with restack journal` |
 | A lease push the restack journal does not verify, a `+` refspec, or `--force-if-includes` without a verified lease | **Forbidden** — `/restack` publishes only in the form above | `hook: ask` |
 | Bulk, tag or delete push (`--all`, `--mirror`, `--tags`, `--follow-tags`, `--delete`, `:<branch>`) | Owner approval required | `hook: ask` |
 | Push whose remote, destination or remote default branch cannot be resolved | **Forbidden** — name the remote and destination explicitly; set a missing default with `git remote set-head <remote> --auto` | `hook: deny` |
-| Branch deletion | **Owner approval required; a verified temporary child-branch exception is planned.** Deleting a branch on the agent's own initiative is forbidden; branches are deleted by the human when merging | `hook: ask` |
+| Branch deletion through git (`git branch -d`/`-D`, `git update-ref -d`); gh deletions are listed in the harness capability record | **Owner approval required; a verified temporary child-branch exception is planned.** Deleting a branch on the agent's own initiative is forbidden; branches are deleted by the human when merging | `hook: ask` |
 | `gh pr merge`, and the `gh api` pull-request merge endpoints | **Forbidden, always** | `hook: ask` |
 | `git add -A` / `.` / `--all`, `git commit -a` | **Forbidden** — explicit paths only | `hook: deny` |
 | Staging a directory, a glob, a pathspec-magic or missing path, or staging interactively | **Forbidden** — explicit file paths only | `hook: deny` |
 | `git add -f` of an ignored path | Owner approval required — it would publish local state the repository ignores | `hook: ask` |
 | A commit message with a `Co-Authored-By:` trailer or a subtask or decision-record identifier, or one the hook cannot read statically | **Forbidden** — see `## Commits`; pass the message with `-m` or `-F <file>` | `hook: deny` |
-| A git or gh command governed by a row of this table, in a form the hook cannot verify: `GIT_*` assignments, aliases, unsupported global options, dynamic arguments | **Forbidden** — write the command in a plain, literal form | `hook: deny` |
+| A git or gh command governed by a row of this table, in a form the hook cannot verify: `GIT_*` assignments, git aliases, unsupported global options, dynamic arguments | **Forbidden** — write the command in a plain, literal form | `hook: deny` |
 | `git rebase` outside `/restack` | **Forbidden** | `hook: ask` |
 | `git rebase --onto <new-sha> <old-sha> <branch>` replaying the next branch the restack journal records | Only inside `/restack` | `hook: allow with restack journal` |
 | `git reset --hard`, `git clean -xfd` | **Forbidden** — would destroy untracked `.ai/` state | `hook: ask` |
-| Moving, renaming, copying or resetting a protected branch (`branch -f`/`-m`/`-c`, `checkout -B`, `switch -C`, `update-ref`) | Owner approval required | `hook: ask` |
-| `git merge` or `git pull` into a protected branch | **Forbidden** — merging is the human's action | `hook: ask` |
+| Moving, renaming, copying or overwriting a protected branch (protected set above) with `branch -f`/`-m`/`-c`, `checkout -B`, `switch -C` or `update-ref` | Owner approval required | `hook: ask` |
+| `git merge` or `git pull` into a protected branch (protected set above), except `git pull --ff-only` from the configured upstream, which the hook allows | **Forbidden** — merging is the human's action | `hook: ask` |
 | `git commit --amend` of a commit already pushed as part of an open PR | Only inside `/restack` | `hook: ask` |
-| Other local rewrites of a pushed branch: `git reset --soft`/`--mixed`/`--keep`, `git branch -f <b> <rev>` and `git checkout -B <b> <rev>` on an unprotected branch, `git pull --rebase` | Only inside `/restack`; publishing the rewrite needs a forced push, which the rows above gate | `text only` |
+| Other local rewrites of a pushed branch: `git reset --soft`/`--mixed`/`--keep`/`--merge` on any branch, protected ones included; `git branch -f <b> <rev>`, `git checkout -B <b> <rev>`, `git switch -C` and `git update-ref` of an unprotected branch; `git pull --rebase` on an unprotected branch | Only inside `/restack`; publishing the rewrite needs a forced push, which the rows above gate | `text only` |
 | Creating a pull request, its title and body, and attribution beyond the hook's patterns | Only with `--allow-pr`; no attribution | `text only` |
 
 The rules check no read-only or unlisted operation. In a registered project the hook still

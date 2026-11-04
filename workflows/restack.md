@@ -40,8 +40,10 @@ for this task. Resolve task paths from the project root; operate in its single r
 The journal is this workflow's recovery record and the only evidence the git-rails hook
 accepts for a replay rebase or a lease push; without exactly one matching journal the hook
 asks the owner, or denies a form or target it cannot resolve (`git-flow → ## Safety rails`).
-The file name is the SHA-256 hex digest of the UTF-8 `task_path`. Minimum schema; extra
-fields are allowed:
+The file name is the SHA-256 hex digest of the UTF-8 `task_path`. Every file in the journal
+directory whose name is 64 hex digits followed by `.json` must be a usable journal: one that
+is unreadable, invalid or misnamed makes every replay and lease push ask, as an unreadable
+journal directory does. Minimum schema; extra fields are allowed:
 
 ```json
 {

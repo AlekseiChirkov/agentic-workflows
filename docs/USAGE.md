@@ -602,7 +602,7 @@ registered projects and do not discover runs from historical events. Configurati
 locations honor `HOME`, `XDG_CONFIG_HOME` and `XDG_STATE_HOME`.
 
 The same installer registers the git-rails `PreToolUse` handler, which checks Bash git
-commands in registered projects against `rules/git-flow.md → ## Safety rails`. It runs
+and gh commands in registered projects against `rules/git-flow.md → ## Safety rails`. It runs
 `hooks/git-rails.sh` from the source checkout and blocks the call when it cannot run, so
 uninstall with the current installer before checking out a revision that lacks that file;
 otherwise every Bash call in every project is blocked until you uninstall.
