@@ -211,8 +211,8 @@ Enforcement values for the safety rails: `hook: deny` | `hook: ask` | `hook: all
 | `git push` to a subtask branch | Allowed with `--allow-pr` | `text only` |
 | `git push` to `<base>` / `main` / any protected branch | **Forbidden, always** | `hook: ask` |
 | `git push --force` | **Forbidden.** Only `--force-with-lease`, only inside `/restack`, only on subtask branches of the current task | `hook: ask` |
-| `git push --force-with-lease=refs/heads/<b>:<sha> origin <b>` of a branch the restack journal records as replayed | Only inside `/restack` with `--allow-pr` | `hook: allow with restack journal` |
-| Any other lease form, a `+` refspec, `--force-if-includes` | **Forbidden** — use the exact lease form above | `hook: ask` |
+| A `--force-with-lease` push whose explicit lease the restack journal verifies for every destination; `/restack` uses `git push --force-with-lease=refs/heads/<b>:<sha> origin <b>` | Only inside `/restack` with `--allow-pr` | `hook: allow with restack journal` |
+| A lease push the restack journal does not verify, a `+` refspec, or `--force-if-includes` without a verified lease | **Forbidden** — `/restack` publishes only in the form above | `hook: ask` |
 | Bulk, tag or delete push (`--all`, `--mirror`, `--tags`, `--follow-tags`, `--delete`, `:<branch>`) | Owner approval required | `hook: ask` |
 | Push whose remote, destination or remote default branch cannot be resolved | **Forbidden** — name the remote and destination explicitly; set a missing default with `git remote set-head <remote> --auto` | `hook: deny` |
 | Branch deletion | **Owner approval required; a verified temporary child-branch exception is planned.** Deleting a branch on the agent's own initiative is forbidden; branches are deleted by the human when merging | `hook: ask` |
@@ -221,7 +221,7 @@ Enforcement values for the safety rails: `hook: deny` | `hook: ask` | `hook: all
 | Staging a directory, a glob, a pathspec-magic or missing path, or staging interactively | **Forbidden** — explicit file paths only | `hook: deny` |
 | `git add -f` of an ignored path | Owner approval required — it would publish local state the repository ignores | `hook: ask` |
 | A commit message with a `Co-Authored-By:` trailer or a subtask or decision-record identifier, or one the hook cannot read statically | **Forbidden** — see `## Commits`; pass the message with `-m` or `-F <file>` | `hook: deny` |
-| Git forms the hook cannot verify: `GIT_*` assignments, aliases, unsupported global options, dynamic arguments | **Forbidden** — write the command in a plain, literal form | `hook: deny` |
+| A git or gh command governed by a row of this table, in a form the hook cannot verify: `GIT_*` assignments, aliases, unsupported global options, dynamic arguments | **Forbidden** — write the command in a plain, literal form | `hook: deny` |
 | `git rebase` outside `/restack` | **Forbidden** | `hook: ask` |
 | `git rebase --onto <new-sha> <old-sha> <branch>` replaying the next branch the restack journal records | Only inside `/restack` | `hook: allow with restack journal` |
 | `git reset --hard`, `git clean -xfd` | **Forbidden** — would destroy untracked `.ai/` state | `hook: ask` |
@@ -230,8 +230,11 @@ Enforcement values for the safety rails: `hook: deny` | `hook: ask` | `hook: all
 | Rewriting a commit already pushed as part of an open PR, including `git commit --amend` of a published commit | Only inside `/restack` | `hook: ask` |
 | Creating a pull request, its title and body, and attribution beyond the hook's patterns | Only with `--allow-pr`; no attribution | `text only` |
 
-Operations absent from this table are not checked by the hook; the harness capability record
-lists what it does not see. Read-only git commands are never blocked.
+The rules check no read-only or unlisted operation. In a registered project the hook still
+denies any git or gh command it cannot verify: opaque forms such as `xargs git …`,
+`zsh -c '…'`, `git submodule foreach` and `git bisect run`, and commands over its size limit.
+It also denies every relevant command while the project registry or the hook runtime is
+unusable. The harness capability record lists these and what the hook does not see.
 
 ### Owner approval protocol
 

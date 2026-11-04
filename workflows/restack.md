@@ -80,13 +80,18 @@ the UTF-8 `task_path`. Minimum schema; extra fields are allowed:
   `expected_remote_tip` is a SHA, `"absent"` (the branch was confirmed absent on the
   remote) or `null` (not captured).
 
-The hook accepts exactly these command forms, with full SHAs and literal branch names:
+This workflow uses exactly these command forms, with full SHAs and literal branch names.
+The hook allows a replay or a forced push only when exactly one journal verifies it (a push:
+every destination), and asks the owner otherwise:
 
 - Replay: `git rebase --onto <new-sha> <old-sha> <branch>`. `<branch>` is the first entry of
   `order` whose `replayed_tip` is `null` and is at its `original_tip`; `<old-sha>` is its
-  `original_base_commit`; `<new-sha>` is its replay base from `order`. Leave
-  `rebase.updateRefs` unset or false. After a conflict, `git rebase --continue`,
-  `--skip` and `--abort` of that replay are accepted as well.
+  `original_base_commit`; `<new-sha>` is its replay base from `order`. Before the first
+  replay, read `git config --type=bool --get rebase.updateRefs`. When `rebase.updateRefs`
+  is true, or the hook asks about a replay → **stop**: "The replay of `<branch>` cannot be
+  verified: <reason>." Report it; never retry the replay in another form. After a
+  conflict, `git rebase --continue`, `--skip` and `--abort` of that replay are accepted as
+  well.
 - Publication: `git push --force-with-lease=refs/heads/<b>:<sha> origin <b>`, one branch per
   push, where `<sha>` is the branch's `expected_remote_tip` and the local branch is at its
   `replayed_tip`. For a branch recorded as `"absent"`, use
