@@ -5636,6 +5636,42 @@ done <<'GITRAILSRESIDUALS'
 GITRAILSRESIDUALS
 unset git_rails_risk git_rails_risk_re git_rails_risk_desc
 
+# The rules and the hook differ in reach: the rules govern listed operations, but the hook
+# also denies forms it cannot verify and every relevant command while its registry or
+# runtime is unusable, and it allows any forced push the journal verifies, not only the
+# form /restack uses. The text must claim neither less blocking nor narrower acceptance.
+safety_rails_flat() {
+  safety_rails_section | tr '\n' ' ' | tr -s ' '
+}
+
+safety_rails_has() {
+  local phrase
+  for phrase in "$@"; do
+    safety_rails_flat | grep -qF -- "$phrase" || return 1
+  done
+}
+
+check "SAFETY: no reader claims read-only or unlisted git commands are never blocked" \
+  "$(grep -rniE 'read-only git commands are never blocked|absent from this table are not checked by the hook' rules/ workflows/ docs/USAGE.md 2>/dev/null | grep -q . && echo "a reader claims the hook never blocks read-only or unlisted commands: $(grep -rliE 'read-only git commands are never blocked|absent from this table are not checked by the hook' rules/ workflows/ docs/USAGE.md 2>/dev/null | tr '\n' ' ')" || echo pass)"
+
+check "SAFETY: unlisted operations are ungoverned, yet the hook still denies unverifiable forms and an unusable registry or runtime" \
+  "$(safety_rails_has 'The rules check no read-only or unlisted operation' 'the hook still denies any git or gh command it cannot verify' 'while the project registry or the hook runtime is unusable' 'harness capability record' && echo pass || echo "git-flow.md → ## Safety rails must say the rules check no read-only or unlisted operation while the hook still denies unverifiable forms and every relevant command while the registry or runtime is unusable, pointing at the harness capability record")"
+
+check "SAFETY: the journal-verified lease row covers every destination the journal verifies" \
+  "$(safety_rails_rows | grep -F "\`$RESTACK_PUSH_FORM\`" | head -n 1 | grep -qF 'the restack journal verifies for every destination' && echo pass || echo "git-flow.md lease row allowed with the restack journal must say the journal verifies every destination, not only the form /restack uses")"
+
+check "SAFETY: the lease row that asks names pushes the journal does not verify" \
+  "$(safety_rails_rows | grep -F '`+` refspec' | head -n 1 | grep -qF 'the restack journal does not verify' && ! grep -qF 'Any other lease form' "$SAFETY_RAILS_RULE" && echo pass || echo "git-flow.md must record as hook: ask the forced pushes the restack journal does not verify, not 'any other lease form'")"
+
+check "SAFETY: the opaque-forms row applies to governed git and gh invocations" \
+  "$(safety_rails_rows | grep -F '`GIT_*` assignments' | head -n 1 | grep -qF 'governed by a row of this table' && echo pass || echo "git-flow.md opaque-forms row must be limited to git or gh commands governed by a row of the table")"
+
+check "RESTACK: the workflow's command forms are its own, not the hook's acceptance set" \
+  "$(! grep -qiF 'hook accepts exactly' "$RESTACK_WORKFLOW" 2>/dev/null && restack_journal_has 'This workflow uses exactly these command forms' 'only when exactly one journal verifies it' && echo pass || echo "restack.md → ## Recovery journal must say the workflow uses exactly these forms and the hook allows a replay or forced push only when exactly one journal verifies it, never that the hook accepts exactly these forms")"
+
+check "RESTACK: a set rebase.updateRefs stops the replay instead of a retry in another form" \
+  "$(restack_journal_has 'When `rebase.updateRefs` is true' '**stop**' 'never retry the replay in another form' && echo pass || echo "restack.md → ## Recovery journal must stop when rebase.updateRefs is true or the hook asks about a replay, and never retry the replay in another form")"
+
 echo ""
 echo "=== Contract Validation ==="
 echo "  Passed: $PASS"
