@@ -1161,17 +1161,21 @@ class Walker:
     def opaque(self: Walker, scope: Scope) -> None:
         self.items.append(Opaque(tuple(self.anchors)))
 
-    def anchor_values(self: Walker, word: Word) -> None:
-        """Record absolute directories named by a literal NAME=value or export word."""
+    def anchor_values(self: Walker, word: Word, scope: Scope) -> None:
+        """Record absolute directories named by a literal NAME=value or export word, and a
+        relative repository variable value resolved against the current directory."""
         if word.dynamic or '=' not in word.text:
             return
-        for part in word.text.split('=', 1)[1].split(':'):
+        value = word.text.split('=', 1)[1]
+        if value and scope.directory is not None and assignment_name(word) in SANITIZED_GIT_VARIABLES:
+            self.anchors.append(os.path.realpath(os.path.join(scope.directory, value)))
+        for part in value.split(':'):
             if os.path.isabs(part):
                 self.anchors.append(os.path.realpath(part))
 
     def assign(self: Walker, words: Sequence[Word], scope: Scope) -> None:
         for word in words:
-            self.anchor_values(word)
+            self.anchor_values(word, scope)
         note_names([assignment_name(word) for word in words], scope)
 
     def walk_command(self: Walker, node: Simple, scope: Scope) -> None:
@@ -1181,7 +1185,7 @@ class Walker:
             return
         words, environment = stripped
         for word in environment:
-            self.anchor_values(word)
+            self.anchor_values(word, scope)
         if not words:
             return
         if words[0].dynamic:
@@ -1236,7 +1240,7 @@ class Walker:
         for word in arguments:
             if not word.dynamic and word.text.startswith('-'):
                 continue
-            self.anchor_values(word)
+            self.anchor_values(word, scope)
             names.append(exported_name(word))
         note_names(names, scope)
 
@@ -1394,6 +1398,12 @@ def runs_git_word(base: str, arguments: Sequence[Word]) -> bool:
     return any(not word.dynamic and word.text.rsplit('/', 1)[-1] in ('git', 'gh') for word in arguments)
 
 
+def shell_takes_value(text: str) -> bool:
+    """-o/-O and their + forms take the next word, also last in a bundle such as -eo."""
+    short = text[:1] in ('-', '+') and not text.startswith('--') and len(text) > 1
+    return text in SHELL_VALUE_OPTIONS or (short and text[-1] in 'oO')
+
+
 def shell_runs_string(arguments: list[Word]) -> bool:
     """Whether leading shell options include -c in any spelling, or cannot be read."""
     index = 0
@@ -1405,7 +1415,7 @@ def shell_runs_string(arguments: list[Word]) -> bool:
             return False
         if word.text[0] == '-' and not word.text.startswith('--') and 'c' in word.text[1:]:
             return True
-        index += 2 if word.text in SHELL_VALUE_OPTIONS else 1
+        index += 2 if shell_takes_value(word.text) else 1
     return False
 
 
@@ -1425,7 +1435,7 @@ def shell_reads_stdin(arguments: Sequence[Word]) -> bool:
         elif word.text[:1] in ('-', '+') and len(word.text) > 1:
             if word.text[0] == '-' and 's' in word.text[1:]:
                 return True
-            index += 1
+            index += 2 if shell_takes_value(word.text) else 1
         else:
             return False
     return True
@@ -2119,6 +2129,7 @@ BULK_PUSH_OPTIONS = ('all', 'branches', 'mirror', 'tags', 'follow-tags')
 PROGRAM_PUSH_OPTIONS = ('receive-pack', 'exec')
 SAFE_SUBMODULE_MODES = (None, False, 'check', 'no')
 FALSE_CONFIG_VALUES = frozenset({'false', 'no', 'off', '0', ''})
+SAFE_SUBMODULE_CONFIG = FALSE_CONFIG_VALUES | {'check'}
 LEASE_SHA = re.compile(r'[0-9a-f]{40}([0-9a-f]{24})?')
 SAFE_REF = re.compile(r'[^\s@:\\\x00-\x1f\x7f]+')
 PUSH_TARGET_UNKNOWN = 'push-target-unknown'
@@ -2150,11 +2161,13 @@ class Refspec:
 
 @dataclass(frozen=True)
 class PushPlan:
-    """The resolved target remote, every refspec with a full destination ref, and whether
-    the remote's configuration pushes refs beyond them."""
+    """The resolved target remote, every refspec with a full destination ref, whether the
+    remote's configuration pushes refs beyond them, and whether configuration makes the
+    push run another program."""
     remote: str
     refspecs: tuple[Refspec, ...]
     bulk: bool
+    programs: bool
 
 
 def read_push_state(invocation: Invocation, context: Context) -> PushState | None:
@@ -2190,16 +2203,30 @@ def config_true(value: str | None) -> bool:
 def push_remote(parsed: ParsedOptions, state: PushState) -> str | None:
     """The configured remote the push targets; a URL, a path, an unknown name or a remote
     with configured push refspecs cannot be resolved."""
-    repository = parsed.last('repo')
-    if parsed.operands:
-        name = parsed.operands[0]
-    elif isinstance(repository, str):
-        name = repository
-    else:
-        name = default_remote(state)
+    name = target_name(parsed, state)
     if setting(state, f'remote.{name}.url') is None or setting(state, f'remote.{name}.push') is not None:
         return None
     return name
+
+
+def target_name(parsed: ParsedOptions, state: PushState) -> str:
+    """The repository the push names: the first operand, --repo, then the default remote."""
+    repository = parsed.last('repo')
+    if parsed.operands:
+        return parsed.operands[0]
+    return repository if isinstance(repository, str) else default_remote(state)
+
+
+def configured_programs(parsed: ParsedOptions, state: PushState) -> bool:
+    """remote.<target>.receivepack runs a program, and push.recurseSubmodules on-demand or
+    only, or submodule.recurse, pushes submodules; a command-line choice replaces both."""
+    if setting(state, f'remote.{target_name(parsed, state)}.receivepack') is not None:
+        return True
+    if parsed.last('recurse-submodules') is not None:
+        return False
+    mode = setting(state, 'push.recursesubmodules')
+    unsafe = mode is not None and mode.lower() not in SAFE_SUBMODULE_CONFIG
+    return unsafe or config_true(setting(state, 'submodule.recurse'))
 
 
 def default_remote(state: PushState) -> str:
@@ -2235,12 +2262,16 @@ def refspec_words(parsed: ParsedOptions) -> list[str] | None:
 
 
 def split_refspec(text: str, state: PushState) -> Refspec | None:
-    """`[+]<src>[:<dst>]`; HEAD is the current branch, and a pattern cannot be resolved."""
+    """`[+]<src>[:<dst>]` split at the last colon, as git splits it, so a source revision may
+    hold colons (`:/<text>`, `^{/<text>}`); HEAD is the current branch, and a pattern
+    cannot be resolved."""
     forced = text.startswith('+')
     body = text[1:] if forced else text
     if not body or body.startswith('^') or any(char in GLOB_CHARACTERS for char in body):
         return None
-    source, colon, destination = body.partition(':')
+    source, colon, destination = body.rpartition(':')
+    if not colon:
+        source = destination
     if colon and source and not destination:
         return None
     source, destination = full_name(source), full_name(destination)
@@ -2271,7 +2302,7 @@ def default_refspecs(parsed: ParsedOptions, state: PushState) -> tuple[Refspec, 
     if mode in ('simple', 'current'):
         return (Refspec(False, current, current),)
     merge = setting(state, f'branch.{branch}.merge')
-    return (Refspec(False, current, merge),) if merge else None
+    return (Refspec(False, current, full_name(merge)),) if merge else None
 
 
 def requested_refspecs(parsed: ParsedOptions, state: PushState) -> tuple[Refspec, ...] | None:
@@ -2319,7 +2350,7 @@ def push_plan(parsed: ParsedOptions, invocation: Invocation, context: Context) -
     if specs is None or tags is None:
         return None
     bulk = config_true(setting(state, 'push.followtags')) or config_true(setting(state, f'remote.{remote}.mirror'))
-    return PushPlan(remote, tuple(qualified(spec, tags) for spec in specs), bulk)
+    return PushPlan(remote, tuple(qualified(spec, tags) for spec in specs), bulk, configured_programs(parsed, state))
 
 
 # ── Restack recovery journals ──────────────────────────────────────────
@@ -2769,19 +2800,46 @@ def check_push_options(invocation: Invocation, context: Context) -> Decision | N
 def push_decision(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision:
     """R11 to R19 for one reading of the options; matching rows apply in matrix order."""
     if parsed.last('dry-run') is True:
-        return ALLOW
+        return dry_run_decision(parsed, invocation, context)
     if state_changed(invocation):
         return denial(PUSH_TARGET_UNKNOWN, 'R12')
     plan = push_plan(parsed, invocation, context)
     if plan is None:
         return denial(PUSH_TARGET_UNKNOWN, 'R12')
+    if plan.programs:
+        return replace(denial('unsupported-form'), summary=push_summary(plan))
     protected = protected_branches(plan.remote, invocation, context)
     if protected is None:
         return replace(denial('default-branch-unknown', 'R13'), summary=push_summary(plan))
     view = PushView(parsed, plan, protected, invocation, context)
-    asks = [check(view) for check in PUSH_ASKS]
-    result = combine([ALLOW, *[result for result in asks if result is not None]])
+    asks = [ask for ask in (check(view) for check in PUSH_ASKS) if ask is not None]
+    result = named_check(combine([ALLOW, *asks]), asks)
     return result if result.decision == 'allow' else replace(result, summary=push_summary(plan))
+
+
+def dry_run_decision(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision:
+    """A dry run updates nothing but still runs a configured receive-pack or submodule push.
+    After an earlier write in the same command the configuration cannot be read, and the
+    dry run stays allowed."""
+    if state_changed(invocation):
+        return ALLOW
+    state = read_push_state(invocation, context)
+    if state is None or configured_programs(parsed, state):
+        return denial('unsupported-form')
+    return ALLOW
+
+
+# The lease check that fails for the same reason an R16 or R17 ask is raised.
+LEASE_RULE_CHECKS = {'R16': 'branch-protected', 'R17': 'forced'}
+
+
+def named_check(result: Decision, asks: Sequence[Decision]) -> Decision:
+    """An R16 or R17 ask names the failed lease check when the lease fails on that ground."""
+    expected = LEASE_RULE_CHECKS.get(str(result.rule_id))
+    lease = next((ask for ask in asks if ask.rule_id == 'R18'), None)
+    if expected is None or lease is None or lease.failure != expected:
+        return result
+    return replace(result, failure=expected)
 
 
 def push_summary(plan: PushPlan) -> str:
@@ -3293,10 +3351,51 @@ def fast_forward_only(parsed: ParsedOptions) -> bool:
 
 
 def pull_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
-    """R28: only --ff-only from the configured upstream leaves a protected branch unrewritten."""
-    if fast_forward_only(parsed) and not parsed.operands:
+    """R28: only --ff-only from the configured upstream leaves a protected branch unrewritten;
+    --upload-pack runs a program, and pull configuration is read as well."""
+    if parsed.last('upload-pack') not in (None, False):
+        return denial(UNSUPPORTED)
+    head = None if fast_forward_only(parsed) and not parsed.operands else protected_head(invocation, context, 'R28')
+    found = [result for result in (head, pull_configuration(parsed, invocation, context)) if result is not None]
+    return combine(found) if found else None
+
+
+def pull_configuration(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
+    """A configured upload-pack program on a fetched remote is unsupported; a rebasing pull
+    under rebase.updateRefs may move other branches, protected ones included. After an
+    earlier write the configuration cannot be read: every reading but --ff-only from the
+    upstream is already denied by R28, and that one stays allowed."""
+    if state_changed(invocation):
         return None
-    return protected_head(invocation, context, 'R28')
+    state = read_push_state(invocation, context)
+    if state is None:
+        return denial(UNSUPPORTED, 'R28')
+    if fetch_programs(parsed, state):
+        return denial(UNSUPPORTED)
+    if pull_rebases(parsed, state) and updates_refs(invocation, context):
+        return asking(REWRITE, 'R28')
+    return None
+
+
+def fetch_programs(parsed: ParsedOptions, state: PushState) -> bool:
+    """remote.<r>.uploadpack for the fetched remote; with --all, a remote group, a URL or a
+    path, any configured remote counts."""
+    branch_remote = setting(state, f'branch.{state.branch}.remote') if state.branch else None
+    name = parsed.operands[0] if parsed.operands else branch_remote or 'origin'
+    if parsed.last('all') is not True and setting(state, f'remote.{name}.url') is not None:
+        return setting(state, f'remote.{name}.uploadpack') is not None
+    return any(key.startswith('remote.') and key.endswith('.uploadpack') for key in state.config)
+
+
+def pull_rebases(parsed: ParsedOptions, state: PushState) -> bool:
+    """--ff-only never rebases; --rebase/-r, else branch.<current>.rebase, else pull.rebase."""
+    if fast_forward_only(parsed):
+        return False
+    value = parsed.last('rebase')
+    if value is None:
+        keys = [*([f'branch.{state.branch}.rebase'] if state.branch else []), 'pull.rebase']
+        value = next((found for found in (setting(state, key) for key in keys) if found is not None), None)
+    return value is True or (isinstance(value, str) and config_true(value))
 
 
 # ── gh ─────────────────────────────────────────────────────────────────
@@ -3471,7 +3570,7 @@ def check_opaque_invocation(invocation: Invocation) -> Decision | None:
 
 def redirected(draft: Invocation, found: Found, context: Context) -> Decision | None:
     """Outside a registered work tree, deny only options and variables that point back in."""
-    targets = (*found.anchors, *redirect_targets(draft))
+    targets = (*found.anchors, *redirect_targets(draft), *environment_targets(draft))
     if not needs_verification(draft) or not anchored(targets, context):
         return None
     if any(is_git_name(name) for name in (*draft.assignments, *draft.inherited)):
@@ -3482,7 +3581,8 @@ def redirected(draft: Invocation, found: Found, context: Context) -> Decision | 
 
 
 def redirect_targets(invocation: Invocation, every: bool = False) -> tuple[str, ...]:
-    """Literal --git-dir/--work-tree values; with every=True, any such option at all."""
+    """Literal --git-dir/--work-tree values, a relative one resolved where git runs (after
+    every -C); with every=True, any such option at all."""
     if invocation.program != 'git':
         return ()
     words = invocation.words[:invocation.layout.globals_end]
@@ -3493,8 +3593,19 @@ def redirect_targets(invocation: Invocation, every: bool = False) -> tuple[str, 
             continue
         if not equals:
             value = words[index + 1].text if index + 1 < len(words) else ''
-        targets.append(os.path.realpath(value) if value and os.path.isabs(value) else value)
-    return tuple(targets) if every else tuple(target for target in targets if os.path.isabs(target))
+        targets.append(os.path.realpath(os.path.join(invocation.directory, value)) if value else value)
+    return tuple(targets) if every else tuple(target for target in targets if target)
+
+
+def environment_targets(invocation: Invocation) -> tuple[str, ...]:
+    """Literal GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR and GIT_INDEX_FILE prefix values,
+    a relative one resolved where git runs (after every -C)."""
+    targets: list[str] = []
+    for word in invocation.environment:
+        value = word.text.partition('=')[2]
+        if not word.dynamic and value and assignment_name(word) in SANITIZED_GIT_VARIABLES:
+            targets.append(os.path.realpath(os.path.join(invocation.directory, value)))
+    return tuple(targets)
 
 
 def exempt_word(invocation: Invocation, word: Word) -> bool:
