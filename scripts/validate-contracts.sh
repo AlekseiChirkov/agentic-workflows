@@ -5708,6 +5708,78 @@ check "RESTACK: the hook asks the owner or denies, never only asks" \
 check "RESTACK: a dry-run push is allowed" \
   "$(restack_journal_has 'A dry-run push (`--dry-run` or `-n`) is allowed' && echo pass || echo "restack.md → ## Recovery journal must note that a dry-run push is allowed")"
 
+# The hook's protected set, its reset, alias, gh and fast-forward behaviour must read as the
+# hook decides: git reset other than --hard is unchecked on every branch, only git aliases
+# are opaque, gh aliases and gh branch or ref writes are unchecked, git pull --ff-only from
+# the upstream is allowed, and a push to an unprotected base is textual.
+PROTECTED_SET_PREFIX='Protected branches for the safety rails: '
+
+safety_rail_row() {
+  safety_rails_rows | grep -F -- "$1" | head -n 1
+}
+
+protected_set_defined() {
+  local line part
+  [ "$(grep -c "^$PROTECTED_SET_PREFIX" "$SAFETY_RAILS_RULE" 2>/dev/null)" = 1 ] || return 1
+  line="$(safety_rails_section | grep "^$PROTECTED_SET_PREFIX")"
+  for part in "the target remote's default branch" '`main`' '`master`' '`release/*`' \
+              '`git config orchestrail.protectedBranch`'; do
+    printf '%s' "$line" | grep -qF -- "$part" || return 1
+  done
+}
+
+protected_rows_point_at_set() {
+  local rows
+  rows="$(safety_rails_rows | grep -E '\bprotected branch')"
+  [ -n "$rows" ] || return 1
+  ! printf '%s\n' "$rows" | grep -vqF 'protected set'
+}
+
+check "SAFETY: no hook: ask row claims resetting a protected branch" \
+  "$(safety_rails_rows | grep -F '`hook: ask` |' | grep -qiF 'resetting a protected branch' && echo "git-flow.md records resetting a protected branch as hook: ask, but git reset other than --hard is allowed on every branch" || echo pass)"
+
+check "SAFETY: git reset other than --hard is recorded as unchecked on every branch" \
+  "$(safety_rail_row "$REWRITE_ROW" | grep -qF '`git reset --soft`/`--mixed`/`--keep`/`--merge` on any branch, protected ones included' && echo pass || echo "git-flow.md '$REWRITE_ROW' row must name git reset --soft/--mixed/--keep/--merge on any branch, protected ones included")"
+
+check "GIT-RAILS: residual risk X19 records reset on any branch, protected ones included" \
+  "$(git_rails_section | grep -E '^\| X19 \| ' | grep -qF '`--merge` on any branch, protected ones included' && ! git_rails_section | grep -qF 'Local rewrites of a pushed unprotected branch' && echo pass || echo "git-rails X19 row must name git reset --soft/--mixed/--keep/--merge on any branch, protected ones included")"
+
+check "SAFETY: the opaque-forms row names git aliases only" \
+  "$(row="$(safety_rail_row '`GIT_*` assignments')"; printf '%s' "$row" | grep -qF ', git aliases,' && ! printf '%s' "${row//git aliases/}" | grep -qiF 'alias' && echo pass || echo "git-flow.md opaque-forms row must name git aliases, not aliases in general: gh aliases are not checked")"
+
+check "SAFETY: the branch-deletion row is limited to git and points gh deletions at the capability record" \
+  "$(safety_rail_row 'Branch deletion' | grep -qF '`git branch -d`' && safety_rail_row 'Branch deletion' | grep -qF 'harness capability record' && echo pass || echo "git-flow.md branch-deletion row must name the git forms the hook asks about and point gh deletions at the harness capability record")"
+
+check "GIT-RAILS: residual risk X20 records unchecked gh aliases, branch deletion and ref writes" \
+  "$(git_rails_field_once '^\| X20 \| .*alias.*`gh pr close --delete-branch`.*`gh api`.*git/refs' && ! git_rails_section | grep -E '^\| X20 \| ' | grep -qE -- "$PIPELINE_IDENTIFIER_RE" && echo pass || echo "git-rails section must contain exactly one '| X20 | …' row on gh aliases, gh pr close --delete-branch and gh api writes to git refs, without pipeline identifiers")"
+
+check "SAFETY: git-flow defines the protected branch set on one anchored line" \
+  "$(protected_set_defined && echo pass || echo "git-flow.md → ## Safety rails must define, on one line starting '$PROTECTED_SET_PREFIX', the target remote's default branch, main, master, release/* and the git config orchestrail.protectedBranch patterns")"
+
+check "SAFETY: an unknown default branch of the target remote denies every rule that needs the protected set" \
+  "$(safety_rails_has 'a rule that needs the protected set denies with `default-branch-unknown`' && echo pass || echo "git-flow.md → ## Safety rails must say a rule that needs the protected set denies with default-branch-unknown when the target remote's default branch is unknown")"
+
+check "SAFETY: every row that names a protected branch points at the protected set" \
+  "$(protected_rows_point_at_set && echo pass || echo "every git-flow.md safety-rail row naming a protected branch must point at the protected set: $(safety_rails_rows | grep -E '\bprotected branch' | grep -vF 'protected set' | cut -c1-60 | tr '\n' ';')")"
+
+check "SAFETY: the merge-into-protected row excepts git pull --ff-only from the upstream" \
+  "$(safety_rail_row '`git merge` or `git pull` into a' | grep -qF 'except `git pull --ff-only` from the configured upstream' && echo pass || echo "git-flow.md merge row must except git pull --ff-only from the configured upstream, which the hook allows")"
+
+check "SAFETY: a push to an unprotected base is recorded as a textual rail" \
+  "$(row="$(safety_rail_row 'to an unprotected `<base>`')"; printf '%s' "$row" | grep -qF '**Forbidden, always**' && [ "$(safety_rail_enforced_as 'to an unprotected `<base>`' '`text only`')" = pass ] && ! safety_rail_row 'any protected branch' | grep -qF '`<base>`' && echo pass || echo "git-flow.md must record a push to an unprotected <base> as Forbidden, always with text only, and keep <base> off the protected push row")"
+
+check "RESTACK: one unusable journal file makes every journal check ask" \
+  "$(restack_journal_has '64 hex digits' 'makes every replay and lease push ask' && echo pass || echo "restack.md → ## Recovery journal must say that one unusable journal file makes every replay and lease push ask")"
+
+check "SAFETY: the force-push row notes that dry-run forced pushes are allowed" \
+  "$(safety_rail_row '`git push --force`' | grep -qF 'a dry run (`--dry-run` or `-n`) of any forced push is allowed' && echo pass || echo "git-flow.md force-push row must note that a dry run of any forced push is allowed")"
+
+check "USAGE: the git-rails paragraph checks Bash git and gh commands" \
+  "$(flat="$(tr '\n' ' ' < docs/USAGE.md | tr -s ' ')"; printf '%s' "$flat" | grep -qF 'handler, which checks Bash git and gh commands' && ! printf '%s' "$flat" | grep -qF 'checks Bash git commands' && echo pass || echo "docs/USAGE.md must say the git-rails handler checks Bash git and gh commands")"
+
+check "SAFETY: the Enforcement intro says a hook ask denies where no person can be prompted" \
+  "$(safety_rails_has 'or denies it with `owner-approval-unavailable` where no person can be prompted' && echo pass || echo "git-flow.md → ## Safety rails intro must say hook: ask denies with owner-approval-unavailable where no person can be prompted")"
+
 echo ""
 echo "=== Contract Validation ==="
 echo "  Passed: $PASS"
