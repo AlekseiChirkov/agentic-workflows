@@ -5672,6 +5672,42 @@ check "RESTACK: the workflow's command forms are its own, not the hook's accepta
 check "RESTACK: a set rebase.updateRefs stops the replay instead of a retry in another form" \
   "$(restack_journal_has 'When `rebase.updateRefs` is true' '**stop**' 'never retry the replay in another form' && echo pass || echo "restack.md → ## Recovery journal must stop when rebase.updateRefs is true or the hook asks about a replay, and never retry the replay in another form")"
 
+# The hook asks for an amend of a published commit and for a rebase, but it allows other
+# local rewrites of a pushed unprotected branch; only the later forced push asks. A hook: ask
+# row must not claim rewriting in general, and the local rewrites must read as textual.
+REWRITE_ROW='Other local rewrites of a pushed branch'
+
+local_rewrite_row_documented() {
+  local row part
+  [ "$(safety_rail_enforced_as "$REWRITE_ROW" '`text only`')" = pass ] || return 1
+  row="$(safety_rails_rows | grep -F "$REWRITE_ROW" | head -n 1)"
+  for part in '`git reset --soft`' '`git branch -f <b> <rev>`' '`git checkout -B <b> <rev>`' \
+              '`git pull --rebase`' 'Only inside `/restack`' 'forced push'; do
+    printf '%s' "$row" | grep -qF -- "$part" || return 1
+  done
+}
+
+check "SAFETY: no hook: ask row claims every rewrite of a pushed commit" \
+  "$(safety_rails_rows | grep -F '`hook: ask` |' | grep -qiE 'rewrit[a-z]* a commit already pushed' && echo "git-flow.md records rewriting a pushed commit in general as hook: ask, but the hook asks only for an amend of a published commit and for a rebase" || echo pass)"
+
+check "SAFETY: amending a published commit is recorded as a hook ask" \
+  "$(safety_rail_enforced_as '`git commit --amend` of a commit already pushed' '`hook: ask`')"
+
+check "SAFETY: other local rewrites of a pushed branch are recorded as a textual rail" \
+  "$(local_rewrite_row_documented && echo pass || echo "git-flow.md needs a '$REWRITE_ROW' row naming git reset --soft, git branch -f <b> <rev>, git checkout -B <b> <rev> and git pull --rebase, Policy only inside /restack with publication gated by the forced push, Enforcement text only")"
+
+check "GIT-RAILS: residual risk X19 records allowed local rewrites of a pushed branch" \
+  "$(git_rails_field_once '^\| X19 \| .*`git reset --soft`.*`git pull --rebase`.*forced push' && ! git_rails_section | grep -E '^\| X19 \| ' | grep -qE -- "$PIPELINE_IDENTIFIER_RE" && echo pass || echo "git-rails section must contain exactly one '| X19 | …' row on local rewrites of a pushed unprotected branch that only the later forced push gates")"
+
+check "GIT-RAILS: residual risk X13 separates an absent registry from a registry error" \
+  "$(git_rails_section | grep -E '^\| X13 \| ' | grep -qF 'an executable non-directory component' && git_rails_section | grep -E '^\| X13 \| ' | grep -qF 'a non-executable non-directory component denies with `registry-error`' && echo pass || echo "git-rails X13 row must say an executable non-directory component reads as absent and a non-executable one denies with registry-error")"
+
+check "RESTACK: the hook asks the owner or denies, never only asks" \
+  "$([ "$(restack_journal_section | tr '\n' ' ' | tr -s ' ' | grep -oF 'asks the owner, or denies a form or target it cannot resolve' | wc -l)" -ge 2 ] && ! restack_journal_section | tr '\n' ' ' | tr -s ' ' | grep -qF 'asks the owner otherwise' && echo pass || echo "restack.md → ## Recovery journal must say twice that the hook asks the owner, or denies a form or target it cannot resolve")"
+
+check "RESTACK: a dry-run push is allowed" \
+  "$(restack_journal_has 'A dry-run push (`--dry-run` or `-n`) is allowed' && echo pass || echo "restack.md → ## Recovery journal must note that a dry-run push is allowed")"
+
 echo ""
 echo "=== Contract Validation ==="
 echo "  Passed: $PASS"
