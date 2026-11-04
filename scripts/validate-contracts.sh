@@ -5414,6 +5414,228 @@ check "GIT-RAILS: logging record stays first and precedes the git-rails section"
 check "GIT-RAILS: Codex declares textual rules only" \
   "$(git_rails_codex_declaration_follows_logging_record && echo pass || echo "$GIT_RAILS_CODEX_CAPS must keep its logging record and add exactly one 'git-rails: none (textual rules only)' line after it")"
 
+# ── Safety rails enforcement, owner approval and the restack journal ──
+# Every Safety rails row records what the git-rails hook does with that operation, using
+# one value from the anchored vocabulary line, so a reader can tell an enforced rail from a
+# textual one. The owner-approval protocol and the never-evade rule sit in the same section.
+# /restack documents the journal the hook verifies and the only command forms it accepts.
+# The capability record carries the residual risks found while building the hook. Text
+# that consumer projects receive names no spec, subtask, decision record or task path.
+SAFETY_RAILS_RULE=rules/git-flow.md
+SAFETY_RAILS_VOCABULARY='Enforcement values for the safety rails: `hook: deny` | `hook: ask` | `hook: allow with restack journal` | `text only`.'
+SAFETY_RAILS_HEADER='| Operation | Policy | Enforcement |'
+RESTACK_WORKFLOW=workflows/restack.md
+RESTACK_REBASE_FORM='git rebase --onto <new-sha> <old-sha> <branch>'
+RESTACK_PUSH_FORM='git push --force-with-lease=refs/heads/<b>:<sha> origin <b>'
+RESTACK_ABSENT_PUSH_FORM='git push --force-with-lease=refs/heads/<b>: origin <b>'
+PIPELINE_IDENTIFIER_RE='spec[ -]?[0-9]|\bT-[0-9]|ADR-[0-9]|\.ai/(specs|adr|tasks|memory)|[0-9]{2}[a-z]?-[a-z0-9-]+\.md'
+
+safety_rails_section() {
+  awk '$0 == "## Safety rails" { inside = 1; next } inside && /^## / { exit } inside' \
+    "$SAFETY_RAILS_RULE" 2>/dev/null
+}
+
+# Table rows of the section, without the header and separator lines.
+safety_rails_rows() {
+  safety_rails_section | grep '^|' | grep -vxF "$SAFETY_RAILS_HEADER" | grep -vE '^\|[- |]+\|$'
+}
+
+safety_rails_vocabulary_values() {
+  [ "$(grep -c '^Enforcement values for the safety rails: ' "$SAFETY_RAILS_RULE" 2>/dev/null)" = 1 ] || return 1
+  safety_rails_section | grep -xF "$SAFETY_RAILS_VOCABULARY" \
+    | sed 's/^Enforcement values for the safety rails: //; s/\.$//' \
+    | awk -F' [|] ' '{ for (i = 1; i <= NF; i++) print $i }'
+}
+
+# Prints every row that lacks exactly three cells or whose Enforcement cell is not one
+# vocabulary value; a cell naming two values is not a vocabulary value.
+safety_rails_offending_rows() {
+  local values row cell
+  values="$(safety_rails_vocabulary_values)"
+  while IFS= read -r row; do
+    [ -n "$row" ] || continue
+    if [ "$(printf '%s\n' "$row" | awk -F'|' '{ print NF }')" != 5 ]; then
+      printf '%s\n' "$row"
+      continue
+    fi
+    cell="$(printf '%s\n' "$row" | awk -F'|' '{ print $4 }' | sed 's/^ *//; s/ *$//')"
+    printf '%s\n' "$values" | grep -qxF -- "$cell" || printf '%s\n' "$row"
+  done <<< "$(safety_rails_rows)"
+}
+
+safety_rails_enforcement_complete() {
+  [ -n "$(safety_rails_vocabulary_values)" ] || return 1
+  [ "$(safety_rails_section | grep -cxF "$SAFETY_RAILS_HEADER")" = 1 ] || return 1
+  [ -n "$(safety_rails_rows)" ] || return 1
+  [ -z "$(safety_rails_offending_rows)" ]
+}
+
+# Echoes pass when the first row naming the operation records the expected Enforcement.
+safety_rail_enforced_as() {
+  local operation="$1" expected="$2" cell
+  cell="$(safety_rails_rows | grep -F -- "$operation" | head -n 1 | awk -F'|' '{ print $4 }' | sed 's/^ *//; s/ *$//')"
+  if [ "$cell" = "$expected" ]; then
+    echo pass
+  else
+    echo "git-flow.md safety-rail row for $operation must record Enforcement $expected, found '${cell:-no row or no cell}'"
+  fi
+}
+
+owner_approval_protocol_flat() {
+  safety_rails_section \
+    | awk '$0 == "### Owner approval protocol" { inside = 1; next } inside && /^#{2,3} / { exit } inside' \
+    | tr '\n' ' ' | tr -s ' '
+}
+
+owner_approval_protocol_has() {
+  local phrase
+  [ "$(grep -cx '### Owner approval protocol' "$SAFETY_RAILS_RULE" 2>/dev/null)" = 1 ] || return 1
+  for phrase in "$@"; do
+    owner_approval_protocol_flat | grep -qF -- "$phrase" || return 1
+  done
+}
+
+restack_journal_section() {
+  awk '$0 == "## Recovery journal" { inside = 1; next } inside && /^## / { exit } inside' \
+    "$RESTACK_WORKFLOW" 2>/dev/null
+}
+
+restack_journal_has() {
+  local phrase flat
+  [ "$(grep -cx '## Recovery journal' "$RESTACK_WORKFLOW" 2>/dev/null)" = 1 ] || return 1
+  flat="$(restack_journal_section | tr '\n' ' ' | tr -s ' ')"
+  for phrase in "$@"; do
+    printf '%s' "$flat" | grep -qF -- "$phrase" || return 1
+  done
+}
+
+# The section's one JSON example parses and carries every field the hook verifies.
+restack_journal_schema_documented() {
+  local section
+  [ "$(grep -cx '## Recovery journal' "$RESTACK_WORKFLOW" 2>/dev/null)" = 1 ] || return 1
+  section="$(restack_journal_section)"
+  printf '%s\n' "$section" | grep -qE -- "$PIPELINE_IDENTIFIER_RE" && return 1
+  python3 -I - "$section" 2>/dev/null <<'PYRESTACKJOURNAL'
+import json
+import re
+import sys
+
+blocks = re.findall(r'^```json\n(.*?)^```$', sys.argv[1], re.S | re.M)
+if len(blocks) != 1:
+    sys.exit(1)
+try:
+    journal = json.loads(blocks[0])
+except ValueError:
+    sys.exit(1)
+top = {'schema_version', 'repository_common_dir', 'task_path', 'target',
+       'publication_authorized', 'order', 'branches'}
+per_branch = {'original_base_commit', 'original_tip', 'replayed_tip', 'expected_remote_tip'}
+valid = (
+    isinstance(journal, dict) and top <= journal.keys()
+    and journal['schema_version'] == 1
+    and isinstance(journal['target'], dict) and {'branch', 'sha'} <= journal['target'].keys()
+    and journal['publication_authorized'] is False
+    and isinstance(journal['order'], list) and len(journal['order']) > 0
+    and all(isinstance(name, str) for name in journal['order'])
+    and isinstance(journal['branches'], dict)
+    and set(journal['order']) <= journal['branches'].keys()
+    and all(isinstance(entry, dict) and per_branch <= entry.keys()
+            for entry in journal['branches'].values())
+)
+sys.exit(0 if valid else 1)
+PYRESTACKJOURNAL
+}
+
+# The first accepted form is present, and every occurrence of the command stem, up to its
+# closing backtick, is one of the accepted forms.
+restack_command_forms_exact() {
+  local stem="$1"
+  shift
+  grep -qF -- "$1" "$RESTACK_WORKFLOW" 2>/dev/null || return 1
+  ! grep -oE -- "$stem[^\`]*" "$RESTACK_WORKFLOW" | grep -vxF "${@/#/-e}" | grep -q .
+}
+
+check "SAFETY: git-flow defines the Enforcement vocabulary on one anchored line" \
+  "$([ -n "$(safety_rails_vocabulary_values)" ] && echo pass || echo "git-flow.md → ## Safety rails must contain exactly one line '$SAFETY_RAILS_VOCABULARY'")"
+
+check "SAFETY: every Safety rails row has exactly one Enforcement value from the vocabulary" \
+  "$(safety_rails_enforcement_complete && echo pass || echo "git-flow.md → ## Safety rails needs the header '$SAFETY_RAILS_HEADER' and one vocabulary value per row; offending rows: $(safety_rails_offending_rows | head -n 3 | tr '\n' ' ')")"
+
+check "SAFETY: pushing to a subtask branch is recorded as a textual rail" \
+  "$(safety_rail_enforced_as '`git push` to a subtask branch' '`text only`')"
+check "SAFETY: pushing to a protected branch is recorded as a hook ask" \
+  "$(safety_rail_enforced_as 'any protected branch' '`hook: ask`')"
+check "SAFETY: git push --force is recorded as a hook ask" \
+  "$(safety_rail_enforced_as '`git push --force`' '`hook: ask`')"
+check "SAFETY: the replayed-branch lease push is recorded as allowed with the restack journal" \
+  "$(safety_rail_enforced_as "\`$RESTACK_PUSH_FORM\`" '`hook: allow with restack journal`')"
+check "SAFETY: branch deletion is recorded as a hook ask" \
+  "$(safety_rail_enforced_as 'Branch deletion' '`hook: ask`')"
+check "SAFETY: gh pr merge is recorded as a hook ask" \
+  "$(safety_rail_enforced_as '`gh pr merge`' '`hook: ask`')"
+check "SAFETY: blanket staging is recorded as a hook deny" \
+  "$(safety_rail_enforced_as '`git add -A`' '`hook: deny`')"
+check "SAFETY: git rebase outside /restack is recorded as a hook ask" \
+  "$(safety_rail_enforced_as '`git rebase` outside' '`hook: ask`')"
+check "SAFETY: the restack replay is recorded as allowed with the restack journal" \
+  "$(safety_rail_enforced_as "\`$RESTACK_REBASE_FORM\`" '`hook: allow with restack journal`')"
+check "SAFETY: git reset --hard is recorded as a hook ask" \
+  "$(safety_rail_enforced_as '`git reset --hard`' '`hook: ask`')"
+
+check "SAFETY: branch deletion needs owner approval, and no rule file names a spec by number" \
+  "$(safety_rails_rows | grep -F 'Branch deletion' | head -n 1 | grep -qiF 'owner approval required; a verified temporary child-branch exception is planned' && ! grep -rqiE '\bspecs? #?[0-9]+' rules/ 2>/dev/null && ! safety_rails_section | grep -qE -- "$PIPELINE_IDENTIFIER_RE" && echo pass || echo "git-flow.md branch-deletion row must read 'owner approval required; a verified temporary child-branch exception is planned', and no rule file or Safety rails text may name a spec, subtask or decision record")"
+
+check "SAFETY: no reader keeps the unconditional branch-deletion ban" \
+  "$(grep -rniE 'Branch deletion \| \*\*Forbidden|branch deletion (is|stays) forbidden|child exception pending' rules/ workflows/ templates/ docs/USAGE.md docs/SPEC-RUN-QUICKSTART.md 2>/dev/null | grep -q . && echo "a reader still states the old branch-deletion policy: $(grep -rlniE 'Branch deletion \| \*\*Forbidden|branch deletion (is|stays) forbidden|child exception pending' rules/ workflows/ templates/ docs/USAGE.md docs/SPEC-RUN-QUICKSTART.md 2>/dev/null | tr '\n' ' ')" || echo pass)"
+
+check "SAFETY: an Enforcement of hook: ask grants no right beyond the Policy column" \
+  "$(owner_approval_protocol_has 'A `hook: ask` row grants no right' && echo pass || echo "git-flow.md → ### Owner approval protocol must state that a hook: ask row grants no right beyond its Policy")"
+
+check "SAFETY: owner approval starts with an explanation in chat before the command" \
+  "$(owner_approval_protocol_has 'explain in chat: the exact command, which rail it crosses, why it is needed, what can be lost, and how to undo it' && echo pass || echo "git-flow.md → ### Owner approval protocol must require the exact command, the rail, the reason, the possible loss and the undo before an ask operation")"
+
+check "SAFETY: owner approval covers one execution and a rejection is final" \
+  "$(owner_approval_protocol_has 'Approval covers that one execution only' 'A rejection is final for that operation' 'do not retry or rephrase the command' && echo pass || echo "git-flow.md → ### Owner approval protocol must limit approval to one execution and make a rejection final without retry or rephrasing")"
+
+check "SAFETY: owner approval unavailable stops and hands the command to the owner" \
+  "$(owner_approval_protocol_has '`owner-approval-unavailable`' 'give the owner the explanation and the exact command' '`! <command>`' 'or gives other instructions' && echo pass || echo "git-flow.md → ### Owner approval protocol must stop on owner-approval-unavailable and let the owner run the command outside the agent or give other instructions")"
+
+check "SAFETY: a denied command is never wrapped or rephrased to evade the check" \
+  "$([ "$(grep -cF 'Never wrap or rephrase a denied command to evade the check.' "$SAFETY_RAILS_RULE" 2>/dev/null)" = 1 ] && safety_rails_section | grep -qF 'Never wrap or rephrase a denied command to evade the check.' && echo pass || echo "git-flow.md → ## Safety rails must state once: 'Never wrap or rephrase a denied command to evade the check.'")"
+
+check "RESTACK: the recovery journal section documents every schema field" \
+  "$(restack_journal_schema_documented && echo pass || echo "restack.md → ## Recovery journal must hold one JSON example with schema_version 1, repository_common_dir, task_path, target.branch/sha, publication_authorized false, order and branches.<b>.original_base_commit/original_tip/replayed_tip/expected_remote_tip, and no pipeline identifiers")"
+
+check "RESTACK: publication_authorized is true only with --allow-pr" \
+  "$(restack_journal_has '`publication_authorized` is `true` only when `/restack` runs with `--allow-pr`' && echo pass || echo "restack.md → ## Recovery journal must tie publication_authorized to --allow-pr")"
+
+check "RESTACK: expected_remote_tip is a SHA, \"absent\" or null" \
+  "$(restack_journal_has '`expected_remote_tip` is a SHA, `"absent"`' 'or `null`' && echo pass || echo "restack.md → ## Recovery journal must define expected_remote_tip as a SHA, \"absent\" or null")"
+
+check "RESTACK: order lists the branches to replay and fixes each replay base" \
+  "$(restack_journal_has '`order` lists only the branches to replay, in replay order' 'the first entry is replayed onto `target.sha`' "each later entry onto the previous entry's \`replayed_tip\`" && echo pass || echo "restack.md → ## Recovery journal must define order as the replay list: the first entry onto target.sha, each later one onto the previous entry's replayed_tip")"
+
+check "RESTACK: every replay uses the exact rebase form" \
+  "$(restack_command_forms_exact 'git rebase --onto' "$RESTACK_REBASE_FORM" && echo pass || echo "restack.md must name '$RESTACK_REBASE_FORM' and use no other git rebase --onto form")"
+
+check "RESTACK: every publication uses the exact explicit-lease push form" \
+  "$(restack_command_forms_exact 'git push --force-with-lease=' "$RESTACK_PUSH_FORM" "$RESTACK_ABSENT_PUSH_FORM" && echo pass || echo "restack.md must name '$RESTACK_PUSH_FORM' and use no lease form other than it and '$RESTACK_ABSENT_PUSH_FORM'")"
+
+while IFS='|' read -r git_rails_risk git_rails_risk_re git_rails_risk_desc; do
+  check "GIT-RAILS: residual risk X$git_rails_risk records $git_rails_risk_desc" \
+    "$(git_rails_field_once "^\\| X$git_rails_risk \\| .*$git_rails_risk_re" && ! git_rails_section | grep -E "^\\| X$git_rails_risk \\| " | grep -qE -- "$PIPELINE_IDENTIFIER_RE" && echo pass || echo "git-rails section must contain exactly one '| X$git_rails_risk | …' row on $git_rails_risk_desc, without pipeline identifiers")"
+done <<'GITRAILSRESIDUALS'
+11|hooks/git-rails\.sh.*uninstall.*earlier installers|the checkout-bound entrypoint and the uninstall step
+12|prefilter matches only the literal|the literal-word prefilter
+13|cannot stat.*reads as absent|an unstattable registry path
+14|without `head` or `tr`.*`python3`.*denied|a degraded PATH
+15|`man -P`.*`diff\.external`.*commit hooks|state changed within the same command
+16|`for-each-repo`.*`stash drop`|unlisted runners and operations
+17|Restack.*--continue.*no remote.*journal files|the restack journal limits
+18|deny rules.*unregistered.*here-document.*reinstall|the user-level deny rules
+GITRAILSRESIDUALS
+unset git_rails_risk git_rails_risk_re git_rails_risk_desc
+
 echo ""
 echo "=== Contract Validation ==="
 echo "  Passed: $PASS"
