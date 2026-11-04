@@ -4251,6 +4251,57 @@ class RefspecSplitting(PushFixture):
 CLASSES = (*CLASSES, RefspecSplitting)
 
 
+# bash and dash give one following word to every o or O in a short option bundle, wherever
+# it sits; an R16 lease ask names the protected-destination check whichever journal check
+# fails first; a failed cd keeps --git-dir and --work-tree values pointing back in.
+FORCED_ONTO_MAIN = "'git push -f origin feat/y:main'"
+
+SHELL_BUNDLE_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('shell_value_option_first_in_a_bundle_is_unsupported',
+                 f'bash -oe pipefail -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('sh_value_option_first_in_a_bundle_is_unsupported',
+                 f'sh -oe pipefail -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('shell_value_option_inside_a_longer_bundle_is_unsupported',
+                 f'bash -oex pipefail -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('shell_option_name_first_in_a_bundle_is_unsupported',
+                 f'bash -Oe extglob -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('two_shell_value_options_in_one_bundle_are_unsupported',
+                 f'bash -oo pipefail errexit -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('stdin_shell_after_a_value_option_first_in_a_bundle_is_unsupported',
+                 "echo 'git push -f' | bash -oe pipefail", 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('shell_option_before_a_read_only_command_string_stays_unsupported',
+                 "bash -e -c 'git status'", 'deny', UNSUPPORTED),
+    DecisionCase('shell_script_after_a_bundled_value_option_is_not_applicable',
+                 'bash -oe pipefail build.sh', 'not_applicable'),
+    # A failed cd leaves the shell where it was, so repository redirects still point back in.
+    DecisionCase('absolute_git_dir_after_a_failed_cd_from_a_sibling_is_unsupported',
+                 'cd /nonexistent-rails-dir; git --git-dir=@project@/.git push -f', 'deny', UNSUPPORTED,
+                 cwd='outside'),
+    DecisionCase('relative_git_dir_after_a_failed_cd_from_a_sibling_is_unsupported',
+                 f'cd /nonexistent-rails-dir; git --git-dir={SIBLING_GIT_DIR} push -f', 'deny', UNSUPPORTED,
+                 cwd='outside'),
+)
+
+PROTECTED_LEASE_CASES: tuple[RestackCase, ...] = (
+    RestackCase('protected_destination_outside_the_journal_order_names_the_protected_check',
+                'git push --force-with-lease=refs/heads/main:{a_base} origin main', 'ask', PROTECTED, 'R16',
+                'branch-protected', setup='restack-replayed'),
+)
+
+
+class ShellBundleTable(ResolutionGapFixture):
+    """Table-driven decisions for bundled shell value options, protected lease destinations
+    and repository redirects after a failed cd."""
+
+
+for bundle_case in SHELL_BUNDLE_CASES:
+    setattr(ShellBundleTable, 'test_' + bundle_case.name, decision_test(bundle_case))
+for protected_lease_case in PROTECTED_LEASE_CASES:
+    setattr(ShellBundleTable, 'test_' + protected_lease_case.name, restack_test(protected_lease_case))
+
+CLASSES = (*CLASSES, ShellBundleTable)
+
+
 # ── Hook entrypoint: stdin to exit status, stdout and stderr ───────────
 
 import atexit  # noqa: E402 - the entrypoint block needs these only
@@ -5088,6 +5139,9 @@ CLASSES = (*CLASSES, EntrypointDegradedEnvironment, CoreEntryPoint)
 RESOLUTION_GAP_THROUGH_HOOK = type('ResolutionGapTableThroughHook', (EntrypointChecks, ResolutionGapTable),
                                    {'__doc__': 'Every ResolutionGapTable case, run twice through the hook entrypoint.'})
 CLASSES = (*CLASSES, RESOLUTION_GAP_THROUGH_HOOK)
+SHELL_BUNDLE_THROUGH_HOOK = type('ShellBundleTableThroughHook', (EntrypointChecks, ShellBundleTable),
+                                 {'__doc__': 'Every ShellBundleTable case, run twice through the hook entrypoint.'})
+CLASSES = (*CLASSES, SHELL_BUNDLE_THROUGH_HOOK)
 
 
 def selected_suite() -> unittest.TestSuite:
