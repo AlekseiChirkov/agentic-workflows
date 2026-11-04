@@ -153,7 +153,7 @@ class HookInstallation(unittest.TestCase):
         after_settings = self.settings.read_bytes()
         next_receipt = json.loads(self.receipt.read_text())
         for receipt in (previous, next_receipt):
-            self.assertEqual(receipt['schema_version'], 1)
+            self.assertEqual(receipt['schema_version'], 2)
             self.assertEqual(receipt['state'], 'committed')
         prepared = {'schema_version':1, 'state':'prepared', 'previous':previous, 'next':next_receipt,
                     'before':{'present':True, 'sha256':hashlib.sha256(before_settings).hexdigest()},
@@ -275,6 +275,7 @@ class HookInstallation(unittest.TestCase):
         value['hooks']['PreToolUse'] = moved
         self.write_settings(value)
         self.call('uninstall', expected='uninstalled')
+        value.pop('permissions', None)
         self.assertEqual(value, self.read_settings())
 
     def test_hook_uninstall_equal_copies_preserve_unowned_multiplicity_and_empty_groups(self) -> None:
@@ -406,7 +407,7 @@ class HookInstallation(unittest.TestCase):
                 before = self.snapshot()
                 self.call('uninstall', expected='unavailable')
                 self.assertEqual(before, self.snapshot())
-        self.receipt.write_text(valid_text.replace('"schema_version":1', '"schema_version":1e0'))
+        self.receipt.write_text(valid_text.replace('"schema_version":2', '"schema_version":2e0'))
         before = self.snapshot()
         self.call('uninstall', expected='unavailable')
         self.assertEqual(before, self.snapshot())
@@ -440,6 +441,7 @@ class HookInstallation(unittest.TestCase):
         self.call('uninstall', expected='uninstalled')
         expected = copy.deepcopy(value)
         expected['hooks']['PreToolUse'] = []
+        expected.pop('permissions', None)
         self.assertEqual(self.read_settings(), expected)
 
     def test_hook_recovery_before_image_restores_previous_then_recomputes_install(self) -> None:
@@ -1232,6 +1234,423 @@ class HookInstallation(unittest.TestCase):
         before = self.snapshot()
         self.call('install', expected='unavailable')
         self.assertEqual(before, self.snapshot())
+
+    # The permission fragment is defence in depth beside the hook: exact Bash deny rules
+    # for blanket staging and commit-all only, owned through exact multiset quotas.
+    # Each rule maps to (matching command, legitimate non-matching command, hook reason).
+    PERMISSION_FIXTURES: dict[str, tuple[str, str, str]] = {
+        'Bash(git add -A)': ('git add -A', 'git add -- -A', 'blanket-staging (R01)'),
+        'Bash(git add --all)': ('git add --all', 'git add -- --all', 'blanket-staging (R01)'),
+        'Bash(git add .)': ('git add .', 'git add ./notes.txt', 'blanket-staging (R01)'),
+        'Bash(git commit -a)': ('git commit -a', "git commit -m 'stage all with -a'", 'commit-all (R06)'),
+        'Bash(git commit --all)': ('git commit --all', 'git commit --allow-empty -m empty', 'commit-all (R06)')}
+    LEGITIMATE_COMMANDS = ('git add .gitignore', 'git add ./notes.txt', 'git add .github/ci.yml', 'git add notes.txt',
+                           'git add -- -A', 'git add -- --all', "git commit -m 'add all'", 'git commit --amend --no-edit',
+                           'git commit --allow-empty -m empty', 'git status', 'git add .gitignore && git commit -m ignore')
+    PERMISSION_OPERATORS = ('&&', '||', '|&', ';', '|', '&', '\n')
+    PERMISSION_PREFIXES = (re.compile(r'[A-Za-z_][A-Za-z0-9_]*=\S*\s+'),
+                           re.compile(r'(?:timeout\s+\S+|time|nice|nohup|stdbuf|command|builtin|noglob|xargs)\s+'))
+
+    @classmethod
+    def permission_subcommands(cls, command: str) -> list[str]:
+        """Split on the recorded compound operators outside quotes."""
+        parts, current, quote, index = [], '', '', 0
+        while index < len(command):
+            character = command[index]
+            operator = '' if quote else next((item for item in cls.PERMISSION_OPERATORS
+                                              if command.startswith(item, index)), '')
+            if operator:
+                parts.append(current)
+                current, index = '', index + len(operator)
+                continue
+            if character in '\'"' and quote in ('', character):
+                quote = '' if quote else character
+            current, index = current + character, index + 1
+        parts.append(current)
+        return [part.strip() for part in parts if part.strip()]
+
+    @classmethod
+    def permission_rule_matches(cls, rule: str, command: str) -> bool:
+        """Offline model of the recorded Bash rule semantics: exact, or prefix for ' *' and ':*'."""
+        body = re.fullmatch(r'Bash\((.+)\)', rule, re.S)
+        assert body is not None, rule
+        pattern = body.group(1)
+        prefix = pattern[:-2] if pattern.endswith((' *', ':*')) else None
+        for part in cls.permission_subcommands(command):
+            stripped = True
+            while stripped:
+                found = next((match for match in (item.match(part) for item in cls.PERMISSION_PREFIXES) if match), None)
+                stripped = found is not None
+                part = part[found.end():] if found is not None else part
+            if part == pattern if prefix is None else (part == prefix or part.startswith(prefix + ' ')):
+                return True
+        return False
+
+    def fragment_path(self, source: Path | None = None) -> Path:
+        return (source or self.checkout) / 'harness' / 'claude' / 'permissions.json'
+
+    def fragment_rules(self) -> list[str]:
+        path = self.fragment_path()
+        self.assertTrue(path.is_file(), 'the permission fragment harness/claude/permissions.json must exist')
+        return json.loads(path.read_text())['permissions']['deny']
+
+    def permission_claims(self, rules: list[str]) -> list[JsonObject]:
+        return sorted(({'list':'deny', 'rule':rule, 'count':1} for rule in rules), key=lambda claim: str(claim['rule']))
+
+    def owned_permission_claims(self) -> list[JsonObject]:
+        receipt = json.loads(self.receipt.read_text())
+        self.assertEqual(receipt.get('schema_version'), 2, 'the receipt must be schema version 2')
+        self.assertIn('owned_permissions', receipt)
+        return sorted(receipt['owned_permissions'], key=lambda claim: str(claim['rule']))
+
+    def deny_rules(self) -> list[JsonValue]:
+        return self.read_settings().get('permissions', {}).get('deny', [])
+
+    def install_version_one_state(self, foreign: JsonObject | None = None) -> tuple[JsonObject, JsonObject]:
+        """Settings and a committed version 1 receipt exactly as the previous installer left them."""
+        handlers = {'PreToolUse':self.git_rails_handler(), 'Stop':self.logging_handler(),
+                    'SubagentStop':self.logging_handler()}
+        selectors: dict[str, JsonObject] = {'PreToolUse':self.GIT_RAILS_SELECTOR, 'Stop':{}, 'SubagentStop':{}}
+        if foreign is None:
+            foreign = {'user':'kept', 'permissions':{'allow':['Bash(git status)'], 'deny':['Bash(git add -A)']}}
+        settings = dict(copy.deepcopy(foreign), hooks={event:[dict(selectors[event], hooks=[handler])]
+                                                       for event, handler in handlers.items()})
+        self.write_settings(settings)
+        receipt: JsonObject = {'schema_version':1, 'state':'committed',
+            'owned':[{'event':event, 'selector':selectors[event], 'handler':handler, 'count':1}
+                     for event, handler in handlers.items()],
+            'created_groups':[{'event':event, 'selector':selectors[event], 'count':1} for event in handlers]}
+        self.receipt.parent.mkdir(parents=True, exist_ok=True)
+        self.receipt.write_text(json.dumps(receipt))
+        return foreign, receipt
+
+    def assert_one_owned_handler_per_event(self) -> None:
+        hooks = self.read_settings()['hooks']
+        self.assertEqual(hooks['PreToolUse'], [{'matcher':'Bash', 'hooks':[self.git_rails_handler()]}])
+        for event in ('Stop', 'SubagentStop'):
+            self.assertEqual(hooks[event], [{'hooks':[self.logging_handler()]}], event)
+
+    def git_rails_decision(self, repository: Path, command: str) -> subprocess.CompletedProcess[str]:
+        event = {'session_id':'fixture', 'hook_event_name':'PreToolUse', 'tool_name':'Bash',
+                 'tool_input':{'command':command, 'description':'fixture'},
+                 'cwd':str(repository.resolve()), 'permission_mode':'default'}
+        return subprocess.run(['bash', str(self.checkout / 'hooks' / 'git-rails.sh')], input=json.dumps(event),
+                              env=dict(self.env, PYTHONDONTWRITEBYTECODE='1'), cwd=repository,
+                              text=True, capture_output=True, timeout=30)
+
+    def test_hook_permissions_fragment_holds_only_exact_staging_and_commit_all_rules(self) -> None:
+        claude = (self.checkout / 'harness' / 'claude' / 'capabilities.md').read_text()
+        for line in ('deny-rule exact: Bash(<command>) matches only that whole command text',
+                     'deny-rule prefix: Bash(<command> *) and the equivalent trailing Bash(<command>:*)'):
+            self.assertIn(line, claude, 'the fixtures follow the recorded match semantics')
+        for rule, command, expected in (('Bash(git add .)', 'git add .gitignore', False),
+                                        ('Bash(npm run *)', 'npm run', True), ('Bash(npm run *)', 'npm run test', True),
+                                        ('Bash(npm run *)', 'npm runx', False), ('Bash(npm run:*)', 'npm run test', True),
+                                        ('Bash(git add -A)', 'git status && git add -A', True),
+                                        ('Bash(git add -A)', 'FIXTURE=1 timeout 5 git add -A', True),
+                                        ('Bash(git add -A)', "echo 'git add -A; ok'", False)):
+            with self.subTest(matcher=rule, command=command):
+                self.assertIs(self.permission_rule_matches(rule, command), expected)
+        path = self.fragment_path()
+        self.assertTrue(path.is_file(), 'the permission fragment harness/claude/permissions.json must exist')
+        document = json.loads(path.read_text())
+        self.assertEqual(set(document), {'permissions'})
+        self.assertEqual(set(document['permissions']), {'deny'}, 'the fragment holds deny rules only')
+        rules = document['permissions']['deny']
+        self.assertEqual(len(rules), len(set(rules)))
+        self.assertEqual(set(rules), set(self.PERMISSION_FIXTURES), 'only blanket-staging and commit-all rules')
+        for rule in rules:
+            matching, legitimate, _reason = self.PERMISSION_FIXTURES[rule]
+            with self.subTest(rule=rule):
+                self.assertNotRegex(rule, r'(?: \*|:\*)\)$', 'exact forms only')
+                for positive in (matching, 'FIXTURE=1 ' + matching, 'git status; ' + matching):
+                    self.assertTrue(self.permission_rule_matches(rule, positive), positive)
+                self.assertFalse(self.permission_rule_matches(rule, legitimate), legitimate)
+                for command in self.LEGITIMATE_COMMANDS:
+                    self.assertFalse(self.permission_rule_matches(rule, command), command)
+
+    def test_hook_permissions_fixtures_are_hook_denials_and_negatives_are_not(self) -> None:
+        repository = self.root / 'fixture repository'
+        repository.mkdir()
+        subprocess.run(['git', 'init', '-q'], cwd=repository, env=self.env, check=True, timeout=15)
+        for name in ('.gitignore', 'notes.txt', '-A', '--all'):
+            (repository / name).write_text('fixture\n')
+        self.registry.parent.mkdir(parents=True, exist_ok=True)
+        self.registry.write_text(str(repository.resolve()) + '\n')
+        rules = self.fragment_rules()
+        for rule in rules:
+            matching, legitimate, reason = self.PERMISSION_FIXTURES[rule]
+            with self.subTest(rule=rule):
+                denied = self.git_rails_decision(repository, matching)
+                self.assertEqual(denied.returncode, 2, denied.stderr)
+                self.assertEqual(denied.stderr.splitlines()[0], 'git-rails: deny ' + reason)
+                allowed = self.git_rails_decision(repository, legitimate)
+                self.assertNotRegex(allowed.stderr, r'\((?:R01|R06)\)', legitimate)
+        gitignore = self.git_rails_decision(repository, 'git add .gitignore')
+        self.assertEqual((gitignore.returncode, gitignore.stdout, gitignore.stderr), (0, '', ''))
+
+    def test_hook_permissions_install_adds_owned_deny_rules_with_version_two_receipt(self) -> None:
+        self.write_settings({'user':'kept'})
+        self.install()
+        rules = self.fragment_rules()
+        self.assertEqual(self.read_settings()['permissions'], {'deny':rules})
+        self.assertEqual(self.owned_permission_claims(), self.permission_claims(rules))
+        first = self.snapshot()
+        self.install()
+        self.assertEqual(first, self.snapshot(), 'a second install must be byte-identical')
+        alternate = self.root / 'switched source'
+        self.copy_source(alternate)
+        self.call('install', '--from', str(alternate))
+        self.assertEqual(self.deny_rules(), rules, 'reinstalling from another source keeps one copy of each rule')
+        self.assertEqual(self.owned_permission_claims(), self.permission_claims(rules))
+        self.call('uninstall', expected='uninstalled')
+        self.assert_settings_restored({'user':'kept'})
+        receipt = json.loads(self.receipt.read_text()) if self.receipt.exists() else {}
+        self.assertEqual(receipt.get('owned_permissions', []), [])
+
+    def test_hook_permissions_foreign_rules_and_other_lists_survive_in_order(self) -> None:
+        original_text = ('{"other":1.50,"permissions":{"allow":["Bash(git status)","Bash(ls *)"],'
+                         '"ask":["Bash(git push *)"],"deny":["Bash(rm -rf *)","Bash(git add -A)"],'
+                         '"defaultMode":"default"}}')
+        self.settings.parent.mkdir(parents=True, exist_ok=True)
+        self.settings.write_text(original_text)
+        original = self.read_settings()
+        self.install()
+        rules = self.fragment_rules()
+        added = [rule for rule in rules if rule != 'Bash(git add -A)']
+        value = self.read_settings()
+        self.assertEqual(value['permissions']['deny'], ['Bash(rm -rf *)', 'Bash(git add -A)', *added])
+        for name in ('allow', 'ask', 'defaultMode'):
+            self.assertEqual(value['permissions'][name], original['permissions'][name], name)
+        self.assertRegex(self.settings.read_text(), r'"other"\s*:\s*1\.50(?=\s*[,}])')
+        self.assertEqual(self.owned_permission_claims(), self.permission_claims(added),
+                         'an identical foreign rule is neither duplicated nor owned')
+        first = self.snapshot()
+        self.install()
+        self.assertEqual(first, self.snapshot())
+        self.call('uninstall', expected='uninstalled')
+        self.assert_settings_restored(original)
+
+    def test_hook_permissions_quota_keeps_identical_user_copies_and_tolerates_removed_rules(self) -> None:
+        self.install()
+        rules = self.fragment_rules()
+        value = self.read_settings()
+        value['permissions']['deny'] = [rule for rule in rules if rule != 'Bash(git add .)']
+        value['permissions']['deny'] += ['Bash(git commit -a)', 'Bash(curl *)']
+        self.write_settings(value)
+        self.call('uninstall', expected='uninstalled')
+        self.assertEqual(self.deny_rules(), ['Bash(git commit -a)', 'Bash(curl *)'],
+                         'removal deletes one owned occurrence per claim and keeps every foreign rule')
+        self.install()
+        deny = self.deny_rules()
+        self.assertEqual(sorted(deny, key=str), sorted([*rules, 'Bash(curl *)'], key=str))
+        self.assertEqual(self.owned_permission_claims(),
+                         self.permission_claims([rule for rule in rules if rule != 'Bash(git commit -a)']))
+        self.call('uninstall', expected='uninstalled')
+        self.assertEqual(self.deny_rules(), ['Bash(git commit -a)', 'Bash(curl *)'])
+
+    def test_hook_permissions_missing_or_empty_containers_are_restored_exactly(self) -> None:
+        for original in ({}, {'permissions':{'allow':['Bash(ls)']}}, {'permissions':{}},
+                         {'permissions':{'deny':[]}}, {'permissions':{'deny':[], 'allow':[]}}):
+            with self.subTest(original=original):
+                self.write_settings(original)
+                self.receipt.unlink(missing_ok=True)
+                self.install()
+                self.assertEqual(self.deny_rules(), self.fragment_rules())
+                for name, items in original.get('permissions', {}).items():
+                    if name != 'deny':
+                        self.assertEqual(self.read_settings()['permissions'][name], items, name)
+                self.call('uninstall', expected='uninstalled')
+                self.assert_settings_restored(original)
+
+    def test_hook_permissions_malformed_settings_are_rejected_without_writes(self) -> None:
+        self.write_settings({'user':'kept'})
+        self.install()
+        self.assertEqual(self.deny_rules(), self.fragment_rules())
+        installed = self.read_settings()
+        installed_receipt = self.receipt.read_bytes()
+        for permissions in ([], None, 'deny', {'deny':'Bash(git add -A)'}, {'deny':{}}, {'deny':None}, {'deny':[7]}):
+            with self.subTest(permissions=permissions):
+                self.write_settings(dict(installed, permissions=permissions))
+                before = self.snapshot()
+                self.call('install', expected='unavailable')
+                self.assertEqual(before, self.snapshot())
+                self.call('uninstall', expected='unavailable')
+                self.assertEqual(before, self.snapshot())
+                self.receipt.unlink()
+                self.call('install', expected='unavailable')
+                self.assertEqual(before[0], self.settings.read_bytes())
+                self.assertFalse(self.receipt.exists())
+                self.write_settings(installed)
+                self.receipt.write_bytes(installed_receipt)
+
+    def test_hook_permissions_malformed_fragment_is_rejected_without_writes(self) -> None:
+        self.write_settings({'user':'kept'})
+        self.install()
+        rules = self.fragment_rules()
+        self.assertEqual(self.deny_rules(), rules)
+        def fragment(deny: JsonValue, **extra: JsonValue) -> str:
+            return json.dumps({'permissions':dict({'deny':deny}, **extra)})
+        variants: dict[str, str] = {
+            'not json': '{broken', 'array root': '[]', 'null root': 'null',
+            'extra top-level key': json.dumps({'permissions':{'deny':rules}, 'hooks':{}}),
+            'allow list': fragment(rules, allow=['Bash(git status)']),
+            'ask list': fragment(rules, ask=['Bash(git push *)']),
+            'deny not a list': fragment('Bash(git add -A)'), 'empty deny': fragment([]),
+            'non-string rule': fragment([*rules, 7]), 'duplicate rule': fragment([*rules, rules[0]]),
+            'non-Bash rule': fragment([*rules, 'Read(./.env)']), 'empty Bash rule': fragment([*rules, 'Bash()']),
+            'control character': fragment([*rules, 'Bash(git add -A\n)']),
+            'duplicate key': '{"permissions":{"deny":[],"deny":' + json.dumps(rules) + '}}'}
+        for name, contents in variants.items():
+            with self.subTest(variant=name):
+                self.fragment_path().write_text(contents)
+                before = self.snapshot()
+                data = self.call('install', expected='unavailable')
+                self.assertEqual(data.get('reason'), 'invalid-manifest')
+                self.assertEqual(before, self.snapshot())
+        self.fragment_path().unlink()
+        before = self.snapshot()
+        data = self.call('install', expected='unavailable')
+        self.assertEqual(data.get('reason'), 'invalid-source')
+        self.assertEqual(before, self.snapshot())
+        self.call('uninstall', expected='uninstalled')
+        self.assert_settings_restored({'user':'kept'})
+
+    def test_hook_permissions_receipt_claims_are_validated_before_use(self) -> None:
+        self.write_settings({'user':'kept'})
+        self.install()
+        valid = json.loads(self.receipt.read_text())
+        self.assertEqual(valid.get('schema_version'), 2)
+        self.assertTrue(valid.get('owned_permissions'))
+        claim = valid['owned_permissions'][0]
+        def variant(owned: JsonValue, version: JsonValue = 2) -> JsonObject:
+            return dict(copy.deepcopy(valid), schema_version=version, owned_permissions=owned)
+        missing = copy.deepcopy(valid)
+        missing.pop('owned_permissions')
+        variants: dict[str, JsonObject] = {
+            'not a list': variant({}), 'missing count': variant([{'list':'deny', 'rule':claim['rule']}]),
+            'zero count': variant([dict(claim, count=0)]), 'fractional count': variant([dict(claim, count=1.5)]),
+            'extra field': variant([dict(claim, origin='user')]), 'other list': variant([dict(claim, list='allow')]),
+            'non-string rule': variant([dict(claim, rule=7)]), 'duplicate claim': variant([claim, claim]),
+            'version 2 without claims': missing, 'version 1 with claims': variant(valid['owned_permissions'], 1),
+            'unknown version': variant(valid['owned_permissions'], 3)}
+        for name, receipt in variants.items():
+            with self.subTest(variant=name):
+                self.receipt.write_text(json.dumps(receipt))
+                before = self.snapshot()
+                self.call('install', expected='unavailable')
+                self.assertEqual(before, self.snapshot())
+                self.call('uninstall', expected='unavailable')
+                self.assertEqual(before, self.snapshot())
+        self.receipt.write_text(json.dumps(valid))
+        self.call('uninstall', expected='uninstalled')
+        self.assert_settings_restored({'user':'kept'})
+
+    def test_hook_permissions_version_one_receipt_is_read_and_migrated(self) -> None:
+        foreign, _receipt = self.install_version_one_state()
+        self.call('uninstall', expected='uninstalled')
+        self.assert_settings_restored(foreign)
+        foreign, _receipt = self.install_version_one_state()
+        self.install()
+        self.assert_one_owned_handler_per_event()
+        rules = self.fragment_rules()
+        added = [rule for rule in rules if rule != 'Bash(git add -A)']
+        value = self.read_settings()
+        self.assertEqual(value['permissions'], {'allow':['Bash(git status)'], 'deny':['Bash(git add -A)', *added]})
+        self.assertEqual(self.owned_permission_claims(), self.permission_claims(added))
+        receipt = json.loads(self.receipt.read_text())
+        self.assertEqual((len(receipt['owned']), len(receipt['created_groups'])), (3, 3))
+        first = self.snapshot()
+        self.install()
+        self.assertEqual(first, self.snapshot(), 'a migrated installation repeats byte-identically')
+        self.call('uninstall', expected='uninstalled')
+        self.assert_no_owned_handlers()
+        self.assert_settings_restored(foreign)
+
+    def test_hook_permissions_prepared_version_one_receipt_recovers_then_migrates(self) -> None:
+        for image in ('before', 'after'):
+            with self.subTest(image=image):
+                self.install_logging_only_state()
+                before_settings = self.settings.read_bytes()
+                previous = json.loads(self.receipt.read_text())
+                _foreign, committed = self.install_version_one_state({'user':'kept'})
+                after_settings = self.settings.read_bytes()
+                prepared = {'schema_version':1, 'state':'prepared', 'previous':previous, 'next':committed,
+                            'before':{'present':True, 'sha256':hashlib.sha256(before_settings).hexdigest()},
+                            'after':{'present':True, 'sha256':hashlib.sha256(after_settings).hexdigest()}}
+                self.receipt.write_text(json.dumps(prepared))
+                self.settings.write_bytes(before_settings if image == 'before' else after_settings)
+                self.install()
+                self.assert_one_owned_handler_per_event()
+                self.assertEqual(self.deny_rules(), self.fragment_rules())
+                self.assertEqual(json.loads(self.receipt.read_text())['state'], 'committed')
+                self.assertEqual(self.owned_permission_claims(), self.permission_claims(self.fragment_rules()))
+                self.call('uninstall', expected='uninstalled')
+                self.assert_no_owned_handlers()
+                self.assert_settings_restored({'user':'kept'})
+
+    def test_hook_permissions_interrupted_migration_recovers_from_either_image(self) -> None:
+        self.install_version_one_state()
+        original = self.settings.read_bytes()
+        self.raw_call('install', env=self.interrupt_replacement(self.receipt))
+        prepared = json.loads(self.receipt.read_text())
+        self.assertEqual((prepared['state'], prepared['schema_version']), ('prepared', 2))
+        self.assertEqual((prepared['previous']['schema_version'], prepared['next']['schema_version']), (1, 2))
+        self.assertTrue(prepared['next']['owned_permissions'])
+        self.assertEqual(original, self.settings.read_bytes())
+        self.install()
+        self.assert_one_owned_handler_per_event()
+        self.assertEqual(sorted(self.deny_rules(), key=str), sorted(self.fragment_rules(), key=str))
+        foreign, _receipt = self.install_version_one_state()
+        self.raw_call('install', env=self.interrupt_replacement(self.settings))
+        prepared = json.loads(self.receipt.read_text())
+        self.assertEqual(prepared['state'], 'prepared')
+        self.assertEqual(hashlib.sha256(self.settings.read_bytes()).hexdigest(), prepared['after']['sha256'])
+        self.assertEqual(sorted(self.deny_rules(), key=str), sorted(self.fragment_rules(), key=str))
+        self.call('uninstall', expected='uninstalled')
+        self.assert_no_owned_handlers()
+        self.assert_settings_restored(foreign)
+
+    def test_hook_permissions_concurrent_edit_is_not_overwritten(self) -> None:
+        self.install_version_one_state()
+        external = self.root / 'external-settings.json'
+        external.write_text('{"external":"preserve this concurrent user edit","permissions":{"deny":["Bash(x)"]}}')
+        self.call('install', expected='unavailable', env=self.concurrent_editor_environment(external))
+        self.assertEqual(self.settings.read_bytes(), external.read_bytes())
+        prepared = json.loads(self.receipt.read_text())
+        self.assertEqual(prepared['state'], 'prepared')
+        self.assertTrue(prepared['next'].get('owned_permissions'), 'the transaction carries the owned deny rules')
+        before = self.snapshot()
+        for operation in ('install', 'uninstall'):
+            self.call(operation, expected='unavailable')
+            self.assertEqual(before, self.snapshot())
+
+    def test_hook_permissions_concurrent_operations_keep_one_copy_of_each_rule(self) -> None:
+        self.install()
+        def operation(index: int) -> subprocess.CompletedProcess[str]:
+            return self.raw_call('install' if index % 3 else 'uninstall')
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(operation, range(16)))
+        for result in results:
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(json.loads(result.stdout)['status'], ('installed', 'uninstalled'))
+        self.install()
+        self.assertEqual(self.deny_rules(), self.fragment_rules())
+        self.call('uninstall', expected='uninstalled')
+        self.assertNotIn('permissions', self.read_settings())
+
+    def test_hook_permissions_uninstall_ignores_the_fragment(self) -> None:
+        self.write_settings({'user':'kept', 'permissions':{'allow':['Bash(ls)']}})
+        self.install()
+        self.assertEqual(self.deny_rules(), self.fragment_rules())
+        alternate = self.root / 'installer without fragment'
+        self.copy_source(alternate)
+        self.fragment_path(alternate).write_text('{broken')
+        shutil.rmtree(self.checkout)
+        self.call('uninstall', expected='uninstalled', checkout=alternate,
+                  env=dict(self.env, ORCHESTRAIL_HOME=str(self.checkout)))
+        self.assert_no_owned_handlers()
+        self.assert_settings_restored({'user':'kept', 'permissions':{'allow':['Bash(ls)']}})
 
 suite =unittest.TestSuite(HookInstallation(name) for name in SELECTED) if SELECTED else unittest.defaultTestLoader.loadTestsFromTestCase(HookInstallation)
 result = unittest.TextTestRunner(verbosity=2).run(suite)
