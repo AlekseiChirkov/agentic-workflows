@@ -82,7 +82,7 @@ OPAQUE_PROGRAMS = frozenset({
 FIND_EXECUTION = frozenset({'-exec', '-execdir', '-ok', '-okdir'})
 COMMAND_SHELLS = frozenset({'bash', 'sh'})
 OTHER_SHELLS = frozenset({'zsh', 'dash', 'ksh', 'mksh', 'pdksh', 'oksh', 'ash', 'yash', 'fish',
-                          'csh', 'tcsh', 'rbash', 'busybox', 'elvish', 'nu', 'xonsh'})
+                          'csh', 'tcsh', 'rbash', 'elvish', 'nu', 'xonsh'})
 SIMPLE_WRAPPERS = frozenset({'command', 'exec', 'nohup', 'time'})
 EXPORTING_BUILTINS = frozenset({'export', 'declare', 'typeset', 'readonly', 'local'})
 RESERVED_WORDS = frozenset({'if', 'then', 'else', 'elif', 'fi', 'for', 'while', 'until', 'do',
@@ -98,7 +98,14 @@ DURATION = re.compile(r'\d+(\.\d+)?[smhd]?')
 DYNAMIC_NAME = '$'
 SENSITIVE_NAMES = frozenset({'HOME', 'XDG_CONFIG_HOME', 'PATH'})
 STACK_ROTATION = re.compile(r'[+-]\d+')
-SHELL_VALUE_OPTIONS = frozenset({'-o', '+o', '-O', '+O', '--rcfile', '--init-file'})
+# The bash option grammar the shell scanner understands: invocation letters plus those of set,
+# the GNU long options (read only before the first short option) and the two that take a value.
+SHELL_LETTERS = frozenset('abefhkmnptuvxBCEHPTcilrsDoO')
+SHELL_LONG_OPTIONS = frozenset({
+    'debug', 'debugger', 'dump-po-strings', 'dump-strings', 'help', 'init-file', 'login', 'noediting',
+    'noprofile', 'norc', 'posix', 'pretty-print', 'rcfile', 'restricted', 'verbose', 'version'})
+SHELL_LONG_VALUES = frozenset({'rcfile', 'init-file'})
+STDIN_OPERAND = re.compile(r'/dev/(stdin|fd/\d+)|/proc/(self|thread-self|\d+)/fd/\d+')
 GH_VALUE_FLAGS = frozenset({'-R', '--repo'})
 REDIRECTING_GLOBAL_OPTIONS = ('--git-dir', '--work-tree')
 
@@ -1299,7 +1306,7 @@ def may_write(node: Simple) -> bool:
     if base == 'git':
         return not read_only_git(arguments)
     if base in COMMAND_SHELLS:
-        return not (len(arguments) > 1 and arguments[0].text == '-c' and not arguments[0].dynamic)
+        return not exact_command_string(arguments)
     return True
 
 
@@ -1360,7 +1367,8 @@ def is_sensitive_name(name: str) -> bool:
 
 
 def strip_wrappers(words: list[Word], environment: list[Word]) -> tuple[list[Word], list[Word]] | None:
-    """Remove supported wrappers, matched by basename; None for an unsupported use."""
+    """Remove supported wrappers, matched by basename (busybox runs the applet its next word
+    names); None for an unsupported use."""
     while words and not words[0].dynamic:
         name, rest = words[0].text.rsplit('/', 1)[-1], words[1:]
         if name in SIMPLE_WRAPPERS:
@@ -1375,6 +1383,9 @@ def strip_wrappers(words: list[Word], environment: list[Word]) -> tuple[list[Wor
             if not rest or rest[0].dynamic or not DURATION.fullmatch(rest[0].text):
                 return None
             rest = rest[1:]
+        elif name == 'busybox':
+            if not rest or rest[0].dynamic or rest[0].text.startswith('-'):
+                return None
         else:
             break
         words = rest
@@ -1396,42 +1407,64 @@ def runs_git_word(base: str, arguments: Sequence[Word]) -> bool:
     return any(not word.dynamic and word.text.rsplit('/', 1)[-1] in ('git', 'gh') for word in arguments)
 
 
-def shell_values(text: str) -> int:
-    """How many following words a shell option word takes: one for a value option, and in a
-    short bundle one for every o or O wherever it sits (`-oe pipefail`, `-oo a b`)."""
-    if text in SHELL_VALUE_OPTIONS:
-        return 1
-    short = text[:1] in ('-', '+') and not text.startswith('--') and len(text) > 1
-    return sum(letter in 'oO' for letter in text[1:]) if short else 0
-
-
 @dataclass(frozen=True)
 class ShellScan:
     """A shell's leading options read with bash's own grammar: whether any of them selects a
-    command string or stdin (c or s in a - or + bundle, a lone -, or a word that cannot be
-    read), and the index of the first operand (None when the shell reads stdin)."""
+    command string or stdin (c or s in a - or + bundle, or a word the scanner does not fully
+    understand), and the index of the first operand (None when the shell reads stdin)."""
     selects: bool
     operand: int | None
 
 
+OPAQUE_SHELL = ShellScan(True, None)
+
+
+def bundle_reading(text: str) -> tuple[bool, int] | None:
+    """A - or + bundle of known letters: whether it selects a command string or stdin and how
+    many words its o and O letters take; None for an unknown letter or a single-dash spelling
+    of a long option, which bash reads as that long option."""
+    letters = text[1:]
+    if (text[0] == '-' and letters in SHELL_LONG_OPTIONS) or any(letter not in SHELL_LETTERS for letter in letters):
+        return None
+    return any(letter in 'cs' for letter in letters), sum(letter in 'oO' for letter in letters)
+
+
 def scan_shell(arguments: Sequence[Word]) -> ShellScan:
-    """- and + bundles (every o or O takes one word), long options (--rcfile and --init-file
-    take one), and -- ending the options; the first other word is the operand."""
-    index, selects = 0, False
+    """Known long options before the first short option (--rcfile and --init-file take a word),
+    bundles of known letters, and -- ending the options; anything else is opaque."""
+    index, selects, short = 0, False, False
     while index < len(arguments):
         word = arguments[index]
-        if word.dynamic or word.text == '-':
-            return ShellScan(True, None)
+        if word.dynamic or word.text in ('-', '+'):
+            return OPAQUE_SHELL
         if word.text == '--':
-            return ShellScan(selects, index + 1 if index + 1 < len(arguments) else None)
+            return operand_scan(arguments, index + 1, selects)
         if word.text.startswith('--'):
-            index += 1 + shell_values(word.text)
-        elif word.text[:1] in ('-', '+') and len(word.text) > 1:
-            selects = selects or any(letter in 'cs' for letter in word.text[1:])
-            index += 1 + shell_values(word.text)
+            name = word.text[2:]
+            if short or name not in SHELL_LONG_OPTIONS:
+                return OPAQUE_SHELL
+            index += 2 if name in SHELL_LONG_VALUES else 1
+        elif word.text[:1] in ('-', '+'):
+            reading = bundle_reading(word.text)
+            if reading is None:
+                return OPAQUE_SHELL
+            selects, short = selects or reading[0], True
+            index += 1 + reading[1]
         else:
-            return ShellScan(selects, index)
+            return operand_scan(arguments, index, selects)
     return ShellScan(selects, None)
+
+
+def operand_scan(arguments: Sequence[Word], index: int, selects: bool) -> ShellScan:
+    """The first operand; a missing one, a dynamic one, or one naming standard input
+    (/dev/stdin, /dev/fd/N, /proc/self/fd/N, /proc/<pid>/fd/N) reads the command from stdin."""
+    if index >= len(arguments):
+        return ShellScan(selects, None)
+    word = arguments[index]
+    path = '/' + os.path.normpath(word.text).lstrip('/') if word.text.startswith('/') else word.text
+    if word.dynamic or STDIN_OPERAND.fullmatch(path):
+        return OPAQUE_SHELL
+    return ShellScan(selects, index)
 
 
 def exact_command_string(arguments: Sequence[Word]) -> bool:
