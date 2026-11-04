@@ -1220,12 +1220,10 @@ class Walker:
                                 tuple(self.anchors), scope.unsure, self.changed))
 
     def shell(self: Walker, command: Command, scope: Scope) -> None:
-        """Parse `bash -c '<literal>'` recursively; other ways of feeding a shell are opaque."""
+        """Parse `bash -c '<literal>'` recursively; every other spelling that gives a shell a
+        command string or stdin is opaque, and a script operand is not followed."""
         arguments = command.words[1:]
-        if arguments and not arguments[0].dynamic and arguments[0].text == '-c':
-            if len(arguments) < 2 or arguments[1].dynamic:
-                self.opaque(scope)
-                return
+        if exact_command_string(arguments):
             inner = scope.copy()
             note_names([assignment_name(word) for word in command.environment], inner)
             depth = child_depth(command.node.depth)
@@ -1407,41 +1405,50 @@ def shell_values(text: str) -> int:
     return sum(letter in 'oO' for letter in text[1:]) if short else 0
 
 
-def shell_runs_string(arguments: list[Word]) -> bool:
-    """Whether leading shell options include -c in any spelling, or cannot be read."""
-    index = 0
-    while index < len(arguments):
-        word = arguments[index]
-        if word.dynamic:
-            return True
-        if not word.text.startswith(('-', '+')) or word.text in ('-', '--'):
-            return False
-        if word.text[0] == '-' and not word.text.startswith('--') and 'c' in word.text[1:]:
-            return True
-        index += 1 + shell_values(word.text)
-    return False
+@dataclass(frozen=True)
+class ShellScan:
+    """A shell's leading options read with bash's own grammar: whether any of them selects a
+    command string or stdin (c or s in a - or + bundle, a lone -, or a word that cannot be
+    read), and the index of the first operand (None when the shell reads stdin)."""
+    selects: bool
+    operand: int | None
 
 
-def shell_reads_stdin(arguments: Sequence[Word]) -> bool:
-    """Whether the shell takes its commands from stdin: no script operand, `-s` or `-`."""
-    index = 0
+def scan_shell(arguments: Sequence[Word]) -> ShellScan:
+    """- and + bundles (every o or O takes one word), long options (--rcfile and --init-file
+    take one), and -- ending the options; the first other word is the operand."""
+    index, selects = 0, False
     while index < len(arguments):
         word = arguments[index]
         if word.dynamic or word.text == '-':
-            return True
+            return ShellScan(True, None)
         if word.text == '--':
-            return index + 1 >= len(arguments)
-        if word.text in SHELL_VALUE_OPTIONS:
-            index += 2
-        elif word.text.startswith('--'):
-            index += 1
+            return ShellScan(selects, index + 1 if index + 1 < len(arguments) else None)
+        if word.text.startswith('--'):
+            index += 1 + shell_values(word.text)
         elif word.text[:1] in ('-', '+') and len(word.text) > 1:
-            if word.text[0] == '-' and 's' in word.text[1:]:
-                return True
+            selects = selects or any(letter in 'cs' for letter in word.text[1:])
             index += 1 + shell_values(word.text)
         else:
-            return False
-    return True
+            return ShellScan(selects, index)
+    return ShellScan(selects, None)
+
+
+def exact_command_string(arguments: Sequence[Word]) -> bool:
+    """The one supported form: exactly -c, then a literal string that is not an option word."""
+    if len(arguments) < 2 or arguments[0].dynamic or arguments[0].text != '-c':
+        return False
+    return not arguments[1].dynamic and not arguments[1].text.startswith(('-', '+'))
+
+
+def shell_runs_string(arguments: Sequence[Word]) -> bool:
+    """Whether the options select a command string or stdin in any spelling, or cannot be read."""
+    return scan_shell(arguments).selects
+
+
+def shell_reads_stdin(arguments: Sequence[Word]) -> bool:
+    """Whether the shell takes its commands from stdin: no operand after the options."""
+    return scan_shell(arguments).operand is None
 
 
 def skip_quoted(text: str, index: int) -> int:
