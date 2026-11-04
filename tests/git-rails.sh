@@ -3638,11 +3638,12 @@ PUBLICATION_CASES: tuple[RestackCase, ...] = (
     push_row('unauthorized_publication_asks', PUSH_A, 'publication-authorized',
              edits=((('publication_authorized',), False),)),
     RestackCase('force_with_a_valid_journal_asks', 'git push -f --force-with-lease=refs/heads/feat/a:{a_remote} '
-                'origin feat/a', 'ask', FORCE_DEFAULT, 'R17', None, setup='restack-replayed'),
+                'origin feat/a', 'ask', FORCE_DEFAULT, 'R17', 'forced', setup='restack-replayed'),
     RestackCase('forced_refspec_with_a_valid_journal_asks', 'git push --force-with-lease=refs/heads/feat/a:{a_remote} '
-                'origin +feat/a', 'ask', FORCE_DEFAULT, 'R17', None, setup='restack-replayed'),
+                'origin +feat/a', 'ask', FORCE_DEFAULT, 'R17', 'forced', setup='restack-replayed'),
     RestackCase('protected_destination_with_a_journal_asks',
-                'git push --force-with-lease=refs/heads/main:{a_base} origin main', 'ask', PROTECTED, 'R16', None,
+                'git push --force-with-lease=refs/heads/main:{a_base} origin main', 'ask', PROTECTED, 'R16',
+                'branch-protected',
                 setup='restack-replayed', edits=((('order',), ('main', 'feat/a', 'feat/b')),
                                                  (('branches', 'main'), MAIN_REPLAYED))),
     push_row('destination_outside_order_asks', PUSH_A, 'branch-in-order', edits=((('order',), ('feat/b',)),)),
@@ -3961,6 +3962,293 @@ for validation_case in VALIDATION_REPAIR_CASES:
     setattr(ValidationRepairTable, 'test_' + validation_case.name, restack_test(validation_case))
 
 CLASSES = (*CLASSES, ValidationRepairTable)
+
+
+# git splits a push refspec at its last colon, qualifies a partial upstream merge value
+# through refs/<name>, runs programs named by pull --upload-pack and by the target remote's
+# receivepack or submodule recursion configuration, lets a rebasing pull move other
+# branches under rebase.updateRefs, and resolves a relative repository redirect against
+# the directory git runs in (git 2.53, local bare remote, dry-run evidence).
+class ResolutionGapFixture(StoredUpdateRefsFixture):
+    """Push, pull and journal states for the refspec, configuration and redirect cases."""
+
+    def setup_push_upstream_partial_main(self) -> None:
+        self.setup_push()
+        self.git(self.project, 'switch', '-q', 'feat/y')
+        self.set_config('push.default', 'upstream')
+        self.set_config('branch.feat/y.remote', 'origin')
+        self.set_config('branch.feat/y.merge', 'heads/main')
+
+    def setup_push_upstream_partial_feature(self) -> None:
+        self.setup_push()
+        self.git(self.project, 'switch', '-q', 'feat/y')
+        self.set_config('push.default', 'upstream')
+        self.set_config('branch.feat/y.remote', 'origin')
+        self.set_config('branch.feat/y.merge', 'heads/feat/y')
+
+    def setup_pull_update_refs(self) -> None:
+        self.setup_push_feature()
+        self.set_config('rebase.updateRefs', 'true')
+
+    def setup_pull_update_refs_false(self) -> None:
+        self.setup_push_feature()
+        self.set_config('rebase.updateRefs', 'false')
+
+    def setup_pull_configured_rebase(self) -> None:
+        self.setup_pull_update_refs()
+        self.set_config('pull.rebase', 'true')
+
+    def setup_pull_branch_rebase(self) -> None:
+        self.setup_pull_update_refs()
+        self.set_config('branch.feat/x.rebase', 'merges')
+
+    def setup_pull_branch_rebase_off(self) -> None:
+        self.setup_pull_configured_rebase()
+        self.set_config('branch.feat/x.rebase', 'false')
+
+    def setup_pull_configured_rebase_without_update_refs(self) -> None:
+        self.setup_push_feature()
+        self.set_config('pull.rebase', 'true')
+
+    def setup_push_receive_pack(self) -> None:
+        self.setup_push_feature()
+        self.set_config('remote.origin.receivepack', 'git-receive-pack')
+
+    def setup_push_backup_receive_pack(self) -> None:
+        self.setup_push_backup()
+        self.set_config('remote.backup.receivepack', 'git-receive-pack')
+
+    def setup_push_recurse_on_demand(self) -> None:
+        self.setup_push_feature()
+        self.set_config('push.recurseSubmodules', 'on-demand')
+
+    def setup_push_recurse_only(self) -> None:
+        self.setup_push_feature()
+        self.set_config('push.recurseSubmodules', 'only')
+
+    def setup_push_recurse_check(self) -> None:
+        self.setup_push_feature()
+        self.set_config('push.recurseSubmodules', 'check')
+
+    def setup_push_submodule_recurse(self) -> None:
+        self.setup_push_feature()
+        self.set_config('submodule.recurse', 'true')
+
+    def setup_push_submodule_recurse_off(self) -> None:
+        self.setup_push_feature()
+        self.set_config('submodule.recurse', 'false')
+
+    def setup_restack_replayed_receive_pack(self) -> None:
+        self.setup_restack_replayed()
+        self.set_config('remote.origin.receivepack', 'git-receive-pack')
+
+    def setup_restack_replayed_recurse_on_demand(self) -> None:
+        self.setup_restack_replayed()
+        self.set_config('push.recurseSubmodules', 'on-demand')
+
+    def setup_pull_upload_pack(self) -> None:
+        self.setup_push_feature()
+        self.set_config('remote.origin.uploadpack', 'git-upload-pack')
+
+    def setup_pull_backup_upload_pack(self) -> None:
+        self.setup_push_backup()
+        self.set_config('remote.backup.uploadpack', 'git-upload-pack')
+
+    def setup_restack_replayed_backup_receive_pack(self) -> None:
+        self.setup_restack_replayed()
+        self.add_remote('backup', ('main',), None)
+        self.set_config('remote.backup.receivepack', 'git-receive-pack')
+
+
+SIBLING_GIT_DIR = "'../project one/.git'"
+
+RESOLUTION_GAP_CASES: tuple[DecisionCase, ...] = (
+    # A refspec splits at its last colon: the source may hold colons, the destination cannot.
+    DecisionCase('source_with_a_colon_onto_main_needs_owner_approval', "git push origin 'HEAD^{/fix:}:main'",
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('message_search_source_onto_main_needs_owner_approval', "git push origin ':/fix:main'",
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('forced_source_with_a_colon_onto_main_needs_owner_approval',
+                 "git push origin '+HEAD^{/fix:}:main'", 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('refspec_with_several_colons_onto_main_needs_owner_approval', "git push origin 'a:b:main'",
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('message_search_source_onto_a_feature_is_allowed', "git push origin ':/fix:feat/x'",
+                 'allow', setup='push-feature'),
+    DecisionCase('forced_message_search_source_onto_a_feature_needs_owner_approval',
+                 "git push origin '+:/fix:feat/x'", 'ask', FORCE, 'R17', setup='push-feature'),
+    DecisionCase('source_with_a_colon_onto_a_feature_is_allowed', "git push origin 'HEAD^{/fix:}:feat/x'",
+                 'allow', setup='push-feature'),
+    DecisionCase('empty_source_still_deletes', 'git push origin :feat/x', 'ask', DELETE, 'R15',
+                 setup='push-feature'),
+    DecisionCase('lone_colon_still_pushes_matching_refs', 'git push origin :', 'ask', BULK, 'R14',
+                 setup='push-feature'),
+    DecisionCase('tag_source_onto_a_tag_still_asks', 'git push origin v1:refs/tags/v2', 'ask', BULK, 'R14',
+                 setup='push-feature'),
+    # A partial upstream merge value names refs/<value>.
+    DecisionCase('upstream_push_with_a_partial_main_merge_needs_owner_approval', 'git push',
+                 'ask', PROTECTED, 'R16', setup='push-upstream-partial-main'),
+    DecisionCase('upstream_push_with_a_partial_feature_merge_is_allowed', 'git push', 'allow',
+                 setup='push-upstream-partial-feature'),
+    # pull --upload-pack runs a program on the fetch side.
+    DecisionCase('pull_upload_pack_is_unsupported', 'git pull --upload-pack=x origin', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('pull_upload_pack_as_a_separate_value_is_unsupported', 'git pull --upload-pack x origin',
+                 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('pull_upload_pack_prefix_is_unsupported', 'git pull --upload-p=x origin', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('pull_upload_pack_on_main_is_unsupported', 'git pull --ff-only --upload-pack=x', 'deny',
+                 UNSUPPORTED, setup='push'),
+    DecisionCase('pull_from_a_remote_with_a_configured_upload_pack_is_unsupported', 'git pull origin', 'deny',
+                 UNSUPPORTED, setup='pull-upload-pack'),
+    DecisionCase('pull_from_the_default_remote_with_a_configured_upload_pack_is_unsupported', 'git pull',
+                 'deny', UNSUPPORTED, setup='pull-upload-pack'),
+    DecisionCase('pull_from_origin_ignores_another_remote_upload_pack', 'git pull origin', 'allow',
+                 setup='pull-backup-upload-pack'),
+    # A rebasing pull with rebase.updateRefs may move other branches, protected ones included.
+    DecisionCase('pull_rebase_with_update_refs_needs_owner_approval', 'git pull --rebase', 'ask', REWRITE, 'R28',
+                 setup='pull-update-refs'),
+    DecisionCase('pull_short_rebase_with_update_refs_needs_owner_approval', 'git pull -r', 'ask', REWRITE, 'R28',
+                 setup='pull-update-refs'),
+    DecisionCase('pull_bundled_rebase_with_update_refs_needs_owner_approval', 'git pull -qr', 'ask', REWRITE, 'R28',
+                 setup='pull-update-refs'),
+    DecisionCase('pull_rebase_merges_with_update_refs_needs_owner_approval', 'git pull --rebase=merges origin',
+                 'ask', REWRITE, 'R28', setup='pull-update-refs'),
+    DecisionCase('pull_with_configured_rebase_and_update_refs_needs_owner_approval', 'git pull', 'ask', REWRITE, 'R28',
+                 setup='pull-configured-rebase'),
+    DecisionCase('pull_with_branch_rebase_and_update_refs_needs_owner_approval', 'git pull', 'ask', REWRITE, 'R28',
+                 setup='pull-branch-rebase'),
+    DecisionCase('pull_rebase_without_update_refs_is_allowed', 'git pull --rebase', 'allow', setup='push-feature'),
+    DecisionCase('pull_rebase_with_update_refs_false_is_allowed', 'git pull --rebase', 'allow',
+                 setup='pull-update-refs-false'),
+    DecisionCase('pull_without_rebase_and_with_update_refs_is_allowed', 'git pull', 'allow',
+                 setup='pull-update-refs'),
+    DecisionCase('pull_no_rebase_overrides_configured_rebase', 'git pull --no-rebase', 'allow',
+                 setup='pull-configured-rebase'),
+    DecisionCase('pull_rebase_false_overrides_configured_rebase', 'git pull --rebase=false', 'allow',
+                 setup='pull-configured-rebase'),
+    DecisionCase('pull_branch_rebase_off_overrides_configured_rebase', 'git pull', 'allow',
+                 setup='pull-branch-rebase-off'),
+    DecisionCase('pull_fast_forward_only_with_configured_rebase_is_allowed', 'git pull --ff-only', 'allow',
+                 setup='pull-configured-rebase'),
+    DecisionCase('pull_with_configured_rebase_without_update_refs_is_allowed', 'git pull', 'allow',
+                 setup='pull-configured-rebase-without-update-refs'),
+    # Configuration of the target remote and of submodule recursion runs programs on push.
+    DecisionCase('push_with_a_configured_receive_pack_is_unsupported', 'git push origin feat/x', 'deny',
+                 UNSUPPORTED, setup='push-receive-pack'),
+    DecisionCase('push_to_origin_ignores_another_remote_receive_pack', 'git push origin feat/x',
+                 'allow', setup='push-backup-receive-pack'),
+    DecisionCase('dry_run_with_a_configured_receive_pack_is_unsupported', 'git push -n origin feat/x', 'deny',
+                 UNSUPPORTED, setup='push-receive-pack'),
+    DecisionCase('push_with_configured_on_demand_submodules_is_unsupported', 'git push origin feat/x', 'deny',
+                 UNSUPPORTED, setup='push-recurse-on-demand'),
+    DecisionCase('push_with_configured_submodules_only_is_unsupported', 'git push origin feat/x', 'deny',
+                 UNSUPPORTED, setup='push-recurse-only'),
+    DecisionCase('push_with_submodule_recurse_is_unsupported', 'git push origin feat/x', 'deny', UNSUPPORTED,
+                 setup='push-submodule-recurse'),
+    DecisionCase('submodule_check_option_overrides_configured_on_demand',
+                 'git push --recurse-submodules=check origin feat/x', 'allow', setup='push-recurse-on-demand'),
+    DecisionCase('no_submodules_option_overrides_configured_on_demand',
+                 'git push --no-recurse-submodules origin feat/x', 'allow', setup='push-recurse-on-demand'),
+    DecisionCase('push_with_configured_submodule_check_is_allowed', 'git push origin feat/x', 'allow',
+                 setup='push-recurse-check'),
+    DecisionCase('push_with_submodule_recurse_off_is_allowed', 'git push origin feat/x', 'allow',
+                 setup='push-submodule-recurse-off'),
+    # A relative redirect is resolved against the directory git runs in.
+    DecisionCase('relative_git_dir_into_project_from_a_sibling_is_unsupported',
+                 f'git --git-dir={SIBLING_GIT_DIR} push -f', 'deny', UNSUPPORTED, 'R31', cwd='outside'),
+    DecisionCase('separate_relative_git_dir_into_project_from_a_sibling_is_unsupported',
+                 f'git --git-dir {SIBLING_GIT_DIR} push -f', 'deny', UNSUPPORTED, 'R31', cwd='outside'),
+    DecisionCase('relative_work_tree_into_project_from_a_sibling_is_unsupported',
+                 "git --work-tree='../project one' add -A", 'deny', UNSUPPORTED, 'R31', cwd='outside'),
+    DecisionCase('relative_git_dir_after_relative_directory_option_is_unsupported',
+                 "git -C .. --git-dir='project one/.git' push -f", 'deny', UNSUPPORTED, 'R31', cwd='outside'),
+    DecisionCase('relative_git_dir_assignment_from_a_sibling_is_opaque_environment',
+                 f'GIT_DIR={SIBLING_GIT_DIR} git push -f', 'deny', 'opaque-environment', 'R31', cwd='outside'),
+    DecisionCase('relative_work_tree_assignment_from_a_sibling_is_opaque_environment',
+                 "GIT_WORK_TREE='../project one' git add -A", 'deny', 'opaque-environment', 'R31',
+                 cwd='outside'),
+    DecisionCase('relative_common_dir_assignment_from_a_sibling_is_opaque_environment',
+                 f'GIT_COMMON_DIR={SIBLING_GIT_DIR} git push -f', 'deny', 'opaque-environment', 'R31',
+                 cwd='outside'),
+    DecisionCase('relative_index_file_assignment_from_a_sibling_is_opaque_environment',
+                 "GIT_INDEX_FILE='../project one/.git/index' git add -A", 'deny', 'opaque-environment', 'R31',
+                 cwd='outside'),
+    DecisionCase('relative_git_dir_assignment_before_a_directory_option_is_opaque_environment',
+                 "GIT_DIR='project one/.git' git -C .. push -f", 'deny', 'opaque-environment', 'R31',
+                 cwd='outside'),
+    DecisionCase('exported_relative_git_dir_from_a_sibling_is_opaque_environment',
+                 f'export GIT_DIR={SIBLING_GIT_DIR}; git push -f', 'deny', 'opaque-environment', 'R31',
+                 cwd='outside'),
+    DecisionCase('relative_git_dir_of_the_sibling_itself_stays_not_applicable', 'git --git-dir=.git push -f',
+                 'not_applicable', cwd='outside'),
+    DecisionCase('relative_git_dir_assignment_of_the_sibling_itself_stays_not_applicable',
+                 'GIT_DIR=.git git push -f', 'not_applicable', cwd='outside'),
+    DecisionCase('relative_git_dir_assignment_on_read_only_git_stays_not_applicable',
+                 f'GIT_DIR={SIBLING_GIT_DIR} git status', 'not_applicable', cwd='outside'),
+    # A shell option before the command string leaves the string unparsed.
+    DecisionCase('shell_option_before_the_command_string_is_unsupported', "bash -o pipefail -c 'git push -f'",
+                 'deny', UNSUPPORTED),
+    DecisionCase('bundled_shell_options_before_the_command_string_are_unsupported',
+                 "bash -eo pipefail -c 'git push -f'", 'deny', UNSUPPORTED),
+)
+
+RESOLUTION_GAP_JOURNAL_CASES: tuple[RestackCase, ...] = (
+    RestackCase('lease_push_with_a_configured_receive_pack_is_unsupported', PUSH_A, 'deny', UNSUPPORTED,
+                setup='restack-replayed-receive-pack'),
+    RestackCase('lease_push_with_configured_on_demand_submodules_is_unsupported', PUSH_A, 'deny', UNSUPPORTED,
+                setup='restack-replayed-recurse-on-demand'),
+    RestackCase('long_force_with_a_valid_journal_names_the_forced_check',
+                'git push --force --force-with-lease=refs/heads/feat/a:{a_remote} origin feat/a',
+                'ask', FORCE_DEFAULT, 'R17', 'forced', setup='restack-replayed'),
+    RestackCase('forced_refspec_with_a_valid_journal_names_the_forced_check',
+                'git push --force-with-lease=refs/heads/feat/a:{a_remote} origin +feat/a',
+                'ask', FORCE_DEFAULT, 'R17', 'forced', setup='restack-replayed'),
+    push_row('lease_push_with_another_remote_receive_pack_is_allowed', PUSH_A, None,
+             setup='restack-replayed-backup-receive-pack'),
+)
+
+
+class ResolutionGapTable(ResolutionGapFixture):
+    """Table-driven decisions for refspec splitting, pull programs, rebasing pulls, configured
+    push programs, relative redirects, shell options and the forced-lease diagnostic."""
+
+
+for gap_case in RESOLUTION_GAP_CASES:
+    setattr(ResolutionGapTable, 'test_' + gap_case.name, decision_test(gap_case))
+for gap_journal_case in RESOLUTION_GAP_JOURNAL_CASES:
+    setattr(ResolutionGapTable, 'test_' + gap_journal_case.name, restack_test(gap_journal_case))
+
+CLASSES = (*CLASSES, ResolutionGapTable)
+
+
+class RefspecSplitting(PushFixture):
+    """split_refspec reads `[+]<src>[:<dst>]` with the destination after the last colon."""
+
+    def split(self, text: str) -> Any:
+        state = self.api('PushState')({}, 'feat/x')
+        return self.api('split_refspec')(text, state)
+
+    def test_destination_follows_the_last_colon(self) -> None:
+        for text, source, destination in (('HEAD^{/fix:}:main', 'HEAD^{/fix:}', 'main'),
+                                          (':/fix:main', ':/fix', 'main'),
+                                          ('a:b:refs/heads/main', 'a:b', 'refs/heads/main'),
+                                          ('+:/x:y:feat/x', ':/x:y', 'feat/x')):
+            with self.subTest(text=text):
+                spec = self.split(text)
+                self.assertEqual((spec.forced, spec.source, spec.destination),
+                                 (text.startswith('+'), source, destination))
+
+    def test_deletion_and_matching_forms_are_kept(self) -> None:
+        deletion, matching, forced = self.split(':feat/x'), self.split(':'), self.split('+:')
+        self.assertEqual((deletion.deletion, deletion.destination), (True, 'feat/x'))
+        self.assertTrue(matching.matching)
+        self.assertEqual((forced.forced, forced.matching), (True, True))
+
+    def test_source_with_a_colon_and_no_destination_is_unresolved(self) -> None:
+        self.assertIsNone(self.split(':/fix:'))
+
+
+CLASSES = (*CLASSES, RefspecSplitting)
 
 
 # ── Hook entrypoint: stdin to exit status, stdout and stderr ───────────
@@ -4795,6 +5083,11 @@ class CoreEntryPoint(RailsFixture):
 
 
 CLASSES = (*CLASSES, EntrypointDegradedEnvironment, CoreEntryPoint)
+
+# The refspec, pull, configuration, redirect and forced-lease decisions also run end to end.
+RESOLUTION_GAP_THROUGH_HOOK = type('ResolutionGapTableThroughHook', (EntrypointChecks, ResolutionGapTable),
+                                   {'__doc__': 'Every ResolutionGapTable case, run twice through the hook entrypoint.'})
+CLASSES = (*CLASSES, RESOLUTION_GAP_THROUGH_HOOK)
 
 
 def selected_suite() -> unittest.TestSuite:
