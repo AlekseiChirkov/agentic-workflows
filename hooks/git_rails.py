@@ -3776,7 +3776,10 @@ def run(environ: Mapping[str, str]) -> tuple[object, Decision]:
 
 def main() -> int:
     environ = dict(os.environ)
-    event, decision = run(environ)
+    try:
+        event, decision = run(environ)
+    except BudgetExceeded:  # the one-shot budget signal landed inside a handler of run
+        event, decision = None, denial('limit-exceeded')
     try:
         status, stdout, stderr = respond(decision, event, environ)
     except Exception:  # a rendering failure still denies
