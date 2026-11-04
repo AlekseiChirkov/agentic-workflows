@@ -4378,6 +4378,88 @@ for grammar_case in SHELL_GRAMMAR_CASES:
 CLASSES = (*CLASSES, ShellGrammarTable)
 
 
+# The shell scanner accepts only option words it fully understands. bash reads a single-dash
+# word naming one of its long options as that long option, and a long option only before
+# any short one; busybox runs the applet its next word names; a script operand that names
+# standard input reads the command from stdin.
+FORCED_HERE = f'<<< {FORCED_ONTO_MAIN}'
+FORCED_PIPE = f'echo {FORCED_ONTO_MAIN} |'
+
+SHELL_ALLOWLIST_CASES: tuple[DecisionCase, ...] = (
+    # Single-dash spellings of bash long options.
+    DecisionCase('single_dash_login_before_the_command_option_is_unsupported',
+                 f'bash -login -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('single_dash_noediting_before_the_command_option_is_unsupported',
+                 f'bash -noediting -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('single_dash_noprofile_with_a_positional_argument_is_unsupported',
+                 f'bash -noprofile -c {FORCED_ONTO_MAIN} a0', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('single_dash_login_after_double_dash_login_is_unsupported',
+                 f'bash --login -login -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('env_shell_with_single_dash_login_is_unsupported',
+                 f'env bash -login -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('absolute_shell_with_single_dash_noediting_is_unsupported',
+                 f'/bin/bash -noediting -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('single_dash_login_before_plus_command_option_is_unsupported',
+                 f'bash -login +c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('single_dash_init_file_before_the_command_option_is_unsupported',
+                 f'bash -init-file x -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('single_dash_long_option_before_a_script_is_unsupported', 'bash -login build.sh; git status',
+                 'deny', UNSUPPORTED),
+    # Option words the scanner does not fully understand.
+    DecisionCase('unknown_short_letter_is_unsupported', 'bash -y build.sh; git status', 'deny', UNSUPPORTED),
+    DecisionCase('long_option_after_a_short_option_is_unsupported', 'bash -e --login build.sh; git status',
+                 'deny', UNSUPPORTED),
+    DecisionCase('unknown_long_option_is_unsupported', 'bash --wordexp build.sh; git status', 'deny',
+                 UNSUPPORTED),
+    # busybox runs the applet its next word names.
+    DecisionCase('busybox_shell_command_string_is_decided', f'busybox sh -c {FORCED_ONTO_MAIN}', 'ask',
+                 PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('absolute_busybox_shell_command_string_is_decided',
+                 f'/usr/bin/busybox sh -c {FORCED_ONTO_MAIN}', 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('busybox_ash_command_string_is_unsupported', f'busybox ash -c {FORCED_ONTO_MAIN}', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('busybox_stdin_shell_is_unsupported', f'busybox sh {FORCED_HERE}', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('busybox_timeout_shell_command_string_is_decided', f'busybox timeout 5 sh -c {FORCED_ONTO_MAIN}',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('busybox_time_shell_command_string_is_decided', f'busybox time sh -c {FORCED_ONTO_MAIN}',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('busybox_option_before_the_applet_is_unsupported', f'busybox -x sh -c {FORCED_ONTO_MAIN}',
+                 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('busybox_without_an_applet_is_unsupported', 'busybox; git status', 'deny', UNSUPPORTED),
+    # A script operand naming standard input reads the command from stdin.
+    DecisionCase('dev_stdin_script_with_a_here_string_is_unsupported', f'bash /dev/stdin {FORCED_HERE}', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('dev_stdin_script_from_a_pipe_is_unsupported', f'{FORCED_PIPE} bash /dev/stdin', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('proc_self_fd_script_is_unsupported', f'bash /proc/self/fd/0 {FORCED_HERE}', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('sh_dev_stdin_script_is_unsupported', f'sh /dev/stdin {FORCED_HERE}', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('dev_fd_script_is_unsupported', f'bash /dev/fd/0 {FORCED_HERE}', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('proc_pid_fd_script_is_unsupported', f'bash /proc/1/fd/0 {FORCED_HERE}', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('dev_stdin_script_after_end_of_options_is_unsupported', f'bash -- /dev/stdin {FORCED_HERE}',
+                 'deny', UNSUPPORTED, setup='push-feature'),
+    # Guards.
+    DecisionCase('busybox_program_without_git_is_not_applicable', 'busybox ls', 'not_applicable'),
+    DecisionCase('busybox_shell_script_is_not_applicable', 'busybox sh script.sh', 'not_applicable'),
+    DecisionCase('double_dash_login_shell_script_is_not_applicable', 'bash --login script.sh', 'not_applicable'),
+)
+
+
+class ShellAllowlistTable(ResolutionGapFixture):
+    """Table-driven decisions for single-dash long options, unknown option words, busybox
+    applets and script operands that name standard input."""
+
+
+for allowlist_case in SHELL_ALLOWLIST_CASES:
+    setattr(ShellAllowlistTable, 'test_' + allowlist_case.name, decision_test(allowlist_case))
+
+CLASSES = (*CLASSES, ShellAllowlistTable)
+
+
 # ── Hook entrypoint: stdin to exit status, stdout and stderr ───────────
 
 import atexit  # noqa: E402 - the entrypoint block needs these only
@@ -5221,6 +5303,9 @@ CLASSES = (*CLASSES, SHELL_BUNDLE_THROUGH_HOOK)
 SHELL_GRAMMAR_THROUGH_HOOK = type('ShellGrammarTableThroughHook', (EntrypointChecks, ShellGrammarTable),
                                   {'__doc__': 'Every ShellGrammarTable case, run twice through the hook entrypoint.'})
 CLASSES = (*CLASSES, SHELL_GRAMMAR_THROUGH_HOOK)
+SHELL_ALLOWLIST_THROUGH_HOOK = type('ShellAllowlistTableThroughHook', (EntrypointChecks, ShellAllowlistTable),
+                                    {'__doc__': 'Every ShellAllowlistTable case, run twice through the hook.'})
+CLASSES = (*CLASSES, SHELL_ALLOWLIST_THROUGH_HOOK)
 
 
 def selected_suite() -> unittest.TestSuite:
