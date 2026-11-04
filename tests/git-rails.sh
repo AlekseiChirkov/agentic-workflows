@@ -4302,6 +4302,82 @@ for protected_lease_case in PROTECTED_LEASE_CASES:
 CLASSES = (*CLASSES, ShellBundleTable)
 
 
+# A shell string is read only in the form `bash|sh -c '<literal>'`. bash and dash keep
+# reading options after a leading -c and run the first non-option word, and +c and +s
+# select a command string and stdin like -c and -s, so every other spelling that selects a
+# command string or stdin is opaque; a shell given a script operand stays not applicable.
+SHELL_GRAMMAR_CASES: tuple[DecisionCase, ...] = (
+    # Options after a leading -c.
+    DecisionCase('shell_flag_after_the_command_option_is_unsupported',
+                 f'bash -c -e {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('end_of_options_after_the_command_option_is_unsupported',
+                 f'bash -c -- {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('value_option_after_the_command_option_is_unsupported',
+                 f'bash -c -o pipefail {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('plus_flag_after_the_command_option_is_unsupported',
+                 f'bash -c +e {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('flag_bundle_after_the_command_option_is_unsupported',
+                 f'bash -c -ex {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('sh_flag_after_the_command_option_is_unsupported',
+                 f'sh -c -e {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('env_shell_flag_after_the_command_option_is_unsupported',
+                 f'env bash -c -e {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('long_option_after_the_command_option_is_unsupported',
+                 f'bash -c --norc {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('lone_dash_after_the_command_option_is_unsupported',
+                 f'bash -c - {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    # Plus forms of the command-string and stdin options.
+    DecisionCase('plus_command_option_is_unsupported', f'bash +c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('plus_bundle_with_the_command_option_is_unsupported', f'bash +xc {FORCED_ONTO_MAIN}', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('plus_command_option_after_a_flag_is_unsupported', f'bash -e +c {FORCED_ONTO_MAIN}', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('sh_plus_command_option_is_unsupported', f'sh +c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('plus_stdin_option_with_a_script_is_unsupported',
+                 "bash +s build.sh <<< 'git push -f origin feat/y:main'", 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    # One row per opaque class.
+    DecisionCase('command_option_inside_a_bundle_is_unsupported', f'bash -ec {FORCED_ONTO_MAIN}', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('long_option_before_the_command_option_is_unsupported',
+                 f'bash --norc -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('stdin_option_inside_a_bundle_is_unsupported',
+                 "bash -es <<< 'git push -f origin feat/y:main'", 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('stdin_shell_after_a_long_option_is_unsupported',
+                 "echo 'git push -f origin feat/y:main' | bash --login", 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('stdin_shell_after_end_of_options_is_unsupported',
+                 "echo 'git push -f origin feat/y:main' | sh --", 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('lone_dash_shell_is_unsupported', "bash - <<< 'git push -f origin feat/y:main'", 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    # The supported form is still read, and a script operand stays not applicable.
+    DecisionCase('exact_command_string_is_still_decided', f'bash -c {FORCED_ONTO_MAIN}', 'ask', PROTECTED, 'R16',
+                 setup='push-feature'),
+    DecisionCase('exact_command_string_with_positional_arguments_is_still_decided',
+                 f'sh -c {FORCED_ONTO_MAIN} name one', 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('exact_command_string_of_read_only_git_is_not_applicable', "bash -c 'git status'",
+                 'not_applicable'),
+    DecisionCase('shell_script_operand_is_not_applicable', 'bash build.sh', 'not_applicable'),
+    DecisionCase('shell_script_after_a_flag_is_not_applicable', 'bash -x build.sh', 'not_applicable'),
+    DecisionCase('sh_script_after_a_flag_is_not_applicable', 'sh -e build.sh', 'not_applicable'),
+    DecisionCase('shell_script_after_end_of_options_is_not_applicable', 'bash -- build.sh', 'not_applicable'),
+    DecisionCase('shell_script_after_long_options_is_not_applicable', 'bash --norc --rcfile rc build.sh',
+                 'not_applicable'),
+)
+
+
+class ShellGrammarTable(ResolutionGapFixture):
+    """Table-driven decisions for the one supported shell-string form and the opaque rest."""
+
+
+for grammar_case in SHELL_GRAMMAR_CASES:
+    setattr(ShellGrammarTable, 'test_' + grammar_case.name, decision_test(grammar_case))
+
+CLASSES = (*CLASSES, ShellGrammarTable)
+
+
 # ── Hook entrypoint: stdin to exit status, stdout and stderr ───────────
 
 import atexit  # noqa: E402 - the entrypoint block needs these only
@@ -5142,6 +5218,9 @@ CLASSES = (*CLASSES, RESOLUTION_GAP_THROUGH_HOOK)
 SHELL_BUNDLE_THROUGH_HOOK = type('ShellBundleTableThroughHook', (EntrypointChecks, ShellBundleTable),
                                  {'__doc__': 'Every ShellBundleTable case, run twice through the hook entrypoint.'})
 CLASSES = (*CLASSES, SHELL_BUNDLE_THROUGH_HOOK)
+SHELL_GRAMMAR_THROUGH_HOOK = type('ShellGrammarTableThroughHook', (EntrypointChecks, ShellGrammarTable),
+                                  {'__doc__': 'Every ShellGrammarTable case, run twice through the hook entrypoint.'})
+CLASSES = (*CLASSES, SHELL_GRAMMAR_THROUGH_HOOK)
 
 
 def selected_suite() -> unittest.TestSuite:
