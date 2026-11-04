@@ -12,7 +12,8 @@ for this task. Resolve task paths from the project root; operate in its single r
 2. Resolve the absolute git common directory with
    `git rev-parse --path-format=absolute --git-common-dir`. Use the recovery journal
    `<common-dir>/orchestrail-restack/<sha256-of-canonical-task-path>.json`, keyed by
-   canonical repository and task paths. Inspect it before clean-tree/replay checks.
+   canonical repository and task paths (schema: `## Recovery journal`). Inspect it before
+   clean-tree/replay checks.
 3. Apply `git-flow → ## Preflight (mandatory, before any branch is created)` as relevant
    to replay: require a clean tracked tree, no unresolved git operation, and a resolvable
    target base. Resolve `--onto` or the repository's configured default branch; do not
@@ -30,8 +31,71 @@ for this task. Resolve task paths from the project root; operate in its single r
    branch. An interrupted rebase requires the user to continue or abort it, then rerun
    for evidence-based journal reconciliation; never infer success from journal presence.
 8. With `--allow-pr`, verify remote/authentication and capture the remote tip of each
-   publishable branch for an explicit force-with-lease. Without it, execute no push or
-   `gh` command. Report the classification and replay plan before mutation.
+   publishable branch as its `expected_remote_tip` for an explicit force-with-lease.
+   Without it, execute no push or `gh` command. Report the classification and replay plan
+   before mutation.
+
+## Recovery journal
+
+The journal is this workflow's recovery record and the only evidence the git-rails hook
+accepts for a replay rebase or a lease push; without exactly one matching journal the hook
+asks the owner (`git-flow → ## Safety rails`). The file name is the SHA-256 hex digest of
+the UTF-8 `task_path`. Minimum schema; extra fields are allowed:
+
+```json
+{
+  "schema_version": 1,
+  "repository_common_dir": "/abs/canonical/.git",
+  "task_path": "/abs/canonical/task/dir",
+  "target": {"branch": "main", "sha": "<sha>"},
+  "publication_authorized": false,
+  "order": ["feat/oauth-token-service", "feat/oauth-login-route"],
+  "branches": {
+    "feat/oauth-token-service": {
+      "original_base_commit": "<sha>",
+      "original_tip": "<sha>",
+      "replayed_tip": null,
+      "expected_remote_tip": null
+    },
+    "feat/oauth-login-route": {
+      "original_base_commit": "<sha>",
+      "original_tip": "<sha>",
+      "replayed_tip": null,
+      "expected_remote_tip": null
+    }
+  }
+}
+```
+
+- Every SHA is a full 40- or 64-character lowercase hex object name. `repository_common_dir`
+  and `task_path` are the canonical absolute paths resolved in the Guard. `target` is the
+  resolved target branch and its SHA, captured once before the first replay.
+- `publication_authorized` is `true` only when `/restack` runs with `--allow-pr`.
+- `order` lists only the branches to replay, in replay order: the first entry is replayed
+  onto `target.sha`, each later entry onto the previous entry's `replayed_tip`. Record
+  merged and skipped branches with their evidence in an extra field, never in `order`.
+- `branches.<b>` exists for every entry of `order`. `original_base_commit` is the
+  recorded `base_commit:`; `original_tip` is the branch tip before replay; `replayed_tip`
+  is `null` until that branch's replay succeeds, then its new tip.
+  `expected_remote_tip` is a SHA, `"absent"` (the branch was confirmed absent on the
+  remote) or `null` (not captured).
+
+The hook accepts exactly these command forms, with full SHAs and literal branch names:
+
+- Replay: `git rebase --onto <new-sha> <old-sha> <branch>`. `<branch>` is the first entry of
+  `order` whose `replayed_tip` is `null` and is at its `original_tip`; `<old-sha>` is its
+  `original_base_commit`; `<new-sha>` is its replay base from `order`. Leave
+  `rebase.updateRefs` unset or false. After a conflict, `git rebase --continue`,
+  `--skip` and `--abort` of that replay are accepted as well.
+- Publication: `git push --force-with-lease=refs/heads/<b>:<sha> origin <b>`, one branch per
+  push, where `<sha>` is the branch's `expected_remote_tip` and the local branch is at its
+  `replayed_tip`. For a branch recorded as `"absent"`, use
+  `git push --force-with-lease=refs/heads/<b>: origin <b>`. Never add `--force` or a `+`
+  refspec.
+
+The journal records only what this workflow observed. Never edit it to make a command pass
+the hook; a command the hook asks about follows the owner-approval protocol in
+`git-flow → ## Safety rails`.
 
 ## Step 1 — Classify each branch
 
@@ -56,17 +120,20 @@ from the verified recorded tip.
 
 ## Step 2 — Replay
 
-Before mutation, persist the Guard's recovery journal with repository/task identity,
-original branch points/tips, confirmed replayed tips, chosen target, planned order and
-expected remote tips.
-Update it after each successful replay. Keep state deltas there until no further replay
-requires a clean tree; then apply them to task state. This also supports tracked task state
+Before mutation, persist the Guard's recovery journal (`## Recovery journal`) with
+repository/task identity, the chosen target, `publication_authorized`, the replay `order`,
+original branch points and tips, `replayed_tip: null` for every branch still to replay and
+the expected remote tips.
+After each successful replay, write that branch's `replayed_tip` before the next replay.
+Keep state deltas there until no further replay requires a clean tree; then apply them to
+task state. This also supports tracked task state
 without making subsequent replays fail on this workflow's own edits.
 
 For each pending branch, in stack order:
 
-1. Capture `<new-base>` as an immutable SHA, then run:
-   `git rebase --onto <new-base-sha> <recorded base_commit> <branch>`.
+1. Take `<new-sha>`, the branch's replay base from `order`, as an immutable SHA, and
+   `<old-sha>`, its recorded `base_commit`, then run:
+   `git rebase --onto <new-sha> <old-sha> <branch>`.
 2. **On conflict** → **stop immediately**. Do not attempt automatic resolution. Preserve
    the journal, apply completed-branch state deltas, record the halt and conflicting paths,
    and leave the rebase in progress. Tell the user to finish with `git rebase --continue`
@@ -82,9 +149,10 @@ state and any requested publication are complete; remove only this workflow's jo
 
 ## Step 3 — Publish (only with `--allow-pr`)
 
-For each changed branch, push using its captured expected remote tip:
-`git push --force-with-lease=refs/heads/<branch>:<expected-tip> origin <branch>`.
-Use an empty expected tip only for a branch confirmed absent remotely.
+For each changed branch, push using its captured `expected_remote_tip` as `<sha>`:
+`git push --force-with-lease=refs/heads/<b>:<sha> origin <b>`.
+Use the empty lease `git push --force-with-lease=refs/heads/<b>: origin <b>` only for a
+branch whose `expected_remote_tip` is `"absent"`.
 
 If a lease fails → **stop**: report remote movement; never replace the expected tip and
 retry automatically. Verify open PR bases match the rebuilt stack and correct them with

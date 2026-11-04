@@ -197,17 +197,64 @@ The no-attribution rule above applies verbatim to PR titles and bodies: no tool 
 
 ## Safety rails
 
-| Operation | Policy |
-|---|---|
-| `git push` to a subtask branch | Allowed with `--allow-pr` |
-| `git push` to `<base>` / `main` / any protected branch | **Forbidden, always** |
-| `git push --force` | **Forbidden.** Only `--force-with-lease`, only inside `/restack`, only on subtask branches of the current task |
-| Branch deletion | **Forbidden.** Branches are deleted by the human when merging |
-| `gh pr merge` | **Forbidden, always** |
-| `git add -A` / `.` / `--all`, `git commit -a` | **Forbidden** — explicit paths only |
-| `git rebase` outside `/restack` | **Forbidden** |
-| `git reset --hard`, `git clean -xfd` | **Forbidden** — would destroy untracked `.ai/` state |
-| Rewriting a commit already pushed as part of an open PR | Only inside `/restack` |
+The Policy column says what an agent may do. The Enforcement column says what the git-rails
+hook does when the harness runs it (Claude Code, in a registered project): `hook: deny`
+blocks the command, `hook: ask` blocks it until the owner approves that one execution,
+`hook: allow with restack journal` lets it through only when the `/restack` recovery
+journal verifies it, and `text only` means the hook does not check it. A harness without
+the hook applies the whole table as text.
+
+Enforcement values for the safety rails: `hook: deny` | `hook: ask` | `hook: allow with restack journal` | `text only`.
+
+| Operation | Policy | Enforcement |
+|---|---|---|
+| `git push` to a subtask branch | Allowed with `--allow-pr` | `text only` |
+| `git push` to `<base>` / `main` / any protected branch | **Forbidden, always** | `hook: ask` |
+| `git push --force` | **Forbidden.** Only `--force-with-lease`, only inside `/restack`, only on subtask branches of the current task | `hook: ask` |
+| `git push --force-with-lease=refs/heads/<b>:<sha> origin <b>` of a branch the restack journal records as replayed | Only inside `/restack` with `--allow-pr` | `hook: allow with restack journal` |
+| Any other lease form, a `+` refspec, `--force-if-includes` | **Forbidden** — use the exact lease form above | `hook: ask` |
+| Bulk, tag or delete push (`--all`, `--mirror`, `--tags`, `--follow-tags`, `--delete`, `:<branch>`) | Owner approval required | `hook: ask` |
+| Push whose remote, destination or remote default branch cannot be resolved | **Forbidden** — name the remote and destination explicitly; set a missing default with `git remote set-head <remote> --auto` | `hook: deny` |
+| Branch deletion | **Owner approval required; a verified temporary child-branch exception is planned.** Deleting a branch on the agent's own initiative is forbidden; branches are deleted by the human when merging | `hook: ask` |
+| `gh pr merge`, and the `gh api` pull-request merge endpoints | **Forbidden, always** | `hook: ask` |
+| `git add -A` / `.` / `--all`, `git commit -a` | **Forbidden** — explicit paths only | `hook: deny` |
+| Staging a directory, a glob, a pathspec-magic or missing path, or staging interactively | **Forbidden** — explicit file paths only | `hook: deny` |
+| `git add -f` of an ignored path | Owner approval required — it would publish local state the repository ignores | `hook: ask` |
+| A commit message with a `Co-Authored-By:` trailer or a subtask or decision-record identifier, or one the hook cannot read statically | **Forbidden** — see `## Commits`; pass the message with `-m` or `-F <file>` | `hook: deny` |
+| Git forms the hook cannot verify: `GIT_*` assignments, aliases, unsupported global options, dynamic arguments | **Forbidden** — write the command in a plain, literal form | `hook: deny` |
+| `git rebase` outside `/restack` | **Forbidden** | `hook: ask` |
+| `git rebase --onto <new-sha> <old-sha> <branch>` replaying the next branch the restack journal records | Only inside `/restack` | `hook: allow with restack journal` |
+| `git reset --hard`, `git clean -xfd` | **Forbidden** — would destroy untracked `.ai/` state | `hook: ask` |
+| Moving, renaming, copying or resetting a protected branch (`branch -f`/`-m`/`-c`, `checkout -B`, `switch -C`, `update-ref`) | Owner approval required | `hook: ask` |
+| `git merge` or `git pull` into a protected branch | **Forbidden** — merging is the human's action | `hook: ask` |
+| Rewriting a commit already pushed as part of an open PR, including `git commit --amend` of a published commit | Only inside `/restack` | `hook: ask` |
+| Creating a pull request, its title and body, and attribution beyond the hook's patterns | Only with `--allow-pr`; no attribution | `text only` |
+
+Operations absent from this table are not checked by the hook; the harness capability record
+lists what it does not see. Read-only git commands are never blocked.
+
+### Owner approval protocol
+
+A `hook: ask` row grants no right: a Forbidden operation stays forbidden to every workflow,
+and the hook's prompt is a second gate for the owner, not a permission. The protocol applies
+to a command the owner requested and to one whose Policy allows it with owner approval.
+
+1. Before issuing a command on a `hook: ask` row, explain in chat: the exact command, which
+   rail it crosses, why it is needed, what can be lost, and how to undo it.
+2. Approval covers that one execution only. A rejection is final for that operation: stop
+   and report; do not retry or rephrase the command.
+3. When the hook denies with `owner-approval-unavailable` (the session cannot show the prompt
+   to a person), stop: give the owner the explanation and the exact command. The owner either
+   runs the command outside the agent (in a terminal, or with `! <command>` in Claude Code) or
+   gives other instructions.
+
+Never wrap or rephrase a denied command to evade the check. A `hook: deny` names a fixable
+form or a command the hook cannot verify: fix the command as the diagnostic says, and do not
+retry it unchanged.
+
+**Backward compatibility.** The Policy column keeps its meaning for every workflow; the
+Enforcement column only records the hook's result. A reader that knows only the two-column
+table reads the Policy cell as before.
 
 ---
 
