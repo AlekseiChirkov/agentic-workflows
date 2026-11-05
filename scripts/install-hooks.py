@@ -3,6 +3,7 @@
 
 Called by install-hooks.sh. The manifest declares every event and its one handler;
 each group is validated against the handler shape before placeholder substitution.
+The permission fragment adds deny rules, owned by exact counts like handlers.
 Settings numbers retain their original JSON tokens; ownership control numbers are
 independently validated before they affect quotas.
 """
@@ -36,6 +37,14 @@ FAILURE_MODES = ('continue', 'block')
 TOOL_GATING_EVENTS = ('PreToolUse',)
 # Files the registered hooks load beside themselves or call at run time.
 SOURCE_DEPENDENCIES = ('hooks/git_rails.py', 'scripts/log-step.sh')
+PERMISSION_FRAGMENT = 'harness/claude/permissions.json'
+# A fragment rule is one Bash permission pattern without control characters.
+PERMISSION_RULE = re.compile(r'Bash\([^\x00-\x1f\x7f]+\)')
+PERMISSIONS = 'permissions'
+PERMISSION_LIST = 'deny'
+RECEIPT_FIELDS: dict[int, tuple[str, ...]] = {
+    1: ('schema_version', 'state', 'owned', 'created_groups'),
+    2: ('schema_version', 'state', 'owned', 'created_groups', 'owned_permissions', 'created_permissions')}
 MAX_COUNT = 9007199254740991
 NumericKey: TypeAlias = tuple[bool, str, int]
 if hasattr(sys, 'set_int_max_str_digits'):
@@ -155,8 +164,8 @@ def require(condition: bool, reason: str = 'invalid-ownership') -> None:
 def control(value: JsonValue, version: bool = False) -> int:
     token = value.token if isinstance(value, Number) else str(value) if type(value) is int else ''
     if version:
-        require(token == '1')
-        return 1
+        require(token in tuple(str(number) for number in RECEIPT_FIELDS))
+        return int(token)
     require(bool(re.fullmatch(r'[1-9][0-9]*', token)) and len(token) <= len(str(MAX_COUNT)))
     parsed = int(token)
     require(parsed <= MAX_COUNT)
@@ -176,9 +185,20 @@ def is_event_name(value: JsonValue) -> bool:
     return isinstance(value, str) and EVENT_NAME.fullmatch(value) is not None
 
 
+def validate_permissions(record: JsonObject) -> None:
+    if PERMISSIONS not in record:
+        return
+    permissions = record[PERMISSIONS]
+    require(isinstance(permissions, dict), 'invalid-settings')
+    if PERMISSION_LIST in cast(JsonObject, permissions):
+        rules = cast(JsonObject, permissions)[PERMISSION_LIST]
+        require(isinstance(rules, list) and all(isinstance(rule, str) for rule in rules), 'invalid-settings')
+
+
 def validate_settings(settings: JsonValue) -> None:
     require(isinstance(settings, dict), 'invalid-settings')
     record = cast(JsonObject, settings)
+    validate_permissions(record)
     if 'hooks' not in record:
         return
     require(isinstance(record['hooks'], dict), 'invalid-settings')
@@ -190,12 +210,32 @@ def validate_settings(settings: JsonValue) -> None:
             require(all(isinstance(handler, dict) for handler in handlers), 'invalid-settings')
 
 
+def validate_permission_claims(record: JsonObject) -> None:
+    claims, created = record['owned_permissions'], record['created_permissions']
+    require(isinstance(claims, list) and isinstance(created, list))
+    seen: set[str] = set()
+    for raw_claim in cast(list[JsonValue], claims):
+        claim = fields(raw_claim, ('list', 'rule', 'count'))
+        require(claim['list'] == PERMISSION_LIST and isinstance(claim['rule'], str))
+        control(claim['count'])
+        require(claim['rule'] not in seen)
+        seen.add(cast(str, claim['rule']))
+    containers = cast(list[JsonValue], created)
+    require(all(name in (PERMISSIONS, PERMISSION_LIST) for name in containers))
+    require(len(set(containers)) == len(containers))
+    # The installer creates the deny list whenever it creates the permissions object.
+    require(PERMISSIONS not in containers or PERMISSION_LIST in containers)
+
+
 def validate_committed(receipt: JsonValue) -> None:
     if receipt is None:
         return
-    record = fields(receipt, ('schema_version', 'state', 'owned', 'created_groups'))
-    control(record['schema_version'], version=True)
+    require(isinstance(receipt, dict))
+    version = control(cast(JsonObject, receipt).get('schema_version'), version=True)
+    record = fields(receipt, RECEIPT_FIELDS[version])
     require(record['state'] == 'committed')
+    if version > 1:
+        validate_permission_claims(record)
     for name in ('owned', 'created_groups'):
         require(isinstance(record[name], list))
         seen: set[QuotaKey] = set()
@@ -281,7 +321,19 @@ def replace_receipt(path: Path, value: JsonObject | None) -> None:
 
 
 def empty_receipt() -> JsonObject:
-    return {'schema_version':1, 'state':'committed', 'owned':[], 'created_groups':[]}
+    return {'schema_version':max(RECEIPT_FIELDS), 'state':'committed', 'owned':[], 'created_groups':[],
+            'owned_permissions':[], 'created_permissions':[]}
+
+
+def compatible_receipt(receipt: JsonObject) -> JsonObject:
+    """Keep the version 1 form without permission state, so earlier installers can still read it."""
+    if receipt['owned_permissions'] or receipt['created_permissions']:
+        return receipt
+    return dict({name: receipt[name] for name in RECEIPT_FIELDS[1]}, schema_version=1)
+
+
+def receipt_version(receipt: JsonValue) -> int:
+    return control(cast(JsonObject, receipt)['schema_version'], version=True) if receipt is not None else 1
 
 
 def remove_group_handlers(group: JsonObject, event: str, quotas: dict[QuotaKey, int]) -> bool:
@@ -299,9 +351,32 @@ def remove_group_handlers(group: JsonObject, event: str, quotas: dict[QuotaKey, 
     return removed
 
 
+def remove_permissions(settings: JsonObject, receipt: JsonObject) -> None:
+    """Delete one occurrence per owned count, then created containers that are left empty."""
+    quotas = {cast(str, claim['rule']):control(claim['count'])
+              for claim in cast(list[JsonObject], receipt.get('owned_permissions', []))}
+    created = cast(list[JsonValue], receipt.get('created_permissions', []))
+    permissions = settings.get(PERMISSIONS)
+    if not isinstance(permissions, dict):
+        return
+    if PERMISSION_LIST in permissions:
+        retained: list[JsonValue] = []
+        for rule in cast(list[JsonValue], permissions[PERMISSION_LIST]):
+            if quotas.get(cast(str, rule), 0) > 0:
+                quotas[cast(str, rule)] -= 1
+            else:
+                retained.append(rule)
+        permissions[PERMISSION_LIST] = retained
+    if PERMISSION_LIST in created and permissions.get(PERMISSION_LIST) == []:
+        del permissions[PERMISSION_LIST]
+    if PERMISSIONS in created and not permissions:
+        del settings[PERMISSIONS]
+
+
 def remove_owned(settings: JsonObject, receipt: JsonObject | None) -> None:
     if receipt is None:
         return
+    remove_permissions(settings, receipt)
     hooks = cast(Hooks, settings.get('hooks', {}))
     quotas: dict[QuotaKey, int] = {
         (cast(str, claim['event']), key(claim['selector']), key(claim['handler'])):control(claim['count'])
@@ -377,6 +452,41 @@ def load_manifest(source: str) -> Hooks:
         require(is_event_name(event) and isinstance(groups, list) and len(groups) == 1, 'invalid-manifest')
         validate_manifest_group(groups[0], event, source_path)
     return hooks
+
+
+def load_fragment(source: str) -> list[str]:
+    try:
+        data = (Path(source).resolve(strict=True) / PERMISSION_FRAGMENT).read_bytes()
+    except (OSError, ValueError):
+        raise Unavailable('invalid-source') from None
+    document = decode(data, 'invalid-manifest')
+    require(isinstance(document, dict) and set(document) == {PERMISSIONS}, 'invalid-manifest')
+    permissions = cast(JsonObject, document)[PERMISSIONS]
+    require(isinstance(permissions, dict) and set(permissions) == {PERMISSION_LIST}, 'invalid-manifest')
+    rules = cast(JsonObject, permissions)[PERMISSION_LIST]
+    require(isinstance(rules, list) and bool(rules), 'invalid-manifest')
+    require(all(isinstance(rule, str) and PERMISSION_RULE.fullmatch(rule) is not None for rule in rules),
+            'invalid-manifest')
+    require(len(set(cast(list[str], rules))) == len(rules), 'invalid-manifest')
+    return cast(list[str], rules)
+
+
+def insert_permissions(settings: JsonObject, rules: list[str], receipt: JsonObject) -> None:
+    """Append each fragment rule not already present; an identical user rule stays unowned."""
+    created = cast(list[JsonValue], receipt['created_permissions'])
+    if PERMISSIONS not in settings:
+        settings[PERMISSIONS] = {}
+        created.append(PERMISSIONS)
+    permissions = cast(JsonObject, settings[PERMISSIONS])
+    if PERMISSION_LIST not in permissions:
+        permissions[PERMISSION_LIST] = []
+        created.append(PERMISSION_LIST)
+    present = cast(list[JsonValue], permissions[PERMISSION_LIST])
+    owned = cast(list[JsonValue], receipt['owned_permissions'])
+    for rule in rules:
+        if rule not in present:
+            present.append(rule)
+            owned.append({'list':PERMISSION_LIST, 'rule':rule, 'count':1})
 
 
 def insert_manifest(settings: JsonObject, manifest: Hooks) -> JsonObject:
@@ -461,8 +571,12 @@ def recover_snapshot(installation: Installation, snapshot: Snapshot) -> Snapshot
 def plan_update(installation: Installation, snapshot: Snapshot) -> Update | None:
     result = copy.deepcopy(snapshot.settings)
     remove_owned(result, snapshot.receipt)
-    next_receipt = (insert_manifest(result, load_manifest(installation.source))
-                    if installation.operation == 'install' else empty_receipt())
+    if installation.operation == 'install':
+        next_receipt = insert_manifest(result, load_manifest(installation.source))
+        insert_permissions(result, load_fragment(installation.source), next_receipt)
+    else:
+        next_receipt = empty_receipt()
+    next_receipt = compatible_receipt(next_receipt)
     validate_settings(result)
     validate_committed(next_receipt)
     if equal(result, snapshot.settings) and (equal(next_receipt, snapshot.receipt) or
@@ -482,7 +596,9 @@ def stage_settings(installation: Installation, update: Update) -> Path | None:
 
 
 def build_prepared_receipt(update: Update) -> JsonObject:
-    prepared: JsonObject = {'schema_version':1, 'state':'prepared', 'previous':update.previous.receipt,
+    # The envelope takes the highest version of the receipts it holds.
+    version = max(receipt_version(update.previous.receipt), receipt_version(update.receipt))
+    prepared: JsonObject = {'schema_version':version, 'state':'prepared', 'previous':update.previous.receipt,
                             'next':update.receipt, 'before':image(update.previous.settings_data),
                             'after':image(update.settings_data)}
     validate_receipt(prepared)
