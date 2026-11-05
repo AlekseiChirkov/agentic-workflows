@@ -218,7 +218,7 @@ with `default-branch-unknown`; set it with `git remote set-head <remote> --auto`
 | Operation | Policy | Enforcement |
 |---|---|---|
 | `git push` to a subtask branch | Allowed with `--allow-pr` | `text only` |
-| `git push` to `main` or any protected branch (protected set above) | **Forbidden, always** | `hook: ask` |
+| `git push` to `main` or any protected branch (protected set above); a non-forced dry run (`--dry-run` or `-n`) is allowed | **Forbidden, always** | `hook: ask` |
 | `git push` to an unprotected `<base>` | **Forbidden, always** | `text only` |
 | `git push --force`; a dry run (`--dry-run` or `-n`) of any forced push is allowed | **Forbidden.** Only `--force-with-lease`, only inside `/restack`, only on subtask branches of the current task | `hook: ask` |
 | A `--force-with-lease` push whose explicit lease the restack journal verifies for every destination; `/restack` uses `git push --force-with-lease=refs/heads/<b>:<sha> origin <b>` | Only inside `/restack` with `--allow-pr` | `hook: allow with restack journal` |

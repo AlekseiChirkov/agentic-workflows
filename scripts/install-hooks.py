@@ -31,15 +31,18 @@ GROUP_FIELDS = frozenset({'matcher', 'hooks'})
 HANDLER_FIELDS = frozenset({'type', 'command', 'args', 'timeout', 'onFailure'})
 SCRIPT_ARGUMENT = re.compile(r'@ORCHESTRAIL_HOME@/(hooks/[a-z][a-z0-9-]*\.sh)')
 TIMEOUT_SECONDS = re.compile(r'[1-9][0-9]{0,3}')
-FAILURE_MODES = ('continue', 'block')
-# A tool-gating handler decides whether a tool call runs, so it needs a matcher and
-# must block when it cannot answer.
+# The one failure mode each event's handler may declare. A tool-gating handler decides
+# whether a tool call runs, so it must block when it cannot answer; a logging handler must
+# never stop a session. A handler for any other event is not registered.
+FAILURE_MODES: dict[str, str] = {'PreToolUse':'block', 'Stop':'continue', 'SubagentStop':'continue'}
+# A tool-gating handler also needs a matcher naming the tools it gates.
 TOOL_GATING_EVENTS = ('PreToolUse',)
 # Files the registered hooks load beside themselves or call at run time.
 SOURCE_DEPENDENCIES = ('hooks/git_rails.py', 'scripts/log-step.sh')
 PERMISSION_FRAGMENT = 'harness/claude/permissions.json'
-# A fragment rule is one Bash permission pattern without control characters.
-PERMISSION_RULE = re.compile(r'Bash\([^\x00-\x1f\x7f]+\)')
+# A fragment rule is one exact Bash command: no control characters, no `*` wildcard and
+# no `)` before the closing parenthesis.
+PERMISSION_RULE = re.compile(r'Bash\([^\x00-\x1f\x7f*)]+\)')
 PERMISSIONS = 'permissions'
 PERMISSION_LIST = 'deny'
 RECEIPT_FIELDS: dict[int, tuple[str, ...]] = {
@@ -405,10 +408,20 @@ def substitute_script(arguments: JsonValue, source_path: Path) -> list[JsonValue
     argument = cast(list[JsonValue], arguments)[0]
     match = SCRIPT_ARGUMENT.fullmatch(argument) if isinstance(argument, str) else None
     require(match is not None, 'invalid-manifest')
-    # Register the physical script: an entrypoint finds its core beside its own path.
     script = source_path / cast(re.Match[str], match).group(1)
     require(regular_file(script), 'invalid-source')
-    return [str(script)]
+    return [str(physical_script(script))]
+
+
+def physical_script(script: Path) -> Path:
+    """Register the readable physical file: an entrypoint finds its core beside its own path,
+    and bash reads a script it cannot open as a failure on every call."""
+    try:
+        physical = script.resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise Unavailable('invalid-source') from None
+    require(regular_file(physical) and os.access(physical, os.R_OK), 'invalid-source')
+    return physical
 
 
 def validate_manifest_handler(value: JsonValue, event: str, source_path: Path) -> JsonObject:
@@ -418,9 +431,7 @@ def validate_manifest_handler(value: JsonValue, event: str, source_path: Path) -
     require(handler['type'] == 'command' and handler['command'] == 'bash', 'invalid-manifest')
     require(isinstance(timeout, Number) and TIMEOUT_SECONDS.fullmatch(timeout.token) is not None,
             'invalid-manifest')
-    failure_mode = handler['onFailure']
-    require(failure_mode in FAILURE_MODES and
-            (failure_mode == 'block' or event not in TOOL_GATING_EVENTS), 'invalid-manifest')
+    require(event in FAILURE_MODES and handler['onFailure'] == FAILURE_MODES[event], 'invalid-manifest')
     handler['args'] = substitute_script(handler['args'], source_path)
     return handler
 
