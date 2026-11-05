@@ -1235,6 +1235,101 @@ class HookInstallation(unittest.TestCase):
         self.call('install', expected='unavailable')
         self.assertEqual(before, self.snapshot())
 
+    # A refused source or manifest must keep both files byte-identical and every foreign
+    # group in place, so each refusal below starts from a valid installation beside them.
+    FOREIGN_SETTINGS: JsonObject = {'user':'kept', 'permissions':{'deny':['Bash(rm -rf /tmp/kept)']},
+        'hooks':{'PreToolUse':[{'matcher':'Bash', 'hooks':[{'type':'command', 'command':'foreign-guard'}]}],
+                 'Stop':[{'hooks':[{'type':'command', 'command':'foreign-stop'}]}]}}
+
+    def foreign_handlers(self) -> list[JsonValue]:
+        hooks = self.read_settings().get('hooks', {})
+        return [handler for groups in hooks.values() for group in groups for handler in group['hooks']
+                if handler.get('command') != 'bash']
+
+    def install_beside_foreign_entries(self) -> None:
+        self.write_settings(copy.deepcopy(self.FOREIGN_SETTINGS))
+        self.install()
+        self.assert_registered()
+        self.assertEqual(len(self.foreign_handlers()), 2)
+
+    def assert_refused_without_writes(self, reason: str, source: Path | None = None) -> None:
+        before = self.snapshot()
+        arguments = ('install',) if source is None else ('install', '--from', str(source))
+        data = self.call(*arguments, expected='unavailable')
+        self.assertEqual(data.get('reason'), reason)
+        self.assertEqual(before, self.snapshot(), 'a refusal must leave settings and ownership bytes unchanged')
+        self.assertEqual(len(self.foreign_handlers()), 2, 'a refusal must leave every foreign group in place')
+
+    def registered_scripts(self) -> list[Path]:
+        hooks = self.read_settings()['hooks']
+        return [Path(handler['args'][0]) for groups in hooks.values() for group in groups
+                for handler in group['hooks'] if handler.get('command') == 'bash']
+
+    def test_hook_install_unreadable_entrypoint_is_invalid_source_without_writes(self) -> None:
+        self.install_beside_foreign_entries()
+        for script in ('git-rails.sh', 'log-step-hook.sh'):
+            with self.subTest(script=script):
+                alternate = self.root / ('source with unreadable ' + script)
+                self.copy_source(alternate)
+                entrypoint = alternate / 'hooks' / script
+                entrypoint.chmod(0)
+                self.assertFalse(os.access(entrypoint, os.R_OK), 'the fixture needs a user that cannot read mode 000')
+                self.assert_refused_without_writes('invalid-source', alternate)
+
+    def test_hook_install_readable_non_executable_entrypoint_is_registered_and_runs(self) -> None:
+        for script in ('git-rails.sh', 'log-step-hook.sh'):
+            (self.checkout / 'hooks' / script).chmod(0o444)
+        self.install()
+        self.assert_registered()
+        handler = self.git_rails_handler()
+        result = subprocess.run([handler['command'], *handler['args']], input='{}', env=self.env,
+                                cwd=self.project, text=True, capture_output=True, timeout=15)
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, '', ''), 'bash runs a readable script')
+
+    def test_hook_install_symlinked_hooks_directory_registers_physical_scripts(self) -> None:
+        physical = self.root / 'physical source'
+        self.copy_source(physical)
+        linked = self.root / 'source with linked hooks'
+        self.copy_source(linked)
+        shutil.rmtree(linked / 'hooks')
+        (linked / 'hooks').symlink_to(physical / 'hooks', target_is_directory=True)
+        alias = self.root / 'alias of source with linked hooks'
+        alias.symlink_to(linked, target_is_directory=True)
+        for name, source in (('linked hooks', linked), ('linked root and hooks', alias)):
+            with self.subTest(source=name):
+                self.write_settings(copy.deepcopy(self.FOREIGN_SETTINGS))
+                self.call('install', '--from', str(source))
+                scripts = self.registered_scripts()
+                self.assertEqual(len(scripts), 3)
+                for script in scripts:
+                    self.assertEqual(script, script.resolve(), 'a registered script path must be physical')
+                    self.assertEqual(script.parent, physical.resolve() / 'hooks')
+                self.assert_registered(physical)
+                self.call('uninstall', expected='uninstalled')
+                self.assert_settings_restored(self.FOREIGN_SETTINGS)
+
+    def test_hook_install_blocking_logging_handler_is_invalid_manifest_without_writes(self) -> None:
+        self.install_beside_foreign_entries()
+        valid = self.registered_manifest()
+        for event in ('Stop', 'SubagentStop'):
+            with self.subTest(event=event):
+                variant = copy.deepcopy(valid)
+                variant['hooks'][event][0]['hooks'][0]['onFailure'] = 'block'
+                self.manifest_path().write_text(json.dumps(variant))
+                self.assert_refused_without_writes('invalid-manifest')
+
+    def test_hook_install_failure_modes_outside_each_event_mode_are_invalid_manifest(self) -> None:
+        self.install_beside_foreign_entries()
+        valid = self.registered_manifest()
+        cases = [('PreToolUse', 'continue'), *((event, mode) for event in ('PreToolUse', 'Stop', 'SubagentStop')
+                                              for mode in ('abort', 'Continue', '', None, 1))]
+        for event, mode in cases:
+            with self.subTest(event=event, mode=mode):
+                variant = copy.deepcopy(valid)
+                variant['hooks'][event][0]['hooks'][0]['onFailure'] = mode
+                self.manifest_path().write_text(json.dumps(variant))
+                self.assert_refused_without_writes('invalid-manifest')
+
     # The permission fragment is defence in depth beside the hook: exact Bash deny rules
     # for blanket staging and commit-all only, owned through exact multiset quotas.
     # Each rule maps to (matching command, legitimate non-matching command, hook reason).
@@ -1516,6 +1611,15 @@ class HookInstallation(unittest.TestCase):
         self.call('uninstall', expected='uninstalled')
         self.assert_settings_restored({'user':'kept'})
 
+    def test_hook_permissions_wildcard_and_nested_rules_are_invalid_manifest_without_writes(self) -> None:
+        self.install_beside_foreign_entries()
+        rules = self.fragment_rules()
+        for rule in ('Bash(*)', 'Bash(git add *)', 'Bash(git add:*)', 'Bash(git*)', 'Bash(git add (notes.txt))',
+                     'Bash(git add -A))', 'Bash(git add -A) Bash(git status)'):
+            with self.subTest(rule=rule):
+                self.fragment_path().write_text(json.dumps({'permissions':{'deny':[*rules, rule]}}))
+                self.assert_refused_without_writes('invalid-manifest')
+
     def test_hook_permissions_receipt_claims_are_validated_before_use(self) -> None:
         self.write_settings({'user':'kept'})
         self.install()
@@ -1652,7 +1756,7 @@ class HookInstallation(unittest.TestCase):
         self.assert_no_owned_handlers()
         self.assert_settings_restored({'user':'kept', 'permissions':{'allow':['Bash(ls)']}})
 
-suite =unittest.TestSuite(HookInstallation(name) for name in SELECTED) if SELECTED else unittest.defaultTestLoader.loadTestsFromTestCase(HookInstallation)
+suite = unittest.TestSuite(HookInstallation(name) for name in SELECTED) if SELECTED else unittest.defaultTestLoader.loadTestsFromTestCase(HookInstallation)
 result = unittest.TextTestRunner(verbosity=2).run(suite)
 sys.exit(not result.wasSuccessful())
 PY
