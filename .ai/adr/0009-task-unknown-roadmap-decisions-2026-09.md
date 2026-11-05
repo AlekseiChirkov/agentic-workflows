@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted. Decision 5 (git-rails bullet: tracked `.ai/` detection) and Decision 7 (06 before
+13a/13) are amended by [ADR-0017](0017-task-06-enforced-git-rails-hook.md) (2026-11-05).
 
 ## Date
 

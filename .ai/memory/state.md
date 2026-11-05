@@ -7,10 +7,11 @@ of every session. Updated after every phase transition.
 ## Active Tasks
 
 
-Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11 → 12; 07 is backlog. The roadmap is in `specs/README.md`; each spec becomes a task via
+Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17; ADR-0017 moves 06 before 13a/13): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11 → 12; 07 is backlog. The roadmap is in `specs/README.md`; each spec becomes a task via
 `/phase-discovery .ai/specs/<NN>-<slug>.md`.
 
 ## Done
+- [Enforced git rails](../tasks/todo/task-06-harness-git-rails/state.md) | phase: validation | status: reviewed | note: 10 subtasks + 2 fix groups independently validated; stacked PRs #64–#75 ready for review, merge pending (merge in stack order, then /restack); full checks 717/0/2; residual risks X1–X20; owner chose 06 before 13a/13 (ADR-0017 Accepted)
 - [Cost and duration telemetry](../tasks/completed/task-05-cost-and-duration-telemetry/state.md) | phase: validation | status: reviewed | note: 27 PRs independently reviewed, 18 repairs independently verified, all knowledge included; full checks 619/0/2; synthetic source and external authority deployment limits remain
 - [Cached model catalog](../tasks/completed/task-04-model-catalog-cache/state.md) | phase: validation | status: reviewed | note: owner-authorized independent review and integration complete; all six PRs #31–#36 merged; full validation 594/0/2, no required repairs; main 111455ac171c7356d083e00d4d307a7285ed2e35 exactly matches the tested tree
 - [Workflow instruction maintenance] | completed | note: all 42 workflows clarified and reduced in two passes; 18 active specs reconciled, four completed records preserved; 589 full-suite checks pass with two optional skips; the pre-existing unstaged archive condition passes the unchanged strict gate in a disposable index
