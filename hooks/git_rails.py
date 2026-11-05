@@ -15,11 +15,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 import fnmatch
 import os
+import posixpath
 import re
 import signal
 import stat
 import subprocess
 from typing import Callable, Iterable, Mapping, Sequence
+import urllib.parse
 
 RULE_PATH = 'rules/git-flow.md → ## Safety rails'
 
@@ -340,7 +342,10 @@ def read_request(event: object) -> Request | Decision:
 
 @dataclass(frozen=True)
 class OptionSpec:
-    """One option of a governed subcommand; the key is the long name, else the short one."""
+    """One option of a governed subcommand; the key is the long name, else the short one.
+
+    takes is 'none', 'required', 'optional' (attached value only) or 'last': the next word
+    is the value unless the option is the last word, which git reads as its default."""
     long: str | None = None
     short: str | None = None
     takes: str = 'none'
@@ -389,6 +394,10 @@ class OptionCursor:
     specs: Sequence[OptionSpec]
     index: int = 0
     options: list[tuple[str, OptionValue]] = field(default_factory=list)
+
+    def at_last(self: OptionCursor) -> bool:
+        """Whether the current word is the last one, where a 'last' option takes its default."""
+        return self.index + 1 >= len(self.words)
 
     def following(self: OptionCursor) -> str:
         """The separate value of the current option."""
@@ -449,7 +458,7 @@ def parse_long(cursor: OptionCursor, body: str) -> None:
         cursor.options.append((spec.key, not negated))
     elif equals:
         cursor.options.append((spec.key, value))
-    elif spec.takes == 'required':
+    elif spec.takes == 'required' or (spec.takes == 'last' and not cursor.at_last()):
         cursor.options.append((spec.key, cursor.following()))
     else:
         cursor.options.append((spec.key, True))
@@ -466,7 +475,7 @@ def parse_short(cursor: OptionCursor, bundle: str) -> None:
             continue
         if rest:
             cursor.options.append((spec.key, rest))
-        elif spec.takes == 'required':
+        elif spec.takes == 'required' or (spec.takes == 'last' and not cursor.at_last()):
             cursor.options.append((spec.key, cursor.following()))
         else:
             cursor.options.append((spec.key, True))
@@ -2447,6 +2456,546 @@ def check_push(invocation: Invocation, context: Context) -> Decision | None:
     return combine(push_decision(parsed, invocation, context) for parsed in variants) if variants else None
 
 
+# ── Destructive, ref-rewrite and merge operations ──────────────────────
+
+UNSUPPORTED = 'unsupported-form'
+BRANCH_DELETE = 'branch-delete'
+REWRITE = 'protected-ref-rewrite'
+INTO_PROTECTED = 'merge-into-protected'
+PR_MERGE = 'pr-merge'
+REMOTE_PREFIX = 'refs/remotes/'
+RESET_MODES = ('mixed', 'soft', 'hard', 'merge', 'keep')
+REBASE_ACTIONS = ('continue', 'skip', 'abort', 'quit', 'edit-todo', 'show-current-patch')
+REBASE_STATE_DIRECTORIES = ('rebase-merge', 'rebase-apply')
+MAX_HEAD_NAME_BYTES = 4096
+
+
+def flags(*names: str) -> tuple[OptionSpec, ...]:
+    """Negatable long flags; a one-letter name is a short-only flag."""
+    return tuple(OptionSpec(None, name) if len(name) == 1 else OptionSpec(name) for name in names)
+
+
+def fixed(*names: str) -> tuple[OptionSpec, ...]:
+    """Long flags git declares without a --no- form."""
+    return tuple(OptionSpec(name, negatable=False) for name in names)
+
+
+RESET_OPTIONS = (
+    OptionSpec('quiet', 'q'), *flags('refresh', 'pathspec-file-nul'), *fixed(*RESET_MODES),
+    OptionSpec('recurse-submodules', None, 'optional'), OptionSpec('patch', 'p'),
+    OptionSpec('unified', 'U', 'required', negatable=False),
+    OptionSpec('inter-hunk-context', None, 'required', negatable=False), OptionSpec('intent-to-add', 'N'),
+    OptionSpec('pathspec-from-file', None, 'required'))
+CLEAN_OPTIONS = (
+    OptionSpec('quiet', 'q'), OptionSpec('dry-run', 'n'), OptionSpec('force', 'f'), OptionSpec('interactive', 'i'),
+    *flags('d', 'x', 'X'), OptionSpec('exclude', 'e', 'required', repeatable=True, negatable=False))
+BRANCH_OPTIONS = (
+    OptionSpec('verbose', 'v'), OptionSpec('quiet', 'q'), OptionSpec('track', 't', 'optional'),
+    OptionSpec('set-upstream-to', 'u', 'required'), *flags('unset-upstream', 'omit-empty', 'show-current'),
+    OptionSpec('color', None, 'optional'), OptionSpec('remotes', 'r', negatable=False),
+    *(OptionSpec(name, None, 'last', negatable=False)
+      for name in ('contains', 'no-contains', 'with', 'without', 'merged', 'no-merged')),
+    OptionSpec('abbrev', None, 'optional'), OptionSpec('all', 'a', negatable=False), OptionSpec('delete', 'd'),
+    OptionSpec('move', 'm'), OptionSpec('copy', 'c'), OptionSpec('list', 'l'), *flags('D', 'M', 'C'),
+    *flags('create-reflog', 'edit-description', 'recurse-submodules', 'set-upstream'), OptionSpec('force', 'f'),
+    OptionSpec('column', None, 'optional'), OptionSpec('sort', None, 'required'),
+    OptionSpec('points-at', None, 'required'), OptionSpec('ignore-case', 'i'),
+    OptionSpec('format', None, 'required'))
+UPDATE_REF_OPTIONS = (
+    OptionSpec(None, 'm', 'required'), *flags('d', 'z', 'stdin', 'create-reflog'), *fixed('no-deref', 'deref'),
+    OptionSpec('batch-updates', '0'))
+BRANCH_SWITCH_OPTIONS = (
+    *flags('guess', 'progress', 'overwrite-ignore', 'ignore-other-worktrees'), OptionSpec('quiet', 'q'),
+    OptionSpec('recurse-submodules', None, 'optional'), OptionSpec('merge', 'm'),
+    OptionSpec('conflict', None, 'required'), OptionSpec('detach', 'd'), OptionSpec('track', 't', 'optional'),
+    OptionSpec('force', 'f'), OptionSpec('orphan', None, 'required'))
+CHECKOUT_OPTIONS = (
+    *BRANCH_SWITCH_OPTIONS, OptionSpec(None, 'b', 'required'), OptionSpec(None, 'B', 'required'),
+    *flags('l', 'overlay', 'ignore-skip-worktree-bits', 'pathspec-file-nul'),
+    OptionSpec('ours', '2', negatable=False), OptionSpec('theirs', '3', negatable=False), OptionSpec('patch', 'p'),
+    OptionSpec('unified', 'U', 'required', negatable=False),
+    OptionSpec('inter-hunk-context', None, 'required', negatable=False),
+    OptionSpec('pathspec-from-file', None, 'required'))
+SWITCH_OPTIONS = (
+    *BRANCH_SWITCH_OPTIONS, OptionSpec('create', 'c', 'required'), OptionSpec('force-create', 'C', 'required'),
+    *flags('discard-changes'))
+REBASE_OPTIONS = (
+    OptionSpec('onto', None, 'required'), *fixed('no-verify', 'verify', 'stat', 'no-ff', 'ff', *REBASE_ACTIONS),
+    OptionSpec('quiet', 'q'), OptionSpec('verbose', 'v'), OptionSpec('no-stat', 'n', negatable=False),
+    *flags('keep-base', 'signoff', 'committer-date-is-author-date', 'reset-author-date', 'ignore-date',
+           'ignore-whitespace', 'rerere-autoupdate', 'autosquash', 'update-refs', 'autostash', 'fork-point',
+           'root', 'reschedule-failed-exec', 'reapply-cherry-picks', 'allow-empty-message'),
+    OptionSpec(None, 'C', 'required', negatable=False), OptionSpec('whitespace', None, 'required'),
+    OptionSpec('force-rebase', 'f'), *fixed('apply'), OptionSpec('merge', 'm', negatable=False),
+    OptionSpec('interactive', 'i', negatable=False), OptionSpec('empty', None, 'required', negatable=False),
+    OptionSpec('gpg-sign', 'S', 'optional'), OptionSpec('exec', 'x', 'required'),
+    OptionSpec('rebase-merges', 'r', 'optional'), OptionSpec('strategy', 's', 'required'),
+    OptionSpec('strategy-option', 'X', 'required'), OptionSpec('preserve-merges', 'p'),
+    OptionSpec('keep-empty', 'k'))
+MERGE_TAIL_OPTIONS = (
+    *flags('n', 'stat', 'summary', 'compact-summary', 'squash', 'commit', 'ff', 'rerere-autoupdate',
+           'verify-signatures', 'autostash', 'allow-unrelated-histories', 'progress', 'signoff'),
+    OptionSpec('log', None, 'optional'), OptionSpec('cleanup', None, 'required'), *fixed('ff-only'),
+    OptionSpec('strategy', 's', 'required'), OptionSpec('strategy-option', 'X', 'required'),
+    OptionSpec('gpg-sign', 'S', 'optional'), OptionSpec('verbose', 'v'), OptionSpec('quiet', 'q'))
+MERGE_OPTIONS = (
+    *MERGE_TAIL_OPTIONS, OptionSpec('edit', 'e'), OptionSpec('message', 'm', 'required', repeatable=True),
+    OptionSpec('file', 'F', 'required', negatable=False), OptionSpec('into-name', None, 'required'),
+    *flags('abort', 'quit', 'continue', 'overwrite-ignore'), *fixed('no-verify', 'verify'))
+PULL_OPTIONS = (
+    *(spec for spec in MERGE_TAIL_OPTIONS if spec.long != 'signoff'), *flags('edit', 'verify', 'all', 'dry-run'),
+    OptionSpec('recurse-submodules', None, 'optional'), OptionSpec('rebase', 'r', 'optional'),
+    OptionSpec('signoff', None, 'optional'), OptionSpec('append', 'a'),
+    OptionSpec('upload-pack', None, 'required'), OptionSpec('force', 'f'), OptionSpec('tags', 't'),
+    OptionSpec('prune', 'p'), OptionSpec('jobs', 'j', 'optional'), OptionSpec('keep', 'k'),
+    *(OptionSpec(name, None, 'required') for name in ('depth', 'shallow-since', 'shallow-exclude', 'deepen',
+                                                      'negotiation-tip')),
+    *fixed('unshallow'), *flags('update-shallow', 'show-forced-updates', 'set-upstream'),
+    OptionSpec('refmap', None, 'required', negatable=False), OptionSpec('server-option', 'o', 'required'),
+    OptionSpec('ipv4', '4'), OptionSpec('ipv6', '6'))
+
+ReadingDecider = Callable[[ParsedOptions, Invocation, Context], Decision | None]
+
+
+def reading_rule(specs: tuple[OptionSpec, ...], decide: ReadingDecider) -> Rule:
+    """A rule that rejects options git would refuse and decides every reading of the rest."""
+    def check(invocation: Invocation, context: Context) -> Decision | None:
+        variants = option_variants(invocation.argv, specs)
+        if variants is None or any(parsed.error for parsed in variants):
+            return denial(UNSUPPORTED)
+        found = [result for result in (decide(parsed, invocation, context) for parsed in variants)
+                 if result is not None]
+        return combine(found) if found else None
+    return check
+
+
+def current_branch(invocation: Invocation, context: Context) -> str | None:
+    """The full ref HEAD names, '' when HEAD is detached, None when it cannot be read.
+    Callers check state_changed(invocation) first."""
+    result = read_git(['symbolic-ref', '-q', 'HEAD'], invocation.directory, context.environ)
+    if result.returncode == 1:
+        return ''
+    target = result.stdout.strip()
+    return target if result.returncode == 0 and target else None
+
+
+def local_protection(invocation: Invocation, context: Context, rule: str) -> tuple[str, ...] | Decision:
+    """The local protected set, or the denial when it cannot be read."""
+    if state_changed(invocation):
+        return denial(UNSUPPORTED, rule)
+    patterns = local_protected_branches(invocation, context)
+    return denial('default-branch-unknown', rule) if patterns is None else patterns
+
+
+def protected_head(invocation: Invocation, context: Context, rule: str) -> Decision | None:
+    """R27/R28: ask when the current branch is protected; a detached HEAD is no branch."""
+    if state_changed(invocation):
+        return denial(UNSUPPORTED, rule)
+    branch = current_branch(invocation, context)
+    if branch is None:
+        return denial(UNSUPPORTED, rule)
+    if not branch:
+        return None
+    patterns = local_protection(invocation, context, rule)
+    if isinstance(patterns, Decision):
+        return patterns
+    return asking(INTO_PROTECTED, rule) if is_protected(branch, patterns) else None
+
+
+def rewrite_decision(refs: Sequence[str], invocation: Invocation, context: Context) -> Decision | None:
+    """R24: ask when any rewritten branch ref is protected."""
+    if any('@{' in ref or ref == BRANCH_PREFIX + '@' for ref in refs):
+        return denial(UNSUPPORTED, 'R24')
+    if not any(ref.startswith(BRANCH_PREFIX) for ref in refs):
+        return None
+    patterns = local_protection(invocation, context, 'R24')
+    if isinstance(patterns, Decision):
+        return patterns
+    return asking(REWRITE, 'R24') if any(is_protected(ref, patterns) for ref in refs) else None
+
+
+# ── Branch-deletion exception verification ─────────────────────────────
+
+@dataclass(frozen=True)
+class DeletionRequest:
+    """What a deletion exception verifier checks: every deleted ref in command order, its
+    expected old value when the command names one, and whether unmerged work may be dropped."""
+    refs: tuple[str, ...]
+    expected: tuple[str | None, ...]
+    forced: bool
+
+
+@dataclass(frozen=True)
+class DeletionVerdict:
+    """Whether the deletion is a proven exception, and otherwise the check that failed."""
+    exception: bool
+    failure: str | None = None
+
+
+DeletionVerifier = Callable[[DeletionRequest, Invocation, Context], DeletionVerdict]
+
+
+def no_exception_verifier(request: DeletionRequest, invocation: Invocation, context: Context) -> DeletionVerdict:
+    """The verifier used until temporary child-branch deletions can be proven: none is."""
+    return DeletionVerdict(False, 'no branch-deletion exception is implemented')
+
+
+# Branch deletion calls this name at decision time, so a replacement verifier keeps the interface.
+# It may be called after an earlier part of the command changed state; a replacement that reads
+# repository state checks state_changed(invocation) first.
+DELETION_VERIFIER: DeletionVerifier = no_exception_verifier
+
+
+def excepted(request: DeletionRequest, invocation: Invocation, context: Context) -> bool:
+    return DELETION_VERIFIER(request, invocation, context).exception
+
+
+# ── Rebase replay verification ─────────────────────────────────────────
+
+@dataclass(frozen=True)
+class ReplayRequest:
+    """What a replay verifier checks: the rebase arguments as written, the (new, old, branch)
+    operands when they are exactly --onto <new> <old> <branch>, the rebase action, whether a
+    rebase is in progress with the branch its head-name records, and the canonical common dir."""
+    arguments: tuple[str, ...]
+    replay: tuple[str, str, str] | None
+    action: str | None
+    in_progress: bool
+    rebase_head: str | None
+    common_dir: str
+
+
+@dataclass(frozen=True)
+class ReplayVerdict:
+    """Whether the rebase is a verified replay, and otherwise the check that failed."""
+    verified: bool
+    failure: str | None = None
+
+
+ReplayVerifier = Callable[[ReplayRequest, Invocation, Context], ReplayVerdict]
+
+
+def no_journal_replay_verifier(request: ReplayRequest, invocation: Invocation, context: Context) -> ReplayVerdict:
+    """The verifier used until recovery journals are read: nothing proves a replay."""
+    return ReplayVerdict(False, 'no restack journal found')
+
+
+# The rebase rule calls this name at decision time, so a replacement verifier keeps the interface.
+# It is never called after a same-command state change; that rebase is denied first.
+REPLAY_VERIFIER: ReplayVerifier = no_journal_replay_verifier
+
+
+def read_head_name(directory: str) -> str | None:
+    path = os.path.join(directory, 'head-name')
+    if not os.path.isfile(path):
+        return None
+    with open(path, 'rb') as handle:
+        text = handle.read(MAX_HEAD_NAME_BYTES).decode('utf-8', 'surrogateescape').strip()
+    return text or None
+
+
+def rebase_state(invocation: Invocation, context: Context) -> tuple[bool, str | None] | None:
+    """Whether a rebase is in progress and its head-name, or None when the git dir is unreadable."""
+    result = read_git(['rev-parse', '--path-format=absolute', '--git-dir'], invocation.directory, context.environ)
+    git_dir = result.stdout.strip()
+    if result.returncode != 0 or not git_dir:
+        return None
+    in_progress, head = False, None
+    try:
+        for name in REBASE_STATE_DIRECTORIES:
+            directory = os.path.join(git_dir, name)
+            if os.path.isdir(directory):
+                in_progress, head = True, head or read_head_name(directory)
+    except OSError:
+        return None
+    return in_progress, head
+
+
+def rebase_actions(parsed: ParsedOptions) -> list[str]:
+    return [name for name, value in parsed.options if name in REBASE_ACTIONS and value is True]
+
+
+def replay_request(parsed: ParsedOptions, invocation: Invocation, context: Context) -> ReplayRequest | None:
+    state = rebase_state(invocation, context)
+    if state is None:
+        return None
+    words = invocation.argv
+    replay = (words[1], words[2], words[3]) if len(words) == 4 and words[0] == '--onto' else None
+    actions = rebase_actions(parsed)
+    return ReplayRequest(words, replay, actions[-1] if actions else None, state[0], state[1],
+                         os.path.realpath(invocation.common_dir or invocation.directory))
+
+
+# ── Reading deciders ───────────────────────────────────────────────────
+
+def reset_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
+    """R20: the last mode option decides, as in git."""
+    modes = [name for name, value in parsed.options if name in RESET_MODES and value is True]
+    return asking('reset-hard', 'R20') if modes and modes[-1] == 'hard' else None
+
+
+def clean_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
+    """R21: interactive cleaning cannot be checked; anything but a dry run removes files."""
+    if parsed.last('interactive') is True:
+        return denial(UNSUPPORTED, 'R21')
+    return None if parsed.last('dry-run') is True else asking('clean', 'R21')
+
+
+def branch_deletion(parsed: ParsedOptions) -> DeletionRequest | None:
+    forced = parsed.last('D') is True
+    if parsed.last('delete') is not True and not forced:
+        return None
+    prefix = REMOTE_PREFIX if parsed.last('remotes') is True else BRANCH_PREFIX
+    refs = tuple(prefix + name for name in parsed.operands)
+    return DeletionRequest(refs, (None,) * len(refs), forced or parsed.last('force') is True)
+
+
+def renamed_refs(parsed: ParsedOptions, invocation: Invocation, context: Context) -> list[str] | Decision:
+    """The source and destination of a move or copy; one operand renames the current branch."""
+    refs = [BRANCH_PREFIX + name for name in parsed.operands]
+    if len(refs) != 1:
+        return refs
+    if state_changed(invocation):
+        return denial(UNSUPPORTED, 'R24')
+    current = current_branch(invocation, context)
+    if current is None:
+        return denial(UNSUPPORTED, 'R24')
+    return [current, *refs] if current else refs
+
+
+def branch_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
+    """R22 deletion through the exception verifier, else R24 for moved or copied branches (the
+    symbolic ref itself) and forced ones (the branch a symbolic ref points to)."""
+    request = branch_deletion(parsed)
+    if request is not None:
+        return None if excepted(request, invocation, context) else asking(BRANCH_DELETE, 'R22')
+    if any(parsed.last(key) is True for key in ('move', 'M', 'copy', 'C')):
+        refs = renamed_refs(parsed, invocation, context)
+        return refs if isinstance(refs, Decision) else rewrite_decision(refs, invocation, context)
+    if parsed.last('force') is True:
+        return forced_rewrite([BRANCH_PREFIX + name for name in parsed.operands[:1]], invocation, context)
+    return None
+
+
+def dereferences(parsed: ParsedOptions) -> bool:
+    """update-ref follows a symbolic ref unless the last of --no-deref/--deref is --no-deref."""
+    choice = [name for name, value in parsed.options if name in ('no-deref', 'deref') and value is True]
+    return not choice or choice[-1] == 'deref'
+
+
+def symbolic_target(ref: str, invocation: Invocation, context: Context) -> str | None:
+    """The ref a write to ref reaches after following symbolic refs; None when unreadable.
+    Callers check state_changed(invocation) first."""
+    if ref.startswith('-'):
+        return None
+    result = read_git(['symbolic-ref', '-q', ref], invocation.directory, context.environ)
+    if result.returncode == 1:
+        return ref
+    target = result.stdout.strip()
+    return target if result.returncode == 0 and target else None
+
+
+def update_target(parsed: ParsedOptions, invocation: Invocation, context: Context) -> str | None:
+    """The ref update-ref writes or deletes, after following symbolic refs unless --no-deref."""
+    ref = parsed.operands[0]
+    return symbolic_target(ref, invocation, context) if dereferences(parsed) else ref
+
+
+def forced_rewrite(refs: list[str], invocation: Invocation, context: Context) -> Decision | None:
+    """R24 for forced creation, which writes the branch a symbolic branch ref points to."""
+    if not refs or any('@{' in ref for ref in refs):
+        return rewrite_decision(refs, invocation, context)
+    if state_changed(invocation):
+        return denial(UNSUPPORTED, 'R24')
+    targets = [symbolic_target(ref, invocation, context) for ref in refs]
+    resolved = [target for target in targets if target is not None]
+    if len(resolved) != len(targets):
+        return denial(UNSUPPORTED, 'R24')
+    return rewrite_decision(resolved, invocation, context)
+
+
+def update_ref_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
+    """R23 deletion of a branch through the exception verifier, --stdin unsupported; R24 writes."""
+    if parsed.last('stdin') is True:
+        return denial(UNSUPPORTED, 'R23')
+    if not parsed.operands:
+        return None
+    rule = 'R23' if parsed.last('d') is True else 'R24'
+    if dereferences(parsed) and state_changed(invocation):
+        return denial(UNSUPPORTED, rule)
+    target = update_target(parsed, invocation, context)
+    if target is None:
+        return denial(UNSUPPORTED, rule)
+    if rule == 'R24':
+        return rewrite_decision([target], invocation, context)
+    if not target.startswith(BRANCH_PREFIX):
+        return None
+    expected = parsed.operands[1] if len(parsed.operands) > 1 else None
+    request = DeletionRequest((target,), (expected,), False)
+    return None if excepted(request, invocation, context) else asking(BRANCH_DELETE, 'R23')
+
+
+def forced_creation(parsed: ParsedOptions, key: str) -> list[str]:
+    value = parsed.last(key)
+    return [BRANCH_PREFIX + value] if isinstance(value, str) else []
+
+
+def checkout_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
+    """R24: checkout -B resets the named branch, or the branch a symbolic one points to."""
+    return forced_rewrite(forced_creation(parsed, 'B'), invocation, context)
+
+
+def switch_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
+    """R24: switch -C/--force-create resets the named branch, or the one it points to."""
+    return forced_rewrite(forced_creation(parsed, 'force-create'), invocation, context)
+
+
+def rebase_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
+    """R25 abort and show-current-patch; R26 every other rebase through the replay verifier."""
+    if set(rebase_actions(parsed)) in ({'abort'}, {'show-current-patch'}):
+        return None
+    if state_changed(invocation):
+        return denial(UNSUPPORTED, 'R26')
+    request = replay_request(parsed, invocation, context)
+    if request is None:
+        return denial(UNSUPPORTED, 'R26')
+    if REPLAY_VERIFIER(request, invocation, context).verified:
+        return None
+    return asking('rebase-outside-restack', 'R26')
+
+
+def merge_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
+    """R27: every merge form except --abort changes a protected current branch."""
+    return None if parsed.last('abort') is True else protected_head(invocation, context, 'R27')
+
+
+def fast_forward_only(parsed: ParsedOptions) -> bool:
+    """--ff, --no-ff and --ff-only share one setting in git; the last of them decides."""
+    choice = [name for name, _ in parsed.options if name in ('ff', 'ff-only')]
+    return bool(choice) and choice[-1] == 'ff-only'
+
+
+def pull_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
+    """R28: only --ff-only from the configured upstream leaves a protected branch unrewritten."""
+    if fast_forward_only(parsed) and not parsed.operands:
+        return None
+    return protected_head(invocation, context, 'R28')
+
+
+# ── gh ─────────────────────────────────────────────────────────────────
+
+GH_API_SHORT_VALUES = {'X': 'method', 'H': 'header', 'f': 'raw-field', 'F': 'field', 'q': 'jq', 't': 'template',
+                       'p': 'preview'}
+GH_API_LONG_VALUES = frozenset({*GH_API_SHORT_VALUES.values(), 'input', 'cache', 'hostname'})
+GH_API_SHORT_FLAGS = frozenset('ih')
+GH_API_LONG_FLAGS = frozenset({'include', 'paginate', 'slurp', 'silent', 'verbose', 'help'})
+MERGE_ENDPOINT = re.compile(r'/pulls/[0-9]+/merge$|/merges$')
+GRAPHQL_ENDPOINT = re.compile(r'/+(api/)?graphql')
+# GraphQL string literals (block and quoted) and comments, which never name a field.
+GRAPHQL_INERT_TEXT = re.compile(r'"""[\s\S]*?(?<!\\)"""|"(?:\\.|[^"\\\n])*"|#[^\n]*')
+GRAPHQL_NAME = re.compile(r'[_A-Za-z][_0-9A-Za-z]*')
+GRAPHQL_MERGE_FIELDS = frozenset({'mergepullrequest', 'enablepullrequestautomerge', 'mergebranch',
+                                  'enqueuepullrequest'})
+
+
+@dataclass(frozen=True)
+class GhApiCall:
+    """The endpoint operands of gh api and its value flags as (long name, value)."""
+    endpoints: tuple[str, ...]
+    values: tuple[tuple[str, str], ...]
+
+
+def gh_long(words: Sequence[str], index: int, values: list[tuple[str, str]]) -> int:
+    """Words consumed by one long flag, 0 for an unknown flag or a missing value."""
+    name, equals, value = words[index][2:].partition('=')
+    if name in GH_API_LONG_FLAGS:
+        return 1
+    if name not in GH_API_LONG_VALUES or (not equals and index + 1 >= len(words)):
+        return 0
+    values.append((name, value if equals else words[index + 1]))
+    return 1 if equals else 2
+
+
+def gh_short(words: Sequence[str], index: int, values: list[tuple[str, str]]) -> int:
+    """Words consumed by one shorthand bundle, 0 for an unknown letter or a missing value."""
+    letters = words[index][1:]
+    for position, letter in enumerate(letters):
+        if letter in GH_API_SHORT_FLAGS:
+            continue
+        name = GH_API_SHORT_VALUES.get(letter)
+        rest = letters[position + 1:]
+        if name is None or (not rest and index + 1 >= len(words)):
+            return 0
+        values.append((name, rest.removeprefix('=') if rest else words[index + 1]))
+        return 1 if rest else 2
+    return 1
+
+
+def parse_gh_api(words: Sequence[str]) -> GhApiCall | None:
+    """gh api arguments read the way gh's flag parser reads them; flags may follow operands."""
+    endpoints: list[str] = []
+    values: list[tuple[str, str]] = []
+    index = 0
+    while index < len(words):
+        word = words[index]
+        if word == '--':
+            endpoints.extend(words[index + 1:])
+            break
+        if word.startswith('--'):
+            consumed = gh_long(words, index, values)
+        elif word.startswith('-') and word != '-':
+            consumed = gh_short(words, index, values)
+        else:
+            endpoints.append(word)
+            consumed = 1
+        if consumed == 0:
+            return None
+        index += consumed
+    return GhApiCall(tuple(endpoints), tuple(values))
+
+
+def api_path(endpoint: str) -> str:
+    """The decoded, normalized, lower-case request path of an endpoint or URL."""
+    path = urllib.parse.urlsplit(endpoint).path if '://' in endpoint else endpoint.partition('?')[0]
+    return posixpath.normpath('/' + urllib.parse.unquote(path.partition('#')[0]).lower())
+
+
+def merge_mutation(query: str) -> bool:
+    """A merge mutation named as a field of the document, outside strings and comments."""
+    names = GRAPHQL_NAME.findall(GRAPHQL_INERT_TEXT.sub(' ', query))
+    return any(name.lower() in GRAPHQL_MERGE_FIELDS for name in names)
+
+
+def graphql_decision(call: GhApiCall) -> Decision | None:
+    """R30 for GraphQL: a body or query read from a file cannot be checked."""
+    fields = [(name, value.partition('=')) for name, value in call.values if name in ('field', 'raw-field')]
+    if any(name == 'input' for name, _ in call.values):
+        return denial(UNSUPPORTED, 'R30')
+    if any(name == 'field' and value.startswith('@') for name, (_, _, value) in fields):
+        return denial(UNSUPPORTED, 'R30')
+    if any(key == 'query' and merge_mutation(value) for _, (key, _, value) in fields):
+        return asking(PR_MERGE, 'R30')
+    return None
+
+
+def check_pr_merge(invocation: Invocation, context: Context) -> Decision | None:
+    """R29: merging a pull request always needs the owner."""
+    return asking(PR_MERGE, 'R29')
+
+
+def check_gh_api(invocation: Invocation, context: Context) -> Decision | None:
+    """R30: a pull-request or branch merge endpoint, or a GraphQL merge mutation."""
+    call = parse_gh_api(invocation.argv)
+    if call is None:
+        return denial(UNSUPPORTED)
+    paths = [api_path(endpoint) for endpoint in call.endpoints]
+    if any(MERGE_ENDPOINT.search(path) for path in paths):
+        return asking(PR_MERGE, 'R30')
+    if any(GRAPHQL_ENDPOINT.fullmatch(path) for path in paths):
+        return graphql_decision(call)
+    return None
+
+
 STAGING_RULES: tuple[Rule, ...] = (check_staging_options, check_blanket_staging, check_staging_not_file,
                                    check_interactive_staging, check_ignored_path)
 COMMIT_RULES: tuple[Rule, ...] = (check_commit_options, check_commit_all, check_commit_paths,
@@ -2462,8 +3011,17 @@ RULES: dict[str, tuple[Rule, ...]] = {
     'stage': STAGING_RULES,
     'commit': COMMIT_RULES,
     'push': PUSH_RULES,
-    'gh pr merge': (),
-    'gh api': (),
+    'reset': (reading_rule(RESET_OPTIONS, reset_reading),),
+    'clean': (reading_rule(CLEAN_OPTIONS, clean_reading),),
+    'branch': (reading_rule(BRANCH_OPTIONS, branch_reading),),
+    'update-ref': (reading_rule(UPDATE_REF_OPTIONS, update_ref_reading),),
+    'checkout': (reading_rule(CHECKOUT_OPTIONS, checkout_reading),),
+    'switch': (reading_rule(SWITCH_OPTIONS, switch_reading),),
+    'rebase': (reading_rule(REBASE_OPTIONS, rebase_reading),),
+    'merge': (reading_rule(MERGE_OPTIONS, merge_reading),),
+    'pull': (reading_rule(PULL_OPTIONS, pull_reading),),
+    'gh pr merge': (check_pr_merge,),
+    'gh api': (check_gh_api,),
 }
 
 
@@ -2527,7 +3085,46 @@ def exempt_word(invocation: Invocation, word: Word) -> bool:
     return invocation.program == 'git' and invocation.subcommand == 'commit' and word.form == 'commit-message'
 
 
+# Git subcommands that run a command given on their own command line.
+FILTER_BRANCH_RUNNERS = ('--setup', '--tree-filter', '--index-filter', '--msg-filter', '--env-filter',
+                         '--commit-filter', '--parent-filter', '--tag-name-filter')
+EXTCMD = 'extcmd'
+
+
+def first_word(words: Sequence[str]) -> str | None:
+    """The action word of git submodule or git bisect, after any leading options."""
+    return next((word for word in words if not word.startswith('-')), None)
+
+
+def difftool_runner(words: Sequence[str]) -> bool:
+    """-x in any short bundle, or --extcmd or a prefix of it, before --."""
+    for word in words:
+        if word == '--':
+            return False
+        name = word[2:].partition('=')[0]
+        if word.startswith('--') and name and EXTCMD.startswith(name):
+            return True
+        if not word.startswith('--') and word.startswith('-') and 'x' in word[1:]:
+            return True
+    return False
+
+
+def command_runner(invocation: Invocation) -> bool:
+    """git submodule foreach, git bisect run, filter-branch filters and difftool --extcmd run
+    a command the core cannot see, so they are opaque."""
+    if invocation.program != 'git' or invocation.layout.index is None:
+        return False
+    subcommand, words = invocation.subcommand, invocation.argv
+    if subcommand in ('submodule', 'bisect'):
+        return first_word(words) == ('foreach' if subcommand == 'submodule' else 'run')
+    if subcommand == 'filter-branch':
+        return any(word.partition('=')[0] in FILTER_BRANCH_RUNNERS for word in words)
+    return subcommand == 'difftool' and difftool_runner(words)
+
+
 def evaluate_invocation(invocation: Invocation, context: Context) -> Decision:
+    if command_runner(invocation):
+        return denial(UNSUPPORTED)
     if not needs_verification(invocation):
         return NOT_APPLICABLE
     finding = check_opaque_invocation(invocation)
