@@ -1144,9 +1144,558 @@ for decided_case in DECIDED_CASES:
     setattr(DecidedTable, 'test_decides_' + decided_case.name, decided_test(decided_case))
 
 
+class RuleFixture(RailsFixture):
+    """Repository states read by the staging and commit rules: ignore rules, deleted and
+    linked paths, message files, trailer-bearing and published commits."""
+
+    def setup_ignored_state(self) -> None:
+        exclude = self.project / '.git/info/exclude'
+        exclude.parent.mkdir(parents=True, exist_ok=True)
+        exclude.write_text('/.ai/state.md\n')
+        self.git(self.project, 'rm', '--cached', '-q', '.ai/state.md')
+        (self.project / '.ai/adr').mkdir()
+        (self.project / '.ai/adr/x.md').write_text('decision\n')
+
+    def setup_ignored_knowledge(self) -> None:
+        exclude = self.project / '.git/info/exclude'
+        exclude.parent.mkdir(parents=True, exist_ok=True)
+        exclude.write_text('/.ai/\n')
+        self.git(self.project, 'rm', '--cached', '-r', '-q', '.ai')
+        (self.project / '.ai/adr').mkdir()
+        (self.project / '.ai/adr/x.md').write_text('decision\n')
+
+    def setup_deleted(self) -> None:
+        (self.project / 'b.txt').unlink()
+
+    def setup_file_links(self) -> None:
+        (self.project / 'link.txt').symlink_to('a.txt')
+        (self.project / 'dangling.txt').symlink_to('nowhere.txt')
+
+    def setup_source_tree(self) -> None:
+        (self.project / 'src').mkdir()
+        (self.project / 'src/main.py').write_text('main\n')
+        (self.project / 'src/util.py').write_text('util\n')
+        (self.project / 'list.txt').write_text('a.txt\n')
+
+    def setup_message_files(self) -> None:
+        trailer = f'Add parser\n\n{TRAILER}\n'
+        (self.project / 'msg.txt').write_text('Add parser\n')
+        (self.project / 'sub/msg.txt').write_text(trailer)
+        (self.project / 'trailer.txt').write_text(trailer)
+        (self.project / 'crlf.txt').write_bytes(trailer.replace('\n', '\r\n').encode())
+        (self.project / 'tpl.txt').write_text('Template subject\n')
+        head = b'Add parser\n'
+        limit = 1024 * 1024
+        (self.project / 'limit.txt').write_bytes(head + b'x' * (limit - len(head) - 1) + b'\n')
+        (self.project / 'large.txt').write_bytes(head + b'x' * (limit - len(head)) + b'\n')
+
+    def setup_unreadable_message(self) -> None:
+        if os.geteuid() == 0:
+            self.skipTest('file permissions do not restrict the superuser')
+        locked = self.project / 'locked.txt'
+        locked.write_text('Add parser\n')
+        locked.chmod(0)
+        self.addCleanup(locked.chmod, 0o600)
+
+    def setup_trailer_head(self) -> None:
+        self.git(self.project, 'commit', '-q', '--allow-empty', '-m', 'Add parser', '-m', TRAILER)
+
+    def setup_published(self) -> None:
+        self.git(self.project, 'update-ref', 'refs/remotes/origin/main', 'HEAD')
+
+    def setup_published_ancestor(self) -> None:
+        self.setup_published()
+        self.git(self.project, 'commit', '-q', '--allow-empty', '-m', 'Local work')
+
+    def setup_published_elsewhere(self) -> None:
+        self.git(self.project, 'update-ref', 'refs/remotes/upstream/feature', 'HEAD')
+
+    def setup_trailer_alias(self) -> None:
+        self.git(self.project, 'config', 'trailer.cab.key', 'Co-authored-by')
+
+
+TRAILER = 'Co-authored-by: Someone <someone@example.invalid>'
+STAGE = 'staging-not-file'
+BLANKET = 'blanket-staging'
+UNVERIFIABLE = 'commit-message-unverifiable'
+FORBIDDEN = 'commit-message-forbidden'
+
+# git add and git stage: blanket flags, non-file operands, interactive forms, forced
+# ignored paths, and the operand kinds that are allowed.
+STAGING_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('all_short_flag_is_blanket_staging', 'git add -A', 'deny', BLANKET, 'R01'),
+    DecisionCase('all_flag_in_a_bundle_is_blanket_staging', 'git add -Av', 'deny', BLANKET, 'R01'),
+    DecisionCase('all_long_flag_is_blanket_staging', 'git add --all', 'deny', BLANKET, 'R01'),
+    DecisionCase('unique_prefix_of_all_is_blanket_staging', 'git add --al', 'deny', BLANKET, 'R01'),
+    DecisionCase('update_short_flag_is_blanket_staging', 'git add -u', 'deny', BLANKET, 'R01'),
+    DecisionCase('update_long_flag_with_file_is_blanket_staging', 'git add --update a.txt',
+                 'deny', BLANKET, 'R01'),
+    DecisionCase('no_ignore_removal_is_blanket_staging', 'git add --no-ignore-removal', 'deny', BLANKET, 'R01'),
+    DecisionCase('renormalize_implies_update_and_is_blanket_staging', 'git add --renormalize',
+                 'deny', BLANKET, 'R01'),
+    DecisionCase('current_directory_operand_is_blanket_staging', 'git add .', 'deny', BLANKET, 'R01'),
+    DecisionCase('current_directory_after_separator_is_blanket_staging', 'git add -- .',
+                 'deny', BLANKET, 'R01'),
+    DecisionCase('stage_spelling_of_all_is_blanket_staging', 'git stage -A', 'deny', BLANKET, 'R01'),
+    DecisionCase('blanket_staging_after_cd_is_denied', 'cd sub && git add -A', 'deny', BLANKET, 'R01'),
+    DecisionCase('blanket_staging_in_literal_shell_string_is_denied', "bash -c 'git add .'",
+                 'deny', BLANKET, 'R01'),
+    DecisionCase('blanket_staging_behind_command_wrapper_is_denied', 'command git add --all',
+                 'deny', BLANKET, 'R01'),
+    DecisionCase('blanket_staging_in_directory_option_target_is_denied', 'git -C sub add .',
+                 'deny', BLANKET, 'R01'),
+    DecisionCase('first_matching_row_names_the_reason', 'git add -A sub', 'deny', BLANKET, 'R01'),
+    DecisionCase('negated_all_after_all_stages_only_the_file', 'git add -A --no-all a.txt', 'allow'),
+    DecisionCase('existing_file_is_allowed', 'git add a.txt', 'allow'),
+    DecisionCase('several_existing_files_are_allowed', 'git add a.txt b.txt sub/a.txt', 'allow'),
+    DecisionCase('existing_file_after_separator_is_allowed', 'git add -- a.txt', 'allow'),
+    DecisionCase('existing_file_with_verbose_flag_is_allowed', 'git add -v a.txt', 'allow'),
+    DecisionCase('stage_spelling_of_existing_file_is_allowed', 'git stage a.txt', 'allow'),
+    DecisionCase('dot_relative_existing_file_is_allowed', 'git add ./a.txt', 'allow'),
+    DecisionCase('absolute_path_with_spaces_is_allowed', 'git add @project@/a.txt', 'allow'),
+    DecisionCase('existing_file_in_directory_option_target_is_allowed', 'git -C sub add a.txt', 'allow'),
+    DecisionCase('directory_operand_is_not_a_file', 'git add sub', 'deny', STAGE, 'R02'),
+    DecisionCase('directory_operand_with_trailing_slash_is_not_a_file', 'git add src/',
+                 'deny', STAGE, 'R02', setup='source-tree'),
+    DecisionCase('normalized_directory_operand_is_not_a_file', 'git add sub/..', 'deny', STAGE, 'R02'),
+    DecisionCase('glob_operand_is_not_a_file', "git add '*.py'", 'deny', STAGE, 'R02', setup='source-tree'),
+    DecisionCase('question_mark_glob_is_not_a_file', "git add 'a?txt'", 'deny', STAGE, 'R02'),
+    DecisionCase('bracket_glob_is_not_a_file', "git add '[ab].txt'", 'deny', STAGE, 'R02'),
+    DecisionCase('top_level_pathspec_magic_is_not_a_file', 'git add :/', 'deny', STAGE, 'R02'),
+    DecisionCase('long_pathspec_magic_is_not_a_file', "git add ':(literal)a.txt'", 'deny', STAGE, 'R02'),
+    DecisionCase('exclude_pathspec_magic_is_not_a_file', "git add ':!a.txt'", 'deny', STAGE, 'R02'),
+    DecisionCase('missing_untracked_operand_is_not_a_file', 'git add missing.txt', 'deny', STAGE, 'R02'),
+    DecisionCase('one_bad_operand_denies_the_invocation', 'git add a.txt sub', 'deny', STAGE, 'R02'),
+    DecisionCase('pathspec_from_file_is_not_a_file', 'git add --pathspec-from-file=list.txt',
+                 'deny', STAGE, 'R02', setup='source-tree'),
+    DecisionCase('separate_pathspec_from_file_value_is_not_a_file', 'git add --pathspec-from-file list.txt',
+                 'deny', STAGE, 'R02', setup='source-tree'),
+    DecisionCase('stage_spelling_of_directory_is_not_a_file', 'git stage sub', 'deny', STAGE, 'R02'),
+    DecisionCase('directory_relative_to_directory_option_is_not_a_file', 'git -C sub add deeper',
+                 'deny', STAGE, 'R02'),
+    DecisionCase('file_relative_to_directory_option_must_exist_there', 'git -C sub add b.txt',
+                 'deny', STAGE, 'R02'),
+    DecisionCase('source_file_is_allowed', 'git add src/main.py', 'allow', setup='source-tree'),
+    DecisionCase('patch_short_flag_is_unsupported', 'git add -p', 'deny', 'unsupported-form', 'R03'),
+    DecisionCase('patch_long_flag_is_unsupported', 'git add --patch a.txt', 'deny', 'unsupported-form', 'R03'),
+    DecisionCase('unique_prefix_of_patch_is_unsupported', 'git add --patc a.txt',
+                 'deny', 'unsupported-form', 'R03'),
+    DecisionCase('patch_flag_in_a_bundle_is_unsupported', 'git add -vp a.txt', 'deny', 'unsupported-form', 'R03'),
+    DecisionCase('interactive_short_flag_is_unsupported', 'git add -i', 'deny', 'unsupported-form', 'R03'),
+    DecisionCase('interactive_long_flag_is_unsupported', 'git add --interactive',
+                 'deny', 'unsupported-form', 'R03'),
+    DecisionCase('edit_short_flag_is_unsupported', 'git add -e a.txt', 'deny', 'unsupported-form', 'R03'),
+    DecisionCase('edit_long_flag_is_unsupported', 'git add --edit a.txt', 'deny', 'unsupported-form', 'R03'),
+    DecisionCase('ambiguous_prefix_takes_its_most_severe_candidate', 'git add --i a.txt',
+                 'deny', 'unsupported-form', 'R03'),
+    DecisionCase('negated_patch_is_allowed', 'git add --no-patch a.txt', 'allow'),
+    DecisionCase('unknown_staging_option_is_unsupported', 'git add --bogus a.txt', 'deny', 'unsupported-form'),
+    DecisionCase('forced_ignored_knowledge_file_needs_owner_approval', 'git add -f .ai/state.md',
+                 'ask', 'staging-ignored-path', 'R04', setup='ignored-state'),
+    DecisionCase('long_force_on_ignored_file_needs_owner_approval', 'git add --force .ai/state.md',
+                 'ask', 'staging-ignored-path', 'R04', setup='ignored-state'),
+    DecisionCase('force_in_a_bundle_on_ignored_file_needs_owner_approval', 'git add -vf .ai/state.md',
+                 'ask', 'staging-ignored-path', 'R04', setup='ignored-state'),
+    DecisionCase('one_forced_ignored_operand_needs_owner_approval', 'git add -f a.txt .ai/state.md',
+                 'ask', 'staging-ignored-path', 'R04', setup='ignored-state'),
+    DecisionCase('forced_ignored_file_relative_to_directory_option_needs_owner_approval',
+                 'git -C .ai add -f state.md', 'ask', 'staging-ignored-path', 'R04', setup='ignored-state'),
+    DecisionCase('forced_file_in_ignored_knowledge_directory_needs_owner_approval', 'git add -f .ai/adr/x.md',
+                 'ask', 'staging-ignored-path', 'R04', setup='ignored-knowledge'),
+    DecisionCase('unforced_ignored_file_is_left_to_git', 'git add .ai/state.md', 'allow', setup='ignored-state'),
+    DecisionCase('unignored_new_knowledge_file_is_allowed', 'git add .ai/adr/x.md', 'allow',
+                 setup='ignored-state'),
+    DecisionCase('forced_unignored_new_file_is_allowed', 'git add -f .ai/adr/x.md', 'allow',
+                 setup='ignored-state'),
+    DecisionCase('forced_tracked_file_is_allowed', 'git add -f a.txt', 'allow', setup='ignored-state'),
+    DecisionCase('tracked_knowledge_file_is_allowed', 'git add .ai/state.md', 'allow'),
+    DecisionCase('blanket_staging_beside_forced_ignored_file_is_denied', 'git add -f .ai/state.md; git add -A',
+                 'deny', BLANKET, 'R01', setup='ignored-state'),
+    DecisionCase('symlink_to_directory_is_allowed', 'git add lnk', 'allow', setup='symlinks'),
+    DecisionCase('symlink_to_file_is_allowed', 'git add link.txt', 'allow', setup='file-links'),
+    DecisionCase('dangling_symlink_is_allowed', 'git add dangling.txt', 'allow', setup='file-links'),
+    DecisionCase('symlinked_directory_with_trailing_slash_is_not_a_file', 'git add lnk/',
+                 'deny', STAGE, 'R02', setup='symlinks'),
+    DecisionCase('deleted_tracked_file_is_allowed', 'git add b.txt', 'allow', setup='deleted'),
+    DecisionCase('stage_spelling_of_deleted_tracked_file_is_allowed', 'git stage -- b.txt', 'allow',
+                 setup='deleted'),
+    DecisionCase('deleted_tracked_file_beside_missing_file_is_not_a_file', 'git add b.txt missing.txt',
+                 'deny', STAGE, 'R02', setup='deleted'),
+)
+
+# git commit: every-change flags, path operands, message sources, forbidden patterns and
+# amending a commit that a remote-tracking ref already contains.
+COMMIT_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('all_short_flag_commits_everything', 'git commit -a -m ok', 'deny', 'commit-all', 'R06'),
+    DecisionCase('all_flag_bundled_with_message_commits_everything', 'git commit -am ok',
+                 'deny', 'commit-all', 'R06'),
+    DecisionCase('all_long_flag_commits_everything', 'git commit --all -m ok', 'deny', 'commit-all', 'R06'),
+    DecisionCase('all_flag_in_a_longer_bundle_commits_everything', 'git commit -qam ok',
+                 'deny', 'commit-all', 'R06'),
+    DecisionCase('ambiguous_prefix_including_all_commits_everything', 'git commit --a -m ok',
+                 'deny', 'commit-all', 'R06'),
+    DecisionCase('all_flag_through_env_wrapper_commits_everything', 'env X=1 git commit -am x',
+                 'deny', 'commit-all', 'R06'),
+    DecisionCase('negated_all_after_all_is_allowed', 'git commit -a --no-all -m ok', 'allow'),
+    DecisionCase('message_value_that_reads_like_a_flag_is_allowed', 'git commit -ma', 'allow'),
+    DecisionCase('plain_message_commit_is_allowed', 'git commit -m ok', 'allow'),
+    DecisionCase('current_directory_commit_operand_is_blanket_staging', 'git commit -m ok .',
+                 'deny', BLANKET, 'R07'),
+    DecisionCase('only_flag_with_current_directory_is_blanket_staging', 'git commit -o -m ok -- .',
+                 'deny', BLANKET, 'R07'),
+    DecisionCase('directory_commit_operand_is_not_a_file', 'git commit -m ok sub', 'deny', STAGE, 'R07'),
+    DecisionCase('include_flag_with_directory_is_not_a_file', 'git commit -i -m ok sub', 'deny', STAGE, 'R07'),
+    DecisionCase('glob_commit_operand_is_not_a_file', "git commit -m ok '*.txt'", 'deny', STAGE, 'R07'),
+    DecisionCase('pathspec_magic_commit_operand_is_not_a_file', 'git commit -m ok :/', 'deny', STAGE, 'R07'),
+    DecisionCase('missing_commit_operand_is_not_a_file', 'git commit -m ok missing.txt', 'deny', STAGE, 'R07'),
+    DecisionCase('commit_pathspec_from_file_is_not_a_file', 'git commit -m ok --pathspec-from-file=list.txt',
+                 'deny', STAGE, 'R07', setup='source-tree'),
+    DecisionCase('existing_file_commit_operand_is_allowed', 'git commit -m ok a.txt', 'allow'),
+    DecisionCase('only_flag_with_existing_file_is_allowed', 'git commit -o -m ok a.txt', 'allow'),
+    DecisionCase('include_flag_with_existing_file_is_allowed', 'git commit -i -m ok -- a.txt', 'allow'),
+    DecisionCase('deleted_tracked_commit_operand_is_allowed', 'git commit -m ok b.txt', 'allow',
+                 setup='deleted'),
+    DecisionCase('editor_commit_is_unverifiable', 'git commit', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('reedit_message_is_unverifiable', 'git commit -c HEAD', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('reuse_message_is_unverifiable', 'git commit -C HEAD', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('long_reuse_message_is_unverifiable', 'git commit --reuse-message=HEAD',
+                 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('long_reedit_message_is_unverifiable', 'git commit --reedit-message HEAD',
+                 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('fixup_is_unverifiable', 'git commit --fixup HEAD', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('fixup_amend_form_is_unverifiable', 'git commit --fixup=amend:HEAD',
+                 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('squash_is_unverifiable', 'git commit --squash HEAD', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('template_is_unverifiable', 'git commit -t tpl.txt', 'deny', UNVERIFIABLE, 'R08',
+                 setup='message-files'),
+    DecisionCase('long_template_beside_message_is_unverifiable', 'git commit --template=tpl.txt -m ok',
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('edit_flag_with_message_is_unverifiable', 'git commit -m ok -e', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('long_edit_flag_with_message_is_unverifiable', 'git commit --edit -m ok',
+                 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('amend_without_message_opens_the_editor', 'git commit --amend', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('no_edit_without_amend_or_message_is_unverifiable', 'git commit --no-edit',
+                 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('standard_input_without_literal_text_is_unverifiable', 'git commit -F -',
+                 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('piped_standard_input_is_unverifiable', 'echo ok | git commit -F -',
+                 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('redirected_standard_input_file_is_unverifiable', 'git commit -F - < msg.txt',
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('heredoc_to_another_descriptor_is_unverifiable', "echo ok | git commit -F - 3<<'EOF'\nok\nEOF",
+                 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('file_redirection_after_heredoc_is_unverifiable',
+                 "git commit -F - <<'EOF' < msg.txt\nok\nEOF", 'deny', UNVERIFIABLE, 'R08',
+                 setup='message-files'),
+    DecisionCase('expanding_here_string_is_unverifiable', 'git commit -F - <<< "$MSG"',
+                 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('unquoted_heredoc_substitution_with_expansion_is_unverifiable',
+                 'git commit -m "$(cat <<EOF\nSubject $X\nEOF\n)"', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('unquoted_heredoc_input_with_expansion_is_unverifiable',
+                 'git commit -F - <<EOF\nSubject $X\nEOF', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('unquoted_heredoc_input_with_backtick_is_unverifiable',
+                 'git commit -F - <<EOF\nSubject `date`\nEOF', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('unquoted_heredoc_input_with_backslash_is_unverifiable',
+                 'git commit -F - <<EOF\nSubject \\\\ x\nEOF', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('missing_message_file_is_unverifiable', 'git commit -F missing.txt', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('directory_message_file_is_unverifiable', 'git commit -F sub', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('unreadable_message_file_is_unverifiable', 'git commit -F locked.txt',
+                 'deny', UNVERIFIABLE, 'R08', setup='unreadable-message'),
+    DecisionCase('message_file_over_the_limit_is_unverifiable', 'git commit -F large.txt',
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_at_the_limit_is_allowed', 'git commit -F limit.txt', 'allow',
+                 setup='message-files'),
+    DecisionCase('configured_trailer_alias_is_unverifiable', 'git commit -m ok --trailer cab=Someone',
+                 'deny', UNVERIFIABLE, 'R08', setup='trailer-alias'),
+    DecisionCase('trailer_without_configuration_is_allowed', 'git commit -m ok --trailer Reviewed-by=Someone',
+                 'allow'),
+    DecisionCase('amend_without_edit_on_clean_head_is_allowed', 'git commit --amend --no-edit', 'allow'),
+    DecisionCase('literal_heredoc_input_is_allowed',
+                 "git commit -F - <<'EOF'\nAdd parser\n\nBody $NOT_EXPANDED.\nEOF", 'allow'),
+    DecisionCase('literal_here_string_input_is_allowed', "git commit --file=- <<<'Add parser'", 'allow'),
+    DecisionCase('plain_unquoted_heredoc_input_is_allowed', 'git commit -F - <<EOF\nAdd parser\nEOF', 'allow'),
+    DecisionCase('trailer_in_message_option_is_forbidden', f"git commit -m 'Add parser\n\n{TRAILER}'",
+                 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('trailer_in_repeated_message_option_is_forbidden', f"git commit -m 'Add parser' -m '{TRAILER}'",
+                 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('trailer_in_long_message_option_is_forbidden', f"git commit --message='Add parser\n\n{TRAILER}'",
+                 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('trailer_in_heredoc_substitution_is_forbidden',
+                 f"git commit -m \"$(cat <<'EOF'\nAdd parser\n\n{TRAILER}\nEOF\n)\"", 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('trailer_in_message_file_is_forbidden', 'git commit -F trailer.txt', 'deny', FORBIDDEN, 'R09',
+                 setup='message-files'),
+    DecisionCase('trailer_in_attached_message_file_is_forbidden', 'git commit -Ftrailer.txt',
+                 'deny', FORBIDDEN, 'R09', setup='message-files'),
+    DecisionCase('trailer_in_long_message_file_is_forbidden', 'git commit --file=trailer.txt',
+                 'deny', FORBIDDEN, 'R09', setup='message-files'),
+    DecisionCase('crlf_trailer_in_message_file_is_forbidden', 'git commit -F crlf.txt', 'deny', FORBIDDEN, 'R09',
+                 setup='message-files'),
+    DecisionCase('message_file_resolves_from_the_directory_option', 'git -C sub commit -F msg.txt',
+                 'deny', FORBIDDEN, 'R09', setup='message-files'),
+    DecisionCase('message_file_resolves_from_the_cd_target', 'cd sub && git commit -F msg.txt',
+                 'deny', FORBIDDEN, 'R09', setup='message-files'),
+    DecisionCase('clean_message_file_is_allowed', 'git commit -F msg.txt', 'allow', setup='message-files'),
+    DecisionCase('trailer_in_heredoc_input_is_forbidden', f"git commit -F - <<'EOF'\nAdd parser\n\n{TRAILER}\nEOF",
+                 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('trailer_in_here_string_input_is_forbidden', f"git commit -F - <<<'{TRAILER}'",
+                 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('trailer_option_is_forbidden', f"git commit -m ok --trailer '{TRAILER}'", 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('attached_trailer_option_with_equals_is_forbidden',
+                 'git commit -m ok --trailer=Co-authored-by=Someone', 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('trailer_option_without_value_is_forbidden', 'git commit -m ok --trailer co-authored-by',
+                 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('lowercase_trailer_without_space_is_forbidden', "git commit -m 'Add parser' -m 'co-authored-by:x'",
+                 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('indented_trailer_is_forbidden', "git commit -m 'Add parser\n\n   Co-Authored-By: Someone'",
+                 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('tab_indented_trailer_is_forbidden', "git commit -m 'Add parser\n\n\tCo-Authored-By: Someone'",
+                 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('task_identifier_in_subject_is_forbidden', "git commit -m 'Fix T-04b parser'",
+                 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('task_fix_identifier_in_subject_is_forbidden', "git commit -m 'Finish T-09-fix-x'",
+                 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('decision_identifier_in_body_is_forbidden',
+                 "git commit -m 'Add parser' -m 'See ADR-0007 for context.'", 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('short_decision_identifier_is_forbidden', "git commit -m 'see ADR-12'", 'deny', FORBIDDEN, 'R09'),
+    DecisionCase('amend_without_edit_keeps_a_forbidden_head_message', 'git commit --amend --no-edit',
+                 'deny', FORBIDDEN, 'R09', setup='trailer-head'),
+    DecisionCase('model_version_is_allowed', "git commit -m 'fix GPT-4 parsing'", 'allow'),
+    DecisionCase('t_shirt_wording_is_allowed', "git commit -m 'Bump T-shirt sizes'", 'allow'),
+    DecisionCase('device_name_is_allowed', "git commit -m 'Support IoT-1 sensors'", 'allow'),
+    DecisionCase('identifier_inside_a_longer_word_is_allowed', "git commit -m 'Tune HADR-1 failover'", 'allow'),
+    DecisionCase('decision_prefix_without_digits_is_allowed', "git commit -m 'Explain the ADR- prefix'", 'allow'),
+    DecisionCase('body_sentence_mentioning_the_trailer_is_allowed',
+                 "git commit -m 'Remove trailer parsing' -m 'Remove Co-Authored-By handling from the parser.'",
+                 'allow'),
+    DecisionCase('amend_with_new_message_replaces_a_forbidden_head_message', 'git commit --amend -m ok', 'allow',
+                 setup='trailer-head'),
+    DecisionCase('amending_a_published_commit_needs_owner_approval', 'git commit --amend -m ok',
+                 'ask', 'rewrite-published', 'R10', setup='published'),
+    DecisionCase('amending_a_published_commit_without_edit_needs_owner_approval', 'git commit --amend --no-edit',
+                 'ask', 'rewrite-published', 'R10', setup='published'),
+    DecisionCase('unique_prefix_of_amend_needs_owner_approval', 'git commit --am -m ok',
+                 'ask', 'rewrite-published', 'R10', setup='published'),
+    DecisionCase('commit_reachable_from_any_remote_needs_owner_approval', 'git commit --amend -m ok',
+                 'ask', 'rewrite-published', 'R10', setup='published-elsewhere'),
+    DecisionCase('amending_an_unpushed_commit_is_allowed', 'git commit --amend -m ok', 'allow',
+                 setup='published-ancestor'),
+    DecisionCase('new_commit_on_published_head_is_allowed', 'git commit -m ok', 'allow', setup='published'),
+    DecisionCase('forbidden_message_outranks_published_amend', "git commit --amend -m 'Fix T-04b parser'",
+                 'deny', FORBIDDEN, 'R09', setup='published'),
+    DecisionCase('negated_amend_is_a_new_commit', 'git commit --amend --no-amend -m ok', 'allow',
+                 setup='published'),
+)
+
+
+class StagingTable(RuleFixture):
+    """Table-driven decisions of git add and git stage."""
+
+
+for staging_case in STAGING_CASES:
+    setattr(StagingTable, 'test_' + staging_case.name, decision_test(staging_case))
+
+
+class CommitTable(RuleFixture):
+    """Table-driven decisions of git commit."""
+
+
+for commit_case in COMMIT_CASES:
+    setattr(CommitTable, 'test_' + commit_case.name, decision_test(commit_case))
+
+
+class MessagePatterns(RuleFixture):
+    """The forbidden commit-message patterns, the checked text and the message file limit."""
+
+    DOCUMENTED = (r'(?im)^[ \t]*co-authored-by[ \t]*:',
+                  r'(?<![A-Za-z0-9_-])T-[0-9]+[A-Za-z]*(?![A-Za-z0-9_])',
+                  r'(?<![A-Za-z0-9_-])ADR-[0-9]+')
+
+    def patterns(self) -> tuple[Any, ...]:
+        return tuple(self.api('FORBIDDEN_PATTERNS'))
+
+    def assert_pattern(self, index: int, blocked: tuple[str, ...], passed: tuple[str, ...]) -> None:
+        pattern = self.patterns()[index]
+        for text in blocked:
+            with self.subTest(blocked=text):
+                self.assertIsNotNone(pattern.search(text))
+        for text in passed:
+            with self.subTest(passed=text):
+                self.assertIsNone(pattern.search(text))
+
+    def test_patterns_are_the_documented_expressions(self) -> None:
+        self.assertEqual(tuple(pattern.pattern for pattern in self.patterns()), self.DOCUMENTED)
+
+    def test_trailer_pattern_blocks_trailer_lines_only(self) -> None:
+        self.assert_pattern(0, ('Co-Authored-By: Name <mail>', 'co-authored-by:x', 'Subject\n\n  Co-authored-by: x'),
+                            ('Remove Co-Authored-By handling', 'Subject\n\nSee Co-authored-by: x'))
+
+    def test_task_identifier_pattern_uses_word_boundaries_and_digits(self) -> None:
+        self.assert_pattern(1, ('T-01', 'T-04b', 'T-09-fix-x', 'Fix T-04b parser'), ('GPT-4', 'T-shirt', 'IoT-1'))
+
+    def test_decision_identifier_pattern_requires_digits(self) -> None:
+        self.assert_pattern(2, ('ADR-0007', 'see ADR-12'), ('HADR-1', 'ADR-'))
+
+    def test_forbidden_message_checks_the_full_text(self) -> None:
+        forbidden = self.api('forbidden_message')
+        self.assertTrue(forbidden('Add parser\n\nCo-authored-by: x'))
+        self.assertTrue(forbidden('Add parser\n\nFollows T-01.'))
+        self.assertFalse(forbidden('Add parser\n\nRemove Co-Authored-By handling.'))
+
+    def test_message_values_join_as_paragraphs(self) -> None:
+        join = self.api('join_message')
+        self.assertEqual(join(['one', 'two'], []), 'one\n\ntwo')
+        self.assertEqual(join(['one'], []), 'one')
+
+    def test_trailers_follow_a_blank_line_in_colon_form(self) -> None:
+        joined = self.api('join_message')(['Subject'], ['Reviewed-by=Someone', 'Acked-by: Other', 'Co-authored-by'])
+        self.assertEqual(joined, 'Subject\n\nReviewed-by: Someone\nAcked-by: Other\nCo-authored-by:')
+
+    def test_message_file_limit_is_one_mebibyte(self) -> None:
+        self.assertEqual(self.api('MAX_MESSAGE_FILE_BYTES'), 1024 * 1024)
+
+
+class CommitDecisionOutput(RuleFixture):
+    """Commit-message text never reaches a decision."""
+
+    def test_forbidden_message_text_is_not_in_the_decision(self) -> None:
+        marker = 'Distinctive-Marker-Words'
+        command = f"git commit -m '{marker}' -m 'Co-authored-by: {marker} <m@example.invalid>'"
+        result = self.api('decide')(self.event(command, str(self.project)), dict(self.environ))
+        self.assertEqual((result.decision, result.reason_code), ('deny', FORBIDDEN))
+        rendered = repr(result) + ' '.join(str(value) for value in vars(result).values())
+        self.assertNotIn(marker, rendered)
+
+
+class SlowRuleRead(RuleFixture):
+    """A git read made by a rule that exceeds its time limit denies instead of hanging."""
+
+    def test_hanging_staging_read_is_limit_exceeded(self) -> None:
+        fake = self.probe / 'bin/git'
+        fake.write_text('#!/bin/bash\n'
+                        'case " $* " in *" ls-files "*) sleep 30 ;; esac\n'
+                        f'exec {shlex.quote(REAL_GIT)} "$@"\n')
+        fake.chmod(0o755)
+        self.environ['PATH'] = f'{self.probe / "bin"}{os.pathsep}{self.environ["PATH"]}'
+        started = time.monotonic()
+        decision = self.decide(self.event('git add missing.txt', str(self.project)))
+        elapsed = time.monotonic() - started
+        self.assertEqual(decision[:2], ('deny', 'limit-exceeded'))
+        self.assertLess(elapsed, 4.5, 'a timed-out read must be stopped, including its children')
+
+
+class StateFixture(RuleFixture):
+    """Repository states where an earlier part of the command can change what a rule reads."""
+
+    def setup_published_main_on_feature(self) -> None:
+        self.setup_published()
+        self.git(self.project, 'switch', '-q', '-c', 'feature')
+        self.git(self.project, 'commit', '-q', '--allow-empty', '-m', 'Local work')
+
+    def setup_trailer_branch(self) -> None:
+        self.git(self.project, 'switch', '-q', '-c', 'trailered')
+        self.git(self.project, 'commit', '-q', '--allow-empty', '-m', 'Add parser', '-m', TRAILER)
+        self.git(self.project, 'switch', '-q', 'main')
+
+    def setup_clean_sub_message(self) -> None:
+        (self.project / 'sub/msg.txt').write_text('Add parser\n')
+
+
+# An earlier part of the same command that may write makes every later read of repository
+# or file state unverifiable; commands that read no state keep their decision.
+STATE_CHANGE_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('message_file_written_by_printf_is_unverifiable',
+                 "printf 'Add parser\\n\\nCo-authored-by: X\\n' > msg.txt && git commit -F msg.txt",
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_by_heredoc_is_unverifiable',
+                 "cat > msg.txt <<'EOF'\nAdd parser\n\nCo-authored-by: X\nEOF\ngit commit -F msg.txt",
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_appended_by_echo_is_unverifiable',
+                 "echo 'Co-authored-by: X' >> msg.txt; git commit -F msg.txt",
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_replaced_by_copy_is_unverifiable', 'cp trailer.txt msg.txt && git commit -F msg.txt',
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_in_a_subshell_is_unverifiable', '(printf x > msg.txt); git commit -F msg.txt',
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_in_a_substitution_is_unverifiable',
+                 'echo "$(printf x > msg.txt)" && git commit -F msg.txt',
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_by_a_pipeline_element_is_unverifiable',
+                 "echo 'Co-authored-by: X' | tee msg.txt && git commit -F msg.txt",
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_in_the_background_is_unverifiable', 'printf x > msg.txt & git commit -F msg.txt',
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_by_a_shell_string_is_unverifiable',
+                 "bash -c 'printf x > msg.txt'; git commit -F msg.txt",
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_written_by_read_only_git_output_is_unverifiable',
+                 'git log -1 > msg.txt && git commit -F msg.txt', 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('message_file_after_governed_git_is_unverifiable', 'git add a.txt && git commit -F msg.txt',
+                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+    DecisionCase('amend_after_switching_to_a_published_branch_is_unsupported',
+                 'git switch main && git commit --amend -m ok', 'deny', 'unsupported-form', 'R10',
+                 setup='published-main-on-feature'),
+    DecisionCase('amend_without_edit_after_switching_to_a_trailer_branch_is_unverifiable',
+                 'git switch trailered && git commit --amend --no-edit', 'deny', UNVERIFIABLE, 'R08',
+                 setup='trailer-branch'),
+    DecisionCase('amend_without_edit_after_governed_staging_is_unverifiable',
+                 'git add a.txt && git commit --amend --no-edit', 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('amend_after_a_file_write_is_unsupported', 'echo x > a.txt && git commit --amend -m ok',
+                 'deny', 'unsupported-form', 'R10'),
+    DecisionCase('trailer_after_configuration_change_is_unverifiable',
+                 'git config trailer.cab.key Co-authored-by && git commit -m ok --trailer cab=Someone',
+                 'deny', UNVERIFIABLE, 'R08'),
+    DecisionCase('alias_after_configuration_change_is_unsupported', "git config alias.p 'push -f' && git p",
+                 'deny', 'unsupported-form', 'R31'),
+    DecisionCase('governed_git_after_repository_creation_is_unsupported',
+                 'git -C @plain@ init -q && git -C @plain@ add note.txt', 'deny', 'unsupported-form'),
+    DecisionCase('staging_a_file_created_earlier_is_unsupported', 'touch new.txt && git add new.txt',
+                 'deny', 'unsupported-form', 'R02'),
+    DecisionCase('staging_a_file_written_earlier_is_unsupported', 'echo x > a.txt && git add a.txt',
+                 'deny', 'unsupported-form', 'R02'),
+    DecisionCase('second_staging_command_is_unsupported', 'git add a.txt && git add b.txt',
+                 'deny', 'unsupported-form', 'R02'),
+    DecisionCase('commit_path_written_earlier_is_unsupported', 'touch a.txt && git commit -m ok a.txt',
+                 'deny', 'unsupported-form', 'R07'),
+    DecisionCase('message_option_after_governed_staging_is_allowed', 'git add a.txt && git commit -m ok', 'allow'),
+    DecisionCase('message_file_after_cd_is_allowed', 'cd sub && git commit -F msg.txt', 'allow',
+                 setup='clean-sub-message'),
+    DecisionCase('message_file_after_echo_without_redirection_is_allowed', 'echo hi && git commit -F msg.txt',
+                 'allow', setup='message-files'),
+    DecisionCase('message_file_after_heredoc_into_a_data_program_is_allowed',
+                 "cat <<'EOF'\nx\nEOF\ngit commit -F msg.txt", 'allow', setup='message-files'),
+    DecisionCase('message_file_after_read_only_git_is_allowed', 'git status && git commit -F msg.txt', 'allow',
+                 setup='message-files'),
+    DecisionCase('message_file_after_plain_assignments_is_allowed', 'X=1; export FOO=2; git commit -F msg.txt',
+                 'allow', setup='message-files'),
+    DecisionCase('amend_without_edit_after_cd_is_allowed', 'cd sub && git commit --amend --no-edit', 'allow'),
+    DecisionCase('literal_message_input_after_a_write_is_allowed',
+                 "printf x > a.txt && git commit -F - <<'EOF'\nAdd parser\nEOF", 'allow'),
+    DecisionCase('message_heredoc_after_a_write_is_allowed', 'printf x > a.txt && ' + COMMIT_HEREDOC, 'allow'),
+    DecisionCase('write_after_the_commit_does_not_change_it', 'git commit -F msg.txt && echo x > msg.txt', 'allow',
+                 setup='message-files'),
+    DecisionCase('blanket_staging_after_a_write_keeps_its_reason', 'touch new.txt && git add -A',
+                 'deny', BLANKET, 'R01'),
+    DecisionCase('message_file_after_read_only_git_into_null_device_is_allowed',
+                 'git status 2>/dev/null; git commit -F msg.txt', 'allow', setup='message-files'),
+    DecisionCase('amend_without_edit_after_output_to_null_device_is_allowed',
+                 'git log -1 >/dev/null && git commit --amend --no-edit', 'allow'),
+    DecisionCase('message_file_after_read_only_git_into_a_file_is_unverifiable',
+                 'git status > out.txt; git commit -F msg.txt', 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+)
+
+
+class StateChangeTable(StateFixture):
+    """Table-driven decisions after an earlier part of the command may change state."""
+
+
+for state_case in STATE_CHANGE_CASES:
+    setattr(StateChangeTable, 'test_' + state_case.name, decision_test(state_case))
+
+
 CLASSES = (CoreSurface, DecisionCombination, OptionParsing, EventValidation, DecisionTable,
            ResolutionTable, InvocationDetails, GitReadIsolation, SlowGitRead, FailClosedTable,
-           DecidedTable)
+           DecidedTable, StagingTable, CommitTable, MessagePatterns, CommitDecisionOutput, SlowRuleRead,
+           StateChangeTable)
 
 
 def selected_suite() -> unittest.TestSuite:
