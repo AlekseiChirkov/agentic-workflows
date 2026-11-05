@@ -5774,6 +5774,9 @@ check "RESTACK: one unusable journal file makes every journal check ask" \
 check "SAFETY: the force-push row notes that dry-run forced pushes are allowed" \
   "$(safety_rail_row '`git push --force`' | grep -qF 'a dry run (`--dry-run` or `-n`) of any forced push is allowed' && echo pass || echo "git-flow.md force-push row must note that a dry run of any forced push is allowed")"
 
+check "SAFETY: the protected-push row notes that a non-forced dry run is allowed" \
+  "$(safety_rail_row 'any protected branch (protected set above)' | grep -qF 'a non-forced dry run (`--dry-run` or `-n`) is allowed' && echo pass || echo "git-flow.md protected-push row must note that a non-forced dry run (--dry-run or -n) is allowed")"
+
 check "USAGE: the git-rails paragraph checks Bash git and gh commands" \
   "$(flat="$(tr '\n' ' ' < docs/USAGE.md | tr -s ' ')"; printf '%s' "$flat" | grep -qF 'handler, which checks Bash git and gh commands' && ! printf '%s' "$flat" | grep -qF 'checks Bash git commands' && echo pass || echo "docs/USAGE.md must say the git-rails handler checks Bash git and gh commands")"
 

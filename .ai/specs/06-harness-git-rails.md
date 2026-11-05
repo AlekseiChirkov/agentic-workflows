@@ -1,13 +1,19 @@
+---
+status: done
+completed_task: task-06-harness-git-rails
+completed_at: 2026-11-05
+---
+
 # 06. Enforced git rails for agent shell commands
 
 ## 0. Document control
 
 | Field | Value |
 |---|---|
-| Status | Ready for Discovery. Nothing described here is implemented, installed or enforced yet. |
-| Revision | 2026-11-03. Replaces the 2026-10-28 revision; requirement and criterion IDs were renumbered (no other document cites them). |
+| Status | Implemented by task `task-06-harness-git-rails` on its stacked branches; validation passed and the full suite passes at the stack tip (717 passed, 0 failed, 2 skipped, 2026-11-05). Merge is pending. Delivery installs nothing on any machine; the hook is enforced only where the installer has registered it. |
+| Revision | 2026-11-05 reconciliation with the delivered behaviour (see `## Change Log`); no requirement or criterion was removed or renumbered. The 2026-11-03 revision replaced the 2026-10-28 revision; requirement and criterion IDs were renumbered then (no other document cites them). |
 | Baseline | Owner text was reviewed at `8c2fa08c18115ffcf38a1798742c41e53a2c7461` against the [git-flow contract](https://github.com/AlekseiChirkov/agentic-workflows/blob/8c2fa08c18115ffcf38a1798742c41e53a2c7461/rules/git-flow.md) and the [restack workflow](https://github.com/AlekseiChirkov/agentic-workflows/blob/8c2fa08c18115ffcf38a1798742c41e53a2c7461/workflows/restack.md). Implement against the current local `rules/git-flow.md` and `workflows/restack.md`, not the pinned copies. |
-| Authority | ADR-0008 (enforcement moves to the harness); ADR-0009 Decision 5 (git-rails scope); owner decisions of 2026-11-03 recorded in §3. |
+| Authority | ADR-0008 (enforcement moves to the harness); ADR-0009 Decision 5 (git-rails scope); owner decisions of 2026-11-03 recorded in §3; owner decisions and orchestrator decisions under owner delegation (2026-11-03 to 2026-11-05) during the task, recorded in the task state and cited in `## Change Log`. |
 | Roadmap prerequisites | 13 and 05 (see §2.3 for what is actually consumed). |
 | Normative words | **MUST**, **MUST NOT**, **SHOULD** and **MAY** are binding as in RFC 2119. Everything not marked as an example is normative. |
 
@@ -182,15 +188,25 @@ capability record; the core and the rule matrix stay the same.
 1. **Entrypoint fast path** (`hooks/git-rails.sh`, Bash only, no jq/Python):
    a. Read stdin up to 1 MiB. If the input is larger, apply step 1c and deny with
       `malformed-input` if it matches. The entrypoint cannot read `cwd` without parsing,
-      so this case and step 1d are the only ones that can affect an unregistered
+      so this case, step 1d and step 1e are the only ones that can affect an unregistered
       directory, and only while a registry exists.
-   b. If the registry file does not exist, exit 0.
+   b. If the registry file does not exist, exit 0. A registry whose configuration base or
+      `orchestrail` directory exists but cannot be searched counts as present, and the
+      core decides (`registry-error` when it cannot read it).
    c. If the raw input does not match the relevance pattern
-      `(^|[^A-Za-z0-9_.-])(git|gh)([^A-Za-z0-9_.-]|$)`, exit 0.
+      `(^|[^A-Za-z0-9_.-]|\\[bfnrt]|\\u[0-9A-Fa-f]{4})(git|gh)([^A-Za-z0-9_.-]|$)`, exit 0.
+      A JSON escape (`\n`, `\t`, `\uXXXX`, …) before the word counts as a boundary, so an
+      escaped separator cannot skip the core. The pattern is a superset of
+      `(^|[^A-Za-z0-9_.-])(git|gh)([^A-Za-z0-9_.-]|$)`.
    d. If `python3` is missing or older than 3.11, deny with `runtime-unavailable`.
       Otherwise `exec python3 -I <dir>/git_rails.py` with the same stdin. Isolated mode
       does not put the script directory on `sys.path`, so the core is one file or adds
       its own directory explicitly.
+   e. **Degraded PATH.** If `head` or `tr` is unavailable, steps 1a and 1c are skipped.
+      Without a registry the result is exit 0 as in 1b. With a registry, step 1d runs and
+      the core reads the unchanged stdin and applies the input limit itself; when
+      `python3` is also unavailable, every command (relevant or not) is denied with
+      `runtime-unavailable` while a registry exists (fail closed, I2; residual X14).
 2. **Input validation.** The input MUST be one JSON object with `hook_event_name ==
    "PreToolUse"`, `tool_name == "Bash"`, `tool_input.command` as a string, and `cwd` as an
    absolute path. Anything else is `deny malformed-input`. A non-Bash tool is
@@ -232,14 +248,17 @@ glob character (`*`, `?`, `[`) or a leading unquoted `~` is **dynamic**.
 | `;`, `&&`, `||`, `&`, `|`, newline | Supported. Every pipeline element is analyzed. |
 | Literal `cd <dir>`, `pushd <dir>`, `popd` | Update the effective directory for later commands in the same list. `cd` with a dynamic or missing argument makes later invocations opaque. |
 | `( … )`, `{ …; }` | Parsed recursively. A `cd` inside does not leak out of `( … )`. |
-| `bash -c '<literal>'`, `sh -c '<literal>'` | The literal is parsed recursively. A dynamic argument is opaque. |
+| `bash -c '<literal>'`, `sh -c '<literal>'` | The literal is parsed recursively. Only this exact form is parsed: `-c` is the first argument and the string is a literal word that does not start with `-` or `+`. A dynamic argument is opaque. Shell options are read through an allowlist of bash's own option grammar (known letters in `-`/`+` bundles, known long options and their values). Any other option word, an option that cannot be read, and every other spelling that selects a command string or standard input (`-s`, `-i`, `+c`, options around `-c`, no script operand, a script operand that names standard input such as `-` or `/dev/stdin`) is opaque. A bash/sh call that runs a script file is not analyzed (X1). |
 | `$( … )`, backticks | Contents are parsed recursively as a command. The result is a dynamic word. |
 | `git commit -m "$(cat <<'D' … D)"` (quoted or unquoted delimiter) | The only dynamic word accepted inside a governed invocation. The heredoc body is the message text. An unquoted-delimiter body MUST NOT contain `$`, backticks or `\`. |
 | `<<'D'`, `<<"D"`, `<<D` heredocs; `<<<'literal'` | Literal stdin for `-F -`. Same rule for unquoted delimiters. |
 | Redirections `>`, `>>`, `<`, `2>&1`, `n>file` | Ignored for decisions. |
-| Leading `NAME=literal` assignments | Allowed, except `GIT_*` names on a governed invocation: deny with `opaque-environment`. |
-| Wrappers `command`, `exec`, `env` (assignments only), `time`, `nohup`, `timeout <duration>` | Removed; the wrapped command is analyzed. |
+| Leading `NAME=literal` assignments | Allowed, except `GIT_*`, `HOME`, `XDG_CONFIG_HOME` and `PATH` names (as a prefix, a bare assignment or an export) on a governed invocation: deny with `opaque-environment`. |
+| Wrappers `command`, `exec`, `env` (assignments only), `time`, `nohup`, `timeout <duration>`, `busybox <program>` | Removed, matched by basename; the wrapped command is analyzed. A wrapper option word (for example `env -i`, `time -p`, `busybox --help`) or a dynamic word after the wrapper is opaque. `busybox` takes the next word as the program. |
 | `eval`, `source`, `.`, `sudo`, `xargs`, `find … -exec`, `parallel`, `watch`, process substitution, `if`/`for`/`while`/`case`, functions, unknown wrappers | Opaque. |
+| Shells other than bash/sh (`zsh`, `dash`, `ksh`, `fish`, …) that run a command string or read standard input; any shell fed through a pipe, here-document or here-string | Opaque. |
+| A literal argument word whose basename is `git` or `gh`, passed to a program outside a small data-program allowlist (programs that never execute their arguments, such as `echo`, `printf`, `grep`) | Opaque: the program may run it. |
+| Failed or non-directory `cd` targets, `CDPATH`, `pushd`/`popd` with `+N`/`-N`, `shopt` | Later invocations are uncertain and treated as opaque. |
 | Program word `git` or `gh`, or an absolute path whose basename is `git` or `gh` | An invocation. A relative path (`./git`) or a dynamic program word is opaque. |
 
 Opaque constructs matter only in registered projects. A command is `unsupported-form` if
@@ -247,7 +266,12 @@ an opaque construct sits in a command position, inside a git/gh/wrapper/`cd` arg
 before an invocation it could affect. A dynamic word in an argument of any other program
 (for example `echo "$HOME"`) is fine. A dynamic word in a non-governed git invocation
 (`git log "$REF"`) is fine. A dynamic word in a governed invocation is
-`unsupported-form`, except for the commit-message form above.
+`unsupported-form`, except for the commit-message form above. A governed invocation whose
+effective directory is outside registered projects but that carries a redirect
+(`--git-dir`/`--work-tree`, or a `GIT_*` assignment) is R31 when the event `cwd`, any
+`cd`/`pushd` target of the same command, or the redirect value (absolute, or relative to
+the effective directory) lies in a registered project. Opaque and uncertain constructs are
+judged against the same anchors.
 
 ### 7.4 Program, options and target resolution
 
@@ -261,9 +285,11 @@ before an invocation it could affect. A dynamic word in an argument of any other
    `unsupported-form`. Git does not let aliases shadow builtins.
 3. **Option parsing** follows git's parse-options semantics for governed subcommands:
    bundled short flags (`-Av`, `-am<msg>`), `--opt=value` and `--opt value`, unique
-   long-option prefixes (`--forc` is `--force`), `--no-<opt>` negation, the last occurrence
-   wins for single-valued options (repeatable `-m` and `--trailer` accumulate), and `--`
-   ends options.
+   long-option prefixes (`--al` is `--all` for `git add`), `--no-<opt>` negation, the last
+   occurrence wins for single-valued options (repeatable `-m` and `--trailer` accumulate),
+   and `--` ends options. A prefix that git reports as ambiguous is evaluated as each of its
+   candidates, and the most severe result wins (I3): `git push --forc` matches `--force`,
+   `--force-with-lease` and `--force-if-includes`, and gives `ask push-force` (R17).
 4. **Effective repository.** If the effective directory is in a registered project but is
    not inside a git work tree, the invocation is `not_applicable` (git itself will fail).
 5. **`gh`.** Only `gh pr merge` and `gh api` are governed (§8.1).
@@ -283,6 +309,18 @@ before an invocation it could affect. A dynamic word in an argument of any other
 
 Limits apply only after the relevance prefilter matches and the command is in a registered
 project. Python exceptions are caught and reported as `deny internal-error`.
+
+### 7.6 Same-command state changes
+
+The hook reads repository and file state before any part of the command runs. After an
+earlier element of the same command that may write (in any scope, including subshells and
+pipelines), every later rule that would read repository or file state treats that read as
+unverifiable and denies: message reads give `commit-message-unverifiable`, push-target reads
+give `push-target-unknown`, and other state reads give `unsupported-form`. A dry-run push
+and a `--ff-only` pull from the upstream stay allowed without reading configuration. Elements that do
+not set this mark are `cd`/`pushd`/`popd`, plain assignments of non-redirecting names, data
+programs without a write redirection, and non-governed git. The cost is documented: such
+commands must be split into separate Bash calls. Residual X15 lists what the mark misses.
 
 ## 8. Rules
 
@@ -320,10 +358,10 @@ equivalent spellings (§7.4). Rows are checked in order and every matching row a
 | R25 | `git rebase` | `--abort` or `--show-current-patch` | allow (skip R26) | — |
 | R26 | `git rebase` | A replay matching §8.5, or `--continue`/`--skip` while a rebase of a journal branch is in progress (branch read from `rebase-merge/head-name` or `rebase-apply/head-name`) | allow, else ask | `rebase-outside-restack` |
 | R27 | `git merge` | HEAD is a protected ref and the form is not `--abort` | ask | `merge-into-protected` |
-| R28 | `git pull` | HEAD is a protected ref, unless the form is `--ff-only` with no repository or refspec operands | ask | `merge-into-protected` |
+| R28 | `git pull` | HEAD is a protected ref, unless the form is `--ff-only` with no repository or refspec operands; on any branch, a rebasing pull while `rebase.updateRefs` resolves true (it may move other branches, protected ones included) | ask | `merge-into-protected` / `protected-ref-rewrite` |
 | R29 | `gh pr merge` | Always | ask | `pr-merge` |
 | R30 | `gh api` | The endpoint matches `/pulls/[0-9]+/merge` or `/merges` (ask), or the endpoint is dynamic (deny) | ask / deny | `pr-merge` / `unsupported-form` |
-| R31 | Any governed invocation | `GIT_*` assignment, an unsupported global option, an alias, or a dynamic argument | deny | `opaque-environment` / `unsupported-form` |
+| R31 | Any governed invocation | `GIT_*`, `HOME`, `XDG_CONFIG_HOME` or `PATH` assignment, an unsupported global option, an alias, a dynamic argument, or an option or configuration that makes git run another program (`push --receive-pack`/`--exec`, a submodule push other than `check`/`no`, `pull --upload-pack`, `remote.<r>.receivepack`, `remote.<r>.uploadpack`, `push.recurseSubmodules` other than `check` or false, `submodule.recurse=true` on a push) | deny | `opaque-environment` / `unsupported-form` |
 
 The matrix grants no new rights and does not narrow any textual rule. Read-only
 subcommands (`status`, `diff`, `show`, `log`, `ls-files`, `rev-parse`, `branch --list`, …)
@@ -427,24 +465,45 @@ of the following:
 - `<branch>` is in `order`, is not protected, and has `replayed_tip == null`;
 - `<old-sha>` equals that branch's `original_base_commit`;
 - the current tip of `refs/heads/<branch>` equals `original_tip`;
-- `<new-sha>` equals `target.sha` if `<branch>` is the first entry of `order` whose
-  `replayed_tip` is `null`, or else the previous branch's `replayed_tip`.
+- `<new-sha>` is fixed by position in `order`: `target.sha` for the first entry of `order`,
+  and the previous entry's non-null `replayed_tip` for every later entry. `order` lists only
+  the branches to replay, in replay order (`workflows/restack.md → ## Recovery journal`).
+- `rebase.updateRefs`, resolved as git resolves it, is not true, and for
+  `--continue`/`--skip` the in-progress rebase records no other refs to update (failed
+  check `update-refs`);
+- the protected set can be computed (failed check `protected-set`).
 
 **Push verification (R18).** Each destination `refs/heads/<b>` MUST satisfy all of the
 following:
 
 - `<b>` is in `order` and is not protected;
 - `publication_authorized` is `true`;
-- the local tip of `<b>` equals `replayed_tip`;
+- `<b>` has a non-null `replayed_tip`, and the local tip of `<b>` equals it;
+- the refspec source names `<b>` (short name, `refs/heads/<b>`, or `HEAD` or the default
+  push while on `<b>`) and resolves to `replayed_tip`;
 - the explicit lease SHA equals `expected_remote_tip`, or the lease is empty and
-  `expected_remote_tip` is `"absent"`;
+  `expected_remote_tip` is `"absent"`; more than one lease naming the same destination
+  fails (`explicit-lease`);
 - no `+` refspec and no `--force` is present.
+
+**Journal files.** Only files named `<64 lowercase hex>.json` in the journal directory are
+journals; other names are ignored. Every such file MUST be a readable, valid journal whose
+name equals the SHA-256 of its `task_path`; an unreadable, invalid or misnamed one makes
+every verification ask (`journal-unreadable`, `journal-invalid-json`,
+`journal-invalid-schema`, `journal-name`), even beside a valid journal. Each file is read
+up to 1 MiB; the number of files is not capped (X17).
 
 The hook does not check whether the journal is fresh. Any failed or ambiguous
 verification (zero or several matching journals, or invalid JSON or schema) gives `ask`
 with reason `push-lease-unverified` or `rebase-outside-restack`, plus a diagnostic naming
-the failed check. An environment variable, marker file or the word `restack` in the command
-is never evidence (D2).
+the failed check. When an earlier matrix row also matches, that row's reason stands (I3,
+matrix order) and the diagnostic still names the failed check: `--force` or a `+` refspec
+with an otherwise valid journal gives `ask push-force` (R17) naming `forced`, and a
+protected destination gives `ask push-protected-target` (R16) naming `branch-protected`.
+Failed checks are named with kebab-case identifiers (`repository`, `branch-in-order`,
+`branch-tip`, `old-sha`, `new-sha`, `lease`, `publication-authorized`,
+`journal-ambiguous`, …). An environment variable, marker file or the word `restack` in the
+command is never evidence (D2).
 
 ### 8.6 `.ai/` staging policy
 
@@ -480,6 +539,8 @@ next: <one concrete action>
   URL user info.
 - The `next` text for every reason code is defined in one table in the core and is pinned
   by tests.
+- A failed restack journal check (§8.5) is appended to the operation line as
+  `; failed check: <name>` and is never cut by the size limit.
 - Reason codes: `blanket-staging`, `staging-not-file`, `staging-ignored-path`,
   `commit-all`, `commit-message-unverifiable`, `commit-message-forbidden`,
   `rewrite-published`, `push-target-unknown`, `default-branch-unknown`, `push-bulk-or-tags`,
@@ -503,21 +564,34 @@ next: <one concrete action>
     "type": "command",
     "command": "bash",
     "args": ["@ORCHESTRAIL_HOME@/hooks/git-rails.sh"],
-    "timeout": 10
+    "timeout": 10,
+    "onFailure": "block"
   }]
 }]
 ```
 
 The handler MUST NOT declare a fail-open failure option. If the pinned harness offers a
 blocking failure mode, the handler uses it. Otherwise, fail-open on crash or timeout is
-recorded as residual risk X6.
+recorded as residual risk X6. The pinned harness offers `"onFailure": "block"`, so the
+handler declares it; the Stop/SubagentStop logging handlers keep `"onFailure": "continue"`.
 
 ### 10.2 Installer
 
 - `scripts/install-hooks.py` stops hard-coding the logging handler. It validates every
   manifest group against the handler that the manifest declares for that event.
-- Receipt `schema_version` 2 adds `owned_permissions` (deny strings the installer added).
-  Version 1 receipts stay readable and are migrated on the next install.
+- Each event has exactly one permitted failure mode: `PreToolUse` MUST declare
+  `"onFailure": "block"`, and `Stop`/`SubagentStop` MUST declare `"onFailure": "continue"`.
+  A handler for any other event, or with another failure mode, is `invalid-manifest`.
+- The installer registers the resolved physical path of each entrypoint script and
+  requires it to be a readable regular file; a missing, unreadable or unresolvable
+  entrypoint is `invalid-source`, with no write.
+- Receipt `schema_version` 2 adds `owned_permissions` (deny strings the installer added)
+  and `created_permissions` (the `permissions` object and `deny` list the installer
+  created, so removal deletes them only when it created them and they are left empty).
+  A receipt with no permission state is written in the version 1 form, so earlier
+  installers can still read it. Version 1 receipts stay readable and are migrated on the
+  next install. A prepared (in-transaction) envelope takes the highest version of the
+  receipts it holds.
 - The existing guarantees hold for the new entries: idempotent install, preserved foreign
   hooks and settings, exact multiset ownership, serialized locking, atomic replacement,
   recovery of interrupted replacements, and no overwrite of concurrent user edits.
@@ -532,7 +606,9 @@ only patterns for deny-class rows R01 and R06 (D8), for example `Bash(git add -A
 `Bash(git add --all)`, `Bash(git add .)`, `Bash(git commit -a)`, `Bash(git commit --all)`.
 For each pattern, the exact syntax and its match semantics (exact versus prefix) are
 confirmed for the pinned harness and recorded in `harness/claude/capabilities.md`. A
-pattern MUST NOT match a legitimate command such as `git add .gitignore`. The fragment is
+pattern MUST NOT match a legitimate command such as `git add .gitignore`. Every fragment
+rule is an exact rule: the installer rejects a rule containing `*`, a `)` before the closing
+parenthesis, or a control character as `invalid-manifest`, with no write. The fragment is
 defense in depth; the hook stays authoritative.
 
 ### 10.4 Contract and documentation updates
@@ -552,14 +628,14 @@ defense in depth; the hook stays authoritative.
 | Situation | Result |
 |---|---|
 | Registry file absent | Exit 0 (entrypoint fast path). |
-| Registry unreadable or malformed, relevant command | `deny registry-error`; next step: repair with `scripts/setup-new-project.sh`. |
+| Registry unreadable or malformed, relevant command | `deny registry-error`; next step: "fix or remove the invalid line in `<registry path>`". Malformed means the registry writer's own rejection predicate (an empty, CR, NUL, relative or non-canonical line) or non-UTF-8 content. |
 | Malformed event or oversized input, relevant command | `deny malformed-input`. |
-| Python missing or too old, relevant command | `deny runtime-unavailable`, in any directory while a registry exists (§7.1 step 1d). Irrelevant commands still exit 0. Installation already requires Python 3.11+. |
+| Python missing or too old, relevant command | `deny runtime-unavailable`, in any directory while a registry exists (§7.1 step 1d). Irrelevant commands still exit 0, except on a degraded PATH without `head` or `tr`, where every command is denied `runtime-unavailable` while a registry exists (§7.1 step 1e, X14). Installation already requires Python 3.11+. |
 | Uncaught exception or git read failure | `deny internal-error` or `deny limit-exceeded`. |
 | Effective directory not a git work tree | `not_applicable`. |
 | Remote HEAD unknown | `deny default-branch-unknown`. |
 | Restack journal missing, stale or ambiguous | `ask` with the failed check named. |
-| Concurrent settings edit during install | The installer keeps the user's version, reports a conflict and exits non-zero. Nothing is partially written. |
+| Concurrent settings edit during install | The installer keeps the user's version and reports status `unavailable` with reason `settings-changed-during-transaction` and exits 0, as every installer refusal does, so installation failure does not block other deployment targets (§10.2). Nothing is partially written. |
 | Output capture truncates the diagnostic | The decision is unchanged. Spec 17 MUST keep the reason line and the exit status. |
 | A retry after `deny` | Evaluated from scratch. A previous decision is never reused. |
 
@@ -615,8 +691,11 @@ the hook leaves `.git/` (refs, index, config), the work tree and `.ai/` byte-ide
   repository, branch not in `order`, moved local tip, wrong `<old-sha>`/`<new-sha>`, a
   lease SHA different from `expected_remote_tip`, `publication_authorized: false`,
   `--force` together with a valid journal, a protected destination, invalid JSON, and two
-  matching journals. A `RESTACK=1` variable and a marker file have no effect.
-  `--abort` gives allow.
+  matching journals. `--force` with a valid journal gives `ask push-force` (R17) naming
+  `forced`, a protected destination gives `ask push-protected-target` (R16) naming
+  `branch-protected` (§8.5), and every other case asks `push-lease-unverified` (R18) or
+  `rebase-outside-restack` (R26) naming its failed check. A `RESTACK=1` variable and a
+  marker file have no effect. `--abort` gives allow.
 - [ ] **AC-08 Other operations (R20–R30).** These give ask: `reset --hard`, `clean -fd`,
   `branch -d`/`-D`, `update-ref -d refs/heads/x`, `branch -f main`, `checkout -B main`,
   `merge` on `main`, `pull` on `main` without `--ff-only`, `gh pr merge 1`, and `gh api
@@ -654,16 +733,26 @@ These MUST appear in `harness/claude/capabilities.md` and in the ADR.
 
 | ID | Risk |
 |---|---|
-| X1 | Git commands run by scripts or programs the Bash tool starts (`bash scripts/x.sh`, `make`, Python) are not seen. |
+| X1 | Git commands run by scripts or programs the Bash tool starts (`bash scripts/x.sh`, `make`, Python) are not seen. The same holds for shells reached through programs outside the supported wrapper tables, for standard input named through a path the hook does not normalise, for shell startup and prompt code, and for shell options of shells whose option grammar differs from bash's. |
 | X2 | A shell alias or function named `git` in the user's shell environment is not seen. |
 | X3 | Unlisted destructive operations are not enforced: `checkout -- .`, `restore`, `stash drop`/`clear`, `worktree remove --force`, `filter-branch`, `replace`, local `tag`, `git-receive-pack`, and messages of `merge`/`cherry-pick`/`revert`. |
 | X4 | Edits to `.git/` through non-Bash tools are not seen. |
 | X5 | Between the decision and execution, refs can move. Only an explicit lease is compare-and-swap. |
-| X6 | If the harness proceeds when the hook crashes or times out, that failure is fail-open. |
+| X6 | If the harness proceeds when the hook crashes or times out, that failure is fail-open. With `"onFailure": "block"` a crash or timeout blocks the call; only harness behaviour outside that option (a runtime that ignores it, a hook disabled by settings) can still let the call proceed. |
 | X7 | An opaque command started outside registered projects that targets a registered project is not caught. |
 | X8 | The agent can forge the registry, the journal or git config. This is outside the threat model (§1.2). |
 | X9 | Codex and other harnesses have textual rules only. |
 | X10 | `--allow-pr`, PR text and the wider attribution rules remain textual. |
+| X11 | The registered entrypoint lives in the checkout and blocks on failure, so a checkout of a revision without it blocks every Bash call until uninstall. Earlier installers cannot read receipts that hold PreToolUse or permission state; uninstall with the current installer first. |
+| X12 | The fast-path prefilter decides relevance from the raw event text alone. Command text that never contains a delimited literal `git` or `gh` word, including text that reaches a shell only from the inherited environment or from a file, is not inspected. |
+| X13 | Some unusual registry path states (an unsearchable directory above the configuration base, a symbolic-link loop, an executable non-directory component) read as an absent registry. |
+| X14 | On a degraded PATH without `head` or `tr`, every Bash command starts Python; with `python3` also missing, every command is denied while a registry exists. |
+| X15 | The same-command state-change mark (§7.6) does not see every write: some redirections and concurrent pipeline or background elements, programs on the data-program list that can run commands, programs that configuration makes read-only git run, and commit hooks. |
+| X16 | Command runners and program-running options outside the rule matrix and the opaque list are not enforced, nor are operations outside the rule matrix. The capability record names them. |
+| X17 | Restack verification does not prove that an in-progress rebase was started by the exact replay; journals record no remote; the number of journal files is not capped. |
+| X18 | The exact permission deny rules apply at user level, also in unregistered projects; here-document body lines can match them; reinstall re-adds an owned rule that the user deleted. |
+| X19 | Local rewrites of a pushed unprotected branch, and resets other than `--hard` on any branch (protected ones included), are not asked about; only the later forced push asks. |
+| X20 | gh is checked only for `gh pr merge` and the `gh api` merge endpoints; gh aliases and other gh writes to pull requests or git refs are not enforced. |
 
 ## 14. Implementation order (test-first)
 
@@ -691,3 +780,43 @@ capability record; (b) shell parser and resolver; (c) staging and commit rules; 
 resolution and protected refs; (e) restack journal schema and verification; (f) adapter,
 entrypoint and limits; (g) installer and deny fragment; (h) contracts, ADR and validator
 mode.
+
+## Open Questions
+
+Proposed during the 2026-11-05 reconciliation. Each one needs an owner decision; none
+changes a requirement until it is decided.
+
+| ID | Question | Severity | Impact |
+|---|---|---|---|
+| OQ1 | §8.2 and `rules/git-flow.md` give the `default-branch-unknown` next step as `git remote set-head <r> --auto`, but the shipped diagnostic says `git remote set-head <remote> <branch>`. No recorded decision covers the difference. Which wording is canonical? | non-blocker | The diagnostic and the rule disagree. `--auto` queries the remote, so the agent's next step needs network access; naming a branch does not. |
+| OQ2 | The core caps the readings of ambiguous option prefixes (64) and denies `unsupported-form` beyond the cap. That limit is not in §7.5 and no test pins it, contrary to D10. Should §7.5 gain a row and a test, and which reason code applies (`unsupported-form` or `limit-exceeded`)? | non-blocker | An unpinned limit can change silently; the decision is fail-closed today. |
+| OQ3 | §7.4 item 4 makes an effective directory that is not inside a work tree `not_applicable` because "git itself will fail". Inside a git directory (`cd .git && git push …`, `git -C .git branch -D …`) git does not fail, and the hook answers `not_applicable` (validation finding, confirmed by probe on 2026-11-05). Should the hook resolve the repository there and apply the matrix, or should this become a residual risk? | non-blocker | A governed push, branch deletion or ref update run from inside `.git` is not checked. |
+| OQ4 | §8.4.2 maps an unqualified destination of a tag-only source to `refs/tags/<dst>`. When the remote already has `refs/heads/<dst>`, git updates the branch instead, so `git push origin v1:main` asks `push-bulk-or-tags` and names `refs/tags/main` while git would update `refs/heads/main`. Should the destination also be checked as a branch (R16) when a matching remote-tracking branch exists? | non-blocker | The command still asks, but the owner sees a misleading reason and operation. |
+| OQ5 | With `help.autocorrect` enabled, git runs the corrected subcommand for a typo (`git psuh -f`), which the hook answers `not_applicable` (D9). Should the hook read `help.autocorrect` for a subcommand that is neither a builtin nor an alias, and deny `unsupported-form` when it is enabled? | non-blocker | A typo can run a governed operation unchecked when the owner has enabled autocorrect. |
+
+## Change Log
+
+| Date | Task | Delta | Class | Edit | Source |
+|---|---|---|---|---|---|
+| 2026-11-05 | `task-06-harness-git-rails` | S1 | implemented-differently | §7.4 item 3: the `--forc` example replaced; an ambiguous prefix is evaluated as every candidate and the most severe result wins (`--forc` → `ask push-force`, R17). Unique-prefix example now `--al`. | Task state Assumptions (user, execution-time question 2026-11-03); `hooks/git_rails.py` `option_variants`; `tests/git-rails.sh` `ambiguous_force_prefix_needs_owner_approval` |
+| 2026-11-05 | `task-06-harness-git-rails` | S2 | implemented-differently | §8.5 rebase verification: `<new-sha>` fixed by position in `order` (first entry → `target.sha`, later → previous entry's `replayed_tip`); `order` lists only branches to replay. | Orchestrator under owner delegation 2026-11-04, journal-verification class B (1); `hooks/git_rails.py` `expected_base`; `workflows/restack.md → ## Recovery journal` |
+| 2026-11-05 | `task-06-harness-git-rails` | S3 | implemented-differently | §11 registry row: next step "fix or remove the invalid line in `<registry path>`" and the malformed predicate. | Owner batch-gate answer Q3, 2026-11-03; orchestrator G3 2026-11-04; `hooks/git_rails.py` `NEXT_STEPS` |
+| 2026-11-05 | `task-06-harness-git-rails` | S4 | implemented-differently | §7.1 new step 1e (degraded PATH) and the §11 Python row exception; the step 1a note now names 1e. | Orchestrator under owner delegation 2026-11-04 (entrypoint repair round 1, F1; finding N2); `hooks/git-rails.sh` lines 82–86 |
+| 2026-11-05 | `task-06-harness-git-rails` | S5 | implemented-differently | §7.1 step 1c: relevance pattern extended with JSON-escape boundaries (superset of the original). | Orchestrator under owner delegation 2026-11-04, G1 → A; `hooks/git-rails.sh` `relevant` |
+| 2026-11-05 | `task-06-harness-git-rails` | S6 | implemented-differently | §10.2 receipt bullet: `created_permissions`, the version 1 form when no permission state is held, and the prepared envelope's version. | Owned permission deny fragment subtask, reviewed (proposal DL2 routed to reconciliation); `scripts/install-hooks.py` `RECEIPT_FIELDS`, `compatible_receipt`, `build_prepared_receipt`, `remove_permissions` |
+| 2026-11-05 | `task-06-harness-git-rails` | S7 | implemented-differently | §11 concurrent-edit row: status `unavailable`, reason `settings-changed-during-transaction`, exit 0. | Validation observation V5 (registration subtask, DL2); §10.2 "Installation failure does not block other deployment targets"; `scripts/install-hooks.py` `main`; `tests/hook-install.sh` `call` asserts exit 0 |
+| 2026-11-05 | `task-06-harness-git-rails` | S8 | implemented-differently | §8.5 final paragraph and AC-07: `--force` and protected destinations keep R17/R16 and name `forced`/`branch-protected`; kebab-case check names. §9: the failed check is appended to the operation line. AC-07 tightened, not weakened. | Orchestrator under owner delegation 2026-11-04, journal-verification class B (3); Issue List #12 (approved 2026-11-04); `hooks/git_rails.py` `named_check`, `diagnostic` |
+| 2026-11-05 | `task-06-harness-git-rails` | S9 | spec-was-right | No edit. `git push origin v1:main` asks R14 exactly as §8.4.2 says; the misleading reason is raised as OQ4. | Push subtask proposals (Do Later); probe 2026-11-05 |
+| 2026-11-05 | `task-06-harness-git-rails` | S10 | spec-was-right | No edit. A `.git` effective directory gives `not_applicable` as §7.4 item 4 says; the false premise is raised as OQ3. | Parser validation V3 / proposal P4; probe 2026-11-05 |
+| 2026-11-05 | `task-06-harness-git-rails` | S11 | implemented-differently | §7.3 `bash -c`/`sh -c` row: only the exact form is parsed; shell options are read through an allowlist of bash's grammar; every other spelling that selects a command string or stdin is opaque. | Orchestrator under owner delegation 2026-11-05 (shell repair rounds 2–3); Issue List #11; `hooks/git_rails.py` `exact_command_string`, `scan_shell`, `STDIN_OPERAND` |
+| 2026-11-05 | `task-06-harness-git-rails` | S12 | implemented-beyond | §13: X1 extended; X11–X20 added in high-level wording. | Safety-rails contract subtask scope extension (orchestrator, owner delegation 2026-11-04); owner decision 2026-11-05 (H1–H4 recorded as residuals under X1/X12); `harness/claude/capabilities.md` residual table |
+| 2026-11-05 | `task-06-harness-git-rails` | S13 | implemented-differently | §10.1: manifest snippet gains `"onFailure": "block"`; the logging handlers keep `continue`. | Task Assumptions (handler failure mode, spec §10.1 conditional); `harness/claude/hooks.json`; `harness/claude/capabilities.md` failure-mode |
+| 2026-11-05 | `task-06-harness-git-rails` | S14 | implemented-beyond | §10.2: one failure mode per event, other events `invalid-manifest`; the resolved physical entrypoint must be readable. §10.3: the installer rejects `*`, inner `)` and control characters in fragment rules. | Issue List #6, #7, #8 (approved 2026-11-04); `scripts/install-hooks.py` `FAILURE_MODES`, `physical_script`, `PERMISSION_RULE` |
+| 2026-11-05 | `task-06-harness-git-rails` | S15 | implemented-differently | §7.1 step 1b: an unsearchable configuration base or `orchestrail` directory counts as a present registry. | Orchestrator under owner delegation 2026-11-04 (entrypoint repair round 1, F2); `hooks/git-rails.sh` `registry_exists` |
+| 2026-11-05 | `task-06-harness-git-rails` | S16 | implemented-beyond | §7.3 assignment row and R31: `HOME`, `XDG_CONFIG_HOME` and `PATH` join `GIT_*` as `opaque-environment`. | Task Assumptions (user, 2026-11-03); `hooks/git_rails.py` `SENSITIVE_NAMES` |
+| 2026-11-05 | `task-06-harness-git-rails` | S17 | implemented-beyond | §7.3: `busybox` wrapper and wrapper options; new opaque rows (other shells, git/gh word passed to non-data programs, uncertain directory changes); redirect reach-back paragraph. | Task Assumptions (user, 2026-11-03: other shells, unlisted wrappers, fail-closed reach-back, parser repair); orchestrator under owner delegation 2026-11-05 (busybox); Issue List #10; `hooks/git_rails.py` `strip_wrappers`, `OTHER_SHELLS`, `DATA_PROGRAMS`, `redirected` |
+| 2026-11-05 | `task-06-harness-git-rails` | S18 | implemented-beyond | New §7.6 Same-command state changes. | Task Assumptions (user, execution-time question 2026-11-03, and staging/commit repair decision); `hooks/git_rails.py` `state_changed`; residual X15 |
+| 2026-11-05 | `task-06-harness-git-rails` | S19 | implemented-beyond | §8.5: `update-refs` and `protected-set` replay checks; lease checks for a replayed tip, the pushed source and repeated leases; journal-file rules. | Orchestrator under owner delegation 2026-11-03/04 (journal verification class B (4)–(7), repair rounds 1–2); `hooks/git_rails.py` `replay_checks`, `lease_checks`, `scan_journals`, `JOURNAL_FILE` |
+| 2026-11-05 | `task-06-harness-git-rails` | S20 | implemented-differently | §13 X6 narrowed to harness behaviour outside `"onFailure": "block"`. | Task Assumptions (handler failure mode: X6 narrowed, not removed); `harness/claude/capabilities.md` X6 |
+| 2026-11-05 | `task-06-harness-git-rails` | S21 | implemented-beyond | §8.1 R28: a rebasing pull under `rebase.updateRefs` asks `protected-ref-rewrite`. R31: options and configuration that make git run another program are `unsupported-form`. | Issue List #3, #4, #5 (approved 2026-11-04); push subtask (command-line program options), reviewed; `hooks/git_rails.py` `pull_configuration`, `configured_programs`, `PROGRAM_PUSH_OPTIONS` |
+| 2026-11-05 | `task-06-harness-git-rails` | — | metadata | §0: Status set to implemented with merge pending; Revision and Authority rows updated. `## Open Questions` OQ1–OQ5 added. | Calling validation finalizer's verified prerequisites, 2026-11-05 |

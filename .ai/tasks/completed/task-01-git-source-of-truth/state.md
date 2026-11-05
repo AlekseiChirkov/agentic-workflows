@@ -172,7 +172,7 @@ Use the sequential feature stack. It keeps each independently verifiable outcome
 - .ai/specs/completed/02-run-log-vocabulary-validation.md:15 — preserve only the unchanged issue link in the current active source specification, within the existing owner-approved source category.
 - .ai/specs/completed/01-git-source-of-truth.md:22 — preserve only the active source criterion.
 - .ai/adr/0007-task-unknown-commit-ai-directory-in-this-repository.md:18 — preserve the historical repository-tracking decision.
-- .ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:69 — preserve the historical naming decision.
+- .ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:70 — preserve the historical naming decision.
 - .ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md:105,107 — preserve only the publication authorization and historical pull-request links.
 - .ai/memory/progress.md:4 — preserve the append-only history heading.
 - .ai/tasks/completed/task-00-sensitive-data-scrub/state.md:357,359 — preserve only the completed task's publication authorization and merge-order links.
@@ -190,7 +190,7 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 | `.ai/specs/completed/02-run-log-vocabulary-validation.md` | 15 | `agentic-workflows` × 1 |
 | `.ai/specs/completed/01-git-source-of-truth.md` | 22 | `agentic_workflows` × 1; `agentic-workflows` × 1 |
 | `.ai/adr/0007-task-unknown-commit-ai-directory-in-this-repository.md` | 18 | `agentic_workflows` × 1 |
-| `.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md` | 69 | `agentic_workflows` × 1 |
+| `.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md` | 70 | `agentic_workflows` × 1 |
 | `.ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md` | 105 | `agentic-workflows` × 1 |
 | `.ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md` | 107 | `agentic-workflows` × 3 |
 | `.ai/adr/0012-task-unknown-knowledge-tracking-policy.md` | 70 | `agentic-workflows` × 1 |
@@ -204,7 +204,7 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 | `docs/audits/2026-07-21-logic-audit-fixes.md` | 1, 8, 568 | `agentic_workflows` × 1 per line |
 | `docs/USAGE.md` | 254 | `agentic-workflows` × 1 |
 | `.ai/specs/completed/05-cost-and-duration-telemetry.md` | 688 | `agentic-workflows` × 5 |
-| `.ai/specs/06-harness-git-rails.md` | 9 | `agentic-workflows` × 2 |
+| `.ai/specs/06-harness-git-rails.md` | 15 | `agentic-workflows` × 2 |
 | `.ai/specs/07-state-tool.md` | 9 | `agentic-workflows` × 2 |
 | `.ai/specs/07-state-tool.md` | 11 | `agentic-workflows` × 1 |
 | `.ai/specs/09-golden-run-tests.md` | 9 | `agentic-workflows` × 1 |

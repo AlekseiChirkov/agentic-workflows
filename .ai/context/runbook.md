@@ -23,6 +23,8 @@ Notes:
   home/config/state/project/log roots rather than real user settings. The shell
   source contract uses syntax-only inspection, bounded named exceptions and
   fingerprinted unchanged baseline functions; it has no AST-Grep runtime dependency.
+- `--git-rails-only` runs `tests/git-rails.sh`: the decision core and the hook entrypoint `hooks/git-rails.sh` end to end, in disposable repositories with isolated HOME/XDG and a Python-free PATH for the fast-path cases; about 3.5 min. The full validator takes about 34–52 min (longer under memory pressure); run it with nothing else in parallel, since under memory pressure a concurrent run can be killed because a contract-version fixture re-runs it on a copy (the separate validator-runtime specification addresses this). The git-rails hook uses bash; head, tr and sed only for its fast path (without them the core decides alone); Python 3.11+ for relevant commands.
+- The registered git-rails entrypoint runs from this checkout and blocks on failure. Before checking out a revision without `hooks/git-rails.sh`, or before an earlier installer touches the receipt, run `bash scripts/install-hooks.sh uninstall` from the current checkout; otherwise every Bash call in every project is blocked until uninstall. Earlier installers refuse a receipt that holds PreToolUse or permission state.
 - Optional model helpers use offline focused suites `--model-catalog-only`,
   `--model-selection-only` and `--model-plan-only` through `scripts/validate-contracts.sh`.
   `--model-workflow-only` runs catalog, selection, plan, workflow and unchanged general
