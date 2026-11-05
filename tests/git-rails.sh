@@ -1698,6 +1698,644 @@ CLASSES = (CoreSurface, DecisionCombination, OptionParsing, EventValidation, Dec
            StateChangeTable)
 
 
+PROTECTED = 'push-protected-target'
+FORCE = 'push-force'
+LEASE = 'push-lease-unverified'
+DELETE = 'push-delete'
+BULK = 'push-bulk-or-tags'
+TARGET = 'push-target-unknown'
+DEFAULT_UNKNOWN = 'default-branch-unknown'
+LEASE_SHA = '0123456789abcdef0123456789abcdef01234567'
+NETWORK_SUBCOMMANDS = ('fetch', 'ls-remote', 'push', 'pull', 'clone', 'remote', 'send-pack', 'receive-pack')
+
+
+class PushFixture(RailsFixture):
+    """The project with local bare remotes, remote-tracking default branches and the push
+    configuration that decides each destination. Fixture pushes run before the snapshot."""
+
+    def add_remote(self, name: str, branches: tuple[str, ...], default: str | None) -> None:
+        bare = self.world / f'{name}.git'
+        self.git(self.world, 'init', '-q', '--bare', str(bare))
+        self.git(self.project, 'remote', 'add', name, str(bare))
+        self.git(self.project, 'push', '-q', name, *branches)
+        if default is not None:
+            self.git(self.project, 'remote', 'set-head', name, default)
+
+    def set_config(self, key: str, value: str) -> None:
+        self.git(self.project, 'config', '--add', key, value)
+
+    def setup_push(self) -> None:
+        for branch in ('feat/x', 'feat/y', 'develop'):
+            self.git(self.project, 'branch', branch)
+        self.git(self.project, 'tag', 'v1')
+        self.add_remote('origin', ('main', 'feat/x', 'develop'), 'main')
+
+    def setup_push_feature(self) -> None:
+        self.setup_push()
+        self.git(self.project, 'switch', '-q', 'feat/x')
+
+    def setup_push_simple(self) -> None:
+        self.setup_push()
+        self.set_config('push.default', 'simple')
+
+    def setup_push_current(self) -> None:
+        self.setup_push_feature()
+        self.set_config('push.default', 'current')
+
+    def setup_push_matching(self) -> None:
+        self.setup_push_feature()
+        self.set_config('push.default', 'matching')
+
+    def setup_push_nothing(self) -> None:
+        self.setup_push_feature()
+        self.set_config('push.default', 'nothing')
+
+    def setup_push_upstream_main(self) -> None:
+        self.setup_push_feature()
+        self.set_config('push.default', 'upstream')
+        self.set_config('branch.feat/x.remote', 'origin')
+        self.set_config('branch.feat/x.merge', 'refs/heads/main')
+
+    def setup_push_upstream_feature(self) -> None:
+        self.setup_push_feature()
+        self.set_config('push.default', 'upstream')
+        self.set_config('branch.feat/x.remote', 'origin')
+        self.set_config('branch.feat/x.merge', 'refs/heads/feat/x')
+
+    def setup_push_upstream_missing(self) -> None:
+        self.setup_push_feature()
+        self.set_config('push.default', 'upstream')
+
+    def setup_push_detached(self) -> None:
+        self.setup_push()
+        self.git(self.project, 'switch', '-q', '--detach', 'HEAD')
+
+    def setup_push_configured_refspec(self) -> None:
+        self.setup_push_feature()
+        self.set_config('remote.origin.push', 'refs/heads/feat/x:refs/heads/feat/x')
+
+    def setup_push_mirror_remote(self) -> None:
+        self.setup_push_feature()
+        self.set_config('remote.origin.mirror', 'true')
+
+    def setup_push_follow_tags(self) -> None:
+        self.setup_push_feature()
+        self.set_config('push.followTags', 'true')
+
+    def setup_push_no_default_head(self) -> None:
+        self.setup_push_feature()
+        self.git(self.project, 'remote', 'set-head', 'origin', '-d')
+
+    def setup_push_develop_head(self) -> None:
+        self.setup_push_feature()
+        self.git(self.project, 'remote', 'set-head', 'origin', 'develop')
+
+    def setup_push_extra_pattern(self) -> None:
+        self.setup_push_feature()
+        self.set_config('orchestrail.protectedBranch', 'stable/*')
+        self.set_config('orchestrail.protectedBranch', 'hotfix')
+
+    def setup_push_without_origin(self) -> None:
+        for branch in ('feat/x', 'trunk'):
+            self.git(self.project, 'branch', branch)
+        self.add_remote('upstream', ('main', 'trunk'), 'trunk')
+        self.git(self.project, 'switch', '-q', 'feat/x')
+
+    def setup_push_without_origin_pattern(self) -> None:
+        self.setup_push_without_origin()
+        self.set_config('orchestrail.protectedBranch', 'stable/*')
+
+    def setup_push_backup(self) -> None:
+        self.setup_push_feature()
+        self.add_remote('backup', ('feat/x',), None)
+
+    def setup_push_branch_push_remote(self) -> None:
+        self.setup_push_backup()
+        self.set_config('branch.feat/x.pushRemote', 'backup')
+
+    def setup_push_push_default(self) -> None:
+        self.setup_push_backup()
+        self.set_config('remote.pushDefault', 'backup')
+
+    def setup_push_branch_remote(self) -> None:
+        self.setup_push_backup()
+        self.set_config('branch.feat/x.remote', 'backup')
+
+    def setup_push_push_remote_first(self) -> None:
+        self.setup_push_backup()
+        self.set_config('branch.feat/x.pushRemote', 'origin')
+        self.set_config('remote.pushDefault', 'backup')
+        self.set_config('branch.feat/x.remote', 'backup')
+
+    def setup_push_push_default_before_branch_remote(self) -> None:
+        self.setup_push_backup()
+        self.set_config('remote.pushDefault', 'origin')
+        self.set_config('branch.feat/x.remote', 'backup')
+
+    def setup_push_branch_remote_before_origin(self) -> None:
+        self.setup_push_without_origin()
+        self.set_config('branch.feat/x.remote', 'upstream')
+
+
+# git push: destinations resolved from operands, refspecs and push configuration, checked
+# against the protected set of the target remote; every destination counts.
+PUSH_CASES: tuple[DecisionCase, ...] = (
+    # Protected destinations.
+    DecisionCase('push_of_main_to_origin_needs_owner_approval', 'git push origin main',
+                 'ask', PROTECTED, 'R16', setup='push'),
+    DecisionCase('push_of_a_feature_onto_main_needs_owner_approval', 'git push origin feat/x:main',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('push_of_head_to_a_release_ref_needs_owner_approval',
+                 'git push origin HEAD:refs/heads/release/1.2', 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('push_of_head_on_main_needs_owner_approval', 'git push origin HEAD',
+                 'ask', PROTECTED, 'R16', setup='push'),
+    DecisionCase('bare_push_on_main_with_default_configuration_needs_owner_approval', 'git push',
+                 'ask', PROTECTED, 'R16', setup='push'),
+    DecisionCase('bare_push_on_main_with_simple_default_needs_owner_approval', 'git push',
+                 'ask', PROTECTED, 'R16', setup='push-simple'),
+    DecisionCase('push_to_a_configured_protected_pattern_needs_owner_approval', 'git push origin feat/x:stable/2',
+                 'ask', PROTECTED, 'R16', setup='push-extra-pattern'),
+    DecisionCase('push_to_a_configured_protected_name_needs_owner_approval', 'git push origin feat/x:hotfix',
+                 'ask', PROTECTED, 'R16', setup='push-extra-pattern'),
+    DecisionCase('push_to_a_name_the_pattern_does_not_match_is_allowed', 'git push origin feat/x:stablex',
+                 'allow', setup='push-extra-pattern'),
+    DecisionCase('one_protected_refspec_among_several_needs_owner_approval', 'git push origin feat/x feat/y:main',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('several_unprotected_refspecs_are_allowed', 'git push origin feat/x feat/y',
+                 'allow', setup='push-feature'),
+    DecisionCase('explicit_branch_ref_destination_to_main_needs_owner_approval',
+                 'git push origin feat/x:refs/heads/main', 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('explicit_branch_ref_destination_to_a_feature_is_allowed',
+                 'git push origin feat/x:refs/heads/feat/z', 'allow', setup='push-feature'),
+    DecisionCase('master_is_always_protected', 'git push origin feat/x:master', 'ask', PROTECTED, 'R16',
+                 setup='push-feature'),
+    DecisionCase('remote_default_branch_is_protected', 'git push origin feat/x:develop', 'ask', PROTECTED, 'R16',
+                 setup='push-develop-head'),
+    DecisionCase('main_stays_protected_when_the_remote_default_is_another_branch', 'git push origin feat/x:main',
+                 'ask', PROTECTED, 'R16', setup='push-develop-head'),
+    DecisionCase('develop_is_not_protected_while_the_remote_default_is_main', 'git push origin feat/x:develop',
+                 'allow', setup='push-feature'),
+    DecisionCase('upstream_default_onto_main_needs_owner_approval', 'git push', 'ask', PROTECTED, 'R16',
+                 setup='push-upstream-main'),
+    DecisionCase('other_remote_default_branch_is_protected', 'git push upstream feat/x:trunk',
+                 'ask', PROTECTED, 'R16', setup='push-without-origin'),
+    DecisionCase('push_from_unregistered_cwd_into_the_project_is_decided', 'git -C @project@ push origin main',
+                 'ask', PROTECTED, 'R16', cwd='outside', setup='push-feature'),
+    # Allowed pushes.
+    DecisionCase('bare_push_on_a_feature_is_allowed', 'git push', 'allow', setup='push-feature'),
+    DecisionCase('push_of_a_feature_to_origin_is_allowed', 'git push origin feat/x', 'allow', setup='push-feature'),
+    DecisionCase('push_of_head_on_a_feature_is_allowed', 'git push origin HEAD', 'allow', setup='push-feature'),
+    DecisionCase('bare_push_with_current_default_is_allowed', 'git push', 'allow', setup='push-current'),
+    DecisionCase('upstream_default_onto_the_same_feature_is_allowed', 'git push', 'allow',
+                 setup='push-upstream-feature'),
+    DecisionCase('push_from_a_subdirectory_is_allowed', 'cd sub && git push origin feat/x', 'allow',
+                 setup='push-feature'),
+    DecisionCase('push_with_a_directory_option_is_allowed', 'git -C sub push origin feat/x', 'allow',
+                 setup='push-feature'),
+    DecisionCase('push_with_harmless_options_is_allowed', 'git push -u -v --atomic origin feat/x', 'allow',
+                 setup='push-feature'),
+    DecisionCase('push_to_another_configured_remote_is_allowed', 'git push upstream feat/x', 'allow',
+                 setup='push-without-origin'),
+    DecisionCase('push_after_read_only_git_is_allowed', 'git status && git push origin feat/x', 'allow',
+                 setup='push-feature'),
+    DecisionCase('timeout_wrapped_feature_push_is_allowed', 'timeout 30 git push origin feat/x', 'allow',
+                 setup='push-feature'),
+    # Force.
+    DecisionCase('short_force_needs_owner_approval', 'git push -f', 'ask', FORCE, 'R17', setup='push-feature'),
+    DecisionCase('timeout_wrapped_force_push_needs_owner_approval', 'timeout 30 git push -f',
+                 'ask', FORCE, 'R17', setup='push-feature'),
+    DecisionCase('long_force_needs_owner_approval', 'git push --force origin feat/x', 'ask', FORCE, 'R17',
+                 setup='push-feature'),
+    DecisionCase('ambiguous_force_prefix_needs_owner_approval', 'git push --forc', 'ask', FORCE, 'R17',
+                 setup='push-feature'),
+    DecisionCase('force_in_a_short_bundle_needs_owner_approval', 'git push -uf origin feat/x', 'ask', FORCE, 'R17',
+                 setup='push-feature'),
+    DecisionCase('plus_refspec_needs_owner_approval', 'git push origin +feat/x', 'ask', FORCE, 'R17',
+                 setup='push-feature'),
+    DecisionCase('force_if_includes_without_lease_needs_owner_approval', 'git push --force-if-includes origin feat/x',
+                 'ask', FORCE, 'R17', setup='push-feature'),
+    DecisionCase('negated_force_is_allowed', 'git push -f --no-force origin feat/x', 'allow', setup='push-feature'),
+    DecisionCase('force_from_unregistered_cwd_into_the_project_needs_owner_approval', 'git -C @project@ push -f',
+                 'ask', FORCE, 'R17', cwd='outside', setup='push-feature'),
+    DecisionCase('protected_destination_outranks_force', 'git push -f origin main', 'ask', PROTECTED, 'R16',
+                 setup='push-feature'),
+    # Leases without a restack journal.
+    DecisionCase('bare_lease_without_a_journal_is_unverified', 'git push --force-with-lease',
+                 'ask', LEASE, 'R18', setup='push-feature'),
+    DecisionCase('lease_on_a_ref_without_a_journal_is_unverified', 'git push --force-with-lease=feat/x origin feat/x',
+                 'ask', LEASE, 'R18', setup='push-feature'),
+    DecisionCase('explicit_lease_without_a_journal_is_unverified',
+                 f'git push --force-with-lease=feat/x:{LEASE_SHA} origin feat/x', 'ask', LEASE, 'R18',
+                 setup='push-feature'),
+    DecisionCase('absent_lease_without_a_journal_is_unverified',
+                 'git push --force-with-lease=feat/z: origin feat/x:feat/z', 'ask', LEASE, 'R18',
+                 setup='push-feature'),
+    DecisionCase('negated_lease_is_allowed', 'git push --force-with-lease --no-force-with-lease origin feat/x',
+                 'allow', setup='push-feature'),
+    DecisionCase('force_outranks_an_unverified_lease', 'git push -f --force-with-lease origin feat/x',
+                 'ask', FORCE, 'R17', setup='push-feature'),
+    # Deletion.
+    DecisionCase('long_delete_needs_owner_approval', 'git push origin --delete feat/y', 'ask', DELETE, 'R15',
+                 setup='push-feature'),
+    DecisionCase('short_delete_needs_owner_approval', 'git push -d origin feat/y', 'ask', DELETE, 'R15',
+                 setup='push-feature'),
+    DecisionCase('empty_source_refspec_needs_owner_approval', 'git push origin :feat/y', 'ask', DELETE, 'R15',
+                 setup='push-feature'),
+    DecisionCase('deleting_main_is_reported_as_a_deletion', 'git push origin --delete main', 'ask', DELETE, 'R15',
+                 setup='push-feature'),
+    DecisionCase('ambiguous_delete_prefix_needs_owner_approval', 'git push --d origin feat/y', 'ask', DELETE, 'R15',
+                 setup='push-feature'),
+    DecisionCase('prune_needs_owner_approval', 'git push --prune origin feat/x', 'ask', DELETE, 'R15',
+                 setup='push-feature'),
+    DecisionCase('delete_among_allowed_refspecs_needs_owner_approval', 'git push origin feat/x :feat/y',
+                 'ask', DELETE, 'R15', setup='push-feature'),
+    # Bulk and tag pushes.
+    DecisionCase('tags_flag_needs_owner_approval', 'git push --tags', 'ask', BULK, 'R14', setup='push-feature'),
+    DecisionCase('mirror_flag_needs_owner_approval', 'git push --mirror', 'ask', BULK, 'R14', setup='push-feature'),
+    DecisionCase('all_flag_needs_owner_approval', 'git push --all', 'ask', BULK, 'R14', setup='push-feature'),
+    DecisionCase('branches_flag_needs_owner_approval', 'git push --branches origin', 'ask', BULK, 'R14',
+                 setup='push-feature'),
+    DecisionCase('follow_tags_flag_needs_owner_approval', 'git push --follow-tags origin feat/x', 'ask', BULK, 'R14',
+                 setup='push-feature'),
+    DecisionCase('tag_source_needs_owner_approval', 'git push origin v1', 'ask', BULK, 'R14', setup='push-feature'),
+    DecisionCase('tag_source_with_short_destination_needs_owner_approval', 'git push origin v1:v2',
+                 'ask', BULK, 'R14', setup='push-feature'),
+    DecisionCase('explicit_tag_ref_needs_owner_approval', 'git push origin refs/tags/v1', 'ask', BULK, 'R14',
+                 setup='push-feature'),
+    DecisionCase('tag_destination_needs_owner_approval', 'git push origin feat/x:refs/tags/x', 'ask', BULK, 'R14',
+                 setup='push-feature'),
+    DecisionCase('tag_keyword_needs_owner_approval', 'git push origin tag v1', 'ask', BULK, 'R14',
+                 setup='push-feature'),
+    DecisionCase('matching_default_needs_owner_approval', 'git push', 'ask', BULK, 'R14', setup='push-matching'),
+    DecisionCase('matching_refspec_needs_owner_approval', 'git push origin :', 'ask', BULK, 'R14',
+                 setup='push-feature'),
+    DecisionCase('mirror_remote_configuration_needs_owner_approval', 'git push', 'ask', BULK, 'R14',
+                 setup='push-mirror-remote'),
+    DecisionCase('follow_tags_configuration_needs_owner_approval', 'git push origin feat/x', 'ask', BULK, 'R14',
+                 setup='push-follow-tags'),
+    DecisionCase('negated_tags_flag_is_allowed', 'git push --tags --no-tags origin feat/x', 'allow',
+                 setup='push-feature'),
+    # Unresolvable targets.
+    DecisionCase('url_remote_is_push_target_unknown', 'git push https://example.invalid/r.git feat/x',
+                 'deny', TARGET, 'R12', setup='push-feature'),
+    DecisionCase('path_remote_is_push_target_unknown', 'git push @outside@ feat/x', 'deny', TARGET, 'R12',
+                 setup='push-feature'),
+    DecisionCase('unknown_remote_name_is_push_target_unknown', 'git push nowhere feat/x', 'deny', TARGET, 'R12',
+                 setup='push-feature'),
+    DecisionCase('branch_name_in_the_remote_position_is_push_target_unknown', 'git push feat/x feat/y:main',
+                 'deny', TARGET, 'R12', setup='push-feature'),
+    DecisionCase('bare_push_on_detached_head_is_push_target_unknown', 'git push', 'deny', TARGET, 'R12',
+                 setup='push-detached'),
+    DecisionCase('head_refspec_on_detached_head_is_push_target_unknown', 'git push origin HEAD',
+                 'deny', TARGET, 'R12', setup='push-detached'),
+    DecisionCase('configured_remote_refspec_is_push_target_unknown', 'git push', 'deny', TARGET, 'R12',
+                 setup='push-configured-refspec'),
+    DecisionCase('configured_remote_refspec_with_explicit_refspec_is_push_target_unknown',
+                 'git push origin feat/x', 'deny', TARGET, 'R12', setup='push-configured-refspec'),
+    DecisionCase('nothing_default_is_push_target_unknown', 'git push', 'deny', TARGET, 'R12', setup='push-nothing'),
+    DecisionCase('upstream_default_without_upstream_is_push_target_unknown', 'git push', 'deny', TARGET, 'R12',
+                 setup='push-upstream-missing'),
+    DecisionCase('wildcard_refspec_is_push_target_unknown', "git push origin 'refs/heads/*:refs/heads/*'",
+                 'deny', TARGET, 'R12', setup='push-feature'),
+    DecisionCase('negative_refspec_is_push_target_unknown', "git push origin '^refs/heads/feat/y'",
+                 'deny', TARGET, 'R12', setup='push-feature'),
+    DecisionCase('bare_push_without_origin_or_configured_remote_is_push_target_unknown', 'git push',
+                 'deny', TARGET, 'R12', setup='push-without-origin'),
+    DecisionCase('push_without_any_remote_is_push_target_unknown', 'git push origin main', 'deny', TARGET, 'R12'),
+    # Missing remote default branch.
+    DecisionCase('missing_remote_default_branch_is_default_branch_unknown', 'git push origin feat/x',
+                 'deny', DEFAULT_UNKNOWN, 'R13', setup='push-no-default-head'),
+    DecisionCase('remote_without_default_branch_is_default_branch_unknown', 'git push backup feat/x',
+                 'deny', DEFAULT_UNKNOWN, 'R13', setup='push-backup'),
+    DecisionCase('missing_default_branch_outranks_force', 'git push -f origin feat/x',
+                 'deny', DEFAULT_UNKNOWN, 'R13', setup='push-no-default-head'),
+    # Remote resolution order and the --repo option.
+    DecisionCase('branch_push_remote_is_the_default_target', 'git push', 'deny', DEFAULT_UNKNOWN, 'R13',
+                 setup='push-branch-push-remote'),
+    DecisionCase('push_default_remote_is_the_default_target', 'git push', 'deny', DEFAULT_UNKNOWN, 'R13',
+                 setup='push-push-default'),
+    DecisionCase('branch_remote_is_the_default_target', 'git push', 'deny', DEFAULT_UNKNOWN, 'R13',
+                 setup='push-branch-remote'),
+    DecisionCase('branch_push_remote_wins_over_the_other_defaults', 'git push', 'allow',
+                 setup='push-push-remote-first'),
+    DecisionCase('push_default_remote_wins_over_the_branch_remote', 'git push', 'allow',
+                 setup='push-push-default-before-branch-remote'),
+    DecisionCase('branch_remote_wins_over_a_missing_origin', 'git push', 'allow',
+                 setup='push-branch-remote-before-origin'),
+    DecisionCase('explicit_remote_wins_over_configured_defaults', 'git push origin feat/x', 'allow',
+                 setup='push-branch-push-remote'),
+    DecisionCase('repo_option_names_the_remote', 'git push --repo=origin', 'allow', setup='push-feature'),
+    DecisionCase('separate_repo_option_names_the_remote', 'git push --repo origin', 'allow', setup='push-feature'),
+    DecisionCase('repo_option_on_main_needs_owner_approval', 'git push --repo=origin', 'ask', PROTECTED, 'R16',
+                 setup='push'),
+    DecisionCase('repo_option_with_a_url_is_push_target_unknown', 'git push --repo=https://example.invalid/r.git',
+                 'deny', TARGET, 'R12', setup='push-feature'),
+    DecisionCase('repo_option_naming_a_remote_without_default_branch_is_default_branch_unknown',
+                 'git push --repo=backup', 'deny', DEFAULT_UNKNOWN, 'R13', setup='push-backup'),
+    DecisionCase('operand_remote_wins_over_the_repo_option', 'git push --repo=backup origin feat/x', 'allow',
+                 setup='push-backup'),
+    # Dry runs skip every other push rule.
+    DecisionCase('dry_run_of_a_protected_push_is_allowed', 'git push --dry-run origin main', 'allow',
+                 setup='push-feature'),
+    DecisionCase('short_dry_run_of_a_forced_push_is_allowed', 'git push -n -f origin main', 'allow',
+                 setup='push-feature'),
+    DecisionCase('dry_run_to_a_url_is_allowed', 'git push --dry-run https://example.invalid/r.git main', 'allow',
+                 setup='push-feature'),
+    DecisionCase('dry_run_with_missing_default_branch_is_allowed', 'git push --dry-run origin feat/x', 'allow',
+                 setup='push-no-default-head'),
+    DecisionCase('negated_dry_run_is_decided', 'git push --dry-run --no-dry-run origin main', 'ask', PROTECTED,
+                 'R16', setup='push-feature'),
+    # Options that cannot be verified.
+    DecisionCase('unknown_push_option_is_unsupported', 'git push --bogus origin feat/x', 'deny', 'unsupported-form',
+                 setup='push-feature'),
+    DecisionCase('missing_option_value_is_unsupported', 'git push origin feat/x --repo', 'deny', 'unsupported-form',
+                 setup='push-feature'),
+    DecisionCase('receive_pack_program_is_unsupported', 'git push --receive-pack=evil origin feat/x',
+                 'deny', 'unsupported-form', setup='push-feature'),
+    DecisionCase('exec_program_is_unsupported', 'git push --exec evil origin feat/x', 'deny', 'unsupported-form',
+                 setup='push-feature'),
+    DecisionCase('on_demand_submodule_push_is_unsupported', 'git push --recurse-submodules=on-demand origin feat/x',
+                 'deny', 'unsupported-form', setup='push-feature'),
+    DecisionCase('submodule_check_is_allowed', 'git push --recurse-submodules=check origin feat/x', 'allow',
+                 setup='push-feature'),
+)
+
+# An earlier part of the same command that may write makes every push-target read
+# unverifiable; a dry run reads nothing and stays allowed.
+PUSH_STATE_CHANGE_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('push_after_checkout_is_push_target_unknown', 'git checkout main && git push',
+                 'deny', TARGET, 'R12', setup='push-feature'),
+    DecisionCase('push_after_switch_is_push_target_unknown', 'git switch feat/x && git push origin feat/x',
+                 'deny', TARGET, 'R12', setup='push'),
+    DecisionCase('push_after_push_configuration_is_push_target_unknown',
+                 'git config push.default matching && git push', 'deny', TARGET, 'R12', setup='push-feature'),
+    DecisionCase('push_after_remote_change_is_push_target_unknown',
+                 'git remote set-head origin feat/x; git push origin main', 'deny', TARGET, 'R12', setup='push-feature'),
+    DecisionCase('push_after_a_file_write_is_push_target_unknown', 'echo x > a.txt && git push origin feat/x',
+                 'deny', TARGET, 'R12', setup='push-feature'),
+    DecisionCase('push_after_a_commit_is_push_target_unknown', 'git commit -m ok && git push origin feat/x',
+                 'deny', TARGET, 'R12', setup='push-feature'),
+    DecisionCase('second_push_is_push_target_unknown', 'git push origin feat/x && git push origin feat/y',
+                 'deny', TARGET, 'R12', setup='push-feature'),
+    DecisionCase('push_after_fetch_is_push_target_unknown', 'git fetch origin && git push origin feat/x',
+                 'deny', TARGET, 'R12', setup='push-feature'),
+    DecisionCase('push_after_a_write_in_a_subshell_is_push_target_unknown',
+                 '(git switch -q main); git push origin HEAD', 'deny', TARGET, 'R12', setup='push-feature'),
+    DecisionCase('dry_run_after_a_write_is_allowed', 'git checkout main && git push --dry-run origin main', 'allow',
+                 setup='push-feature'),
+    DecisionCase('push_after_cd_and_assignments_is_allowed', 'cd sub; X=1; export Y=2; git push origin feat/x',
+                 'allow', setup='push-feature'),
+    DecisionCase('write_after_the_push_does_not_change_it', 'git push origin feat/x && echo x > a.txt', 'allow',
+                 setup='push-feature'),
+)
+
+
+class PushTable(PushFixture):
+    """Table-driven decisions of git push."""
+
+
+for push_case in (*PUSH_CASES, *PUSH_STATE_CHANGE_CASES):
+    setattr(PushTable, 'test_' + push_case.name, decision_test(push_case))
+
+
+# git resolves a short ref name that starts with heads/ or tags/ through refs/<name>, so
+# such a source or destination is the branch or tag it names (git 2.53, local bare remote).
+PARTIAL_REF_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('partial_branch_destination_onto_main_needs_owner_approval', 'git push origin feat/x:heads/main',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('partial_branch_source_alone_for_main_needs_owner_approval', 'git push origin heads/main',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('partial_tag_source_alone_needs_owner_approval', 'git push origin tags/v1',
+                 'ask', BULK, 'R14', setup='push-feature'),
+    DecisionCase('partial_tag_destination_needs_owner_approval', 'git push origin feat/x:tags/v1',
+                 'ask', BULK, 'R14', setup='push-feature'),
+    DecisionCase('head_onto_partial_main_needs_owner_approval', 'git push origin HEAD:heads/main',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('upstream_source_onto_partial_main_needs_owner_approval', "git push origin '@{u}:heads/main'",
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('partial_source_onto_partial_main_needs_owner_approval', 'git push origin heads/feat/x:heads/main',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('full_source_onto_partial_release_needs_owner_approval',
+                 'git push origin refs/heads/feat/x:heads/release/1.2', 'ask', PROTECTED, 'R16', setup='push-feature'),
+    # Neighbours that name no protected branch and no tag, and forms already decided.
+    DecisionCase('partial_branch_destination_onto_a_feature_is_allowed', 'git push origin feat/x:heads/feat/y',
+                 'allow', setup='push-feature'),
+    DecisionCase('full_branch_destination_onto_a_feature_is_allowed', 'git push origin feat/x:refs/heads/feat/y',
+                 'allow', setup='push-feature'),
+    DecisionCase('partial_branch_source_alone_for_a_feature_is_allowed', 'git push origin heads/feat/x',
+                 'allow', setup='push-feature'),
+    DecisionCase('capitalised_heads_prefix_is_an_ordinary_branch_name', 'git push origin feat/x:Heads/main',
+                 'allow', setup='push-feature'),
+    DecisionCase('full_ref_outside_heads_and_tags_is_allowed', 'git push origin feat/x:refs/main',
+                 'allow', setup='push-feature'),
+    DecisionCase('remote_tracking_source_alone_is_allowed', 'git push origin remotes/origin/main',
+                 'allow', setup='push-feature'),
+    DecisionCase('remote_tracking_short_destination_is_allowed', 'git push origin feat/x:remotes/origin/main',
+                 'allow', setup='push-feature'),
+    DecisionCase('remote_tracking_source_onto_main_needs_owner_approval', 'git push origin remotes/origin/main:main',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('upstream_source_onto_main_needs_owner_approval', "git push origin '@{u}:main'",
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('partial_deletion_needs_owner_approval', 'git push origin :heads/feat/y',
+                 'ask', DELETE, 'R15', setup='push-feature'),
+)
+
+for partial_case in PARTIAL_REF_CASES:
+    setattr(PushTable, 'test_' + partial_case.name, decision_test(partial_case))
+
+
+class ProtectedRefs(PushFixture):
+    """The protected branch set of a target remote and the local set shared with other rules."""
+
+    def invocation(self) -> Any:
+        return self.resolve('git status', str(self.project)).invocations[0]
+
+    def context(self) -> Any:
+        return self.api('Context')(cwd=str(self.project), roots=self.roots, environ=dict(self.environ))
+
+    def remote_set(self, remote: str | None) -> Any:
+        result = self.api('protected_branches')(remote, self.invocation(), self.context())
+        return None if result is None else set(result)
+
+    def local_set(self) -> Any:
+        result = self.api('local_protected_branches')(self.invocation(), self.context())
+        return None if result is None else set(result)
+
+    def test_fixed_names_are_main_master_and_release(self) -> None:
+        self.assertEqual(tuple(self.api('DEFAULT_PROTECTED')), ('main', 'master', 'release/*'))
+
+    def test_remote_default_branch_joins_the_fixed_names(self) -> None:
+        self.setup_push_develop_head()
+        self.assertEqual(self.remote_set('origin'), {'develop', 'main', 'master', 'release/*'})
+
+    def test_configured_patterns_join_the_set(self) -> None:
+        self.setup_push_extra_pattern()
+        self.assertEqual(self.remote_set('origin'), {'main', 'master', 'release/*', 'stable/*', 'hotfix'})
+
+    def test_missing_remote_default_branch_cannot_be_computed(self) -> None:
+        self.setup_push_no_default_head()
+        self.assertIsNone(self.remote_set('origin'))
+
+    def test_no_remote_gives_the_fixed_and_configured_names(self) -> None:
+        self.setup_push_extra_pattern()
+        self.assertEqual(self.remote_set(None), {'main', 'master', 'release/*', 'stable/*', 'hotfix'})
+
+    def test_local_protection_uses_the_origin_default_branch(self) -> None:
+        self.setup_push_develop_head()
+        self.assertEqual(self.local_set(), {'develop', 'main', 'master', 'release/*'})
+
+    def test_local_protection_without_origin_ignores_other_remotes(self) -> None:
+        self.setup_push_without_origin_pattern()
+        self.assertEqual(self.local_set(), {'main', 'master', 'release/*', 'stable/*'})
+
+    def test_local_protection_with_origin_but_no_default_branch_cannot_be_computed(self) -> None:
+        self.setup_push_no_default_head()
+        self.assertIsNone(self.local_set())
+
+    def test_protection_matches_branch_refs_by_short_name(self) -> None:
+        is_protected = self.api('is_protected')
+        patterns = ('main', 'release/*', 'stable/*')
+        for ref, expected in (('refs/heads/main', True), ('refs/heads/release/1.2', True),
+                              ('refs/heads/stable/a', True), ('refs/heads/feat/x', False),
+                              ('refs/heads/mainline', False), ('refs/heads/Main', False),
+                              ('refs/tags/main', False), ('refs/remotes/origin/main', False)):
+            with self.subTest(ref=ref):
+                self.assertIs(is_protected(ref, patterns), expected)
+
+
+class LeaseVerifierInterface(PushFixture):
+    """The force-with-lease rule hands explicit leases to a replaceable verifier."""
+
+    def install(self, verified: bool) -> list[tuple[Any, Any, Any]]:
+        calls: list[tuple[Any, Any, Any]] = []
+        verdict = self.api('LeaseVerdict')
+        original = self.api('LEASE_VERIFIER')
+
+        def verifier(request: Any, invocation: Any, context: Any) -> Any:
+            calls.append((request, invocation, context))
+            return verdict(verified, None if verified else 'fixture verifier refused')
+        setattr(CORE, 'LEASE_VERIFIER', verifier)
+        self.addCleanup(setattr, CORE, 'LEASE_VERIFIER', original)
+        return calls
+
+    def tip(self, ref: str) -> str:
+        return subprocess.run([REAL_GIT, 'rev-parse', ref], cwd=self.project, env=self.git_environ, check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    def push(self, arguments: str) -> tuple[str, str | None, str | None]:
+        return self.decide(self.event('git push ' + arguments, str(self.project)))
+
+    def test_default_verifier_is_the_no_journal_implementation(self) -> None:
+        self.assertIs(self.api('LEASE_VERIFIER'), self.api('no_journal_verifier'))
+
+    def test_explicit_lease_reaches_the_verifier(self) -> None:
+        self.setup_push_feature()
+        calls = self.install(True)
+        sha = self.tip('refs/remotes/origin/feat/x')
+        self.assertEqual(self.push(f'--force-with-lease=feat/x:{sha} origin feat/x'), ('allow', None, None))
+        self.assertEqual(len(calls), 1)
+        request, invocation, _ = calls[0]
+        self.assertEqual((request.remote, tuple(request.destinations), tuple(request.leases), request.forced),
+                         ('origin', ('refs/heads/feat/x',), (('refs/heads/feat/x', sha),), False))
+        self.assertEqual(invocation.common_dir, str(self.project / '.git'))
+
+    def test_lease_for_a_ref_recorded_as_absent_reaches_the_verifier(self) -> None:
+        self.setup_push_feature()
+        calls = self.install(True)
+        self.assertEqual(self.push('--force-with-lease=refs/heads/feat/z: origin feat/x:feat/z'),
+                         ('allow', None, None))
+        self.assertEqual(tuple(calls[0][0].leases), (('refs/heads/feat/z', ''),))
+
+    def test_refused_verification_asks(self) -> None:
+        self.setup_push_feature()
+        self.install(False)
+        sha = self.tip('refs/remotes/origin/feat/x')
+        self.assertEqual(self.push(f'--force-with-lease=feat/x:{sha} origin feat/x'), ('ask', LEASE, 'R18'))
+
+    def test_no_journal_implementation_refuses_and_names_the_check(self) -> None:
+        self.setup_push_feature()
+        calls = self.install(True)
+        sha = self.tip('refs/remotes/origin/feat/x')
+        self.push(f'--force-with-lease=feat/x:{sha} origin feat/x')
+        verdict = self.api('no_journal_verifier')(*calls[0])
+        self.assertFalse(verdict.verified)
+        self.assertIn('journal', verdict.failure)
+
+    def test_lease_without_an_explicit_value_is_not_verified(self) -> None:
+        self.setup_push_feature()
+        self.install(True)
+        for arguments in ('--force-with-lease origin feat/x', '--force-with-lease=feat/x origin feat/x',
+                          '--force-with-lease=feat/x:HEAD~1 origin feat/x',
+                          '--force-with-lease=feat/x:0123abc origin feat/x'):
+            with self.subTest(arguments=arguments):
+                self.assertEqual(self.push(arguments), ('ask', LEASE, 'R18'))
+
+    def test_every_destination_needs_its_own_lease(self) -> None:
+        self.setup_push_feature()
+        self.install(True)
+        sha = self.tip('refs/remotes/origin/feat/x')
+        self.assertEqual(self.push(f'--force-with-lease=feat/x:{sha} origin feat/x feat/y'), ('ask', LEASE, 'R18'))
+
+    def test_force_with_a_verified_lease_still_asks(self) -> None:
+        self.setup_push_feature()
+        self.install(True)
+        sha = self.tip('refs/remotes/origin/feat/x')
+        self.assertEqual(self.push(f'-f --force-with-lease=feat/x:{sha} origin feat/x'), ('ask', FORCE, 'R17'))
+        self.assertEqual(self.push(f'--force-with-lease=feat/x:{sha} origin +feat/x'), ('ask', FORCE, 'R17'))
+
+    def test_protected_destination_with_a_verified_lease_still_asks(self) -> None:
+        self.setup_push_feature()
+        self.install(True)
+        sha = self.tip('refs/remotes/origin/main')
+        self.assertEqual(self.push(f'--force-with-lease=main:{sha} origin feat/x:main'), ('ask', PROTECTED, 'R16'))
+
+    def test_force_if_includes_with_a_verified_lease_is_allowed(self) -> None:
+        self.setup_push_feature()
+        self.install(True)
+        sha = self.tip('refs/remotes/origin/feat/x')
+        self.assertEqual(self.push(f'--force-with-lease=feat/x:{sha} --force-if-includes origin feat/x'),
+                         ('allow', None, None))
+
+    def test_negation_resets_earlier_leases(self) -> None:
+        self.setup_push_feature()
+        self.install(True)
+        sha = self.tip('refs/remotes/origin/feat/x')
+        command = f'--force-with-lease=feat/y --no-force-with-lease --force-with-lease=feat/x:{sha} origin feat/x'
+        self.assertEqual(self.push(command), ('allow', None, None))
+
+
+class PushReadIsolation(PushFixture):
+    """Push decisions read only local configuration and refs, through the sanitized layer."""
+
+    def test_push_decisions_never_run_network_git_or_gh(self) -> None:
+        self.setup_push_extra_pattern()
+        self.set_config('remote.web.url', 'https://example.invalid/r.git')
+        log = self.probe / 'calls.log'
+        git = self.probe / 'bin/git'
+        git.write_text('#!/bin/bash\n'
+                       'printf "locks=%s prompt=%s dir=%s args=%s\\n" "${GIT_OPTIONAL_LOCKS-unset}" '
+                       f'"${{GIT_TERMINAL_PROMPT-unset}}" "${{GIT_DIR-unset}}" "$*" >> {shlex.quote(str(log))}\n'
+                       f'exec {shlex.quote(REAL_GIT)} "$@"\n')
+        git.chmod(0o755)
+        self.environ['PATH'] = f'{self.probe / "bin"}{os.pathsep}{self.environ["PATH"]}'
+        self.environ['GIT_DIR'] = str(self.outside / '.git')
+        for command in ('git push', 'git push origin feat/x:stable/1', 'git push web feat/x', 'git push -f',
+                        'git push --force-with-lease origin feat/x', 'git push origin v1 :feat/y',
+                        'git push https://example.invalid/r.git main', 'git push --repo=origin --tags'):
+            with self.subTest(command=command):
+                self.assertNotEqual(self.decide(self.event(command, str(self.project)))[0], 'not_applicable')
+        calls = log.read_text().splitlines()
+        self.assertTrue(calls, 'push decisions must read the repository')
+        for call in calls:
+            self.assertTrue(call.startswith('locks=0 prompt=0 dir=unset '), call)
+            arguments = call.split('args=', 1)[1].split()
+            for network in NETWORK_SUBCOMMANDS:
+                self.assertNotIn(network, arguments, call)
+
+
+CLASSES = (*CLASSES, PushTable, ProtectedRefs, LeaseVerifierInterface, PushReadIsolation)
+
+
 def selected_suite() -> unittest.TestSuite:
     suite = unittest.TestSuite()
     for case_class in CLASSES:

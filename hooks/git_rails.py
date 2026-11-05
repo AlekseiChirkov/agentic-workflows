@@ -13,6 +13,7 @@ never runs a network git command.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+import fnmatch
 import os
 import re
 import signal
@@ -2007,10 +2008,450 @@ def forbidden_message(text: str) -> bool:
     return any(pattern.search(text) for pattern in FORBIDDEN_PATTERNS)
 
 
+# ── Protected refs ─────────────────────────────────────────────────────
+
+DEFAULT_PROTECTED = ('main', 'master', 'release/*')
+BRANCH_PREFIX = 'refs/heads/'
+TAG_PREFIX = 'refs/tags/'
+PARTIAL_PREFIXES = ('heads/', 'tags/')
+
+
+def protected_branches(remote: str | None, invocation: Invocation, context: Context) -> tuple[str, ...] | None:
+    """Protected branch names and patterns for a target remote, or None when the remote's
+    default branch is unknown. Without a remote only the fixed and configured entries apply.
+    Callers check state_changed(invocation) first."""
+    names: list[str] = []
+    if remote is not None:
+        default = remote_default_branch(remote, invocation, context)
+        if default is None:
+            return None
+        names.append(default)
+    result = read_git(['config', '--get-all', 'orchestrail.protectedBranch'], invocation.directory,
+                      context.environ)
+    if result.returncode not in (0, 1):
+        return None
+    configured = [line for line in result.stdout.split('\n') if line] if result.returncode == 0 else []
+    return tuple(dict.fromkeys([*names, *DEFAULT_PROTECTED, *configured]))
+
+
+def remote_default_branch(remote: str, invocation: Invocation, context: Context) -> str | None:
+    """The branch refs/remotes/<remote>/HEAD points to, or None when it is not a symbolic ref."""
+    prefix = f'refs/remotes/{remote}/'
+    result = read_git(['symbolic-ref', '-q', prefix + 'HEAD'], invocation.directory, context.environ)
+    target = result.stdout.strip()
+    if result.returncode != 0 or not target.startswith(prefix) or target == prefix:
+        return None
+    return target[len(prefix):]
+
+
+def local_protected_branches(invocation: Invocation, context: Context) -> tuple[str, ...] | None:
+    """The set for operations on local branches: origin's, or the fixed and configured
+    entries when origin is not configured; None when origin has no known default branch."""
+    result = read_git(['config', '--get', 'remote.origin.url'], invocation.directory, context.environ)
+    if result.returncode not in (0, 1):
+        return None
+    return protected_branches('origin' if result.returncode == 0 else None, invocation, context)
+
+
+def is_protected(ref: str, patterns: Sequence[str]) -> bool:
+    """A branch ref whose short name matches any protected name or pattern."""
+    if not ref.startswith(BRANCH_PREFIX):
+        return False
+    name = ref[len(BRANCH_PREFIX):]
+    return any(fnmatch.fnmatchcase(name, pattern) for pattern in patterns)
+
+
+# ── Push targets ───────────────────────────────────────────────────────
+
+PUSH_OPTIONS = (
+    OptionSpec('verbose', 'v'), OptionSpec('quiet', 'q'), OptionSpec('repo', None, 'required'),
+    OptionSpec('all'), OptionSpec('branches'), OptionSpec('mirror'), OptionSpec('delete', 'd'),
+    OptionSpec('tags'), OptionSpec('dry-run', 'n'), OptionSpec('porcelain'), OptionSpec('force', 'f'),
+    OptionSpec('force-with-lease', None, 'optional', repeatable=True), OptionSpec('force-if-includes'),
+    OptionSpec('recurse-submodules', None, 'required'), OptionSpec('thin'),
+    OptionSpec('receive-pack', None, 'required'), OptionSpec('exec', None, 'required'),
+    OptionSpec('set-upstream', 'u'), OptionSpec('progress'), OptionSpec('prune'),
+    OptionSpec('no-verify', negatable=False), OptionSpec('verify'), OptionSpec('follow-tags'),
+    OptionSpec('signed', None, 'optional'), OptionSpec('atomic'),
+    OptionSpec('push-option', 'o', 'required', repeatable=True), OptionSpec('ipv4', '4', negatable=False),
+    OptionSpec('ipv6', '6', negatable=False))
+# Options that push refs no refspec names; the first four also replace push.default.
+BULK_PUSH_OPTIONS = ('all', 'branches', 'mirror', 'tags', 'follow-tags')
+PROGRAM_PUSH_OPTIONS = ('receive-pack', 'exec')
+SAFE_SUBMODULE_MODES = (None, False, 'check', 'no')
+FALSE_CONFIG_VALUES = frozenset({'false', 'no', 'off', '0', ''})
+LEASE_SHA = re.compile(r'[0-9a-f]{40}([0-9a-f]{24})?')
+PUSH_TARGET_UNKNOWN = 'push-target-unknown'
+LEASE_UNVERIFIED = 'push-lease-unverified'
+
+
+@dataclass(frozen=True)
+class PushState:
+    """The configuration snapshot and the current branch (None when detached) a push reads."""
+    config: Mapping[str, tuple[str, ...]]
+    branch: str | None
+
+
+@dataclass(frozen=True)
+class Refspec:
+    """One refspec: forced by '+', its source, and its destination; both empty means matching."""
+    forced: bool
+    source: str
+    destination: str
+
+    @property
+    def matching(self: Refspec) -> bool:
+        return not self.source and not self.destination
+
+    @property
+    def deletion(self: Refspec) -> bool:
+        return not self.source and bool(self.destination)
+
+
+@dataclass(frozen=True)
+class PushPlan:
+    """The resolved target remote, every refspec with a full destination ref, and whether
+    the remote's configuration pushes refs beyond them."""
+    remote: str
+    refspecs: tuple[Refspec, ...]
+    bulk: bool
+
+
+def read_push_state(invocation: Invocation, context: Context) -> PushState | None:
+    listing = read_git(['config', '-z', '--list'], invocation.directory, context.environ)
+    head = read_git(['symbolic-ref', '-q', 'HEAD'], invocation.directory, context.environ)
+    if listing.returncode != 0 or head.returncode not in (0, 1):
+        return None
+    ref = head.stdout.strip()
+    branch = ref[len(BRANCH_PREFIX):] if head.returncode == 0 and ref.startswith(BRANCH_PREFIX) else None
+    return PushState(parse_config(listing.stdout), branch)
+
+
+def parse_config(text: str) -> dict[str, tuple[str, ...]]:
+    """`git config -z --list` entries; a key without a value is the boolean true."""
+    values: dict[str, tuple[str, ...]] = {}
+    for entry in text.split('\x00'):
+        if entry:
+            key, newline, value = entry.partition('\n')
+            values[key] = (*values.get(key, ()), value if newline else 'true')
+    return values
+
+
+def setting(state: PushState, key: str) -> str | None:
+    """The last value of a key whose section and variable names are lower case."""
+    values = state.config.get(key)
+    return values[-1] if values else None
+
+
+def config_true(value: str | None) -> bool:
+    return value is not None and value.lower() not in FALSE_CONFIG_VALUES
+
+
+def push_remote(parsed: ParsedOptions, state: PushState) -> str | None:
+    """The configured remote the push targets; a URL, a path, an unknown name or a remote
+    with configured push refspecs cannot be resolved."""
+    repository = parsed.last('repo')
+    if parsed.operands:
+        name = parsed.operands[0]
+    elif isinstance(repository, str):
+        name = repository
+    else:
+        name = default_remote(state)
+    if setting(state, f'remote.{name}.url') is None or setting(state, f'remote.{name}.push') is not None:
+        return None
+    return name
+
+
+def default_remote(state: PushState) -> str:
+    """branch.<current>.pushRemote, remote.pushDefault, branch.<current>.remote, then origin."""
+    branch = state.branch
+    keys = [f'branch.{branch}.pushremote'] if branch else []
+    keys += ['remote.pushdefault', *([f'branch.{branch}.remote'] if branch else [])]
+    for key in keys:
+        value = setting(state, key)
+        if value:
+            return value
+    return 'origin'
+
+
+def refspec_words(parsed: ParsedOptions) -> list[str] | None:
+    """Refspec operands after the remote; `tag <name>` is a tag ref, and --delete names refs."""
+    words: list[str] = []
+    index, operands = 0, parsed.operands[1:]
+    while index < len(operands):
+        if operands[index] == 'tag':
+            if index + 1 >= len(operands):
+                return None
+            words.append(TAG_PREFIX + operands[index + 1])
+            index += 2
+            continue
+        words.append(operands[index])
+        index += 1
+    if parsed.last('delete') is not True:
+        return words
+    if any(':' in word or word.startswith('+') for word in words):
+        return None
+    return [':' + word for word in words]
+
+
+def split_refspec(text: str, state: PushState) -> Refspec | None:
+    """`[+]<src>[:<dst>]`; HEAD is the current branch, and a pattern cannot be resolved."""
+    forced = text.startswith('+')
+    body = text[1:] if forced else text
+    if not body or body.startswith('^') or any(char in GLOB_CHARACTERS for char in body):
+        return None
+    source, colon, destination = body.partition(':')
+    if colon and source and not destination:
+        return None
+    source, destination = full_name(source), full_name(destination)
+    if source in ('HEAD', '@'):
+        if state.branch is None:
+            return None
+        source = BRANCH_PREFIX + state.branch
+    return Refspec(forced, source, destination if colon else source)
+
+
+def full_name(name: str) -> str:
+    """git matches refs/<name> first, so a short name under heads/ or tags/ names that ref.
+    Where git would instead create refs/heads/heads/<name>, this reading fails closed."""
+    return 'refs/' + name if name.startswith(PARTIAL_PREFIXES) else name
+
+
+def default_refspecs(parsed: ParsedOptions, state: PushState) -> tuple[Refspec, ...] | None:
+    """The refspec push.default (unset means simple) gives a push without refspecs."""
+    if any(parsed.last(key) is True for key in BULK_PUSH_OPTIONS[:4]):
+        return ()
+    mode = setting(state, 'push.default') or 'simple'
+    if mode == 'matching':
+        return (Refspec(False, '', ''),)
+    branch = state.branch
+    if branch is None or mode not in ('simple', 'current', 'upstream', 'tracking'):
+        return None
+    current = BRANCH_PREFIX + branch
+    if mode in ('simple', 'current'):
+        return (Refspec(False, current, current),)
+    merge = setting(state, f'branch.{branch}.merge')
+    return (Refspec(False, current, merge),) if merge else None
+
+
+def requested_refspecs(parsed: ParsedOptions, state: PushState) -> tuple[Refspec, ...] | None:
+    words = refspec_words(parsed)
+    if words is None:
+        return None
+    if not words:
+        return default_refspecs(parsed, state)
+    specs = [split_refspec(word, state) for word in words]
+    resolved = tuple(spec for spec in specs if spec is not None)
+    return resolved if len(resolved) == len(specs) else None
+
+
+def tag_only_sources(specs: Sequence[Refspec], invocation: Invocation, context: Context) -> frozenset[str] | None:
+    """Short source names that name a tag and no branch."""
+    names = sorted({spec.source for spec in specs if spec.source and not spec.source.startswith('refs/')})
+    if not names:
+        return frozenset()
+    patterns = [prefix + name for name in names for prefix in (BRANCH_PREFIX, TAG_PREFIX)]
+    result = read_git(['for-each-ref', '--format=%(refname)', *patterns], invocation.directory,
+                      context.environ)
+    if result.returncode != 0:
+        return None
+    refs = set(result.stdout.split('\n'))
+    return frozenset(name for name in names if TAG_PREFIX + name in refs and BRANCH_PREFIX + name not in refs)
+
+
+def qualified(spec: Refspec, tags: frozenset[str]) -> Refspec:
+    """A short destination is a branch, or a tag when the source is only a tag."""
+    destination = spec.destination
+    if spec.matching or destination.startswith('refs/'):
+        return spec
+    tag = spec.source.startswith(TAG_PREFIX) or spec.source in tags
+    return replace(spec, destination=(TAG_PREFIX if tag else BRANCH_PREFIX) + destination)
+
+
+def push_plan(parsed: ParsedOptions, invocation: Invocation, context: Context) -> PushPlan | None:
+    """The target remote and every destination, or None when any cannot be resolved."""
+    state = read_push_state(invocation, context)
+    remote = None if state is None else push_remote(parsed, state)
+    if state is None or remote is None:
+        return None
+    specs = requested_refspecs(parsed, state)
+    tags = None if specs is None else tag_only_sources(specs, invocation, context)
+    if specs is None or tags is None:
+        return None
+    bulk = config_true(setting(state, 'push.followtags')) or config_true(setting(state, f'remote.{remote}.mirror'))
+    return PushPlan(remote, tuple(qualified(spec, tags) for spec in specs), bulk)
+
+
+# ── Lease verification ─────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class LeaseRequest:
+    """What a lease verifier checks: the target remote, every destination ref with its
+    explicit expected value ('' for a ref recorded as absent), and whether force is also set."""
+    remote: str
+    destinations: tuple[str, ...]
+    leases: tuple[tuple[str, str], ...]
+    forced: bool
+
+
+@dataclass(frozen=True)
+class LeaseVerdict:
+    """Whether the leased push is proven safe, and otherwise the check that failed."""
+    verified: bool
+    failure: str | None = None
+
+
+LeaseVerifier = Callable[[LeaseRequest, Invocation, Context], LeaseVerdict]
+
+
+def no_journal_verifier(request: LeaseRequest, invocation: Invocation, context: Context) -> LeaseVerdict:
+    """The verifier used until recovery journals are read: nothing proves a lease safe."""
+    return LeaseVerdict(False, 'no restack journal found')
+
+
+# The lease rule calls this name at decision time, so a replacement verifier keeps the interface.
+LEASE_VERIFIER: LeaseVerifier = no_journal_verifier
+
+
+def explicit_leases(values: Sequence[OptionValue]) -> tuple[tuple[str, str], ...] | None:
+    """Every --force-with-lease as (ref, full sha or ''), or None when any is not explicit."""
+    leases: list[tuple[str, str]] = []
+    for value in values:
+        if not isinstance(value, str):
+            return None
+        ref, colon, expected = value.partition(':')
+        if not ref or not colon or (expected and not LEASE_SHA.fullmatch(expected)):
+            return None
+        leases.append((ref, expected))
+    return tuple(leases)
+
+
+def lease_for(destination: str, leases: Sequence[tuple[str, str]]) -> str | None:
+    """The expected value of the last lease whose ref names the destination."""
+    found: str | None = None
+    for ref, expected in leases:
+        if destination in (ref, 'refs/' + ref, TAG_PREFIX + ref, BRANCH_PREFIX + ref):
+            found = expected
+    return found
+
+
+# ── Push rules ─────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class PushView:
+    """One reading of a push with its resolved plan and the target's protected set."""
+    parsed: ParsedOptions
+    plan: PushPlan
+    protected: tuple[str, ...]
+    invocation: Invocation
+    context: Context
+
+    @property
+    def forced(self: PushView) -> bool:
+        return self.parsed.last('force') is True or any(spec.forced for spec in self.plan.refspecs)
+
+
+def lease_request(view: PushView) -> LeaseRequest | None:
+    """The request for a lease covering every destination explicitly, else None."""
+    leases = explicit_leases(view.parsed.every('force-with-lease'))
+    destinations = tuple(spec.destination for spec in view.plan.refspecs)
+    if leases is None or not destinations or '' in destinations:
+        return None
+    expected = [lease_for(destination, leases) for destination in destinations]
+    known = [value for value in expected if value is not None]
+    if len(known) != len(expected):
+        return None
+    return LeaseRequest(view.plan.remote, destinations, tuple(zip(destinations, known)), view.forced)
+
+
+def check_push_bulk(view: PushView) -> Decision | None:
+    """R14: bulk options or configuration, a matching push, or a tag destination."""
+    flags = any(view.parsed.last(key) is True for key in BULK_PUSH_OPTIONS)
+    refs = any(spec.matching or spec.destination.startswith(TAG_PREFIX) for spec in view.plan.refspecs)
+    return asking('push-bulk-or-tags', 'R14') if flags or refs or view.plan.bulk else None
+
+
+def check_push_delete(view: PushView) -> Decision | None:
+    """R15: --delete, an empty source, or --prune, which deletes remote refs."""
+    flags = any(view.parsed.last(key) is True for key in ('delete', 'prune'))
+    deletes = any(spec.deletion for spec in view.plan.refspecs)
+    return asking('push-delete', 'R15') if flags or deletes else None
+
+
+def check_push_protected(view: PushView) -> Decision | None:
+    """R16: any destination is a protected branch."""
+    if any(is_protected(spec.destination, view.protected) for spec in view.plan.refspecs):
+        return asking('push-protected-target', 'R16')
+    return None
+
+
+def check_push_force(view: PushView) -> Decision | None:
+    """R17: --force, a '+' refspec, or --force-if-includes without any lease."""
+    includes = view.parsed.last('force-if-includes') is True and not view.parsed.every('force-with-lease')
+    return asking('push-force', 'R17') if view.forced or includes else None
+
+
+def check_push_lease(view: PushView) -> Decision | None:
+    """R18: a lease is accepted only when explicit for every destination and verified."""
+    if not view.parsed.every('force-with-lease'):
+        return None
+    request = lease_request(view)
+    if request is None or not LEASE_VERIFIER(request, view.invocation, view.context).verified:
+        return asking(LEASE_UNVERIFIED, 'R18')
+    return None
+
+
+PUSH_ASKS: tuple[Callable[[PushView], Decision | None], ...] = (
+    check_push_bulk, check_push_delete, check_push_protected, check_push_force, check_push_lease)
+
+
+def push_options(invocation: Invocation) -> list[ParsedOptions] | None:
+    return option_variants(invocation.argv, PUSH_OPTIONS)
+
+
+def runs_program(parsed: ParsedOptions) -> bool:
+    """A receive-pack program, or a submodule push the rules cannot follow."""
+    if any(parsed.last(key) not in (None, False) for key in PROGRAM_PUSH_OPTIONS):
+        return True
+    return parsed.last('recurse-submodules') not in SAFE_SUBMODULE_MODES
+
+
+def check_push_options(invocation: Invocation, context: Context) -> Decision | None:
+    """Options git would reject, too many readings, or options that run other programs."""
+    variants = push_options(invocation)
+    if variants is None or any(parsed.error or runs_program(parsed) for parsed in variants):
+        return denial('unsupported-form')
+    return None
+
+
+def push_decision(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision:
+    """R11 to R19 for one reading of the options; matching rows apply in matrix order."""
+    if parsed.last('dry-run') is True:
+        return ALLOW
+    if state_changed(invocation):
+        return denial(PUSH_TARGET_UNKNOWN, 'R12')
+    plan = push_plan(parsed, invocation, context)
+    if plan is None:
+        return denial(PUSH_TARGET_UNKNOWN, 'R12')
+    protected = protected_branches(plan.remote, invocation, context)
+    if protected is None:
+        return denial('default-branch-unknown', 'R13')
+    view = PushView(parsed, plan, protected, invocation, context)
+    asks = [check(view) for check in PUSH_ASKS]
+    return combine([ALLOW, *[result for result in asks if result is not None]])
+
+
+def check_push(invocation: Invocation, context: Context) -> Decision | None:
+    """Every reading of the options is decided; the most severe reading wins."""
+    variants = usable(push_options(invocation))
+    return combine(push_decision(parsed, invocation, context) for parsed in variants) if variants else None
+
+
 STAGING_RULES: tuple[Rule, ...] = (check_staging_options, check_blanket_staging, check_staging_not_file,
                                    check_interactive_staging, check_ignored_path)
 COMMIT_RULES: tuple[Rule, ...] = (check_commit_options, check_commit_all, check_commit_paths,
                                   check_commit_message, check_rewrite_published)
+PUSH_RULES: tuple[Rule, ...] = (check_push_options, check_push)
 
 
 # Per-subcommand rules, evaluated after the opaque-invocation rule has passed. Every
@@ -2020,6 +2461,7 @@ RULES: dict[str, tuple[Rule, ...]] = {
     'add': STAGING_RULES,
     'stage': STAGING_RULES,
     'commit': COMMIT_RULES,
+    'push': PUSH_RULES,
     'gh pr merge': (),
     'gh api': (),
 }
