@@ -1,4 +1,4 @@
-spec_path: .ai/specs/06-harness-git-rails.md
+spec_path: .ai/specs/completed/06-harness-git-rails.md
 contract_version: 0.9.0
 flow: full
 
@@ -902,7 +902,7 @@ Created: T-11-fix-push-and-pull-resolution-gaps, T-12-fix-installer-and-contract
 sync: complete
 synced_at: 2026-11-05T10:06:57+06:00
 deltas: 19 (implemented-differently: 12, not-implemented: 0, implemented-beyond: 7)
-spec: .ai/specs/06-harness-git-rails.md
+spec: .ai/specs/completed/06-harness-git-rails.md
 note: 2 spec-was-right (no edit); §0 metadata updated; OQ1–OQ5 written to the spec; authority: calling /pv-finalize with verified prerequisites; final evidence: full suite 717/0/2 at stack tip 4c2d873 (independent fix-group validator), every fix group validated on its changed surface
 adr: .ai/adr/0017-task-06-enforced-git-rails-hook.md (promoted to Accepted 2026-11-05); ADR-0009 marked amended (Decisions 5, 7)
 

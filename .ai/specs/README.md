@@ -45,7 +45,7 @@ Cached catalog selection, conservative quality/economic filtering, compatible pl
 resolution and installed workflow guidance were subsequently delivered under
 [04](completed/04-model-catalog-cache.md), with 594 required checks passing and 87 focused model tests.
 Full rule inventory/naming, reference tiers/load metadata, content-hash packets,
-effort/repair policies and economic evaluation remain separate work. Completed 00–05
+effort/repair policies and economic evaluation remain separate work. Completed 00–06
 remain foundations, not work to repeat. No deployment or model-usage savings is claimed.
 
 ## Shared acceptance gates
@@ -83,7 +83,7 @@ script names in historical context identify their earlier locations.
 | Done | [04 — catalog](completed/04-model-catalog-cache.md) | Current-invocation capabilities; wider 13 migration remains separate | Reviewed cached catalog, conservative selection and compatible plan resolution; PRs #31–#36 merged |
 | Done | [03 — logging](completed/03-hook-based-logging.md) | 02; minimal harness/registry scaffold | Reviewed explicit correlation, owned hooks and exact timing; minimal hook scaffold only, wider harness migration remains pending |
 | Done | [05 — telemetry](completed/05-cost-and-duration-telemetry.md) | 02, 03 | Reviewed offline telemetry and recovery; PRs #37–#63 merged; 619 required checks passed |
-| In review | [06 — git rails](06-harness-git-rails.md) | 05 (13 not required, ADR-0017) | Delivered on the current harness layout before 13a/13; stacked PRs #64–#75 await merge; residual risks X1–X20 in the capability record |
+| Done | [06 — git rails](completed/06-harness-git-rails.md) | 05 (13 not required, ADR-0017) | Delivered on the current harness layout before 13a/13; PRs #64–#75 merged; 717 required checks passed; residual risks X1–X20 in the capability record |
 | 6 | [09 — regression/evaluation](09-golden-run-tests.md) | 01, 13, 05, 06 | Offline checks, paid goldens, independent quality comparisons |
 | 7 | [08 — instructions/output](08-context-tiering.md) | 13, 09 | Expanded workstream 3 |
 | 8 | [14 — context](14-task-context-and-reuse.md) | 05, 08, 09 | New workstream 2 |
