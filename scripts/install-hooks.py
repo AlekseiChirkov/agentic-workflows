@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Own exact user hook occurrences and recover interrupted settings replacements.
 
-Called by install-hooks.sh. Settings numbers retain their original JSON tokens;
-ownership control numbers are independently validated before they affect quotas.
+Called by install-hooks.sh. The manifest declares every event and its one handler;
+each group is validated against the handler shape before placeholder substitution.
+Settings numbers retain their original JSON tokens; ownership control numbers are
+independently validated before they affect quotas.
 """
 
 from __future__ import annotations
@@ -23,7 +25,17 @@ import time
 from typing import NoReturn, TypeAlias, cast
 
 
-EVENTS = ('Stop', 'SubagentStop')
+EVENT_NAME = re.compile(r'[A-Z][A-Za-z]*')
+GROUP_FIELDS = frozenset({'matcher', 'hooks'})
+HANDLER_FIELDS = frozenset({'type', 'command', 'args', 'timeout', 'onFailure'})
+SCRIPT_ARGUMENT = re.compile(r'@ORCHESTRAIL_HOME@/(hooks/[a-z][a-z0-9-]*\.sh)')
+TIMEOUT_SECONDS = re.compile(r'[1-9][0-9]{0,3}')
+FAILURE_MODES = ('continue', 'block')
+# A tool-gating handler decides whether a tool call runs, so it needs a matcher and
+# must block when it cannot answer.
+TOOL_GATING_EVENTS = ('PreToolUse',)
+# Files the registered hooks load beside themselves or call at run time.
+SOURCE_DEPENDENCIES = ('hooks/git_rails.py', 'scripts/log-step.sh')
 MAX_COUNT = 9007199254740991
 NumericKey: TypeAlias = tuple[bool, str, int]
 if hasattr(sys, 'set_int_max_str_digits'):
@@ -160,6 +172,10 @@ def selector(group: JsonObject) -> JsonObject:
     return {name: value for name, value in group.items() if name != 'hooks'}
 
 
+def is_event_name(value: JsonValue) -> bool:
+    return isinstance(value, str) and EVENT_NAME.fullmatch(value) is not None
+
+
 def validate_settings(settings: JsonValue) -> None:
     require(isinstance(settings, dict), 'invalid-settings')
     record = cast(JsonObject, settings)
@@ -186,7 +202,7 @@ def validate_committed(receipt: JsonValue) -> None:
         for raw_claim in cast(list[JsonValue], record[name]):
             names = ('event', 'selector', 'handler', 'count') if name == 'owned' else ('event', 'selector', 'count')
             claim = fields(raw_claim, names)
-            require(claim['event'] in EVENTS and isinstance(claim['selector'], dict))
+            require(is_event_name(claim['event']) and isinstance(claim['selector'], dict))
             require('hooks' not in cast(JsonObject, claim['selector']))
             if name == 'owned':
                 require(isinstance(claim['handler'], dict))
@@ -305,33 +321,61 @@ def remove_owned(settings: JsonObject, receipt: JsonObject | None) -> None:
         hooks[event] = retained
 
 
-def validate_manifest_group(group: JsonValue, expected: JsonObject) -> JsonObject:
-    require(isinstance(group, dict) and isinstance(group.get('hooks'), list), 'invalid-manifest')
-    record = cast(JsonObject, group)
-    handlers = cast(list[JsonValue], record['hooks'])
-    require(len(handlers) == 1 and equal(handlers[0], expected), 'invalid-manifest')
-    return record
+def regular_file(path: Path) -> bool:
+    return path.is_file() and not path.is_symlink()
+
+
+def substitute_script(arguments: JsonValue, source_path: Path) -> list[JsonValue]:
+    require(isinstance(arguments, list) and len(arguments) == 1, 'invalid-manifest')
+    argument = cast(list[JsonValue], arguments)[0]
+    match = SCRIPT_ARGUMENT.fullmatch(argument) if isinstance(argument, str) else None
+    require(match is not None, 'invalid-manifest')
+    # Register the physical script: an entrypoint finds its core beside its own path.
+    script = source_path / cast(re.Match[str], match).group(1)
+    require(regular_file(script), 'invalid-source')
+    return [str(script)]
+
+
+def validate_manifest_handler(value: JsonValue, event: str, source_path: Path) -> JsonObject:
+    require(isinstance(value, dict) and set(value) == HANDLER_FIELDS, 'invalid-manifest')
+    handler = cast(JsonObject, value)
+    timeout = handler['timeout']
+    require(handler['type'] == 'command' and handler['command'] == 'bash', 'invalid-manifest')
+    require(isinstance(timeout, Number) and TIMEOUT_SECONDS.fullmatch(timeout.token) is not None,
+            'invalid-manifest')
+    failure_mode = handler['onFailure']
+    require(failure_mode in FAILURE_MODES and
+            (failure_mode == 'block' or event not in TOOL_GATING_EVENTS), 'invalid-manifest')
+    handler['args'] = substitute_script(handler['args'], source_path)
+    return handler
+
+
+def validate_manifest_group(value: JsonValue, event: str, source_path: Path) -> JsonObject:
+    require(isinstance(value, dict) and set(value) <= GROUP_FIELDS, 'invalid-manifest')
+    group = cast(JsonObject, value)
+    handlers = group.get('hooks')
+    require(isinstance(handlers, list) and len(handlers) == 1, 'invalid-manifest')
+    if 'matcher' in group or event in TOOL_GATING_EVENTS:
+        require(isinstance(group.get('matcher'), str), 'invalid-manifest')
+    validate_manifest_handler(cast(list[JsonValue], handlers)[0], event, source_path)
+    return group
 
 
 def load_manifest(source: str) -> Hooks:
     try:
         source_path = Path(source).resolve(strict=True)
-        require(source_path.is_dir() and (source_path / 'hooks/log-step-hook.sh').is_file() and
-                (source_path / 'scripts/log-step.sh').is_file(), 'invalid-source')
+        require(source_path.is_dir() and all((source_path / name).is_file() for name in SOURCE_DEPENDENCIES),
+                'invalid-source')
         document = decode((source_path / 'harness/claude/hooks.json').read_bytes(), 'invalid-manifest')
     except (OSError, ValueError):
         raise Unavailable('invalid-source') from None
     require(isinstance(document, dict) and set(document) == {'hooks'}, 'invalid-manifest')
     hooks_value = cast(JsonObject, document)['hooks']
-    require(isinstance(hooks_value, dict) and set(hooks_value) == set(EVENTS), 'invalid-manifest')
+    require(isinstance(hooks_value, dict) and bool(hooks_value), 'invalid-manifest')
     hooks = cast(Hooks, hooks_value)
-    expected: JsonObject = {'type':'command', 'command':'bash', 'args':['@ORCHESTRAIL_HOME@/hooks/log-step-hook.sh'],
-                            'timeout':10, 'onFailure':'continue'}
-    for groups in hooks.values():
-        require(isinstance(groups, list) and len(groups) == 1, 'invalid-manifest')
-        group = validate_manifest_group(groups[0], expected)
-        handler = cast(list[JsonObject], group['hooks'])[0]
-        handler['args'] = [str(source_path / 'hooks/log-step-hook.sh')]
+    for event, groups in hooks.items():
+        require(is_event_name(event) and isinstance(groups, list) and len(groups) == 1, 'invalid-manifest')
+        validate_manifest_group(groups[0], event, source_path)
     return hooks
 
 

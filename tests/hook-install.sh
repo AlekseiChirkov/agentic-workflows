@@ -85,7 +85,7 @@ class HookInstallation(unittest.TestCase):
         # or hooks object can remain when that container was originally absent.
         hooks = actual.get('hooks', {})
         expected_hooks = expected.get('hooks', {})
-        for event in ('Stop', 'SubagentStop'):
+        for event in ('PreToolUse', 'Stop', 'SubagentStop'):
             if event not in expected_hooks and hooks.get(event) == []:
                 del hooks[event]
         if 'hooks' not in expected and actual.get('hooks') == {}:
@@ -115,7 +115,7 @@ class HookInstallation(unittest.TestCase):
 
     def owned_groups(self) -> dict[str, list[JsonObject]]:
         value = self.read_settings()
-        self.assertEqual(set(value['hooks']), {'Stop', 'SubagentStop'})
+        self.assertEqual(set(value['hooks']), {'PreToolUse', 'Stop', 'SubagentStop'})
         for event, groups in value['hooks'].items():
             self.assertEqual(len(groups), 1, event)
             self.assertEqual(len(groups[0]['hooks']), 1, event)
@@ -311,7 +311,7 @@ class HookInstallation(unittest.TestCase):
         env = dict(self.env, ORCHESTRAIL_HOME=str(self.root / 'absent'))
         self.call('install', '--from', os.path.relpath(alternate, self.project), env=env)
         hooks = self.owned_groups()
-        for groups in hooks.values():
+        for groups in (hooks['Stop'], hooks['SubagentStop']):
             handler = groups[0]['hooks'][0]
             self.assertEqual(handler['command'], 'bash')
             self.assertEqual(handler['args'], [str(alternate / 'hooks' / 'log-step-hook.sh')])
@@ -319,11 +319,13 @@ class HookInstallation(unittest.TestCase):
                                     env=self.env, cwd=self.project, text=True, capture_output=True)
             self.assertEqual(result.returncode, 0)
         self.call('install', '--from=' + str(self.checkout), env=env)
-        for groups in self.owned_groups().values():
+        hooks = self.owned_groups()
+        for groups in (hooks['Stop'], hooks['SubagentStop']):
             self.assertEqual(groups[0]['hooks'][0]['args'], [str(self.checkout / 'hooks' / 'log-step-hook.sh')])
         self.call('uninstall', expected='uninstalled', env=env)
         self.call('install', env=dict(self.env, ORCHESTRAIL_HOME=str(alternate)))
-        for groups in self.owned_groups().values():
+        hooks = self.owned_groups()
+        for groups in (hooks['Stop'], hooks['SubagentStop']):
             self.assertEqual(groups[0]['hooks'][0]['args'], [str(alternate / 'hooks' / 'log-step-hook.sh')])
         self.call('uninstall', expected='uninstalled')
         self.call('install', env=dict(self.env, ORCHESTRAIL_HOME=''))
@@ -436,13 +438,16 @@ class HookInstallation(unittest.TestCase):
         value['hooks']['SubagentStop'][0]['hooks'][0]['args'].append('--user-argument')
         self.write_settings(value)
         self.call('uninstall', expected='uninstalled')
-        self.assertEqual(self.read_settings(), value)
+        expected = copy.deepcopy(value)
+        expected['hooks']['PreToolUse'] = []
+        self.assertEqual(self.read_settings(), expected)
 
     def test_hook_recovery_before_image_restores_previous_then_recomputes_install(self) -> None:
         alternate, prepared = self.prepare_upgrade('before')
         self.call('install', '--from', str(alternate))
         self.assertEqual(json.loads(self.receipt.read_text()), prepared['next'])
-        for groups in self.owned_groups().values():
+        hooks = self.owned_groups()
+        for groups in (hooks['Stop'], hooks['SubagentStop']):
             self.assertEqual(groups[0]['hooks'][0]['args'], [str(alternate / 'hooks/log-step-hook.sh')])
         self.assertEqual(self.read_settings()['user'], 'preserved')
 
@@ -677,8 +682,10 @@ class HookInstallation(unittest.TestCase):
         manifest = self.checkout / 'harness' / 'claude' / 'hooks.json'
         self.assertTrue(manifest.is_file(), 'portable native hook manifest must exist')
         hooks = json.loads(manifest.read_text())['hooks']
-        self.assertEqual(set(hooks), {'Stop','SubagentStop'})
-        for groups in hooks.values():
+        self.assertEqual(set(hooks), {'PreToolUse','Stop','SubagentStop'})
+        self.assertEqual(hooks['PreToolUse'], [{'matcher':'Bash', 'hooks':[{'type':'command', 'command':'bash',
+            'args':['@ORCHESTRAIL_HOME@/hooks/git-rails.sh'], 'timeout':10, 'onFailure':'block'}]}])
+        for groups in (hooks['Stop'], hooks['SubagentStop']):
             self.assertEqual(len(groups), 1)
             self.assertEqual(groups[0]['hooks'], [{'type':'command', 'command':'bash',
                 'args':['@ORCHESTRAIL_HOME@/hooks/log-step-hook.sh'], 'timeout':10, 'onFailure':'continue'}])
@@ -818,7 +825,415 @@ class HookInstallation(unittest.TestCase):
         self.assertFalse((consumer / '.devin/workflows/phase-discovery.md').exists())
         self.assertEqual((consumer / '.devin/workflows/custom.md').read_text(), 'custom')
 
-suite = unittest.TestSuite(HookInstallation(name) for name in SELECTED) if SELECTED else unittest.defaultTestLoader.loadTestsFromTestCase(HookInstallation)
+    # The git-rails PreToolUse registration shares the installer guarantees of the
+    # logging handlers: exact ownership, idempotence, recovery and owned-only removal.
+    GIT_RAILS_MANIFEST_HANDLER: JsonObject = {'type':'command', 'command':'bash',
+        'args':['@ORCHESTRAIL_HOME@/hooks/git-rails.sh'], 'timeout':10, 'onFailure':'block'}
+    LOGGING_MANIFEST_HANDLER: JsonObject = {'type':'command', 'command':'bash',
+        'args':['@ORCHESTRAIL_HOME@/hooks/log-step-hook.sh'], 'timeout':10, 'onFailure':'continue'}
+    GIT_RAILS_SELECTOR: JsonObject = {'matcher':'Bash'}
+
+    def git_rails_handler(self, source: Path | None = None) -> JsonObject:
+        return dict(self.GIT_RAILS_MANIFEST_HANDLER,
+                    args=[str((source or self.checkout).resolve() / 'hooks' / 'git-rails.sh')])
+
+    def logging_handler(self, source: Path | None = None) -> JsonObject:
+        return dict(self.LOGGING_MANIFEST_HANDLER,
+                    args=[str((source or self.checkout).resolve() / 'hooks' / 'log-step-hook.sh')])
+
+    def git_rails_occurrences(self, value: JsonObject | None = None, source: Path | None = None) -> int:
+        hooks = (value if value is not None else self.read_settings()).get('hooks', {})
+        expected = self.git_rails_handler(source)
+        return sum(1 for group in hooks.get('PreToolUse', []) if group.get('matcher') == 'Bash'
+                   for handler in group['hooks'] if handler == expected)
+
+    def assert_registered(self, source: Path | None = None) -> None:
+        self.assertEqual(self.git_rails_occurrences(source=source), 1,
+                         'installation must register exactly one owned git-rails Bash handler')
+
+    def assert_no_owned_handlers(self) -> None:
+        hooks = self.read_settings().get('hooks', {})
+        owned = (self.git_rails_handler(), self.logging_handler())
+        self.assertFalse([handler for groups in hooks.values() for group in groups
+                          for handler in group['hooks'] if handler in owned])
+
+    def assert_settings_restored(self, expected: JsonObject) -> None:
+        # Removal may leave an empty event array or hooks object it did not find.
+        actual = self.read_settings()
+        hooks = actual.get('hooks', {})
+        for event in ('PreToolUse', 'Stop', 'SubagentStop'):
+            if event not in expected.get('hooks', {}) and hooks.get(event) == []:
+                del hooks[event]
+        if 'hooks' not in expected and actual.get('hooks') == {}:
+            del actual['hooks']
+        self.assertEqual(expected, actual)
+
+    def manifest_path(self, source: Path | None = None) -> Path:
+        return (source or self.checkout) / 'harness' / 'claude' / 'hooks.json'
+
+    def registered_manifest(self) -> JsonObject:
+        manifest = json.loads(self.manifest_path().read_text())
+        self.assertIn('PreToolUse', manifest['hooks'], 'the manifest must register the git-rails PreToolUse handler')
+        return manifest
+
+    def install_logging_only_state(self) -> JsonObject:
+        """Settings and ownership exactly as a logging-only installation left them."""
+        logging = self.logging_handler()
+        settings: JsonObject = {'user':'kept', 'hooks':{event:[{'hooks':[copy.deepcopy(logging)]}]
+                                                        for event in ('Stop', 'SubagentStop')}}
+        self.write_settings(settings)
+        receipt: JsonObject = {'schema_version':1, 'state':'committed',
+            'owned':[{'event':event, 'selector':{}, 'handler':copy.deepcopy(logging), 'count':1}
+                     for event in ('Stop', 'SubagentStop')],
+            'created_groups':[{'event':event, 'selector':{}, 'count':1} for event in ('Stop', 'SubagentStop')]}
+        self.receipt.parent.mkdir(parents=True, exist_ok=True)
+        self.receipt.write_text(json.dumps(receipt))
+        return settings
+
+    def concurrent_editor_environment(self, external: Path) -> Environment:
+        faults = self.root / 'git-rails-concurrent-editor'
+        faults.mkdir()
+        (faults / 'sitecustomize.py').write_text(
+            'from __future__ import annotations\nimport os\nfrom pathlib import Path\n'
+            'from typing import Callable, Concatenate, ParamSpec, TypeVar\n'
+            'P = ParamSpec("P")\nR = TypeVar("R")\nPathArg = str | os.PathLike[str]\n'
+            'def wrap(original: Callable[Concatenate[PathArg, PathArg, P], R]) -> Callable[Concatenate[PathArg, PathArg, P], R]:\n'
+            '    def replacement(src: PathArg, dst: PathArg, *args: P.args, **kwargs: P.kwargs) -> R:\n'
+            '        result = original(src, dst, *args, **kwargs)\n'
+            '        if Path(dst).resolve() == Path(os.environ["HOOK_TEST_RECEIPT"]).resolve():\n'
+            '            Path(os.environ["HOOK_TEST_SETTINGS"]).write_bytes(Path(os.environ["HOOK_TEST_EXTERNAL"]).read_bytes())\n'
+            '        return result\n'
+            '    return replacement\n'
+            'os.replace = wrap(os.replace)\nos.rename = wrap(os.rename)\n')
+        return dict(self.env, PYTHONPATH=str(faults), HOOK_TEST_RECEIPT=str(self.receipt),
+                    HOOK_TEST_SETTINGS=str(self.settings), HOOK_TEST_EXTERNAL=str(external))
+
+    def test_hook_git_rails_manifest_registers_blocking_bash_handler_beside_logging(self) -> None:
+        hooks = json.loads(self.manifest_path().read_text())['hooks']
+        self.assertEqual(set(hooks), {'PreToolUse', 'Stop', 'SubagentStop'})
+        self.assertEqual(hooks['PreToolUse'], [{'matcher':'Bash', 'hooks':[self.GIT_RAILS_MANIFEST_HANDLER]}])
+        for event in ('Stop', 'SubagentStop'):
+            self.assertEqual(hooks[event], [{'hooks':[self.LOGGING_MANIFEST_HANDLER]}], event)
+
+    def test_hook_git_rails_fresh_install_adds_one_owned_group_and_repeats_byte_identically(self) -> None:
+        self.install()
+        hooks = self.read_settings()['hooks']
+        self.assertEqual(hooks.get('PreToolUse'), [{'matcher':'Bash', 'hooks':[self.git_rails_handler()]}])
+        for event in ('Stop', 'SubagentStop'):
+            self.assertEqual(hooks[event], [{'hooks':[self.logging_handler()]}], event)
+        receipt = json.loads(self.receipt.read_text())
+        self.assertIn({'event':'PreToolUse', 'selector':self.GIT_RAILS_SELECTOR,
+                       'handler':self.git_rails_handler(), 'count':1}, receipt['owned'])
+        self.assertIn({'event':'PreToolUse', 'selector':self.GIT_RAILS_SELECTOR, 'count':1},
+                      receipt['created_groups'])
+        self.assertEqual(len(receipt['owned']), 3)
+        self.assertEqual(len(receipt['created_groups']), 3)
+        first = self.snapshot()
+        self.install()
+        self.assertEqual(first, self.snapshot(), 'a second install must be byte-identical')
+        self.call('uninstall', expected='uninstalled')
+        self.assert_no_owned_handlers()
+        self.assertFalse([group for groups in self.read_settings().get('hooks', {}).values() for group in groups])
+
+    def test_hook_git_rails_install_without_hooks_key_creates_every_manifest_event(self) -> None:
+        self.write_settings({'theme':'kept', 'nested':{'enabled':False}})
+        self.install()
+        value = self.read_settings()
+        self.assertEqual(set(value['hooks']), {'PreToolUse', 'Stop', 'SubagentStop'})
+        self.assertEqual((value['theme'], value['nested']), ('kept', {'enabled':False}))
+        self.assert_registered()
+        self.call('uninstall', expected='uninstalled')
+        self.assert_settings_restored({'theme':'kept', 'nested':{'enabled':False}})
+
+    def test_hook_git_rails_registration_uses_the_physical_entrypoint_beside_its_core(self) -> None:
+        alias = self.root / 'source alias'
+        alias.symlink_to(self.checkout, target_is_directory=True)
+        self.call('install', '--from', str(alias))
+        self.assert_registered()
+        group = next(group for group in self.read_settings()['hooks'].get('PreToolUse', [])
+                     if group.get('matcher') == 'Bash')
+        entrypoint = Path(group['hooks'][0]['args'][0])
+        self.assertEqual(entrypoint, self.checkout.resolve() / 'hooks' / 'git-rails.sh')
+        self.assertFalse(entrypoint.is_symlink())
+        self.assertTrue((entrypoint.parent / 'git_rails.py').is_file())
+        handler = group['hooks'][0]
+        irrelevant = subprocess.run([handler['command'], *handler['args']], input='{}', env=self.env,
+                                    cwd=self.project, text=True, capture_output=True, timeout=15)
+        self.assertEqual((irrelevant.returncode, irrelevant.stdout, irrelevant.stderr), (0, '', ''))
+        subprocess.run(['git', 'init', '-q'], cwd=self.project, env=self.env, check=True, timeout=15)
+        self.registry.parent.mkdir(parents=True, exist_ok=True)
+        self.registry.write_text(str(self.project.resolve()) + '\n')
+        event = {'session_id':'fixture', 'hook_event_name':'PreToolUse', 'tool_name':'Bash',
+                 'tool_input':{'command':'git add -A', 'description':'fixture'},
+                 'cwd':str(self.project.resolve()), 'permission_mode':'default'}
+        decided = subprocess.run([handler['command'], *handler['args']], input=json.dumps(event), env=self.env,
+                                 cwd=self.project, text=True, capture_output=True, timeout=30)
+        self.assertNotIn("can't open file", decided.stderr)
+        self.assertEqual(decided.returncode, 2, decided.stderr)
+        self.assertIn('rule: rules/git-flow.md', decided.stderr, 'the registered entrypoint must reach its core')
+
+    def test_hook_git_rails_symlinked_entrypoint_is_never_registered_alone(self) -> None:
+        elsewhere = self.root / 'detached entrypoint'
+        elsewhere.mkdir()
+        entrypoint = self.checkout / 'hooks' / 'git-rails.sh'
+        shutil.copy2(entrypoint, elsewhere / 'git-rails.sh')
+        entrypoint.unlink()
+        entrypoint.symlink_to(elsewhere / 'git-rails.sh')
+        self.write_settings({'user':'kept'})
+        before = self.snapshot()
+        # The detached target has no core beside it, so no registration can be correct.
+        data = self.call('install', expected='unavailable')
+        self.assertEqual(data.get('reason'), 'invalid-source')
+        self.assertEqual(before, self.snapshot(), 'a rejected source must leave settings and ownership untouched')
+        entrypoint.unlink()
+        shutil.copy2(elsewhere / 'git-rails.sh', entrypoint)
+        self.install()
+        self.assert_registered()
+
+    def test_hook_git_rails_source_without_entrypoint_or_core_is_rejected_without_writes(self) -> None:
+        self.write_settings({'user':'kept'})
+        self.install()
+        self.assert_registered()
+        for missing in ('git-rails.sh', 'git_rails.py'):
+            with self.subTest(missing=missing):
+                alternate = self.root / ('source without ' + missing)
+                self.copy_source(alternate)
+                (alternate / 'hooks' / missing).unlink()
+                before = self.snapshot()
+                data = self.call('install', '--from', str(alternate), expected='unavailable')
+                self.assertEqual(data.get('reason'), 'invalid-source')
+                self.assertEqual(before, self.snapshot())
+
+    def test_hook_git_rails_malformed_manifest_variants_are_rejected_without_writes(self) -> None:
+        self.write_settings({'user':'kept'})
+        self.install()
+        self.assert_registered()
+        valid = self.registered_manifest()
+        def handler_variant(change: JsonObject | None = None, drop: str | None = None) -> JsonObject:
+            variant = copy.deepcopy(valid)
+            handler = variant['hooks']['PreToolUse'][0]['hooks'][0]
+            handler.update(change or {})
+            if drop is not None:
+                handler.pop(drop)
+            return variant
+        extra_group = copy.deepcopy(valid)
+        extra_group['hooks']['PreToolUse'].append(copy.deepcopy(extra_group['hooks']['PreToolUse'][0]))
+        extra_handler = copy.deepcopy(valid)
+        extra_handler['hooks']['PreToolUse'][0]['hooks'].append(copy.deepcopy(self.GIT_RAILS_MANIFEST_HANDLER))
+        extra_group_key = copy.deepcopy(valid)
+        extra_group_key['hooks']['PreToolUse'][0]['unexpected'] = True
+        empty_event = copy.deepcopy(valid)
+        empty_event['hooks']['PreToolUse'] = []
+        variants: dict[str, JsonObject] = {
+            'command': handler_variant({'command':'sh'}),
+            'shell command': handler_variant({'command':'bash; echo invalid'}),
+            'type': handler_variant({'type':'http'}),
+            'missing script': handler_variant({'args':['@ORCHESTRAIL_HOME@/hooks/missing.sh']}),
+            'unplaced path': handler_variant({'args':[str(self.checkout / 'hooks' / 'git-rails.sh')]}),
+            'escaping path': handler_variant({'args':['@ORCHESTRAIL_HOME@/hooks/../scripts/install-hooks.sh']}),
+            'extra argument': handler_variant({'args':['@ORCHESTRAIL_HOME@/hooks/git-rails.sh', '--extra']}),
+            'string timeout': handler_variant({'timeout':'10'}),
+            'extra field': handler_variant({'statusMessage':'checking'}),
+            'missing timeout': handler_variant(drop='timeout'),
+            'missing failure mode': handler_variant(drop='onFailure'),
+            'extra group': extra_group, 'extra handler': extra_handler,
+            'extra group field': extra_group_key, 'empty event': empty_event}
+        for name, variant in variants.items():
+            with self.subTest(variant=name):
+                self.manifest_path().write_text(json.dumps(variant))
+                before = self.snapshot()
+                self.call('install', expected='unavailable')
+                self.assertEqual(before, self.snapshot())
+
+    def test_hook_git_rails_malformed_settings_never_receive_a_partial_registration(self) -> None:
+        self.install()
+        self.assert_registered()
+        self.call('uninstall', expected='uninstalled')
+        for contents in ('{"hooks":{"PreToolUse":{}}}', '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":"x"}]}}',
+                         '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[null]}]}}', '{"hooks":{"PreToolUse":[7]}}'):
+            with self.subTest(contents=contents):
+                self.settings.write_text(contents)
+                before = self.snapshot()
+                self.call('install', expected='unavailable')
+                self.assertEqual(before, self.snapshot())
+
+    def test_hook_git_rails_foreign_pretooluse_entries_survive_install_and_removal(self) -> None:
+        original: JsonObject = {'theme':'user', 'hooks':{'PreToolUse':[
+            {'matcher':'Edit', 'hooks':[{'type':'command', 'command':'user-edit-hook'}]},
+            {'matcher':'Bash', 'hooks':[{'type':'command', 'command':'user-bash-hook', 'timeout':5}]},
+            {'matcher':'Bash|Edit', 'hooks':[{'type':'command', 'command':'user-both-hook'}]}]}}
+        self.write_settings(original)
+        self.install()
+        value = self.read_settings()
+        groups = value['hooks']['PreToolUse']
+        self.assertEqual(len(groups), 3, 'a user group with the same matcher receives the handler')
+        self.assertEqual(groups[1], {'matcher':'Bash', 'hooks':[{'type':'command', 'command':'user-bash-hook', 'timeout':5},
+                                                              self.git_rails_handler()]})
+        self.assertEqual((groups[0], groups[2]), (original['hooks']['PreToolUse'][0], original['hooks']['PreToolUse'][2]))
+        receipt = json.loads(self.receipt.read_text())
+        self.assertNotIn('PreToolUse', [claim['event'] for claim in receipt['created_groups']])
+        first = self.snapshot()
+        self.install()
+        self.assertEqual(first, self.snapshot())
+        self.call('uninstall', expected='uninstalled')
+        self.assert_settings_restored(original)
+
+    def test_hook_git_rails_identical_foreign_handlers_keep_multiset_quotas(self) -> None:
+        self.install()
+        self.assert_registered()
+        value = self.read_settings()
+        installed = value['hooks']['PreToolUse'][0]
+        installed['hooks'].append(copy.deepcopy(installed['hooks'][0]))
+        value['hooks']['PreToolUse'].append(copy.deepcopy(installed))
+        self.write_settings(value)
+        self.assertEqual(self.git_rails_occurrences(), 4)
+        self.call('uninstall', expected='uninstalled')
+        self.assertEqual(self.git_rails_occurrences(), 3, 'removal deletes only the one owned occurrence')
+        self.assertEqual(len(self.read_settings()['hooks']['PreToolUse']), 2)
+        preexisting: JsonObject = {'hooks':{'PreToolUse':[{'matcher':'Bash', 'hooks':[self.git_rails_handler()]}]},
+                                   'other':17}
+        self.write_settings(preexisting)
+        self.receipt.unlink(missing_ok=True)
+        self.install()
+        self.assertEqual(self.git_rails_occurrences(), 1, 'an identical foreign handler is not duplicated')
+        receipt = json.loads(self.receipt.read_text())
+        self.assertNotIn('PreToolUse', [claim['event'] for claim in receipt['owned']])
+        self.call('uninstall', expected='uninstalled')
+        self.assert_settings_restored(preexisting)
+
+    def test_hook_git_rails_logging_only_receipt_upgrades_on_reinstall(self) -> None:
+        original = self.install_logging_only_state()
+        self.install()
+        value = self.read_settings()
+        for event in ('Stop', 'SubagentStop'):
+            self.assertEqual(value['hooks'][event], original['hooks'][event], event)
+        self.assertEqual(value['hooks'].get('PreToolUse'), [{'matcher':'Bash', 'hooks':[self.git_rails_handler()]}])
+        receipt = json.loads(self.receipt.read_text())
+        self.assertEqual(receipt['state'], 'committed')
+        self.assertEqual(sorted(claim['event'] for claim in receipt['owned']), ['PreToolUse', 'Stop', 'SubagentStop'])
+        self.assertEqual(sorted(claim['event'] for claim in receipt['created_groups']), ['PreToolUse', 'Stop', 'SubagentStop'])
+        first = self.snapshot()
+        self.install()
+        self.assertEqual(first, self.snapshot())
+        self.call('uninstall', expected='uninstalled')
+        self.assert_no_owned_handlers()
+        self.assertEqual(self.read_settings()['user'], 'kept')
+
+    def test_hook_git_rails_registration_preserves_numeric_lexemes(self) -> None:
+        self.settings.parent.mkdir(parents=True, exist_ok=True)
+        original = ('{"large":9007199254740993,"huge":1e400,"zero":-0,"hooks":{"PreToolUse":'
+                    '[{"matcher":"Edit","hooks":[{"type":"command","command":"user","timeout":1e1}]}]}}')
+        self.settings.write_text(original)
+        tokens = {'large':'9007199254740993', 'huge':'1e400', 'zero':'-0', 'timeout':'1e1'}
+        for operation, status in (('install', 'installed'), ('uninstall', 'uninstalled')):
+            self.call(operation, expected=status)
+            if operation == 'install':
+                self.assert_registered()
+            for field, token in tokens.items():
+                self.assertRegex(self.settings.read_text(), '"' + field + r'"\s*:\s*' + re.escape(token) + r'(?=\s*[,}])',
+                                 operation + ' must preserve the numeric token for ' + field)
+
+    def test_hook_git_rails_interrupted_replacements_recover(self) -> None:
+        env = self.interrupt_replacement(self.receipt)
+        self.raw_call('install', env=env)
+        prepared = json.loads(self.receipt.read_text())
+        self.assertEqual((prepared['state'], prepared['before']), ('prepared', {'present':False, 'sha256':None}))
+        self.assertFalse(self.settings.exists())
+        self.install()
+        self.assert_registered()
+        self.assertEqual(json.loads(self.receipt.read_text())['state'], 'committed')
+        self.call('uninstall', expected='uninstalled')
+        env = self.interrupt_replacement(self.settings)
+        self.raw_call('install', env=env)
+        prepared = json.loads(self.receipt.read_text())
+        self.assertEqual(prepared['state'], 'prepared')
+        self.assertEqual(hashlib.sha256(self.settings.read_bytes()).hexdigest(), prepared['after']['sha256'])
+        self.assert_registered()
+        self.call('uninstall', expected='uninstalled')
+        self.assert_no_owned_handlers()
+        self.assertEqual(json.loads(self.receipt.read_text())['state'], 'committed')
+
+    def test_hook_git_rails_concurrent_edit_during_registration_is_not_overwritten(self) -> None:
+        self.install_logging_only_state()
+        external = self.root / 'external-settings.json'
+        external.write_text('{"external":"preserve this concurrent user edit"}')
+        self.call('install', expected='unavailable', env=self.concurrent_editor_environment(external))
+        self.assertEqual(self.settings.read_bytes(), external.read_bytes())
+        self.assertEqual(json.loads(self.receipt.read_text())['state'], 'prepared')
+        before = self.snapshot()
+        self.call('uninstall', expected='unavailable')
+        self.assertEqual(before, self.snapshot())
+
+    def test_hook_git_rails_concurrent_operations_keep_one_owned_registration(self) -> None:
+        self.install()
+        self.assert_registered()
+        def operation(index: int) -> subprocess.CompletedProcess[str]:
+            return self.raw_call('install' if index % 3 else 'uninstall')
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(operation, range(16)))
+        for result in results:
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(json.loads(result.stdout)['status'], ('installed', 'uninstalled'))
+        self.install()
+        self.assert_registered()
+        self.call('uninstall', expected='uninstalled')
+        self.assert_no_owned_handlers()
+
+    def test_hook_git_rails_uninstall_ignores_the_manifest_and_removes_owned_entries(self) -> None:
+        self.write_settings({'user':'kept'})
+        self.install()
+        self.assert_registered()
+        alternate = self.root / 'logging-only installer'
+        self.copy_source(alternate)
+        logging_only = {'hooks':{event:[{'hooks':[self.LOGGING_MANIFEST_HANDLER]}] for event in ('Stop', 'SubagentStop')}}
+        self.manifest_path(alternate).write_text(json.dumps(logging_only))
+        shutil.rmtree(self.checkout)
+        self.call('uninstall', expected='uninstalled', checkout=alternate,
+                  env=dict(self.env, ORCHESTRAIL_HOME=str(self.checkout)))
+        self.assert_no_owned_handlers()
+        self.assert_settings_restored({'user':'kept'})
+
+    def test_hook_git_rails_changed_owned_handler_survives_removal(self) -> None:
+        self.install()
+        self.assert_registered()
+        value = self.read_settings()
+        changed = value['hooks']['PreToolUse'][0]['hooks'][0]
+        changed['onFailure'] = 'continue'
+        self.write_settings(value)
+        self.call('uninstall', expected='uninstalled')
+        self.assertEqual(self.read_settings()['hooks']['PreToolUse'], [{'matcher':'Bash', 'hooks':[changed]}])
+        self.install()
+        self.assertEqual(self.read_settings()['hooks']['PreToolUse'],
+                         [{'matcher':'Bash', 'hooks':[changed, self.git_rails_handler()]}])
+
+    def test_hook_git_rails_fail_open_pretooluse_handler_is_rejected_without_writes(self) -> None:
+        self.write_settings({'user':'kept'})
+        self.install()
+        self.assert_registered()
+        valid = self.registered_manifest()
+        continuing = copy.deepcopy(valid)
+        continuing['hooks']['PreToolUse'][0]['hooks'][0]['onFailure'] = 'continue'
+        undeclared = copy.deepcopy(valid)
+        undeclared['hooks']['PreToolUse'][0]['hooks'][0].pop('onFailure')
+        for name, variant in (('continue', continuing), ('missing', undeclared)):
+            with self.subTest(failure_mode=name):
+                self.manifest_path().write_text(json.dumps(variant))
+                before = self.snapshot()
+                self.call('install', expected='unavailable')
+                self.assertEqual(before, self.snapshot())
+
+    def test_hook_git_rails_pretooluse_group_without_matcher_is_rejected_without_writes(self) -> None:
+        self.write_settings({'user':'kept'})
+        self.install()
+        self.assert_registered()
+        variant = copy.deepcopy(self.registered_manifest())
+        variant['hooks']['PreToolUse'][0].pop('matcher')
+        self.manifest_path().write_text(json.dumps(variant))
+        before = self.snapshot()
+        self.call('install', expected='unavailable')
+        self.assertEqual(before, self.snapshot())
+
+suite =unittest.TestSuite(HookInstallation(name) for name in SELECTED) if SELECTED else unittest.defaultTestLoader.loadTestsFromTestCase(HookInstallation)
 result = unittest.TextTestRunner(verbosity=2).run(suite)
 sys.exit(not result.wasSuccessful())
 PY
