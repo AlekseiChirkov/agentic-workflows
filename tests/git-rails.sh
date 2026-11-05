@@ -3638,11 +3638,12 @@ PUBLICATION_CASES: tuple[RestackCase, ...] = (
     push_row('unauthorized_publication_asks', PUSH_A, 'publication-authorized',
              edits=((('publication_authorized',), False),)),
     RestackCase('force_with_a_valid_journal_asks', 'git push -f --force-with-lease=refs/heads/feat/a:{a_remote} '
-                'origin feat/a', 'ask', FORCE_DEFAULT, 'R17', None, setup='restack-replayed'),
+                'origin feat/a', 'ask', FORCE_DEFAULT, 'R17', 'forced', setup='restack-replayed'),
     RestackCase('forced_refspec_with_a_valid_journal_asks', 'git push --force-with-lease=refs/heads/feat/a:{a_remote} '
-                'origin +feat/a', 'ask', FORCE_DEFAULT, 'R17', None, setup='restack-replayed'),
+                'origin +feat/a', 'ask', FORCE_DEFAULT, 'R17', 'forced', setup='restack-replayed'),
     RestackCase('protected_destination_with_a_journal_asks',
-                'git push --force-with-lease=refs/heads/main:{a_base} origin main', 'ask', PROTECTED, 'R16', None,
+                'git push --force-with-lease=refs/heads/main:{a_base} origin main', 'ask', PROTECTED, 'R16',
+                'branch-protected',
                 setup='restack-replayed', edits=((('order',), ('main', 'feat/a', 'feat/b')),
                                                  (('branches', 'main'), MAIN_REPLAYED))),
     push_row('destination_outside_order_asks', PUSH_A, 'branch-in-order', edits=((('order',), ('feat/b',)),)),
@@ -3961,6 +3962,502 @@ for validation_case in VALIDATION_REPAIR_CASES:
     setattr(ValidationRepairTable, 'test_' + validation_case.name, restack_test(validation_case))
 
 CLASSES = (*CLASSES, ValidationRepairTable)
+
+
+# git splits a push refspec at its last colon, qualifies a partial upstream merge value
+# through refs/<name>, runs programs named by pull --upload-pack and by the target remote's
+# receivepack or submodule recursion configuration, lets a rebasing pull move other
+# branches under rebase.updateRefs, and resolves a relative repository redirect against
+# the directory git runs in (git 2.53, local bare remote, dry-run evidence).
+class ResolutionGapFixture(StoredUpdateRefsFixture):
+    """Push, pull and journal states for the refspec, configuration and redirect cases."""
+
+    def setup_push_upstream_partial_main(self) -> None:
+        self.setup_push()
+        self.git(self.project, 'switch', '-q', 'feat/y')
+        self.set_config('push.default', 'upstream')
+        self.set_config('branch.feat/y.remote', 'origin')
+        self.set_config('branch.feat/y.merge', 'heads/main')
+
+    def setup_push_upstream_partial_feature(self) -> None:
+        self.setup_push()
+        self.git(self.project, 'switch', '-q', 'feat/y')
+        self.set_config('push.default', 'upstream')
+        self.set_config('branch.feat/y.remote', 'origin')
+        self.set_config('branch.feat/y.merge', 'heads/feat/y')
+
+    def setup_pull_update_refs(self) -> None:
+        self.setup_push_feature()
+        self.set_config('rebase.updateRefs', 'true')
+
+    def setup_pull_update_refs_false(self) -> None:
+        self.setup_push_feature()
+        self.set_config('rebase.updateRefs', 'false')
+
+    def setup_pull_configured_rebase(self) -> None:
+        self.setup_pull_update_refs()
+        self.set_config('pull.rebase', 'true')
+
+    def setup_pull_branch_rebase(self) -> None:
+        self.setup_pull_update_refs()
+        self.set_config('branch.feat/x.rebase', 'merges')
+
+    def setup_pull_branch_rebase_off(self) -> None:
+        self.setup_pull_configured_rebase()
+        self.set_config('branch.feat/x.rebase', 'false')
+
+    def setup_pull_configured_rebase_without_update_refs(self) -> None:
+        self.setup_push_feature()
+        self.set_config('pull.rebase', 'true')
+
+    def setup_push_receive_pack(self) -> None:
+        self.setup_push_feature()
+        self.set_config('remote.origin.receivepack', 'git-receive-pack')
+
+    def setup_push_backup_receive_pack(self) -> None:
+        self.setup_push_backup()
+        self.set_config('remote.backup.receivepack', 'git-receive-pack')
+
+    def setup_push_recurse_on_demand(self) -> None:
+        self.setup_push_feature()
+        self.set_config('push.recurseSubmodules', 'on-demand')
+
+    def setup_push_recurse_only(self) -> None:
+        self.setup_push_feature()
+        self.set_config('push.recurseSubmodules', 'only')
+
+    def setup_push_recurse_check(self) -> None:
+        self.setup_push_feature()
+        self.set_config('push.recurseSubmodules', 'check')
+
+    def setup_push_submodule_recurse(self) -> None:
+        self.setup_push_feature()
+        self.set_config('submodule.recurse', 'true')
+
+    def setup_push_submodule_recurse_off(self) -> None:
+        self.setup_push_feature()
+        self.set_config('submodule.recurse', 'false')
+
+    def setup_restack_replayed_receive_pack(self) -> None:
+        self.setup_restack_replayed()
+        self.set_config('remote.origin.receivepack', 'git-receive-pack')
+
+    def setup_restack_replayed_recurse_on_demand(self) -> None:
+        self.setup_restack_replayed()
+        self.set_config('push.recurseSubmodules', 'on-demand')
+
+    def setup_pull_upload_pack(self) -> None:
+        self.setup_push_feature()
+        self.set_config('remote.origin.uploadpack', 'git-upload-pack')
+
+    def setup_pull_backup_upload_pack(self) -> None:
+        self.setup_push_backup()
+        self.set_config('remote.backup.uploadpack', 'git-upload-pack')
+
+    def setup_restack_replayed_backup_receive_pack(self) -> None:
+        self.setup_restack_replayed()
+        self.add_remote('backup', ('main',), None)
+        self.set_config('remote.backup.receivepack', 'git-receive-pack')
+
+
+SIBLING_GIT_DIR = "'../project one/.git'"
+
+RESOLUTION_GAP_CASES: tuple[DecisionCase, ...] = (
+    # A refspec splits at its last colon: the source may hold colons, the destination cannot.
+    DecisionCase('source_with_a_colon_onto_main_needs_owner_approval', "git push origin 'HEAD^{/fix:}:main'",
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('message_search_source_onto_main_needs_owner_approval', "git push origin ':/fix:main'",
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('forced_source_with_a_colon_onto_main_needs_owner_approval',
+                 "git push origin '+HEAD^{/fix:}:main'", 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('refspec_with_several_colons_onto_main_needs_owner_approval', "git push origin 'a:b:main'",
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('message_search_source_onto_a_feature_is_allowed', "git push origin ':/fix:feat/x'",
+                 'allow', setup='push-feature'),
+    DecisionCase('forced_message_search_source_onto_a_feature_needs_owner_approval',
+                 "git push origin '+:/fix:feat/x'", 'ask', FORCE, 'R17', setup='push-feature'),
+    DecisionCase('source_with_a_colon_onto_a_feature_is_allowed', "git push origin 'HEAD^{/fix:}:feat/x'",
+                 'allow', setup='push-feature'),
+    DecisionCase('empty_source_still_deletes', 'git push origin :feat/x', 'ask', DELETE, 'R15',
+                 setup='push-feature'),
+    DecisionCase('lone_colon_still_pushes_matching_refs', 'git push origin :', 'ask', BULK, 'R14',
+                 setup='push-feature'),
+    DecisionCase('tag_source_onto_a_tag_still_asks', 'git push origin v1:refs/tags/v2', 'ask', BULK, 'R14',
+                 setup='push-feature'),
+    # A partial upstream merge value names refs/<value>.
+    DecisionCase('upstream_push_with_a_partial_main_merge_needs_owner_approval', 'git push',
+                 'ask', PROTECTED, 'R16', setup='push-upstream-partial-main'),
+    DecisionCase('upstream_push_with_a_partial_feature_merge_is_allowed', 'git push', 'allow',
+                 setup='push-upstream-partial-feature'),
+    # pull --upload-pack runs a program on the fetch side.
+    DecisionCase('pull_upload_pack_is_unsupported', 'git pull --upload-pack=x origin', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('pull_upload_pack_as_a_separate_value_is_unsupported', 'git pull --upload-pack x origin',
+                 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('pull_upload_pack_prefix_is_unsupported', 'git pull --upload-p=x origin', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('pull_upload_pack_on_main_is_unsupported', 'git pull --ff-only --upload-pack=x', 'deny',
+                 UNSUPPORTED, setup='push'),
+    DecisionCase('pull_from_a_remote_with_a_configured_upload_pack_is_unsupported', 'git pull origin', 'deny',
+                 UNSUPPORTED, setup='pull-upload-pack'),
+    DecisionCase('pull_from_the_default_remote_with_a_configured_upload_pack_is_unsupported', 'git pull',
+                 'deny', UNSUPPORTED, setup='pull-upload-pack'),
+    DecisionCase('pull_from_origin_ignores_another_remote_upload_pack', 'git pull origin', 'allow',
+                 setup='pull-backup-upload-pack'),
+    # A rebasing pull with rebase.updateRefs may move other branches, protected ones included.
+    DecisionCase('pull_rebase_with_update_refs_needs_owner_approval', 'git pull --rebase', 'ask', REWRITE, 'R28',
+                 setup='pull-update-refs'),
+    DecisionCase('pull_short_rebase_with_update_refs_needs_owner_approval', 'git pull -r', 'ask', REWRITE, 'R28',
+                 setup='pull-update-refs'),
+    DecisionCase('pull_bundled_rebase_with_update_refs_needs_owner_approval', 'git pull -qr', 'ask', REWRITE, 'R28',
+                 setup='pull-update-refs'),
+    DecisionCase('pull_rebase_merges_with_update_refs_needs_owner_approval', 'git pull --rebase=merges origin',
+                 'ask', REWRITE, 'R28', setup='pull-update-refs'),
+    DecisionCase('pull_with_configured_rebase_and_update_refs_needs_owner_approval', 'git pull', 'ask', REWRITE, 'R28',
+                 setup='pull-configured-rebase'),
+    DecisionCase('pull_with_branch_rebase_and_update_refs_needs_owner_approval', 'git pull', 'ask', REWRITE, 'R28',
+                 setup='pull-branch-rebase'),
+    DecisionCase('pull_rebase_without_update_refs_is_allowed', 'git pull --rebase', 'allow', setup='push-feature'),
+    DecisionCase('pull_rebase_with_update_refs_false_is_allowed', 'git pull --rebase', 'allow',
+                 setup='pull-update-refs-false'),
+    DecisionCase('pull_without_rebase_and_with_update_refs_is_allowed', 'git pull', 'allow',
+                 setup='pull-update-refs'),
+    DecisionCase('pull_no_rebase_overrides_configured_rebase', 'git pull --no-rebase', 'allow',
+                 setup='pull-configured-rebase'),
+    DecisionCase('pull_rebase_false_overrides_configured_rebase', 'git pull --rebase=false', 'allow',
+                 setup='pull-configured-rebase'),
+    DecisionCase('pull_branch_rebase_off_overrides_configured_rebase', 'git pull', 'allow',
+                 setup='pull-branch-rebase-off'),
+    DecisionCase('pull_fast_forward_only_with_configured_rebase_is_allowed', 'git pull --ff-only', 'allow',
+                 setup='pull-configured-rebase'),
+    DecisionCase('pull_with_configured_rebase_without_update_refs_is_allowed', 'git pull', 'allow',
+                 setup='pull-configured-rebase-without-update-refs'),
+    # Configuration of the target remote and of submodule recursion runs programs on push.
+    DecisionCase('push_with_a_configured_receive_pack_is_unsupported', 'git push origin feat/x', 'deny',
+                 UNSUPPORTED, setup='push-receive-pack'),
+    DecisionCase('push_to_origin_ignores_another_remote_receive_pack', 'git push origin feat/x',
+                 'allow', setup='push-backup-receive-pack'),
+    DecisionCase('dry_run_with_a_configured_receive_pack_is_unsupported', 'git push -n origin feat/x', 'deny',
+                 UNSUPPORTED, setup='push-receive-pack'),
+    DecisionCase('push_with_configured_on_demand_submodules_is_unsupported', 'git push origin feat/x', 'deny',
+                 UNSUPPORTED, setup='push-recurse-on-demand'),
+    DecisionCase('push_with_configured_submodules_only_is_unsupported', 'git push origin feat/x', 'deny',
+                 UNSUPPORTED, setup='push-recurse-only'),
+    DecisionCase('push_with_submodule_recurse_is_unsupported', 'git push origin feat/x', 'deny', UNSUPPORTED,
+                 setup='push-submodule-recurse'),
+    DecisionCase('submodule_check_option_overrides_configured_on_demand',
+                 'git push --recurse-submodules=check origin feat/x', 'allow', setup='push-recurse-on-demand'),
+    DecisionCase('no_submodules_option_overrides_configured_on_demand',
+                 'git push --no-recurse-submodules origin feat/x', 'allow', setup='push-recurse-on-demand'),
+    DecisionCase('push_with_configured_submodule_check_is_allowed', 'git push origin feat/x', 'allow',
+                 setup='push-recurse-check'),
+    DecisionCase('push_with_submodule_recurse_off_is_allowed', 'git push origin feat/x', 'allow',
+                 setup='push-submodule-recurse-off'),
+    # A relative redirect is resolved against the directory git runs in.
+    DecisionCase('relative_git_dir_into_project_from_a_sibling_is_unsupported',
+                 f'git --git-dir={SIBLING_GIT_DIR} push -f', 'deny', UNSUPPORTED, 'R31', cwd='outside'),
+    DecisionCase('separate_relative_git_dir_into_project_from_a_sibling_is_unsupported',
+                 f'git --git-dir {SIBLING_GIT_DIR} push -f', 'deny', UNSUPPORTED, 'R31', cwd='outside'),
+    DecisionCase('relative_work_tree_into_project_from_a_sibling_is_unsupported',
+                 "git --work-tree='../project one' add -A", 'deny', UNSUPPORTED, 'R31', cwd='outside'),
+    DecisionCase('relative_git_dir_after_relative_directory_option_is_unsupported',
+                 "git -C .. --git-dir='project one/.git' push -f", 'deny', UNSUPPORTED, 'R31', cwd='outside'),
+    DecisionCase('relative_git_dir_assignment_from_a_sibling_is_opaque_environment',
+                 f'GIT_DIR={SIBLING_GIT_DIR} git push -f', 'deny', 'opaque-environment', 'R31', cwd='outside'),
+    DecisionCase('relative_work_tree_assignment_from_a_sibling_is_opaque_environment',
+                 "GIT_WORK_TREE='../project one' git add -A", 'deny', 'opaque-environment', 'R31',
+                 cwd='outside'),
+    DecisionCase('relative_common_dir_assignment_from_a_sibling_is_opaque_environment',
+                 f'GIT_COMMON_DIR={SIBLING_GIT_DIR} git push -f', 'deny', 'opaque-environment', 'R31',
+                 cwd='outside'),
+    DecisionCase('relative_index_file_assignment_from_a_sibling_is_opaque_environment',
+                 "GIT_INDEX_FILE='../project one/.git/index' git add -A", 'deny', 'opaque-environment', 'R31',
+                 cwd='outside'),
+    DecisionCase('relative_git_dir_assignment_before_a_directory_option_is_opaque_environment',
+                 "GIT_DIR='project one/.git' git -C .. push -f", 'deny', 'opaque-environment', 'R31',
+                 cwd='outside'),
+    DecisionCase('exported_relative_git_dir_from_a_sibling_is_opaque_environment',
+                 f'export GIT_DIR={SIBLING_GIT_DIR}; git push -f', 'deny', 'opaque-environment', 'R31',
+                 cwd='outside'),
+    DecisionCase('relative_git_dir_of_the_sibling_itself_stays_not_applicable', 'git --git-dir=.git push -f',
+                 'not_applicable', cwd='outside'),
+    DecisionCase('relative_git_dir_assignment_of_the_sibling_itself_stays_not_applicable',
+                 'GIT_DIR=.git git push -f', 'not_applicable', cwd='outside'),
+    DecisionCase('relative_git_dir_assignment_on_read_only_git_stays_not_applicable',
+                 f'GIT_DIR={SIBLING_GIT_DIR} git status', 'not_applicable', cwd='outside'),
+    # A shell option before the command string leaves the string unparsed.
+    DecisionCase('shell_option_before_the_command_string_is_unsupported', "bash -o pipefail -c 'git push -f'",
+                 'deny', UNSUPPORTED),
+    DecisionCase('bundled_shell_options_before_the_command_string_are_unsupported',
+                 "bash -eo pipefail -c 'git push -f'", 'deny', UNSUPPORTED),
+)
+
+RESOLUTION_GAP_JOURNAL_CASES: tuple[RestackCase, ...] = (
+    RestackCase('lease_push_with_a_configured_receive_pack_is_unsupported', PUSH_A, 'deny', UNSUPPORTED,
+                setup='restack-replayed-receive-pack'),
+    RestackCase('lease_push_with_configured_on_demand_submodules_is_unsupported', PUSH_A, 'deny', UNSUPPORTED,
+                setup='restack-replayed-recurse-on-demand'),
+    RestackCase('long_force_with_a_valid_journal_names_the_forced_check',
+                'git push --force --force-with-lease=refs/heads/feat/a:{a_remote} origin feat/a',
+                'ask', FORCE_DEFAULT, 'R17', 'forced', setup='restack-replayed'),
+    RestackCase('forced_refspec_with_a_valid_journal_names_the_forced_check',
+                'git push --force-with-lease=refs/heads/feat/a:{a_remote} origin +feat/a',
+                'ask', FORCE_DEFAULT, 'R17', 'forced', setup='restack-replayed'),
+    push_row('lease_push_with_another_remote_receive_pack_is_allowed', PUSH_A, None,
+             setup='restack-replayed-backup-receive-pack'),
+)
+
+
+class ResolutionGapTable(ResolutionGapFixture):
+    """Table-driven decisions for refspec splitting, pull programs, rebasing pulls, configured
+    push programs, relative redirects, shell options and the forced-lease diagnostic."""
+
+
+for gap_case in RESOLUTION_GAP_CASES:
+    setattr(ResolutionGapTable, 'test_' + gap_case.name, decision_test(gap_case))
+for gap_journal_case in RESOLUTION_GAP_JOURNAL_CASES:
+    setattr(ResolutionGapTable, 'test_' + gap_journal_case.name, restack_test(gap_journal_case))
+
+CLASSES = (*CLASSES, ResolutionGapTable)
+
+
+class RefspecSplitting(PushFixture):
+    """split_refspec reads `[+]<src>[:<dst>]` with the destination after the last colon."""
+
+    def split(self, text: str) -> Any:
+        state = self.api('PushState')({}, 'feat/x')
+        return self.api('split_refspec')(text, state)
+
+    def test_destination_follows_the_last_colon(self) -> None:
+        for text, source, destination in (('HEAD^{/fix:}:main', 'HEAD^{/fix:}', 'main'),
+                                          (':/fix:main', ':/fix', 'main'),
+                                          ('a:b:refs/heads/main', 'a:b', 'refs/heads/main'),
+                                          ('+:/x:y:feat/x', ':/x:y', 'feat/x')):
+            with self.subTest(text=text):
+                spec = self.split(text)
+                self.assertEqual((spec.forced, spec.source, spec.destination),
+                                 (text.startswith('+'), source, destination))
+
+    def test_deletion_and_matching_forms_are_kept(self) -> None:
+        deletion, matching, forced = self.split(':feat/x'), self.split(':'), self.split('+:')
+        self.assertEqual((deletion.deletion, deletion.destination), (True, 'feat/x'))
+        self.assertTrue(matching.matching)
+        self.assertEqual((forced.forced, forced.matching), (True, True))
+
+    def test_source_with_a_colon_and_no_destination_is_unresolved(self) -> None:
+        self.assertIsNone(self.split(':/fix:'))
+
+
+CLASSES = (*CLASSES, RefspecSplitting)
+
+
+# bash and dash give one following word to every o or O in a short option bundle, wherever
+# it sits; an R16 lease ask names the protected-destination check whichever journal check
+# fails first; a failed cd keeps --git-dir and --work-tree values pointing back in.
+FORCED_ONTO_MAIN = "'git push -f origin feat/y:main'"
+
+SHELL_BUNDLE_CASES: tuple[DecisionCase, ...] = (
+    DecisionCase('shell_value_option_first_in_a_bundle_is_unsupported',
+                 f'bash -oe pipefail -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('sh_value_option_first_in_a_bundle_is_unsupported',
+                 f'sh -oe pipefail -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('shell_value_option_inside_a_longer_bundle_is_unsupported',
+                 f'bash -oex pipefail -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('shell_option_name_first_in_a_bundle_is_unsupported',
+                 f'bash -Oe extglob -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('two_shell_value_options_in_one_bundle_are_unsupported',
+                 f'bash -oo pipefail errexit -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('stdin_shell_after_a_value_option_first_in_a_bundle_is_unsupported',
+                 "echo 'git push -f' | bash -oe pipefail", 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('shell_option_before_a_read_only_command_string_stays_unsupported',
+                 "bash -e -c 'git status'", 'deny', UNSUPPORTED),
+    DecisionCase('shell_script_after_a_bundled_value_option_is_not_applicable',
+                 'bash -oe pipefail build.sh', 'not_applicable'),
+    # A failed cd leaves the shell where it was, so repository redirects still point back in.
+    DecisionCase('absolute_git_dir_after_a_failed_cd_from_a_sibling_is_unsupported',
+                 'cd /nonexistent-rails-dir; git --git-dir=@project@/.git push -f', 'deny', UNSUPPORTED,
+                 cwd='outside'),
+    DecisionCase('relative_git_dir_after_a_failed_cd_from_a_sibling_is_unsupported',
+                 f'cd /nonexistent-rails-dir; git --git-dir={SIBLING_GIT_DIR} push -f', 'deny', UNSUPPORTED,
+                 cwd='outside'),
+)
+
+PROTECTED_LEASE_CASES: tuple[RestackCase, ...] = (
+    RestackCase('protected_destination_outside_the_journal_order_names_the_protected_check',
+                'git push --force-with-lease=refs/heads/main:{a_base} origin main', 'ask', PROTECTED, 'R16',
+                'branch-protected', setup='restack-replayed'),
+)
+
+
+class ShellBundleTable(ResolutionGapFixture):
+    """Table-driven decisions for bundled shell value options, protected lease destinations
+    and repository redirects after a failed cd."""
+
+
+for bundle_case in SHELL_BUNDLE_CASES:
+    setattr(ShellBundleTable, 'test_' + bundle_case.name, decision_test(bundle_case))
+for protected_lease_case in PROTECTED_LEASE_CASES:
+    setattr(ShellBundleTable, 'test_' + protected_lease_case.name, restack_test(protected_lease_case))
+
+CLASSES = (*CLASSES, ShellBundleTable)
+
+
+# A shell string is read only in the form `bash|sh -c '<literal>'`. bash and dash keep
+# reading options after a leading -c and run the first non-option word, and +c and +s
+# select a command string and stdin like -c and -s, so every other spelling that selects a
+# command string or stdin is opaque; a shell given a script operand stays not applicable.
+SHELL_GRAMMAR_CASES: tuple[DecisionCase, ...] = (
+    # Options after a leading -c.
+    DecisionCase('shell_flag_after_the_command_option_is_unsupported',
+                 f'bash -c -e {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('end_of_options_after_the_command_option_is_unsupported',
+                 f'bash -c -- {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('value_option_after_the_command_option_is_unsupported',
+                 f'bash -c -o pipefail {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('plus_flag_after_the_command_option_is_unsupported',
+                 f'bash -c +e {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('flag_bundle_after_the_command_option_is_unsupported',
+                 f'bash -c -ex {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('sh_flag_after_the_command_option_is_unsupported',
+                 f'sh -c -e {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('env_shell_flag_after_the_command_option_is_unsupported',
+                 f'env bash -c -e {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('long_option_after_the_command_option_is_unsupported',
+                 f'bash -c --norc {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('lone_dash_after_the_command_option_is_unsupported',
+                 f'bash -c - {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    # Plus forms of the command-string and stdin options.
+    DecisionCase('plus_command_option_is_unsupported', f'bash +c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('plus_bundle_with_the_command_option_is_unsupported', f'bash +xc {FORCED_ONTO_MAIN}', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('plus_command_option_after_a_flag_is_unsupported', f'bash -e +c {FORCED_ONTO_MAIN}', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('sh_plus_command_option_is_unsupported', f'sh +c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('plus_stdin_option_with_a_script_is_unsupported',
+                 "bash +s build.sh <<< 'git push -f origin feat/y:main'", 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    # One row per opaque class.
+    DecisionCase('command_option_inside_a_bundle_is_unsupported', f'bash -ec {FORCED_ONTO_MAIN}', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('long_option_before_the_command_option_is_unsupported',
+                 f'bash --norc -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('stdin_option_inside_a_bundle_is_unsupported',
+                 "bash -es <<< 'git push -f origin feat/y:main'", 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('stdin_shell_after_a_long_option_is_unsupported',
+                 "echo 'git push -f origin feat/y:main' | bash --login", 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('stdin_shell_after_end_of_options_is_unsupported',
+                 "echo 'git push -f origin feat/y:main' | sh --", 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('lone_dash_shell_is_unsupported', "bash - <<< 'git push -f origin feat/y:main'", 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    # The supported form is still read, and a script operand stays not applicable.
+    DecisionCase('exact_command_string_is_still_decided', f'bash -c {FORCED_ONTO_MAIN}', 'ask', PROTECTED, 'R16',
+                 setup='push-feature'),
+    DecisionCase('exact_command_string_with_positional_arguments_is_still_decided',
+                 f'sh -c {FORCED_ONTO_MAIN} name one', 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('exact_command_string_of_read_only_git_is_not_applicable', "bash -c 'git status'",
+                 'not_applicable'),
+    DecisionCase('shell_script_operand_is_not_applicable', 'bash build.sh', 'not_applicable'),
+    DecisionCase('shell_script_after_a_flag_is_not_applicable', 'bash -x build.sh', 'not_applicable'),
+    DecisionCase('sh_script_after_a_flag_is_not_applicable', 'sh -e build.sh', 'not_applicable'),
+    DecisionCase('shell_script_after_end_of_options_is_not_applicable', 'bash -- build.sh', 'not_applicable'),
+    DecisionCase('shell_script_after_long_options_is_not_applicable', 'bash --norc --rcfile rc build.sh',
+                 'not_applicable'),
+)
+
+
+class ShellGrammarTable(ResolutionGapFixture):
+    """Table-driven decisions for the one supported shell-string form and the opaque rest."""
+
+
+for grammar_case in SHELL_GRAMMAR_CASES:
+    setattr(ShellGrammarTable, 'test_' + grammar_case.name, decision_test(grammar_case))
+
+CLASSES = (*CLASSES, ShellGrammarTable)
+
+
+# The shell scanner accepts only option words it fully understands. bash reads a single-dash
+# word naming one of its long options as that long option, and a long option only before
+# any short one; busybox runs the applet its next word names; a script operand that names
+# standard input reads the command from stdin.
+FORCED_HERE = f'<<< {FORCED_ONTO_MAIN}'
+FORCED_PIPE = f'echo {FORCED_ONTO_MAIN} |'
+
+SHELL_ALLOWLIST_CASES: tuple[DecisionCase, ...] = (
+    # Single-dash spellings of bash long options.
+    DecisionCase('single_dash_login_before_the_command_option_is_unsupported',
+                 f'bash -login -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('single_dash_noediting_before_the_command_option_is_unsupported',
+                 f'bash -noediting -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('single_dash_noprofile_with_a_positional_argument_is_unsupported',
+                 f'bash -noprofile -c {FORCED_ONTO_MAIN} a0', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('single_dash_login_after_double_dash_login_is_unsupported',
+                 f'bash --login -login -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('env_shell_with_single_dash_login_is_unsupported',
+                 f'env bash -login -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('absolute_shell_with_single_dash_noediting_is_unsupported',
+                 f'/bin/bash -noediting -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('single_dash_login_before_plus_command_option_is_unsupported',
+                 f'bash -login +c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('single_dash_init_file_before_the_command_option_is_unsupported',
+                 f'bash -init-file x -c {FORCED_ONTO_MAIN}', 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('single_dash_long_option_before_a_script_is_unsupported', 'bash -login build.sh; git status',
+                 'deny', UNSUPPORTED),
+    # Option words the scanner does not fully understand.
+    DecisionCase('unknown_short_letter_is_unsupported', 'bash -y build.sh; git status', 'deny', UNSUPPORTED),
+    DecisionCase('long_option_after_a_short_option_is_unsupported', 'bash -e --login build.sh; git status',
+                 'deny', UNSUPPORTED),
+    DecisionCase('unknown_long_option_is_unsupported', 'bash --wordexp build.sh; git status', 'deny',
+                 UNSUPPORTED),
+    # busybox runs the applet its next word names.
+    DecisionCase('busybox_shell_command_string_is_decided', f'busybox sh -c {FORCED_ONTO_MAIN}', 'ask',
+                 PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('absolute_busybox_shell_command_string_is_decided',
+                 f'/usr/bin/busybox sh -c {FORCED_ONTO_MAIN}', 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('busybox_ash_command_string_is_unsupported', f'busybox ash -c {FORCED_ONTO_MAIN}', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('busybox_stdin_shell_is_unsupported', f'busybox sh {FORCED_HERE}', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('busybox_timeout_shell_command_string_is_decided', f'busybox timeout 5 sh -c {FORCED_ONTO_MAIN}',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('busybox_time_shell_command_string_is_decided', f'busybox time sh -c {FORCED_ONTO_MAIN}',
+                 'ask', PROTECTED, 'R16', setup='push-feature'),
+    DecisionCase('busybox_option_before_the_applet_is_unsupported', f'busybox -x sh -c {FORCED_ONTO_MAIN}',
+                 'deny', UNSUPPORTED, setup='push-feature'),
+    DecisionCase('busybox_without_an_applet_is_unsupported', 'busybox; git status', 'deny', UNSUPPORTED),
+    # A script operand naming standard input reads the command from stdin.
+    DecisionCase('dev_stdin_script_with_a_here_string_is_unsupported', f'bash /dev/stdin {FORCED_HERE}', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('dev_stdin_script_from_a_pipe_is_unsupported', f'{FORCED_PIPE} bash /dev/stdin', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('proc_self_fd_script_is_unsupported', f'bash /proc/self/fd/0 {FORCED_HERE}', 'deny',
+                 UNSUPPORTED, setup='push-feature'),
+    DecisionCase('sh_dev_stdin_script_is_unsupported', f'sh /dev/stdin {FORCED_HERE}', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('dev_fd_script_is_unsupported', f'bash /dev/fd/0 {FORCED_HERE}', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('proc_pid_fd_script_is_unsupported', f'bash /proc/1/fd/0 {FORCED_HERE}', 'deny', UNSUPPORTED,
+                 setup='push-feature'),
+    DecisionCase('dev_stdin_script_after_end_of_options_is_unsupported', f'bash -- /dev/stdin {FORCED_HERE}',
+                 'deny', UNSUPPORTED, setup='push-feature'),
+    # Guards.
+    DecisionCase('busybox_program_without_git_is_not_applicable', 'busybox ls', 'not_applicable'),
+    DecisionCase('busybox_shell_script_is_not_applicable', 'busybox sh script.sh', 'not_applicable'),
+    DecisionCase('double_dash_login_shell_script_is_not_applicable', 'bash --login script.sh', 'not_applicable'),
+)
+
+
+class ShellAllowlistTable(ResolutionGapFixture):
+    """Table-driven decisions for single-dash long options, unknown option words, busybox
+    applets and script operands that name standard input."""
+
+
+for allowlist_case in SHELL_ALLOWLIST_CASES:
+    setattr(ShellAllowlistTable, 'test_' + allowlist_case.name, decision_test(allowlist_case))
+
+CLASSES = (*CLASSES, ShellAllowlistTable)
 
 
 # ── Hook entrypoint: stdin to exit status, stdout and stderr ───────────
@@ -4795,6 +5292,20 @@ class CoreEntryPoint(RailsFixture):
 
 
 CLASSES = (*CLASSES, EntrypointDegradedEnvironment, CoreEntryPoint)
+
+# The refspec, pull, configuration, redirect and forced-lease decisions also run end to end.
+RESOLUTION_GAP_THROUGH_HOOK = type('ResolutionGapTableThroughHook', (EntrypointChecks, ResolutionGapTable),
+                                   {'__doc__': 'Every ResolutionGapTable case, run twice through the hook entrypoint.'})
+CLASSES = (*CLASSES, RESOLUTION_GAP_THROUGH_HOOK)
+SHELL_BUNDLE_THROUGH_HOOK = type('ShellBundleTableThroughHook', (EntrypointChecks, ShellBundleTable),
+                                 {'__doc__': 'Every ShellBundleTable case, run twice through the hook entrypoint.'})
+CLASSES = (*CLASSES, SHELL_BUNDLE_THROUGH_HOOK)
+SHELL_GRAMMAR_THROUGH_HOOK = type('ShellGrammarTableThroughHook', (EntrypointChecks, ShellGrammarTable),
+                                  {'__doc__': 'Every ShellGrammarTable case, run twice through the hook entrypoint.'})
+CLASSES = (*CLASSES, SHELL_GRAMMAR_THROUGH_HOOK)
+SHELL_ALLOWLIST_THROUGH_HOOK = type('ShellAllowlistTableThroughHook', (EntrypointChecks, ShellAllowlistTable),
+                                    {'__doc__': 'Every ShellAllowlistTable case, run twice through the hook.'})
+CLASSES = (*CLASSES, SHELL_ALLOWLIST_THROUGH_HOOK)
 
 
 def selected_suite() -> unittest.TestSuite:
