@@ -339,6 +339,12 @@ if [ "${1:-}" = --hook-adapter-only ]; then
   exec bash "$REPO_ROOT/tests/log-step-hook.sh" "$@"
 fi
 
+# Run git-rails decision fixtures in disposable repositories with isolated homes.
+if [ "${1:-}" = --git-rails-only ]; then
+  shift
+  exec bash "$REPO_ROOT/tests/git-rails.sh" "$@"
+fi
+
 # Resolve private patterns from an explicit local override or user config. Keep the
 # pattern file outside the repository so it does not publish the identifiers it guards.
 hygiene_patterns_path() {
@@ -5168,6 +5174,17 @@ test_hook_timing_acceptance() {
 }
 check "test_hook_timing_acceptance" \
   "$(test_hook_timing_acceptance && echo pass || echo 'exact timing, lint coverage and isolated lifecycle fixtures must pass')"
+
+# ── Git-rails decision core acceptance ──────────────────────────────
+test_git_rails_acceptance() {
+  local output
+  output="$(bash "$REPO_ROOT/tests/git-rails.sh" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_git_rails_acceptance" \
+  "$(test_git_rails_acceptance && echo pass || echo 'git-rails event, registry, grammar and resolution fixtures must pass')"
 
 # ── Tracked public hygiene ──────────────────────────────────────────
 test_user_hook_installation_acceptance() {
