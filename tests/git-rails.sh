@@ -2226,7 +2226,7 @@ class LeaseVerifierInterface(PushFixture):
         return self.decide(self.event('git push ' + arguments, str(self.project)))
 
     def test_default_verifier_is_the_no_journal_implementation(self) -> None:
-        self.assertIs(self.api('LEASE_VERIFIER'), self.api('no_journal_verifier'))
+        self.assertIs(self.api('LEASE_VERIFIER'), self.api('journal_lease_verifier'))
 
     def test_explicit_lease_reaches_the_verifier(self) -> None:
         self.setup_push_feature()
@@ -2886,7 +2886,7 @@ class ReplayVerifierInterface(OperationFixture):
         return calls[0][0]
 
     def test_default_verifier_is_the_no_journal_implementation(self) -> None:
-        self.assertIs(self.api('REPLAY_VERIFIER'), self.api('no_journal_replay_verifier'))
+        self.assertIs(self.api('REPLAY_VERIFIER'), self.api('journal_replay_verifier'))
 
     def test_exact_replay_form_reaches_the_verifier(self) -> None:
         self.setup_push_feature()
@@ -3123,6 +3123,841 @@ for repair_case in (*SYMBOLIC_BRANCH_CASES, *GRAPHQL_QUEUE_CASES, *COMMAND_RUNNE
     setattr(SymbolicBranchTable, 'test_' + repair_case.name, decision_test(repair_case))
 
 CLASSES = (*CLASSES, SymbolicBranchTable)
+
+
+# Restack recovery journals: /restack records the stack it replays under the repository's
+# common directory. Only one journal that proves every check allows the exact replay or the
+# exact lease publication; anything else asks and names the check that failed.
+import hashlib  # noqa: E402 - the journal block needs these only
+import json  # noqa: E402
+
+JOURNAL_DIRECTORY = 'orchestrail-restack'
+JOURNAL_LIMIT = 1024 * 1024
+REMOVE = '<remove>'
+NO_FAILURE_FIELD = '<the decision carries no failure field>'
+JournalEdit = tuple[tuple[str, ...], object]
+ONTO_A = 'git rebase --onto {target} {a_base} feat/a'
+PUSH_A = 'git push --force-with-lease=refs/heads/feat/a:{a_remote} origin feat/a'
+SCHEMA = 'journal-invalid-schema'
+FORCE_DEFAULT = 'push-force'
+
+
+@dataclass(frozen=True)
+class RestackCase:
+    """One journal row: setup, edits of the first journal, a command with SHA placeholders,
+    the expected decision, reason, rule and the failed check the result names."""
+    name: str
+    command: str
+    decision: str
+    reason: str | None = None
+    rule: str | None = None
+    failure: str | None = None
+    edits: tuple[JournalEdit, ...] = ()
+    setup: str = 'restack'
+    cwd: str = 'project'
+    environ: tuple[tuple[str, str], ...] = ()
+
+
+def journal_name(task_path: str) -> str:
+    return hashlib.sha256(task_path.encode()).hexdigest() + '.json'
+
+
+class RestackFixture(OperationFixture):
+    """A stack feat/a → feat/b cut from main, main advanced to the replay target, origin
+    holding main and feat/a, and recovery journals written into the common directory."""
+    shas: dict[str, str]
+    journals: list[tuple[str, dict[str, Any]]]
+    raw_journals: list[tuple[str, bytes]]
+    journal_root: Path
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.shas = {'other': OTHER_SHA, 'long': 'ab' * 32}
+        self.journals, self.raw_journals = [], []
+        self.journal_root = self.project / '.git' / JOURNAL_DIRECTORY
+
+    def location(self, key: str) -> str:
+        extra = {'wt': self.project / 'wt', 'sha256': self.world / 'sha256 project'}
+        return str(extra[key]) if key in extra else super().location(key)
+
+    def tip_in(self, directory: Path, ref: str) -> str:
+        return subprocess.run([REAL_GIT, 'rev-parse', ref], cwd=directory, env=self.git_environ, check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    def commit_file(self, directory: Path, name: str, text: str) -> None:
+        (directory / name).write_text(text)
+        self.git(directory, 'add', '--', name)
+        self.git(directory, 'commit', '-q', '-m', 'Change ' + name)
+
+    def build_stack(self, directory: Path, conflict: bool = False, remote: bool = True) -> None:
+        self.shas['a_base'] = self.tip_in(directory, 'main')
+        self.git(directory, 'switch', '-q', '-c', 'feat/a')
+        self.commit_file(directory, 'a.txt' if conflict else 'fa.txt', 'feature a\n')
+        self.git(directory, 'switch', '-q', '-c', 'feat/b')
+        self.commit_file(directory, 'fb.txt', 'feature b\n')
+        self.git(directory, 'switch', '-q', 'main')
+        if remote:
+            self.add_remote('origin', ('main', 'feat/a'), 'main')
+        self.commit_file(directory, 'a.txt' if conflict else 'm.txt', 'main advanced\n')
+        shas = {'a_tip': 'feat/a', 'a_remote': 'feat/a', 'b_base': 'feat/a', 'b_tip': 'feat/b', 'target': 'main'}
+        self.shas.update({key: self.tip_in(directory, ref) for key, ref in shas.items()})
+        self.shas.update({'TARGET': self.shas['target'].upper(), 'target_short': self.shas['target'][:12],
+                          'project_git': os.path.realpath(self.project / '.git'),
+                          'outside_git': os.path.realpath(self.outside / '.git')})
+
+    def journal(self, directory: Path, task: str) -> dict[str, Any]:
+        shas = self.shas
+        return {'schema_version': 1, 'repository_common_dir': os.path.realpath(directory / '.git'),
+                'task_path': str(self.world / task), 'target': {'branch': 'main', 'sha': shas['target']},
+                'publication_authorized': False, 'order': ['feat/a', 'feat/b'],
+                'branches': {'feat/a': {'original_base_commit': shas['a_base'], 'original_tip': shas['a_tip'],
+                                        'replayed_tip': None, 'expected_remote_tip': shas['a_remote']},
+                             'feat/b': {'original_base_commit': shas['b_base'], 'original_tip': shas['b_tip'],
+                                        'replayed_tip': None, 'expected_remote_tip': 'absent'}}}
+
+    def add_journal(self, data: dict[str, Any]) -> None:
+        self.journals.append((journal_name(data['task_path']), data))
+
+    def formatted(self, value: object) -> object:
+        if isinstance(value, str):
+            return value.format(**self.shas)
+        if isinstance(value, dict):
+            return {key: self.formatted(item) for key, item in value.items()}
+        if isinstance(value, tuple):
+            return list(value)
+        return value
+
+    def edit_journal(self, path: tuple[str, ...], value: object) -> None:
+        node = self.journals[0][1]
+        for key in path[:-1]:
+            node = node[key]
+        if value == REMOVE:
+            del node[path[-1]]
+        else:
+            node[path[-1]] = self.formatted(value)
+
+    def write_journals(self) -> None:
+        if not self.journals and not self.raw_journals:
+            return
+        self.journal_root.mkdir(parents=True, exist_ok=True)
+        for name, data in self.journals:
+            (self.journal_root / name).write_text(json.dumps(data, indent=2))
+        for name, raw in self.raw_journals:
+            (self.journal_root / name).write_bytes(raw)
+
+    def outcome(self, command: str, cwd: str = 'project',
+                environ: dict[str, str] | None = None) -> tuple[str, str | None, str | None, object]:
+        decide = self.api('decide')
+        before = snapshot(self.world)
+        result = decide(self.event(command, self.location(cwd)), dict(self.environ if environ is None else environ))
+        self.assertEqual(before, snapshot(self.world),
+                         'deciding must leave .git, the journals, the work tree and the registry unchanged')
+        return result.decision, result.reason_code, result.rule_id, getattr(result, 'failure', NO_FAILURE_FIELD)
+
+    # Named setups referenced by the journal table.
+    def setup_restack(self) -> None:
+        self.build_stack(self.project)
+        self.add_journal(self.journal(self.project, 'task one'))
+
+    def setup_restack_replayed(self) -> None:
+        self.setup_restack()
+        self.git(self.project, 'rebase', '-q', '--onto', self.shas['target'], self.shas['a_base'], 'feat/a')
+        self.git(self.project, 'switch', '-q', 'main')
+        self.shas['a_new'] = self.tip_in(self.project, 'feat/a')
+        self.edit_journal(('branches', 'feat/a', 'replayed_tip'), '{a_new}')
+        self.edit_journal(('publication_authorized',), True)
+
+    def setup_restack_replayed_on_a(self) -> None:
+        self.setup_restack_replayed()
+        self.git(self.project, 'switch', '-q', 'feat/a')
+
+    def setup_restack_replayed_two(self) -> None:
+        self.setup_restack_replayed()
+        second = json.loads(json.dumps(self.journals[0][1]))
+        second['task_path'] = str(self.world / 'task two')
+        self.add_journal(second)
+
+    def setup_restack_replayed_no_journal(self) -> None:
+        self.setup_restack_replayed()
+        self.journals.clear()
+
+    def setup_restack_moved_tip(self) -> None:
+        self.setup_restack()
+        self.git(self.project, 'switch', '-q', 'feat/a')
+        self.commit_file(self.project, 'more.txt', 'more\n')
+        self.git(self.project, 'switch', '-q', 'main')
+
+    def setup_restack_protected_pattern(self) -> None:
+        self.setup_restack()
+        self.set_config('orchestrail.protectedBranch', 'feat/a')
+
+    def setup_restack_no_journal(self) -> None:
+        self.setup_restack()
+        self.journals.clear()
+
+    def setup_restack_markers(self) -> None:
+        self.setup_restack()
+        valid = json.dumps(self.journals.pop()[1]).encode()
+        self.raw_journals += [('RESTACK', b'1\n'), ('restack.json', valid), ('restack', b'')]
+        for path in (self.project / '.git/RESTACK', self.project / '.git/RESTACK_IN_PROGRESS',
+                     self.project / '.ai/restack', self.project / 'RESTACK'):
+            path.write_text('1\n')
+
+    def setup_restack_two(self) -> None:
+        self.setup_restack()
+        self.add_journal(self.journal(self.project, 'task two'))
+
+    def setup_restack_foreign(self) -> None:
+        self.setup_restack()
+        foreign = self.journal(self.project, 'task foreign')
+        foreign['repository_common_dir'] = self.shas['outside_git']
+        self.add_journal(foreign)
+
+    def setup_restack_progress(self) -> None:
+        self.setup_restack_foreign()
+        self.journals.pop(0)
+        stale = self.journal(self.project, 'task stale')
+        stale['branches']['feat/a']['original_base_commit'] = OTHER_SHA
+        self.add_journal(stale)
+
+    def setup_restack_invalid_json(self) -> None:
+        self.setup_restack()
+        self.journals.clear()
+        self.raw_journals.append((journal_name(str(self.world / 'task one')), b'{"schema_version": 1,'))
+
+    def setup_restack_invalid_beside_valid(self) -> None:
+        self.setup_restack()
+        self.raw_journals.append((journal_name(str(self.world / 'task broken')), b'{"schema_version": 1,'))
+
+    def setup_restack_not_utf8(self) -> None:
+        self.setup_restack()
+        name, data = self.journals.pop()
+        self.raw_journals.append((name, json.dumps(data).replace('task one', 'task \udcff').encode(
+            'utf-8', 'surrogateescape')))
+
+    def setup_restack_duplicate_key(self) -> None:
+        self.setup_restack()
+        name, data = self.journals.pop()
+        self.raw_journals.append((name, ('{"schema_version": 2, ' + json.dumps(data)[1:]).encode()))
+
+    def setup_restack_top_array(self) -> None:
+        self.setup_restack()
+        name, data = self.journals.pop()
+        self.raw_journals.append((name, json.dumps([data]).encode()))
+
+    def setup_restack_wrong_name(self) -> None:
+        self.setup_restack()
+        data = self.journals.pop()[1]
+        self.journals.append((journal_name(str(self.world / 'task elsewhere')), data))
+
+    def setup_restack_symlink(self) -> None:
+        self.setup_restack()
+        name, data = self.journals.pop()
+        target = self.world / 'journal copy.json'
+        target.write_text(json.dumps(data))
+        self.journal_root.mkdir(parents=True)
+        (self.journal_root / name).symlink_to(target)
+
+    def setup_restack_fifo(self) -> None:
+        self.setup_restack()
+        name = self.journals.pop()[0]
+        self.journal_root.mkdir(parents=True)
+        os.mkfifo(self.journal_root / name)
+
+    def setup_restack_directory_entry(self) -> None:
+        self.setup_restack()
+        name = self.journals.pop()[0]
+        (self.journal_root / name).mkdir(parents=True)
+
+    def setup_restack_directory_file(self) -> None:
+        self.setup_restack()
+        self.journal_root.write_text(json.dumps(self.journals.pop()[1]))
+
+    def padded(self, size: int) -> None:
+        self.setup_restack()
+        name, data = self.journals.pop()
+        text = json.dumps(data).encode()
+        self.raw_journals.append((name, text + b' ' * (size - len(text))))
+
+    def setup_restack_limit(self) -> None:
+        self.padded(JOURNAL_LIMIT)
+
+    def setup_restack_over_limit(self) -> None:
+        self.padded(JOURNAL_LIMIT + 1)
+
+    def setup_restack_temp_file(self) -> None:
+        self.setup_restack()
+        self.raw_journals.append((self.journals[0][0] + '.tmp', b'{"schema_version": 1,'))
+
+    def setup_restack_conflict(self) -> None:
+        self.build_stack(self.project, conflict=True)
+        self.add_journal(self.journal(self.project, 'task one'))
+        self.git_may_fail('rebase', '--onto', self.shas['target'], self.shas['a_base'], 'feat/a')
+        self.assertTrue((self.project / '.git/rebase-merge/head-name').is_file(), 'fixture rebase must stop')
+
+    def setup_restack_conflict_apply(self) -> None:
+        self.build_stack(self.project, conflict=True)
+        self.add_journal(self.journal(self.project, 'task one'))
+        self.git_may_fail('rebase', '--apply', '--onto', self.shas['target'], self.shas['a_base'], 'feat/a')
+        self.assertTrue((self.project / '.git/rebase-apply/head-name').is_file(), 'fixture rebase must stop')
+
+    def setup_restack_worktree(self) -> None:
+        self.setup_restack()
+        self.git(self.project, 'worktree', 'add', '-q', '-b', 'side', 'wt', 'main')
+
+    def setup_restack_worktree_private(self) -> None:
+        self.setup_restack_worktree()
+        self.journal_root = self.project / '.git/worktrees/wt' / JOURNAL_DIRECTORY
+
+    def setup_restack_sha256(self) -> None:
+        directory = Path(self.location('sha256'))
+        directory.mkdir()
+        self.git(directory, 'init', '-q', '-b', 'main', '--object-format=sha256')
+        self.commit_file(directory, 'a.txt', 'a\n')
+        self.write_registry([self.project, self.plain, directory])
+        self.build_stack(directory, remote=False)
+        self.add_journal(self.journal(directory, 'task sha256'))
+        self.journal_root = directory / '.git' / JOURNAL_DIRECTORY
+
+
+def restack_test(case: RestackCase) -> Callable[[RestackFixture], None]:
+    def test(self: RestackFixture) -> None:
+        self.apply_setup(case.setup)
+        for path, value in case.edits:
+            self.edit_journal(path, value)
+        self.write_journals()
+        command = case.command.format(**self.shas)
+        decision, reason, rule, failure = self.outcome(command, case.cwd, {**self.environ, **dict(case.environ)})
+        self.assertEqual((decision, reason, failure), (case.decision, case.reason, case.failure), command)
+        if case.rule is not None:
+            self.assertEqual(rule, case.rule, command)
+    return test
+
+
+def rebase_row(name: str, command: str, failure: str | None, **fields: Any) -> RestackCase:
+    if failure is None:
+        return RestackCase(name, command, 'allow', **fields)
+    return RestackCase(name, command, 'ask', OUTSIDE_RESTACK, 'R26', failure, **fields)
+
+
+def push_row(name: str, command: str, failure: str | None, **fields: Any) -> RestackCase:
+    fields.setdefault('setup', 'restack-replayed')
+    if failure is None:
+        return RestackCase(name, command, 'allow', **fields)
+    return RestackCase(name, command, 'ask', LEASE, 'R18', failure, **fields)
+
+
+def schema_row(name: str, path: tuple[str, ...], value: object) -> RestackCase:
+    return rebase_row('journal_schema_rejects_' + name, ONTO_A, SCHEMA, edits=((path, value),))
+
+
+A_BRANCH = ('branches', 'feat/a')
+MAIN_ENTRY = {'original_base_commit': '{a_base}', 'original_tip': '{target}', 'replayed_tip': None,
+              'expected_remote_tip': None}
+MAIN_REPLAYED = {'original_base_commit': '{a_base}', 'original_tip': '{a_base}', 'replayed_tip': '{target}',
+                 'expected_remote_tip': '{a_base}'}
+B_REPLAYED = ((('branches', 'feat/b', 'replayed_tip'), '{b_tip}'),)
+
+REPLAY_CASES: tuple[RestackCase, ...] = (
+    rebase_row('journal_allows_the_exact_replay_of_the_first_branch', ONTO_A, None),
+    rebase_row('journal_allows_the_exact_replay_with_a_global_directory_option',
+               'git -C sub rebase --onto {target} {a_base} feat/a', None),
+    rebase_row('journal_allows_the_replay_from_a_subdirectory', ONTO_A, None, cwd='sub'),
+    rebase_row('journal_of_another_repository_does_not_prove_a_replay', ONTO_A, 'repository',
+               edits=((('repository_common_dir',), '{outside_git}'),)),
+    rebase_row('journal_repository_must_be_the_canonical_common_dir', ONTO_A, 'repository',
+               edits=((('repository_common_dir',), '{project_git}/'),)),
+    rebase_row('journal_without_the_branch_in_order_does_not_prove_a_replay', ONTO_A, 'branch-in-order',
+               edits=((('order',), ('feat/b',)),)),
+    rebase_row('replay_of_an_unlisted_branch_asks', 'git rebase --onto {target} {a_base} feat/c', 'branch-in-order'),
+    rebase_row('replay_of_a_protected_branch_in_order_asks', 'git rebase --onto {target} {a_base} main',
+               'branch-protected', edits=((('order',), ('main', 'feat/a', 'feat/b')),
+                                          (('branches', 'main'), MAIN_ENTRY))),
+    rebase_row('replay_of_a_branch_matching_a_configured_pattern_asks', ONTO_A, 'branch-protected',
+               setup='restack-protected-pattern'),
+    rebase_row('replay_of_an_already_replayed_branch_asks', ONTO_A, 'branch-replayed',
+               edits=(((*A_BRANCH, 'replayed_tip'), '{target}'),)),
+    rebase_row('replay_after_the_local_tip_moved_asks', ONTO_A, 'branch-tip', setup='restack-moved-tip'),
+    rebase_row('replay_with_a_wrong_old_sha_asks', 'git rebase --onto {target} {b_base} feat/a', 'old-sha'),
+    rebase_row('replay_with_a_wrong_new_sha_asks', 'git rebase --onto {a_base} {a_base} feat/a', 'new-sha'),
+    rebase_row('replay_with_an_abbreviated_new_sha_asks', 'git rebase --onto {target_short} {a_base} feat/a',
+               'new-sha'),
+    rebase_row('replay_with_an_uppercase_new_sha_asks', 'git rebase --onto {TARGET} {a_base} feat/a', 'new-sha'),
+    rebase_row('replay_onto_a_branch_name_asks', 'git rebase --onto main {a_base} feat/a', 'new-sha'),
+    rebase_row('second_branch_needs_the_first_replayed_tip', 'git rebase --onto {target} {b_base} feat/b',
+               'new-sha'),
+    rebase_row('second_branch_replays_onto_the_previous_replayed_tip', 'git rebase --onto {a_new} {b_base} feat/b',
+               None, setup='restack-replayed'),
+    rebase_row('second_branch_onto_the_target_after_the_first_replay_asks',
+               'git rebase --onto {target} {b_base} feat/b', 'new-sha', setup='restack-replayed'),
+    rebase_row('replayed_first_branch_cannot_be_replayed_again', ONTO_A, 'branch-replayed',
+               setup='restack-replayed'),
+    rebase_row('replay_with_an_attached_onto_value_is_not_the_exact_form',
+               'git rebase --onto={target} {a_base} feat/a', 'replay-form'),
+    rebase_row('replay_with_an_extra_option_is_not_the_exact_form',
+               'git rebase -q --onto {target} {a_base} feat/a', 'replay-form'),
+    rebase_row('replay_without_a_branch_is_not_the_exact_form', 'git rebase --onto {target} {a_base}',
+               'replay-form'),
+    rebase_row('interactive_replay_is_not_the_exact_form', 'git rebase -i --onto {target} {a_base} feat/a',
+               'replay-form'),
+    rebase_row('plain_rebase_with_a_journal_asks', 'git rebase main', 'replay-form'),
+    rebase_row('restack_variable_on_the_command_is_no_evidence', 'RESTACK=1 ' + ONTO_A, 'journal-missing',
+               setup='restack-no-journal'),
+    rebase_row('restack_variable_in_the_environment_is_no_evidence', ONTO_A, 'journal-missing',
+               setup='restack-no-journal', environ=(('RESTACK', '1'),)),
+    rebase_row('restack_variable_does_not_rescue_a_failed_check', 'git rebase --onto {a_base} {a_base} feat/a',
+               'new-sha', environ=(('RESTACK', '1'),)),
+    rebase_row('restack_variable_does_not_change_a_verified_replay', 'RESTACK=1 ' + ONTO_A, None,
+               environ=(('RESTACK', '1'),)),
+    rebase_row('marker_files_are_no_evidence', ONTO_A, 'journal-missing', setup='restack-markers'),
+    rebase_row('restack_word_in_the_command_is_no_evidence', 'echo restack && ' + ONTO_A, 'journal-missing',
+               setup='restack-no-journal'),
+    rebase_row('abort_with_a_journal_is_allowed', 'git rebase --abort', None),
+    rebase_row('abort_during_a_journal_rebase_is_allowed', 'git rebase --abort', None, setup='restack-conflict'),
+    rebase_row('continue_during_a_journal_branch_rebase_is_allowed', 'git rebase --continue', None,
+               setup='restack-conflict'),
+    rebase_row('skip_during_a_journal_branch_rebase_is_allowed', 'git rebase --skip', None,
+               setup='restack-conflict-apply'),
+    rebase_row('continue_during_a_rebase_of_a_branch_outside_order_asks', 'git rebase --continue',
+               'branch-in-order', setup='restack-conflict', edits=((('order',), ('feat/b',)),)),
+    rebase_row('continue_of_an_already_replayed_branch_asks', 'git rebase --continue', 'branch-replayed',
+               setup='restack-conflict', edits=(((*A_BRANCH, 'replayed_tip'), '{target}'),)),
+    rebase_row('continue_with_a_journal_of_another_repository_asks', 'git rebase --continue', 'repository',
+               setup='restack-conflict', edits=((('repository_common_dir',), '{outside_git}'),)),
+    rebase_row('continue_without_a_rebase_in_progress_asks', 'git rebase --continue', 'rebase-head'),
+    rebase_row('quit_during_a_journal_rebase_asks', 'git rebase --quit', 'replay-form', setup='restack-conflict'),
+    rebase_row('edit_todo_during_a_journal_rebase_asks', 'git rebase --edit-todo', 'replay-form',
+               setup='restack-conflict'),
+    RestackCase('replay_after_a_switch_in_the_same_command_is_unsupported', 'git switch main && ' + ONTO_A,
+                'deny', UNSUPPORTED, 'R26'),
+    rebase_row('two_matching_journals_are_ambiguous', ONTO_A, 'journal-ambiguous', setup='restack-two'),
+    rebase_row('journal_of_another_repository_beside_a_valid_one_is_ignored', ONTO_A, None,
+               setup='restack-foreign'),
+    rebase_row('failed_check_is_named_from_the_closest_journal', ONTO_A, 'old-sha', setup='restack-progress'),
+    rebase_row('invalid_json_asks', ONTO_A, 'journal-invalid-json', setup='restack-invalid-json'),
+    rebase_row('invalid_json_beside_a_valid_journal_asks', ONTO_A, 'journal-invalid-json',
+               setup='restack-invalid-beside-valid'),
+    rebase_row('journal_that_is_not_utf8_is_invalid_json', ONTO_A, 'journal-invalid-json', setup='restack-not-utf8'),
+    rebase_row('journal_with_a_duplicate_key_is_invalid_json', ONTO_A, 'journal-invalid-json',
+               setup='restack-duplicate-key'),
+    rebase_row('journal_that_is_not_an_object_has_an_invalid_schema', ONTO_A, SCHEMA, setup='restack-top-array'),
+    rebase_row('journal_named_for_another_task_path_asks', ONTO_A, 'journal-name', setup='restack-wrong-name'),
+    rebase_row('journal_symlink_is_not_read', ONTO_A, 'journal-unreadable', setup='restack-symlink'),
+    rebase_row('journal_fifo_is_not_read', ONTO_A, 'journal-unreadable', setup='restack-fifo'),
+    rebase_row('journal_directory_entry_is_not_read', ONTO_A, 'journal-unreadable',
+               setup='restack-directory-entry'),
+    rebase_row('journal_location_that_is_a_file_is_unreadable', ONTO_A, 'journal-unreadable',
+               setup='restack-directory-file'),
+    rebase_row('journal_at_the_size_limit_is_read', ONTO_A, None, setup='restack-limit'),
+    rebase_row('journal_over_the_size_limit_is_not_read', ONTO_A, 'journal-unreadable', setup='restack-over-limit'),
+    rebase_row('temporary_file_beside_a_journal_is_ignored', ONTO_A, None, setup='restack-temp-file'),
+    rebase_row('journal_in_the_common_dir_proves_a_replay_from_a_linked_worktree', ONTO_A, None,
+               setup='restack-worktree', cwd='wt'),
+    rebase_row('journal_in_a_worktree_git_dir_is_not_read', ONTO_A, 'journal-missing',
+               setup='restack-worktree-private', cwd='wt'),
+    rebase_row('journal_with_64_hex_shas_proves_a_replay', ONTO_A, None, setup='restack-sha256', cwd='sha256'),
+    rebase_row('journal_with_64_hex_shas_checks_the_old_sha', 'git rebase --onto {target} {b_base} feat/a',
+               'old-sha', setup='restack-sha256', cwd='sha256'),
+    rebase_row('journal_with_extra_fields_is_valid', ONTO_A, None,
+               edits=((('notes',), 'restack notes'), ((*A_BRANCH, 'note'), 'kept'), (('target', 'remote'), 'origin'),
+                      (('branches', 'feat/z'), {'original_base_commit': '{a_base}', 'original_tip': '{a_tip}',
+                                                'replayed_tip': None, 'expected_remote_tip': None}))),
+    rebase_row('journal_accepts_a_64_hex_target_in_a_sha1_repository', ONTO_A, 'new-sha',
+               edits=((('target', 'sha'), '{long}'),)),
+)
+
+SCHEMA_CASES: tuple[RestackCase, ...] = (
+    schema_row('another_schema_version', ('schema_version',), 2),
+    schema_row('a_boolean_schema_version', ('schema_version',), True),
+    schema_row('a_string_schema_version', ('schema_version',), '1'),
+    schema_row('a_float_schema_version', ('schema_version',), 1.0),
+    schema_row('a_missing_schema_version', ('schema_version',), REMOVE),
+    schema_row('a_missing_repository', ('repository_common_dir',), REMOVE),
+    schema_row('a_relative_repository', ('repository_common_dir',), 'relative/.git'),
+    schema_row('a_numeric_repository', ('repository_common_dir',), 7),
+    schema_row('a_missing_task_path', ('task_path',), REMOVE),
+    schema_row('a_relative_task_path', ('task_path',), 'relative/task'),
+    schema_row('a_missing_target', ('target',), REMOVE),
+    schema_row('a_missing_target_branch', ('target', 'branch'), REMOVE),
+    schema_row('an_empty_target_branch', ('target', 'branch'), ''),
+    schema_row('an_uppercase_target_sha', ('target', 'sha'), '{TARGET}'),
+    schema_row('an_abbreviated_target_sha', ('target', 'sha'), '{target_short}'),
+    schema_row('a_null_target_sha', ('target', 'sha'), None),
+    schema_row('a_string_publication_flag', ('publication_authorized',), 'true'),
+    schema_row('a_numeric_publication_flag', ('publication_authorized',), 1),
+    schema_row('a_missing_publication_flag', ('publication_authorized',), REMOVE),
+    schema_row('a_string_order', ('order',), 'feat/a'),
+    schema_row('a_numeric_order_entry', ('order',), (1,)),
+    schema_row('a_duplicate_order_entry', ('order',), ('feat/a', 'feat/a')),
+    schema_row('a_missing_order', ('order',), REMOVE),
+    schema_row('an_order_entry_without_a_branch_record', ('order',), ('feat/a', 'feat/b', 'feat/c')),
+    schema_row('an_option_like_branch_name', ('order',), ('-x', 'feat/a')),
+    schema_row('a_branch_name_with_dots', ('order',), ('feat/a..b', 'feat/a')),
+    schema_row('a_branch_name_with_a_glob', ('order',), ('feat/*', 'feat/a')),
+    schema_row('missing_branches', ('branches',), REMOVE),
+    schema_row('a_branches_list', ('branches',), ('feat/a',)),
+    schema_row('a_missing_branch_record', A_BRANCH, REMOVE),
+    schema_row('a_missing_original_base_commit', (*A_BRANCH, 'original_base_commit'), REMOVE),
+    schema_row('an_uppercase_original_base_commit', (*A_BRANCH, 'original_base_commit'), '{TARGET}'),
+    schema_row('a_null_original_tip', (*A_BRANCH, 'original_tip'), None),
+    schema_row('an_absent_replayed_tip', (*A_BRANCH, 'replayed_tip'), 'absent'),
+    schema_row('an_uppercase_replayed_tip', (*A_BRANCH, 'replayed_tip'), '{TARGET}'),
+    schema_row('a_missing_replayed_tip', (*A_BRANCH, 'replayed_tip'), REMOVE),
+    schema_row('an_uppercase_absent_marker', (*A_BRANCH, 'expected_remote_tip'), 'ABSENT'),
+    schema_row('another_remote_tip_word', (*A_BRANCH, 'expected_remote_tip'), 'none'),
+    schema_row('an_uppercase_remote_tip', (*A_BRANCH, 'expected_remote_tip'), '{TARGET}'),
+    schema_row('a_missing_remote_tip', (*A_BRANCH, 'expected_remote_tip'), REMOVE),
+    schema_row('a_malformed_record_outside_order', ('branches', 'feat/z'), {'original_tip': 'x'}),
+)
+
+PUBLICATION_CASES: tuple[RestackCase, ...] = (
+    push_row('journal_allows_the_exact_lease_push', PUSH_A, None),
+    push_row('journal_allows_a_short_lease_ref',
+             'git push --force-with-lease=feat/a:{a_remote} origin feat/a', None),
+    push_row('journal_allows_a_full_refspec',
+             'git push --force-with-lease=refs/heads/feat/a:{a_remote} origin refs/heads/feat/a:refs/heads/feat/a',
+             None),
+    push_row('journal_allows_force_if_includes_with_the_lease',
+             'git push --force-with-lease=refs/heads/feat/a:{a_remote} --force-if-includes origin feat/a', None),
+    push_row('journal_allows_pushing_head_of_the_branch',
+             'git push --force-with-lease=refs/heads/feat/a:{a_remote} origin HEAD', None,
+             setup='restack-replayed-on-a'),
+    push_row('journal_allows_the_default_push_of_the_branch',
+             'git push --force-with-lease=refs/heads/feat/a:{a_remote}', None, setup='restack-replayed-on-a'),
+    push_row('lease_different_from_the_expected_remote_tip_asks',
+             'git push --force-with-lease=refs/heads/feat/a:{other} origin feat/a', 'lease'),
+    push_row('lease_of_the_local_tip_asks', 'git push --force-with-lease=refs/heads/feat/a:{a_new} origin feat/a',
+             'lease'),
+    push_row('empty_lease_for_a_branch_present_on_the_remote_asks',
+             'git push --force-with-lease=refs/heads/feat/a: origin feat/a', 'lease'),
+    push_row('lease_without_a_captured_remote_tip_asks', PUSH_A, 'lease',
+             edits=(((*A_BRANCH, 'expected_remote_tip'), None),)),
+    push_row('unauthorized_publication_asks', PUSH_A, 'publication-authorized',
+             edits=((('publication_authorized',), False),)),
+    RestackCase('force_with_a_valid_journal_asks', 'git push -f --force-with-lease=refs/heads/feat/a:{a_remote} '
+                'origin feat/a', 'ask', FORCE_DEFAULT, 'R17', None, setup='restack-replayed'),
+    RestackCase('forced_refspec_with_a_valid_journal_asks', 'git push --force-with-lease=refs/heads/feat/a:{a_remote} '
+                'origin +feat/a', 'ask', FORCE_DEFAULT, 'R17', None, setup='restack-replayed'),
+    RestackCase('protected_destination_with_a_journal_asks',
+                'git push --force-with-lease=refs/heads/main:{a_base} origin main', 'ask', PROTECTED, 'R16', None,
+                setup='restack-replayed', edits=((('order',), ('main', 'feat/a', 'feat/b')),
+                                                 (('branches', 'main'), MAIN_REPLAYED))),
+    push_row('destination_outside_order_asks', PUSH_A, 'branch-in-order', edits=((('order',), ('feat/b',)),)),
+    push_row('local_tip_different_from_the_replayed_tip_asks', PUSH_A, 'branch-tip',
+             edits=(((*A_BRANCH, 'replayed_tip'), '{target}'),)),
+    push_row('branch_not_yet_replayed_asks', 'git push --force-with-lease=refs/heads/feat/b: origin feat/b',
+             'branch-not-replayed'),
+    push_row('empty_lease_for_a_branch_recorded_absent_is_allowed',
+             'git push --force-with-lease=refs/heads/feat/b: origin feat/b', None, edits=B_REPLAYED),
+    push_row('explicit_lease_for_a_branch_recorded_absent_asks',
+             'git push --force-with-lease=refs/heads/feat/b:{b_tip} origin feat/b', 'lease', edits=B_REPLAYED),
+    push_row('pushing_another_object_onto_the_branch_asks',
+             'git push --force-with-lease=refs/heads/feat/a:{a_remote} origin main~0:feat/a', 'source'),
+    push_row('pushing_the_replayed_sha_instead_of_the_branch_asks',
+             'git push --force-with-lease=refs/heads/feat/a:{a_remote} origin {a_new}:feat/a', 'source'),
+    push_row('pushing_another_branch_onto_the_branch_asks',
+             'git push --force-with-lease=refs/heads/feat/a:{a_remote} origin feat/b:feat/a', 'source'),
+    push_row('pushing_a_revision_of_the_branch_asks',
+             'git push --force-with-lease=refs/heads/feat/a:{a_remote} origin feat/a~0:feat/a', 'source'),
+    push_row('journal_allows_every_verified_destination',
+             'git push --force-with-lease=refs/heads/feat/a:{a_remote} --force-with-lease=refs/heads/feat/b: '
+             'origin feat/a feat/b', None, edits=B_REPLAYED),
+    push_row('one_unverified_destination_asks',
+             'git push --force-with-lease=refs/heads/feat/a:{a_remote} --force-with-lease=refs/heads/feat/b: '
+             'origin feat/a feat/b', 'branch-not-replayed'),
+    push_row('destination_without_its_own_lease_asks',
+             'git push --force-with-lease=refs/heads/feat/a:{a_remote} origin feat/a feat/b', 'explicit-lease',
+             edits=B_REPLAYED),
+    push_row('bare_lease_with_a_journal_asks', 'git push --force-with-lease origin feat/a', 'explicit-lease'),
+    push_row('lease_with_a_journal_of_another_repository_asks', PUSH_A, 'repository',
+             edits=((('repository_common_dir',), '{outside_git}'),)),
+    push_row('lease_without_a_journal_asks', PUSH_A, 'journal-missing', setup='restack-replayed-no-journal'),
+    push_row('lease_with_invalid_json_beside_a_journal_asks', PUSH_A, 'journal-invalid-json',
+             setup='restack-invalid-beside-valid'),
+    push_row('lease_with_two_matching_journals_asks', PUSH_A, 'journal-ambiguous', setup='restack-replayed-two'),
+    push_row('restack_variable_does_not_verify_a_lease', 'RESTACK=1 ' + PUSH_A, 'journal-missing',
+             setup='restack-replayed-no-journal', environ=(('RESTACK', '1'),)),
+    push_row('restack_variable_does_not_change_a_verified_lease', 'RESTACK=1 ' + PUSH_A, None,
+             environ=(('RESTACK', '1'),)),
+    push_row('marker_files_do_not_verify_a_lease', PUSH_A, 'journal-missing', setup='restack-markers'),
+    RestackCase('lease_after_a_switch_in_the_same_command_is_unverifiable', 'git switch feat/a && ' + PUSH_A,
+                'deny', 'push-target-unknown', 'R12', setup='restack-replayed'),
+)
+
+
+class RestackJournalTable(RestackFixture):
+    """Table-driven replay and publication decisions with restack recovery journals."""
+
+
+for restack_case in (*REPLAY_CASES, *SCHEMA_CASES, *PUBLICATION_CASES):
+    setattr(RestackJournalTable, 'test_' + restack_case.name, restack_test(restack_case))
+
+
+class RestackVerifierInterface(RestackFixture):
+    """The shipped verifiers read restack journals; requests and decisions carry what they check."""
+
+    def recorder(self, name: str, stub: bool) -> list[tuple[Any, Any]]:
+        calls: list[tuple[Any, Any]] = []
+        original = self.api(name)
+        verdict = self.api('LeaseVerdict' if name == 'LEASE_VERIFIER' else 'ReplayVerdict')
+
+        def verifier(request: Any, invocation: Any, context: Any) -> Any:
+            result = verdict(False, 'fixture verifier refused') if stub else original(request, invocation, context)
+            calls.append((request, result))
+            return result
+        setattr(CORE, name, verifier)
+        self.addCleanup(setattr, CORE, name, original)
+        return calls
+
+    def test_shipped_verifiers_read_restack_journals(self) -> None:
+        self.assertIs(self.api('LEASE_VERIFIER'), self.api('journal_lease_verifier'))
+        self.assertIs(self.api('REPLAY_VERIFIER'), self.api('journal_replay_verifier'))
+
+    def test_lease_request_carries_each_destination_source(self) -> None:
+        self.setup_restack_replayed_on_a()
+        self.write_journals()
+        calls = self.recorder('LEASE_VERIFIER', True)
+        lease = f'--force-with-lease=refs/heads/feat/a:{self.shas["a_remote"]}'
+        both = f'{lease} --force-with-lease=refs/heads/feat/b:'
+        for refspecs, sources in (('origin feat/a', ('feat/a',)), ('origin main~0:feat/a', ('main~0',)),
+                                  ('origin refs/heads/feat/a:feat/a', ('refs/heads/feat/a',)),
+                                  ('origin HEAD', ('refs/heads/feat/a',))):
+            with self.subTest(refspecs=refspecs):
+                calls.clear()
+                self.outcome(f'git push {lease} {refspecs}')
+                self.assertEqual(tuple(getattr(calls[0][0], 'sources', ())), sources)
+        calls.clear()
+        self.outcome(f'git push {both} origin feat/a feat/b')
+        request = calls[0][0]
+        self.assertEqual((tuple(request.destinations), tuple(getattr(request, 'sources', ()))),
+                         (('refs/heads/feat/a', 'refs/heads/feat/b'), ('feat/a', 'feat/b')))
+
+    def test_verifier_failure_is_named_in_the_decision(self) -> None:
+        self.setup_restack_replayed()
+        self.write_journals()
+        self.recorder('LEASE_VERIFIER', True)
+        self.recorder('REPLAY_VERIFIER', True)
+        self.assertEqual(self.outcome(PUSH_A.format(**self.shas)), ('ask', LEASE, 'R18', 'fixture verifier refused'))
+        self.assertEqual(self.outcome('git rebase main'),
+                         ('ask', OUTSIDE_RESTACK, 'R26', 'fixture verifier refused'))
+
+    def test_no_journal_decisions_name_the_missing_journal(self) -> None:
+        self.setup_push_feature()
+        self.assertEqual(self.outcome(f'git push --force-with-lease=feat/x:{LEASE_SHA} origin feat/x'),
+                         ('ask', LEASE, 'R18', 'journal-missing'))
+        self.assertEqual(self.outcome('git rebase main'), ('ask', OUTSIDE_RESTACK, 'R26', 'journal-missing'))
+
+    def test_forced_lease_with_a_valid_journal_names_the_forced_check(self) -> None:
+        self.setup_restack_replayed()
+        self.write_journals()
+        calls = self.recorder('LEASE_VERIFIER', False)
+        for command in ('git push -f ' + PUSH_A[len('git push '):], PUSH_A.replace('origin feat/a', 'origin +feat/a')):
+            with self.subTest(command=command):
+                calls.clear()
+                self.assertEqual(self.outcome(command.format(**self.shas))[:2], ('ask', FORCE_DEFAULT))
+                self.assertEqual((calls[0][0].forced, calls[0][1].verified, calls[0][1].failure),
+                                 (True, False, 'forced'))
+
+    def test_protected_destination_with_a_valid_journal_names_the_protected_check(self) -> None:
+        self.setup_restack_replayed()
+        self.edit_journal(('order',), ('main', 'feat/a', 'feat/b'))
+        self.edit_journal(('branches', 'main'), MAIN_REPLAYED)
+        self.write_journals()
+        calls = self.recorder('LEASE_VERIFIER', False)
+        command = f'git push --force-with-lease=refs/heads/main:{self.shas["a_base"]} origin main'
+        self.assertEqual(self.outcome(command)[:2], ('ask', PROTECTED))
+        self.assertEqual((calls[0][1].verified, calls[0][1].failure), (False, 'branch-protected'))
+
+    def test_verified_lease_is_reported_without_a_failure(self) -> None:
+        self.setup_restack_replayed()
+        self.write_journals()
+        calls = self.recorder('LEASE_VERIFIER', False)
+        self.assertEqual(self.outcome(PUSH_A.format(**self.shas)), ('allow', None, None, None))
+        self.assertEqual((calls[0][1].verified, calls[0][1].failure), (True, None))
+
+    def test_other_results_carry_no_failure(self) -> None:
+        self.setup_restack_replayed()
+        self.write_journals()
+        for command, expected in (('git status', ('not_applicable', None, None, None)),
+                                  ('git push origin feat/b', ('allow', None, None, None)),
+                                  ('git push -f origin feat/b', ('ask', FORCE_DEFAULT, 'R17', None)),
+                                  ('git add -A', ('deny', BLANKET, 'R01', None))):
+            with self.subTest(command=command):
+                self.assertEqual(self.outcome(command), expected)
+
+    def repeated(self, setup: str) -> None:
+        self.apply_setup(setup)
+        self.write_journals()
+        decide = self.api('decide')
+        event = self.event(ONTO_A.format(**self.shas), str(self.project))
+        results = [decide(event, dict(self.environ)) for _ in range(3)]
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(results[1], results[2])
+        self.assertNotEqual(getattr(results[0], 'failure', NO_FAILURE_FIELD), NO_FAILURE_FIELD)
+
+    def test_repeated_decisions_name_the_same_closest_failure(self) -> None:
+        self.repeated('restack-progress')
+
+    def test_repeated_decisions_name_the_same_ambiguity(self) -> None:
+        self.repeated('restack-two')
+
+
+CLASSES = (*CLASSES, RestackJournalTable, RestackVerifierInterface)
+
+
+# rebase.updateRefs makes git also move every branch that points inside the replayed range,
+# so a configured value, wherever git reads it from, takes a replay outside the journal's proof.
+class UpdateRefsFixture(RestackFixture):
+    """Journals together with rebase.updateRefs in the repository or the user's global config."""
+
+    def update_refs(self, value: str, scope: str = '--local') -> None:
+        self.git(self.project, 'config', scope, 'rebase.updateRefs', value)
+
+    def setup_restack_update_refs(self) -> None:
+        self.setup_restack()
+        self.update_refs('true')
+
+    def setup_restack_update_refs_yes(self) -> None:
+        self.setup_restack()
+        self.update_refs('yes')
+
+    def setup_restack_update_refs_invalid(self) -> None:
+        self.setup_restack()
+        self.update_refs('sometimes')
+
+    def setup_restack_update_refs_false(self) -> None:
+        self.setup_restack()
+        self.update_refs('false')
+
+    def setup_restack_update_refs_global(self) -> None:
+        self.setup_restack()
+        self.update_refs('true', '--global')
+
+    def setup_restack_update_refs_global_overridden(self) -> None:
+        self.setup_restack_update_refs_global()
+        self.update_refs('false')
+
+    def setup_restack_conflict_update_refs(self) -> None:
+        self.setup_restack_conflict()
+        self.update_refs('true')
+
+    def setup_restack_conflict_apply_update_refs(self) -> None:
+        self.setup_restack_conflict_apply()
+        self.update_refs('true')
+
+    def setup_restack_replayed_update_refs(self) -> None:
+        self.setup_restack_replayed()
+        self.update_refs('true')
+
+
+UPDATE_REFS_CASES: tuple[RestackCase, ...] = (
+    rebase_row('replay_with_update_refs_configured_asks', ONTO_A, 'update-refs', setup='restack-update-refs'),
+    rebase_row('replay_with_update_refs_spelled_yes_asks', ONTO_A, 'update-refs', setup='restack-update-refs-yes'),
+    rebase_row('replay_with_an_invalid_update_refs_value_asks', ONTO_A, 'update-refs',
+               setup='restack-update-refs-invalid'),
+    rebase_row('replay_with_update_refs_in_the_global_config_asks', ONTO_A, 'update-refs',
+               setup='restack-update-refs-global'),
+    rebase_row('continue_with_update_refs_configured_asks', 'git rebase --continue', 'update-refs',
+               setup='restack-conflict-update-refs'),
+    rebase_row('skip_with_update_refs_configured_asks', 'git rebase --skip', 'update-refs',
+               setup='restack-conflict-apply-update-refs'),
+    rebase_row('replay_with_update_refs_false_is_allowed', ONTO_A, None, setup='restack-update-refs-false'),
+    rebase_row('replay_with_global_update_refs_overridden_by_the_repository_is_allowed', ONTO_A, None,
+               setup='restack-update-refs-global-overridden'),
+    rebase_row('replay_without_update_refs_configured_is_allowed', ONTO_A, None),
+    rebase_row('abort_with_update_refs_configured_is_allowed', 'git rebase --abort', None,
+               setup='restack-conflict-update-refs'),
+    RestackCase('update_refs_on_the_command_line_is_unsupported', 'git -c rebase.updateRefs=true ' + ONTO_A[4:],
+                'deny', UNSUPPORTED, 'R31'),
+    push_row('lease_push_with_update_refs_configured_is_allowed', PUSH_A, None,
+             setup='restack-replayed-update-refs'),
+)
+
+
+class UpdateRefsTable(UpdateRefsFixture):
+    """Table-driven replay decisions with rebase.updateRefs configured."""
+
+
+for update_refs_case in UPDATE_REFS_CASES:
+    setattr(UpdateRefsTable, 'test_' + update_refs_case.name, restack_test(update_refs_case))
+
+CLASSES = (*CLASSES, UpdateRefsTable)
+
+
+# git applies the first explicit lease that names a destination, so two leases for one branch are
+# never read as one; a rebase stopped with stored update-refs moves other branches on --continue;
+# JSON number constants outside the JSON grammar are not a journal.
+class StoredUpdateRefsFixture(UpdateRefsFixture):
+    """A journal-branch rebase stopped on a conflict, with or without stored update-refs."""
+
+    def stopped_update_refs_rebase(self, side_branch: bool) -> None:
+        self.build_stack(self.project, conflict=True)
+        self.git(self.project, 'switch', '-q', 'feat/a')
+        if side_branch:
+            self.git(self.project, 'branch', 'side-a')
+        self.commit_file(self.project, 'fa2.txt', 'feature a again\n')
+        self.git(self.project, 'switch', '-q', 'main')
+        self.shas['a_tip'] = self.tip_in(self.project, 'feat/a')
+        self.add_journal(self.journal(self.project, 'task one'))
+        self.git_may_fail('rebase', '--update-refs', '--onto', self.shas['target'], self.shas['a_base'], 'feat/a')
+        self.assertTrue((self.project / '.git/rebase-merge/head-name').is_file(), 'fixture rebase must stop')
+        stored = self.project / '.git/rebase-merge/update-refs'
+        self.assertEqual(stored.is_file() and stored.stat().st_size > 0, side_branch, 'fixture update-refs state')
+
+    def setup_restack_conflict_stored_update_refs(self) -> None:
+        self.stopped_update_refs_rebase(True)
+
+    def setup_restack_conflict_without_stored_update_refs(self) -> None:
+        self.stopped_update_refs_rebase(False)
+
+
+def double_lease(first: str, second: str) -> str:
+    return f'git push --force-with-lease={first} --force-with-lease={second} origin feat/a'
+
+
+VALIDATION_REPAIR_CASES: tuple[RestackCase, ...] = (
+    push_row('second_lease_cannot_hide_a_first_short_lease',
+             double_lease('feat/a:{other}', 'refs/heads/feat/a:{a_remote}'), 'explicit-lease'),
+    push_row('second_lease_cannot_hide_a_first_full_lease',
+             double_lease('refs/heads/feat/a:{other}', 'refs/heads/feat/a:{a_remote}'), 'explicit-lease'),
+    push_row('first_lease_of_two_short_leases_is_not_trusted',
+             double_lease('feat/a:{other}', 'feat/a:{a_remote}'), 'explicit-lease'),
+    push_row('verified_lease_first_and_another_lease_second_asks',
+             double_lease('refs/heads/feat/a:{a_remote}', 'feat/a:{other}'), 'explicit-lease'),
+    push_row('partial_heads_lease_counts_as_a_lease_of_the_branch',
+             double_lease('heads/feat/a:{other}', 'feat/a:{a_remote}'), 'explicit-lease'),
+    push_row('two_identical_leases_for_one_destination_ask',
+             double_lease('refs/heads/feat/a:{a_remote}', 'refs/heads/feat/a:{a_remote}'), 'explicit-lease'),
+    push_row('lease_of_another_branch_beside_one_explicit_lease_is_allowed',
+             double_lease('refs/heads/feat/b:', 'refs/heads/feat/a:{a_remote}'), None),
+    push_row('negated_earlier_lease_leaves_one_explicit_lease',
+             'git push --force-with-lease=feat/a:{other} --no-force-with-lease '
+             '--force-with-lease=refs/heads/feat/a:{a_remote} origin feat/a', None),
+    rebase_row('continue_with_stored_update_refs_asks', 'git rebase --continue', 'update-refs',
+               setup='restack-conflict-stored-update-refs'),
+    rebase_row('skip_with_stored_update_refs_asks', 'git rebase --skip', 'update-refs',
+               setup='restack-conflict-stored-update-refs'),
+    rebase_row('continue_of_an_update_refs_rebase_without_stored_refs_is_allowed', 'git rebase --continue', None,
+               setup='restack-conflict-without-stored-update-refs'),
+    rebase_row('abort_with_stored_update_refs_is_allowed', 'git rebase --abort', None,
+               setup='restack-conflict-stored-update-refs'),
+    rebase_row('journal_with_a_nan_constant_is_invalid_json', ONTO_A, 'journal-invalid-json',
+               edits=((('notes',), float('nan')),)),
+    rebase_row('journal_with_an_infinity_constant_is_invalid_json', ONTO_A, 'journal-invalid-json',
+               edits=((('notes',), float('inf')),)),
+    rebase_row('journal_with_a_negative_infinity_constant_is_invalid_json', ONTO_A, 'journal-invalid-json',
+               edits=((('notes',), float('-inf')),)),
+)
+
+
+class ValidationRepairTable(StoredUpdateRefsFixture):
+    """Table-driven decisions for repeated leases, stored update-refs and non-JSON constants."""
+
+
+for validation_case in VALIDATION_REPAIR_CASES:
+    setattr(ValidationRepairTable, 'test_' + validation_case.name, restack_test(validation_case))
+
+CLASSES = (*CLASSES, ValidationRepairTable)
 
 
 def selected_suite() -> unittest.TestSuite:

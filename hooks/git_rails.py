@@ -8,12 +8,15 @@ combines per-invocation results so that the most severe one decides the command.
 Everything is a pure function over the event except one sanitized, read-only git layer
 with a per-read time limit. The module uses only the standard library and runs under
 ``python3 -I``. It never writes files, caches, logs or git state, never runs gh and
-never runs a network git command.
+never runs a network git command. Restack recovery journals under the git common
+directory are read as bounded regular files.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 import fnmatch
+import hashlib
+import json
 import os
 import posixpath
 import re
@@ -142,10 +145,12 @@ FORBIDDEN_PATTERNS = (
 
 @dataclass(frozen=True)
 class Decision:
-    """One result: not_applicable, allow, deny or ask, with its reason and rule."""
+    """One result: not_applicable, allow, deny or ask, with its reason and rule, and for a
+    journal verification the check that failed."""
     decision: str
     reason_code: str | None = None
     rule_id: str | None = None
+    failure: str | None = None
 
 
 NOT_APPLICABLE = Decision('not_applicable')
@@ -1734,8 +1739,8 @@ def usable(variants: list[ParsedOptions] | None) -> list[ParsedOptions]:
     return [parsed for parsed in variants or [] if parsed.error is None]
 
 
-def asking(reason: str, rule: str) -> Decision:
-    return Decision('ask', reason, rule)
+def asking(reason: str, rule: str, failure: str | None = None) -> Decision:
+    return Decision('ask', reason, rule, failure)
 
 
 # ── Path operands ──────────────────────────────────────────────────────
@@ -2291,16 +2296,249 @@ def push_plan(parsed: ParsedOptions, invocation: Invocation, context: Context) -
     return PushPlan(remote, tuple(qualified(spec, tags) for spec in specs), bulk)
 
 
+# ── Restack recovery journals ──────────────────────────────────────────
+
+JOURNAL_DIRECTORY = 'orchestrail-restack'
+JOURNAL_FILE = re.compile(r'[0-9a-f]{64}\.json')
+MAX_JOURNAL_BYTES = MAX_MESSAGE_FILE_BYTES
+JOURNAL_SHA = re.compile(r'[0-9a-f]{40}|[0-9a-f]{64}')
+ABSENT = 'absent'
+JOURNAL_MISSING = 'journal-missing'
+JOURNAL_UNREADABLE = 'journal-unreadable'
+INVALID_JSON = 'journal-invalid-json'
+INVALID_SCHEMA = 'journal-invalid-schema'
+INVALID_BRANCH = re.compile(r'(^|/)\.|\.lock(/|$)|\.\.|[\x00-\x20\x7f~^:?*\[\\]|^[-/]|/$|//|\.$|@\{')
+
+
+@dataclass(frozen=True)
+class JournalBranch:
+    """One stacked branch as /restack recorded it."""
+    original_base_commit: str
+    original_tip: str
+    replayed_tip: str | None
+    expected_remote_tip: str | None
+
+
+@dataclass(frozen=True)
+class Journal:
+    """A recovery journal that passed the schema and file-name checks."""
+    repository: str
+    task_path: str
+    target: str
+    publication_authorized: bool
+    order: tuple[str, ...]
+    branches: Mapping[str, JournalBranch]
+
+
+@dataclass(frozen=True)
+class JournalScan:
+    """Every journal of a common directory, or the check that made the set unusable."""
+    journals: tuple[Journal, ...]
+    failure: str | None = None
+
+
+JournalCheck = tuple[str, Callable[[Journal], bool]]
+
+
+class JournalError(Exception):
+    """A journal file that cannot count as evidence; the message names the failed check."""
+
+
+def valid_branch_name(name: object) -> bool:
+    """A branch name git accepts (check-ref-format --branch rules), never an option or HEAD."""
+    return isinstance(name, str) and name not in ('', '@', 'HEAD') and INVALID_BRANCH.search(name) is None
+
+
+def field_value(document: object, key: str) -> object:
+    if not isinstance(document, dict) or key not in document:
+        raise JournalError(INVALID_SCHEMA)
+    return document[key]
+
+
+def sha_value(document: object, key: str, allowed: tuple[str | None, ...] = ()) -> str | None:
+    """A required SHA field; a value listed in allowed (null, "absent") is kept as it is."""
+    value = field_value(document, key)
+    if value is None and None in allowed:
+        return None
+    if isinstance(value, str) and (value in allowed or JOURNAL_SHA.fullmatch(value)):
+        return value
+    raise JournalError(INVALID_SCHEMA)
+
+
+def required_sha(document: object, key: str) -> str:
+    value = sha_value(document, key)
+    if value is None:
+        raise JournalError(INVALID_SCHEMA)
+    return value
+
+
+def path_value(document: object, key: str) -> str:
+    value = field_value(document, key)
+    if not isinstance(value, str) or not value.startswith('/'):
+        raise JournalError(INVALID_SCHEMA)
+    return value
+
+
+def journal_branch(document: object) -> JournalBranch:
+    return JournalBranch(required_sha(document, 'original_base_commit'), required_sha(document, 'original_tip'),
+                         sha_value(document, 'replayed_tip', (None,)),
+                         sha_value(document, 'expected_remote_tip', (None, ABSENT)))
+
+
+def journal_order(document: object) -> tuple[str, ...]:
+    value = field_value(document, 'order')
+    names = [name for name in value if valid_branch_name(name)] if isinstance(value, list) else []
+    if not isinstance(value, list) or len(names) != len(value) or len(set(names)) != len(names):
+        raise JournalError(INVALID_SCHEMA)
+    return tuple(str(name) for name in names)
+
+
+def journal_branches(document: object, order: Sequence[str]) -> dict[str, JournalBranch]:
+    value = field_value(document, 'branches')
+    if not isinstance(value, dict) or not all(valid_branch_name(name) for name in value):
+        raise JournalError(INVALID_SCHEMA)
+    branches = {str(name): journal_branch(entry) for name, entry in value.items()}
+    if any(name not in branches for name in order):
+        raise JournalError(INVALID_SCHEMA)
+    return branches
+
+
+def journal_record(document: object) -> Journal:
+    """The minimum schema: version 1, absolute paths, target, flag, order and branch records."""
+    version = field_value(document, 'schema_version')
+    target = field_value(document, 'target')
+    publication = field_value(document, 'publication_authorized')
+    if type(version) is not int or version != 1 or not isinstance(publication, bool):
+        raise JournalError(INVALID_SCHEMA)
+    if not valid_branch_name(field_value(target, 'branch')):
+        raise JournalError(INVALID_SCHEMA)
+    order = journal_order(document)
+    return Journal(path_value(document, 'repository_common_dir'), path_value(document, 'task_path'),
+                   required_sha(target, 'sha'), publication, order, journal_branches(document, order))
+
+
+def reject_constant(name: str) -> object:
+    raise ValueError('not a JSON number: ' + name)
+
+
+def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    if len({key for key, _ in pairs}) != len(pairs):
+        raise ValueError('duplicate key')
+    return dict(pairs)
+
+
+def read_journal_bytes(path: str) -> bytes | None:
+    """A regular file, not a symbolic link, of at most MAX_JOURNAL_BYTES; opening never blocks."""
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    except OSError:
+        return None
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        return None
+    with os.fdopen(descriptor, 'rb') as stream:
+        data = stream.read(MAX_JOURNAL_BYTES + 1)
+    return data if len(data) <= MAX_JOURNAL_BYTES else None
+
+
+def load_journal(directory: str, name: str) -> Journal:
+    """One journal file: bounded read, strict UTF-8 JSON without duplicate keys, the schema,
+    and a file name that is the SHA-256 of its task path."""
+    data = read_journal_bytes(os.path.join(directory, name))
+    if data is None:
+        raise JournalError(JOURNAL_UNREADABLE)
+    try:
+        document = json.loads(data.decode('utf-8'), object_pairs_hook=unique_object, parse_constant=reject_constant)
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        raise JournalError(INVALID_JSON) from None
+    journal = journal_record(document)
+    digest = hashlib.sha256(journal.task_path.encode('utf-8', 'surrogatepass')).hexdigest()
+    if name != digest + '.json':
+        raise JournalError('journal-name')
+    return journal
+
+
+def journal_names(directory: str) -> list[str] | None:
+    """Journal file names in sorted order, [] without the directory, None when unreadable."""
+    try:
+        if not stat.S_ISDIR(os.lstat(directory).st_mode):
+            return None
+        return sorted(name for name in os.listdir(directory) if JOURNAL_FILE.fullmatch(name))
+    except FileNotFoundError:
+        return []
+    except OSError:
+        return None
+
+
+def scan_journals(common_dir: str) -> JournalScan:
+    """Every journal under the common directory; any unusable journal file makes the set unusable."""
+    directory = os.path.join(common_dir, JOURNAL_DIRECTORY)
+    names = journal_names(directory)
+    if names is None:
+        return JournalScan((), JOURNAL_UNREADABLE)
+    try:
+        journals = tuple(load_journal(directory, name) for name in names)
+    except JournalError as error:
+        return JournalScan((), str(error))
+    return JournalScan(journals, None if journals else JOURNAL_MISSING)
+
+
+def first_failure(journal: Journal, checks: Sequence[JournalCheck]) -> int:
+    for index, (_, holds) in enumerate(checks):
+        if not holds(journal):
+            return index
+    return len(checks)
+
+
+def matching_failure(scan: JournalScan, checks: Sequence[JournalCheck]) -> str | None:
+    """None when exactly one journal passes every check; otherwise the ambiguity, or the check
+    failed by the journal that got furthest."""
+    if scan.failure is not None:
+        return scan.failure
+    reached = [first_failure(journal, checks) for journal in scan.journals]
+    matches = reached.count(len(checks))
+    if matches == 1:
+        return None
+    return 'journal-ambiguous' if matches else checks[max(reached)][0]
+
+
+def branch_tip(name: str, invocation: Invocation, context: Context) -> str | None:
+    """The commit refs/heads/<name> holds, None when it is missing, symbolic or unreadable.
+    Callers check state_changed(invocation) first."""
+    if not valid_branch_name(name):
+        return None
+    ref = BRANCH_PREFIX + name
+    result = read_git(['for-each-ref', '--format=%(refname)%00%(objectname)%00%(symref)', ref],
+                      invocation.directory, context.environ)
+    for line in result.stdout.split('\n') if result.returncode == 0 else []:
+        fields = line.split('\x00')
+        if len(fields) == 3 and fields[0] == ref and not fields[2]:
+            return fields[1]
+    return None
+
+
+def object_name(revision: str, invocation: Invocation, context: Context) -> str | None:
+    result = read_git(['rev-parse', '--verify', '--quiet', revision], invocation.directory, context.environ)
+    name = result.stdout.strip()
+    return name if result.returncode == 0 and name else None
+
+
+def common_directory(invocation: Invocation) -> str:
+    return os.path.realpath(invocation.common_dir or invocation.directory)
+
+
 # ── Lease verification ─────────────────────────────────────────────────
 
 @dataclass(frozen=True)
 class LeaseRequest:
     """What a lease verifier checks: the target remote, every destination ref with its
-    explicit expected value ('' for a ref recorded as absent), and whether force is also set."""
+    explicit expected value ('' for a ref recorded as absent), whether force is also set,
+    and the source each destination is pushed from, as the refspec names it."""
     remote: str
     destinations: tuple[str, ...]
     leases: tuple[tuple[str, str], ...]
     forced: bool
+    sources: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -2314,12 +2552,80 @@ LeaseVerifier = Callable[[LeaseRequest, Invocation, Context], LeaseVerdict]
 
 
 def no_journal_verifier(request: LeaseRequest, invocation: Invocation, context: Context) -> LeaseVerdict:
-    """The verifier used until recovery journals are read: nothing proves a lease safe."""
-    return LeaseVerdict(False, 'no restack journal found')
+    """The result without a restack journal: nothing proves a lease safe."""
+    return LeaseVerdict(False, JOURNAL_MISSING)
+
+
+@dataclass(frozen=True)
+class LeaseTarget:
+    """One leased destination as the journal checks read it: the branch, its explicit lease,
+    the local tip, and the object pushed when the source names that branch itself."""
+    destination: str
+    branch: str
+    lease: str | None
+    tip: str | None
+    pushed: str | None
+
+
+def lease_targets(request: LeaseRequest, invocation: Invocation, context: Context) -> list[LeaseTarget] | None:
+    if len(request.sources) != len(request.destinations):
+        return None
+    leases = dict(request.leases)
+    targets: list[LeaseTarget] = []
+    for destination, source in zip(request.destinations, request.sources):
+        branch = destination[len(BRANCH_PREFIX):] if destination.startswith(BRANCH_PREFIX) else ''
+        named = valid_branch_name(branch) and source in (branch, destination)
+        pushed = object_name(source, invocation, context) if named else None
+        tip = branch_tip(branch, invocation, context)
+        targets.append(LeaseTarget(destination, branch, leases.get(destination), tip, pushed))
+    return targets
+
+
+def lease_matches(lease: str | None, expected: str | None) -> bool:
+    """The explicit lease equals the captured remote tip; an empty lease means recorded absent."""
+    return expected is not None and lease == ('' if expected == ABSENT else expected)
+
+
+def every_target(targets: Sequence[LeaseTarget],
+                 holds: Callable[[LeaseTarget, JournalBranch], bool]) -> Callable[[Journal], bool]:
+    """A journal check that holds when it holds for the branch record of every destination."""
+    return lambda journal: all(holds(target, journal.branches[target.branch]) for target in targets)
+
+
+def lease_checks(request: LeaseRequest, invocation: Invocation, context: Context) -> list[JournalCheck] | str:
+    """The publication checks, each over every destination, in the order they are reported."""
+    patterns = protected_branches(request.remote, invocation, context)
+    targets = lease_targets(request, invocation, context)
+    if patterns is None:
+        return 'protected-set'
+    if targets is None:
+        return 'source'
+    common = common_directory(invocation)
+    return [('repository', lambda journal: journal.repository == common),
+            ('branch-in-order', lambda journal: all(target.branch in journal.order for target in targets)),
+            ('branch-protected', lambda journal: not any(is_protected(target.destination, patterns)
+                                                         for target in targets)),
+            ('publication-authorized', lambda journal: journal.publication_authorized),
+            ('branch-not-replayed', every_target(targets, lambda target, entry: entry.replayed_tip is not None)),
+            ('branch-tip', every_target(targets, lambda target, entry: target.tip == entry.replayed_tip)),
+            ('source', every_target(targets, lambda target, entry: target.pushed == entry.replayed_tip)),
+            ('lease', every_target(targets, lambda target, entry: lease_matches(target.lease,
+                                                                                entry.expected_remote_tip))),
+            ('forced', lambda journal: not request.forced)]
+
+
+def journal_lease_verifier(request: LeaseRequest, invocation: Invocation, context: Context) -> LeaseVerdict:
+    """A lease is proven safe when exactly one restack journal passes every publication check."""
+    scan = scan_journals(common_directory(invocation))
+    if scan.failure == JOURNAL_MISSING:
+        return no_journal_verifier(request, invocation, context)
+    checks = lease_checks(request, invocation, context)
+    failure = checks if isinstance(checks, str) else matching_failure(scan, checks)
+    return LeaseVerdict(failure is None, failure)
 
 
 # The lease rule calls this name at decision time, so a replacement verifier keeps the interface.
-LEASE_VERIFIER: LeaseVerifier = no_journal_verifier
+LEASE_VERIFIER: LeaseVerifier = journal_lease_verifier
 
 
 def explicit_leases(values: Sequence[OptionValue]) -> tuple[tuple[str, str], ...] | None:
@@ -2336,12 +2642,11 @@ def explicit_leases(values: Sequence[OptionValue]) -> tuple[tuple[str, str], ...
 
 
 def lease_for(destination: str, leases: Sequence[tuple[str, str]]) -> str | None:
-    """The expected value of the last lease whose ref names the destination."""
-    found: str | None = None
-    for ref, expected in leases:
-        if destination in (ref, 'refs/' + ref, TAG_PREFIX + ref, BRANCH_PREFIX + ref):
-            found = expected
-    return found
+    """The expected value of the one lease whose ref names the destination; None when no lease
+    or several do, because git applies the first and a later one must not hide it."""
+    found = [expected for ref, expected in leases
+             if destination in (ref, 'refs/' + ref, TAG_PREFIX + ref, BRANCH_PREFIX + ref)]
+    return found[0] if len(found) == 1 else None
 
 
 # ── Push rules ─────────────────────────────────────────────────────────
@@ -2370,7 +2675,8 @@ def lease_request(view: PushView) -> LeaseRequest | None:
     known = [value for value in expected if value is not None]
     if len(known) != len(expected):
         return None
-    return LeaseRequest(view.plan.remote, destinations, tuple(zip(destinations, known)), view.forced)
+    sources = tuple(spec.source for spec in view.plan.refspecs)
+    return LeaseRequest(view.plan.remote, destinations, tuple(zip(destinations, known)), view.forced, sources)
 
 
 def check_push_bulk(view: PushView) -> Decision | None:
@@ -2405,9 +2711,10 @@ def check_push_lease(view: PushView) -> Decision | None:
     if not view.parsed.every('force-with-lease'):
         return None
     request = lease_request(view)
-    if request is None or not LEASE_VERIFIER(request, view.invocation, view.context).verified:
-        return asking(LEASE_UNVERIFIED, 'R18')
-    return None
+    if request is None:
+        return asking(LEASE_UNVERIFIED, 'R18', 'explicit-lease')
+    verdict = LEASE_VERIFIER(request, view.invocation, view.context)
+    return None if verdict.verified else asking(LEASE_UNVERIFIED, 'R18', verdict.failure)
 
 
 PUSH_ASKS: tuple[Callable[[PushView], Decision | None], ...] = (
@@ -2676,13 +2983,86 @@ ReplayVerifier = Callable[[ReplayRequest, Invocation, Context], ReplayVerdict]
 
 
 def no_journal_replay_verifier(request: ReplayRequest, invocation: Invocation, context: Context) -> ReplayVerdict:
-    """The verifier used until recovery journals are read: nothing proves a replay."""
-    return ReplayVerdict(False, 'no restack journal found')
+    """The result without a restack journal: nothing proves a replay."""
+    return ReplayVerdict(False, JOURNAL_MISSING)
+
+
+def expected_base(journal: Journal, branch: str) -> str | None:
+    """The first branch of the order replays onto the target; every later one onto the
+    replayed tip of the branch before it."""
+    index = journal.order.index(branch)
+    return journal.target if index == 0 else journal.branches[journal.order[index - 1]].replayed_tip
+
+
+def pending_checks(common: str, branch: str, patterns: Sequence[str]) -> list[JournalCheck]:
+    """The branch belongs to this repository's stack, is unprotected and is not yet replayed."""
+    return [('repository', lambda journal: journal.repository == common),
+            ('branch-in-order', lambda journal: branch in journal.order),
+            ('branch-protected', lambda journal: not is_protected(BRANCH_PREFIX + branch, patterns)),
+            ('branch-replayed', lambda journal: journal.branches[branch].replayed_tip is None)]
+
+
+def updates_refs(invocation: Invocation, context: Context) -> bool:
+    """Whether rebase.updateRefs, read as git reads it, may make a rebase move other branches;
+    an invalid value counts as set. Callers check state_changed(invocation) first."""
+    result = read_git(['config', '--type=bool', '--get', 'rebase.updateRefs'], invocation.directory,
+                      context.environ)
+    if result.returncode == 1:
+        return False
+    return result.returncode != 0 or result.stdout.strip() != 'false'
+
+
+def stored_update_refs(invocation: Invocation, context: Context) -> bool:
+    """Whether the stopped rebase recorded other branches to move (rebase-merge/update-refs is
+    not empty); an unreadable git dir or state file counts as recorded."""
+    result = read_git(['rev-parse', '--path-format=absolute', '--git-dir'], invocation.directory, context.environ)
+    git_dir = result.stdout.strip()
+    if result.returncode != 0 or not git_dir:
+        return True
+    try:
+        info = os.lstat(os.path.join(git_dir, 'rebase-merge', 'update-refs'))
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    return not stat.S_ISREG(info.st_mode) or info.st_size > 0
+
+
+def replay_checks(request: ReplayRequest, invocation: Invocation, context: Context) -> list[JournalCheck] | str:
+    """The exact replay, or --continue/--skip while a rebase of a stack branch is in progress."""
+    head = request.rebase_head or ''
+    if request.replay is None and request.arguments not in (('--continue',), ('--skip',)):
+        return 'replay-form'
+    if request.replay is None and not (request.in_progress and head.startswith(BRANCH_PREFIX)):
+        return 'rebase-head'
+    if updates_refs(invocation, context) or (request.replay is None and stored_update_refs(invocation, context)):
+        return 'update-refs'
+    patterns = local_protected_branches(invocation, context)
+    if patterns is None:
+        return 'protected-set'
+    if request.replay is None:
+        return pending_checks(request.common_dir, head[len(BRANCH_PREFIX):], patterns)
+    new, old, branch = request.replay
+    tip = branch_tip(branch, invocation, context)
+    return [*pending_checks(request.common_dir, branch, patterns),
+            ('old-sha', lambda journal: journal.branches[branch].original_base_commit == old),
+            ('branch-tip', lambda journal: journal.branches[branch].original_tip == tip),
+            ('new-sha', lambda journal: expected_base(journal, branch) == new)]
+
+
+def journal_replay_verifier(request: ReplayRequest, invocation: Invocation, context: Context) -> ReplayVerdict:
+    """A rebase is a verified replay when exactly one restack journal passes every replay check."""
+    scan = scan_journals(request.common_dir)
+    if scan.failure == JOURNAL_MISSING:
+        return no_journal_replay_verifier(request, invocation, context)
+    checks = replay_checks(request, invocation, context)
+    failure = checks if isinstance(checks, str) else matching_failure(scan, checks)
+    return ReplayVerdict(failure is None, failure)
 
 
 # The rebase rule calls this name at decision time, so a replacement verifier keeps the interface.
 # It is never called after a same-command state change; that rebase is denied first.
-REPLAY_VERIFIER: ReplayVerifier = no_journal_replay_verifier
+REPLAY_VERIFIER: ReplayVerifier = journal_replay_verifier
 
 
 def read_head_name(directory: str) -> str | None:
@@ -2859,9 +3239,8 @@ def rebase_reading(parsed: ParsedOptions, invocation: Invocation, context: Conte
     request = replay_request(parsed, invocation, context)
     if request is None:
         return denial(UNSUPPORTED, 'R26')
-    if REPLAY_VERIFIER(request, invocation, context).verified:
-        return None
-    return asking('rebase-outside-restack', 'R26')
+    verdict = REPLAY_VERIFIER(request, invocation, context)
+    return None if verdict.verified else asking('rebase-outside-restack', 'R26', verdict.failure)
 
 
 def merge_reading(parsed: ParsedOptions, invocation: Invocation, context: Context) -> Decision | None:
