@@ -5414,6 +5414,372 @@ check "GIT-RAILS: logging record stays first and precedes the git-rails section"
 check "GIT-RAILS: Codex declares textual rules only" \
   "$(git_rails_codex_declaration_follows_logging_record && echo pass || echo "$GIT_RAILS_CODEX_CAPS must keep its logging record and add exactly one 'git-rails: none (textual rules only)' line after it")"
 
+# ── Safety rails enforcement, owner approval and the restack journal ──
+# Every Safety rails row records what the git-rails hook does with that operation, using
+# one value from the anchored vocabulary line, so a reader can tell an enforced rail from a
+# textual one. The owner-approval protocol and the never-evade rule sit in the same section.
+# /restack documents the journal the hook verifies and the only command forms it accepts.
+# The capability record carries the residual risks found while building the hook. Text
+# that consumer projects receive names no spec, subtask, decision record or task path.
+SAFETY_RAILS_RULE=rules/git-flow.md
+SAFETY_RAILS_VOCABULARY='Enforcement values for the safety rails: `hook: deny` | `hook: ask` | `hook: allow with restack journal` | `text only`.'
+SAFETY_RAILS_HEADER='| Operation | Policy | Enforcement |'
+RESTACK_WORKFLOW=workflows/restack.md
+RESTACK_REBASE_FORM='git rebase --onto <new-sha> <old-sha> <branch>'
+RESTACK_PUSH_FORM='git push --force-with-lease=refs/heads/<b>:<sha> origin <b>'
+RESTACK_ABSENT_PUSH_FORM='git push --force-with-lease=refs/heads/<b>: origin <b>'
+PIPELINE_IDENTIFIER_RE='spec[ -]?[0-9]|\bT-[0-9]|ADR-[0-9]|\.ai/(specs|adr|tasks|memory)|[0-9]{2}[a-z]?-[a-z0-9-]+\.md'
+
+safety_rails_section() {
+  awk '$0 == "## Safety rails" { inside = 1; next } inside && /^## / { exit } inside' \
+    "$SAFETY_RAILS_RULE" 2>/dev/null
+}
+
+# Table rows of the section, without the header and separator lines.
+safety_rails_rows() {
+  safety_rails_section | grep '^|' | grep -vxF "$SAFETY_RAILS_HEADER" | grep -vE '^\|[- |]+\|$'
+}
+
+safety_rails_vocabulary_values() {
+  [ "$(grep -c '^Enforcement values for the safety rails: ' "$SAFETY_RAILS_RULE" 2>/dev/null)" = 1 ] || return 1
+  safety_rails_section | grep -xF "$SAFETY_RAILS_VOCABULARY" \
+    | sed 's/^Enforcement values for the safety rails: //; s/\.$//' \
+    | awk -F' [|] ' '{ for (i = 1; i <= NF; i++) print $i }'
+}
+
+# Prints every row that lacks exactly three cells or whose Enforcement cell is not one
+# vocabulary value; a cell naming two values is not a vocabulary value.
+safety_rails_offending_rows() {
+  local values row cell
+  values="$(safety_rails_vocabulary_values)"
+  while IFS= read -r row; do
+    [ -n "$row" ] || continue
+    if [ "$(printf '%s\n' "$row" | awk -F'|' '{ print NF }')" != 5 ]; then
+      printf '%s\n' "$row"
+      continue
+    fi
+    cell="$(printf '%s\n' "$row" | awk -F'|' '{ print $4 }' | sed 's/^ *//; s/ *$//')"
+    printf '%s\n' "$values" | grep -qxF -- "$cell" || printf '%s\n' "$row"
+  done <<< "$(safety_rails_rows)"
+}
+
+safety_rails_enforcement_complete() {
+  [ -n "$(safety_rails_vocabulary_values)" ] || return 1
+  [ "$(safety_rails_section | grep -cxF "$SAFETY_RAILS_HEADER")" = 1 ] || return 1
+  [ -n "$(safety_rails_rows)" ] || return 1
+  [ -z "$(safety_rails_offending_rows)" ]
+}
+
+# Echoes pass when the first row naming the operation records the expected Enforcement.
+safety_rail_enforced_as() {
+  local operation="$1" expected="$2" cell
+  cell="$(safety_rails_rows | grep -F -- "$operation" | head -n 1 | awk -F'|' '{ print $4 }' | sed 's/^ *//; s/ *$//')"
+  if [ "$cell" = "$expected" ]; then
+    echo pass
+  else
+    echo "git-flow.md safety-rail row for $operation must record Enforcement $expected, found '${cell:-no row or no cell}'"
+  fi
+}
+
+owner_approval_protocol_flat() {
+  safety_rails_section \
+    | awk '$0 == "### Owner approval protocol" { inside = 1; next } inside && /^#{2,3} / { exit } inside' \
+    | tr '\n' ' ' | tr -s ' '
+}
+
+owner_approval_protocol_has() {
+  local phrase
+  [ "$(grep -cx '### Owner approval protocol' "$SAFETY_RAILS_RULE" 2>/dev/null)" = 1 ] || return 1
+  for phrase in "$@"; do
+    owner_approval_protocol_flat | grep -qF -- "$phrase" || return 1
+  done
+}
+
+restack_journal_section() {
+  awk '$0 == "## Recovery journal" { inside = 1; next } inside && /^## / { exit } inside' \
+    "$RESTACK_WORKFLOW" 2>/dev/null
+}
+
+restack_journal_has() {
+  local phrase flat
+  [ "$(grep -cx '## Recovery journal' "$RESTACK_WORKFLOW" 2>/dev/null)" = 1 ] || return 1
+  flat="$(restack_journal_section | tr '\n' ' ' | tr -s ' ')"
+  for phrase in "$@"; do
+    printf '%s' "$flat" | grep -qF -- "$phrase" || return 1
+  done
+}
+
+# The section's one JSON example parses and carries every field the hook verifies.
+restack_journal_schema_documented() {
+  local section
+  [ "$(grep -cx '## Recovery journal' "$RESTACK_WORKFLOW" 2>/dev/null)" = 1 ] || return 1
+  section="$(restack_journal_section)"
+  printf '%s\n' "$section" | grep -qE -- "$PIPELINE_IDENTIFIER_RE" && return 1
+  python3 -I - "$section" 2>/dev/null <<'PYRESTACKJOURNAL'
+import json
+import re
+import sys
+
+blocks = re.findall(r'^```json\n(.*?)^```$', sys.argv[1], re.S | re.M)
+if len(blocks) != 1:
+    sys.exit(1)
+try:
+    journal = json.loads(blocks[0])
+except ValueError:
+    sys.exit(1)
+top = {'schema_version', 'repository_common_dir', 'task_path', 'target',
+       'publication_authorized', 'order', 'branches'}
+per_branch = {'original_base_commit', 'original_tip', 'replayed_tip', 'expected_remote_tip'}
+valid = (
+    isinstance(journal, dict) and top <= journal.keys()
+    and journal['schema_version'] == 1
+    and isinstance(journal['target'], dict) and {'branch', 'sha'} <= journal['target'].keys()
+    and journal['publication_authorized'] is False
+    and isinstance(journal['order'], list) and len(journal['order']) > 0
+    and all(isinstance(name, str) for name in journal['order'])
+    and isinstance(journal['branches'], dict)
+    and set(journal['order']) <= journal['branches'].keys()
+    and all(isinstance(entry, dict) and per_branch <= entry.keys()
+            for entry in journal['branches'].values())
+)
+sys.exit(0 if valid else 1)
+PYRESTACKJOURNAL
+}
+
+# The first accepted form is present, and every occurrence of the command stem, up to its
+# closing backtick, is one of the accepted forms.
+restack_command_forms_exact() {
+  local stem="$1"
+  shift
+  grep -qF -- "$1" "$RESTACK_WORKFLOW" 2>/dev/null || return 1
+  ! grep -oE -- "$stem[^\`]*" "$RESTACK_WORKFLOW" | grep -vxF "${@/#/-e}" | grep -q .
+}
+
+check "SAFETY: git-flow defines the Enforcement vocabulary on one anchored line" \
+  "$([ -n "$(safety_rails_vocabulary_values)" ] && echo pass || echo "git-flow.md → ## Safety rails must contain exactly one line '$SAFETY_RAILS_VOCABULARY'")"
+
+check "SAFETY: every Safety rails row has exactly one Enforcement value from the vocabulary" \
+  "$(safety_rails_enforcement_complete && echo pass || echo "git-flow.md → ## Safety rails needs the header '$SAFETY_RAILS_HEADER' and one vocabulary value per row; offending rows: $(safety_rails_offending_rows | head -n 3 | tr '\n' ' ')")"
+
+check "SAFETY: pushing to a subtask branch is recorded as a textual rail" \
+  "$(safety_rail_enforced_as '`git push` to a subtask branch' '`text only`')"
+check "SAFETY: pushing to a protected branch is recorded as a hook ask" \
+  "$(safety_rail_enforced_as 'any protected branch' '`hook: ask`')"
+check "SAFETY: git push --force is recorded as a hook ask" \
+  "$(safety_rail_enforced_as '`git push --force`' '`hook: ask`')"
+check "SAFETY: the replayed-branch lease push is recorded as allowed with the restack journal" \
+  "$(safety_rail_enforced_as "\`$RESTACK_PUSH_FORM\`" '`hook: allow with restack journal`')"
+check "SAFETY: branch deletion is recorded as a hook ask" \
+  "$(safety_rail_enforced_as 'Branch deletion' '`hook: ask`')"
+check "SAFETY: gh pr merge is recorded as a hook ask" \
+  "$(safety_rail_enforced_as '`gh pr merge`' '`hook: ask`')"
+check "SAFETY: blanket staging is recorded as a hook deny" \
+  "$(safety_rail_enforced_as '`git add -A`' '`hook: deny`')"
+check "SAFETY: git rebase outside /restack is recorded as a hook ask" \
+  "$(safety_rail_enforced_as '`git rebase` outside' '`hook: ask`')"
+check "SAFETY: the restack replay is recorded as allowed with the restack journal" \
+  "$(safety_rail_enforced_as "\`$RESTACK_REBASE_FORM\`" '`hook: allow with restack journal`')"
+check "SAFETY: git reset --hard is recorded as a hook ask" \
+  "$(safety_rail_enforced_as '`git reset --hard`' '`hook: ask`')"
+
+check "SAFETY: branch deletion needs owner approval, and no rule file names a spec by number" \
+  "$(safety_rails_rows | grep -F 'Branch deletion' | head -n 1 | grep -qiF 'owner approval required; a verified temporary child-branch exception is planned' && ! grep -rqiE '\bspecs? #?[0-9]+' rules/ 2>/dev/null && ! safety_rails_section | grep -qE -- "$PIPELINE_IDENTIFIER_RE" && echo pass || echo "git-flow.md branch-deletion row must read 'owner approval required; a verified temporary child-branch exception is planned', and no rule file or Safety rails text may name a spec, subtask or decision record")"
+
+check "SAFETY: no reader keeps the unconditional branch-deletion ban" \
+  "$(grep -rniE 'Branch deletion \| \*\*Forbidden|branch deletion (is|stays) forbidden|child exception pending' rules/ workflows/ templates/ docs/USAGE.md docs/SPEC-RUN-QUICKSTART.md 2>/dev/null | grep -q . && echo "a reader still states the old branch-deletion policy: $(grep -rlniE 'Branch deletion \| \*\*Forbidden|branch deletion (is|stays) forbidden|child exception pending' rules/ workflows/ templates/ docs/USAGE.md docs/SPEC-RUN-QUICKSTART.md 2>/dev/null | tr '\n' ' ')" || echo pass)"
+
+check "SAFETY: an Enforcement of hook: ask grants no right beyond the Policy column" \
+  "$(owner_approval_protocol_has 'A `hook: ask` row grants no right' && echo pass || echo "git-flow.md → ### Owner approval protocol must state that a hook: ask row grants no right beyond its Policy")"
+
+check "SAFETY: owner approval starts with an explanation in chat before the command" \
+  "$(owner_approval_protocol_has 'explain in chat: the exact command, which rail it crosses, why it is needed, what can be lost, and how to undo it' && echo pass || echo "git-flow.md → ### Owner approval protocol must require the exact command, the rail, the reason, the possible loss and the undo before an ask operation")"
+
+check "SAFETY: owner approval covers one execution and a rejection is final" \
+  "$(owner_approval_protocol_has 'Approval covers that one execution only' 'A rejection is final for that operation' 'do not retry or rephrase the command' && echo pass || echo "git-flow.md → ### Owner approval protocol must limit approval to one execution and make a rejection final without retry or rephrasing")"
+
+check "SAFETY: owner approval unavailable stops and hands the command to the owner" \
+  "$(owner_approval_protocol_has '`owner-approval-unavailable`' 'give the owner the explanation and the exact command' '`! <command>`' 'or gives other instructions' && echo pass || echo "git-flow.md → ### Owner approval protocol must stop on owner-approval-unavailable and let the owner run the command outside the agent or give other instructions")"
+
+check "SAFETY: a denied command is never wrapped or rephrased to evade the check" \
+  "$([ "$(grep -cF 'Never wrap or rephrase a denied command to evade the check.' "$SAFETY_RAILS_RULE" 2>/dev/null)" = 1 ] && safety_rails_section | grep -qF 'Never wrap or rephrase a denied command to evade the check.' && echo pass || echo "git-flow.md → ## Safety rails must state once: 'Never wrap or rephrase a denied command to evade the check.'")"
+
+check "RESTACK: the recovery journal section documents every schema field" \
+  "$(restack_journal_schema_documented && echo pass || echo "restack.md → ## Recovery journal must hold one JSON example with schema_version 1, repository_common_dir, task_path, target.branch/sha, publication_authorized false, order and branches.<b>.original_base_commit/original_tip/replayed_tip/expected_remote_tip, and no pipeline identifiers")"
+
+check "RESTACK: publication_authorized is true only with --allow-pr" \
+  "$(restack_journal_has '`publication_authorized` is `true` only when `/restack` runs with `--allow-pr`' && echo pass || echo "restack.md → ## Recovery journal must tie publication_authorized to --allow-pr")"
+
+check "RESTACK: expected_remote_tip is a SHA, \"absent\" or null" \
+  "$(restack_journal_has '`expected_remote_tip` is a SHA, `"absent"`' 'or `null`' && echo pass || echo "restack.md → ## Recovery journal must define expected_remote_tip as a SHA, \"absent\" or null")"
+
+check "RESTACK: order lists the branches to replay and fixes each replay base" \
+  "$(restack_journal_has '`order` lists only the branches to replay, in replay order' 'the first entry is replayed onto `target.sha`' "each later entry onto the previous entry's \`replayed_tip\`" && echo pass || echo "restack.md → ## Recovery journal must define order as the replay list: the first entry onto target.sha, each later one onto the previous entry's replayed_tip")"
+
+check "RESTACK: every replay uses the exact rebase form" \
+  "$(restack_command_forms_exact 'git rebase --onto' "$RESTACK_REBASE_FORM" && echo pass || echo "restack.md must name '$RESTACK_REBASE_FORM' and use no other git rebase --onto form")"
+
+check "RESTACK: every publication uses the exact explicit-lease push form" \
+  "$(restack_command_forms_exact 'git push --force-with-lease=' "$RESTACK_PUSH_FORM" "$RESTACK_ABSENT_PUSH_FORM" && echo pass || echo "restack.md must name '$RESTACK_PUSH_FORM' and use no lease form other than it and '$RESTACK_ABSENT_PUSH_FORM'")"
+
+while IFS='|' read -r git_rails_risk git_rails_risk_re git_rails_risk_desc; do
+  check "GIT-RAILS: residual risk X$git_rails_risk records $git_rails_risk_desc" \
+    "$(git_rails_field_once "^\\| X$git_rails_risk \\| .*$git_rails_risk_re" && ! git_rails_section | grep -E "^\\| X$git_rails_risk \\| " | grep -qE -- "$PIPELINE_IDENTIFIER_RE" && echo pass || echo "git-rails section must contain exactly one '| X$git_rails_risk | …' row on $git_rails_risk_desc, without pipeline identifiers")"
+done <<'GITRAILSRESIDUALS'
+11|hooks/git-rails\.sh.*uninstall.*earlier installers|the checkout-bound entrypoint and the uninstall step
+12|prefilter matches only the literal|the literal-word prefilter
+13|cannot stat.*reads as absent|an unstattable registry path
+14|without `head` or `tr`.*`python3`.*denied|a degraded PATH
+15|`man -P`.*`diff\.external`.*commit hooks|state changed within the same command
+16|`for-each-repo`.*`stash drop`|unlisted runners and operations
+17|Restack.*--continue.*no remote.*journal files|the restack journal limits
+18|deny rules.*unregistered.*here-document.*reinstall|the user-level deny rules
+GITRAILSRESIDUALS
+unset git_rails_risk git_rails_risk_re git_rails_risk_desc
+
+# The rules and the hook differ in reach: the rules govern listed operations, but the hook
+# also denies forms it cannot verify and every relevant command while its registry or
+# runtime is unusable, and it allows any forced push the journal verifies, not only the
+# form /restack uses. The text must claim neither less blocking nor narrower acceptance.
+safety_rails_flat() {
+  safety_rails_section | tr '\n' ' ' | tr -s ' '
+}
+
+safety_rails_has() {
+  local phrase
+  for phrase in "$@"; do
+    safety_rails_flat | grep -qF -- "$phrase" || return 1
+  done
+}
+
+check "SAFETY: no reader claims read-only or unlisted git commands are never blocked" \
+  "$(grep -rniE 'read-only git commands are never blocked|absent from this table are not checked by the hook' rules/ workflows/ docs/USAGE.md 2>/dev/null | grep -q . && echo "a reader claims the hook never blocks read-only or unlisted commands: $(grep -rliE 'read-only git commands are never blocked|absent from this table are not checked by the hook' rules/ workflows/ docs/USAGE.md 2>/dev/null | tr '\n' ' ')" || echo pass)"
+
+check "SAFETY: unlisted operations are ungoverned, yet the hook still denies unverifiable forms and an unusable registry or runtime" \
+  "$(safety_rails_has 'The rules check no read-only or unlisted operation' 'the hook still denies any git or gh command it cannot verify' 'while the project registry or the hook runtime is unusable' 'harness capability record' && echo pass || echo "git-flow.md → ## Safety rails must say the rules check no read-only or unlisted operation while the hook still denies unverifiable forms and every relevant command while the registry or runtime is unusable, pointing at the harness capability record")"
+
+check "SAFETY: the journal-verified lease row covers every destination the journal verifies" \
+  "$(safety_rails_rows | grep -F "\`$RESTACK_PUSH_FORM\`" | head -n 1 | grep -qF 'the restack journal verifies for every destination' && echo pass || echo "git-flow.md lease row allowed with the restack journal must say the journal verifies every destination, not only the form /restack uses")"
+
+check "SAFETY: the lease row that asks names pushes the journal does not verify" \
+  "$(safety_rails_rows | grep -F '`+` refspec' | head -n 1 | grep -qF 'the restack journal does not verify' && ! grep -qF 'Any other lease form' "$SAFETY_RAILS_RULE" && echo pass || echo "git-flow.md must record as hook: ask the forced pushes the restack journal does not verify, not 'any other lease form'")"
+
+check "SAFETY: the opaque-forms row applies to governed git and gh invocations" \
+  "$(safety_rails_rows | grep -F '`GIT_*` assignments' | head -n 1 | grep -qF 'governed by a row of this table' && echo pass || echo "git-flow.md opaque-forms row must be limited to git or gh commands governed by a row of the table")"
+
+check "RESTACK: the workflow's command forms are its own, not the hook's acceptance set" \
+  "$(! grep -qiF 'hook accepts exactly' "$RESTACK_WORKFLOW" 2>/dev/null && restack_journal_has 'This workflow uses exactly these command forms' 'only when exactly one journal verifies it' && echo pass || echo "restack.md → ## Recovery journal must say the workflow uses exactly these forms and the hook allows a replay or forced push only when exactly one journal verifies it, never that the hook accepts exactly these forms")"
+
+check "RESTACK: a set rebase.updateRefs stops the replay instead of a retry in another form" \
+  "$(restack_journal_has 'When `rebase.updateRefs` is true' '**stop**' 'never retry the replay in another form' && echo pass || echo "restack.md → ## Recovery journal must stop when rebase.updateRefs is true or the hook asks about a replay, and never retry the replay in another form")"
+
+# The hook asks for an amend of a published commit and for a rebase, but it allows other
+# local rewrites of a pushed unprotected branch; only the later forced push asks. A hook: ask
+# row must not claim rewriting in general, and the local rewrites must read as textual.
+REWRITE_ROW='Other local rewrites of a pushed branch'
+
+local_rewrite_row_documented() {
+  local row part
+  [ "$(safety_rail_enforced_as "$REWRITE_ROW" '`text only`')" = pass ] || return 1
+  row="$(safety_rails_rows | grep -F "$REWRITE_ROW" | head -n 1)"
+  for part in '`git reset --soft`' '`git branch -f <b> <rev>`' '`git checkout -B <b> <rev>`' \
+              '`git pull --rebase`' 'Only inside `/restack`' 'forced push'; do
+    printf '%s' "$row" | grep -qF -- "$part" || return 1
+  done
+}
+
+check "SAFETY: no hook: ask row claims every rewrite of a pushed commit" \
+  "$(safety_rails_rows | grep -F '`hook: ask` |' | grep -qiE 'rewrit[a-z]* a commit already pushed' && echo "git-flow.md records rewriting a pushed commit in general as hook: ask, but the hook asks only for an amend of a published commit and for a rebase" || echo pass)"
+
+check "SAFETY: amending a published commit is recorded as a hook ask" \
+  "$(safety_rail_enforced_as '`git commit --amend` of a commit already pushed' '`hook: ask`')"
+
+check "SAFETY: other local rewrites of a pushed branch are recorded as a textual rail" \
+  "$(local_rewrite_row_documented && echo pass || echo "git-flow.md needs a '$REWRITE_ROW' row naming git reset --soft, git branch -f <b> <rev>, git checkout -B <b> <rev> and git pull --rebase, Policy only inside /restack with publication gated by the forced push, Enforcement text only")"
+
+check "GIT-RAILS: residual risk X19 records allowed local rewrites of a pushed branch" \
+  "$(git_rails_field_once '^\| X19 \| .*`git reset --soft`.*`git pull --rebase`.*forced push' && ! git_rails_section | grep -E '^\| X19 \| ' | grep -qE -- "$PIPELINE_IDENTIFIER_RE" && echo pass || echo "git-rails section must contain exactly one '| X19 | …' row on local rewrites of a pushed unprotected branch that only the later forced push gates")"
+
+check "GIT-RAILS: residual risk X13 separates an absent registry from a registry error" \
+  "$(git_rails_section | grep -E '^\| X13 \| ' | grep -qF 'an executable non-directory component' && git_rails_section | grep -E '^\| X13 \| ' | grep -qF 'a non-executable non-directory component denies with `registry-error`' && echo pass || echo "git-rails X13 row must say an executable non-directory component reads as absent and a non-executable one denies with registry-error")"
+
+check "RESTACK: the hook asks the owner or denies, never only asks" \
+  "$([ "$(restack_journal_section | tr '\n' ' ' | tr -s ' ' | grep -oF 'asks the owner, or denies a form or target it cannot resolve' | wc -l)" -ge 2 ] && ! restack_journal_section | tr '\n' ' ' | tr -s ' ' | grep -qF 'asks the owner otherwise' && echo pass || echo "restack.md → ## Recovery journal must say twice that the hook asks the owner, or denies a form or target it cannot resolve")"
+
+check "RESTACK: a dry-run push is allowed" \
+  "$(restack_journal_has 'A dry-run push (`--dry-run` or `-n`) is allowed' && echo pass || echo "restack.md → ## Recovery journal must note that a dry-run push is allowed")"
+
+# The hook's protected set, its reset, alias, gh and fast-forward behaviour must read as the
+# hook decides: git reset other than --hard is unchecked on every branch, only git aliases
+# are opaque, gh aliases and gh branch or ref writes are unchecked, git pull --ff-only from
+# the upstream is allowed, and a push to an unprotected base is textual.
+PROTECTED_SET_PREFIX='Protected branches for the safety rails: '
+
+safety_rail_row() {
+  safety_rails_rows | grep -F -- "$1" | head -n 1
+}
+
+protected_set_defined() {
+  local line part
+  [ "$(grep -c "^$PROTECTED_SET_PREFIX" "$SAFETY_RAILS_RULE" 2>/dev/null)" = 1 ] || return 1
+  line="$(safety_rails_section | grep "^$PROTECTED_SET_PREFIX")"
+  for part in "the target remote's default branch" '`main`' '`master`' '`release/*`' \
+              '`git config orchestrail.protectedBranch`'; do
+    printf '%s' "$line" | grep -qF -- "$part" || return 1
+  done
+}
+
+protected_rows_point_at_set() {
+  local rows
+  rows="$(safety_rails_rows | grep -E '\bprotected branch')"
+  [ -n "$rows" ] || return 1
+  ! printf '%s\n' "$rows" | grep -vqF 'protected set'
+}
+
+check "SAFETY: no hook: ask row claims resetting a protected branch" \
+  "$(safety_rails_rows | grep -F '`hook: ask` |' | grep -qiF 'resetting a protected branch' && echo "git-flow.md records resetting a protected branch as hook: ask, but git reset other than --hard is allowed on every branch" || echo pass)"
+
+check "SAFETY: git reset other than --hard is recorded as unchecked on every branch" \
+  "$(safety_rail_row "$REWRITE_ROW" | grep -qF '`git reset --soft`/`--mixed`/`--keep`/`--merge` on any branch, protected ones included' && echo pass || echo "git-flow.md '$REWRITE_ROW' row must name git reset --soft/--mixed/--keep/--merge on any branch, protected ones included")"
+
+check "GIT-RAILS: residual risk X19 records reset on any branch, protected ones included" \
+  "$(git_rails_section | grep -E '^\| X19 \| ' | grep -qF '`--merge` on any branch, protected ones included' && ! git_rails_section | grep -qF 'Local rewrites of a pushed unprotected branch' && echo pass || echo "git-rails X19 row must name git reset --soft/--mixed/--keep/--merge on any branch, protected ones included")"
+
+check "SAFETY: the opaque-forms row names git aliases only" \
+  "$(row="$(safety_rail_row '`GIT_*` assignments')"; printf '%s' "$row" | grep -qF ', git aliases,' && ! printf '%s' "${row//git aliases/}" | grep -qiF 'alias' && echo pass || echo "git-flow.md opaque-forms row must name git aliases, not aliases in general: gh aliases are not checked")"
+
+check "SAFETY: the branch-deletion row is limited to git and points gh deletions at the capability record" \
+  "$(safety_rail_row 'Branch deletion' | grep -qF '`git branch -d`' && safety_rail_row 'Branch deletion' | grep -qF 'harness capability record' && echo pass || echo "git-flow.md branch-deletion row must name the git forms the hook asks about and point gh deletions at the harness capability record")"
+
+check "GIT-RAILS: residual risk X20 records unchecked gh aliases, branch deletion and ref writes" \
+  "$(git_rails_field_once '^\| X20 \| .*alias.*`gh pr close --delete-branch`.*`gh api`.*git/refs' && ! git_rails_section | grep -E '^\| X20 \| ' | grep -qE -- "$PIPELINE_IDENTIFIER_RE" && echo pass || echo "git-rails section must contain exactly one '| X20 | …' row on gh aliases, gh pr close --delete-branch and gh api writes to git refs, without pipeline identifiers")"
+
+check "SAFETY: git-flow defines the protected branch set on one anchored line" \
+  "$(protected_set_defined && echo pass || echo "git-flow.md → ## Safety rails must define, on one line starting '$PROTECTED_SET_PREFIX', the target remote's default branch, main, master, release/* and the git config orchestrail.protectedBranch patterns")"
+
+check "SAFETY: an unknown default branch of the target remote denies every rule that needs the protected set" \
+  "$(safety_rails_has 'a rule that needs the protected set denies with `default-branch-unknown`' && echo pass || echo "git-flow.md → ## Safety rails must say a rule that needs the protected set denies with default-branch-unknown when the target remote's default branch is unknown")"
+
+check "SAFETY: every row that names a protected branch points at the protected set" \
+  "$(protected_rows_point_at_set && echo pass || echo "every git-flow.md safety-rail row naming a protected branch must point at the protected set: $(safety_rails_rows | grep -E '\bprotected branch' | grep -vF 'protected set' | cut -c1-60 | tr '\n' ';')")"
+
+check "SAFETY: the merge-into-protected row excepts git pull --ff-only from the upstream" \
+  "$(safety_rail_row '`git merge` or `git pull` into a' | grep -qF 'except `git pull --ff-only` from the configured upstream' && echo pass || echo "git-flow.md merge row must except git pull --ff-only from the configured upstream, which the hook allows")"
+
+check "SAFETY: a push to an unprotected base is recorded as a textual rail" \
+  "$(row="$(safety_rail_row 'to an unprotected `<base>`')"; printf '%s' "$row" | grep -qF '**Forbidden, always**' && [ "$(safety_rail_enforced_as 'to an unprotected `<base>`' '`text only`')" = pass ] && ! safety_rail_row 'any protected branch' | grep -qF '`<base>`' && echo pass || echo "git-flow.md must record a push to an unprotected <base> as Forbidden, always with text only, and keep <base> off the protected push row")"
+
+check "RESTACK: one unusable journal file makes every journal check ask" \
+  "$(restack_journal_has '64 hex digits' 'makes every replay and lease push ask' && echo pass || echo "restack.md → ## Recovery journal must say that one unusable journal file makes every replay and lease push ask")"
+
+check "SAFETY: the force-push row notes that dry-run forced pushes are allowed" \
+  "$(safety_rail_row '`git push --force`' | grep -qF 'a dry run (`--dry-run` or `-n`) of any forced push is allowed' && echo pass || echo "git-flow.md force-push row must note that a dry run of any forced push is allowed")"
+
+check "USAGE: the git-rails paragraph checks Bash git and gh commands" \
+  "$(flat="$(tr '\n' ' ' < docs/USAGE.md | tr -s ' ')"; printf '%s' "$flat" | grep -qF 'handler, which checks Bash git and gh commands' && ! printf '%s' "$flat" | grep -qF 'checks Bash git commands' && echo pass || echo "docs/USAGE.md must say the git-rails handler checks Bash git and gh commands")"
+
+check "SAFETY: the Enforcement intro says a hook ask denies where no person can be prompted" \
+  "$(safety_rails_has 'or denies it with `owner-approval-unavailable` where no person can be prompted' && echo pass || echo "git-flow.md → ## Safety rails intro must say hook: ask denies with owner-approval-unavailable where no person can be prompted")"
+
 echo ""
 echo "=== Contract Validation ==="
 echo "  Passed: $PASS"

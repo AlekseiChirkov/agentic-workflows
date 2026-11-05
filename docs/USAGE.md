@@ -601,6 +601,12 @@ idempotent and removal preserves unrelated user settings. The hooks activate onl
 registered projects and do not discover runs from historical events. Configuration
 locations honor `HOME`, `XDG_CONFIG_HOME` and `XDG_STATE_HOME`.
 
+The same installer registers the git-rails `PreToolUse` handler, which checks Bash git
+and gh commands in registered projects against `rules/git-flow.md → ## Safety rails`. It runs
+`hooks/git-rails.sh` from the source checkout and blocks the call when it cannot run, so
+uninstall with the current installer before checking out a revision that lacks that file;
+otherwise every Bash call in every project is blocked until you uninstall.
+
 A controller dispatches an explicit run/session/actor/checkpoint envelope. Native
 completion must demonstrate that tuple and one canonical outcome report. Named workflow
 coverage requires exactly one native Skill invocation. An unambiguously correlated
@@ -737,7 +743,7 @@ files are clean. Logs and local machine settings stay ignored in this repository
 | `workflow-globals.md`      | Always-on. Phase contract, never-auto-advance, canonical status formats, flow tiers, fix-task format. Decomposition limits and the reference tables live in `workflow-reference.md`. |
 | `workflow-reference.md`    | Model-decision trigger. Extended file-role reference, state-file marker list, status lifecycle. |
 | `language.md`              | Always-on. Every project file in English. Chat language is deliberately NOT set here — it belongs in the user's personal `~/.claude/CLAUDE.md`. |
-| `git-flow.md`              | Always-on. Branch stack, commit granularity, the no-attribution commit rule, PR policy (draft → ready), preflight, and every git safety rail. |
+| `git-flow.md`              | Always-on. Branch stack, commit granularity, the no-attribution commit rule, PR policy (draft → ready), preflight, and every git safety rail with its Enforcement (what the Claude Code git-rails hook denies, asks the owner about, or allows only with the restack journal), the owner-approval protocol, and the rule never to rephrase a denied command. |
 | `orchestration.md`         | Always-on. Roles (Orchestrator / Arbiter / Implementer / Validator), context boundaries, shared-file discipline, class A/B escalation, the Discovery batch gate. |
 | `tdd.md`                   | Always-on. TDD contract: RED→GREEN cycle, test-level gate (unit/integration/contract/smoke/none), what counts as RED, frozen-test-set rule during GREEN, characterization mode (`pinned`) for behaviour-preserving work, `atomic-tests:` status vocabulary. |
 | `run-log.md`               | Always-on. Run log contract: the central store, the three `scripts/log-step.sh` calls, the field vocabulary, what must never be logged, and the rule that logging never blocks a run. |
