@@ -23,7 +23,8 @@ import re
 import signal
 import stat
 import subprocess
-from typing import Callable, Iterable, Mapping, Sequence
+import sys
+from typing import BinaryIO, Callable, Iterable, Mapping, Sequence
 import urllib.parse
 
 RULE_PATH = 'rules/git-flow.md → ## Safety rails'
@@ -57,6 +58,7 @@ GIT_BUILTINS = frozenset((
 MAX_DEPTH = 3
 MAX_TOKENS = 4096
 GIT_READ_SECONDS = 2.0
+DRAIN_SECONDS = 0.5
 
 ACCEPTED_GLOBAL_FLAGS = frozenset({'--no-pager', '-P', '-p', '--paginate', '--no-optional-locks',
                                    '--literal-pathspecs'})
@@ -145,12 +147,13 @@ FORBIDDEN_PATTERNS = (
 
 @dataclass(frozen=True)
 class Decision:
-    """One result: not_applicable, allow, deny or ask, with its reason and rule, and for a
-    journal verification the check that failed."""
+    """One result: not_applicable, allow, deny or ask, with its reason and rule, for a
+    journal verification the check that failed, and a safe summary of the operation."""
     decision: str
     reason_code: str | None = None
     rule_id: str | None = None
     failure: str | None = None
+    summary: str | None = None
 
 
 NOT_APPLICABLE = Decision('not_applicable')
@@ -281,18 +284,30 @@ def valid_root(line: str) -> bool:
     return os.path.realpath(line) == line
 
 
+def read_regular_file(path: str) -> bytes | None:
+    """The bytes of a regular file opened without blocking, or None when nothing exists
+    there; a FIFO, device or directory is an OSError instead of a read that may hang."""
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return None
+    with open(descriptor, 'rb', closefd=True) as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise IsADirectoryError(path)
+        return stream.read()
+
+
 def read_registry(environ: Mapping[str, str]) -> tuple[str, ...] | None:
     """Registered roots, or None when no registry file exists."""
     path = registry_path(environ)
     if path is None:
         return None
     try:
-        with open(path, 'rb') as stream:
-            data = stream.read()
-    except FileNotFoundError:
-        return None
+        data = read_regular_file(path)
     except OSError as error:
         raise RegistryError(path) from error
+    if data is None:
+        return None
     try:
         text = data.decode('utf-8')
     except UnicodeDecodeError as error:
@@ -1569,15 +1584,25 @@ def read_git(arguments: Sequence[str], directory: str, environ: Mapping[str, str
     except subprocess.TimeoutExpired:
         stop_process_group(process)
         raise GitReadTimeout(' '.join(arguments)) from None
+    except BaseException:  # the wall-clock budget or any failure must not leave the read running
+        stop_process_group(process)
+        raise
     return GitRead(process.returncode, output.decode('utf-8', 'surrogateescape'))
 
 
 def stop_process_group(process: subprocess.Popen[bytes]) -> None:
+    """Kill the read's process group and drain its output for a bounded time only: a child
+    that left the group may hold the pipe open after the group is gone."""
     try:
         os.killpg(process.pid, signal.SIGKILL)
     except (ProcessLookupError, PermissionError):
         process.kill()
-    process.communicate()
+    try:
+        process.communicate(timeout=DRAIN_SECONDS)
+    except subprocess.TimeoutExpired:
+        if process.stdout is not None:
+            process.stdout.close()
+        process.wait()
 
 
 def read_repository(directory: str, environ: Mapping[str, str]) -> tuple[str, str] | None:
@@ -2095,6 +2120,7 @@ PROGRAM_PUSH_OPTIONS = ('receive-pack', 'exec')
 SAFE_SUBMODULE_MODES = (None, False, 'check', 'no')
 FALSE_CONFIG_VALUES = frozenset({'false', 'no', 'off', '0', ''})
 LEASE_SHA = re.compile(r'[0-9a-f]{40}([0-9a-f]{24})?')
+SAFE_REF = re.compile(r'[^\s@:\\\x00-\x1f\x7f]+')
 PUSH_TARGET_UNKNOWN = 'push-target-unknown'
 LEASE_UNVERIFIED = 'push-lease-unverified'
 
@@ -2751,10 +2777,22 @@ def push_decision(parsed: ParsedOptions, invocation: Invocation, context: Contex
         return denial(PUSH_TARGET_UNKNOWN, 'R12')
     protected = protected_branches(plan.remote, invocation, context)
     if protected is None:
-        return denial('default-branch-unknown', 'R13')
+        return replace(denial('default-branch-unknown', 'R13'), summary=push_summary(plan))
     view = PushView(parsed, plan, protected, invocation, context)
     asks = [check(view) for check in PUSH_ASKS]
-    return combine([ALLOW, *[result for result in asks if result is not None]])
+    result = combine([ALLOW, *[result for result in asks if result is not None]])
+    return result if result.decision == 'allow' else replace(result, summary=push_summary(plan))
+
+
+def push_summary(plan: PushPlan) -> str:
+    """The destinations and the configured remote; a destination that could carry URL user
+    info or a separator is counted instead of named."""
+    destinations = list(dict.fromkeys(spec.destination for spec in plan.refspecs if spec.destination))
+    if not destinations:
+        return f'git push of matching refs on {plan.remote}'
+    if all(SAFE_REF.fullmatch(name) for name in destinations):
+        return f'git push to {", ".join(destinations)} on {plan.remote}'
+    return f'git push to {len(destinations)} refs on {plan.remote}'
 
 
 def check_push(invocation: Invocation, context: Context) -> Decision | None:
@@ -3522,19 +3560,239 @@ def evaluate_invocation(invocation: Invocation, context: Context) -> Decision:
 def decide(event: object, environ: Mapping[str, str]) -> Decision:
     """Decide one hook event as a whole; any unexpected failure denies."""
     try:
-        request = read_request(event)
-        if isinstance(request, Decision):
-            return request
-        try:
-            roots = read_registry(environ)
-        except RegistryError:
-            return denial('registry-error')
-        if roots is None:
-            return NOT_APPLICABLE
-        context = Context(request.cwd, roots, environ)
-        resolution = resolve(request.command, context)
-        if resolution.decision is not None:
-            return resolution.decision
-        return combine(evaluate_invocation(item, context) for item in resolution.invocations)
+        if environ.get(FAULT_VARIABLE) == 'exception':
+            raise RuntimeError('injected core fault')
+        return decide_event(event, environ)
     except Exception:  # fail closed: an unverified command is never allowed
         return denial('internal-error')
+
+
+def decide_event(event: object, environ: Mapping[str, str]) -> Decision:
+    request = read_request(event)
+    if isinstance(request, Decision):
+        return request
+    try:
+        roots = read_registry(environ)
+    except RegistryError:
+        return denial('registry-error')
+    if roots is None:
+        return NOT_APPLICABLE
+    if len(request.command.encode('utf-8', 'surrogatepass')) > MAX_COMMAND_BYTES:
+        return denial('limit-exceeded') if project_for(request.cwd, roots) is not None else NOT_APPLICABLE
+    context = Context(request.cwd, roots, environ)
+    resolution = resolve(request.command, context)
+    if resolution.decision is not None:
+        return resolution.decision
+    return combine(described(evaluate_invocation(item, context), item) for item in resolution.invocations)
+
+
+def described(decision: Decision, invocation: Invocation) -> Decision:
+    """A deny or ask names the invocation it came from unless its rule already did."""
+    if decision.decision in ('allow', 'not_applicable') or decision.summary is not None:
+        return decision
+    return replace(decision, summary=invocation_summary(invocation))
+
+
+def invocation_summary(invocation: Invocation) -> str:
+    """Program, subcommand and path count; never message text, values or the command."""
+    if invocation.program == 'gh':
+        key = rule_key(invocation)
+        return key if key is not None else 'gh command'
+    index = invocation.layout.index
+    name = invocation.subcommand
+    if index is None or name is None or invocation.words[index].dynamic or name not in GIT_BUILTINS:
+        return 'git command'
+    count = path_count(invocation)
+    if count is None:
+        return f'git {name}'
+    return f'git {name} of {count} path' + ('' if count == 1 else 's')
+
+
+def path_count(invocation: Invocation) -> int | None:
+    """The operand count of a staging or commit invocation, when its options parse."""
+    if invocation.subcommand in ('add', 'stage'):
+        variants = usable(staging_options(invocation))
+    elif invocation.subcommand == 'commit':
+        variants = usable(commit_options(invocation))
+    else:
+        return None
+    return len(variants[0].operands) if variants else None
+
+
+# ── Harness adapter, diagnostics and entry point ───────────────────────
+
+# Permission modes in which the harness shows an ask to a person and never approves it
+# itself; any other, missing or unknown mode turns an ask into a deny.
+ASK_CAPABLE_MODES = ('default', 'auto')
+OWNER_APPROVAL_UNAVAILABLE = 'owner-approval-unavailable'
+MAX_STDIN_BYTES = 1024 * 1024
+MAX_COMMAND_BYTES = 64 * 1024
+MAX_DIAGNOSTIC_BYTES = 1024
+OPERATION_RESERVE_BYTES = 160
+WALL_CLOCK_SECONDS = 5.0
+# Test-only seam: set in the hook's own environment, it makes the core raise; it can only deny.
+FAULT_VARIABLE = 'ORCHESTRAIL_GIT_RAILS_FAULT'
+NO_RULE = 'none'
+ELLIPSIS = '…'
+CONTROL_CHARACTERS = re.compile(r'[\x00-\x1f\x7f]')
+ASK_ENVELOPE = ('hookSpecificOutput', 'hookEventName', 'PreToolUse', 'permissionDecision',
+                'permissionDecisionReason')
+
+# One concrete next action per reason code. The entrypoint reads the runtime-unavailable
+# line itself when Python cannot start, so each entry stays on one line.
+NEXT_STEPS: dict[str, str] = {
+    'blanket-staging': 'stage each changed file by its literal path, for example git add path/to/file',
+    'staging-not-file': 'name each existing or tracked file literally, without directories, globs or pathspec magic',
+    'staging-ignored-path': 'the owner decides whether this ignored path is force-added; stop if the owner declines',
+    'commit-all': 'stage the intended files with git add <file>, then commit without -a',
+    'commit-message-unverifiable': 'give the message with -m, -F <file> or a quoted heredoc so it can be checked',
+    'commit-message-forbidden': 'remove co-author trailers and task or decision-record identifiers from the message',
+    'rewrite-published': 'add a new commit instead of amending a pushed one, or let the owner approve the amend',
+    'push-target-unknown': 'push to a configured remote with an explicit branch, for example git push origin <branch>',
+    'default-branch-unknown': 'record the remote default branch with git remote set-head <remote> <branch>, then retry',
+    'push-bulk-or-tags': 'push named branches one at a time; tags and bulk pushes need the owner to approve',
+    'push-delete': 'leave the remote ref in place unless the owner approves deleting it',
+    'push-protected-target': 'push a feature branch and open a pull request; a protected branch needs the owner',
+    'push-force': 'use --force-with-lease=<ref>:<sha> backed by a restack journal, or let the owner approve',
+    'push-lease-unverified': 'fix the failed restack journal check, or let the owner approve this forced push',
+    'reset-hard': 'keep the work with git stash or git reset --keep; discarding it needs the owner to approve',
+    'clean': 'preview with git clean -n; deleting untracked files needs the owner to approve',
+    'branch-delete': 'leave the branch in place unless the owner approves deleting it',
+    'protected-ref-rewrite': 'work on a feature branch; rewriting a protected branch needs the owner to approve',
+    'rebase-outside-restack': 'run the exact replay the restack journal records, or let the owner approve this rebase',
+    'merge-into-protected': 'merge through a pull request; merging into a protected branch needs the owner',
+    'pr-merge': 'leave the pull request open unless the owner approves merging it',
+    'opaque-environment': 'drop GIT_*, HOME, XDG_CONFIG_HOME and PATH settings and run git in the project directly',
+    'unsupported-form': 'rewrite the command as plain git or gh invocations without eval, loops, variables or wrappers',
+    'malformed-input': 'retry the command once; if the hook event stays malformed, report it to the owner',
+    'registry-error': 'fix or remove the invalid line in {registry}',
+    'runtime-unavailable': 'install Python 3.11 or newer as python3 on PATH, then retry',
+    'limit-exceeded': 'split the work into smaller commands and retry',
+    'internal-error': 'report the failure to the owner and do not retry the command unchanged',
+    'owner-approval-unavailable': 'stop and give the owner the exact command to run outside the agent, for example with ! <command>',
+}
+
+# Operations named for decisions that come from the event or the command as a whole.
+GENERAL_OPERATIONS = {'malformed-input': 'hook event', 'registry-error': 'project registry',
+                      'internal-error': 'git-rails decision'}
+
+
+class BudgetExceeded(BaseException):
+    """The core wall-clock budget ran out; not an Exception, so no handler absorbs it."""
+
+
+def adapted(decision: Decision, event: object) -> Decision:
+    """An ask stands only in a permission mode that shows it to the owner."""
+    mode = event.get('permission_mode') if isinstance(event, dict) else None
+    if decision.decision != 'ask' or (isinstance(mode, str) and mode in ASK_CAPABLE_MODES):
+        return decision
+    summary = f'{operation_summary(decision)}; needs owner approval: {decision.reason_code}'
+    return replace(decision, decision='deny', reason_code=OWNER_APPROVAL_UNAVAILABLE, summary=summary)
+
+
+def operation_summary(decision: Decision) -> str:
+    if decision.summary:
+        return decision.summary
+    return GENERAL_OPERATIONS.get(str(decision.reason_code), 'shell command')
+
+
+def printable(text: str) -> str:
+    return CONTROL_CHARACTERS.sub('?', text)
+
+
+def shortened(text: str, limit: int) -> str:
+    """At most limit UTF-8 bytes, cut on a character boundary and marked with an ellipsis."""
+    data = text.encode('utf-8', 'surrogatepass')
+    if len(data) <= limit:
+        return text
+    cut = data[:max(limit - len(ELLIPSIS.encode('utf-8')), 0)]
+    return cut.decode('utf-8', 'ignore') + ELLIPSIS
+
+
+def next_step(reason: str, environ: Mapping[str, str]) -> str:
+    text = NEXT_STEPS.get(reason, NEXT_STEPS['internal-error'])
+    return text.replace('{registry}', registry_path(environ) or 'the project registry')
+
+
+def diagnostic(decision: Decision, environ: Mapping[str, str]) -> str:
+    """The four diagnostic lines within the size limit. The operation keeps up to its
+    reserve, the next step is shortened before that reserve, and a failed check is never cut."""
+    verb = 'ask' if decision.decision == 'ask' else 'deny'
+    head = f'git-rails: {verb} {decision.reason_code} ({decision.rule_id or NO_RULE})\nrule: {RULE_PATH}\n'
+    failure = f'; failed check: {printable(decision.failure)}' if decision.failure else ''
+    room = MAX_DIAGNOSTIC_BYTES - len(head.encode('utf-8')) - 1
+    operation = 'operation: ' + printable(operation_summary(decision))
+    reserve = min(len(operation.encode('utf-8')), OPERATION_RESERVE_BYTES) + len(failure.encode('utf-8'))
+    step = shortened('next: ' + printable(next_step(str(decision.reason_code), environ)), room - reserve)
+    operation = shortened(operation, room - len(step.encode('utf-8')) - len(failure.encode('utf-8')))
+    return f'{head}{operation}{failure}\n{step}'
+
+
+def respond(decision: Decision, event: object, environ: Mapping[str, str]) -> tuple[int, bytes, bytes]:
+    """Exit status, stdout and stderr of the Claude Code PreToolUse protocol; allow is never emitted."""
+    final = adapted(decision, event)
+    if final.decision in ('allow', 'not_applicable'):
+        return 0, b'', b''
+    text = diagnostic(final, environ)
+    stderr = (text + '\n').encode('utf-8', 'surrogateescape')
+    if final.decision == 'deny':
+        return 2, b'', stderr
+    output, name, event_name, field, reason = ASK_ENVELOPE
+    answer = json.dumps({output: {name: event_name, field: 'ask', reason: text}},
+                        ensure_ascii=False, separators=(',', ':'))
+    return 0, answer.encode('utf-8', 'surrogateescape'), stderr
+
+
+def read_event(stream: BinaryIO) -> tuple[object, Decision | None]:
+    """The parsed event, or a deny for input over the stdin limit, non-UTF-8 or not JSON."""
+    data = stream.read(MAX_STDIN_BYTES + 1)
+    if len(data) > MAX_STDIN_BYTES:
+        return None, denial('malformed-input')
+    try:
+        return json.loads(data.decode('utf-8')), None
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        return None, denial('malformed-input')
+
+
+def exceed_budget(signum: int, frame: object) -> None:
+    raise BudgetExceeded()
+
+
+def run(environ: Mapping[str, str]) -> tuple[object, Decision]:
+    """Read and decide one event within the wall-clock budget."""
+    signal.signal(signal.SIGALRM, exceed_budget)
+    signal.setitimer(signal.ITIMER_REAL, WALL_CLOCK_SECONDS)
+    event: object = None
+    try:
+        event, failure = read_event(sys.stdin.buffer)
+        return event, failure if failure is not None else decide(event, environ)
+    except BudgetExceeded:
+        return event, denial('limit-exceeded')
+    except Exception:  # fail closed outside the decision as well
+        return event, denial('internal-error')
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+
+
+def main() -> int:
+    environ = dict(os.environ)
+    try:
+        event, decision = run(environ)
+    except BudgetExceeded:  # the one-shot budget signal landed inside a handler of run
+        event, decision = None, denial('limit-exceeded')
+    try:
+        status, stdout, stderr = respond(decision, event, environ)
+    except Exception:  # a rendering failure still denies
+        status, stdout, stderr = respond(denial('internal-error'), None, environ)
+    try:
+        sys.stdout.buffer.write(stdout)
+        sys.stdout.buffer.flush()
+        sys.stderr.buffer.write(stderr)
+        sys.stderr.buffer.flush()
+    except BrokenPipeError:
+        pass
+    return status
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -5273,6 +5273,43 @@ git_rails_ask_modes_documented() {
   done
 }
 
+# The adapter's allowlist is a constant in the core so that editing the record never changes
+# enforcement on its own; the constant and the anchored record line must name the same modes.
+git_rails_core_ask_modes_match_record() {
+  local line
+  line="$(git_rails_section | sed -n 's/^git-rails ask-capable modes: //p')"
+  [ -n "$line" ] || return 1
+  python3 -I - "$REPO_ROOT/hooks/git_rails.py" "$line" 2>/dev/null <<'PYASKMODES'
+import ast
+import sys
+
+
+def constant(tree: ast.Module) -> object:
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            names = [target.id for target in node.targets if isinstance(target, ast.Name)]
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            names = [node.target.id]
+        else:
+            continue
+        if 'ASK_CAPABLE_MODES' not in names or node.value is None:
+            continue
+        value = node.value
+        if (isinstance(value, ast.Call) and isinstance(value.func, ast.Name)
+                and value.func.id == 'frozenset' and len(value.args) == 1):
+            value = value.args[0]
+        return ast.literal_eval(value)
+    return None
+
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    modes = constant(ast.parse(source.read()))
+recorded = sys.argv[2].split(', ')
+valid = isinstance(modes, (tuple, list, set, frozenset)) and all(isinstance(mode, str) for mode in modes)
+sys.exit(0 if valid and len(set(modes)) == len(modes) and sorted(modes) == sorted(recorded) else 1)
+PYASKMODES
+}
+
 git_rails_prefix_rule_forms_recorded() {
   local line
   git_rails_field_once '^deny-rule prefix: ' || return 1
@@ -5340,6 +5377,9 @@ check "GIT-RAILS: ask-capable permission modes are one anchored line" \
 
 check "GIT-RAILS: ask-capable modes are documented modes that can reach a human" \
   "$(git_rails_ask_modes_documented && echo pass || echo 'ask-capable modes must be distinct documented permission_mode values; dontAsk, bypassPermissions and unknown names are not ask-capable')"
+
+check "GIT-RAILS: core ask-capable modes equal the capability record line" \
+  "$(git_rails_core_ask_modes_match_record && echo pass || echo "hooks/git_rails.py ASK_CAPABLE_MODES must name exactly the modes of the 'git-rails ask-capable modes:' line in $GIT_RAILS_CLAUDE_CAPS")"
 
 check "GIT-RAILS: exact Bash permission rule semantics are recorded" \
   "$(git_rails_field_once '^deny-rule exact: Bash\(' && echo pass || echo "git-rails section must contain exactly one 'deny-rule exact: Bash(…)' line")"

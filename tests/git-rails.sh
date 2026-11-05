@@ -25,6 +25,9 @@ from types import ModuleType
 from typing import Any, Callable
 import unittest
 
+# Loading the core must not leave a bytecode cache next to the source.
+sys.dont_write_bytecode = True
+
 # Any types values read from the dynamically loaded core; the tests assert their shape.
 
 SOURCE = Path(sys.argv[1])
@@ -970,7 +973,7 @@ class CoreSurface(RailsFixture):
                  'sys.modules["git_rails"] = module\n'
                  'spec.loader.exec_module(module)\n'
                  'print(callable(module.decide))\n')
-        result = subprocess.run([sys.executable, '-I', '-S', '-c', probe, str(CORE_PATH)],
+        result = subprocess.run([sys.executable, '-I', '-S', '-B', '-c', probe, str(CORE_PATH)],
                                 capture_output=True, text=True, cwd=self.world, env=self.environ)
         self.assertEqual((result.returncode, result.stdout.strip()), (0, 'True'), result.stderr)
 
@@ -3958,6 +3961,840 @@ for validation_case in VALIDATION_REPAIR_CASES:
     setattr(ValidationRepairTable, 'test_' + validation_case.name, restack_test(validation_case))
 
 CLASSES = (*CLASSES, ValidationRepairTable)
+
+
+# ── Hook entrypoint: stdin to exit status, stdout and stderr ───────────
+
+import atexit  # noqa: E402 - the entrypoint block needs these only
+import re  # noqa: E402
+import signal  # noqa: E402
+from typing import Mapping  # noqa: E402
+
+HOOK_PATH = SOURCE / 'hooks/git-rails.sh'
+CAPABILITIES_PATH = SOURCE / 'harness/claude/capabilities.md'
+BASH = shutil.which('bash') or '/bin/bash'
+HOOK_TIMEOUT = 30.0
+STDIN_LIMIT = 1024 * 1024
+COMMAND_LIMIT = 64 * 1024
+DIAGNOSTIC_LIMIT = 1024
+FAULT_VARIABLE = 'ORCHESTRAIL_GIT_RAILS_FAULT'
+ASK_PREFIX = ('{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask",'
+              '"permissionDecisionReason":')
+NO_RULE = 'none'
+MISSING = object()
+RELEVANT = re.compile(r'(^|[^A-Za-z0-9_.-])(git|gh)([^A-Za-z0-9_.-]|$)')
+PIPELINE_IDENTIFIER = re.compile(r'\bT-\d{2}[a-z]?\b|\bADR-\d{4}\b|\.ai/')
+SPEC_REASON_CODES = (
+    'blanket-staging', 'staging-not-file', 'staging-ignored-path', 'commit-all',
+    'commit-message-unverifiable', 'commit-message-forbidden', 'rewrite-published',
+    'push-target-unknown', 'default-branch-unknown', 'push-bulk-or-tags', 'push-delete',
+    'push-protected-target', 'push-force', 'push-lease-unverified', 'reset-hard', 'clean',
+    'branch-delete', 'protected-ref-rewrite', 'rebase-outside-restack', 'merge-into-protected',
+    'pr-merge', 'opaque-environment', 'unsupported-form', 'malformed-input', 'registry-error',
+    'runtime-unavailable', 'limit-exceeded', 'internal-error', 'owner-approval-unavailable')
+TOOLS: dict[str, str] = {}
+
+
+@dataclass(frozen=True)
+class HookRun:
+    """One run of the entrypoint: exit status, raw stdout and stderr, and wall time."""
+    status: int
+    stdout: bytes
+    stderr: bytes
+    elapsed: float
+
+    @property
+    def output(self) -> tuple[int, bytes, bytes]:
+        return self.status, self.stdout, self.stderr
+
+
+@dataclass(frozen=True)
+class Expected:
+    """The harness-visible result one hook run must produce."""
+    decision: str
+    reason: str | None = None
+    rule: str | None = None
+    failure: str | None = None
+
+
+def run_hook(payload: bytes, environ: Mapping[str, str], cwd: Path) -> HookRun:
+    started = time.monotonic()
+    try:
+        result = subprocess.run([BASH, str(HOOK_PATH)], input=payload, capture_output=True,
+                                env=dict(environ), cwd=cwd, timeout=HOOK_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return HookRun(-1, b'', b'the hook did not finish', HOOK_TIMEOUT)
+    return HookRun(result.returncode, result.stdout, result.stderr, time.monotonic() - started)
+
+
+def encode_event(event: object) -> bytes:
+    """The event as the harness sends it: UTF-8 JSON with non-ASCII text unescaped."""
+    return json.dumps(event, ensure_ascii=False).encode('utf-8')
+
+
+def link_programs(directory: Path, target: Path) -> None:
+    if not directory.is_dir():
+        return
+    for program in sorted(directory.iterdir()):
+        link = target / program.name
+        if program.name.startswith('python') or link.exists() or link.is_symlink():
+            continue
+        if program.is_file() and os.access(program, os.X_OK):
+            link.symlink_to(program)
+
+
+def python_free_path() -> str:
+    """One directory linking every program on the current PATH except Python."""
+    if 'path' not in TOOLS:
+        root = Path(os.path.realpath(tempfile.mkdtemp(prefix='entry tools ')))
+        atexit.register(shutil.rmtree, root, True)
+        for directory in os.environ.get('PATH', '/usr/bin:/bin').split(os.pathsep):
+            link_programs(Path(directory), root)
+        TOOLS['path'] = str(root)
+    return TOOLS['path']
+
+
+def ask_capable_modes() -> tuple[str, ...]:
+    """The anchored allowlist line of the Claude capability record."""
+    prefix = 'git-rails ask-capable modes: '
+    for line in CAPABILITIES_PATH.read_text(encoding='utf-8').splitlines():
+        if line.startswith(prefix):
+            return tuple(line[len(prefix):].split(', '))
+    return ()
+
+
+def registry_location(environ: Mapping[str, str]) -> str:
+    base = environ.get('XDG_CONFIG_HOME') or os.path.join(environ.get('HOME', ''), '.config')
+    return os.path.join(base, 'orchestrail', 'projects')
+
+
+def harness_result(result: Any, event: object) -> Expected:
+    """What the adapter must emit for a core decision: an ask outside the allowlist denies."""
+    mode = event.get('permission_mode') if isinstance(event, dict) else None
+    failure = getattr(result, 'failure', None)
+    if result.decision == 'ask' and mode not in ask_capable_modes():
+        return Expected('deny', 'owner-approval-unavailable', result.rule_id, failure)
+    return Expected(result.decision, result.reason_code, result.rule_id, failure)
+
+
+def sized_command(size: int, filler: str = 'x') -> str:
+    """A staging command padded with one quoted echo word to at most size UTF-8 bytes."""
+    head = "git add a.txt; echo '"
+    count = (size - len(head.encode()) - 1) // len(filler.encode())
+    return head + filler * count + "'"
+
+
+def kill_recorded(pidfile: Path) -> None:
+    try:
+        os.kill(int(pidfile.read_text().strip()), signal.SIGKILL)
+    except (OSError, ValueError):
+        pass
+
+
+class EntrypointChecks(RailsFixture):
+    """Runs events through hooks/git-rails.sh twice and checks the harness protocol of the
+    output against the core decision for the same event and environment."""
+
+    def payload(self, command: str, cwd: str | None = None, mode: str = 'default') -> bytes:
+        return encode_event(self.event(self.render(command), cwd or self.location('project'), mode))
+
+    def hook_once(self, payload: bytes, environ: Mapping[str, str] | None = None) -> HookRun:
+        run = run_hook(payload, dict(self.environ if environ is None else environ), self.world)
+        self.assertNotIn(b'"allow"', run.stdout + run.stderr, 'the hook never emits an allow decision')
+        return run
+
+    def hook_twice(self, payload: bytes, environ: Mapping[str, str] | None = None) -> HookRun:
+        first = self.hook_once(payload, environ)
+        second = self.hook_once(payload, environ)
+        self.assertEqual(first.output, second.output, 'the same event and state must give byte-identical output')
+        return first
+
+    def diagnostic_text(self, run: HookRun) -> str:
+        try:
+            text = run.stderr.decode('utf-8')
+        except UnicodeDecodeError:
+            self.fail('the diagnostic must be valid UTF-8: ' + repr(run.stderr[-200:]))
+        self.assertTrue(text.endswith('\n'), 'stderr carries the diagnostic and one newline: ' + text[-300:])
+        return text[:-1]
+
+    def assert_diagnostic(self, text: str, expected: Expected) -> list[str]:
+        verb = 'ask' if expected.decision == 'ask' else 'deny'
+        self.assertLessEqual(len(text.encode('utf-8')), DIAGNOSTIC_LIMIT, text)
+        lines = text.split('\n')
+        self.assertEqual(len(lines), 4, text)
+        self.assertEqual(lines[0], f'git-rails: {verb} {expected.reason} ({expected.rule or NO_RULE})')
+        self.assertEqual(lines[1], 'rule: ' + RULE_PATH_TEXT)
+        self.assertRegex(lines[2], r'^operation: \S')
+        self.assertTrue(lines[3].startswith('next: '), text)
+        if expected.failure is None:
+            self.assertNotIn('failed check:', text)
+        else:
+            self.assertIn('failed check: ' + expected.failure, lines[2])
+        return lines
+
+    def next_step(self, reason: str, environ: Mapping[str, str]) -> str:
+        if reason == 'registry-error':
+            return 'fix or remove the invalid line in ' + registry_location(environ)
+        return self.api('NEXT_STEPS')[reason]
+
+    def assert_protocol(self, run: HookRun, expected: Expected,
+                        environ: Mapping[str, str] | None = None) -> list[str]:
+        environment = self.environ if environ is None else environ
+        if expected.decision in ('allow', 'not_applicable'):
+            self.assertEqual(run.output, (0, b'', b''), 'allow and not_applicable exit 0 without output')
+            return []
+        self.assertEqual(run.status, 2 if expected.decision == 'deny' else 0, run.stderr[-400:])
+        text = self.diagnostic_text(run)
+        if expected.decision == 'deny':
+            self.assertEqual(run.stdout, b'', 'deny writes nothing to stdout')
+        else:
+            self.assertEqual(run.stdout.decode('utf-8'), ASK_PREFIX + json.dumps(text, ensure_ascii=False) + '}}')
+        lines = self.assert_diagnostic(text, expected)
+        self.assertEqual(lines[3], 'next: ' + self.next_step(str(expected.reason), environment))
+        return lines
+
+    def through_hook(self, event: object, environ: Mapping[str, str] | None = None) -> Any:
+        """One hook run checked against the core: determinism is shown by two equal in-process
+        decisions and a hook output byte-identical to the in-process adapter rendering."""
+        environment = dict(self.environ if environ is None else environ)
+        before = snapshot(self.world)
+        decide = self.api('decide')
+        result = decide(event, dict(environment))
+        self.assertEqual(result, decide(event, dict(environment)), 'the core decides one event the same way twice')
+        run = self.hook_once(encode_event(event), environment)
+        self.assertEqual(before, snapshot(self.world),
+                         'deciding through the hook must leave .git, the work tree, .ai and the registry unchanged')
+        self.assert_protocol(run, harness_result(result, event), environment)
+        rendered = tuple(self.api('respond')(result, event, dict(environment)))
+        self.assertEqual(run.output, rendered, 'the hook output is the adapter rendering of the core decision')
+        return result
+
+    def decide(self, event: object, environ: dict[str, str] | None = None) -> tuple[str, str | None, str | None]:
+        result = self.through_hook(event, environ)
+        return result.decision, result.reason_code, result.rule_id
+
+    def outcome(self, command: str, cwd: str = 'project',
+                environ: dict[str, str] | None = None) -> tuple[str, str | None, str | None, object]:
+        result = self.through_hook(self.event(command, self.location(cwd)), environ)
+        return result.decision, result.reason_code, result.rule_id, getattr(result, 'failure', NO_FAILURE_FIELD)
+
+
+# Every existing decision table also runs end to end through the entrypoint.
+ENTRYPOINT_TABLES = (DecisionTable, FailClosedTable, DecidedTable, StagingTable, CommitTable, StateChangeTable,
+                     PushTable, OperationTable, SymbolicBranchTable, RestackJournalTable, UpdateRefsTable,
+                     ValidationRepairTable)
+ENTRYPOINT_TABLE_CLASSES = tuple(
+    type(table.__name__ + 'ThroughHook', (EntrypointChecks, table),
+         {'__doc__': f'Every {table.__name__} case, run twice through the hook entrypoint.'})
+    for table in ENTRYPOINT_TABLES)
+
+
+class EntrypointFixture(EntrypointChecks, OperationFixture, RuleFixture):
+    """Push, operation and rule repository states, plus a registered work tree whose path
+    holds no git or gh word, so the relevance prefilter sees only the command."""
+    clean: Path
+
+    def setUp(self) -> None:
+        super().setUp()
+        scratch = tempfile.TemporaryDirectory(prefix='entry ')
+        self.addCleanup(scratch.cleanup)
+        self.clean = Path(os.path.realpath(scratch.name)) / 'work'
+        if RELEVANT.search(str(self.clean)):
+            self.skipTest('the temporary directory path contains a git or gh word')
+        self.make_repository(self.clean, {'a.txt': 'a\n'})
+        self.write_registry([self.project, self.plain, self.clean])
+
+    def location(self, key: str) -> str:
+        return str(self.clean) if key == 'clean' else super().location(key)
+
+    def without_python(self, environ: Mapping[str, str] | None = None) -> dict[str, str]:
+        return {**(self.environ if environ is None else environ), 'PATH': python_free_path()}
+
+    def fake_git(self, script: str) -> None:
+        fake = self.probe / 'bin/git'
+        fake.write_text('#!/bin/bash\n' + script + f'exec {shlex.quote(REAL_GIT)} "$@"\n')
+        fake.chmod(0o755)
+        self.environ['PATH'] = f'{self.probe / "bin"}{os.pathsep}{self.environ["PATH"]}'
+
+    def expect(self, command: str, expected: Expected, environ: Mapping[str, str] | None = None) -> list[str]:
+        return self.assert_protocol(self.hook_twice(self.payload(command), environ), expected, environ)
+
+    def padded(self, command: str, size: int) -> bytes:
+        """An event for the project whose encoded size is exactly size bytes."""
+        event = self.event(command, self.location('project'))
+        base = len(encode_event(event))
+        event['tool_input'] = {'command': command, 'description': 'fixture' + 'x' * (size - base)}
+        payload = encode_event(event)
+        self.assertEqual(len(payload), size)
+        return payload
+
+
+class EntrypointFastPath(EntrypointFixture):
+    """Steps before Python: bounded read, registry gate, relevance prefilter, runtime check."""
+
+    def test_missing_registry_exits_silently_without_python(self) -> None:
+        self.registry.unlink()
+        for command in ('git push -f', 'git reset --hard', 'gh pr merge 1', 'git add -A'):
+            with self.subTest(command=command):
+                run = self.hook_twice(self.payload(command), self.without_python())
+                self.assertEqual(run.output, (0, b'', b''))
+
+    def test_command_without_git_word_exits_silently_without_python(self) -> None:
+        for command in ('ls -la', 'bash hooks/git-rails.sh', 'cat .git/config', 'curl https://github.com/o/r',
+                        'echo legit digits ghost gh-pages git_x .gh', ''):
+            with self.subTest(command=command):
+                run = self.hook_twice(self.payload(command, self.location('clean')), self.without_python())
+                self.assertEqual(run.output, (0, b'', b''))
+
+    def test_git_word_reaches_the_runtime_check_without_python(self) -> None:
+        environ = self.without_python()
+        for command in ('git status', 'gh pr view 1', 'ls; git status', '(git status)', 'X=1 git status',
+                        '\\git status', 'echo "$(gh pr view 1)"'):
+            with self.subTest(command=command):
+                run = self.hook_twice(self.payload(command, self.location('clean')), environ)
+                self.assert_protocol(run, Expected('deny', 'runtime-unavailable'), environ)
+
+    def test_json_escaped_separators_before_a_git_word_reach_the_core(self) -> None:
+        environ = self.without_python()
+        for command in ('true\ngit status', 'true;\tgit status', 'true\n\ngh pr view 1', 'true\r\ngit status',
+                        'true;\x1bgit status', 'true\f\bgh pr view 1'):
+            with self.subTest(command=command):
+                run = self.hook_twice(self.payload(command, self.location('clean')), environ)
+                self.assert_protocol(run, Expected('deny', 'runtime-unavailable'), environ)
+        decision = self.decide(self.event('true\ngit add -A', self.location('clean')))
+        self.assertEqual(decision, ('deny', 'blanket-staging', 'R01'))
+
+    def test_missing_python_denies_in_any_directory_while_a_registry_exists(self) -> None:
+        environ = self.without_python()
+        run = self.hook_twice(self.payload('git push -f', self.location('outside')), environ)
+        self.assert_protocol(run, Expected('deny', 'runtime-unavailable'), environ)
+
+    def test_python_older_than_3_11_is_runtime_unavailable(self) -> None:
+        shim_directory = self.probe / 'old python'
+        shim_directory.mkdir()
+        log = self.probe / 'old-python.log'
+        shim = shim_directory / 'python3'
+        shim.write_text('#!/bin/sh\n'
+                        f'printf "%s\\n" "$*" >> {shlex.quote(str(log))}\n'
+                        'case "$1" in --version|-V) echo "Python 3.10.12"; exit 0 ;; esac\n'
+                        'exit 1\n')
+        shim.chmod(0o755)
+        environ = {**self.environ, 'PATH': f'{shim_directory}{os.pathsep}{python_free_path()}'}
+        run = self.hook_twice(self.payload('git add a.txt'), environ)
+        self.assert_protocol(run, Expected('deny', 'runtime-unavailable'), environ)
+        calls = log.read_text() if log.exists() else ''
+        self.assertNotIn('git_rails.py', calls, 'an interpreter older than 3.11 never runs the core')
+
+    def test_core_runs_isolated_from_python_environment_variables(self) -> None:
+        planted = self.probe / 'planted'
+        planted.mkdir()
+        marker = self.probe / 'planted-module-ran'
+        body = f'open({str(marker)!r}, "w").close()\nraise SystemExit(0)\n'
+        for name in ('sitecustomize.py', 'usercustomize.py', 'json.py', 're.py', 'dataclasses.py'):
+            (planted / name).write_text(body)
+        environ = {**self.environ, 'PYTHONPATH': str(planted), 'PYTHONHOME': str(planted),
+                   'PYTHONSTARTUP': str(planted / 'json.py')}
+        self.assertEqual(self.decide(self.event('git add -A', self.location('project')), environ),
+                         ('deny', 'blanket-staging', 'R01'))
+        self.assertFalse(marker.exists(), 'a module from the hook environment ran inside the hook')
+
+    def test_entrypoint_is_a_strict_bash_script_with_a_header(self) -> None:
+        self.assertTrue(HOOK_PATH.is_file(), 'hooks/git-rails.sh must exist')
+        text = HOOK_PATH.read_text(encoding='utf-8')
+        lines = text.splitlines()
+        self.assertIn(lines[0], ('#!/usr/bin/env bash', '#!/bin/bash'))
+        header: list[str] = []
+        for line in lines[1:]:
+            if not line.startswith('#'):
+                break
+            header.append(line.lower())
+        for word in ('contract', 'usage', 'exit'):
+            self.assertIn(word, '\n'.join(header), 'the header comment names the ' + word)
+        self.assertIn('set -uo pipefail', lines)
+        self.assertNotRegex(text, r'\bjq\b')
+        self.assertNotIn(RULE_PATH_TEXT, text, 'the rule line is read from the core constant, not copied')
+        self.assertNotRegex(text, PIPELINE_IDENTIFIER)
+        checked = subprocess.run([BASH, '-n', str(HOOK_PATH)], capture_output=True, text=True)
+        self.assertEqual(checked.returncode, 0, checked.stderr)
+
+    def test_hook_writes_nothing(self) -> None:
+        self.setup_push()
+        hooks = SOURCE / 'hooks'
+        before = (snapshot(hooks), snapshot(self.world), snapshot(self.clean))
+        for command, expected in (('git add a.txt', Expected('allow')),
+                                  ('git add -A', Expected('deny', 'blanket-staging', 'R01')),
+                                  ('git push origin main', Expected('ask', 'push-protected-target', 'R16')),
+                                  ('ls', Expected('not_applicable'))):
+            self.expect(command, expected)
+        environ = self.without_python()
+        run = self.hook_twice(self.payload('git status', self.location('clean')), environ)
+        self.assert_protocol(run, Expected('deny', 'runtime-unavailable'), environ)
+        self.assertEqual(before, (snapshot(hooks), snapshot(self.world), snapshot(self.clean)))
+
+
+class EntrypointProtocol(EntrypointFixture):
+    """Decision mapping of the harness protocol and the owner-approval allowlist."""
+
+    def test_ask_reaches_the_owner_only_in_ask_capable_modes(self) -> None:
+        allowed = ask_capable_modes()
+        self.assertEqual(sorted(allowed), ['auto', 'default'])
+        for mode in allowed:
+            with self.subTest(mode=mode):
+                self.assert_protocol(self.hook_twice(self.payload('git reset --hard', mode=mode)),
+                                     Expected('ask', 'reset-hard', 'R20'))
+        for other in ('plan', 'acceptEdits', 'dontAsk', 'bypassPermissions', 'manual', 'Default', '', 7, None,
+                      MISSING):
+            with self.subTest(mode=other if other is not MISSING else '<missing>'):
+                event = self.event('git reset --hard', self.location('project'))
+                if other is MISSING:
+                    event.pop('permission_mode')
+                else:
+                    event['permission_mode'] = other
+                self.assert_protocol(self.hook_twice(encode_event(event)),
+                                     Expected('deny', 'owner-approval-unavailable', 'R20'))
+
+    def test_deny_and_allow_do_not_depend_on_the_permission_mode(self) -> None:
+        for mode in ('bypassPermissions', 'dontAsk', 'plan'):
+            with self.subTest(mode=mode):
+                self.assert_protocol(self.hook_twice(self.payload('git add -A', mode=mode)),
+                                     Expected('deny', 'blanket-staging', 'R01'))
+                self.assert_protocol(self.hook_twice(self.payload('git add a.txt', mode=mode)), Expected('allow'))
+
+    def test_core_ask_modes_equal_the_capability_record(self) -> None:
+        modes = tuple(self.api('ASK_CAPABLE_MODES'))
+        self.assertTrue(ask_capable_modes(), 'the capability record must carry the allowlist line')
+        self.assertEqual(sorted(modes), sorted(ask_capable_modes()))
+        self.assertEqual(len(set(modes)), len(modes))
+
+    def test_registered_target_from_unregistered_cwd_is_decided(self) -> None:
+        self.setup_push_feature()
+        run = self.hook_twice(self.payload('git -C @project@ push -f', self.location('outside')))
+        self.assert_protocol(run, Expected('ask', 'push-force', 'R17'))
+
+    def test_operation_names_the_subcommand_refs_and_remote(self) -> None:
+        self.setup_push()
+        lines = self.expect('git push origin main', Expected('ask', 'push-protected-target', 'R16'))
+        self.assertEqual(lines[2], 'operation: git push to refs/heads/main on origin')
+
+
+@dataclass(frozen=True)
+class ReasonCase:
+    """One reason code produced end to end. variant: plain, no-python (python3 absent from
+    PATH) or fault (the test-only core fault seam set in the hook environment)."""
+    reason: str
+    command: str
+    decision: str
+    rule: str | None = None
+    setup: str = 'standard'
+    mode: str = 'default'
+    failure: str | None = None
+    raw: bytes | None = None
+    variant: str = 'plain'
+
+
+REASON_CASES: tuple[ReasonCase, ...] = (
+    ReasonCase('blanket-staging', 'git add -A', 'deny', 'R01'),
+    ReasonCase('staging-not-file', 'git add sub', 'deny', 'R02'),
+    ReasonCase('staging-ignored-path', 'git add -f .ai/state.md', 'ask', 'R04', setup='ignored-state'),
+    ReasonCase('commit-all', 'git commit -am x', 'deny', 'R06'),
+    ReasonCase('commit-message-unverifiable', 'git commit', 'deny', 'R08'),
+    ReasonCase('commit-message-forbidden', f"git commit -m 'Add parser' -m '{TRAILER}'", 'deny', 'R09'),
+    ReasonCase('rewrite-published', 'git commit --amend -m ok', 'ask', 'R10', setup='published'),
+    ReasonCase('push-target-unknown', 'git push https://example.invalid/r.git feat/x', 'deny', 'R12',
+               setup='push-feature'),
+    ReasonCase('default-branch-unknown', 'git push origin feat/x', 'deny', 'R13', setup='push-no-default-head'),
+    ReasonCase('push-bulk-or-tags', 'git push --tags', 'ask', 'R14', setup='push-feature'),
+    ReasonCase('push-delete', 'git push origin --delete feat/y', 'ask', 'R15', setup='push-feature'),
+    ReasonCase('push-protected-target', 'git push origin main', 'ask', 'R16', setup='push'),
+    ReasonCase('push-force', 'git push -f origin feat/x', 'ask', 'R17', setup='push-feature'),
+    ReasonCase('push-lease-unverified', 'git push --force-with-lease origin feat/x', 'ask', 'R18',
+               setup='push-feature', failure='explicit-lease'),
+    ReasonCase('reset-hard', 'git reset --hard', 'ask', 'R20'),
+    ReasonCase('clean', 'git clean -fd', 'ask', 'R21'),
+    ReasonCase('branch-delete', 'git branch -d feat/x', 'ask', 'R22', setup='push'),
+    ReasonCase('protected-ref-rewrite', 'git branch -f main', 'ask', 'R24', setup='push-feature'),
+    ReasonCase('rebase-outside-restack', 'git rebase main', 'ask', 'R26', failure='journal-missing'),
+    ReasonCase('merge-into-protected', 'git merge feat/x', 'ask', 'R27', setup='push'),
+    ReasonCase('pr-merge', 'gh pr merge 1', 'ask', 'R29'),
+    ReasonCase('opaque-environment', 'GIT_DIR=x git commit -m ok', 'deny', 'R31'),
+    ReasonCase('unsupported-form', 'eval "git push"', 'deny'),
+    ReasonCase('malformed-input', 'git push', 'deny', raw=b'{"tool_input": {"command": "git push"'),
+    ReasonCase('registry-error', 'git status', 'deny', setup='registry-empty-line'),
+    ReasonCase('runtime-unavailable', 'git status', 'deny', variant='no-python'),
+    ReasonCase('limit-exceeded', TOKENS_OVER_LIMIT, 'deny'),
+    ReasonCase('internal-error', 'git add a.txt', 'deny', variant='fault'),
+    ReasonCase('owner-approval-unavailable', 'git reset --hard', 'deny', 'R20', mode='bypassPermissions'),
+)
+
+
+def reason_test(case: ReasonCase) -> Callable[[EntrypointFixture], None]:
+    def test(self: EntrypointFixture) -> None:
+        self.apply_setup(case.setup)
+        environ = dict(self.environ)
+        if case.variant == 'no-python':
+            environ = self.without_python()
+        elif case.variant == 'fault':
+            environ[FAULT_VARIABLE] = 'exception'
+        if case.variant == 'plain' and case.raw is None and case.mode == 'default':
+            core = self.api('decide')(self.event(case.command, self.location('project')), dict(environ))
+            self.assertEqual((core.decision, core.reason_code, core.rule_id, getattr(core, 'failure', None)),
+                             (case.decision, case.reason, case.rule, case.failure), 'core sanity for the example')
+        payload = case.raw if case.raw is not None else self.payload(case.command, mode=case.mode)
+        run = self.hook_twice(payload, environ)
+        self.assert_protocol(run, Expected(case.decision, case.reason, case.rule, case.failure), environ)
+    return test
+
+
+class EntrypointDiagnostics(EntrypointFixture):
+    """Four-line diagnostics: one next step per reason code, size limit, no secrets."""
+
+    def test_every_reason_code_has_a_next_step_and_an_end_to_end_case(self) -> None:
+        table = self.api('NEXT_STEPS')
+        self.assertEqual(len(SPEC_REASON_CODES), 29)
+        self.assertEqual(sorted(table), sorted(SPEC_REASON_CODES))
+        self.assertEqual(sorted(case.reason for case in REASON_CASES), sorted(SPEC_REASON_CODES))
+        for reason, text in table.items():
+            with self.subTest(reason=reason):
+                self.assertIsInstance(text, str)
+                self.assertTrue(text.strip(), 'a next step is one concrete action')
+                self.assertNotIn('\n', text)
+                self.assertNotIn('\r', text)
+                self.assertLessEqual(len(text.encode('utf-8')), 400)
+                self.assertNotRegex(text, PIPELINE_IDENTIFIER)
+
+    def test_secrets_never_reach_the_hook_output(self) -> None:
+        self.setup_push_feature()
+        (self.project / 'secret-msg.txt').write_text('Add parser SECRET-FILE-7f3\n\nRefs T-04\n')
+        environ = {**self.environ, 'GH_TOKEN': 'SECRET-HOOK-ENV-91c'}
+        cases = ((f"git commit -m 'Subject SECRET-MSG-2a1' -m '{TRAILER}'",
+                  Expected('deny', 'commit-message-forbidden', 'R09')),
+                 ('git commit -F secret-msg.txt', Expected('deny', 'commit-message-forbidden', 'R09')),
+                 ('API_TOKEN=SECRET-ASSIGN-5d2 git push -f origin feat/x', Expected('ask', 'push-force', 'R17')),
+                 ('git push https://URLUSER-6b4:SECRET-URL-8e0@example.invalid/r.git feat/x',
+                  Expected('deny', 'push-target-unknown', 'R12')))
+        for command, expected in cases:
+            with self.subTest(command=command):
+                run = self.hook_twice(self.payload(command), environ)
+                self.assert_protocol(run, expected, environ)
+                output = run.stdout + run.stderr
+                for secret in (b'SECRET-', b'URLUSER-', b'Co-authored-by', b'T-04', command.encode()):
+                    self.assertNotIn(secret, output)
+
+    def test_long_operation_is_truncated_and_keeps_the_next_step(self) -> None:
+        self.setup_push()
+        refs = ' '.join(f'HEAD:refs/heads/release/{"ü" * 40}-{index}' for index in range(40))
+        self.assertEqual(self.decide(self.event('git push origin ' + refs, self.location('project'))),
+                         ('ask', 'push-protected-target', 'R16'))
+
+    def test_long_next_step_is_truncated_on_a_character_boundary(self) -> None:
+        config = self.world.joinpath(*(['→' * 60, 'é' * 100] * 3))
+        registry = config / 'orchestrail/projects'
+        registry.parent.mkdir(parents=True)
+        registry.write_text('relative/root\n')
+        environ = {**self.environ, 'XDG_CONFIG_HOME': str(config)}
+        full = 'fix or remove the invalid line in ' + str(registry)
+        self.assertGreater(len(full.encode('utf-8')), DIAGNOSTIC_LIMIT)
+        run = self.hook_twice(self.payload('git status'), environ)
+        self.assertEqual((run.status, run.stdout), (2, b''), run.stderr[-300:])
+        lines = self.assert_diagnostic(self.diagnostic_text(run), Expected('deny', 'registry-error'))
+        body = lines[3][len('next: '):]
+        self.assertLess(len(body), len(full))
+        self.assertTrue(full.startswith(body.removesuffix('…')), body)
+
+
+for reason_case in REASON_CASES:
+    setattr(EntrypointDiagnostics, 'test_reason_' + reason_case.reason.replace('-', '_') + '_is_rendered',
+            reason_test(reason_case))
+
+
+class EntrypointFailureModes(EntrypointFixture):
+    """Malformed events, registry and runtime failures, core exceptions and time limits."""
+
+    def test_malformed_json_is_malformed_input(self) -> None:
+        for payload in (b'{"tool_input": {"command": "git push"', b'git push -f', b'["git push"]',
+                        b'{"tool_input": {"command": "git push"}} trailing',
+                        b'{"hook_event_name": "PreToolUse", "tool_name": "Bash", '
+                        b'"tool_input": {"command": "git push"}, "cwd": "/tmp", "cwd": 7}'):
+            with self.subTest(payload=payload):
+                self.assert_protocol(self.hook_twice(payload), Expected('deny', 'malformed-input'))
+
+    def test_relative_or_missing_cwd_is_malformed_input(self) -> None:
+        relative = self.event('git push -f', 'project one')
+        missing = self.event('git push -f', self.location('project'))
+        missing.pop('cwd')
+        for event in (relative, missing):
+            with self.subTest(event=event):
+                self.assert_protocol(self.hook_twice(encode_event(event)), Expected('deny', 'malformed-input'))
+
+    def test_non_utf8_input_is_malformed_input(self) -> None:
+        payload = self.payload('git add a.txt').replace(b'"fixture"', b'"fix\xfeture"', 1)
+        self.assertIn(b'\xfe', payload)
+        self.assert_protocol(self.hook_twice(payload), Expected('deny', 'malformed-input'))
+
+    def test_non_bash_tool_is_not_applicable(self) -> None:
+        event = self.event('git push -f', self.location('project'))
+        event['tool_name'] = 'Edit'
+        event['tool_input'] = {'file_path': 'a.txt', 'old_string': 'git push', 'new_string': 'git push -f'}
+        self.assertEqual(self.hook_twice(encode_event(event)).output, (0, b'', b''))
+
+    def test_empty_registry_registers_nothing(self) -> None:
+        self.registry.write_bytes(b'')
+        self.assertEqual(self.hook_twice(self.payload('git push -f')).output, (0, b'', b''))
+
+    def test_unreadable_registry_names_the_registry_path(self) -> None:
+        self.setup_registry_unreadable()
+        self.expect('git status', Expected('deny', 'registry-error'))
+
+    def test_fifo_registry_is_a_registry_error_without_blocking(self) -> None:
+        self.registry.unlink()
+        os.mkfifo(self.registry)
+        run = self.hook_twice(self.payload('git status'))
+        self.assert_protocol(run, Expected('deny', 'registry-error'))
+        self.assertLess(run.elapsed, 2.0, 'a registry that is not a regular file must not block the hook')
+
+    def test_missing_python_in_a_registered_directory_is_runtime_unavailable(self) -> None:
+        self.expect('git add a.txt', Expected('deny', 'runtime-unavailable'), self.without_python())
+
+    def test_injected_core_exception_is_internal_error(self) -> None:
+        environ = {**self.environ, FAULT_VARIABLE: 'exception'}
+        for command in ('git add a.txt', 'git status', 'git reset --hard'):
+            with self.subTest(command=command):
+                self.expect(command, Expected('deny', 'internal-error'), environ)
+
+    def test_fault_seam_cannot_be_triggered_by_event_content(self) -> None:
+        command = f'{FAULT_VARIABLE}=exception git add a.txt'
+        self.assertEqual(self.decide(self.event(command, self.location('project'))), ('allow', None, None))
+        event = self.event('git add a.txt', self.location('project'))
+        event[FAULT_VARIABLE] = 'exception'
+        event['tool_input'] = {'command': 'git add a.txt', FAULT_VARIABLE: 'exception'}
+        self.assertEqual(self.decide(event), ('allow', None, None))
+
+    def test_git_read_timeout_is_limit_exceeded(self) -> None:
+        self.fake_git('case " $* " in *" rev-parse "*) sleep 30 ;; esac\n')
+        run = run_hook(self.payload('git add a.txt'), self.environ, self.world)
+        self.assert_protocol(run, Expected('deny', 'limit-exceeded'))
+        self.assertGreaterEqual(run.elapsed, 1.5, 'the read limit is two seconds')
+        self.assertLess(run.elapsed, 4.5, 'a timed-out read must be stopped')
+
+    def test_wall_clock_budget_is_limit_exceeded(self) -> None:
+        self.fake_git('case " $* " in *" rev-parse "*) sleep 1.5 ;; esac\n')
+        run = run_hook(self.payload('git add a.txt; git add b.txt; git add a.txt; git add b.txt'),
+                       self.environ, self.world)
+        self.assert_protocol(run, Expected('deny', 'limit-exceeded'))
+        self.assertGreaterEqual(run.elapsed, 4.5, 'the core budget is five seconds')
+        self.assertLess(run.elapsed, 5.9, 'the core stops at its five-second budget')
+
+    def test_timed_out_read_stops_waiting_for_escaped_children(self) -> None:
+        setsid = shutil.which('setsid')
+        if setsid is None:
+            self.skipTest('setsid is not available')
+        pidfile = self.probe / 'escaped.pid'
+        self.addCleanup(kill_recorded, pidfile)
+        self.fake_git(f'case " $* " in *" rev-parse "*) {shlex.quote(setsid)} sleep 6 & '
+                      f'echo $! > {shlex.quote(str(pidfile))}; sleep 30 ;; esac\n')
+        started = time.monotonic()
+        result = self.api('decide')(self.event('git add a.txt', self.location('project')), dict(self.environ))
+        elapsed = time.monotonic() - started
+        self.assertEqual((result.decision, result.reason_code), ('deny', 'limit-exceeded'))
+        self.assertLess(elapsed, 4.5, 'output held open by an escaped child must not extend the read')
+
+
+class EntrypointLimits(EntrypointFixture):
+    """Hook stdin and command size limits."""
+
+    def test_stdin_of_exactly_one_mebibyte_is_decided(self) -> None:
+        self.assert_protocol(self.hook_twice(self.padded('git add a.txt', STDIN_LIMIT)), Expected('allow'))
+        self.assert_protocol(self.hook_twice(self.padded('git add -A', STDIN_LIMIT)),
+                             Expected('deny', 'blanket-staging', 'R01'))
+
+    def test_stdin_over_one_mebibyte_is_malformed_input(self) -> None:
+        for size in (STDIN_LIMIT + 1, 3 * STDIN_LIMIT):
+            with self.subTest(size=size):
+                self.assert_protocol(self.hook_twice(self.padded('git add a.txt', size)),
+                                     Expected('deny', 'malformed-input'))
+
+    def test_command_of_exactly_64_kib_is_decided(self) -> None:
+        command = sized_command(COMMAND_LIMIT)
+        self.assertEqual(len(command.encode('utf-8')), COMMAND_LIMIT)
+        self.assertEqual(self.decide(self.event(command, self.location('project'))), ('allow', None, None))
+
+    def test_command_over_64_kib_is_limit_exceeded(self) -> None:
+        over = sized_command(COMMAND_LIMIT + 1)
+        self.assertEqual(len(over.encode('utf-8')), COMMAND_LIMIT + 1)
+        multibyte = sized_command(80000, 'é')
+        self.assertLessEqual(len(multibyte), COMMAND_LIMIT, 'the limit counts UTF-8 bytes, not characters')
+        for command in (over, multibyte):
+            with self.subTest(size=len(command.encode('utf-8'))):
+                self.assertEqual(self.decide(self.event(command, self.location('project'))),
+                                 ('deny', 'limit-exceeded', None))
+
+
+class EntrypointIndependence(EntrypointFixture):
+    """Task records and test-state values never change a decision; the hook never reads them."""
+
+    def outputs(self) -> list[tuple[int, bytes, bytes]]:
+        cases = (('git add a.txt', Expected('allow')), ('git add -A', Expected('deny', 'blanket-staging', 'R01')),
+                 ('git reset --hard', Expected('ask', 'reset-hard', 'R20')), ('git commit -m ok', Expected('allow')),
+                 ('git push -f', Expected('deny', 'push-target-unknown', 'R12')),
+                 ('git status', Expected('not_applicable')))
+        runs = [self.hook_twice(self.payload(command)) for command, _ in cases]
+        for run, (_, expected) in zip(runs, cases):
+            self.assert_protocol(run, expected)
+        return [run.output for run in runs]
+
+    def test_task_records_and_test_states_do_not_change_decisions(self) -> None:
+        baseline = self.outputs()
+        tasks = self.project / '.ai/tasks/todo/task-example'
+        tasks.mkdir(parents=True)
+        (tasks / 'state.md').write_text('example | atomic-tests: red | atomic-execution: not-started\n')
+        self.assertEqual(self.outputs(), baseline, 'adding task records')
+        (tasks / 'state.md').write_text('example | atomic-tests: green | atomic-execution: complete\n')
+        (self.project / '.ai/state.md').write_text('atomic-tests: green\n')
+        self.assertEqual(self.outputs(), baseline, 'changing atomic-tests values')
+        os.mkfifo(tasks / 'pipe.md')
+        self.assertEqual(self.outputs(), baseline, 'a task file that would block any reader')
+        shutil.rmtree(self.project / '.ai/tasks')
+        self.assertEqual(self.outputs(), baseline, 'removing task records')
+
+
+CLASSES = (*CLASSES, *ENTRYPOINT_TABLE_CLASSES, EntrypointFastPath, EntrypointProtocol, EntrypointDiagnostics,
+           EntrypointFailureModes, EntrypointLimits, EntrypointIndependence)
+
+
+# ── Hook entrypoint in a degraded environment ──────────────────────────
+
+import io  # noqa: E402 - the degraded-environment block needs these only
+from types import SimpleNamespace  # noqa: E402
+
+
+def link_kept(directory: Path, target: Path, keep: Callable[[str], bool]) -> None:
+    if not directory.is_dir():
+        return
+    for program in sorted(directory.iterdir()):
+        link = target / program.name
+        if not keep(program.name) or link.exists() or link.is_symlink():
+            continue
+        if program.is_file() and os.access(program, os.X_OK):
+            link.symlink_to(program)
+
+
+def filtered_path(excluded: frozenset[str], python: bool) -> str:
+    """One directory linking every program on the current PATH except the excluded names,
+    and except Python unless python is true."""
+    key = ' '.join(sorted(excluded)) + (' +python' if python else ' -python')
+    if key not in TOOLS:
+        root = Path(os.path.realpath(tempfile.mkdtemp(prefix='entry tools ')))
+        atexit.register(shutil.rmtree, root, True)
+
+        def keep(name: str) -> bool:
+            return name not in excluded and (python or not name.startswith('python'))
+
+        for directory in os.environ.get('PATH', '/usr/bin:/bin').split(os.pathsep):
+            link_kept(Path(directory), root, keep)
+        TOOLS[key] = str(root)
+    return TOOLS[key]
+
+
+class EntrypointDegradedEnvironment(EntrypointFixture):
+    """Missing shell tools, a registry behind an unsearchable directory and CDPATH never let
+    a relevant command through undecided."""
+
+    def tools_missing(self, *names: str, python: bool = True) -> dict[str, str]:
+        return {**self.environ, 'PATH': filtered_path(frozenset(names), python)}
+
+    def run_relative(self, payload: bytes, environ: Mapping[str, str]) -> HookRun:
+        """The entrypoint started by a relative path from the source checkout."""
+        started = time.monotonic()
+        result = subprocess.run([BASH, 'hooks/git-rails.sh'], input=payload, capture_output=True,
+                                env=dict(environ), cwd=SOURCE, timeout=HOOK_TIMEOUT)
+        return HookRun(result.returncode, result.stdout, result.stderr, time.monotonic() - started)
+
+    def test_missing_read_tools_leave_the_decision_to_the_core(self) -> None:
+        for missing in (('head',), ('tr',), ('head', 'tr')):
+            environ = self.tools_missing(*missing)
+            with self.subTest(missing=missing):
+                self.assert_protocol(self.hook_twice(self.payload('git add -A'), environ),
+                                     Expected('deny', 'blanket-staging', 'R01'), environ)
+                self.assert_protocol(self.hook_twice(self.payload('ls', self.location('clean')), environ),
+                                     Expected('not_applicable'), environ)
+                self.assert_protocol(self.hook_twice(self.padded('git add a.txt', STDIN_LIMIT + 1), environ),
+                                     Expected('deny', 'malformed-input'), environ)
+
+    def test_missing_read_tools_and_python_are_runtime_unavailable(self) -> None:
+        for missing in (('head',), ('tr',)):
+            environ = self.tools_missing(*missing, python=False)
+            with self.subTest(missing=missing):
+                self.assert_protocol(self.hook_twice(self.payload('git add -A'), environ),
+                                     Expected('deny', 'runtime-unavailable'), environ)
+
+    def test_registry_behind_an_unsearchable_directory_is_a_registry_error(self) -> None:
+        if os.geteuid() == 0:
+            self.skipTest('file permissions do not restrict the superuser')
+        for directory in (self.registry.parent, self.config):
+            with self.subTest(directory=directory.name):
+                directory.chmod(0o600)
+                try:
+                    run = self.hook_twice(self.payload('git status'))
+                finally:
+                    directory.chmod(0o755)
+                self.assert_protocol(run, Expected('deny', 'registry-error'))
+
+    def test_runtime_diagnostic_without_sed_keeps_four_lines(self) -> None:
+        environ = self.tools_missing('sed', python=False)
+        run = self.hook_twice(self.payload('git add -A'), environ)
+        self.assertEqual((run.status, run.stdout), (2, b''), run.stderr[-300:])
+        lines = self.diagnostic_text(run).split('\n')
+        self.assertEqual(len(lines), 4, lines)
+        self.assertEqual(lines[0], 'git-rails: deny runtime-unavailable (none)')
+        for index, prefix in ((1, 'rule'), (2, 'operation'), (3, 'next')):
+            self.assertRegex(lines[index], rf'^{prefix}: \S')
+
+    def test_relative_invocation_ignores_cdpath(self) -> None:
+        decoys = self.probe / 'cdpath'
+        (decoys / 'hooks').mkdir(parents=True)
+        environ = {**self.environ, 'CDPATH': str(decoys)}
+        self.assert_protocol(self.run_relative(self.payload('git add -A'), environ),
+                             Expected('deny', 'blanket-staging', 'R01'), environ)
+        no_python = {**self.without_python(), 'CDPATH': str(decoys)}
+        self.assert_protocol(self.run_relative(self.payload('git add -A'), no_python),
+                             Expected('deny', 'runtime-unavailable'), no_python)
+
+
+class CoreEntryPoint(RailsFixture):
+    """The core entry point denies even when its budget signal lands inside a failure handler."""
+
+    def patch(self, name: str, value: object) -> None:
+        self.addCleanup(setattr, CORE, name, getattr(CORE, name))
+        setattr(CORE, name, value)
+
+    def test_budget_signal_inside_the_failure_handler_still_denies(self) -> None:
+        main, budget, denial = self.api('main'), self.api('BudgetExceeded'), self.api('denial')
+
+        def failing_decide(event: object, environ: Mapping[str, str]) -> Any:
+            raise RuntimeError('fault inside the decision')
+
+        def late_denial(reason: str, rule: str | None = None) -> Any:
+            if reason == 'internal-error':
+                raise budget()  # the budget signal arriving while the failure is handled
+            return denial(reason, rule)
+
+        self.patch('decide', failing_decide)
+        self.patch('denial', late_denial)
+        self.addCleanup(signal.signal, signal.SIGALRM, signal.getsignal(signal.SIGALRM))
+        stdout, stderr = io.BytesIO(), io.BytesIO()
+        for name, stream in (('stdin', io.BytesIO(b'{}')), ('stdout', stdout), ('stderr', stderr)):
+            self.addCleanup(setattr, sys, name, getattr(sys, name))
+            setattr(sys, name, SimpleNamespace(buffer=stream))
+        try:
+            status = main()
+        except BaseException as error:  # noqa: B902 - the escape itself is the failure under test
+            self.fail(f'{type(error).__name__} escaped the core entry point')
+        headline = stderr.getvalue().decode('utf-8').split('\n')[0]
+        self.assertEqual((status, stdout.getvalue()), (2, b''))
+        self.assertIn(headline, ('git-rails: deny limit-exceeded (none)', 'git-rails: deny internal-error (none)'))
+
+
+CLASSES = (*CLASSES, EntrypointDegradedEnvironment, CoreEntryPoint)
 
 
 def selected_suite() -> unittest.TestSuite:
