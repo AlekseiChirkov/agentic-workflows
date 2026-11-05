@@ -8,3 +8,8 @@ Installation and native checkpoint coverage are unavailable here. Every workflow
 step retains prompt logging with `note: approximate`; run start and run end remain
 prompt driven. Unknown capabilities are unavailable. Mechanism support, installation
 status and accepted checkpoint coverage must be assessed separately.
+
+git-rails: none (textual rules only)
+
+This release installs no command-level git enforcement for Codex. Git safety rails
+apply as textual rules only.
