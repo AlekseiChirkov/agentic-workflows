@@ -52,6 +52,15 @@ class UnknownExecutableForms(unittest.TestCase):
     def test_subprocess_unpacked_path_requires_review(self):
         self.assert_rejected("p, = ('scripts/validate-contracts.sh',)\nsubprocess.run(['bash', p])")
 
+    def test_default_parameter_path_requires_review(self):
+        self.assert_rejected("def launch(p='scripts/validate-contracts.sh'):\n    os.execv('/bin/bash', ['bash', p])\nlaunch()")
+
+    def test_known_name_with_validator_in_later_argument_requires_review(self):
+        self.assert_rejected("def run(exe, script):\n    os.execv(exe, ['bash', script])\nrun('/bin/bash', 'scripts/validate-contracts.sh')")
+
+    def test_known_name_with_validator_in_keyword_requires_review(self):
+        self.assert_rejected("run('/bin/bash', script='scripts/validate-contracts.sh')")
+
     def test_unknown_callable_validator_reference_requires_review(self):
         self.assert_rejected("custom_runner('scripts/validate-contracts.sh')")
 
