@@ -5814,7 +5814,7 @@ check "SAFETY: the Enforcement intro says a hook ask denies where no person can 
 test_nested_validator_source_guard() {
   local test_file
   python3 -B "$REPO_ROOT/tests/fixtures/validator-runtime/source_guard.py" --root "$REPO_ROOT" >/dev/null || return 1
-  for test_file in tests/validator-runtime-guard.py tests/validator-runtime-guard-regressions.py tests/validator-runtime-guard-production.py tests/validator-runtime-guard-dynamic.py; do
+  for test_file in tests/validator-runtime-guard.py tests/validator-runtime-guard-regressions.py tests/validator-runtime-guard-production.py tests/validator-runtime-guard-dynamic.py tests/validator-runtime-external-source-guard.py; do
     python3 -B "$REPO_ROOT/$test_file" || return 1
   done
 }

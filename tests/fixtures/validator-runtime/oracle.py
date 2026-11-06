@@ -34,7 +34,7 @@ ADDITIVE_RESULTS = [
 # Preserve existing nested check syntax while rejecting any unreviewed change.
 NONSTANDARD_CHECKS_SHA256 = "1ef044c0fd54cd3291111bbb47d33a1731187c3219194e07def9b7ee6820ce74"
 RUNTIME_WRAPPER_SHA256 = {
-    "test_nested_validator_source_guard": "00be27cd28cf738c466206aa2ee2da616c40515400cae651b570344a77ef40b6",
+    "test_nested_validator_source_guard": "d0be98efd1411c8cb9a17752259f6dda6a68671f1e4f9ae51f081e952cefba85",
     "test_validator_runtime_warning": "d1d3ea1e1d31b8d94f67e1254bda8cb20ce253fbff2bf614f0273240fbf6c419",
     "test_validator_runtime_characterization": "852f08dbf484d6aade369756e9114dd45828e43fd4ef5bbb2680bdbefcd2ec55",
     "test_validator_runtime_oracle": "ce4c2d70312455dfe685ed060b75a2f9f881f4fd097c67f3309f47893b4ae830",

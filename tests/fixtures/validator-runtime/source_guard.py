@@ -342,26 +342,33 @@ def _python(path, source):
         tree = _scoped_names(ast.parse(source, filename=path), source, path)
     except (SyntaxError, ValueError):
         return [f"{path}: invalid Python source"]
+    tree_nodes = tuple(ast.walk(tree))
+    calls = tuple(node for node in tree_nodes if isinstance(node, ast.Call))
+    assignments = tuple(node for node in tree_nodes if isinstance(node, (ast.Assign, ast.AnnAssign)))
+    bindings = tuple(node for node in tree_nodes if isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension, ast.withitem)))
+    functions = tuple(node for node in tree_nodes if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)))
+    matches = tuple(node for node in tree_nodes if isinstance(node, ast.Match))
+    named_assignments = tuple(node for node in tree_nodes if isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)))
     imported_calls = {alias.asname or alias.name
-                      for node in ast.walk(tree)
+                      for node in tree_nodes
                       if isinstance(node, ast.ImportFrom) and node.module == "subprocess"
                       for alias in node.names
                       if alias.name in {"run", "Popen", "call", "check_call", "check_output", "getoutput", "getstatusoutput"}}
-    subprocess_modules = {alias.asname or alias.name for node in ast.walk(tree)
+    subprocess_modules = {alias.asname or alias.name for node in tree_nodes
                           if isinstance(node, ast.Import) for alias in node.names
                           if alias.name == "subprocess"} | {"subprocess"}
-    os_modules = {alias.asname or alias.name for node in ast.walk(tree)
+    os_modules = {alias.asname or alias.name for node in tree_nodes
                   if isinstance(node, ast.Import) for alias in node.names
                   if alias.name == "os"} | {"os"}
-    os_executables = {alias.asname or alias.name for node in ast.walk(tree)
+    os_executables = {alias.asname or alias.name for node in tree_nodes
                       if isinstance(node, ast.ImportFrom) and node.module == "os"
                       for alias in node.names
                       if alias.name.startswith(("exec", "spawn"))}
-    os_systems = {alias.asname or alias.name for node in ast.walk(tree)
+    os_systems = {alias.asname or alias.name for node in tree_nodes
                   if isinstance(node, ast.ImportFrom) and node.module == "os"
                       for alias in node.names if alias.name in {"system", "popen"}}
     dynamic_code = {"exec", "eval"}
-    for imported in (node for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+    for imported in (node for node in tree_nodes if isinstance(node, ast.ImportFrom)
                      and node.module in {"os", "subprocess"}):
         if any(alias.name == "*" for alias in imported.names):
             issues.append(f"{path}:{imported.lineno}: unclassified Python executable")
@@ -373,7 +380,7 @@ def _python(path, source):
     changed = True
     while changed:
         changed = False
-        for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
+        for call in calls:
             if (isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name)
                     and call.func.attr in {'append', 'extend', 'insert', 'add', 'update'}):
                 if any(isinstance(item, ast.Attribute) and isinstance(item.value, ast.Name)
@@ -381,9 +388,7 @@ def _python(path, source):
                     if call.func.value.id not in callable_containers:
                         callable_containers.add(call.func.value.id)
                         changed = True
-        for assignment in ast.walk(tree):
-            if not isinstance(assignment, (ast.Assign, ast.AnnAssign)):
-                continue
+        for assignment in assignments:
             targets = assignment.targets if isinstance(assignment, ast.Assign) else [assignment.target]
             value = assignment.value
             if value is None:
@@ -488,7 +493,7 @@ def _python(path, source):
 
     reference_aliases = set()
     partial_aliases = set()
-    nodes = sorted(ast.walk(tree), key=lambda node: (getattr(node, "lineno", 0), getattr(node, "col_offset", 0)))
+    nodes = sorted(tree_nodes, key=lambda node: (getattr(node, "lineno", 0), getattr(node, "col_offset", 0)))
     for assignment in nodes:
         if isinstance(assignment, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
             targets = assignment.targets if isinstance(assignment, ast.Assign) else [assignment.target]
@@ -563,9 +568,7 @@ def _python(path, source):
     changed = True
     while changed:
         changed = False
-        for function in ast.walk(tree):
-            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
-                continue
+        for function in functions:
             parameters = function.args.posonlyargs + function.args.args
             defaults = list(zip(parameters[len(parameters) - len(function.args.defaults):], function.args.defaults))
             defaults += list(zip(function.args.kwonlyargs, function.args.kw_defaults))
@@ -577,7 +580,7 @@ def _python(path, source):
                 ) and parameter.arg not in reference_aliases:
                     reference_aliases.add(parameter.arg)
                     changed = True
-        for match in (node for node in ast.walk(tree) if isinstance(node, ast.Match)):
+        for match in matches:
             if any(
                 (_literal_string(item) is not None and VALIDATOR in _literal_string(item))
                 or (isinstance(item, ast.Name) and item.id in reference_aliases)
@@ -590,7 +593,7 @@ def _python(path, source):
                         if name is not None and name not in reference_aliases:
                             reference_aliases.add(name)
                             changed = True
-        for binding in ast.walk(tree):
+        for binding in bindings:
             if isinstance(binding, (ast.For, ast.AsyncFor, ast.comprehension)):
                 value, target = binding.iter, binding.target
             elif isinstance(binding, ast.withitem) and binding.optional_vars is not None:
@@ -606,9 +609,7 @@ def _python(path, source):
                     if isinstance(item, ast.Name) and item.id not in reference_aliases:
                         reference_aliases.add(item.id)
                         changed = True
-        for assignment in ast.walk(tree):
-            if not isinstance(assignment, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
-                continue
+        for assignment in named_assignments:
             value = assignment.value
             if value is None or any(isinstance(item, ast.Call) for item in ast.walk(value)):
                 continue
@@ -621,9 +622,7 @@ def _python(path, source):
                     if relevant and isinstance(item, ast.Name) and item.id not in reference_aliases:
                         reference_aliases.add(item.id)
                         changed = True
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
+    for node in calls:
         fn = node.func
         if (isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name)
                 and (fn.value.id, fn.attr) in callable_attributes):
@@ -921,7 +920,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "5e93cc4b06a16f3d58d65fe542c61043a7e5e7cf04bd6f073ccf6a4b45af2c20":
+        if hashlib.sha256(data).hexdigest() != "a73cc3590d7dc8959b9bfbea064676c29bf4b36fd1f27141d2299a28e946d3f4":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):
