@@ -28,6 +28,12 @@ class UnknownExecutableForms(unittest.TestCase):
     def test_execv_validator_reference_requires_review(self):
         self.assert_rejected("os.execv('/bin/bash', ['bash', 'scripts/validate-contracts.sh'])")
 
+    def test_execv_validator_path_alias_requires_review(self):
+        self.assert_rejected("p = 'scripts/validate-contracts.sh'\nos.execv('/bin/bash', ['bash', p])")
+
+    def test_unknown_callable_validator_path_alias_requires_review(self):
+        self.assert_rejected("p = 'scripts/validate-contracts.sh'\ncustom_runner(p)")
+
     def test_unknown_callable_validator_reference_requires_review(self):
         self.assert_rejected("custom_runner('scripts/validate-contracts.sh')")
 
