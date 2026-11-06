@@ -86,9 +86,26 @@ class UnknownExecutableForms(unittest.TestCase):
             'bash -e\n',
             '/tmp/payload.sh\n',
             'true; /tmp/payload.sh\n',
+            'scripts/payload.sh\n',
+            'true; scripts/payload.sh\n',
+            'true && scripts/payload.sh\n',
+            'false || scripts/payload.sh\n',
+            'true | scripts/payload.sh\n',
+            'true & scripts/payload.sh\n',
+            '(scripts/payload.sh)\n',
+            '{ scripts/payload.sh; }\n',
+            'exec /tmp/payload.sh\n',
         ):
             with self.subTest(source=source):
                 self.assertTrue(guard.inspect_sources({"tests/example.sh": source}))
+
+    def test_relative_paths_in_parenthesized_data_are_not_commands(self):
+        for source in (
+            "values=(docs/one.md docs/two.md)",
+            "self.set_config('branch.feat/x.remote', 'origin')",
+        ):
+            with self.subTest(source=source):
+                self.assertFalse(guard._direct_path_command(source))
 
     def test_execl_validator_reference_requires_review(self):
         self.assert_rejected("os.execl('/bin/bash', 'bash', 'scripts/validate-contracts.sh')")
