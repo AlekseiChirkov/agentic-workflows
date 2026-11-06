@@ -24,6 +24,24 @@ class UnknownExecutableForms(unittest.TestCase):
         self.assertTrue(violations, statement)
         self.assertTrue(any(path in str(item) for item in violations))
 
+    def test_dynamic_shell_strings_require_review(self):
+        for statement in (
+            'os.system(\'bash "$TARGET"\')',
+            "os.popen('bash $(command)')",
+            "os.system('bash `command`')",
+            'exec(\'os.system("bash $TARGET")\')',
+            'eval(\'os.system("bash $TARGET")\')',
+            "subprocess.run(['bash', '/tmp/payload.sh'])",
+            "subprocess.run(['python3', '/tmp/payload.py'])",
+        ):
+            with self.subTest(statement=statement):
+                self.assert_rejected(statement)
+
+    def test_dynamic_shell_source_requires_review(self):
+        for source in ('source "$TARGET"\n', '. "$TARGET"\n'):
+            with self.subTest(source=source):
+                self.assertTrue(guard.inspect_sources({"tests/example.sh": source}))
+
     def test_execl_validator_reference_requires_review(self):
         self.assert_rejected("os.execl('/bin/bash', 'bash', 'scripts/validate-contracts.sh')")
 
