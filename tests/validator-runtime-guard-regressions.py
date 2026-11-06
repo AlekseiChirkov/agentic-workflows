@@ -77,6 +77,69 @@ class UnsafeInvocationRegressions(unittest.TestCase):
         source = 'bash scripts/validate-contracts.sh --hygiene-only > output\n'
         self.assertEqual(guard.inspect_sources({"tests/example.sh": source}), [])
 
+    def test_shell_focused_dispatch_depends_on_first_argument(self):
+        for arguments, accepted in (
+            ('--invalid-only --hygiene-only', False),
+            ('--hygiene-only --invalid-only', True),
+        ):
+            with self.subTest(arguments=arguments):
+                source = f'bash scripts/validate-contracts.sh {arguments}\n'
+                self.assertEqual(not guard.inspect_sources({'tests/example.sh': source}), accepted)
+
+    def test_python_focused_dispatch_depends_on_first_argument(self):
+        for arguments, accepted in (
+            ("'--invalid-only', '--hygiene-only'", False),
+            ("'--hygiene-only', '--invalid-only'", True),
+            ("unknown, '--hygiene-only'", False),
+        ):
+            with self.subTest(arguments=arguments):
+                source = f"import subprocess\nsubprocess.run(['bash', 'scripts/validate-contracts.sh', {arguments}])\n"
+                self.assertEqual(not guard.inspect_sources({'tests/example.py': source}), accepted)
+
+    def test_python_executable_override_requires_review(self):
+        for keywords, accepted in (
+            (", executable='scripts/validate-contracts.sh'", False),
+            (", executable=runner", False),
+            (", **options", False),
+            (", capture_output=True", True),
+        ):
+            with self.subTest(keywords=keywords):
+                source = ("import subprocess\nsubprocess.run(["
+                          "'bash', 'scripts/validate-contracts.sh', '--hygiene-only']"
+                          f"{keywords})\n")
+                self.assertEqual(not guard.inspect_sources({'tests/example.py': source}), accepted)
+
+    def test_python_shell_mode_requires_review_unless_false(self):
+        for shell, accepted in (('True', False), ('unknown', False), ('False', True)):
+            with self.subTest(shell=shell):
+                source = ("import subprocess\nsubprocess.run(["
+                          "'scripts/validate-contracts.sh', '--hygiene-only'], "
+                          f"shell={shell})\n")
+                self.assertEqual(not guard.inspect_sources({'tests/example.py': source}), accepted)
+
+    def test_python_keyword_args_obey_focused_dispatch(self):
+        for function in ('run', 'Popen'):
+            for arguments, accepted in (
+                ("['bash', 'scripts/validate-contracts.sh']", False),
+                ("['bash', 'scripts/validate-contracts.sh', '--hygiene-only']", True),
+                ("['bash', 'scripts/validate-contracts.sh', '--invalid-only', '--hygiene-only']", False),
+            ):
+                with self.subTest(function=function, arguments=arguments):
+                    source = f"import subprocess\nsubprocess.{function}(args={arguments})\n"
+                    self.assertEqual(not guard.inspect_sources({'tests/example.py': source}), accepted)
+        ambiguous = ("import subprocess\nsubprocess.run("
+                     "['bash', 'scripts/validate-contracts.sh', '--hygiene-only'], "
+                     "args=['bash', 'scripts/validate-contracts.sh'])\n")
+        self.assertTrue(guard.inspect_sources({'tests/example.py': ambiguous}))
+
+    def test_python_shell_output_helpers_require_review(self):
+        for function in ('getoutput', 'getstatusoutput'):
+            for suffix in ('', ' --hygiene-only'):
+                with self.subTest(function=function, suffix=suffix):
+                    source = (f"import subprocess\nsubprocess.{function}("
+                              f"'bash scripts/validate-contracts.sh{suffix}')\n")
+                    self.assertTrue(guard.inspect_sources({'tests/example.py': source}))
+
     def test_inventory_reads_regular_project_sources(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -38,10 +38,14 @@ class ScannerCharacterization(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="validator-characterization-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.env = os.environ.copy()
+        self.env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
         self.env.update(HOME=str(self.root), XDG_CONFIG_HOME=str(self.root / "config"),
-                        XDG_STATE_HOME=str(self.root / "state"), LC_ALL="C")
-        for args in (["git", "init", "-q"],
+                        XDG_STATE_HOME=str(self.root / "state"), LC_ALL="C",
+                        GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
+                        GIT_CONFIG_SYSTEM=os.devnull, GIT_CONFIG_COUNT="2",
+                        GIT_CONFIG_KEY_0="core.hooksPath", GIT_CONFIG_VALUE_0=os.devnull,
+                        GIT_CONFIG_KEY_1="commit.gpgSign", GIT_CONFIG_VALUE_1="false")
+        for args in (["git", "init", "-q", "--template="],
                      ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
                       "commit", "--allow-empty", "-qm", "fixture"]):
             result = command(args, self.root, self.env)
@@ -50,7 +54,7 @@ class ScannerCharacterization(unittest.TestCase):
 
     def scan(self, payload: bytes, rows: str, name: str = "input.txt", locale: str = "C") -> subprocess.CompletedProcess:
         (self.root / name).write_bytes(payload)
-        ledger = ("### Exact Identity Match Ledger\n"
+        ledger = ("### Exact Identity " "Match Ledger\n"
                   "| Path | Line | Expected token counts |\n|---|---:|---|\n"
                   + rows + "\n### Other\n  base_commit: " + self.commit + "\n")
         (self.root / "ledger.md").write_text(ledger)
@@ -59,7 +63,7 @@ class ScannerCharacterization(unittest.TestCase):
         result = command(args, self.root, env)
         if locale == "C":
             locales = command(["locale", "-a"], self.root, self.env).stdout.decode().splitlines()
-            utf8 = next((item for item in locales if item.lower().replace("-", "").replace(".", "") in ("cutf8", "en_usutf8")), None)
+            utf8 = next((item for item in locales if item.split("@", 1)[0].lower().replace("-", "").replace(".", "").endswith("utf8")), None)
             if utf8 is not None:
                 other = command(args, self.root, self.env | {"LC_ALL": utf8})
                 def normalized(output: bytes) -> bytes:
@@ -79,6 +83,52 @@ class ScannerCharacterization(unittest.TestCase):
             result = self.scan(f"{lower} {lower} {upper}".encode(), altered)
             self.assertEqual(result.returncode, 1)
             self.assertIn(b"Identity scan differs", result.stdout)
+
+    def test_independent_sorted_scanner_rows(self) -> None:
+        upper = TOKEN.upper()
+        (self.root / "input.txt").write_bytes((TOKEN + " " + upper + "\n" + TOKEN + " " + TOKEN).encode())
+        (self.root / "ledger.md").write_text(
+            "### Exact Identity " "Match Ledger\n| Path | Line | Expected token counts |\n|---|---:|---|\n"
+            f"| `input.txt` | 1 | `{TOKEN}` × 1; `{upper}` × 1 |\n"
+            f"| `input.txt` | 2 | `{TOKEN}` × 2 |\n### Other\n  base_commit: {self.commit}\n")
+        anchor = 'LC_ALL=C sort "$scratch/actual" -o "$scratch/actual" || return 1'
+        self.assertEqual(SCANNER.count(anchor), 1)
+        instrumented = SCANNER.replace(anchor, anchor + '\n  cp "$scratch/actual" "$ROW_CAPTURE" || return 1')
+        locales = command(["locale", "-a"], self.root, self.env).stdout.decode().splitlines()
+        utf8 = next((item for item in locales if item.split("@", 1)[0].lower().replace("-", "").replace(".", "").endswith("utf8")), None)
+        with tempfile.TemporaryDirectory(prefix="scanner-rows-") as capture:
+            for locale in ["C"] + ([utf8] if utf8 else []):
+                with self.subTest(locale=locale):
+                    rows = Path(capture) / "rows"
+                    result = command(["bash", "-c", instrumented + "\ntest_public_identity_matches_exact_ledger_and_preserves_knowledge"],
+                                     self.root, self.env | {"LC_ALL": locale, "ROW_CAPTURE": str(rows)})
+                    self.assertEqual(result.returncode, 0, result.stdout)
+                    expected = (f"input.txt\t1\t{upper}\t1\ninput.txt\t1\t{TOKEN}\t1\n"
+                                f"input.txt\t2\t{TOKEN}\t2\n").encode()
+                    self.assertEqual(rows.read_bytes(), expected)
+
+    def test_sorted_rows_for_binary_paths_and_symlink(self) -> None:
+        filename = "space: back\\slash.txt"
+        (self.root / filename).write_bytes(b"\xff\n" + TOKEN[:5].encode() + b"\0" + TOKEN[5:].encode())
+        (self.root / "empty").write_bytes(b"")
+        (self.root / "link").symlink_to(TOKEN)
+        (self.root / "ledger.md").write_text(
+            "### Exact Identity " "Match Ledger\n| Path | Line | Expected token counts |\n|---|---:|---|\n"
+            f"| `{filename}` | 2 | `{TOKEN}` × 1 |\n| `link` | 1 | `{TOKEN}` × 1 |\n"
+            f"### Other\n  base_commit: {self.commit}\n")
+        anchor = 'LC_ALL=C sort "$scratch/actual" -o "$scratch/actual" || return 1'
+        self.assertEqual(SCANNER.count(anchor), 1)
+        instrumented = SCANNER.replace(anchor, anchor + '\n  cp "$scratch/actual" "$ROW_CAPTURE" || return 1')
+        locales = command(["locale", "-a"], self.root, self.env).stdout.decode().splitlines()
+        utf8 = next((item for item in locales if item.split("@", 1)[0].lower().replace("-", "").replace(".", "").endswith("utf8")), None)
+        with tempfile.TemporaryDirectory(prefix="scanner-rows-") as capture:
+            for locale in ["C"] + ([utf8] if utf8 else []):
+                with self.subTest(locale=locale):
+                    rows = Path(capture) / "rows"
+                    result = command(["bash", "-c", instrumented + "\ntest_public_identity_matches_exact_ledger_and_preserves_knowledge"],
+                                     self.root, self.env | {"LC_ALL": locale, "ROW_CAPTURE": str(rows)})
+                    self.assertEqual(result.returncode, 0, result.stdout)
+                    self.assertEqual(rows.read_bytes(), f"link\t1\t{TOKEN}\t1\n{filename}\t2\t{TOKEN}\t1\n".encode())
 
     def test_bytes_paths_and_empty_file(self) -> None:
         name = "space: back\\slash.txt"
@@ -108,7 +158,7 @@ class ScannerCharacterization(unittest.TestCase):
         fake_bin = self.root / "bin"
         fake_bin.mkdir()
         fake_grep = fake_bin / "grep"
-        fake_grep.write_text('#!/bin/bash\nif [ "$1" = -aEio ]; then exit 2; fi\nexec /usr/bin/grep "$@"\n')
+        fake_grep.write_text('#!/bin/bash\ncase "$1" in -aEio|-aEion) exit 2 ;; esac\nexec /usr/bin/grep "$@"\n')
         fake_grep.chmod(0o755)
         self.env["PATH"] = str(fake_bin) + os.pathsep + self.env["PATH"]
         row = f"| `input.txt` | 1 | `{TOKEN}` × 1 |"
@@ -117,7 +167,7 @@ class ScannerCharacterization(unittest.TestCase):
         self.assertIn(b"Identity scan failed on", result.stdout)
 
     def test_ledger_mask_preserves_line_numbers(self) -> None:
-        ledger = ("### Exact Identity Match Ledger\n"
+        ledger = ("### Exact Identity " "Match Ledger\n"
                   "| Path | Line | Expected token counts |\n|---|---:|---|\n"
                   f"| `ledger.md` | 6 | `{TOKEN}` × 1 |\n"
                   "### Other\n" + TOKEN + "\n  base_commit: " + self.commit + "\n")
@@ -138,9 +188,9 @@ class ScannerCharacterization(unittest.TestCase):
 
     def test_available_utf8_locale(self) -> None:
         locales = command(["locale", "-a"], self.root, self.env).stdout.decode().splitlines()
-        locale = next((item for item in locales if item.lower().replace("-", "").replace(".", "") in ("cutf8", "en_usutf8")), None)
+        locale = next((item for item in locales if item.split("@", 1)[0].lower().replace("-", "").replace(".", "").endswith("utf8")), None)
         if locale is None:
-            self.skipTest("No C or en_US UTF-8 locale is available")
+            self.skipTest("No UTF-8 locale is available")
         row = f"| `input.txt` | 1 | `{TOKEN}` × 1 |"
         result = self.scan(TOKEN.encode(), row, locale=locale)
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b"", b""))

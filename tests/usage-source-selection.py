@@ -33,6 +33,11 @@ def selection():
     }
 
 
+class OversizedList(list):
+    def __len__(self):
+        return 10001
+
+
 class SourceSelectionTests(unittest.TestCase):
     def assert_valid(self, value):
         self.assertEqual(call('validate_source_selection', value), value)
@@ -100,8 +105,8 @@ class SourceSelectionTests(unittest.TestCase):
         value = selection()
         self.assert_valid(value)
         bad = copy.deepcopy(value)
-        bad['sources'] = bad['sources'] * 10001
-        with self.assertRaises(ValueError):
+        bad['sources'] = OversizedList(bad['sources'])
+        with self.assertRaisesRegex(ValueError, 'invalid source selection count'):
             call('validate_source_selection', bad)
         for changes in ({'attribution_map': []}, {'attribution_map': [{}]},
                         {'owner_scope': {}}, {'sources': []}):

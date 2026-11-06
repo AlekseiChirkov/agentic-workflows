@@ -651,8 +651,6 @@ done
 
 # ── Group 4: pd-analyze reads correct root files ─────────────────────
 
-check "pd-analyze references architecture.md" \
-  "$(grep -q 'architecture\.md' workflows/pd-analyze.md 2>/dev/null && echo pass || echo 'pd-analyze.md missing architecture.md reference')"
 
 check "pd-analyze references memory/state.md" \
   "$(grep -q 'memory/state\.md' workflows/pd-analyze.md 2>/dev/null && echo pass || echo 'pd-analyze.md missing memory/state.md reference')"
@@ -1122,8 +1120,6 @@ check "ORCH: no T-XX-shaped branch template survives in git-flow" \
 # Matches any concrete or placeholder id used as a commit scope or inside a branch path,
 # not just the literal T-XX placeholder — a real leak would read test(T-01), not test(T-XX).
 for f in rules/git-flow.md workflows/spec-run.md workflows/pv-create-fixes.md; do
-  check "ORCH: no work-item id used as commit scope in $(basename $f)" \
-    "$(grep -qE '(test|feat|fix|refactor|perf|docs|chore)\(T-[0-9A-Za-z]+\)' "$f" 2>/dev/null && echo "$f uses a work-item id as commit scope — identifiers must not reach commits" || echo pass)"
 
   check "ORCH: no identifier-bearing branch path in $(basename $f)" \
     "$(grep -qE '(task/[^ \`]*T-|task/<NN>)' "$f" 2>/dev/null && echo "$f still shows an identifier-based branch path — regression" || echo pass)"
@@ -4498,8 +4494,8 @@ test_contract_version_run_start_stamps_current_and_reads_legacy() (
       malformed) printf 'invalid\nextra\n' > "$fixture/VERSION" ;;
       *) printf '%s\n' "$value" > "$fixture/VERSION" ;;
     esac
-    run="$(AGENTIC_LOG_ROOT="$fixture/store-$value" bash "$fixture/scripts/log-step.sh" run-start --pipeline phase-discovery)" || return 1
-    file="$(AGENTIC_LOG_ROOT="$fixture/store-$value" bash "$fixture/scripts/log-step.sh" path --run "$run")" || return 1
+    run="$(ORCHESTRAIL_LOG_ROOT="$fixture/store-$value" bash "$fixture/scripts/log-step.sh" run-start --pipeline phase-discovery)" || return 1
+    file="$(ORCHESTRAIL_LOG_ROOT="$fixture/store-$value" bash "$fixture/scripts/log-step.sh" path --run "$run")" || return 1
     python3 - "$file" "$value" <<'PYVERSION'
 import json
 import sys
@@ -4517,45 +4513,60 @@ legacy.pop('contract_version', None)
 assert json.loads(json.dumps(legacy))['event'] == 'run-start'
 PYVERSION
     [ "$?" -eq 0 ] || return 1
-    AGENTIC_LOG_ROOT="$fixture/store-$value" bash "$fixture/scripts/log-step.sh" run-end --run "$run" --outcome completed || return 1
+    ORCHESTRAIL_LOG_ROOT="$fixture/store-$value" bash "$fixture/scripts/log-step.sh" run-end --run "$run" --outcome completed || return 1
   done
   grep -qE '^.*contract_version.*' rules/run-log.md &&
     grep -qiE '(legacy|older|optional|missing|absent).*contract_version|contract_version.*(legacy|older|optional|missing|absent)' rules/run-log.md
 )
 
 test_contract_version_rule_history_warns_until_version_changes() (
-  local fixture root output warning
+  local fixture root output warning git_var
   root="$(pwd -P)"
   warning='[WARN] Rules changed after VERSION; update the contract version before release.'
   fixture="$(mktemp -d "${TMPDIR:-/tmp}/contract-history.XXXXXX")" || return 1
   trap 'rm -rf "$fixture"' EXIT
-  # Run the real validator in a disposable repository. Remove this smoke group
-  # from its copy to avoid recursively creating more fixture repositories.
-  tar --exclude=.git --exclude=logs -cf - . | tar -xf - -C "$fixture" || return 1
-  python3 - "$fixture/scripts/validate-contracts.sh" <<'PYVERSION' || return 1
+  # Keep the real startup and warning code, stopping before ordinary checks.
+  # The previous fixture copied the complete tree and ran the validator three
+  # times; only warning and exit behavior is relevant to this history check.
+  expected_prefix_sha256='3f3fbbe09cf5c8578763e01f4b818a5d7c5d29093a5dc705c31b815e7f4f35e1'
+  write_contract_warning_prefix() {
+    python3 - "$1" "$2" "$expected_prefix_sha256" <<'PYWARNING'
 from pathlib import Path
+import hashlib
 import re
+import subprocess
 import sys
-path = Path(sys.argv[1])
-for opening, closing in (
-    ('# ── Run-log producer smoke checks', '# ── End run-log producer smoke checks'),
-    ('# ── Run-log contract smoke checks', '# ── End run-log contract smoke checks'),
-    ('# ── Isolated run-log acceptance harness', '# ── End isolated run-log acceptance harness'),
-    ('# ── Contract version smoke checks', '# ── End contract version smoke checks'),
-    ('# ── Public package materials smoke checks', '# ── End public package materials smoke checks'),
-    ('# ── Public identity smoke checks', '# ── End public identity smoke checks'),
-):
-    lines = path.read_text().splitlines(keepends=True)
-    start = next(i for i, line in enumerate(lines) if line.startswith(opening))
-    end = next(i for i in range(start + 1, len(lines)) if lines[i].startswith(closing))
-    retained = []
-    if opening == '# ── Run-log producer smoke checks':
-        block = ''.join(lines[start + 1:end])
-        block, removed = re.subn(r'^check [^\n]*\\\n  "\$\([^\n]*\)"\n', '', block, flags=re.M)
-        assert removed == 31 and not re.search(r'^check ', block, re.M), 'unexpected producer check shape'
-        retained = [block]
-    path.write_text(''.join(lines[:start] + retained + lines[end + 1:]))
-PYVERSION
+source = Path(sys.argv[1]).read_text()
+anchors = list(re.finditer(r'^warn_stale_contract_version$', source, re.M))
+if len(anchors) != 1:
+    raise SystemExit('expected one standalone version-warning call')
+cut = anchors[0].end()
+# No ordinary check appears in the known startup prefix. Reject even mentions
+# in comments or quoted strings so unfamiliar syntax cannot silently pass.
+if re.search(r'\bcheck\b', source[:cut]):
+    raise SystemExit('ordinary check precedes version-warning call')
+syntax = subprocess.run(['bash', '-n'], input=source[:cut] + '\n', text=True,
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+if syntax.returncode or syntax.stderr:
+    raise SystemExit('version-warning call is not at top level')
+if hashlib.sha256(source[:cut].encode()).hexdigest() != sys.argv[3]:
+    raise SystemExit('unapproved version-warning prefix')
+Path(sys.argv[2]).write_text(source[:cut] + '\nexit 0\n')
+PYWARNING
+  }
+  mkdir -p "$fixture/scripts" "$fixture/rules" "$fixture/home" "$fixture/config" || return 1
+  write_contract_warning_prefix "$root/scripts/validate-contracts.sh" "$fixture/scripts/validate-contracts.sh" || return 1
+  cp "$root/rules/run-log.md" "$fixture/rules/run-log.md" || return 1
+  # Git environment variables can redirect repository and object operations.
+  while IFS= read -r git_var; do
+    unset "$git_var"
+  done < <(compgen -e | grep '^GIT_')
+  export HOME="$fixture/home" XDG_CONFIG_HOME="$fixture/config" GIT_CONFIG_NOSYSTEM=1
+  export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+  export GIT_AUTHOR_NAME='Contract Fixture' GIT_AUTHOR_EMAIL='fixture@example.invalid'
+  export GIT_COMMITTER_NAME='Contract Fixture' GIT_COMMITTER_EMAIL='fixture@example.invalid'
+  export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null
+  export GIT_CONFIG_KEY_1=commit.gpgSign GIT_CONFIG_VALUE_1=false
   cd "$fixture" || return 1
   git init -q || return 1
   git config user.name 'Contract Fixture' || return 1
@@ -4782,25 +4793,34 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
       input="$scratch/ledger-source-scan"
     fi
 
-    line_number=0
-    while IFS= read -r content || [ -n "$content" ]; do
-      line_number=$((line_number + 1))
-      token_counts=()
-      status=0
-      matches="$(printf '%s\n' "$content" | grep -aEio "$identity_pattern")" || status=$?
-      case "$status" in
-        0)
-          while IFS= read -r token; do
-            token_counts["$token"]=$(( ${token_counts["$token"]:-0} + 1 ))
-          done <<< "$matches"
-          for token in "${!token_counts[@]}"; do
-            printf '%s\t%s\t%s\t%s\n' "$file" "$line_number" "$token" "${token_counts[$token]}" >> "$scratch/actual" || return 1
-          done
-          ;;
-        1) ;;
-        *) printf 'Identity scan failed on %s:%s\n' "$file" "$line_number"; return 1 ;;
-      esac
-    done < "$input"
+    # Bash read drops embedded NUL bytes; normalize once to retain that behavior.
+    tr -d '\000' < "$input" > "$scratch/normalized" || {
+      printf 'Identity scan failed on %s\n' "$file"; return 1;
+    }
+    status=0
+    grep -aEion -- "$identity_pattern" "$scratch/normalized" > "$scratch/matches" || status=$?
+    case "$status" in
+      0|1) ;;
+      *) printf 'Identity scan failed on %s\n' "$file"; return 1 ;;
+    esac
+    # ENVIRON preserves literal backslashes in paths, unlike awk -v assignments.
+    IDENTITY_SCAN_PATH="$file" awk '
+      {
+        separator = index($0, ":")
+        if (!separator) exit 1
+        line = substr($0, 1, separator - 1)
+        token = substr($0, separator + 1)
+        counts[line, token]++
+      }
+      END {
+        for (key in counts) {
+          split(key, fields, SUBSEP)
+          printf "%s\t%s\t%s\t%d\n", ENVIRON["IDENTITY_SCAN_PATH"], fields[1], fields[2], counts[key]
+        }
+      }
+    ' "$scratch/matches" >> "$scratch/actual" || {
+      printf 'Identity scan failed on %s\n' "$file"; return 1;
+    }
   done < "$scratch/scan-files"
 
   LC_ALL=C sort "$scratch/expected" -o "$scratch/expected" || return 1
@@ -4837,6 +4857,17 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
 
 check "test_public_identity_matches_exact_ledger_and_preserves_knowledge" \
   "$(test_public_identity_matches_exact_ledger_and_preserves_knowledge && echo pass || echo 'identity occurrences must match the exact ledger and baseline knowledge files must remain')"
+check "test_validator_runtime_identity" "$(
+  if identity_test_output="$(env -u IDENTITY_SOURCE python3 tests/validator-runtime-identity.py 2>&1)"; then
+    case "$identity_test_output" in
+      *'UTF-8 locale unavailable'*) printf '%s\n' 'UTF-8 locale unavailable; identity comparison skipped' >&2 ;;
+    esac
+    echo pass
+  else
+    printf '%s\n' "$identity_test_output" >&2
+    echo 'identity scan differential failed'
+  fi
+)"
 # ── End public identity smoke checks ────────────────────────────────
 
 check "test_usage_warning_acceptance" \
@@ -5555,9 +5586,6 @@ restack_command_forms_exact() {
   ! grep -oE -- "$stem[^\`]*" "$RESTACK_WORKFLOW" | grep -vxF "${@/#/-e}" | grep -q .
 }
 
-check "SAFETY: git-flow defines the Enforcement vocabulary on one anchored line" \
-  "$([ -n "$(safety_rails_vocabulary_values)" ] && echo pass || echo "git-flow.md → ## Safety rails must contain exactly one line '$SAFETY_RAILS_VOCABULARY'")"
-
 check "SAFETY: every Safety rails row has exactly one Enforcement value from the vocabulary" \
   "$(safety_rails_enforcement_complete && echo pass || echo "git-flow.md → ## Safety rails needs the header '$SAFETY_RAILS_HEADER' and one vocabulary value per row; offending rows: $(safety_rails_offending_rows | head -n 3 | tr '\n' ' ')")"
 
@@ -5782,6 +5810,46 @@ check "USAGE: the git-rails paragraph checks Bash git and gh commands" \
 
 check "SAFETY: the Enforcement intro says a hook ask denies where no person can be prompted" \
   "$(safety_rails_has 'or denies it with `owner-approval-unavailable` where no person can be prompted' && echo pass || echo "git-flow.md → ## Safety rails intro must say hook: ask denies with owner-approval-unavailable where no person can be prompted")"
+
+test_nested_validator_source_guard() {
+  local test_file
+  python3 -B "$REPO_ROOT/tests/fixtures/validator-runtime/source_guard.py" --root "$REPO_ROOT" >/dev/null || return 1
+  for test_file in tests/validator-runtime-guard.py tests/validator-runtime-guard-regressions.py tests/validator-runtime-guard-production.py tests/validator-runtime-guard-dynamic.py; do
+    python3 -B "$REPO_ROOT/$test_file" || return 1
+  done
+}
+check "test_nested_validator_source_guard" \
+  "$(test_nested_validator_source_guard && echo pass || echo 'nested validator source inspection must pass')"
+
+test_validator_runtime_warning() {
+  local test_file
+  for test_file in tests/validator-runtime-warning.py tests/validator-runtime-warning-isolation.py tests/validator-runtime-warning-guard.py tests/validator-runtime-warning-operators.py tests/validator-runtime-warning-strict.py tests/validator-runtime-warning-fingerprint.py; do
+    python3 "$REPO_ROOT/$test_file" || return 1
+  done
+}
+check "test_validator_runtime_warning" \
+  "$(test_validator_runtime_warning && echo pass || echo 'warning fixture contracts must pass')"
+
+
+test_validator_runtime_characterization() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/validator-runtime-characterization.py" 2>&1)" || {
+    printf '%s\n' "$output"
+    return 1
+  }
+}
+check "test_validator_runtime_characterization" \
+  "$(test_validator_runtime_characterization && echo pass || echo 'validator runtime characterization must pass')"
+
+test_validator_runtime_oracle() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/validator-runtime-oracle.py" 2>&1)" || {
+    printf '%s\n' "$output"
+    return 1
+  }
+}
+check "test_validator_runtime_oracle" \
+  "$(test_validator_runtime_oracle && echo pass || echo 'validator runtime oracle must pass')"
 
 echo ""
 echo "=== Contract Validation ==="

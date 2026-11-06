@@ -5,6 +5,7 @@ import importlib.util
 import itertools
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 MODULE = Path(__file__).resolve().parents[1] / 'scripts/usage_telemetry_stream.py'
 if MODULE.exists():
@@ -163,8 +164,10 @@ class StreamRevisionsTests(unittest.TestCase):
                 with self.assertRaises(ValueError) as error:
                     resolve([event])
                 self.assertNotIn('PRIVATE_CONTENT_SENTINEL', str(error.exception))
-        with self.assertRaises(ValueError):
-            resolve([valid] * 10001)
+        self.assertEqual(stream.MAX_EVENTS, 10000)
+        with patch.object(stream, 'MAX_EVENTS', 2):
+            with self.assertRaises(ValueError):
+                resolve([valid, valid, valid])
 
 
 if __name__ == '__main__':

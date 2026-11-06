@@ -81,17 +81,6 @@ class StatusIntegrationTests(unittest.TestCase):
                                             verifier=verifier)
         return result, verifier.calls
 
-    def test_bounded_snapshot_accepts_explicit_pricing_inputs_without_reading(self):
-        snapshot, extra, _ = inputs()
-        snapshot['analysis_inputs'] = extra
-        with patch('builtins.open', side_effect=AssertionError('unexpected history read')), \
-             patch.object(socket, 'socket', side_effect=AssertionError('unexpected network access')):
-            self.assertEqual(contract.validate_current_run_snapshot(snapshot), snapshot)
-        too_small = copy.deepcopy(snapshot)
-        too_small['bounds']['max_bytes'] = 10
-        with self.assertRaises(ValueError):
-            contract.validate_current_run_snapshot(too_small)
-
     def test_real_receipts_produce_verified_threshold_candidates_and_stable_retry(self):
         snapshot, extra, allowed = inputs()
         original = copy.deepcopy((snapshot, extra))

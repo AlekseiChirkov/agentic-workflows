@@ -23,6 +23,9 @@ class SourceGuardAllowlist(unittest.TestCase):
         end = source.index('\n', source.index('\n', start) + 1) + 1
         check = source[start:end]
         self.assertEqual(source.count(check), 1)
+        wrapper = re.search(r'^' + name + r'\(\) \{\n.*?^\}', source, re.M | re.S)
+        self.assertIsNotNone(wrapper)
+        self.assertEqual(wrapper.group().count('tests/validator-runtime-guard-dynamic.py'), 1)
         warning = 'check "test_validator_runtime_warning"'
         cases = (
             ('current', source, True),

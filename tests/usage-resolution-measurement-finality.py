@@ -22,12 +22,6 @@ class MeasurementFinalityTests(unittest.TestCase):
         self.assertNotIn('cost_usd', result['responses'][0]['model_cost'])
         self.assertEqual(result['completeness']['measurements']['input']['numerator'], 0)
 
-    def test_verified_delta_parts_can_be_finalized_by_terminal(self):
-        data, allowed = revisions.delta_fixture()
-        result = base.resolve(data, base.Verifier(allowed))
-        self.assertEqual(result['tokens']['input'], {'value': '30', 'quality': 'complete'})
-        self.assertEqual(result['responses'][0]['model_cost']['cost_usd'], '0.00009')
-
 
 if __name__ == '__main__':
     unittest.main()

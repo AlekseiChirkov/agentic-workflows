@@ -38,6 +38,11 @@ def corpus():
     }
 
 
+class OversizedList(list):
+    def __len__(self):
+        return 10001
+
+
 class AnalysisCorpusSchemaTests(unittest.TestCase):
     def assert_valid(self, value):
         self.assertEqual(call('validate_analysis_corpus', value), value)
@@ -117,12 +122,12 @@ class AnalysisCorpusSchemaTests(unittest.TestCase):
         prefix['max_source_bytes'], prefix['max_total_bytes'] = 50, 70
         self.assert_valid(prefix)
         bad = copy.deepcopy(value)
-        bad['inputs'] *= 5001
-        with self.assertRaises(ValueError):
+        bad['inputs'] = OversizedList(bad['inputs'])
+        with self.assertRaisesRegex(ValueError, 'invalid selected input count'):
             call('validate_analysis_corpus', bad)
         bad = copy.deepcopy(value)
-        bad['exclusions'] *= 10001
-        with self.assertRaises(ValueError):
+        bad['exclusions'] = OversizedList(bad['exclusions'])
+        with self.assertRaisesRegex(ValueError, 'invalid exclusion count'):
             call('validate_analysis_corpus', bad)
 
     def test_exclusions_are_explicit_and_private_content_is_not_echoed(self):
@@ -156,8 +161,8 @@ class AnalysisCorpusSchemaTests(unittest.TestCase):
                 call('validate_analysis_corpus', bad)
             self.assertNotIn('PRIVATE_CONTENT_SENTINEL', str(error.exception))
         bad = copy.deepcopy(value)
-        bad['identifier_mappings'] *= 10001
-        with self.assertRaises(ValueError):
+        bad['identifier_mappings'] = OversizedList(bad['identifier_mappings'])
+        with self.assertRaisesRegex(ValueError, 'invalid identifier mapping count'):
             call('validate_analysis_corpus', bad)
 
     def test_json_duplicate_keys_and_raw_and_canonical_byte_limits(self):

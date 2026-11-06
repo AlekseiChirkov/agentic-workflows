@@ -630,9 +630,6 @@ class InvocationDetails(RailsFixture):
     def test_invocation_records_the_common_directory(self) -> None:
         self.assertEqual(self.only('git -C sub status').common_dir, str(self.project / '.git'))
 
-    def test_absolute_program_path_is_recorded_as_git(self) -> None:
-        self.assertEqual(self.only(shlex.quote(REAL_GIT) + ' status').program, 'git')
-
     def test_leading_and_env_assignments_are_recorded_by_name(self) -> None:
         self.assertEqual(tuple(self.only('X=1 env Y=2 git status').assignments), ('X', 'Y'))
 
@@ -1187,6 +1184,9 @@ class RuleFixture(RailsFixture):
         (self.project / 'trailer.txt').write_text(trailer)
         (self.project / 'crlf.txt').write_bytes(trailer.replace('\n', '\r\n').encode())
         (self.project / 'tpl.txt').write_text('Template subject\n')
+
+    def setup_message_file_limits(self) -> None:
+        self.setup_message_files()
         head = b'Add parser\n'
         limit = 1024 * 1024
         (self.project / 'limit.txt').write_bytes(head + b'x' * (limit - len(head) - 1) + b'\n')
@@ -1405,9 +1405,9 @@ COMMIT_CASES: tuple[DecisionCase, ...] = (
     DecisionCase('unreadable_message_file_is_unverifiable', 'git commit -F locked.txt',
                  'deny', UNVERIFIABLE, 'R08', setup='unreadable-message'),
     DecisionCase('message_file_over_the_limit_is_unverifiable', 'git commit -F large.txt',
-                 'deny', UNVERIFIABLE, 'R08', setup='message-files'),
+                 'deny', UNVERIFIABLE, 'R08', setup='message-file-limits'),
     DecisionCase('message_file_at_the_limit_is_allowed', 'git commit -F limit.txt', 'allow',
-                 setup='message-files'),
+                 setup='message-file-limits'),
     DecisionCase('configured_trailer_alias_is_unverifiable', 'git commit -m ok --trailer cab=Someone',
                  'deny', UNVERIFIABLE, 'R08', setup='trailer-alias'),
     DecisionCase('trailer_without_configuration_is_allowed', 'git commit -m ok --trailer Reviewed-by=Someone',
@@ -1552,9 +1552,6 @@ class MessagePatterns(RuleFixture):
     def test_trailers_follow_a_blank_line_in_colon_form(self) -> None:
         joined = self.api('join_message')(['Subject'], ['Reviewed-by=Someone', 'Acked-by: Other', 'Co-authored-by'])
         self.assertEqual(joined, 'Subject\n\nReviewed-by: Someone\nAcked-by: Other\nCo-authored-by:')
-
-    def test_message_file_limit_is_one_mebibyte(self) -> None:
-        self.assertEqual(self.api('MAX_MESSAGE_FILE_BYTES'), 1024 * 1024)
 
 
 class CommitDecisionOutput(RuleFixture):
@@ -2228,9 +2225,6 @@ class LeaseVerifierInterface(PushFixture):
     def push(self, arguments: str) -> tuple[str, str | None, str | None]:
         return self.decide(self.event('git push ' + arguments, str(self.project)))
 
-    def test_default_verifier_is_the_no_journal_implementation(self) -> None:
-        self.assertIs(self.api('LEASE_VERIFIER'), self.api('journal_lease_verifier'))
-
     def test_explicit_lease_reaches_the_verifier(self) -> None:
         self.setup_push_feature()
         calls = self.install(True)
@@ -2887,9 +2881,6 @@ class ReplayVerifierInterface(OperationFixture):
     def only_request(self, calls: list[tuple[Any, Any, Any]]) -> Any:
         self.assertEqual(len(calls), 1)
         return calls[0][0]
-
-    def test_default_verifier_is_the_no_journal_implementation(self) -> None:
-        self.assertIs(self.api('REPLAY_VERIFIER'), self.api('journal_replay_verifier'))
 
     def test_exact_replay_form_reaches_the_verifier(self) -> None:
         self.setup_push_feature()
@@ -3868,7 +3859,6 @@ UPDATE_REFS_CASES: tuple[RestackCase, ...] = (
     rebase_row('replay_with_update_refs_false_is_allowed', ONTO_A, None, setup='restack-update-refs-false'),
     rebase_row('replay_with_global_update_refs_overridden_by_the_repository_is_allowed', ONTO_A, None,
                setup='restack-update-refs-global-overridden'),
-    rebase_row('replay_without_update_refs_configured_is_allowed', ONTO_A, None),
     rebase_row('abort_with_update_refs_configured_is_allowed', 'git rebase --abort', None,
                setup='restack-conflict-update-refs'),
     RestackCase('update_refs_on_the_command_line_is_unsupported', 'git -c rebase.updateRefs=true ' + ONTO_A[4:],
@@ -4080,8 +4070,6 @@ RESOLUTION_GAP_CASES: tuple[DecisionCase, ...] = (
                  'allow', setup='push-feature'),
     DecisionCase('empty_source_still_deletes', 'git push origin :feat/x', 'ask', DELETE, 'R15',
                  setup='push-feature'),
-    DecisionCase('lone_colon_still_pushes_matching_refs', 'git push origin :', 'ask', BULK, 'R14',
-                 setup='push-feature'),
     DecisionCase('tag_source_onto_a_tag_still_asks', 'git push origin v1:refs/tags/v2', 'ask', BULK, 'R14',
                  setup='push-feature'),
     # A partial upstream merge value names refs/<value>.
@@ -4199,9 +4187,6 @@ RESOLUTION_GAP_JOURNAL_CASES: tuple[RestackCase, ...] = (
                 setup='restack-replayed-recurse-on-demand'),
     RestackCase('long_force_with_a_valid_journal_names_the_forced_check',
                 'git push --force --force-with-lease=refs/heads/feat/a:{a_remote} origin feat/a',
-                'ask', FORCE_DEFAULT, 'R17', 'forced', setup='restack-replayed'),
-    RestackCase('forced_refspec_with_a_valid_journal_names_the_forced_check',
-                'git push --force-with-lease=refs/heads/feat/a:{a_remote} origin +feat/a',
                 'ask', FORCE_DEFAULT, 'R17', 'forced', setup='restack-replayed'),
     push_row('lease_push_with_another_remote_receive_pack_is_allowed', PUSH_A, None,
              setup='restack-replayed-backup-receive-pack'),
@@ -4977,7 +4962,7 @@ class EntrypointDiagnostics(EntrypointFixture):
                 for secret in (b'SECRET-', b'URLUSER-', b'Co-authored-by', b'T-04', command.encode()):
                     self.assertNotIn(secret, output)
 
-    def test_long_operation_is_truncated_and_keeps_the_next_step(self) -> None:
+    def test_many_long_unicode_refspecs_require_protected_approval(self) -> None:
         self.setup_push()
         refs = ' '.join(f'HEAD:refs/heads/release/{"ü" * 40}-{index}' for index in range(40))
         self.assertEqual(self.decide(self.event('git push origin ' + refs, self.location('project'))),

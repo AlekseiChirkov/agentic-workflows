@@ -28,6 +28,11 @@ def snapshot_with_inputs():
     return snapshot, extra, allowed
 
 
+class OversizedList(list):
+    def __len__(self):
+        return 10001
+
+
 class StatusInputSchemaTests(unittest.TestCase):
     def test_valid_self_contained_inputs_are_offline_and_byte_bounded(self):
         snapshot, _, _ = snapshot_with_inputs()
@@ -70,8 +75,8 @@ class StatusInputSchemaTests(unittest.TestCase):
         for field in ('contexts', 'snapshots', 'price_evidence', 'ownership_evidence'):
             with self.subTest(field=field):
                 invalid = copy.deepcopy(snapshot)
-                invalid['analysis_inputs'][field] = invalid['analysis_inputs'][field] * 10001
-                with self.assertRaises(ValueError):
+                invalid['analysis_inputs'][field] = OversizedList(invalid['analysis_inputs'][field])
+                with self.assertRaisesRegex(ValueError, 'invalid analysis inputs'):
                     contract.validate_current_run_snapshot(invalid)
                 invalid = copy.deepcopy(snapshot)
                 invalid['analysis_inputs'][field].append(copy.deepcopy(invalid['analysis_inputs'][field][0]))

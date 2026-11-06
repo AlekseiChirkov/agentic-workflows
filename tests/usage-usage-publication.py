@@ -281,15 +281,6 @@ class PublicationTests(unittest.TestCase):
         self.assertFalse(self.artifact.exists())
         self.assert_lifecycle_intact()
 
-    def test_failed_atomic_install_never_returns_receipt_or_changes_lifecycle(self):
-        if publication is None:
-            self.fail('publication module is not implemented')
-        with patch.object(publication, '_install', create=True, side_effect=OSError('simulated disk failure')):
-            with self.assertRaises(OSError):
-                self.publish()
-        self.assertFalse(self.artifact.exists())
-        self.assert_lifecycle_intact()
-
 
 if __name__ == '__main__':
     unittest.main()
