@@ -1,5 +1,15 @@
 # 07. Отложенная спецификация инструмента безопасного изменения состояния
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Backlog; not implemented.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** The existing task validator and manual progress-block workflow are foundations only.
+- **Outstanding scope and limits:** The get/set/append-note/add-file/init-block/validate writer, expected-revision protocol, and transactional task-state serializer are not delivered. This review does not schedule implementation.
+- **Sources:** [`scripts/validate-task.sh`](../../scripts/validate-task.sh), [`rules/workflow-globals.md`](../../rules/workflow-globals.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Статус и основание
 
 **Работа не запланирована.** Этот документ сохраняет и уточняет проект будущего инструмента для `## Subtask Progress`. Он не разрешает внедрение, не переводит работу в текущий план и не делает её обязательным условием остальных улучшений.
@@ -206,3 +216,9 @@
 ## 12. Открытые решения
 
 Нужны только при включении работы в план: точный исполняемый файл и версия Python; поддерживаемые файловые системы; механизм блокировки; согласованная трактовка исторического срока; имя/схема/срок хранения подтверждений операций; режим миграции новых защищённых полей. Эти вопросы блокируют соответствующую будущую реализацию, но не текущие работы по другим спецификациям.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

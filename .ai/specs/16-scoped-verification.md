@@ -1,5 +1,15 @@
 # 16. Проверка по риску и повторная проверка исправлений по замечаниям
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; independent review foundations delivered.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** Atomic contract checks, an independent Validator, frozen test evidence, and task-level review gates exist.
+- **Outstanding scope and limits:** Effective-input test receipts, qualified verification tiers, cross-session evidence reuse, and the formal finding-led incremental review protocol remain undelivered. Existing reviewer passes do not certify the future tiers.
+- **Sources:** [`workflows/pav-check.md`](../../workflows/pav-check.md), [`workflows/pv-contract.md`](../../workflows/pv-contract.md), [`workflows/pv-review.md`](../../workflows/pv-review.md), [`workflows/spec-run.md`](../../workflows/spec-run.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Статус и основания
 
 **Статус:** будущая возможность направления 5 запроса от 2026-10-21. Исходный снимок: `8c2fa08c18115ffcf38a1798742c41e53a2c7461`, 2026-10-28. Текущие `rules/orchestration.md` и `workflows/spec-run.md` требуют отдельного проверяющего без рассуждений исполнителя; `NEEDS WORK` препятствует закрытию и дальнейшему последовательному исполнению. Упомянутый исходными документами отдельный отчёт аудита отсутствует в снимке и не используется как доказательство внедрения.
@@ -161,4 +171,10 @@ artifact_refs, covered_obligations, created_at
 5. Подключить 14/15/17 и отчётность 05. Проверить полный резервный путь при отключённой оптимизации.
 6. Более дешёвый режим оставить выключенным по умолчанию до отдельной квалификации 09 с заранее выбранными владельцем допусками качества.
 
-Зависимости: 09, 14, 15, 17. Условия G1–G8 обязательны; см. [руководство](00-review-and-implementation-guide.md). Совпадение квитанций подтверждает повторимость известных входов, но не полноту понимания системы. Проверки с неизвестными или нестабильными входами допустимо выполнять заново — экономия не важнее достаточности доказательства.
+Зависимости: 09, 14, 15, 17. Условия G1–G8 обязательны; см. [руководство](README.md#shared-acceptance-gates). Совпадение квитанций подтверждает повторимость известных входов, но не полноту понимания системы. Проверки с неизвестными или нестабильными входами допустимо выполнять заново — экономия не важнее достаточности доказательства.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

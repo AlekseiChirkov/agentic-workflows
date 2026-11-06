@@ -1,5 +1,12 @@
 # Contract validator runtime plan
 
+Closure: the owner closed this task on 2026-11-06 after PR #79 merged. The plan and
+atomic statuses below are historical evidence, not an active queue. Warning-prefix,
+identity-scan and bounded-guard changes are integrated; timing, acceptance concurrency,
+the additional scanner output-I/O correction and comparative targets remain undelivered.
+See the source-backed Implementation review in the specification. Closing the task did
+not promote unfinished criteria or validation phases to passing.
+
 Scope: one spec phase, W1-W5. W6/W7 remain deferred. PRs #77 and #78 delivered partial implementation and test reductions to `main`; the rows below retain their prior statuses until their individual criteria and atomic checkpoints are reconciled. The complete validator passed in 568.838 seconds on the tested PR #78 parent; this is not comparative performance acceptance.
 
 Resume amendment: start with the T-01 checkpoint reconciliation described in `state.md`, then reconcile already merged work for T-02 through T-05 before undertaking remaining work. Preserve the existing decomposition. The owner requires at most 15 minutes of testing and no long, heavy or large tests: repeated B/S/P baseline and median gates below are historical and superseded where they conflict with that limit. Keep their evidence diagnostic, disclose unmet comparisons, and run any full validation exclusively within the limit. Timing, worker lifecycle, scheduler integration and final task validation remain unfinished.

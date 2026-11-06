@@ -1,4 +1,4 @@
-spec_path: .ai/specs/02-run-log-vocabulary-validation.md
+spec_path: .ai/specs/completed/02-run-log-vocabulary-validation.md
 flow: full
 
 ## Phases
@@ -700,3 +700,10 @@ spec: .ai/specs/02-run-log-vocabulary-validation.md
 - All eight PRs are ready for review in dependency order: #13, #14, #15, #16, #17, #18, #19, #20. Each retains its predecessor as base; the first targets main.
 - GitHub CLI body updates used REST because the installed edit command requests deprecated project fields. The connected GitHub app performed review-readiness transitions after the CLI token denied that mutation. All transitions were verified.
 - After a squash or rebase merge, replay the remaining stack onto its new base before continuing integration. No unresolved questions, findings or deferred work remain.
+
+## Specification delivery review — 2026-11-06
+- authority: explicit owner request to reconcile every specification and update state
+- source_revision: 23bded3d96d9c562d16eb7e90285414f4412ac79
+- disposition: historically completed; retain existing validation evidence, approved deferrals and capability limits
+- evidence: docs/audits/2026-11-06-specification-delivery-review.md and the specification's Implementation review
+- limits: source-backed reconciliation only; no phase advancement, fresh full-suite certification, deployed-state verification or measured performance/economic acceptance

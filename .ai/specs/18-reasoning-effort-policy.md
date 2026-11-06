@@ -1,5 +1,15 @@
 # 18. Политика усилия рассуждения с учётом роли, риска и возможностей среды
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; model-resolution foundations delivered.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** Selection supports an explicit recommendation fallback with a reasoning_effort field and keeps unsupported/unknown capability states explicit.
+- **Outstanding scope and limits:** The versioned role/stage/risk effort policy, verified setting application, and independent quality/economic qualification are not delivered. A fallback field alone is not this policy.
+- **Sources:** [`scripts/model_selection.py`](../../scripts/model_selection.py), [`workflows/pd-select-model.md`](../../workflows/pd-select-model.md), [`docs/MODEL-CATALOG.md`](../../docs/MODEL-CATALOG.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Статус и основания
 
 **Статус:** будущая возможность направления 7 запроса от 2026-10-21. Редакция согласована со снимком `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28. Текущий выбор модели использует существующий каталог и правила пригодности; оркестратор разделяет исполнителя и независимого проверяющего и сохраняет исполнителя между его контрольными точками. Версионированная политика усилия по ролям/этапам и квалифицированные более дешёвые значения не считаются внедрёнными.
@@ -144,4 +154,10 @@
 4. Подключить решения к отправке работы 15 и метаданным 05; проверить смену стадий и возобновление.
 5. Документировать отключение и запрет неподтверждённого повышения заявленного уровня. Квалификацию более дешёвого поведения проводить только по отдельно разрешённому плану 09.
 
-Зависимости: 04, 05, 09, 15, 16. G1–G8 обязательны; см. [руководство](00-review-and-implementation-guide.md). Эта редакция разрешает проектирование и автономные проверки будущей возможности, но не снижение исходных требований к качеству и не платное сравнение.
+Зависимости: 04, 05, 09, 15, 16. G1–G8 обязательны; см. [руководство](README.md#shared-acceptance-gates). Эта редакция разрешает проектирование и автономные проверки будущей возможности, но не снижение исходных требований к качеству и не платное сравнение.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

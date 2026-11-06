@@ -1,5 +1,15 @@
 # 06-1. Contract validator runtime
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Partially delivered; task closed by owner.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** PRs #77-#79 delivered lighter fixtures/test workload, the guarded warning prefix, per-file identity scanning, and bounded source-reference protection.
+- **Outstanding scope and limits:** Bounded concurrent acceptance execution and opt-in result timing were not integrated. DEBUG compatibility regressions remain unresolved; the extra identity-output I/O fix and later guard candidate also remain unintegrated. Comparative performance targets are unverified. Administrative task closure is not acceptance of the remaining criteria.
+- **Sources:** [`scripts/validate-contracts.sh`](../../scripts/validate-contracts.sh), [`tests/validator-runtime-warning.py`](../../tests/validator-runtime-warning.py), [`tests/validator-runtime-identity.py`](../../tests/validator-runtime-identity.py), [`tests/fixtures/validator-runtime/source_guard.py`](../../tests/fixtures/validator-runtime/source_guard.py), [`.ai/tasks/completed/task-06-1-test-suite-runtime/state.md`](../../.ai/tasks/completed/task-06-1-test-suite-runtime/state.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## Source
 
 - Original owner request, 2026-11-03: optimize the excessively slow test suite.
@@ -683,3 +693,15 @@ W1 and W2 are independent after characterization. W6/W7 are separate future scop
 Automated readiness: **READY FOR DEVELOPMENT**. This is specification readiness only;
 implementation correctness, runtime targets and independent review scores are separate
 evidence and must not be inferred from this checklist.
+
+## Owner clarification — 2026-11-06
+
+"Equal execution time" means the same measurement method and output format across invocation modes and environments; it does not require identical measured durations. Timing must still begin before expression evaluation and preserve Bash semantics.
+
+The owner capped total testing and cleanup at 900 seconds and excluded long, heavy, or large tests. This supersedes repeated baseline/median runs where they conflict with that limit; it does not establish comparative performance acceptance. Earlier samples remain diagnostic. The owner subsequently closed the task after PR #79 merged. Remaining requirements are recorded as undelivered, not withdrawn or passed.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

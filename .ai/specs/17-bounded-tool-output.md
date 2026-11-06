@@ -1,5 +1,15 @@
 # 17. Ограниченный показ результатов инструментов с полными локальными доказательствами
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; targeted-reading guidance only.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** Existing workflow guidance favors targeted source reads and retained command evidence.
+- **Outstanding scope and limits:** A repository-owned complete stdout/stderr artifact capture, 8192-byte preview contract, exact range retrieval, integrity manifest, and separate capture/child statuses are not delivered. Tool-provider truncation is not implementation evidence.
+- **Sources:** [`rules/global-claude.md`](../../rules/global-claude.md), [`workflows/pv-review.md`](../../workflows/pv-review.md), [`scripts/README.md`](../../scripts/README.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Статус и назначение
 
 **Статус:** целевая спецификация направления 6 запроса от 2026-10-21, согласованная с исходным снимком `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28. Текущие рабочие процессы требуют целевого чтения, доказательств команд и проверки изменённых файлов. Полный захват, ограничение предварительного показа и точное получение диапазонов остаются планируемыми интерфейсами. Отдельный отчёт аудита, названный исходными документами, в снимке отсутствует.
@@ -145,4 +155,10 @@ scripts/capture-output.sh read --artifact <id> --stream stderr --full
 4. Подключить манифесты к 14/15/16 и безопасные диагностические метаданные к 05. Диагностическое событие не создаёт новую оплачиваемую модельную единицу.
 5. Описать локальное хранение, отключение и восстановление; выполнить проверки 09 без модели и сети.
 
-Зависимости: 06, 09, 14. G1–G8 обязательны, см. [руководство](00-review-and-implementation-guide.md). Предел 8 КиБ — настраиваемая исходная политика, а не измеренный оптимум и не ограничение доказательств, доступных агенту. Денежный эффект, включая дополнительные получения, оценивается только по 05/09.
+Зависимости: 06, 09, 14. G1–G8 обязательны, см. [руководство](README.md#shared-acceptance-gates). Предел 8 КиБ — настраиваемая исходная политика, а не измеренный оптимум и не ограничение доказательств, доступных агенту. Денежный эффект, включая дополнительные получения, оценивается только по 05/09.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

@@ -1,5 +1,15 @@
 # 12. Одна ветвь составной задачи и изолированное выполнение её детей
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; parallel runtime not delivered.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** Composite classification, canonical child progress, dependency ordering, and composite validation exist.
+- **Outstanding scope and limits:** The branch-per-composite model, temporary child branch lifecycle, admitted parallel leaf scheduler, and per-workflow coordination in section 17 are not implemented by the shipped runner. Detached validator experiments do not deliver this contract.
+- **Sources:** [`workflows/spec-run.md`](../../workflows/spec-run.md), [`workflows/pe-execute.md`](../../workflows/pe-execute.md), [`workflows/phase-composite-validation.md`](../../workflows/phase-composite-validation.md), [`rules/workflow-reference.md`](../../rules/workflow-reference.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Статус и проверенное исходное состояние
 
 **Status:** Planned contract for isolated parallel subtask execution. Updated 2026-11-06. This specification does not itself enable parallel execution or authorize publication.
@@ -310,7 +320,7 @@ Integration uses a deterministic dependency-compatible order from the plan, not 
 
 ### 17.1. Source and scope
 
-The owner clarified on 2026-11-06 (translated from Russian): execute eligible atomic subtasks of one large task in parallel to shorten implementation time; give each atomic subtask its own coordinating agent and each atomic workflow a separate agent. Analysis and test preparation, implementation, and validation are examples of distinct workflows. The [example task](../tasks/todo/task-06-1-test-suite-runtime/plan.md) is planning evidence, not authorization to change or run it.
+The owner clarified on 2026-11-06 (translated from Russian): execute eligible atomic subtasks of one large task in parallel to shorten implementation time; give each atomic subtask its own coordinating agent and each atomic workflow a separate agent. Analysis and test preparation, implementation, and validation are examples of distinct workflows. The [example task](../tasks/completed/task-06-1-test-suite-runtime/plan.md) is planning evidence, not authorization to change or run it.
 
 The current runner explicitly executes subtasks sequentially and uses one implementer for test and implementation checkpoints ([dependency ordering](../../workflows/spec-run.md#L163), [handoff](../../workflows/spec-run.md#L208), [parallelism prohibition](../../workflows/spec-run.md#L367)). Atomic execution orders test preparation, implementation and finalization ([execution](../../workflows/phase-atomic-execution.md#L100)); atomic validation orders check, proposals and close ([validation](../../workflows/phase-atomic-validation.md#L73)). This section defines a future replacement for those runner rules, not current behavior.
 
@@ -355,3 +365,9 @@ Assumptions: the existing explicit --parallel opt-in and N=2 default remain unch
 - [ ] **AC-19** (REQ-18, REQ-21, REQ-22, REQ-26): Given nested composites and direct leaves, when all atomic validations and composite joins pass, each composite gate runs once on its integrated tree and the final parent contract is checked on the final integrated tree. Failed or stale validation prevents completion.
 
 The new requirements map to AC-13–AC-19 above. Add deterministic scheduler, isolated-worktree, workflow-identity, handoff, failure, recovery and integration fixtures before implementation; retain existing N=1/N=2 equivalence scenarios. No paid benchmark is required for deterministic acceptance.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

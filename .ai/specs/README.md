@@ -1,6 +1,6 @@
 # Specifications and execution roadmap
 
-Review date: 2026-10-28. This index separates delivered source cleanup from planned
+Review date: 2026-11-06. This index separates delivered source cleanup from planned
 roadmap work. The owner authorized workflow optimization and specification reconciliation;
 that request does not schedule unrelated roadmap implementation, deployment or paid
 comparisons. Project artifacts use English.
@@ -8,6 +8,21 @@ comparisons. Project artifacts use English.
 Start with `/phase-discovery .ai/specs/<file>.md`; use `/discovery` after the command
 migration. Completed records are historical evidence, not work to repeat. A completed
 task does not authorize merging, tagging, or publication.
+
+## Current implementation status
+
+The [delivery review](../../docs/audits/2026-11-06-specification-delivery-review.md)
+covers all **23 specifications** at main revision `23bded3`: seven historically
+completed foundations (00-06), one partially delivered runtime specification whose
+task was closed by owner decision, and fifteen planned/backlog specifications.
+Each specification now distinguishes existing foundations from its outstanding scope.
+The review does not certify a fresh full suite or deployed installations.
+
+Runtime task closure is administrative. Warning-fixture, identity-scan and source-guard
+changes are integrated; concurrent acceptance execution, opt-in timing, an additional
+identity-output I/O correction and comparative performance acceptance remain undelivered.
+Deleted experimental branch names do not count as delivery. No task is currently active;
+07 remains backlog, and the other roadmap items require their own implementation work.
 
 ## Nine token optimization workstreams
 
@@ -37,7 +52,8 @@ The workflow set now has clearer guards, resumable phase/checkpoint handling, ex
 parent-versus-standalone context loading, consistent model-selection scoring, protected
 compression, conservative restack recovery, and source-backed spec reconciliation.
 A separate token-efficiency pass removed repeated prose; instruction-contract checks
-cover these interfaces. See the [source audit](../../docs/audits/2026-10-28-workflow-clarity-and-size.md). These are source changes, not evidence of measured token/cost
+cover these interfaces. The historically cited `docs/audits/2026-10-28-workflow-clarity-and-size.md`
+is absent from the current tree and is not available evidence. These are source changes, not evidence of measured token/cost
 savings or deployed behavior.
 
 That cleanup alone partially advanced 04/08/13a/14/15/16 without completing them.
@@ -83,8 +99,8 @@ script names in historical context identify their earlier locations.
 | Done | [04 — catalog](completed/04-model-catalog-cache.md) | Current-invocation capabilities; wider 13 migration remains separate | Reviewed cached catalog, conservative selection and compatible plan resolution; PRs #31–#36 merged |
 | Done | [03 — logging](completed/03-hook-based-logging.md) | 02; minimal harness/registry scaffold | Reviewed explicit correlation, owned hooks and exact timing; minimal hook scaffold only, wider harness migration remains pending |
 | Done | [05 — telemetry](completed/05-cost-and-duration-telemetry.md) | 02, 03 | Reviewed offline telemetry and recovery; PRs #37–#63 merged; 619 required checks passed |
-| Done | [06 — git rails](completed/06-harness-git-rails.md) | 05 (13 not required, ADR-0017) | Delivered on the current harness layout before 13a/13; PRs #64–#75 merged; 717 required checks passed; residual risks X1–X20 in the capability record |
-| Any | [06-1 — validator runtime](06-1-test-suite-runtime.md) | — | Independent; removes recursive full runs and per-line scan forks, adds bounded acceptance scheduling; current runs are reported at 34–52 minutes; specification revised against current tests |
+| Done | [06 — git rails](completed/06-harness-git-rails.md) | 05 (13 not required, ADR-0017) | Integrated before 13a/13: #64 marked merged, #65–#75 closed after local stack integration; historical 717 required checks passed; residual risks X1–X20 retained |
+| Closed; partial | [06-1 — validator runtime](06-1-test-suite-runtime.md) | — | Owner closed the task after #77–#79 merged. Warning-prefix, per-file scan and bounded guard delivered; scheduling, timing and comparative targets remain unmet. No automatic resumption or passing AC claim |
 | 6 | [09 — regression/evaluation](09-golden-run-tests.md) | 01, 13, 05, 06 | Offline checks, paid goldens, independent quality comparisons |
 | 7 | [08 — instructions/output](08-context-tiering.md) | 13, 09 | Expanded workstream 3 |
 | 8 | [14 — context](14-task-context-and-reuse.md) | 05, 08, 09 | New workstream 2 |
@@ -101,10 +117,17 @@ script names in historical context identify their earlier locations.
 
 ## Review record and remaining decisions
 
-The 2026-10-28 reconciliation reviewed all **22 specifications**: five completed
-records retain delivery history, and seventeen active/backlog records reflect current
-source. The seven optimization specs added on 2026-10-21 remain planned; this index is
-not a spec. Completed hook logging and catalog selection now link to their archived sources.
+The 2026-11-06 reconciliation reviewed all **23 specifications**: seven completed
+records retain delivery history and owner deferrals; sixteen root-level records include
+the administratively closed, partially delivered runtime scope and fifteen planned/backlog
+specifications. The seven optimization specs added on 2026-10-21 remain planned; this
+index is not a spec. Shared acceptance gates remain binding; metadata-only context reuse,
+textual review/checkpoint rules and existing offline tests do not satisfy the future
+content-hash, bounded-output, effort, repair, parallel-scheduler or evaluation interfaces.
+
+The missing historical clarity report was not reconstructed. Broken current local links
+were repaired to available canonical records. Historical pinned source links and all
+requirement/acceptance identifiers were retained.
 
 The nine workstreams cover the identified mechanisms. Cheap-first execution is still a
 hypothesis. Spec 09 compares strong-first, cheap execution plus strong verification,

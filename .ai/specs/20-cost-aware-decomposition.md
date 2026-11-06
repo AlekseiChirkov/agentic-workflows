@@ -1,5 +1,15 @@
 # 20. Экономически обоснованная декомпозиция с полным покрытием приёмки
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; structural decomposition delivered.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** The decomposition workflow already distinguishes leaves/composites/vertical re-slices, records Decomposition Decisions, and preserves acceptance/dependency boundaries.
+- **Outstanding scope and limits:** Measured leaf/setup/review economics, calibrated split/merge advice, hash-bound shared context, and comparable accepted-result evaluation are not delivered. Structural scoring is not an economic measurement.
+- **Sources:** [`workflows/pd-decompose.md`](../../workflows/pd-decompose.md), [`rules/workflow-reference.md`](../../rules/workflow-reference.md), [`workflows/phase-discovery.md`](../../workflows/phase-discovery.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Статус и основания
 
 **Статус:** будущая возможность направления 9 запроса от 2026-10-21. Редакция согласована с исходным снимком `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28.
@@ -185,4 +195,10 @@ C = планирование
 4. Связать общий контракт с 14, контрольные точки с 15, интеграционную проверку с 16 и метрики с 05.
 5. Проверить сохранение уже начатых задач, отключение и разрешённое перепланирование; оценку живых стратегий проводить отдельно по 09.
 
-Зависимости: 04, 05, 09, 14, 15, 16. G1–G8 обязательны, см. [руководство](00-review-and-implementation-guide.md). Для начала детерминированной реализации не нужна выдуманная калибровка. Ценность сильного общего планирования, дешёвого исполнения либо иной цепочки устанавливается независимыми данными, а не выбранным заранее количеством листьев.
+Зависимости: 04, 05, 09, 14, 15, 16. G1–G8 обязательны, см. [руководство](README.md#shared-acceptance-gates). Для начала детерминированной реализации не нужна выдуманная калибровка. Ценность сильного общего планирования, дешёвого исполнения либо иной цепочки устанавливается независимыми данными, а не выбранным заранее количеством листьев.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

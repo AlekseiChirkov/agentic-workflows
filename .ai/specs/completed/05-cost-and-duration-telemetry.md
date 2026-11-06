@@ -6,6 +6,16 @@ completed_at: 2026-10-30
 
 # 05. Достоверный учёт использования моделей, стоимости и времени
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Delivered; offline scope retained.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** Explicit-source normalization, immutable usage publication, exact pricing/resolution, retrospective reports, and advisory status/warning contracts are implemented.
+- **Outstanding scope and limits:** Synthetic fixtures and historical validation do not certify live external authority deployment, available provider counters, or measured model/cost savings.
+- **Sources:** [`scripts/usage-telemetry.py`](../../../scripts/usage-telemetry.py), [`scripts/usage_telemetry_publication.py`](../../../scripts/usage_telemetry_publication.py), [`scripts/usage_telemetry_resolution.py`](../../../scripts/usage_telemetry_resolution.py), [`tests/usage-retrospective-integration.py`](../../../tests/usage-retrospective-integration.py), [`.ai/tasks/completed/task-05-cost-and-duration-telemetry/state.md`](../../../.ai/tasks/completed/task-05-cost-and-duration-telemetry/state.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## Паспорт и статус
 
 | Поле | Значение |
@@ -718,3 +728,7 @@ C_{accepted,observed}=\frac{C_{all\ observed\ workload}}{N_{independently\ accep
 - Helper output | implemented-differently | Normalization, analysis and status use pipe or socket output; report publication validates a successful analyzer result before installation. Source: task state, T-02c, T-06 and T-07 progress.
 - Publication timing | implemented-differently | Active authorization is established at registration; an already authorized installation may finish after closure without a receipt. Source: task state, T-03 progress.
 - Writer protection | implemented-differently | Report and warning destinations require operator-protected directories; warning writers cooperate on the owner lock. Source: task state, T-06 and T-07 progress.
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

@@ -964,3 +964,10 @@ any project, editing spec 13, changing logging handler semantics.
 ### Acceptance Criteria
 - AC-01 … AC-15 of spec 06 §12 pass, each mapped to its leaf in `plan.md` (AC-01: T-02 core + T-07 entrypoint; AC-02: T-07; AC-03: T-02 parsing + T-03/T-04 decisions; AC-04/05: T-03; AC-06: T-04; AC-07: T-06; AC-08: T-05; AC-09–12: T-07; AC-13: T-08 + T-09; AC-14: T-09; AC-15: T-10).
 - `bash scripts/validate-contracts.sh --git-rails-only` and `bash scripts/validate-contracts.sh` exit 0 with zero failures on the stack tip.
+
+## Specification delivery review — 2026-11-06
+- authority: explicit owner request to reconcile every specification and update state
+- source_revision: 23bded3d96d9c562d16eb7e90285414f4412ac79
+- disposition: historically completed; retain existing validation evidence, approved deferrals and capability limits
+- evidence: docs/audits/2026-11-06-specification-delivery-review.md and the specification's Implementation review
+- limits: source-backed reconciliation only; no phase advancement, fresh full-suite certification, deployed-state verification or measured performance/economic acceptance

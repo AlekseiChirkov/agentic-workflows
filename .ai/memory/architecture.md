@@ -197,7 +197,7 @@ Task 06 delivers a Claude Code `PreToolUse` hook for `Bash` (`hooks/git-rails.sh
 single-file stdlib core `hooks/git_rails.py`), a deny-only `harness/claude/permissions.json`,
 per-event installer validation with receipt `schema_version: 2`, `tests/git-rails.sh` with a
 `--git-rails-only` validator mode, and an `Enforcement` column in the git-flow Safety rails.
-Delivered as stacked PRs #64–#75 (merge pending). Shell strings are analysed only in the exact
+Integrated from stacked PRs #64–#75: #64 is marked merged and #65–#75 were closed after local stack integration. Shell strings are analysed only in the exact
 `bash|sh -c '<literal>'` form, with option words read through an allowlist of bash's grammar;
 every other command-string or stdin spelling is opaque and denies inside registered projects.
 Operational hazard: the registered entrypoint runs from this checkout and blocks on failure,
@@ -257,22 +257,26 @@ No real initial catalog, model execution, new production default, paid compariso
 deployment, price ledger or full harness migration is introduced.
 
 
-## Planned — contract validator runtime (in flight, not implemented)
+## Contract validator runtime — partial delivery, owner-closed
 
-The [runtime plan](../tasks/todo/task-06-1-test-suite-runtime/plan.md) preserves the Bash
-validator and existing suite bodies while replacing the recursive warning fixture with
-its guarded real prefix and the identity hot loop with byte-compatible per-file matching.
-New fail-closed scanner I/O behavior has a separate RED cycle.
+The [archived runtime plan](../tasks/completed/task-06-1-test-suite-runtime/plan.md)
+records the remaining design. Main contains the guarded real warning prefix, per-file
+identity matching, lighter isolated fixtures, and bounded source-reference protection
+from PRs #77–#79. The owner closed the task administratively on 2026-11-06; this is not
+full acceptance of its runtime/performance contract.
 
-Planned acceptance scheduling uses an inline standard-library Linux supervisor with
+Unintegrated experimental acceptance scheduling uses an inline standard-library Linux supervisor with
 subreaper containment/per-worker ownership, validated bounded jobs, explicit result
 records, source-order channel replay and full snapshot barriers. Jobs=1 remains the
 sequential fallback; the default caps at four usable CPUs, with measured exclusivity
-for conflicting/timing-sensitive groups. Optional pre-expansion monotonic uptime timing
-must prove Bash compatibility before adoption; extracted run-log consumers stay intact.
+for conflicting/timing-sensitive groups. This is candidate behavior only: shipped main
+still evaluates acceptance checks sequentially. Optional pre-expansion monotonic uptime
+timing also remains unintegrated because compatibility with existing DEBUG handlers was
+not established. Equal timing means uniform method/output, not equal measured duration.
 
 [Provisional ADR-0018](../adr/0018-task-06-1-bounded-validator-runtime.md) records the
-coverage exception and containment/timing choices. Implementation, containment/timing
-proof and fresh B/S/P performance acceptance are pending. Historical counts and timings
-are not delivery evidence; W6/W7 remain outside scope. No implemented inventory above
-is replaced by these planned interfaces.
+coverage exception and containment/timing choices. Remaining integration, containment/timing
+proof and comparative performance acceptance remain unmet. The owner capped testing and
+cleanup at 900 seconds; repeated benchmark gates are superseded where they conflict.
+No unverified speedup is claimed. Deleted branch names do not imply delivery; detached
+worktrees preserve unintegrated candidate data. W6/W7 remain outside scope.

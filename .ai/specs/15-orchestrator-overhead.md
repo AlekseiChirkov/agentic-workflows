@@ -1,5 +1,15 @@
 # 15. Снижение накладной работы оркестратора при сохранении контрольных точек
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; textual checkpoint discipline delivered.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** RED/GREEN handoffs, separate validation, resume checkpoints, and single-writer shared-state rules exist.
+- **Outstanding scope and limits:** The versioned complete checkpoint envelope, deterministic inspection/delta helper, input-bound idempotence receipts, and measured overhead reduction are not delivered. Native logging markers have a different scope.
+- **Sources:** [`workflows/spec-run.md`](../../workflows/spec-run.md), [`rules/orchestration.md`](../../rules/orchestration.md), [`rules/run-log.md`](../../rules/run-log.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Статус и исходное поведение
 
 **Статус:** целевая спецификация направления 4 запроса от 2026-10-21. Проверяемая исходная версия: `8c2fa08c18115ffcf38a1798742c41e53a2c7461`, 2026-10-28. Опубликованные заявления об аудите не означают наличие реализации этой спецификации; упомянутый отдельный отчёт аудита отсутствует в снимке.
@@ -18,7 +28,7 @@
 
 В объём входят сообщения контрольных точек, необязательная проверка исходных фактов и подготовка патчей, объединение независимых чтений, квитанции применения и восстановление после прерывания.
 
-Не входят: универсальный изменяющий состояние инструмент [07](07-state-tool.md), служба запуска агентов, изменение модели владения, автоматическое выполнение зависимых задач на непроверенной основе, параллельность верхнего уровня и обход правил [06](06-harness-git-rails.md).
+Не входят: универсальный изменяющий состояние инструмент [07](07-state-tool.md), служба запуска агентов, изменение модели владения, автоматическое выполнение зависимых задач на непроверенной основе, параллельность верхнего уровня и обход правил [06](completed/06-harness-git-rails.md).
 
 | Участник | Ответственность |
 |---|---|
@@ -136,4 +146,10 @@ scripts/controller-step.sh render --event <file>
 4. Проверить прерывания и ручной путь, затем уменьшать повторные чтения и пересказы.
 5. Подключить метаданные к 05, сохранив раздельность сообщения исполнения и телеметрического события. Обновить правила через предусмотренное решение, не объявляя 07 реализованной.
 
-Зависимости: 06, 09, 14. Условия G1–G8 из исходного индекса обязательны; см. [руководство](00-review-and-implementation-guide.md). Возможность уменьшить количество обращений не доказывает снижение полной стоимости: это отдельно проверяется по 05/09. Параллельные результаты детей добавляются впоследствии по 12.
+Зависимости: 06, 09, 14. Условия G1–G8 из исходного индекса обязательны; см. [руководство](README.md#shared-acceptance-gates). Возможность уменьшить количество обращений не доказывает снижение полной стоимости: это отдельно проверяется по 05/09. Параллельные результаты детей добавляются впоследствии по 12.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

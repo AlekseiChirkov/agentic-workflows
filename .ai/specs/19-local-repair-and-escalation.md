@@ -1,5 +1,15 @@
 # 19. Ограниченные локальные исправления и явный переход к более сильной модели
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; existing stop/fix workflows delivered.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** The default runner stops on NEEDS WORK and task validation can create and validate explicit fix tasks.
+- **Outstanding scope and limits:** The opt-in bounded-local repair policy, persistent episode ledger, attempt reservation/recovery, and qualified escalation protocol are not delivered. Manual fix iterations do not prove the bounded policy.
+- **Sources:** [`workflows/spec-run.md`](../../workflows/spec-run.md), [`workflows/pv-create-fixes.md`](../../workflows/pv-create-fixes.md), [`workflows/pv-execute-fixes.md`](../../workflows/pv-execute-fixes.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Статус и исходный контракт
 
 **Статус:** будущая возможность направления 8 запроса от 2026-10-21. Основание текущего поведения — снимок `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28, `workflows/spec-run.md`, `rules/orchestration.md` и действующий атомарный цикл проверки.
@@ -163,4 +173,10 @@
 4. Подключить 04/18 для разрешённой конфигурации, 14/15 для контекста/контрольных точек и 05 для полной атрибуции.
 5. Проверить отключение, отсутствие доступной сильной модели, исчерпание лимита и отсутствие сброса при возобновлении.
 
-Зависимости: 04, 06, 09, 15, 16, 18; используются контекстные контракты 14. G1–G8 обязательны, см. [руководство](00-review-and-implementation-guide.md). Один локальный повтор — консервативное исходное решение, не доказанный оптимум. Изменение лимита, исходной политики или качества требует явного решения и отдельной оценки, а не технического перезапуска.
+Зависимости: 04, 06, 09, 15, 16, 18; используются контекстные контракты 14. G1–G8 обязательны, см. [руководство](README.md#shared-acceptance-gates). Один локальный повтор — консервативное исходное решение, не доказанный оптимум. Изменение лимита, исходной политики или качества требует явного решения и отдельной оценки, а не технического перезапуска.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

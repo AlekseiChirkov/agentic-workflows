@@ -1,5 +1,15 @@
 # 09. Автономные регрессионные проверки и независимая оценка стратегий
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; ordinary offline tests are not the golden framework.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** The repository already has deterministic source, hook, model, telemetry, and runtime tests.
+- **Outstanding scope and limits:** The specified four example projects, tests/run-golden.sh, normalized expected-result framework, A-F experiment manifests, held-out evaluation, and comparative promotion evidence are not delivered. No paid experiment is authorized by this review.
+- **Sources:** [`tests/workflow-instructions.py`](../../tests/workflow-instructions.py), [`scripts/validate-contracts.sh`](../../scripts/validate-contracts.sh), [`tests/model-selection.py`](../../tests/model-selection.py).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Статус и назначение
 
 **Статус:** проект реализации, готовый к обследованию и уточнению интерфейсов. Обычные проверки должны работать без моделей и сети. Запуски моделей и выводы об их качестве или экономии требуют отдельного разрешённого эксперимента.
@@ -271,3 +281,9 @@
 7. Только после отдельного покрывающего разрешения выполнить конкретный живой эксперимент и решить, достаточно ли данных для продвижения варианта.
 
 Неопределённые до платного опыта решения: набор задач, количество повторений, актуальные идентификаторы моделей, допустимое ухудшение качества, окно последующих дефектов, пределы эксперимента и ответственный за спорные результаты. Они не блокируют автономную реализацию и не дают права запускать модель по предположению.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

@@ -1,5 +1,15 @@
 # 11. Готовность к внешнему использованию и первому стабильному выпуску
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; public-source foundations delivered.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** The public README, version, operating manuals, portable source-root helpers, and hook-specific ownership installer exist.
+- **Outstanding scope and limits:** The common install.sh lifecycle, neutral/profile split, profile manifests, generated references, measured onboarding, and complete release gate are not delivered. Hook ownership does not establish ownership for all deployed files; license/tag decisions remain deferred.
+- **Sources:** [`README.md`](../../README.md), [`VERSION`](../../VERSION), [`scripts/setup-new-project.sh`](../../scripts/setup-new-project.sh), [`scripts/install-hooks.py`](../../scripts/install-hooks.py), [`principles/python-standards.md`](../../principles/python-standards.md), [`templates/stacks/python-fastapi.md`](../../templates/stacks/python-fastapi.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Цель и статус
 
 Редакция: 2026-10-28. Цель — дать новому пользователю воспроизводимую установку, технологически нейтральное ядро, явный выбор профиля, безопасное обновление и удаление, достаточные примеры и проверяемый порядок выпуска. Ориентир первого знакомства — 15 минут от готовой среды до подготовленного проекта и понятного следующего действия.
@@ -136,4 +146,10 @@
 
 Реализация установщика и автономная проверка не требуют нового разрешения на публикацию. Перед самим выпуском остаются конкретные решения владельца: формулировка правообладателя, разрешённая версия/тег, условия модельных проверок и разрешённые изменения удалённых настроек. Эти решения не считаются уже принятыми из-за наличия данного документа.
 
-Точные поддерживаемые версии инструментов фиксируются по реально проверенной реализации, а не придумываются здесь. Общие ограничения и связь с остальными спецификациями приведены в [руководстве комплекта](00-review-and-implementation-guide.md). Ни один критерий поставки не помечается выполненным без соответствующего результата.
+Точные поддерживаемые версии инструментов фиксируются по реально проверенной реализации, а не придумываются здесь. Общие ограничения и связь с остальными спецификациями приведены в [руководстве комплекта](README.md#shared-acceptance-gates). Ни один критерий поставки не помечается выполненным без соответствующего результата.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

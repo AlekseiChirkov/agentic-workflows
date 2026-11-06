@@ -1,5 +1,15 @@
 # 08. Уровни инструкций, явная загрузка и краткие отчёты без потери обязательств
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; existing instruction foundations only.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** Parent/standalone loading rules and explicit canonical references exist.
+- **Outstanding scope and limits:** Reference tiers, loads metadata, ref-skill deployment, the context-load graph meter, and the required measured reduction are not delivered. Text cleanup is not proof of the numerical acceptance target.
+- **Sources:** [`rules/phase-discovery.md`](../../rules/phase-discovery.md), [`rules/phase-atomic-execution.md`](../../rules/phase-atomic-execution.md), [`tests/workflow-instructions.py`](../../tests/workflow-instructions.py), [`scripts/sync.sh`](../../scripts/sync.sh).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Статус и граница доказательств
 
 **Статус:** спецификация будущей реализации; сокращение текстов само по себе не означает выполнения этой спецификации. Редакция согласована с исходным индексом `.ai/specs/README.md` в снимке `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28. Основание: ADR-0009, решение 6, и направление 3 запроса от 2026-10-21.
@@ -148,6 +158,12 @@ RED применим только при требуемом тестовом ц�
 
 ## 11. Готовность и ограничения
 
-Зависимости: 13 и 09. Общие G1–G8 берутся из `.ai/specs/README.md`; их согласованное объяснение включено в [руководство комплекта](00-review-and-implementation-guide.md). Данная редакция не даёт разрешения на развёртывание, платные эксперименты или изменение ограничений проекта.
+Зависимости: 13 и 09. Общие G1–G8 берутся из `.ai/specs/README.md`; их согласованное объяснение включено в [руководство комплекта](README.md#shared-acceptance-gates). Данная редакция не даёт разрешения на развёртывание, платные эксперименты или изменение ограничений проекта.
 
 Для начала проектирования дополнительных решений владельца не требуется. Перед заявлением выполнения нужны реальные исходные измерения, карта обязательств, подтверждённые установленные версии и результаты перечисленных проверок. Оптимальный размер контекста и денежный эффект остаются предметом измерения по 05/09.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

@@ -1,5 +1,15 @@
 # 10. Воспроизводимая генерация справочников и постоянных инструкций
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; limited assembly already exists.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** Sync assembles existing global instruction templates and appends harness capability declarations.
+- **Outstanding scope and limits:** The bin/gen-docs.py generator, full workflow metadata schema, generated reference set, reproducible provenance, and stale-output check mode are not delivered.
+- **Sources:** [`scripts/sync.sh`](../../scripts/sync.sh), [`templates/codex-global-AGENTS.md`](../../templates/codex-global-AGENTS.md), [`harness/claude/capabilities.md`](../../harness/claude/capabilities.md), [`harness/codex/capabilities.md`](../../harness/codex/capabilities.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Цель, статус и предпосылки
 
 Редакция: 2026-10-28. Цель — получать справочники команд, правил и состояний, а также постоянные инструкции двух поддерживаемых сред из единственных канонических источников. Одинаковые входные байты должны давать одинаковые выходные байты; устаревшая генерация должна обнаруживаться до установки.
@@ -134,4 +144,10 @@ python3 "$ORCHESTRAIL_HOME/bin/gen-docs.py" --profile python-fastapi
 
 Откат использует прежний согласованный набор источников и производных файлов; нельзя возвращать только один файл из поколения. Ручные пользовательские правки сохраняются отдельно и рассматриваются при восстановлении.
 
-До реализации требуется выбрать точное представление машиночитаемого словаря в каноническом контракте. Это локальное проектное решение в пределах согласованной семантики; оно не требует смены статусов или запуска моделей. Готовность реализации и прохождение критериев остаются непроверенными до фактического выполнения. Общие проверки см. в [руководстве комплекта](00-review-and-implementation-guide.md).
+До реализации требуется выбрать точное представление машиночитаемого словаря в каноническом контракте. Это локальное проектное решение в пределах согласованной семантики; оно не требует смены статусов или запуска моделей. Готовность реализации и прохождение критериев остаются непроверенными до фактического выполнения. Общие проверки см. в [руководстве комплекта](README.md#shared-acceptance-gates).
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

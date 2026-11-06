@@ -1,5 +1,15 @@
 # 14. Повторно используемый контекст проекта и свежие пакеты задачи
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; metadata-based context cache delivered.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** The context-pack workflow reuses a derived shared cache and checks source set, sizes, and high-resolution mtimes; conditional direct reads remain explicit.
+- **Outstanding scope and limits:** Content-hash receipts, stable/dynamic separation, fresh role/leaf packets, and hash-bound architecture reuse are not delivered. The existing metadata-only cache must not be described as satisfying the content-hash contract.
+- **Sources:** [`workflows/context-pack.md`](../../workflows/context-pack.md), [`rules/workflow-globals.md`](../../rules/workflow-globals.md), [`rules/phase-execution.md`](../../rules/phase-execution.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Статус, источники и границы
 
 **Статус:** целевая спецификация направления 2 запроса от 2026-10-21. Редакция относится к исходному снимку `8c2fa08c18115ffcf38a1798742c41e53a2c7461` от 2026-10-28. Полный отчёт об упомянутом в исходниках аудите отсутствует в этом снимке; отдельные заявления о выполненном аудите не подменяют проверку действующего кода и правил.
@@ -149,4 +159,10 @@
 5. Подключить хеши и размеры к 05, пакеты — к 15/16/19/20, декларации — к 08.
 6. Проверить старые проекты, самостоятельные входы, изоляцию и восстановление. Документировать отключение без изменения канонических файлов.
 
-Зависимости: 05, 08, 09. G1–G8 обязательны; объяснение границ — в [руководстве комплекта](00-review-and-implementation-guide.md). Качество выбранного контекста нельзя доказать одними хешами: хеш подтверждает идентичность источника, полноту определяют карта обязательств и независимые проверки. Платная оценка экономии требует отдельного разрешения по 09.
+Зависимости: 05, 08, 09. G1–G8 обязательны; объяснение границ — в [руководстве комплекта](README.md#shared-acceptance-gates). Качество выбранного контекста нельзя доказать одними хешами: хеш подтверждает идентичность источника, полноту определяют карта обязательств и независимые проверки. Платная оценка экономии требует отдельного разрешения по 09.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

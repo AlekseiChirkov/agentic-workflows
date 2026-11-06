@@ -6,6 +6,16 @@ completed_at: 2026-10-28
 
 # Cached model catalog and consistent, availability-aware selection
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Delivered; later selection refinements integrated.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** Cached catalog refresh/validation, conservative recommendation, provider plan columns, and current-invocation resolution are implemented. Main also contains configured recommendation-fallback refinements.
+- **Outstanding scope and limits:** Catalog data, actual worker identity, and effort support require fresh evidence. This does not deliver the separate role/stage effort policy in spec 18 or prove economic optimality.
+- **Sources:** [`scripts/model-catalog.py`](../../../scripts/model-catalog.py), [`scripts/model_selection.py`](../../../scripts/model_selection.py), [`scripts/model_plan.py`](../../../scripts/model_plan.py), [`tests/model-selection.py`](../../../tests/model-selection.py), [`docs/MODEL-CATALOG.md`](../../../docs/MODEL-CATALOG.md), [`.ai/tasks/completed/task-04-model-catalog-cache/state.md`](../../../.ai/tasks/completed/task-04-model-catalog-cache/state.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## Source
 
 ADR-0009 Decision 6 and the owner's 2026-10-21 request to prefer the least expected
@@ -191,3 +201,7 @@ pass. No live model-quality or savings measurement is claimed.
 
 ### 2026-10-28 — reconciled from task-04-model-catalog-cache
 - dependency-sequencing | implemented-differently | Clarified owner-selected delivery using explicit current capability inputs before the broader harness migration; no requirement or acceptance statement weakened. | Source: task state Task Analysis/Assumptions and Solution Design/Scope; ADR-0015.
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

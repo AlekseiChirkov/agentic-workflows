@@ -1,5 +1,15 @@
 # 13а. Полный аудит правил, рабочих процедур и адаптеров перед переименованием
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; required full audit not delivered.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** Instruction-contract tests and narrower test-suite audits exist.
+- **Outstanding scope and limits:** There is no delivered full rules/workflows audit with all required file rows, read-coverage evidence, link graph, duplicate clusters, and accepted migration map. This specification-delivery review is not that full audit. The historical workflow-clarity report remains unavailable.
+- **Sources:** [`tests/workflow-instructions.py`](../../tests/workflow-instructions.py), [`docs/audits/2026-11-06-test-suite-review.md`](../../docs/audits/2026-11-06-test-suite-review.md), [`rules/workflow-reference.md`](../../rules/workflow-reference.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Назначение и статус
 
 Редакция: 2026-10-28. Это спецификация аудита, а не утверждение, что аудит уже завершён. Она определяет проверяемый результат для следующего исполнителя. Исполнение спецификации не переименовывает правила, не устанавливает навыки и не запускает модели.
@@ -128,8 +138,14 @@
 
 Передать путь отчёта, исходную версию, карту переименований, список поправок и нерешённые вопросы. В 13 должна попасть именно проверенная карта, а не её исторический черновик. Изменение спецификации через `/spec-sync` в рамках прямого поручения владельца допустимо; автоматическое принятие спорного изменения поведения из отчёта — нет.
 
-Сохранить завершённую историю 00—03 и решение о незапланированной 07. Сокращение текста не равно экономии токенов; публикация отчёта не означает готовность выпуска. Общие проверки и владельцы контрактов сведены в [руководстве комплекта](00-review-and-implementation-guide.md).
+Сохранить завершённую историю 00—03 и решение о незапланированной 07. Сокращение текста не равно экономии токенов; публикация отчёта не означает готовность выпуска. Общие проверки и владельцы контрактов сведены в [руководстве комплекта](README.md#shared-acceptance-gates).
 
 ## 10. Готовность
 
 Документ задаёт исполнимый порядок аудита. Полный аудит, его фактические таблицы и принятие поправок к 13 остаются результатами будущего выполнения. Самооценка «все проверки пройдены» без приложенного отчёта запрещена. Открытый вопрос — восстановление отсутствующего исторического отчёта; он не блокирует новый аудит доступного снимка, но ограничивает утверждения о предыдущей проверке.
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

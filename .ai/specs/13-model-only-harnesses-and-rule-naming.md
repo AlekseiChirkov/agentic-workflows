@@ -1,5 +1,15 @@
 # 13. Две среды исполнения, явные возможности и единая система имён
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Planned; capability and registry foundations delivered.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** Claude/Codex capability records and project registration/hook ownership exist.
+- **Outstanding scope and limits:** Deployment still writes legacy Windsurf paths and setup still creates legacy project rule directories. Data-driven deploy.env, migration ownership for all skills, metadata/naming changes, and coordinated global refresh remain undelivered.
+- **Sources:** [`scripts/sync.sh`](../../scripts/sync.sh), [`scripts/setup-new-project.sh`](../../scripts/setup-new-project.sh), [`scripts/install-hooks.py`](../../scripts/install-hooks.py), [`harness/claude/capabilities.md`](../../harness/claude/capabilities.md), [`harness/codex/capabilities.md`](../../harness/codex/capabilities.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 1. Назначение и статус
 
 Редакция: 2026-10-28. Цель — сделать назначение каждого правила и каждой рабочей процедуры понятным из имени и метаданных, устранить коллизии, оставить поддержку двух модельных сред и выполнять выбор поведения по проверенным возможностям. Целевые среды — `Claude Code` и `Codex`; имена `claude` и `codex` являются техническими идентификаторами адаптеров.
@@ -307,4 +317,10 @@ step: 1
 
 До выполнения должны быть получены: свежая карта 13а, реальные доказательства возможностей установленных версий, решение о необходимости разделения 13/13б и фактические сведения об объектах будущего развёртывания. Отсутствующий исторический отчёт ограничивает доказательство прошлой работы, но не запрещает новый аудит доступных источников. Эти входы нельзя заменять отметкой «всё готово».
 
-Документ готов как подробный план миграции; реализация, установка и её приёмка остаются будущими действиями. Общий порядок остальных спецификаций и проверки G1—G8 приведены в [руководстве комплекта](00-review-and-implementation-guide.md).
+Документ готов как подробный план миграции; реализация, установка и её приёмка остаются будущими действиями. Общий порядок остальных спецификаций и проверки G1—G8 приведены в [руководстве комплекта](README.md#shared-acceptance-gates).
+
+## Change Log
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

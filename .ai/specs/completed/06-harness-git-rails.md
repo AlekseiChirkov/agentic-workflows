@@ -6,6 +6,16 @@ completed_at: 2026-11-05
 
 # 06. Enforced git rails for agent shell commands
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Delivered; integrated.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** The Bash hook, decision core, deny fragment, owned installer, restack journal checks, and enforcement documentation are in main.
+- **Outstanding scope and limits:** PR #64 is marked merged; #65-#75 were closed after local stack integration. Residual risks X1-X20 and the Codex textual-only capability remain. Current host installation was not revalidated.
+- **Sources:** [`hooks/git-rails.sh`](../../../hooks/git-rails.sh), [`hooks/git_rails.py`](../../../hooks/git_rails.py), [`harness/claude/permissions.json`](../../../harness/claude/permissions.json), [`harness/codex/capabilities.md`](../../../harness/codex/capabilities.md), [`tests/git-rails.sh`](../../../tests/git-rails.sh), [`.ai/tasks/completed/task-06-harness-git-rails/state.md`](../../../.ai/tasks/completed/task-06-harness-git-rails/state.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## 0. Document control
 
 | Field | Value |
@@ -820,3 +830,7 @@ changes a requirement until it is decided.
 | 2026-11-05 | `task-06-harness-git-rails` | S20 | implemented-differently | §13 X6 narrowed to harness behaviour outside `"onFailure": "block"`. | Task Assumptions (handler failure mode: X6 narrowed, not removed); `harness/claude/capabilities.md` X6 |
 | 2026-11-05 | `task-06-harness-git-rails` | S21 | implemented-beyond | §8.1 R28: a rebasing pull under `rebase.updateRefs` asks `protected-ref-rewrite`. R31: options and configuration that make git run another program are `unsupported-form`. | Issue List #3, #4, #5 (approved 2026-11-04); push subtask (command-line program options), reviewed; `hooks/git_rails.py` `pull_configuration`, `configured_programs`, `PROGRAM_PUSH_OPTIONS` |
 | 2026-11-05 | `task-06-harness-git-rails` | — | metadata | §0: Status set to implemented with merge pending; Revision and Authority rows updated. `## Open Questions` OQ1–OQ5 added. | Calling validation finalizer's verified prerequisites, 2026-11-05 |
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

@@ -6,6 +6,16 @@ completed_at: 2026-10-19
 
 # Scrub sensitive data before further publication
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Delivered with recorded exceptions.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** Public hygiene checks, the exact approved identity ledger, and private-pattern isolation exist.
+- **Outstanding scope and limits:** Historical publication exceptions remain binding; this review does not re-audit old Git history or local private patterns.
+- **Sources:** [`scripts/validate-contracts.sh`](../../../scripts/validate-contracts.sh), [`tests/validator-runtime-characterization.py`](../../../tests/validator-runtime-characterization.py), [`.ai/tasks/completed/task-00-sensitive-data-scrub/state.md`](../../../.ai/tasks/completed/task-00-sensitive-data-scrub/state.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## Goal
 
 Clean the current working tree of private client, employer, internal-system, and machine references, and enforce the agreed public-hygiene scope before further publication.
@@ -125,3 +135,7 @@ The isolated Git enumeration-error fixture can be refined later. Production fail
 - Publication and integration | owner-authorized | The earlier hold was superseded by explicit approval to publish existing ancestry, merge the three reviewed pull requests, and close the task. No history rewriting was performed.
 - Record location | owner-authorized | The complete task is retained under `.ai/tasks/completed/task-00-sensitive-data-scrub/`; this source is retained under `.ai/specs/completed/`. The exact scanner exception follows this source file; its previous path is no longer exempt.
 - Review corrections | verified | Suggested child setup commands preserve absolute source overrides, and unreadability fixtures pass as both the normal user and UID 0. All 542 checks pass.
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.

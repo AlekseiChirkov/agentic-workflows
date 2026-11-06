@@ -6,6 +6,16 @@ completed_at: 2026-10-21
 
 # Enforce Run-Log Field Vocabulary and Validation in `log-step.sh`
 
+## Implementation review — 2026-11-06
+
+- **Disposition:** Delivered; integrated.
+- **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
+- **Delivered evidence:** The producer validates canonical vocabulary, supports read-only lint, and supplies retrospective/drift fixtures.
+- **Outstanding scope and limits:** The former pending-integration note is historical: the implementation is in main. Historical logs are not rewritten or recertified by this review.
+- **Sources:** [`scripts/log-step.sh`](../../../scripts/log-step.sh), [`tests/log-step.sh`](../../../tests/log-step.sh), [`workflows/retro.md`](../../../workflows/retro.md), [`.ai/tasks/completed/task-02-run-log-vocabulary-validation/state.md`](../../../.ai/tasks/completed/task-02-run-log-vocabulary-validation/state.md).
+- Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+
 ## Goal
 
 Make run-log telemetry consistent and aggregatable without ever obstructing a workflow.
@@ -291,3 +301,7 @@ lint must use the same authoritative runtime definitions.
 
 ### 2026-10-21 — reconciled from completed run-log validation
 - No requirement deltas. All acceptance criteria are met; the four validation defects were repaired without changing their requirements. Source: task Contract Check, Code Review and reviewed fix records.
+
+### 2026-11-06 — implementation/state reconciliation
+
+- Owner-authorized source review at `23bded3d96d9c562d16eb7e90285414f4412ac79`: record delivered scope, remaining obligations, and verification limits in the Implementation review above. Preserve requirement/acceptance identifiers and historical decisions; repair current local references where needed.
