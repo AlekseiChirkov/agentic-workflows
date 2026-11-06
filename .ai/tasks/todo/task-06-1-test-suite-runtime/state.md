@@ -12,6 +12,8 @@ flow: full
 → archived to state-archive.md
 
 ### Assumptions
+- Testing budget: the owner requires testing to take at most 15 minutes and excludes long, heavy or large tests. Bound the total test execution and cleanup to 900 seconds; if full verification exceeds the limit, diagnose and fix the cause before claiming success. Replace the prior repeated baseline and median comparison gate where it conflicts with this limit; retain earlier contaminated runs as diagnostic evidence only. Do not claim those comparisons passed. Preserve applicable behavioral requirements, and disclose any unverified coverage or timing target.
+- Execution amendment: begin independent runtime optimization work in private candidates without waiting for additional full baseline runs. Keep shared integration serial and retain separate review; the earlier characterization evidence remains available.
 - Naming: retain `.ai/specs/06-1-test-suite-runtime.md` and its derived task basename;
   the owner explicitly directed continuation under 06 after the prefix collision was
   explained. This is a task-specific exception, not a change to the global guard.
@@ -25,9 +27,9 @@ flow: full
 - Timing: prefer opt-in Linux `/proc/uptime` sampling with centisecond quantization;
   verify a pre-expansion DEBUG hook against pinned Bash semantics before adopting it
   (source: REQ-19 and implementation hints). No timing sampling when disabled.
-- Performance: fresh B, S and P medians bind; old 360/240-second totals are stretch
-  goals only, and the two individual optimized checks each retain the 10-second
-  budget (source: Non-Functional Requirements and A-06).
+- Performance: the owner's later 15-minute testing limit supersedes repeated B, S and P
+  full-run median gates. Earlier samples are diagnostic only, not passing comparisons.
+  Record any unverified comparative targets and the two individual check budgets.
 - Coverage: preserve successful-input scanner behavior in characterization; isolate
   fail-closed read/normalization/aggregation corrections in a separate RED cycle.
   Record W1's intentional fixture amendment before changing its frozen tests
@@ -49,32 +51,69 @@ flow: full
 
 ## Subtask Progress
 
-T-01 | Freeze the implementation equivalence oracle | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: Discovery defined scope, acceptance and test scenarios; implementation has not started.
-  target_files: tests/validator-runtime-characterization.py, tests/fixtures/validator-runtime/, .ai/memory/progress.md
-  blocker: none
-  notes: planned TDD mode: characterize: pin existing behavior; baseline measurement is evidence, not a new wall-time assertion.
+### Current execution checkpoint
+- Resume against `main` after merge commit 43d5c6faa1048e1a1350a9b7a68641e9d8193baf, or a verified descendant. PR #77 merged as f2b156b767a06cf730c50d8fada2c7efed60c400; PR #78 merged as 43d5c6faa1048e1a1350a9b7a68641e9d8193baf. Each PR had a separate reviewer; #78 was reviewed again after its documentation-only correction. Their merged work is partial delivery, not task completion.
+- Resume at T-01 reconciliation and validation: compare its recorded branch and checkpoints with the merged implementation, preserve the original base and commit history, and assess the remaining acceptance criteria before changing any atomic status. T-02 through T-05 also have implementation in the merged PRs and require criteria-by-criteria reconciliation; do not recreate their work or claim atomic validation solely from PR approval. T-06, T-07 and its children, and T-08 and its children remain unfinished.
+- `spec-run` requires a clean tracked working tree at preflight. The original checkout is dirty and includes an unrelated specification edit plus task changes. Preserve all of them; use a clean checkout based on the merged `main` and transfer this updated state deliberately before resuming, following repository tracking policy. Do not stash, reset or commit unrelated changes merely to pass preflight. Reconcile the recorded T-01 branch and its 600e948 tip explicitly against the merged work; do not assume that the old branch is the new delivery base.
+- Resume command after clean-tree and state reconciliation: `/spec-run .ai/tasks/todo/task-06-1-test-suite-runtime --allow-pr`. Keep the owner's no-decomposition instruction and the 15-minute testing limit; use small, fast tests and exclusive full-run measurements.
+- The owner requested a necessity review of all tests, removal of scores at or below 25–30, and review of each eventual PR. Individual reviews of the inventoried inline, usage, Git, hook, model and runtime cases are recorded in adjacent files under `docs/audits/`; loops within a named method remain grouped with that method. Review and removal decisions are recorded, but integration validation and remaining task work are not complete.
+- Confirmed duplicate runtime, inline and usage tests scored 10–25 and were removed. Selected-part fixtures no longer generate 7,000 sources, bounded-read/schema boundary tests use small patched limits, and model-selection checks use pairwise cases. Focused checks and the 568.838-second full run passed after these edits. The reduced fixtures do not prove behavior at the real absolute byte limits or under large input.
+- A version fixture previously inherited the caller's log root and could write outside its isolated checkout. A focused regression reproduced the issue and passed after the fixture explicitly selected its temporary log root; source-guard exceptions were updated for the reviewed commands.
+- PR #77 delivered the test-workload reductions; a separate reviewer approved head 2a3eef4fc20398ca4b259fbe04badc2c96e27ae3 with the documented coverage limits.
+- PR #78 delivered validator changes and test reviews. The tested parent db3f5e14b648ad34af1a22a0b0b691e4c1b389b3 passed 717 checks, failed none and skipped two in 568.838 seconds; cleanup succeeded. The reviewed merged head 11eed8592b5a06c11146bac0847ff4db705e1285 differs only in two documentation files. The prior obsolete run was interrupted after 145.347 seconds; the two runs took 714.185 seconds combined. The skips require a local private hygiene pattern file. Opt-in timing and concurrent worker lifecycle work remain incomplete.
+- The owner capped testing at 15 minutes and ruled out long or heavy tests; do not run the prior repeated full baseline protocol. Earlier baseline samples remain diagnostic only.
+- Warning-prefix and identity-scan optimizations and the bounded source guard are merged. An earlier isolated snapshot completed in 699.721 seconds with 722 passed, 0 failed and 2 skipped; cleanup succeeded. This historical run does not establish completion of the remaining phase or comparative performance gates.
+- An earlier complete run finished in 592.060 seconds with 721 passed, 1 failed and 2 skipped. The failure exposed successful source-guard output contaminating the wrapper result; the wrapper now suppresses only that success output, retains diagnostics and exit status, and has a short regression test. The successful 699.721-second run includes this fix.
+- The source guard classifies enumerated forms with exact exceptions; arbitrary dynamic Bash/Python is not proven fully covered.
+- Timing remains unfinished: candidate DEBUG instrumentation can change pre-existing trap semantics; explicit instrumentation requires a verified preservation strategy.
+- The private acceptance-runner candidate remains unfinished: a cgroup backend has targeted passes but lacks portable ownership fallback and needs independent integrated review and real-group validation. It was not merged into this tree.
+- Existing unrelated changes to `.ai/specs/12-composite-branch-model-and-parallel-children.md` belong to another workstream and must not be staged or overwritten.
+- The working tree contains tracked and untracked task changes. Preserve them; the standard resume preflight requires explicit reconciliation of tracked work before a new invocation.
+
+T-01 | Freeze the implementation equivalence oracle | atomic-tests: red | atomic-execution: not-started | atomic-validation: not-started
+  branch: test/validator-equivalence-oracle
+  base_branch: main
+  base_commit: 2ef11a44fc1c0ff09fed440a838743bb9e40e89f
+  commits: d956413, 2949539, 20cff43, f29593c, 06f944f, 96873d9, 2ef5bbc, db3b747, e3b3c60, 6605640, 600e948
+  last_action: Characterization, scanner, warning and bounded source-guard changes were merged through PR #78; focused tests and an ordinary full run passed within 15 minutes. Reconcile the recorded atomic checkpoint and verify remaining criteria before marking this leaf reviewed.
+  target_files: tests/validator-runtime-characterization.py, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/oracle.py, tests/fixtures/validator-runtime/, .ai/memory/progress.md
+  blocker: none; repeated baseline samples were superseded by the owner testing-time limit.
+  notes: tdd: mixed checkpoints authorized by user; 15 characterization tests passed before changes (d956413); six oracle/manifest tests failed as expected (2949539).
+         tdd: red digest — C1: test_inventory_contains_all_source_contracts, test_matching_inventory_is_accepted, test_independent_name_expression_and_order_mutations_rejected; C3: test_two_consistent_successful_samples_accepted, test_incomplete_failed_or_drifted_manifest_rejected, test_high_variance_requires_third_retained_sample; C2 pins: test_counts_lines_case_and_final_line, test_bytes_paths_and_empty_file, test_missing_ledger_path_fails, test_nul_split_and_symlink_target, test_grep_failure_is_not_a_clean_scan, test_ledger_mask_preserves_line_numbers, test_sort_failure_does_not_report_success, test_available_utf8_locale, test_run_log_extraction_markers_and_standalone_syntax, test_generic_wrapper_suppresses_diagnostics, test_wrapper_excerpt_conventions, test_conditional_command_substitution_isolated_under_errexit, test_result_channels_and_counters, test_focused_exec_forwards_arguments_and_exit, test_focused_chained_and_bash_dispatch.
+         The prior repeated full-baseline requirement is superseded by the owner testing-time limit; earlier samples remain diagnostic only.
+         tdd: additional RED — test_nonfinite_sample_values_are_rejected, test_evidence_checks_file_bytes_digests_result_inventory_and_median: three expected assertion failures observed before the corresponding fix.
+         tdd: additional RED — test_time_output_fields_are_parsed_and_missing_fields_fail failed before implementing GNU time output parsing.
+         tdd: additional RED — test_runtime_checks_registered_once_after_focused_dispatch produced two expected assertion failures before registering additive runtime checks.
+         tdd: additional RED — evidence subtests process_exit, source_changed and dirty incorrectly accepted invalid records before the fix.
+         tdd: additional RED — independent trusted-manifest provenance verification returned no result before implementation; tests cover mismatched commit, blob, full source map, config and inventory.
+         tdd: additional RED — validator runtime security tests exposed inherited Git environment, bytecode writes and missing frozen inventory fingerprint before fixes; tests are committed in 20cff43.
+         tdd: additional RED — validator runtime allowlist rejects modified expressions, duplicate, missing, reordered and relocated added results; observed five failures before implementation (f29593c).
+         tdd: test amended — replace placeholder synthetic time output and add the standard validator summary in the evidence fixture, retaining all negative checks, so assertions verify the actual output format.
+         tdd: test amended — split the ledger heading string literal in the characterization fixture to avoid creating a second source-scanner ledger match; preserve its runtime value and every assertion. Evidence: the existing scanner requires exactly one matching file.
+         tdd: test amended — retain the exact frozen inventory losslessly compressed, reuse one complete source inventory, and use structural checks for structural mutation cases; retain complete resource comparison for matching sources. The owner requires small, fast tests.
+         tdd: test amended — select any installed UTF-8 locale from locale -a instead of checking only two names; preserve scanner assertions and skip only if no UTF-8 locale is available. Evidence: the acceptance criterion requires any available UTF-8 locale.
+         tdd: test amended — adapt the grep fault shim to recognize both original and optimized scanner flags while retaining the same injected failure assertion.
 
 T-02 | Implement the bounded nested-run source guard | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: Discovery defined scope, acceptance and test scenarios; implementation has not started.
+  last_action: A bounded source guard and associated tests were merged in PR #78. Reconcile its scope, recorded test evidence and remaining acceptance criteria before changing the atomic statuses.
   target_files: scripts/validate-contracts.sh, tests/validator-runtime-guard.py, tests/fixtures/validator-runtime/
   blocker: none
   notes: planned TDD mode: RED.
 
 T-03 | Replace complete warning-fixture runs with the guarded prefix | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: Discovery defined scope, acceptance and test scenarios; implementation has not started.
+  last_action: Warning-prefix optimization and associated tests were merged in PR #78. Reconcile the fixture amendment and remaining acceptance criteria before changing the atomic statuses.
   target_files: scripts/validate-contracts.sh, tests/validator-runtime-warning.py, .ai/memory/progress.md
   blocker: none
   notes: planned TDD mode: RED.
 
 T-04 | Optimize successful identity scans against the frozen corpus | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: Discovery defined scope, acceptance and test scenarios; implementation has not started.
+  last_action: Identity-scan optimization and associated tests were merged in PR #78. Reconcile characterization evidence and remaining acceptance criteria before changing the atomic statuses.
   target_files: scripts/validate-contracts.sh, tests/validator-runtime-identity.py, tests/fixtures/validator-runtime/
   blocker: none
   notes: planned TDD mode: characterize: behavior-preserving optimization only; new I/O expectations belong to T-05.
 
 T-05 | Reject incomplete identity-scan I/O | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: Discovery defined scope, acceptance and test scenarios; implementation has not started.
+  last_action: Identity-scan changes were merged in PR #78. Determine which I/O failure criteria and RED evidence are satisfied before changing the atomic statuses or implementing additional behavior.
   target_files: scripts/validate-contracts.sh, tests/validator-runtime-identity.py
   blocker: none
   notes: planned TDD mode: RED.
@@ -101,6 +140,7 @@ T-07b | Validate jobs and schedule productive bounded slots | atomic-tests: not-
   target_files: scripts/validate-contracts.sh, tests/validator-runtime-scheduler.py
   blocker: none
   notes: planned TDD mode: RED.
+         tdd: test amended — the isolated admission test must move its overlap handshake from the first three groups to the warning-policy and pricing-scenario groups; the first groups have not been shown safe to overlap. Preserve result order, refill and counter assertions.
 
 T-07c | Integrate original expressions and ordered output | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: Discovery defined scope, acceptance and test scenarios; implementation has not started.

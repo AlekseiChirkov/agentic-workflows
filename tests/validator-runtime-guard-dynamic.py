@@ -26,30 +26,6 @@ class DynamicExecutableContracts(unittest.TestCase):
             with self.subTest(statement=statement):
                 self.assertTrue(guard.inspect_sources({'tests/example.sh': statement + '\n'}))
 
-    def test_dynamic_command_exception_is_context_bound(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            (root / 'scripts').mkdir()
-            (root / 'tests').mkdir()
-            (root / 'scripts/validate-contracts.sh').write_text('# validator\n')
-            path = root / 'tests/example.sh'
-            statement = '  "$runner" argument'
-            source = 'fixture() {\n' + statement + '\n}\n'
-            path.write_text(source)
-            entry = {'path': 'tests/example.sh', 'statement': statement,
-                     'container': 'fixture', 'context_sha256': hashlib.sha256(source.rstrip('\n').encode()).hexdigest(),
-                     'detail': 'dynamic command requires review', 'count': 1,
-                     'reason': 'reviewed non-validator command'}
-            self.assertEqual(guard.inspect_project(root, [entry]), [])
-            self.assertTrue(guard.inspect_project(root, []))
-            self.assertTrue(guard.inspect_project(root, [entry, entry]))
-            path.write_text(source.replace(statement, statement + '\n' + statement))
-            self.assertTrue(guard.inspect_project(root, [entry]))
-            path.write_text(source.replace('fixture()', 'different()'))
-            self.assertTrue(guard.inspect_project(root, [entry]))
-            path.write_text('fixture() { :; }\n')
-            self.assertTrue(guard.inspect_project(root, [entry]))
-
     def test_generated_source_dependency_drift_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

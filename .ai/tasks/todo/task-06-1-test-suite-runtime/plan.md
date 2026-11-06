@@ -1,6 +1,8 @@
 # Contract validator runtime plan
 
-Scope: one spec phase, W1-W5. W6/W7 remain deferred. All rows are planned; no implementation or performance result is claimed.
+Scope: one spec phase, W1-W5. W6/W7 remain deferred. PRs #77 and #78 delivered partial implementation and test reductions to `main`; the rows below retain their prior statuses until their individual criteria and atomic checkpoints are reconciled. The complete validator passed in 568.838 seconds on the tested PR #78 parent; this is not comparative performance acceptance.
+
+Resume amendment: start with the T-01 checkpoint reconciliation described in `state.md`, then reconcile already merged work for T-02 through T-05 before undertaking remaining work. Preserve the existing decomposition. The owner requires at most 15 minutes of testing and no long, heavy or large tests: repeated B/S/P baseline and median gates below are historical and superseded where they conflict with that limit. Keep their evidence diagnostic, disclose unmet comparisons, and run any full validation exclusively within the limit. Timing, worker lifecycle, scheduler integration and final task validation remain unfinished.
 
 ## Subtasks
 

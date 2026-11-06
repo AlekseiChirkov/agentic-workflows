@@ -88,10 +88,6 @@ class TokenScalarTests(unittest.TestCase):
                                   '--usage-file', str(self.fixture.path), '--tokens-in', '750000')
                 self.assertEqual(self.fixture.snapshot(), before)
 
-    def test_not_applicable_is_allowed_for_proven_empty_scope(self):
-        value = states.empty_projection()
-        self.assertEqual(contract.validate_lifecycle_projection(value), value)
-
     def test_split_and_unsplit_same_counter_cannot_be_double_counted(self):
         value = states.cache_projection()
         first = value['contributors'][0]

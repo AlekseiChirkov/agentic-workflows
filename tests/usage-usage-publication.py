@@ -110,13 +110,18 @@ class PublicationTests(unittest.TestCase):
 
     def test_schema_size_and_privacy_checks_happen_before_any_write(self):
         for change in ({'schema_version': 2},
-                       {'raw_content': 'PRIVATE_PAYLOAD_SENTINEL'},
-                       {'diagnostics': ['x' * (33 * 1024 * 1024)]}):
+                       {'raw_content': 'PRIVATE_PAYLOAD_SENTINEL'}):
             with self.subTest(field=next(iter(change))):
                 with self.assertRaises(ValueError) as error:
                     self.publish(self.bundle | change, authorize=lambda *_: True)
                 self.assertNotIn('PRIVATE_PAYLOAD_SENTINEL', str(error.exception))
                 self.assertFalse((self.root / 'usage').exists())
+        validation_globals = publication.validate_usage_bundle.__globals__
+        self.assertEqual(validation_globals['BUNDLE_LIMIT'], 32 * 1024 * 1024)
+        with patch.dict(validation_globals, BUNDLE_LIMIT=len(self.expected) - 1):
+            with self.assertRaisesRegex(ValueError, 'bundle exceeds byte limit'):
+                self.publish(authorize=lambda *_: True)
+        self.assertFalse((self.root / 'usage').exists())
         self.assert_lifecycle_intact()
 
     def test_exact_duplicate_and_concurrent_attempts_install_one_file(self):
@@ -271,15 +276,6 @@ class PublicationTests(unittest.TestCase):
 
     def test_atomic_install_unavailable_fails_closed_without_receipt(self):
         with patch.object(publication, '_install', side_effect=OSError('unsupported atomic installation')):
-            with self.assertRaises(OSError):
-                self.publish()
-        self.assertFalse(self.artifact.exists())
-        self.assert_lifecycle_intact()
-
-    def test_failed_atomic_install_never_returns_receipt_or_changes_lifecycle(self):
-        if publication is None:
-            self.fail('publication module is not implemented')
-        with patch.object(publication, '_install', create=True, side_effect=OSError('simulated disk failure')):
             with self.assertRaises(OSError):
                 self.publish()
         self.assertFalse(self.artifact.exists())

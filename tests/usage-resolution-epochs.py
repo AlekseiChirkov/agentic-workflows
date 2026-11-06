@@ -149,10 +149,10 @@ class EpochIntegrationTests(unittest.TestCase):
         self.assertEqual(result['request_usage'], {})
         self.assertIsNone(result['interval_aggregate'])
 
-    def test_large_disjoint_epoch_sum_is_exported_exactly_as_decimal_string(self):
+    def test_disjoint_epoch_sum_above_safe_integer_is_exported_as_decimal_string(self):
         maximum = 9007199254740991
         packs = []
-        for index in range(1025):
+        for index in range(2):
             pack = epoch_pack()
             before, after = pack['interval']['before'], pack['interval']['after']
             before.update(sequence=1, position=2 * index, value=0)
@@ -177,8 +177,8 @@ class EpochIntegrationTests(unittest.TestCase):
                     contract.canonical_bytes(proof)) in trusted
         own_bundle(self.data)
         result = base.resolve(self.data, verifier)
-        self.assertEqual(result['epochs']['aggregate']['total'], str(1025 * maximum))
-        self.assertEqual(len(result['epochs']['aggregate']['included_ids']), 1025)
+        self.assertEqual(result['epochs']['aggregate']['total'], str(2 * maximum))
+        self.assertEqual(len(result['epochs']['aggregate']['included_ids']), 2)
         self.assertEqual(result['tokens']['input']['quality'], 'unavailable')
 
     def test_unverified_pack_hash_is_not_exported_as_proof_of_privacy(self):

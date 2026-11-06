@@ -55,6 +55,11 @@ def warning():
             'metric': 'duration_ms', 'episode': 1, 'crossing_state': 'unknown',
             'delivery_state': 'unknown'}
 
+class OversizedList(list):
+    def __len__(self):
+        return 10001
+
+
 class CurrentRunSnapshotTests(unittest.TestCase):
     def assert_valid(self, value):
         self.assertEqual(call('validate_current_run_snapshot', value), value)
@@ -272,7 +277,9 @@ class CurrentRunSnapshotTests(unittest.TestCase):
                        {'kind': 'history'}, {'raw_content': 'private'}):
             bad = copy.deepcopy(value); bad['parts'][0].update(change); variants.append(bad)
         bad = copy.deepcopy(value); bad['parts'] *= 2; variants.append(bad)
-        bad = copy.deepcopy(value); bad['parts'] = [part] * 10001; variants.append(bad)
+        bad = copy.deepcopy(value); bad['parts'] = OversizedList([part])
+        with self.assertRaisesRegex(ValueError, 'snapshot entry limit exceeded'):
+            call('validate_current_run_snapshot', bad)
         bad = copy.deepcopy(value); bad['bounds']['max_entries'] = 1
         bad['parts'].append(part | {'local_path': '/selected/second.json', 'sha256': 'b' * 64})
         variants.append(bad)

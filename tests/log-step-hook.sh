@@ -265,11 +265,17 @@ class HookContract(unittest.TestCase):
         self.assertEqual(self.status(identity)['state'], 'accepted')
 
     def test_hook_bounded_transcript_tail_requires_dispatch_input(self) -> None:
+        adapter = self.adapter.read_text()
+        start = adapter.index('bounded_transcript_tail() {')
+        end = adapter.index('\n}', start) + 2
+        bounded = adapter[start:end]
+        self.assertEqual(bounded.count('16777216'), 2)
+        self.adapter.write_text(adapter[:start] + bounded.replace('16777216', '1024') + adapter[end:])
         identity, line = self.dispatch()
         payload = self.payload(identity, line)
         path = Path(payload['agent_transcript_path'])
         with path.open('a') as stream:
-            stream.write(compact({'type':'assistant','message':{'content':'x' * (16 * 1024 * 1024)}}) + '\n')
+            stream.write(compact({'type':'assistant','message':{'content':'x' * 2048}}) + '\n')
         self.rejected(identity, payload)
 
     def test_hook_accepted_status_blocks_fallback_and_returns_receipt(self) -> None:

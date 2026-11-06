@@ -121,9 +121,15 @@ class InventoryTests(unittest.TestCase):
     def test_collection_and_json_bounds(self):
         value = inventory()
         self.assert_valid(value)
+
+        class OversizedList(list):
+            # Exercise the count guard without allocating a large array.
+            def __len__(self):
+                return 10001
+
         for field in ('expected_calls', 'expected_responses', 'unresolved_slots'):
             invalid = copy.deepcopy(value)
-            invalid[field] = [None] * 10001
+            invalid[field] = OversizedList([None])
             with self.subTest(field=field), self.assertRaises(ValueError):
                 call('validate_inventory', invalid)
         data = json.dumps(value, separators=(',', ':')).encode()

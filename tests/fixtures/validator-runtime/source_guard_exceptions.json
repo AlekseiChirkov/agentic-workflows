@@ -1,0 +1,743 @@
+[
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  echo 'Usage: scripts/validate-contracts.sh [--hygiene-only [--root PATH] [--denylist PATH]]' >&2",
+    "container": "top-level",
+    "context_sha256": "62e8347a8d21d7e133b22994ff301046f780a6de7ac2008b2824b7e1b68b36a9",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "Usage text is not executed as a validator."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  for script in scripts/sync.sh scripts/log-step.sh scripts/setup-new-project.sh scripts/setup-umbrella.sh scripts/setup-all-repos.sh scripts/link-skills.sh scripts/validate-contracts.sh scripts/validate-task.sh; do",
+    "container": "test_shell_paths_public_defaults_pass_syntax",
+    "context_sha256": "3bc43cb03f66de6afb8b0fb33a9929f3e9cd567c5657c06833989cce35d50fc4",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "The path is listed for syntax-only inspection."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    printf '%s\\n' 'printf \"source=%s\\n\" \"$(cd \"$(dirname \"$0\")/..\" && pwd)\"' 'exit 9' > \"$selected/scripts/validate-contracts.sh\"",
+    "container": "test_shell_paths_relocated_checkout_preserves_overrides",
+    "context_sha256": "c1342a452db5b1d2a754bf10eb0ff62073403a9f4ca2d6fb5fe8c254fe4f2ba3",
+    "detail": "unapproved generated validator",
+    "count": 1,
+    "reason": "Private relocation fixture writes a stub that exits before deployment."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  validator=\"$fixture/runner/scripts/validate-contracts.sh\"",
+    "container": "test_public_hygiene_fixture_scans_fail_closed",
+    "context_sha256": "408009d0867517ebf202456d321471745f298b4d2ccbfd363d998e02cd918650",
+    "detail": "validator alias requires review",
+    "count": 1,
+    "reason": "Private hygiene fixture names its copied validator."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  sed '/^# \u2500\u2500 Public hygiene smoke checks /,/^# \u2500\u2500 End public hygiene smoke checks /d' scripts/validate-contracts.sh > \"$validator\"",
+    "container": "test_public_hygiene_fixture_scans_fail_closed",
+    "context_sha256": "408009d0867517ebf202456d321471745f298b4d2ccbfd363d998e02cd918650",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "The validator is copied as source data for an isolated hygiene fixture."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    output=\"$(ORCHESTRAIL_HYGIENE_DENYLIST=\"${ORCHESTRAIL_HYGIENE_DENYLIST:-$fixture/private-patterns.txt}\" bash \"$validator\" --hygiene-only --root \"$repo\" \"$@\" 2>&1)\" || status=$?",
+    "container": "test_public_hygiene_fixture_scans_fail_closed",
+    "context_sha256": "408009d0867517ebf202456d321471745f298b4d2ccbfd363d998e02cd918650",
+    "detail": "unapproved full validator",
+    "count": 1,
+    "reason": "The copied validator receives the actual hygiene-only focused flag."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  if output=\"$(env -u ORCHESTRAIL_HYGIENE_DENYLIST XDG_CONFIG_HOME=\"$fixture/no-config\" \\",
+    "container": "test_public_hygiene_fixture_scans_fail_closed",
+    "context_sha256": "408009d0867517ebf202456d321471745f298b4d2ccbfd363d998e02cd918650",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "The continued command receives the actual hygiene-only focused flag."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    for name in ('scripts/log-step.sh', 'scripts/validate-contracts.sh', 'rules/run-log.md'):",
+    "container": "run_log_contract_smoke",
+    "context_sha256": "959ecc4f165b4dff7b3a467e31f4d473c7fbd2960e283f5b872a0672956d943d",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "The validator path is copied as fixture source data."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "        result = subprocess.run(['bash', str(fixture/'scripts/validate-contracts.sh'),",
+    "container": "run_log_contract_smoke",
+    "context_sha256": "959ecc4f165b4dff7b3a467e31f4d473c7fbd2960e283f5b872a0672956d943d",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "The Python subprocess argv includes the run-log-contract-only flag."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "        for name in ('scripts/log-step.sh','scripts/validate-contracts.sh','rules/run-log.md'):",
+    "container": "run_correlated_event_smoke",
+    "context_sha256": "a47cb6b4d099409faf92b4d9b82dbbbfeb9c2e4d98359474c476c1839f9316af",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "The validator path is copied as fixture source data."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "            return subprocess.run(['bash',str(checkout/'scripts/validate-contracts.sh'),",
+    "container": "run_correlated_event_smoke",
+    "context_sha256": "a47cb6b4d099409faf92b4d9b82dbbbfeb9c2e4d98359474c476c1839f9316af",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "The Python subprocess argv includes the run-log-contract-only flag."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "source = (root / 'scripts/validate-contracts.sh').read_text()",
+    "container": "test_run_log_acceptance_harness_isolated_and_complete",
+    "context_sha256": "51be82306c4c22fe6ba4155a1d15d5982c7adaa7ae859120b17778cd9bef854f",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "The validator is read as source data by an isolated harness."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    for name in ('scripts/log-step.sh', 'scripts/validate-contracts.sh', 'rules/run-log.md', 'tests/log-step.sh'):",
+    "container": "test_run_log_acceptance_harness_isolated_and_complete",
+    "context_sha256": "51be82306c4c22fe6ba4155a1d15d5982c7adaa7ae859120b17778cd9bef854f",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "The validator is copied as source data into an isolated harness."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    validator = checkout / 'scripts/validate-contracts.sh'",
+    "container": "test_run_log_acceptance_harness_isolated_and_complete",
+    "context_sha256": "51be82306c4c22fe6ba4155a1d15d5982c7adaa7ae859120b17778cd9bef854f",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "The validator path is used for fixture source mutation."
+  },
+  {
+    "path": "tests/hook-install.sh",
+    "statement": "        (self.checkout / 'scripts' / 'validate-contracts.sh').write_text('#!/bin/bash\\nexit 0\\n')",
+    "container": "heredoc:PY",
+    "context_sha256": "4b5b0888340e6f50287bed5d303ec46b84e47b354dc738e7e551d4e23f4c362a",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "A private installation fixture writes an exit-only stub."
+  },
+  {
+    "path": "tests/hook-timing.sh",
+    "statement": "                  self.python_block(SOURCE / 'scripts/validate-contracts.sh', 'PYCORRELATED'),",
+    "container": "heredoc:PY",
+    "context_sha256": "bc192a7dd7e9470414da5a02f74f77f33ef3e374df5ddfe9fbfec630af54cb97",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "The validator is read as source data for a Python block."
+  },
+  {
+    "path": "tests/log-step.sh",
+    "statement": "for name in ('scripts/log-step.sh', 'scripts/validate-contracts.sh', 'rules/run-log.md'):",
+    "container": "heredoc:PY",
+    "context_sha256": "73f86f56a0b828ddfd5ebff88097fbb5b3e6b0d2a38dee5393ecf6cd6230b003",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "The validator is copied as source data into an isolated harness."
+  },
+  {
+    "path": "tests/log-step.sh",
+    "statement": "text = (checkout / 'scripts/validate-contracts.sh').read_text()",
+    "container": "heredoc:PY",
+    "context_sha256": "73f86f56a0b828ddfd5ebff88097fbb5b3e6b0d2a38dee5393ecf6cd6230b003",
+    "detail": "unclassified shell reference",
+    "count": 1,
+    "reason": "The validator is read as source data for extraction."
+  },
+  {
+    "path": "tests/validator-runtime-characterization.py",
+    "statement": "        result = subprocess.run([\"bash\", \"-c\", script], capture_output=True, check=False)",
+    "container": "test_generic_wrapper_suppresses_diagnostics",
+    "context_sha256": "0d0657d39fcee3962ab27230f85e75a83bc473079047553427defd678e91e977",
+    "detail": "unapproved full or dynamic validator",
+    "count": 1,
+    "reason": "The subprocess runs an extracted result-renderer fixture."
+  },
+  {
+    "path": "tests/validator-runtime-characterization.py",
+    "statement": "        result = subprocess.run([\"bash\", \"-c\", script], capture_output=True, check=False)",
+    "container": "test_conditional_command_substitution_isolated_under_errexit",
+    "context_sha256": "ec9bc873361a869c6f73ffb226bf7c0de83c3348de00fd873fa2f4bc7ba356bb",
+    "detail": "unapproved full or dynamic validator",
+    "count": 1,
+    "reason": "The subprocess runs an extracted wrapper with a fake command."
+  },
+  {
+    "path": "tests/validator-runtime-characterization.py",
+    "statement": "        result = subprocess.run([\"bash\", \"-c\", script], capture_output=True, check=False)",
+    "container": "test_result_channels_and_counters",
+    "context_sha256": "bde7dd0b366beb7d0921198d20c92f608fd15f08bedd68f9467856f1d5039f0d",
+    "detail": "unapproved full or dynamic validator",
+    "count": 1,
+    "reason": "The subprocess runs an extracted result-renderer fixture."
+  },
+  {
+    "path": "tests/validator-runtime-characterization.py",
+    "statement": "            result = subprocess.run([\"bash\", str(validator), \"--usage-bounded-source-reads-only\",",
+    "container": "test_focused_exec_forwards_arguments_and_exit",
+    "context_sha256": "c6b19de69387fdf08ba62da87013b06ee2a2d370d1ca0e61ef36c0cefc32c78d",
+    "detail": "unapproved full or dynamic validator",
+    "count": 1,
+    "reason": "The subprocess passes the bounded-source-reads focused flag."
+  },
+  {
+    "path": "tests/validator-runtime-characterization.py",
+    "statement": "                result = subprocess.run([\"bash\", \"-c\", fake + wrapper + \"\\n\" + name],",
+    "container": "test_wrapper_excerpt_conventions",
+    "context_sha256": "b9eb6cd7c9f2b7515d1143b9c2ffd574ea7de2741e608de6d9352fc879d02bdd",
+    "detail": "unapproved full or dynamic validator",
+    "count": 1,
+    "reason": "The subprocess runs an extracted wrapper with a fake command."
+  },
+  {
+    "path": "tests/validator-runtime-characterization.py",
+    "statement": "                    result = subprocess.run([\"bash\", str(validator), flag, \"with space\", \"--example\"],",
+    "container": "test_focused_chained_and_bash_dispatch",
+    "context_sha256": "9dae15ef5b3faad1dd5f784dfb002c881d55f0c12bea4ac257e0ee93a280f330",
+    "detail": "unapproved full or dynamic validator",
+    "count": 1,
+    "reason": "The subprocess flag is chosen from the two explicitly listed focused flags."
+  },
+  {
+    "path": "tests/validator-runtime-identity.py",
+    "statement": "        return subprocess.run(",
+    "container": "run_loop",
+    "context_sha256": "97140367b92aa26e867d58e26e2773f099c8ebe3c0e6aae68ba4e211e2f71d03",
+    "detail": "unapproved full or dynamic validator",
+    "count": 1,
+    "reason": "The subprocess executes only the extracted identity scan loop."
+  },
+  {
+    "path": "tests/validator-runtime-identity.py",
+    "statement": "        process = subprocess.run(['bash', '-c', script], env=env, capture_output=True, timeout=5)",
+    "container": "test_registered_check_ignores_external_source_override",
+    "context_sha256": "d937029951f6147b5977014a89e301e2fe40581e5ed92d51e1c90c9b0ae68148",
+    "detail": "unapproved full or dynamic validator",
+    "count": 1,
+    "reason": "The subprocess tests the registration with a synthetic sentinel."
+  },
+  {
+    "path": "tests/validator-runtime-warning.py",
+    "statement": "    return subprocess.run(['bash', '-c', body + '\\n' + START.split('()')[0]],",
+    "container": "invoke",
+    "context_sha256": "fe6609e8622d2ec8c869a0107e2f1944266e6eb1018526fdd672af177c1d6ef2",
+    "detail": "unapproved full or dynamic validator",
+    "count": 1,
+    "reason": "The subprocess executes only the extracted warning fixture function."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  exec bash \"$REPO_ROOT/tests/hook-shell-quality.sh\" \"$@\"",
+    "container": "top-level",
+    "context_sha256": "29cce90db994d40fd89285f710967a94fc1683dc9382c8bfd2b10c789c0c4f41",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "Focused dispatch executes a fixed test script path."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  exec bash \"$REPO_ROOT/tests/hook-timing.sh\" \"$@\"",
+    "container": "top-level",
+    "context_sha256": "e555e12a5c982fb47c0fb93e7dc1b802ed3fe4e8f605b2701b41474290a558c6",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "Focused dispatch executes a fixed test script path."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  exec bash \"$REPO_ROOT/tests/hook-workflow-contract.sh\" \"$@\"",
+    "container": "top-level",
+    "context_sha256": "31b28abe47dc9441099b8b1116dd8e3da3e4212edf00520f72db3cec194c393d",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "Focused dispatch executes a fixed test script path."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  exec bash \"$REPO_ROOT/tests/hook-install.sh\" \"$@\"",
+    "container": "top-level",
+    "context_sha256": "f488412e175c652337a1c2a48e5c0e9ca59eea78b9049dd054ba76f17d30cf7a",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "Focused dispatch executes a fixed test script path."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  exec bash \"$REPO_ROOT/tests/log-step-hook.sh\" \"$@\"",
+    "container": "top-level",
+    "context_sha256": "c68358bdcc88e7bc062aa0d7d22740e7af97dd472d63598aedff3f1a191295f2",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "Focused dispatch executes a fixed test script path."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  exec bash \"$REPO_ROOT/tests/git-rails.sh\" \"$@\"",
+    "container": "top-level",
+    "context_sha256": "748bb0ca5e49bd970e4e93d56fa390db2a94f8b302162d6e5fad0b2b7a2d6874",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "Focused dispatch executes a fixed test script path."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "check \"DEPLOY: setup-all-repos captures a failing setup run (set -e safe)\" \\",
+    "container": "top-level",
+    "context_sha256": "d9aaeea7dac37c5eb8f3cded91a6e05de7437103d1fc079e644b760f302078d3",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The shell command appears in a literal grep assertion, not an invocation."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    bash -n \"$script\" || return 1",
+    "container": "test_shell_paths_public_defaults_pass_syntax",
+    "context_sha256": "3bc43cb03f66de6afb8b0fb33a9929f3e9cd567c5657c06833989cce35d50fc4",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "Syntax-only inspection runs with bash -n over a fixed script list."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    output=\"$(cd \"$fixture/work\" && env \"${source_env[@]}\" HOME=\"$fixture/home\" bash \"$source_tree/scripts/sync.sh\" \"${sync_args[@]}\" 2>&1)\" || status=$?",
+    "container": "test_shell_paths_relocated_checkout_preserves_overrides",
+    "context_sha256": "c1342a452db5b1d2a754bf10eb0ff62073403a9f4ca2d6fb5fe8c254fe4f2ba3",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The relocated fixture executes the explicitly named copied helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    output=\"$(cd \"$fixture/work\" && env \"${log_env[@]}\" HOME=\"$fixture/home\" bash \"$source_tree/scripts/log-step.sh\" path)\"",
+    "container": "test_shell_paths_relocated_checkout_preserves_overrides",
+    "context_sha256": "c1342a452db5b1d2a754bf10eb0ff62073403a9f4ca2d6fb5fe8c254fe4f2ba3",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The relocated fixture executes the explicitly named copied helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "      (cd \"$target\" && env \"${setup_env[@]}\" HOME=\"$fixture/home\" bash \"$source_tree/$script\" </dev/null) > \"$fixture/setup-output\" 2>&1 || status=$?",
+    "container": "test_shell_paths_relocated_checkout_preserves_overrides",
+    "context_sha256": "c1342a452db5b1d2a754bf10eb0ff62073403a9f4ca2d6fb5fe8c254fe4f2ba3",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The relocated fixture iterates over a fixed list of setup scripts."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "        (cd \"$target/service with spaces\" && env \"${setup_env[@]}\" HOME=\"$fixture/home\" bash -c \"${child_command:-exit 1}\" </dev/null) > \"$fixture/child-output\" 2>&1 || status=$?",
+    "container": "test_shell_paths_relocated_checkout_preserves_overrides",
+    "context_sha256": "c1342a452db5b1d2a754bf10eb0ff62073403a9f4ca2d6fb5fe8c254fe4f2ba3",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated umbrella fixture exercises a generated child command from the pinned generator.",
+    "dependencies": {
+      "scripts/setup-umbrella.sh": "d1912391c5c5ab80b6b2f867a98a51d2c21e48f844b4307ce68c334836a3d70b"
+    }
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    (cd \"$target\" && env -u WORKFLOWS_SOURCE ORCHESTRAIL_HOME=\"$fixture/missing tree\" HOME=\"$fixture/home\" bash \"$source_tree/$script\" </dev/null) > \"$fixture/missing-output\" 2>&1 || status=$?",
+    "container": "test_shell_paths_relocated_checkout_preserves_overrides",
+    "context_sha256": "c1342a452db5b1d2a754bf10eb0ff62073403a9f4ca2d6fb5fe8c254fe4f2ba3",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The relocated fixture iterates over a fixed list of setup scripts."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  (cd \"$target\" && env HOME=\"$fixture/home\" bash \"$source_tree/scripts/link-skills.sh\") > \"$fixture/link-output\" 2>&1 || bad=1",
+    "container": "test_shell_paths_relocated_checkout_preserves_overrides",
+    "context_sha256": "c1342a452db5b1d2a754bf10eb0ff62073403a9f4ca2d6fb5fe8c254fe4f2ba3",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The relocated fixture executes the explicitly named copied helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  invoke_log() { bash \"$helper/scripts/log-step.sh\" \"$@\"; }",
+    "container": "test_run_log_start_rejects_invalid_argument_sets",
+    "context_sha256": "2eadf8f6e31a38715d70a43c1299e7e649db47c4b75279e67004f320116e2414",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    timeout 2 bash \"$helper/scripts/log-step.sh\" run-start \"$@\" > \"$fixture/stdout\" 2> \"$fixture/stderr\" || status=$?",
+    "container": "test_run_log_start_rejects_invalid_argument_sets",
+    "context_sha256": "2eadf8f6e31a38715d70a43c1299e7e649db47c4b75279e67004f320116e2414",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  invoke_log() { bash \"$helper/scripts/log-step.sh\" \"$@\"; }",
+    "container": "test_run_log_step_rejects_invalid_fields_without_mutation",
+    "context_sha256": "c5754c3c1ea98fd71c0260d1c663b61da3eeb7cd940f87e00734656691c25273",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    timeout 2 bash \"$helper/scripts/log-step.sh\" step --run \"$run\" --step pae-tests \"$@\" > \"$fixture/stdout\" 2> \"$fixture/stderr\" || status=$?",
+    "container": "test_run_log_step_rejects_invalid_fields_without_mutation",
+    "context_sha256": "c5754c3c1ea98fd71c0260d1c663b61da3eeb7cd940f87e00734656691c25273",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  timeout 2 bash \"$helper/scripts/log-step.sh\" step --run '../../outside' --step pae-tests --outcome ok > \"$fixture/stdout\" 2> \"$fixture/stderr\" || status=$?",
+    "container": "test_run_log_step_rejects_invalid_fields_without_mutation",
+    "context_sha256": "c5754c3c1ea98fd71c0260d1c663b61da3eeb7cd940f87e00734656691c25273",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  invoke_log() { bash \"$helper/scripts/log-step.sh\" \"$@\"; }",
+    "container": "test_run_log_normalizes_only_exact_legacy_values",
+    "context_sha256": "b51a645077883c6b6a14ecc722947a07a0ae89fa6144e47b6c65f1e2e6bb28e5",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  run=\"$(ORCHESTRAIL_HOME=\"$helper\" bash \"$helper/scripts/log-step.sh\" run-start --pipeline phase-execution)\" || return 1",
+    "container": "test_run_log_flow_defaults_and_step_name_warnings",
+    "context_sha256": "232051c1753bed9909782d9a811e75bd125029ba09c45dc3dd745d93eeda2f18",
+    "detail": "dynamic executable requires review",
+    "count": 2,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  file=\"$(ORCHESTRAIL_HOME=\"$helper\" bash \"$helper/scripts/log-step.sh\" path --run \"$run\")\" || return 1",
+    "container": "test_run_log_flow_defaults_and_step_name_warnings",
+    "context_sha256": "232051c1753bed9909782d9a811e75bd125029ba09c45dc3dd745d93eeda2f18",
+    "detail": "dynamic executable requires review",
+    "count": 3,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  (cd \"$fixture/caller\" && env -u ORCHESTRAIL_HOME ORCHESTRAIL_LOG_ROOT=\"$ORCHESTRAIL_LOG_ROOT\" bash \"$helper/scripts/log-step.sh\" step --run \"$run\" --step pae-tests --outcome ok) > \"$fixture/stdout\" 2> \"$fixture/stderr\" || return 1",
+    "container": "test_run_log_flow_defaults_and_step_name_warnings",
+    "context_sha256": "232051c1753bed9909782d9a811e75bd125029ba09c45dc3dd745d93eeda2f18",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  ORCHESTRAIL_HOME=\"$helper\" bash \"$helper/scripts/log-step.sh\" step --run \"$run\" --step batch-gate --outcome ok > \"$fixture/stdout\" 2> \"$fixture/stderr\" || return 1",
+    "container": "test_run_log_flow_defaults_and_step_name_warnings",
+    "context_sha256": "232051c1753bed9909782d9a811e75bd125029ba09c45dc3dd745d93eeda2f18",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  ORCHESTRAIL_HOME=\"$helper\" bash \"$helper/scripts/log-step.sh\" step --run \"$run\" --step unknown-probe --outcome ok > \"$fixture/stdout\" 2> \"$fixture/stderr\" || return 1",
+    "container": "test_run_log_flow_defaults_and_step_name_warnings",
+    "context_sha256": "232051c1753bed9909782d9a811e75bd125029ba09c45dc3dd745d93eeda2f18",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  ORCHESTRAIL_HOME=\"$fixture/unavailable\" bash \"$helper/scripts/log-step.sh\" step --run \"$run\" --step dry-run --outcome ok > \"$fixture/stdout\" 2> \"$fixture/stderr\" || return 1",
+    "container": "test_run_log_flow_defaults_and_step_name_warnings",
+    "context_sha256": "232051c1753bed9909782d9a811e75bd125029ba09c45dc3dd745d93eeda2f18",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  ORCHESTRAIL_HOME=\"$helper\" bash \"$helper/scripts/log-step.sh\" run-end --run \"$run\" --outcome completed > \"$fixture/stdout\" 2> \"$fixture/stderr\" || return 1",
+    "container": "test_run_log_flow_defaults_and_step_name_warnings",
+    "context_sha256": "232051c1753bed9909782d9a811e75bd125029ba09c45dc3dd745d93eeda2f18",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  ORCHESTRAIL_HOME=\"$helper\" bash \"$helper/scripts/log-step.sh\" step --run \"$run\" --step subtask --outcome ok > \"$fixture/stdout\" 2> \"$fixture/stderr\" || return 1",
+    "container": "test_run_log_flow_defaults_and_step_name_warnings",
+    "context_sha256": "232051c1753bed9909782d9a811e75bd125029ba09c45dc3dd745d93eeda2f18",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  run=\"$(ORCHESTRAIL_HOME=\"$helper\" bash \"$helper/scripts/log-step.sh\" run-start --pipeline phase-execution --flow '')\" || return 1",
+    "container": "test_run_log_flow_defaults_and_step_name_warnings",
+    "context_sha256": "232051c1753bed9909782d9a811e75bd125029ba09c45dc3dd745d93eeda2f18",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  ORCHESTRAIL_HOME=\"$helper\" bash \"$helper/scripts/log-step.sh\" step --run \"$run\" --step pae-tests --outcome ok || return 1",
+    "container": "test_run_log_flow_defaults_and_step_name_warnings",
+    "context_sha256": "232051c1753bed9909782d9a811e75bd125029ba09c45dc3dd745d93eeda2f18",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  ORCHESTRAIL_HOME=\"$helper\" bash \"$helper/scripts/log-step.sh\" run-end --run \"$run\" --outcome completed || return 1",
+    "container": "test_run_log_flow_defaults_and_step_name_warnings",
+    "context_sha256": "232051c1753bed9909782d9a811e75bd125029ba09c45dc3dd745d93eeda2f18",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  ORCHESTRAIL_HOME=\"$helper\" bash \"$helper/scripts/log-step.sh\" step --run '../../outside' --step pae-tests --outcome ok > \"$fixture/stdout\" 2> \"$fixture/stderr\" || return 1",
+    "container": "test_run_log_flow_defaults_and_step_name_warnings",
+    "context_sha256": "232051c1753bed9909782d9a811e75bd125029ba09c45dc3dd745d93eeda2f18",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  invoke_log() { bash \"$helper/scripts/log-step.sh\" \"$@\"; }",
+    "container": "test_run_log_start_and_end_persist_before_reporting_success",
+    "context_sha256": "24e34fba7a2d26e527cc78bd24a21d2a68b23a7319480ed48e3850a1d01dae6b",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    timeout 2 bash \"$helper/scripts/log-step.sh\" run-end \"$@\" > \"$fixture/stdout\" 2> \"$fixture/stderr\" || status=$?",
+    "container": "test_run_log_start_and_end_persist_before_reporting_success",
+    "context_sha256": "24e34fba7a2d26e527cc78bd24a21d2a68b23a7319480ed48e3850a1d01dae6b",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  exec \"$real_jq\" \"\\$@\"",
+    "container": "test_run_log_start_and_end_persist_before_reporting_success",
+    "context_sha256": "24e34fba7a2d26e527cc78bd24a21d2a68b23a7319480ed48e3850a1d01dae6b",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The generated fake jq script delegates to the resolved real jq executable."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  invoke_log() { PATH=\"$fakebin\" bash \"$helper/scripts/log-step.sh\" \"$@\"; }",
+    "container": "test_run_log_fallback_and_filesystem_errors_remain_nonblocking",
+    "context_sha256": "eb049b0968d5219c6a6baf394a73c7d3baddd824ab2d0b06fc31aceb9c678660",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  invoke_log() { PATH=\"$fakebin\" bash \"$helper/scripts/log-step.sh\" \"$@\"; }",
+    "container": "test_run_log_preserves_unrestricted_flow_across_events",
+    "context_sha256": "94be53941d7fc720895de186b955a80413524fd24517d3b1a2c198e1c0e8f909",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  invoke_log() { PATH=\"$fakebin\" bash \"$helper/scripts/log-step.sh\" \"$@\"; }",
+    "container": "test_run_log_reports_only_one_diagnostic_on_rejection_or_write_failure",
+    "context_sha256": "5552efcfdb86c54e44dc24736fc910403de036707bf02c2fd631f429f19a80c1",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  invoke_log() { PATH=\"$fakebin\" bash \"$helper/scripts/log-step.sh\" \"$@\"; }",
+    "container": "test_run_log_metadata_preserves_text_boundaries_and_legacy_records",
+    "context_sha256": "89735b2f2955df004b8aa9de2065ea7c72346f37ad8c4e9b7e8a91a5c1ce1fe2",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    run=\"$(ORCHESTRAIL_LOG_ROOT=\"$fixture/store-$value\" bash \"$fixture/scripts/log-step.sh\" run-start --pipeline phase-discovery)\" || return 1",
+    "container": "test_contract_version_run_start_stamps_current_and_reads_legacy",
+    "context_sha256": "f7260e7181e281d80c388c90c183f75f3f48afbb566c1ae3b5f553b212427381",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    file=\"$(ORCHESTRAIL_LOG_ROOT=\"$fixture/store-$value\" bash \"$fixture/scripts/log-step.sh\" path --run \"$run\")\" || return 1",
+    "container": "test_contract_version_run_start_stamps_current_and_reads_legacy",
+    "context_sha256": "f7260e7181e281d80c388c90c183f75f3f48afbb566c1ae3b5f553b212427381",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    ORCHESTRAIL_LOG_ROOT=\"$fixture/store-$value\" bash \"$fixture/scripts/log-step.sh\" run-end --run \"$run\" --outcome completed || return 1",
+    "container": "test_contract_version_run_start_stamps_current_and_reads_legacy",
+    "context_sha256": "f7260e7181e281d80c388c90c183f75f3f48afbb566c1ae3b5f553b212427381",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The isolated logging fixture executes its copied log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  output=\"$(bash \"$REPO_ROOT/tests/hook-shell-quality.sh\" 2>&1)\" || {",
+    "container": "test_hook_shell_quality_acceptance",
+    "context_sha256": "689b987a88b0aaf021eeb39b6e545e1e4c80fd82091b758407cab157a2bbe81e",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The acceptance wrapper executes a fixed named test script path."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  output=\"$(bash \"$REPO_ROOT/tests/log-step-hook.sh\" 2>&1)\" || {",
+    "container": "test_native_hook_adapter_acceptance",
+    "context_sha256": "90ee33446deaf436d029b5e8459d9d83d6ecf95f2d8dae91e5cee194efacc6d3",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The acceptance wrapper executes a fixed named test script path."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  output=\"$(bash \"$REPO_ROOT/tests/hook-workflow-contract.sh\" 2>&1)\" || {",
+    "container": "test_workflow_hook_coverage_acceptance",
+    "context_sha256": "143f6062217693c31b4ab5dad7d0b000ed64b259ef918193d49ed19f7c35566d",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The acceptance wrapper executes a fixed named test script path."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  output=\"$(bash \"$REPO_ROOT/tests/hook-timing.sh\" 2>&1)\" || {",
+    "container": "test_hook_timing_acceptance",
+    "context_sha256": "eee97d153b4bd3815dcc844babcf4a732e454dc6fc4742bee8a9e7dc036cfb73",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The acceptance wrapper executes a fixed named test script path."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  output=\"$(bash \"$REPO_ROOT/tests/git-rails.sh\" 2>&1)\" || {",
+    "container": "test_git_rails_acceptance",
+    "context_sha256": "73973cb33d9bde4cd2fe1ea1a7b5eb3a733728b3b498c77cf87256340b1c95ab",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The acceptance wrapper executes a fixed named test script path."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  output=\"$(bash \"$REPO_ROOT/tests/hook-install.sh\" 2>&1)\" || {",
+    "container": "test_user_hook_installation_acceptance",
+    "context_sha256": "653bb4e1d5cb22c106d9ee412a38120cd1b6f4f1601966d271220a15bdc12bdb",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "The acceptance wrapper executes a fixed named test script path."
+  },
+  {
+    "path": "tests/hook-workflow-contract.sh",
+    "statement": "                               '  bash \"$(dirname \"$0\")/real-log-step.sh\" \"$@\" > /dev/null\\n'",
+    "container": "heredoc:PY",
+    "context_sha256": "bbba019c8d20f28ce8b88b08f0cd8c6884e5845bc6b6d0ca54a04bcc478d7fe7",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "Python heredoc contains generated script text invoking the fixed real-log-step helper."
+  },
+  {
+    "path": "tests/hook-workflow-contract.sh",
+    "statement": "                               'else\\n  bash \"$(dirname \"$0\")/real-log-step.sh\" \"$@\"\\nfi\\n')",
+    "container": "heredoc:PY",
+    "context_sha256": "bbba019c8d20f28ce8b88b08f0cd8c6884e5845bc6b6d0ca54a04bcc478d7fe7",
+    "detail": "dynamic executable requires review",
+    "count": 1,
+    "reason": "Python heredoc contains generated script text invoking the fixed real-log-step helper."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  \"$real_git\" init -q \"$repo\" || return 1",
+    "container": "test_public_hygiene_fixture_scans_fail_closed",
+    "context_sha256": "408009d0867517ebf202456d321471745f298b4d2ccbfd363d998e02cd918650",
+    "detail": "dynamic command requires review",
+    "count": 1,
+    "reason": "Private hygiene fixture invokes the git executable resolved by command -v git."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  \"$real_git\" -C \"$repo\" add -- scrub-denylist.txt .ai/specs/completed/00-sensitive-data-scrub.md \"clean file.md\" || return 1",
+    "container": "test_public_hygiene_fixture_scans_fail_closed",
+    "context_sha256": "408009d0867517ebf202456d321471745f298b4d2ccbfd363d998e02cd918650",
+    "detail": "dynamic command requires review",
+    "count": 1,
+    "reason": "Private hygiene fixture invokes the git executable resolved by command -v git."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "    \"$real_git\" -C \"$repo\" add -- \"$name\" || return 1",
+    "container": "test_public_hygiene_fixture_scans_fail_closed",
+    "context_sha256": "408009d0867517ebf202456d321471745f298b4d2ccbfd363d998e02cd918650",
+    "detail": "dynamic command requires review",
+    "count": 1,
+    "reason": "Private hygiene fixture invokes the git executable resolved by command -v git."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  \"$real_git\" -C \"$repo\" add -- \"linked file\" || return 1",
+    "container": "test_public_hygiene_fixture_scans_fail_closed",
+    "context_sha256": "408009d0867517ebf202456d321471745f298b4d2ccbfd363d998e02cd918650",
+    "detail": "dynamic command requires review",
+    "count": 1,
+    "reason": "Private hygiene fixture invokes the git executable resolved by command -v git."
+  },
+  {
+    "path": "scripts/validate-contracts.sh",
+    "statement": "  \"$real_git\" init -q \"$fixture/empty repository\" || return 1",
+    "container": "test_public_hygiene_fixture_scans_fail_closed",
+    "context_sha256": "408009d0867517ebf202456d321471745f298b4d2ccbfd363d998e02cd918650",
+    "detail": "dynamic command requires review",
+    "count": 1,
+    "reason": "Private hygiene fixture invokes the git executable resolved by command -v git."
+  }
+]

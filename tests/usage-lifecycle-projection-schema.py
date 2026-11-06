@@ -88,6 +88,11 @@ def projection():
                 parameter['evidence'] = digest
     return value
 
+class OversizedList(list):
+    def __len__(self):
+        return 10001
+
+
 class LifecycleProjectionSchemaTests(unittest.TestCase):
     def assert_valid(self, value):
         self.assertEqual(call('validate_lifecycle_projection', value), value)
@@ -438,8 +443,8 @@ class LifecycleProjectionSchemaTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             call('validate_lifecycle_projection_json', b'{"schema_version":1,"schema_version":1}')
         invalid = copy.deepcopy(value)
-        invalid['contributors'] = invalid['contributors'] * 5001
-        with self.assertRaises(ValueError):
+        invalid['contributors'] = OversizedList(invalid['contributors'])
+        with self.assertRaisesRegex(ValueError, 'invalid projection contributors'):
             call('validate_lifecycle_projection', invalid)
 
 if __name__ == '__main__':
