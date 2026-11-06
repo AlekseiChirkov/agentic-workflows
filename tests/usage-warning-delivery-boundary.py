@@ -71,9 +71,6 @@ class OwnerBoundaryTests(unittest.TestCase):
         self.assertEqual(self.case.current()['warning_delivery'][0]['delivery_state'], 'pending')
         self.assertIn('pending', json.dumps(report))
 
-    def test_cooperating_owner_writers_still_have_one_winner(self):
-        self.case.test_concurrent_acceptance_has_single_winner()
-
 
 if __name__ == '__main__':
     unittest.main()

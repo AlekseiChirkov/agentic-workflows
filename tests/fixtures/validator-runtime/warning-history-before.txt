@@ -1,0 +1,66 @@
+test_contract_version_rule_history_warns_until_version_changes() (
+  local fixture root output warning
+  root="$(pwd -P)"
+  warning='[WARN] Rules changed after VERSION; update the contract version before release.'
+  fixture="$(mktemp -d "${TMPDIR:-/tmp}/contract-history.XXXXXX")" || return 1
+  trap 'rm -rf "$fixture"' EXIT
+  # Run the real validator in a disposable repository. Remove this smoke group
+  # from its copy to avoid recursively creating more fixture repositories.
+  tar --exclude=.git --exclude=logs -cf - . | tar -xf - -C "$fixture" || return 1
+  python3 - "$fixture/scripts/validate-contracts.sh" <<'PYVERSION' || return 1
+from pathlib import Path
+import re
+import sys
+path = Path(sys.argv[1])
+for opening, closing in (
+    ('# ── Run-log producer smoke checks', '# ── End run-log producer smoke checks'),
+    ('# ── Run-log contract smoke checks', '# ── End run-log contract smoke checks'),
+    ('# ── Isolated run-log acceptance harness', '# ── End isolated run-log acceptance harness'),
+    ('# ── Contract version smoke checks', '# ── End contract version smoke checks'),
+    ('# ── Public package materials smoke checks', '# ── End public package materials smoke checks'),
+    ('# ── Public identity smoke checks', '# ── End public identity smoke checks'),
+):
+    lines = path.read_text().splitlines(keepends=True)
+    start = next(i for i, line in enumerate(lines) if line.startswith(opening))
+    end = next(i for i in range(start + 1, len(lines)) if lines[i].startswith(closing))
+    retained = []
+    if opening == '# ── Run-log producer smoke checks':
+        block = ''.join(lines[start + 1:end])
+        block, removed = re.subn(r'^check [^\n]*\\\n  "\$\([^\n]*\)"\n', '', block, flags=re.M)
+        assert removed == 31 and not re.search(r'^check ', block, re.M), 'unexpected producer check shape'
+        retained = [block]
+    path.write_text(''.join(lines[:start] + retained + lines[end + 1:]))
+PYVERSION
+  cd "$fixture" || return 1
+  git init -q || return 1
+  git config user.name 'Contract Fixture' || return 1
+  git config user.email 'fixture@example.invalid' || return 1
+  printf '0.9.0\n' > VERSION
+  git add . || return 1
+  GIT_AUTHOR_DATE=2026-01-01T00:00:00Z GIT_COMMITTER_DATE=2026-01-01T00:00:00Z git commit -qm 'Initialize contract fixture' || return 1
+  if ! output="$(bash scripts/validate-contracts.sh 2>&1)"; then
+    printf '%s\n' "$output"
+    echo 'Validator failed at the version commit'; return 1
+  fi
+  if grep -Fq "$warning" <<< "$output"; then
+    echo 'Unexpected version warning at the version commit'; return 1
+  fi
+  printf '\nFixture rule change.\n' >> rules/run-log.md
+  git add rules/run-log.md || return 1
+  GIT_AUTHOR_DATE=2026-01-02T00:00:00Z GIT_COMMITTER_DATE=2026-01-02T00:00:00Z git commit -qm 'Change a rule contract' || return 1
+  if ! output="$(bash scripts/validate-contracts.sh 2>&1)"; then
+    printf '%s\n' "$output"
+    echo 'Validator failed while reporting a stale rule version'; return 1
+  fi
+  if ! grep -Fq "$warning" <<< "$output"; then
+    echo 'Missing warning for a rule commit newer than unchanged VERSION'; return 1
+  fi
+  printf '0.9.1\n' > VERSION
+  if ! output="$(bash scripts/validate-contracts.sh 2>&1)"; then
+    printf '%s\n' "$output"
+    echo 'Validator failed after updating VERSION'; return 1
+  fi
+  if grep -Fq "$warning" <<< "$output"; then
+    echo 'Version update in worktree must clear the warning'; return 1
+  fi
+)

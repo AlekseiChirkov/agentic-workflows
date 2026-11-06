@@ -34,6 +34,11 @@ def authorize_operands(data, allowed):
                     add(measurement['evidence'])
 
 
+class OversizedList(list):
+    def __len__(self):
+        return 10001
+
+
 class ContextEvidenceTests(unittest.TestCase):
     def setUp(self):
         self.data, self.allowed = integration.fixture()
@@ -47,10 +52,12 @@ class ContextEvidenceTests(unittest.TestCase):
         self.assertEqual(validate(context), context)
         for mutation in ({'raw_text': 'PRIVATE_SENTINEL'}, {'record_number': True},
                          {'counter_scope': 'unsupported'}, {'session_id': '/secret'},
-                         {'observation_id': 'invalid'}, {'evidence_objects': [{}] * 10001}):
+                         {'observation_id': 'invalid'}):
             with self.subTest(mutation=list(mutation)), self.assertRaises((TypeError, ValueError)) as error:
                 validate(context | mutation)
             self.assertNotIn('PRIVATE_SENTINEL', str(error.exception))
+        with self.assertRaisesRegex(ValueError, 'invalid context evidence'):
+            validate(context | {'evidence_objects': OversizedList(context['evidence_objects'])})
 
     def test_operand_provenance_is_independently_authorized(self):
         result = integration.resolve(self.data, self.verifier)

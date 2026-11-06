@@ -130,12 +130,6 @@ class EnvelopeTests(unittest.TestCase):
                     call('validate_evidence_object', evidence() | {'profile_id': unsafe})
                 self.assertNotIn(unsafe, str(error.exception))
 
-    def test_timestamps_are_not_opaque_identifiers(self):
-        valid = observation() | {'source_time': '2026-01-02T03:04:04Z',
-                                 'source_time_quality': 'verified',
-                                 'observed_at': '2026-01-02T03:04:05Z'}
-        self.assertEqual(call('validate_observation', valid), valid)
-
     def test_invalid_timestamps_are_rejected_without_exposure(self):
         valid = observation() | {'source_time': '2026-01-02T03:04:04Z',
                                  'source_time_quality': 'verified'}

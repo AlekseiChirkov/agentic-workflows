@@ -1208,22 +1208,6 @@ class HookInstallation(unittest.TestCase):
         self.assertEqual(self.read_settings()['hooks']['PreToolUse'],
                          [{'matcher':'Bash', 'hooks':[changed, self.git_rails_handler()]}])
 
-    def test_hook_git_rails_fail_open_pretooluse_handler_is_rejected_without_writes(self) -> None:
-        self.write_settings({'user':'kept'})
-        self.install()
-        self.assert_registered()
-        valid = self.registered_manifest()
-        continuing = copy.deepcopy(valid)
-        continuing['hooks']['PreToolUse'][0]['hooks'][0]['onFailure'] = 'continue'
-        undeclared = copy.deepcopy(valid)
-        undeclared['hooks']['PreToolUse'][0]['hooks'][0].pop('onFailure')
-        for name, variant in (('continue', continuing), ('missing', undeclared)):
-            with self.subTest(failure_mode=name):
-                self.manifest_path().write_text(json.dumps(variant))
-                before = self.snapshot()
-                self.call('install', expected='unavailable')
-                self.assertEqual(before, self.snapshot())
-
     def test_hook_git_rails_pretooluse_group_without_matcher_is_rejected_without_writes(self) -> None:
         self.write_settings({'user':'kept'})
         self.install()

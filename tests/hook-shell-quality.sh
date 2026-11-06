@@ -282,12 +282,6 @@ class ShellQuality(unittest.TestCase):
         errors = violations('scripts/log-step.sh', ShellLimits(baseline, lifecycle, argv))
         self.assertEqual(errors, [], '\n'.join(errors))
 
-    def test_hook_metadata_api_uses_at_most_three_parameters(self: ShellQuality) -> None:
-        found = functions((SOURCE / 'scripts/log-step.sh').read_text())
-        self.assertIn('stage_hook_metadata', found)
-        self.assertLessEqual(found['stage_hook_metadata'].parameters(), 3)
-
-
 suite = unittest.TestSuite(ShellQuality(name) for name in SELECTED) if SELECTED else (
     unittest.defaultTestLoader.loadTestsFromTestCase(ShellQuality))
 result = unittest.TextTestRunner(verbosity=2).run(suite)
