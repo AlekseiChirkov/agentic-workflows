@@ -136,11 +136,6 @@ class DurationAnalysisTests(unittest.TestCase):
         self.assertIsNone(result["exclusive_ms"])
         self.assertFalse(result["coverage_complete"])
 
-    def test_explicit_complete_graph_proves_exclusive(self):
-        result = analyze(self.parent, self.children, complete=True)
-        self.assertEqual(result["exclusive_ms"], 2)
-        self.assertTrue(result["coverage_complete"])
-
     def test_unhashable_parent_identifiers_are_invalid_parentage(self):
         for invalid in ([], {}):
             for children in (

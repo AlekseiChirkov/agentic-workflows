@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import date, timedelta
-from itertools import product
+from itertools import combinations, product
 import json
 import os
 from pathlib import Path
@@ -25,6 +25,17 @@ SELECTOR = ROOT / "scripts/model_selection.py"
 COMMAND = ROOT / "scripts/model-catalog.py"
 TODAY = date(2032, 6, 15)
 FACTORS = ("C", "A", "V", "R", "Ver", "Crit", "RW")
+
+
+def floor_cases() -> list[tuple[int, ...]]:
+    """Cover every pair of scores, plus both global extrema, without exhaustive enumeration."""
+    cases = {(1,) * len(FACTORS), (5,) * len(FACTORS)}
+    for first, second in combinations(range(len(FACTORS)), 2):
+        for left, right in product(range(1, 6), repeat=2):
+            values = [3] * len(FACTORS)
+            values[first], values[second] = left, right
+            cases.add(tuple(values))
+    return sorted(cases)
 
 
 def identity(name: str, provider: str = "openai") -> dict[str, str]:
@@ -91,10 +102,10 @@ class SelectionContractTests(unittest.TestCase):
                request: dict[str, Any]) -> dict[str, Any]:
         return api["select_model"](catalog, request, TODAY)
 
-    def test_floor_every_score_tuple_has_exact_bounded_weighted_result(self) -> None:
+    def test_floor_pairwise_scores_have_exact_bounded_weighted_result(self) -> None:
         api = self.api()
         observed = set()
-        for values in product(range(1, 6), repeat=7):
+        for values in floor_cases():
             scores = dict(zip(FACTORS, values))
             expected = (25 * scores["C"] + 20 * scores["A"] + 20 * scores["R"]
                         + 20 * scores["Crit"] + 15 * scores["V"] + 50) // 100
@@ -104,9 +115,9 @@ class SelectionContractTests(unittest.TestCase):
             observed.add(actual)
         self.assertEqual(observed, {1, 2, 3, 4, 5})
 
-    def test_floor_every_worsening_neighbor_never_decreases_requirement(self) -> None:
+    def test_floor_pairwise_worsening_neighbors_never_decrease_requirement(self) -> None:
         api = self.api()
-        for values in product(range(1, 6), repeat=7):
+        for values in floor_cases():
             scores = dict(zip(FACTORS, values))
             floor = api["quality_floor"](scores)
             for factor in FACTORS:

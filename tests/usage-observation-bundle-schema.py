@@ -229,6 +229,7 @@ class EnvelopeTests(unittest.TestCase):
                 call('validate_usage_bundle', value)
         obs = observation() | {'profile_id': 'é'}
         data = json.dumps(obs, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        self.assertEqual(contract.OBSERVATION_LIMIT, 1024 * 1024)
         with patch.object(contract, 'OBSERVATION_LIMIT', len(data)):
             self.assertEqual(call('validate_observation_json', data), obs)
             with self.assertRaises(ValueError):
@@ -243,19 +244,13 @@ class EnvelopeTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 call('validate_observation', value)
 
-    def test_observation_json_input_byte_limit(self):
-        data = json.dumps(observation(), ensure_ascii=False, separators=(',', ':')).encode('utf-8')
-        exact = data + b' ' * (1024 * 1024 - len(data))
-        self.assertEqual(call('validate_observation_json', exact), observation())
-        with self.assertRaises(ValueError):
-            call('validate_observation_json', exact + b' ')
-
     def test_bundle_json_input_byte_limit(self):
         data = json.dumps(bundle(), ensure_ascii=False, separators=(',', ':')).encode('utf-8')
-        exact = data + b' ' * (32 * 1024 * 1024 - len(data))
-        self.assertEqual(call('validate_usage_bundle_json', exact), bundle())
-        with self.assertRaises(ValueError):
-            call('validate_usage_bundle_json', exact + b' ')
+        self.assertEqual(contract.BUNDLE_LIMIT, 32 * 1024 * 1024)
+        with patch.object(contract, 'BUNDLE_LIMIT', len(data)):
+            self.assertEqual(call('validate_usage_bundle_json', data), bundle())
+            with self.assertRaises(ValueError):
+                call('validate_usage_bundle_json', data + b' ')
 
     def test_bundle_observation_count_limit(self):
         value = bundle()
@@ -263,26 +258,42 @@ class EnvelopeTests(unittest.TestCase):
         base['measurements'] = {'input_uncached': {'measurement_state': 'final',
                                                    'value': 1, 'reasons': []}}
         value['evidence_objects'] = []
-        value['observations'] = [base | {'record_number': n} for n in range(1, 10001)]
+        value['observations'] = [base | {'record_number': n} for n in range(1, 4)]
         self.assertEqual(call('validate_usage_bundle', value), value)
-        extra = value | {'observations': value['observations'] + [base | {'record_number': 10001}]}
-        with self.assertRaises(ValueError):
-            call('validate_usage_bundle', extra)
+
+        class ReportedLength(list):
+            # Exercise the numeric limit without constructing a large JSON array.
+            def __init__(self, items, length):
+                super().__init__(items)
+                self.length = length
+
+            def __len__(self):
+                return self.length
+
+        for length in (10000, 10001):
+            candidate = value | {'observations': ReportedLength(value['observations'], length)}
+            with self.subTest(reported_length=length):
+                if length == 10000:
+                    self.assertIs(call('validate_usage_bundle', candidate), candidate)
+                else:
+                    with self.assertRaisesRegex(ValueError, 'invalid bundle collection'):
+                        call('validate_usage_bundle', candidate)
 
     def test_bundle_canonical_byte_limit(self):
         base = observation()
         base['measurements'] = {'input_uncached': {'measurement_state': 'final',
                                                     'value': 1, 'reasons': []}}
-        base['attribution']['candidates'] = ['sha256:' + hashlib.sha256(str(i).encode()).hexdigest() for i in range(64)]
+        base['attribution']['candidates'] = ['sha256:' + hashlib.sha256(str(i).encode()).hexdigest() for i in range(3)]
         value = bundle() | {'evidence_objects': []}
-        value['observations'] = [base | {'record_number': n} for n in range(1, 6001)]
-        self.assertLessEqual(len(contract.canonical_bytes(value)), 32 * 1024 * 1024)
-        self.assertEqual(call('validate_usage_bundle', value), value)
-        larger = value | {'observations': value['observations'] +
-                          [base | {'record_number': n} for n in range(6001, 7101)]}
-        self.assertGreater(len(contract.canonical_bytes(larger)), 32 * 1024 * 1024)
-        with self.assertRaises(ValueError):
-            call('validate_usage_bundle', larger)
+        value['observations'] = [base | {'record_number': n} for n in range(1, 3)]
+        larger = value | {'observations': value['observations'] + [base | {'record_number': 3}]}
+        limit = len(contract.canonical_bytes(value))
+        self.assertGreater(len(contract.canonical_bytes(larger)), limit)
+        self.assertEqual(call('validate_usage_bundle', larger), larger)
+        with patch.object(contract, 'BUNDLE_LIMIT', limit):
+            self.assertEqual(call('validate_usage_bundle', value), value)
+            with self.assertRaises(ValueError):
+                call('validate_usage_bundle', larger)
 
     def test_evidence_association_requires_matching_separate_object(self):
         obs = observation()

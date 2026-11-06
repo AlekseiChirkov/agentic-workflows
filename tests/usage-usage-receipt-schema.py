@@ -81,11 +81,24 @@ class ReceiptSchemaTests(unittest.TestCase):
     def test_observation_count_and_duplicate_identifier_bounds(self):
         value = receipt()
         self.assert_valid(value)
-        value['observation_ids'] = [f'{index:064x}' for index in range(10000)]
-        self.assert_valid(value)
-        value['observation_ids'].append(f'{10000:064x}')
-        with self.assertRaises(ValueError):
-            call('validate_usage_receipt', value)
+
+        class ReportedLength(list):
+            # Check the count boundary without constructing a large JSON array.
+            def __init__(self, items, length):
+                super().__init__(items)
+                self.length = length
+
+            def __len__(self):
+                return self.length
+
+        for length in (10000, 10001):
+            candidate = value | {'observation_ids': ReportedLength(value['observation_ids'], length)}
+            with self.subTest(reported_length=length):
+                if length == 10000:
+                    self.assertIs(call('validate_usage_receipt', candidate), candidate)
+                else:
+                    with self.assertRaisesRegex(ValueError, 'invalid receipt observations'):
+                        call('validate_usage_receipt', candidate)
 
     def test_private_content_is_not_allowed_or_echoed(self):
         value = receipt()
