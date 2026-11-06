@@ -184,6 +184,24 @@ def _python(path, source):
                 if callable_value and isinstance(target, ast.Name) and target.id not in callable_aliases:
                     callable_aliases.add(target.id)
                     changed = True
+    reference_aliases = set()
+    changed = True
+    while changed:
+        changed = False
+        for assignment in ast.walk(tree):
+            if not isinstance(assignment, (ast.Assign, ast.AnnAssign)):
+                continue
+            value = assignment.value
+            if value is None or any(isinstance(item, ast.Call) for item in ast.walk(value)):
+                continue
+            relevant = any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))
+                           or (isinstance(item, ast.Name) and item.id in reference_aliases)
+                           for item in ast.walk(value))
+            targets = assignment.targets if isinstance(assignment, ast.Assign) else [assignment.target]
+            for target in targets:
+                if relevant and isinstance(target, ast.Name) and target.id not in reference_aliases:
+                    reference_aliases.add(target.id)
+                    changed = True
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -196,7 +214,8 @@ def _python(path, source):
         known_call = name in {"run", "Popen", "call", "check_call", "check_output", "getoutput", "getstatusoutput", "system", "exec", "indirect_subprocess"} | callable_aliases
         if not known_call:
             arguments = list(node.args) + [keyword.value for keyword in node.keywords]
-            if any(_literal_string(item) is not None and VALIDATOR in _literal_string(item)
+            if any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))
+                   or (isinstance(item, ast.Name) and item.id in reference_aliases)
                    for argument in arguments for item in ast.walk(argument)):
                 issue = f"{path}:{node.lineno}: unclassified Python reference"
                 if issue not in issues:
@@ -386,7 +405,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "cc1a2a828c365709a4c051509af61e06a68ba4d62a560085c577dfa8135628d5":
+        if hashlib.sha256(data).hexdigest() != "68ebd24f59451b63adddc88d3f5a56ce04eb16dd5e46d84aa391b83426b069c1":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):

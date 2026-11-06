@@ -883,5 +883,482 @@
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/fixtures/validator-runtime/source_guard.py",
+    "statement": "    for path in sorted(paths):",
+    "container": "inventory_sources",
+    "context_sha256": "8e97a38aac8fb6216ea6a22524e80004cc54804b89f2ba9feb2b167f52ad87a5",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/fixtures/validator-runtime/source_guard.py",
+    "statement": "        target = next((index for index, value in enumerate(values)",
+    "container": "_python",
+    "context_sha256": "ffbe9943e74766967d185d994b5a0dff84e16cb1a136f375e498e20447b13ae2",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/fixtures/validator-runtime/source_guard.py",
+    "statement": "            relevant = any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))",
+    "container": "_python",
+    "context_sha256": "ffbe9943e74766967d185d994b5a0dff84e16cb1a136f375e498e20447b13ae2",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/fixtures/validator-runtime/source_guard.py",
+    "statement": "            if any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))",
+    "container": "_python",
+    "context_sha256": "ffbe9943e74766967d185d994b5a0dff84e16cb1a136f375e498e20447b13ae2",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/fixtures/validator-runtime/source_guard.py",
+    "statement": "            if not assignment_words or any(VALIDATOR in value or \"validate-contracts.\" in value for value in assignment_words):",
+    "container": "_shell",
+    "context_sha256": "5444431831c7e24a53e04493fc7ef6deb8bd6a0ed53970b4e4e6f34e030e0f8c",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/fixtures/validator-runtime/source_guard.py",
+    "statement": "                static_reference = any(VALIDATOR in word for word in shlex.split(line, comments=True))",
+    "container": "_shell",
+    "context_sha256": "5444431831c7e24a53e04493fc7ef6deb8bd6a0ed53970b4e4e6f34e030e0f8c",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-characterization.py",
+    "statement": "            result = subprocess.run([\"bash\", str(validator), \"--usage-bounded-source-reads-only\",",
+    "container": "test_focused_exec_forwards_arguments_and_exit",
+    "context_sha256": "c6b19de69387fdf08ba62da87013b06ee2a2d370d1ca0e61ef36c0cefc32c78d",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The nested conversion supplies a path to a focused validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-characterization.py",
+    "statement": "                    result = subprocess.run([\"bash\", str(validator), flag, \"with space\", \"--example\"],",
+    "container": "test_focused_chained_and_bash_dispatch",
+    "context_sha256": "9dae15ef5b3faad1dd5f784dfb002c881d55f0c12bea4ac257e0ee93a280f330",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The nested conversion supplies a path to a focused validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-executable.py",
+    "statement": "        self.assert_rejected(\"p = 'scripts/validate-contracts.sh'\\nos.execv('/bin/bash', ['bash', p])\")",
+    "container": "test_execv_validator_path_alias_requires_review",
+    "context_sha256": "2f39a451b3072f3c22f470d81514752c15d06125aae7037568ca2dd96cf106ae",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-executable.py",
+    "statement": "        self.assert_rejected(\"p = 'scripts/validate-contracts.sh'\\ncustom_runner(p)\")",
+    "container": "test_unknown_callable_validator_path_alias_requires_review",
+    "context_sha256": "2e48e7ad4da5d07bff16f91df809739c2cbfb6416602a98b48573442e1b32f28",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-production.py",
+    "statement": "            file.write_text(source)",
+    "container": "test_exact_context_and_count_and_stale_exceptions",
+    "context_sha256": "a310a4478266443d46f1d2889b39359902da0e0476f6859c0cb771067b7956f1",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-production.py",
+    "statement": "            file.write_text(source.replace(statement, statement + '\\n' + statement))",
+    "container": "test_exact_context_and_count_and_stale_exceptions",
+    "context_sha256": "a310a4478266443d46f1d2889b39359902da0e0476f6859c0cb771067b7956f1",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-production.py",
+    "statement": "            file.write_text(source.replace('fixture()', 'different()'))",
+    "container": "test_exact_context_and_count_and_stale_exceptions",
+    "context_sha256": "a310a4478266443d46f1d2889b39359902da0e0476f6859c0cb771067b7956f1",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-production.py",
+    "statement": "                     'container': 'fixture', 'context_sha256': hashlib.sha256(source.rstrip('\\n').encode()).hexdigest(),",
+    "container": "test_exact_context_and_count_and_stale_exceptions",
+    "context_sha256": "a310a4478266443d46f1d2889b39359902da0e0476f6859c0cb771067b7956f1",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/example.sh\": source}))",
+    "container": "test_split_shell_executable_is_not_silent",
+    "context_sha256": "4bb76552be245d4046646389a1e2ac6f5171f333ca00f0326b8a3f5f49d1bb84",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/example.sh\": source}))",
+    "container": "test_validator_alias_executed_in_assignment_is_not_silent",
+    "context_sha256": "9e5253e65c3157395c99253726fef5170f093b4ce235cf00f4d0aeb64c6180f3",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/example.sh\": source}))",
+    "container": "test_split_shell_alias_is_not_silent",
+    "context_sha256": "0d9f6497b44668bea6fd313ca0e1b7bbd25958fa6233cb5b9d4a26181939ae9b",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/example.sh\": source}))",
+    "container": "test_shell_alias_split_inside_path_is_not_silent",
+    "context_sha256": "a105ec7ecd0afb85293f65c137b11dd2dc3445f9155ec9182b1d8163831156e5",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/example.py\": source}))",
+    "container": "test_python_indirect_subprocess_callable_is_not_silent",
+    "context_sha256": "3db38a0b05c0115015808961e4eb335ef7cb8a58c54daa7c5ac9ce657e6e787a",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/example.py\": source}))",
+    "container": "test_python_indirect_concatenated_path_is_not_silent",
+    "context_sha256": "43264d44eb210934fbf3dccd7e8b160eefa0a786e3eda2bad8fbf5aaa7c8c532",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/example.py\": source}))",
+    "container": "test_python_subprocess_callable_assignment_is_not_silent",
+    "context_sha256": "e1dba22ab43a12ee6939e7f948b34bd911f63bc949ff950bf9302a4ea89825ee",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/example.sh\": source}))",
+    "container": "test_shell_command_substitution_text_is_not_a_literal_argument",
+    "context_sha256": "bd5950eccdb457b98714795693c1a715e7f0faff275607be1a2f2fc1f75e5cd7",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/example.py\": source}))",
+    "container": "test_python_import_alias_is_not_silent",
+    "context_sha256": "ba2ae661fe91fc6ebeea586a11c8c8f60a4e056a9fe4f46414129e98f2b0b485",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/example.py\": source}))",
+    "container": "test_python_command_alias_is_not_silent",
+    "context_sha256": "b8da4bfccae4b8837d1f814b7f4f6baae8188f356884f27e53bb8c49dc3b4f49",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/example.sh\": source}))",
+    "container": "test_shell_c_tail_is_not_inner_validator_argument",
+    "context_sha256": "1d648ff26125175417c2cc207b178f8f1c3dfc4ac85a1bcf4fdda02c79fe8169",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/example.py\": source}))",
+    "container": "test_python_shell_c_tail_is_not_inner_validator_argument",
+    "context_sha256": "b69d220c8e8228c23abf8975288f2618b75c37529b80e5d7e465b26bdf5e9ea6",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/example.sh\": source}))",
+    "container": "test_redirect_target_is_not_a_focused_argument",
+    "context_sha256": "0a90c703bb8f08c060915b92cdf60889b767dc9109583fa10db9136b19e03776",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertEqual(guard.inspect_sources({\"tests/example.sh\": source}), [])",
+    "container": "test_only_real_arguments_authorize_focused_dispatch",
+    "context_sha256": "ce13f3f33556014509319da1dcae7cd6ac464f546a44001af743049c1d3e49ae",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({'tests/example.py': ambiguous}))",
+    "container": "test_python_keyword_args_obey_focused_dispatch",
+    "context_sha256": "91c6e8898efc8b19dfb133c68c6586ba89fa46e08a92d89170c53f80f1e89da0",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"tests/copied-warning.sh\": source}))",
+    "container": "test_warning_exception_is_not_portable_to_other_path",
+    "context_sha256": "3fcc7ba58c81a58e0d4476ebfd810ae88b36156a4462ab0f2dc4ca62a0b699d3",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "                self.assertEqual(not guard.inspect_sources({'tests/example.sh': source}), accepted)",
+    "container": "test_shell_focused_dispatch_depends_on_first_argument",
+    "context_sha256": "2e06da434e4385cd446c199d890fd78cbd3ff66361cbfa3c23e48c8dd4dfc616",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "                self.assertEqual(not guard.inspect_sources({'tests/example.py': source}), accepted)",
+    "container": "test_python_focused_dispatch_depends_on_first_argument",
+    "context_sha256": "f73bf4c1bf886eed2c1b8a3573b936bc06df917234cb859f735465d10df56aa5",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "                self.assertEqual(not guard.inspect_sources({'tests/example.py': source}), accepted)",
+    "container": "test_python_executable_override_requires_review",
+    "context_sha256": "50a11c60ce14b07813dcfb8882a644a4962adcca33e700e2b9f3f4b51b8fbc54",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "                self.assertEqual(not guard.inspect_sources({'tests/example.py': source}), accepted)",
+    "container": "test_python_shell_mode_requires_review_unless_false",
+    "context_sha256": "ba04a3c3daa0d5a4c70bb863e1cca69460a8acc371c000572d838f0c78e17d3f",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "                    self.assertEqual(not guard.inspect_sources({'tests/example.py': source}), accepted)",
+    "container": "test_python_keyword_args_obey_focused_dispatch",
+    "context_sha256": "91c6e8898efc8b19dfb133c68c6586ba89fa46e08a92d89170c53f80f1e89da0",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "                    self.assertTrue(guard.inspect_sources({'tests/example.py': source}))",
+    "container": "test_python_shell_output_helpers_require_review",
+    "context_sha256": "74b6b1f8585f1fc45ad662a36ce7efa71ecbc58637322527d122e52fc2ca32c4",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "        self.assertEqual(self.violations({\"tests/example.sh\": safe}), [])",
+    "container": "test_accepts_supported_focused_flag_on_actual_argv",
+    "context_sha256": "031c5d1dc0bc0c848a088bbb66d4374c3c0306f0a80a452d9d863dd8f585f7a4",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "        self.assertEqual(self.violations({\"tests/example.py\": focused}), [])",
+    "container": "test_inspects_multiline_python_argv_and_comments_as_data",
+    "context_sha256": "ee60ad555e843d8781cb9943e4124e04fec24992242075cc8275cfe6de78ed32",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "        self.assertTrue(self.violations({\"tests/example.py\": focused.replace(\"'--run-log-contract-only'\", \"'--invalid-only'\")}))",
+    "container": "test_inspects_multiline_python_argv_and_comments_as_data",
+    "context_sha256": "ee60ad555e843d8781cb9943e4124e04fec24992242075cc8275cfe6de78ed32",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "        self.assertEqual(self.violations({\"tests/data.py\": data}), [])",
+    "container": "test_inspects_multiline_python_argv_and_comments_as_data",
+    "context_sha256": "ee60ad555e843d8781cb9943e4124e04fec24992242075cc8275cfe6de78ed32",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "        self.assertEqual(inspect({path: source}, [exception]), [])",
+    "container": "test_stub_exception_is_exact_and_stale_entries_fail",
+    "context_sha256": "beedfe165c128518aa11a145cf85af6cce5b272d52c9094b2557f74319ce5bb7",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "        self.assertTrue(inspect({path: source}, []))",
+    "container": "test_stub_exception_is_exact_and_stale_entries_fail",
+    "context_sha256": "beedfe165c128518aa11a145cf85af6cce5b272d52c9094b2557f74319ce5bb7",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "        self.assertTrue(inspect({path: source}, [exception, exception]))",
+    "container": "test_stub_exception_is_exact_and_stale_entries_fail",
+    "context_sha256": "beedfe165c128518aa11a145cf85af6cce5b272d52c9094b2557f74319ce5bb7",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "        self.assertTrue(inspect({path: source.replace(statement, statement + \"\\n  \" + statement)}, [exception]))",
+    "container": "test_stub_exception_is_exact_and_stale_entries_fail",
+    "context_sha256": "beedfe165c128518aa11a145cf85af6cce5b272d52c9094b2557f74319ce5bb7",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "        self.assertTrue(inspect({path: source.replace(\"exit 0\", \"exit 1\")}, [exception]))",
+    "container": "test_stub_exception_is_exact_and_stale_entries_fail",
+    "context_sha256": "beedfe165c128518aa11a145cf85af6cce5b272d52c9094b2557f74319ce5bb7",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "        self.assertEqual(after.count(call), 3)",
+    "container": "test_guarded_history_is_bound_to_context_and_exact_count",
+    "context_sha256": "426f1bde7c75ca9838021f605344126ca7262a029d5925843fba689dcb52ef19",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "            after.replace(call, call + '\\n  ' + call, 1),",
+    "container": "test_guarded_history_is_bound_to_context_and_exact_count",
+    "context_sha256": "426f1bde7c75ca9838021f605344126ca7262a029d5925843fba689dcb52ef19",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "            with self.subTest(source=source):",
+    "container": "test_rejects_full_direct_copied_and_alias_calls",
+    "context_sha256": "8dd75ab75c4f8989bb5b90e1d66207e35c490611cce2d7d6c64afaf76b508594",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "                self.assertTrue(self.violations({\"tests/example.sh\": source}))",
+    "container": "test_rejects_full_direct_copied_and_alias_calls",
+    "context_sha256": "8dd75ab75c4f8989bb5b90e1d66207e35c490611cce2d7d6c64afaf76b508594",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "                     \"context_sha256\": hashlib.sha256(source.encode()).hexdigest(),",
+    "container": "test_stub_exception_is_exact_and_stale_entries_fail",
+    "context_sha256": "beedfe165c128518aa11a145cf85af6cce5b272d52c9094b2557f74319ce5bb7",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-oracle.py",
+    "statement": "            self.assertTrue(ORACLE.matches(frozen, ORACLE.inventory(candidate)))",
+    "container": "test_frozen_source_detects_actual_name_expression_and_order_changes",
+    "context_sha256": "636284a6a101e51e18c70ee0d9d4377255841454c93ebb70ed940611683a4d13",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-oracle.py",
+    "statement": "                ORACLE.inventory(candidate, include_resources=False)",
+    "container": "test_unapproved_nonstandard_check_is_rejected",
+    "context_sha256": "a9f0a3c9fc6f1433cd3aa2cf804f10e415c59cff90f2e2b3cf2388f48681b708",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-oracle.py",
+    "statement": "                    self.assertFalse(ORACLE.matches_structure(frozen, ORACLE.inventory(candidate, include_resources=False)))",
+    "container": "test_frozen_source_detects_actual_name_expression_and_order_changes",
+    "context_sha256": "636284a6a101e51e18c70ee0d9d4377255841454c93ebb70ed940611683a4d13",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
   }
 ]
