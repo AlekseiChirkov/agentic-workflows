@@ -84,9 +84,11 @@ def _shell(path, source, exceptions, used):
             )
             dynamic_executable = re.search(
                 r"(?:^|[;&|()\s])(?:bash|sh|exec)\s+(?:(?:--?[A-Za-z0-9-]+)\s+)*[\"']?\$", line)
+            dynamic_source = re.search(
+                r"(?:^\s*|[;&|()]\s*)(?:source|\.)\s+[\"']?\$", line)
             if dynamic_command:
                 issues.append(f"{path}:{number}: dynamic command requires review")
-            elif dynamic_executable:
+            elif dynamic_executable or dynamic_source:
                 issues.append(f"{path}:{number}: dynamic executable requires review")
             continue
         direct_substitution = any(
@@ -684,9 +686,7 @@ def _python(path, source):
                       any(VALIDATOR in value for value in possible_strings(item))
                       or (isinstance(item, ast.Name) and item.id in aliases | reference_aliases | partial_aliases | {"validator"})]
         if not references:
-            if name in dynamic_code and (len(commands) != 1 or _literal_string(commands[0]) is None):
-                issues.append(f"{path}:{node.lineno}: unclassified Python executable")
-            if system_call and (len(commands) != 1 or _literal_string(commands[0]) is None):
+            if name in dynamic_code or system_call:
                 issues.append(f"{path}:{node.lineno}: unclassified Python executable")
             def unknown_executable(command):
                 if not isinstance(command, (ast.List, ast.Tuple)) or not command.elts:
@@ -708,7 +708,7 @@ def _python(path, source):
                         if value.startswith('-') and value != '-' and value not in safe_options:
                             return True
                         if not value.startswith('-') or value == '-':
-                            return False
+                            return True
                 return False
             if ((subprocess_call or name in callable_aliases)
                     and len(commands) == 1 and unknown_executable(commands[0])):
@@ -920,7 +920,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "a73cc3590d7dc8959b9bfbea064676c29bf4b36fd1f27141d2299a28e946d3f4":
+        if hashlib.sha256(data).hexdigest() != "954c170775acae90f55a281e42686c401937c211ed08c841ff2d75cea3a5dfa2":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):

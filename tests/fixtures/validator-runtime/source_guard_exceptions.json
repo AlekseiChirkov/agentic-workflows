@@ -1327,7 +1327,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "        logical.append((start, pending))",
     "container": "_shell",
-    "context_sha256": "5444431831c7e24a53e04493fc7ef6deb8bd6a0ed53970b4e4e6f34e030e0f8c",
+    "context_sha256": "f977dfc49ce07ab734f3176667f2857869bd6248807ea29f72b5af7fc29fcb23",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1336,7 +1336,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "        if any(any(VALIDATOR in value for value in possible_strings(item))",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1345,7 +1345,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "        target = next((index for index, value in enumerate(values)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1354,7 +1354,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            if isinstance(target, ast.Name):",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1363,7 +1363,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            if any(",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1372,7 +1372,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            relevant = any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1381,7 +1381,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            if any(any(VALIDATOR in value for value in possible_strings(item))",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1390,7 +1390,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            if not assignment_words or any(VALIDATOR in value or \"validate-contracts.\" in value for value in assignment_words):",
     "container": "_shell",
-    "context_sha256": "5444431831c7e24a53e04493fc7ef6deb8bd6a0ed53970b4e4e6f34e030e0f8c",
+    "context_sha256": "f977dfc49ce07ab734f3176667f2857869bd6248807ea29f72b5af7fc29fcb23",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1399,7 +1399,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                static_reference = any(VALIDATOR in word for word in shlex.split(line, comments=True))",
     "container": "_shell",
-    "context_sha256": "5444431831c7e24a53e04493fc7ef6deb8bd6a0ed53970b4e4e6f34e030e0f8c",
+    "context_sha256": "f977dfc49ce07ab734f3176667f2857869bd6248807ea29f72b5af7fc29fcb23",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1408,7 +1408,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                previous = historical_strings.get(target.id, set())",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1417,7 +1417,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                if any(VALIDATOR in value for value in combined):",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1426,7 +1426,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            if not any(isinstance(item, ast.Call) for item in ast.walk(value)) and any(",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1435,7 +1435,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                for item in ast.walk(target):",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 3,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1453,7 +1453,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                if relevant and isinstance(target, ast.Name) and target.id not in aliases:",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1462,7 +1462,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                    aliases.add(target.id)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1471,7 +1471,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                if callable_value and isinstance(target, ast.Name) and target.id not in callable_aliases:",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1480,7 +1480,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                    callable_aliases.add(target.id)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1489,7 +1489,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                if executable_value and isinstance(target, ast.Name) and target.id not in os_executables:",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1498,7 +1498,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                    os_executables.add(target.id)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1507,7 +1507,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                if system_value and isinstance(target, ast.Name) and target.id not in os_systems:",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1516,7 +1516,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                    os_systems.add(target.id)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1525,7 +1525,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                if dynamic_code_value and isinstance(target, ast.Name) and target.id not in dynamic_code:",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1534,7 +1534,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                    dynamic_code.add(target.id)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1543,7 +1543,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                    partial_aliases.add(target.id)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1552,7 +1552,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                    static_strings.pop(target.id, None)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1561,7 +1561,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                    saturated.add(target.id)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1570,7 +1570,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                    reference_aliases.add(target.id)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 2,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1579,7 +1579,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                if default is not None and any(",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1588,7 +1588,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                      any(VALIDATOR in value for value in possible_strings(item))",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1597,7 +1597,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                        reference_aliases.add(target.id)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1606,7 +1606,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                if not isinstance(target, ast.Name) or target.id in saturated:",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1615,7 +1615,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                    historical_strings.setdefault(target.id, set()).add(value)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The scanner examines source strings or AST nodes without invoking the validator."
@@ -1961,7 +1961,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-status-output-relocation.py",
@@ -1998,7 +1998,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-status-output-relocation.py",
@@ -2035,7 +2035,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-status-delivery-integration.py",
@@ -2072,7 +2072,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-status-delivery-integration.py",
@@ -2109,7 +2109,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-status-delivery-integration.py",
@@ -2146,7 +2146,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-status-delivery-integration.py",
@@ -2183,7 +2183,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-status-delivery-integration.py",
@@ -2220,7 +2220,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-status-delivery-integration.py",
@@ -2257,7 +2257,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-normalize-cli.py",
@@ -2294,7 +2294,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-normalize-cli.py",
@@ -2331,7 +2331,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-normalize-cli.py",
@@ -2368,7 +2368,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-normalize-cli.py",
@@ -2405,7 +2405,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-normalize-cli.py",
@@ -2442,7 +2442,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-normalize-cli.py",
@@ -2479,7 +2479,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/model-selection.py",
@@ -2494,7 +2494,7 @@
       "scripts/model_selection.py": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece",
       "scripts/model_plan.py": "283c7d1d0a4c37fd9f1f2405eb269cfa7e5bb32b8dd898c0b49e9b16d32231ff"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/model-selection.py",
@@ -2509,7 +2509,7 @@
       "scripts/model_selection.py": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece",
       "scripts/model_plan.py": "283c7d1d0a4c37fd9f1f2405eb269cfa7e5bb32b8dd898c0b49e9b16d32231ff"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/model-selection.py",
@@ -2524,7 +2524,7 @@
       "scripts/model_selection.py": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece",
       "scripts/model_plan.py": "283c7d1d0a4c37fd9f1f2405eb269cfa7e5bb32b8dd898c0b49e9b16d32231ff"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/model-selection.py",
@@ -2539,7 +2539,7 @@
       "scripts/model_selection.py": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece",
       "scripts/model_plan.py": "283c7d1d0a4c37fd9f1f2405eb269cfa7e5bb32b8dd898c0b49e9b16d32231ff"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-analyze-cli-errors.py",
@@ -2576,7 +2576,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-analyze-cli-evidence.py",
@@ -2613,7 +2613,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-analyze-cli-evidence.py",
@@ -2650,7 +2650,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-publication-cli.py",
@@ -2687,7 +2687,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-publication-cli.py",
@@ -2724,7 +2724,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-publication-cli.py",
@@ -2761,7 +2761,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-retrospective-integration.py",
@@ -2798,7 +2798,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-guard-regressions.py",
@@ -2808,7 +2808,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed test invokes only the pinned local guard or an isolated copy of pinned test source.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-guard-regressions.py",
@@ -2818,7 +2818,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed test invokes only the pinned local guard or an isolated copy of pinned test source.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-security.py",
@@ -2828,7 +2828,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed test invokes only the pinned local guard or an isolated copy of pinned test source.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-integrated.py",
@@ -2838,7 +2838,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed test invokes only the pinned local guard or an isolated copy of pinned test source.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-warning-guard.py",
@@ -2848,7 +2848,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed test invokes only the pinned local guard or an isolated copy of pinned test source.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-oracle.py",
@@ -2858,7 +2858,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed test invokes a fixed local test module included in the pinned source inventory.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-oracle.py",
@@ -2868,7 +2868,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed test invokes a fixed local test module included in the pinned source inventory.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-oracle.py",
@@ -2878,7 +2878,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed test invokes a fixed local test module included in the pinned source inventory.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-oracle.py",
@@ -2888,7 +2888,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed test invokes a fixed local test module included in the pinned source inventory.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-oracle.py",
@@ -2898,7 +2898,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed test invokes a fixed local test module included in the pinned source inventory.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-oracle.py",
@@ -2908,7 +2908,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed test invokes a fixed local test module included in the pinned source inventory.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-oracle.py",
@@ -2918,7 +2918,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed test invokes a fixed local test module included in the pinned source inventory.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-report-consumer.py",
@@ -2955,7 +2955,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-report-consumer.py",
@@ -2992,7 +2992,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-status-cli-integration.py",
@@ -3029,7 +3029,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/model-catalog.py",
@@ -3044,7 +3044,7 @@
       "scripts/model_selection.py": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece",
       "scripts/model_plan.py": "283c7d1d0a4c37fd9f1f2405eb269cfa7e5bb32b8dd898c0b49e9b16d32231ff"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/model-plan.py",
@@ -3059,7 +3059,7 @@
       "scripts/model_selection.py": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece",
       "scripts/model_plan.py": "283c7d1d0a4c37fd9f1f2405eb269cfa7e5bb32b8dd898c0b49e9b16d32231ff"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-normalize-cli.py",
@@ -3097,7 +3097,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-producer-epochs-cli.py",
@@ -3135,7 +3135,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-producer-epochs-cli.py",
@@ -3173,7 +3173,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-publication-cli.py",
@@ -3211,7 +3211,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-publication-cli.py",
@@ -3249,7 +3249,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-publication-cli.py",
@@ -3287,7 +3287,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-publication-late-import.py",
@@ -3325,7 +3325,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-publication-late-import.py",
@@ -3363,7 +3363,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-publication-late-import.py",
@@ -3401,7 +3401,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/usage-publication-run-race.py",
@@ -3439,7 +3439,7 @@
       "scripts/usage_telemetry_sources.py": "3904b61669f252b35704ebc906b7d02816d4659c86e6358cf9f1c59cd0a257ed",
       "scripts/usage_telemetry_stream.py": "d61730a78f56b0c6416d4e670e4c91c0624c8c8661bed93123f971acd610371e"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-characterization.py",
@@ -3449,7 +3449,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "All current callers and their generated source are reviewed and bound to the complete source inventory.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-warning.py",
@@ -3459,7 +3459,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "All current callers and their generated source are reviewed and bound to the complete source inventory.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-external-source-guard.py",
@@ -3469,7 +3469,7 @@
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-external-source-guard.py",
@@ -3479,7 +3479,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-external-source-guard.py",
@@ -3489,7 +3489,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-external-source-guard.py",
@@ -3499,7 +3499,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-identity.py",
@@ -3509,7 +3509,7 @@
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-identity.py",
@@ -3519,7 +3519,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-identity.py",
@@ -3529,7 +3529,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-oracle.py",
@@ -3539,7 +3539,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-version-isolation.py",
@@ -3549,7 +3549,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8",
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333",
     "dependencies": {
       "scripts/log-step.sh": "6ffd7cfb89f263b1e85186cebb268967be05da692098c428e9a5691024118e3a"
     }
@@ -3562,7 +3562,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8",
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333",
     "dependencies": {
       "docs/MODEL-CATALOG.md": "705c920c60218461404d3b76b6ef77f04b42f72b659800dec2cba2d5ef507ad4",
       "rules/workflow-reference.md": "719ca0b88c66e82d7442c99781660c7fb5473f8f1f2d1c039ad363d23087c014",
@@ -3584,7 +3584,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8",
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333",
     "dependencies": {
       "docs/MODEL-CATALOG.md": "705c920c60218461404d3b76b6ef77f04b42f72b659800dec2cba2d5ef507ad4",
       "rules/workflow-reference.md": "719ca0b88c66e82d7442c99781660c7fb5473f8f1f2d1c039ad363d23087c014",
@@ -3606,7 +3606,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8",
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333",
     "dependencies": {
       "scripts/usage-report-publish.py": "cd60a9f31fe4f088ded7c933e47fbde521d3929d7270b079f78964f3731cdb47",
       "scripts/usage-telemetry.py": "2499a9b195bb5f898cc74ccacfcf3b2b7f664cb97ca264a0057d3b1ef0c33180",
@@ -3643,7 +3643,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8",
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333",
     "dependencies": {
       "scripts/usage-report-publish.py": "cd60a9f31fe4f088ded7c933e47fbde521d3929d7270b079f78964f3731cdb47",
       "scripts/usage-telemetry.py": "2499a9b195bb5f898cc74ccacfcf3b2b7f664cb97ca264a0057d3b1ef0c33180",
@@ -3680,7 +3680,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8",
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333",
     "dependencies": {
       "scripts/usage-report-publish.py": "cd60a9f31fe4f088ded7c933e47fbde521d3929d7270b079f78964f3731cdb47",
       "scripts/usage-telemetry.py": "2499a9b195bb5f898cc74ccacfcf3b2b7f664cb97ca264a0057d3b1ef0c33180",
@@ -3717,7 +3717,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8",
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333",
     "dependencies": {
       "scripts/usage-report-publish.py": "cd60a9f31fe4f088ded7c933e47fbde521d3929d7270b079f78964f3731cdb47",
       "scripts/usage-telemetry.py": "2499a9b195bb5f898cc74ccacfcf3b2b7f664cb97ca264a0057d3b1ef0c33180",
@@ -3754,7 +3754,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8",
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333",
     "dependencies": {
       "scripts/usage-report-publish.py": "cd60a9f31fe4f088ded7c933e47fbde521d3929d7270b079f78964f3731cdb47",
       "scripts/usage-telemetry.py": "2499a9b195bb5f898cc74ccacfcf3b2b7f664cb97ca264a0057d3b1ef0c33180",
@@ -3791,7 +3791,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8",
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333",
     "dependencies": {
       "scripts/usage-report-publish.py": "cd60a9f31fe4f088ded7c933e47fbde521d3929d7270b079f78964f3731cdb47",
       "scripts/usage-telemetry.py": "2499a9b195bb5f898cc74ccacfcf3b2b7f664cb97ca264a0057d3b1ef0c33180",
@@ -3828,7 +3828,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8",
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333",
     "dependencies": {
       "scripts/usage-report-publish.py": "cd60a9f31fe4f088ded7c933e47fbde521d3929d7270b079f78964f3731cdb47",
       "scripts/usage-telemetry.py": "2499a9b195bb5f898cc74ccacfcf3b2b7f664cb97ca264a0057d3b1ef0c33180",
@@ -3865,7 +3865,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8",
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333",
     "dependencies": {
       "scripts/usage-report-publish.py": "cd60a9f31fe4f088ded7c933e47fbde521d3929d7270b079f78964f3731cdb47",
       "scripts/usage-telemetry.py": "2499a9b195bb5f898cc74ccacfcf3b2b7f664cb97ca264a0057d3b1ef0c33180",
@@ -3902,7 +3902,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8",
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333",
     "dependencies": {
       "scripts/usage-report-publish.py": "cd60a9f31fe4f088ded7c933e47fbde521d3929d7270b079f78964f3731cdb47",
       "scripts/usage-telemetry.py": "2499a9b195bb5f898cc74ccacfcf3b2b7f664cb97ca264a0057d3b1ef0c33180",
@@ -3939,7 +3939,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8",
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333",
     "dependencies": {
       "scripts/usage-report-publish.py": "cd60a9f31fe4f088ded7c933e47fbde521d3929d7270b079f78964f3731cdb47",
       "scripts/usage-telemetry.py": "2499a9b195bb5f898cc74ccacfcf3b2b7f664cb97ca264a0057d3b1ef0c33180",
@@ -3972,11 +3972,11 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                for destination, expression in module_bindings(target, value):",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-guard-executable.py",
@@ -3986,77 +3986,77 @@
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                if isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name):",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                        callable_containers.add(target.value.id)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                        module_containers.add(target.value.id)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name):",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                if (isinstance(target, ast.Name) and isinstance(value, ast.Call)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                        callable_attributes.add(key)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                            names.add(target.id)",
     "container": "_python",
-    "context_sha256": "aced163dfa3187f6e0a5089a0c67546afa80211a7a3e00fd19f80e16d55fa202",
+    "context_sha256": "c0c22f913188e0367148021df3119177e71d76fa86c3e6e4d9ec10442962a10a",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-external-source-guard.py",
@@ -4066,7 +4066,7 @@
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-external-source-guard.py",
@@ -4076,7 +4076,7 @@
     "detail": "unclassified Python argument",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-external-source-guard.py",
@@ -4086,7 +4086,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-external-source-guard.py",
@@ -4096,7 +4096,7 @@
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-external-source-guard.py",
@@ -4106,7 +4106,7 @@
     "detail": "unclassified Python argument",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-external-source-guard.py",
@@ -4116,7 +4116,7 @@
     "detail": "unclassified Python executable",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-external-source-guard.py",
@@ -4126,7 +4126,7 @@
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/validator-runtime-external-source-guard.py",
@@ -4136,7 +4136,7 @@
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reviewed fixture uses a fixed test module or compares extracted shell with the trusted project source before execution.",
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   },
   {
     "path": "tests/model-selection.py",
@@ -4151,6 +4151,6 @@
       "scripts/model_selection.py": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece",
       "scripts/model_plan.py": "283c7d1d0a4c37fd9f1f2405eb269cfa7e5bb32b8dd898c0b49e9b16d32231ff"
     },
-    "inventory_sha256": "27b2046295daa37b08f3171e6d593daf3f1d8f7ddb4494619625984525f40bc8"
+    "inventory_sha256": "252bb8b8c1dff8697d99b4dd12c9b09a94fda9d0a551626c5c07a61536d35333"
   }
 ]
