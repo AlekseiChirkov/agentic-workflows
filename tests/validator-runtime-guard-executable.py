@@ -88,6 +88,18 @@ class UnknownExecutableForms(unittest.TestCase):
     def test_composed_direct_argument_requires_review(self):
         self.assert_rejected("a = 'scripts/validate-'\nb = 'contracts.sh'\ncustom_runner(a + b)")
 
+    def test_later_focused_flag_assignment_does_not_authorize_call(self):
+        self.assert_rejected("flag = '--wrong'\nsubprocess.run(['bash', 'scripts/validate-contracts.sh', flag])\nflag = '--hygiene-only'")
+
+    def test_other_scope_focused_flag_does_not_authorize_call(self):
+        self.assert_rejected("flag = '--wrong'\nsubprocess.run(['bash', 'scripts/validate-contracts.sh', flag])\ndef other():\n    flag = '--hygiene-only'")
+
+    def test_variable_focused_flag_requires_review(self):
+        self.assert_rejected("flag = '--hygiene-only'\nsubprocess.run(['bash', 'scripts/validate-contracts.sh', flag])")
+
+    def test_later_reassignment_does_not_hide_composed_path(self):
+        self.assert_rejected("a='validate-'\nb='contracts.sh'\ncustom_runner(a+b)\nb='other'")
+
     def test_unknown_callable_validator_reference_requires_review(self):
         self.assert_rejected("custom_runner('scripts/validate-contracts.sh')")
 
