@@ -897,7 +897,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "        target = next((index for index, value in enumerate(values)",
     "container": "_python",
-    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
+    "context_sha256": "8cfd4f3148aa2ef721040a3d9796860aac4224d58ded881918ab02158e74aabc",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data or a filesystem path, not a validator invocation."
@@ -906,7 +906,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            relevant = any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))",
     "container": "_python",
-    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
+    "context_sha256": "8cfd4f3148aa2ef721040a3d9796860aac4224d58ded881918ab02158e74aabc",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data or a filesystem path, not a validator invocation."
@@ -915,7 +915,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            if any((static_string(item) is not None and VALIDATOR in static_string(item))",
     "container": "_python",
-    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
+    "context_sha256": "8cfd4f3148aa2ef721040a3d9796860aac4224d58ded881918ab02158e74aabc",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data or a filesystem path, not a validator invocation."
@@ -1419,7 +1419,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "        if any((static_string(item) is not None and VALIDATOR in static_string(item))",
     "container": "_python",
-    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
+    "context_sha256": "8cfd4f3148aa2ef721040a3d9796860aac4224d58ded881918ab02158e74aabc",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data, not a validator invocation."
@@ -1428,7 +1428,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                if default is not None and any(",
     "container": "_python",
-    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
+    "context_sha256": "8cfd4f3148aa2ef721040a3d9796860aac4224d58ded881918ab02158e74aabc",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data, not a validator invocation."
@@ -1464,7 +1464,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            if not any(isinstance(item, ast.Call) for item in ast.walk(value)) and any(",
     "container": "_python",
-    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
+    "context_sha256": "8cfd4f3148aa2ef721040a3d9796860aac4224d58ded881918ab02158e74aabc",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "Scanner bookkeeping inspects strings and AST nodes without executing them."
@@ -1554,7 +1554,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            if any(",
     "container": "_python",
-    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
+    "context_sha256": "8cfd4f3148aa2ef721040a3d9796860aac4224d58ded881918ab02158e74aabc",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "Scanner bookkeeping inspects AST nodes without executing them."
@@ -1576,5 +1576,32 @@
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The test passes a fixture source as data without executing it."
+  },
+  {
+    "path": "tests/validator-runtime-guard-executable.py",
+    "statement": "        self.assert_rejected(\"flag = '--wrong'\\nsubprocess.run(['bash', 'scripts/validate-contracts.sh', flag])\\nflag = '--hygiene-only'\")",
+    "container": "test_later_focused_flag_assignment_does_not_authorize_call",
+    "context_sha256": "5e8c3459d8356b1d2c52e2cd23672013b96727c92b7ecb7aaf116d0c07d632ce",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The test passes fixture source as data without executing it."
+  },
+  {
+    "path": "tests/validator-runtime-guard-executable.py",
+    "statement": "        self.assert_rejected(\"flag = '--wrong'\\nsubprocess.run(['bash', 'scripts/validate-contracts.sh', flag])\\ndef other():\\n    flag = '--hygiene-only'\")",
+    "container": "test_other_scope_focused_flag_does_not_authorize_call",
+    "context_sha256": "70dfa32db599e4fb6b9aa1c6daacfcb4b5417737f608c5fc6124033d6038ab74",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The test passes fixture source as data without executing it."
+  },
+  {
+    "path": "tests/validator-runtime-guard-executable.py",
+    "statement": "        self.assert_rejected(\"flag = '--hygiene-only'\\nsubprocess.run(['bash', 'scripts/validate-contracts.sh', flag])\")",
+    "container": "test_variable_focused_flag_requires_review",
+    "context_sha256": "1d8ade4ba0d89b286b4fa95c66837bd13d1c0c37d1db6904fbd1b9b434c381da",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The test passes fixture source as data without executing it."
   }
 ]

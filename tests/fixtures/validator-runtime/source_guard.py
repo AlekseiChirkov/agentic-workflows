@@ -198,6 +198,7 @@ def _python(path, source):
         return _literal_string(node)
 
     reference_aliases = set()
+    partial_aliases = set()
     nodes = sorted(ast.walk(tree), key=lambda node: (getattr(node, "lineno", 0), getattr(node, "col_offset", 0)))
     for assignment in nodes:
         if isinstance(assignment, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
@@ -211,6 +212,9 @@ def _python(path, source):
             continue
         for target in targets:
             if isinstance(target, ast.Name):
+                literal = _literal_string(assignment.value) if assignment.value is not None else None
+                if literal and len(literal) >= 4 and literal in VALIDATOR:
+                    partial_aliases.add(target.id)
                 if value is None:
                     static_strings.pop(target.id, None)
                 else:
@@ -291,7 +295,7 @@ def _python(path, source):
         if not known_call:
             arguments = list(node.args) + [keyword.value for keyword in node.keywords]
             if any((static_string(item) is not None and VALIDATOR in static_string(item))
-                   or (isinstance(item, ast.Name) and item.id in reference_aliases)
+                   or (isinstance(item, ast.Name) and item.id in reference_aliases | partial_aliases)
                    for argument in arguments for item in ast.walk(argument)):
                 issue = f"{path}:{node.lineno}: unclassified Python reference"
                 if issue not in issues:
@@ -299,14 +303,14 @@ def _python(path, source):
             continue
         extra_arguments = list(node.args[1:]) + [keyword.value for keyword in node.keywords if keyword.arg != "args"]
         if any((static_string(item) is not None and VALIDATOR in static_string(item))
-               or (isinstance(item, ast.Name) and item.id in aliases | reference_aliases | {"validator"})
+               or (isinstance(item, ast.Name) and item.id in aliases | reference_aliases | partial_aliases | {"validator"})
                for argument in extra_arguments for item in ast.walk(argument)):
             issues.append(f"{path}:{node.lineno}: unclassified Python argument")
         keyword_args = [keyword.value for keyword in node.keywords if keyword.arg == "args"]
         commands = ([node.args[0]] if node.args else []) + keyword_args
         references = [item for command in commands for item in ast.walk(command) if
                       (static_string(item) is not None and VALIDATOR in static_string(item))
-                      or (isinstance(item, ast.Name) and item.id in aliases | reference_aliases | {"validator"})]
+                      or (isinstance(item, ast.Name) and item.id in aliases | reference_aliases | partial_aliases | {"validator"})]
         if not references:
             continue
         if len(commands) != 1:
@@ -327,7 +331,7 @@ def _python(path, source):
         if not isinstance(arg, (ast.List, ast.Tuple)):
             issues.append(f"{path}:{node.lineno}: unclassified Python invocation")
             continue
-        values = [static_string(item) for item in arg.elts]
+        values = [_literal_string(item) for item in arg.elts]
         target = next((index for index, value in enumerate(values)
                        if value is not None and VALIDATOR in value), None)
         if target is not None and "-c" in values[:target]:
@@ -486,7 +490,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "547eb8eb5cf6585c9146ec818e4f069ba2f79c9780c5e584fc083d031ac4b8ae":
+        if hashlib.sha256(data).hexdigest() != "9dc3e879c281a5ef12f60760546722eb4fff36f93cf7753b6929260280d44e92":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):
