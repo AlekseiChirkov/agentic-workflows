@@ -144,8 +144,11 @@ class BoundedSourceTests(unittest.TestCase):
             parse(b'{"a":1}\n{"b":2}\n', 1)
         with self.assertRaises(ValueError):
             parse(b'[' * 33 + b'0' + b']' * 33 + b'\n', 1)
-        with self.assertRaises(ValueError):
-            parse(b'"' + b'x' * (16 * 1024 * 1024) + b'"\n', 1)
+        self.assertEqual(sources.RECORD_LIMIT, 16 * 1024 * 1024)
+        with patch.object(sources, 'RECORD_LIMIT', 64):
+            self.assertEqual(parse(b'"' + b'x' * 62 + b'"\n', 1), ['x' * 62])
+            with self.assertRaises(ValueError):
+                parse(b'"' + b'x' * 63 + b'"\n', 1)
         with self.assertRaises(ValueError):
             parse(b'{bad json}\n', 1)
 

@@ -22,12 +22,8 @@ class LargeAuthorityTests(unittest.TestCase):
         manifest = copy.deepcopy(case.original)
         bundle_path = Path(manifest['parts'][0]['local_path'])
         bundle = json.loads(bundle_path.read_text())
-        for i in range(7000):
-            digest = format(i, '064x')
-            bundle['sources'].append({'source_id': 'sha256:' + digest, 'sha256': digest})
         contract.validate_usage_bundle(bundle)
         data = contract.canonical_bytes(bundle)
-        self.assertGreater(len(data), 1024 * 1024)
         bundle_path.write_bytes(data)
         manifest['parts'][0].update(sha256=hashlib.sha256(data).hexdigest(), size_bytes=len(data))
         receipt_path = Path(manifest['parts'][1]['local_path'])
@@ -38,6 +34,11 @@ class LargeAuthorityTests(unittest.TestCase):
         manifest['parts'][1].update(sha256=hashlib.sha256(encoded).hexdigest(), size_bytes=len(encoded))
         manifest['bounds']['max_source_bytes'] = len(data)
         manifest['bounds']['max_total_bytes'] = sum(part['size_bytes'] for part in manifest['parts'])
+        # The selected part exceeds the declared snapshot limit, while the
+        # manifest itself fits. This exercises distinct bounds without a large fixture.
+        manifest['bounds']['max_bytes'] = len(data) - 1
+        self.assertLessEqual(len(contract.canonical_bytes(manifest)), manifest['bounds']['max_bytes'])
+        self.assertGreater(len(data), manifest['bounds']['max_bytes'])
         case.save(manifest)
         authority = json.loads(case.authority.read_text())
         authority['bindings'] = [item for item in authority['bindings'] if item['kind'] != 'receipt']

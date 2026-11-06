@@ -1,6 +1,7 @@
 """Validate cached model-selection callers and executable offline guide examples."""
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -72,6 +73,8 @@ def guidance_source_fixture(directory: Path) -> Path:
 
 
 class WorkflowContractTests(unittest.TestCase):
+    _examples_cache: dict[str, dict[str, Any]] | None = None
+
     def read(self, relative: str) -> str:
         path = ROOT / relative
         self.assertTrue(path.is_file(), f"required caller documentation missing: {relative}")
@@ -93,6 +96,9 @@ class WorkflowContractTests(unittest.TestCase):
         return parent.split("### Model columns and resolution", 1)[1]
 
     def examples(self) -> dict[str, dict[str, Any]]:
+        cached = type(self)._examples_cache
+        if cached is not None:
+            return deepcopy(cached)
         text = self.read(GUIDE)
         blocks = re.findall(r"^```bash model-catalog-example\n(.*?)^```\s*$", text, re.M | re.S)
         self.assertEqual(len(blocks), 1, "provide one complete, independently runnable CLI fixture")
@@ -117,7 +123,8 @@ class WorkflowContractTests(unittest.TestCase):
         reports = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
         self.assertTrue(reports, "CLI example must emit inspectable JSON scenario reports")
         self.assertEqual(len(reports), len({report["example"] for report in reports}))
-        return {report["example"]: report for report in reports}
+        type(self)._examples_cache = {report["example"]: report for report in reports}
+        return deepcopy(type(self)._examples_cache)
 
     def guidance_preflight(self, rule: Path) -> str:
         blocks = re.findall(r"^```bash model-catalog-guidance\n(.*?)^```\s*$",

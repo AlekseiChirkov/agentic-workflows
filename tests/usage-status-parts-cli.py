@@ -4,8 +4,11 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
+import sys
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('status_cli_fixture', ROOT / 'tests/usage-status-cli-integration.py')
@@ -35,6 +38,47 @@ class SelectedPartsTests(base.StatusCommandTests):
 
     def save(self, snapshot):
         self.snapshot.write_bytes(contract.canonical_bytes(snapshot))
+
+    def test_selected_bundle_is_assembled_from_short_reads_and_digest_checked(self):
+        part = self.original['parts'][0]
+        self.assertEqual(part['kind'], 'usage_bundle')
+        path = Path(part['local_path'])
+        expected = path.read_bytes()
+        identity = (path.stat().st_dev, path.stat().st_ino)
+        reads = []
+        other_reads = []
+
+        class SelectedReadProxy:
+            def __getattr__(self, name):
+                return getattr(os, name)
+
+            def read(self, fd, size):
+                current = os.fstat(fd)
+                if (current.st_dev, current.st_ino) != identity:
+                    other_reads.append(size)
+                    return os.read(fd, size)
+                data = os.read(fd, min(size, 128))
+                reads.append(data)
+                return data
+
+        with patch.object(sys, 'path', [str(ROOT / 'scripts'), *sys.path]):
+            spec = importlib.util.spec_from_file_location('usage_cli_short_reads', ROOT / 'scripts/usage-telemetry.py')
+            cli = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(cli)
+        with patch.object(cli, 'os', SelectedReadProxy()):
+            snapshot, proposal, _ = cli._snapshot_with_parts(contract.canonical_bytes(self.original))
+            self.assertGreater(len([data for data in reads if data]), 1)
+            self.assertEqual(b''.join(reads), expected)
+            self.assertEqual(hashlib.sha256(b''.join(reads)).hexdigest(), part['sha256'])
+            self.assertIn(json.loads(expected), snapshot['bundles'])
+            self.assertTrue(other_reads)
+            self.assertIn({key: part[key] for key in ('kind', 'sha256', 'size_bytes')},
+                          proposal['part_references'])
+
+            altered = copy.deepcopy(self.original)
+            altered['parts'][0]['sha256'] = 'f' * 64
+            with self.assertRaisesRegex(ValueError, 'selected part digest mismatch'):
+                cli._snapshot_with_parts(contract.canonical_bytes(altered))
 
     def test_exact_selected_parts_are_loaded_without_touching_neighbor_or_source(self):
         neighbor = self.root / 'unselected-secret.json'
