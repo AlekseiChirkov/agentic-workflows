@@ -314,7 +314,12 @@ def _economics(eligible: dict[Identity, dict[str, Any]], baseline: Identity,
 
 
 def _context(request: dict[str, Any], today: date) -> SelectionContext:
-    request = _object(request, REQUEST_KEYS, "selection request")
+    if not isinstance(request, dict) or set(request) not in (REQUEST_KEYS, REQUEST_KEYS | {"recommendation_fallback"}):
+        raise ValueError("selection request: expected standard keys and optional recommendation_fallback")
+    if "recommendation_fallback" in request:
+        fallback = _object(request["recommendation_fallback"], {"model", "reasoning_effort"}, "recommendation_fallback")
+        _identity(fallback["model"])
+        _text(fallback["reasoning_effort"], "recommendation_fallback.reasoning_effort")
     floor = quality_floor(request["scores"], request["hard_constraints"])
     traits = normalize_traits(request["traits"])
     _text(request["task_class"], "task_class")
@@ -364,6 +369,46 @@ def _report(context: SelectionContext, eligible: dict[Identity, dict[str, Any]],
             "reasons": [], "evidence": [], "uncertainty": []}
 
 
+def _provisional_fallback(catalog: dict[str, Any], context: SelectionContext) -> tuple[list[str], list[str]]:
+    """Separate unknown evidence from observed contradictions for a configured fallback."""
+    fallback = context.request["recommendation_fallback"]
+    key = _identity(fallback["model"])
+    blocked: list[str] = []
+    unknown: list[str] = []
+    if key in context.owner["excluded_models"] or (context.owner["allowed_models"] is not None
+                                                    and key not in context.owner["allowed_models"]):
+        blocked.append("owner-excluded")
+    model = next((item for item in catalog["models"] if (item["provider"], item["id"]) == key), None)
+    actual = context.snapshot.get(key)
+    for item, missing in ((model, "catalog-unlisted"), (actual, "harness-unavailable")):
+        if item is None:
+            unknown.append(missing)
+            continue
+        if item["availability"] == "unavailable":
+            blocked.append(missing)
+        elif item["availability"] == "unknown":
+            unknown.append(missing)
+        if item["context_window"] is None:
+            unknown.append("context-unknown")
+        elif item["context_window"] < context.requirements["context_tokens"]:
+            blocked.append("context-insufficient")
+        if item["tools"] is None:
+            unknown.append("tools-unknown")
+        elif not set(context.requirements["tools"]) <= set(item["tools"]):
+            blocked.append("tools-unsupported")
+    if model is not None:
+        quality = _quality(model, context.today)
+        if quality is None:
+            unknown.append("quality-unknown")
+        elif quality < context.floor:
+            blocked.append("quality-below-floor")
+        if not set(context.traits) <= set(model["traits"]):
+            blocked.append("traits-unsupported")
+    else:
+        unknown.extend(("quality-unknown", "traits-unknown"))
+    return list(dict.fromkeys(blocked)), list(dict.fromkeys(unknown))
+
+
 def select_model(catalog: dict[str, Any], request: dict[str, Any], today: date) -> dict[str, Any]:
     """Recommend after all eligibility checks; malformed inputs raise ValueError.
 
@@ -378,13 +423,24 @@ def select_model(catalog: dict[str, Any], request: dict[str, Any], today: date) 
     eligible, excluded = _eligible_models(catalog, context)
     report = _report(context, eligible, excluded)
     if not eligible:
+        if "recommendation_fallback" in request:
+            blocked, unknown = _provisional_fallback(catalog, context)
+            if not blocked:
+                fallback = request["recommendation_fallback"]
+                report.update(status="selected", selected=dict(fallback["model"]),
+                              confidence="preliminary", reasoning_effort=fallback["reasoning_effort"],
+                              reasons=["Configured fallback; execution requires independent eligibility verification."],
+                              uncertainty=unknown + ["reasoning-effort-support-unverified", "cost-quality-optimality-unverified"])
+                return report
+            report["reasons"] = ["Configured fallback has known incompatibilities: " + ", ".join(blocked)]
+            return report
         report["reasons"] = ["No model satisfies availability, context, tools, owner, quality and trait constraints."]
         return report
     baseline = context.default if context.default in eligible else min(
         eligible, key=lambda key: (-eligible[key]["capability_evidence"]["quality"], key))
     selected, references, uncertainty = _economics(eligible, baseline, context)
     retained = "Retained suitable session default" if context.default == baseline else "Used strongest eligible baseline"
-    report.update(status="selected", selected=_display(selected), uncertainty=uncertainty,
+    report.update(status="selected", selected=_display(selected), confidence="verified", uncertainty=uncertainty,
                   reasons=[f"{retained}; all eligibility constraints were checked before economics."
                            if selected == baseline else "Qualified comparable total-cost intervals justify this recommendation."],
                   evidence=[request["harness"]["reference"], eligible[selected]["capability_evidence"]["reference"], *references])

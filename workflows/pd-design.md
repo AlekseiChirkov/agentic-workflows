@@ -70,7 +70,7 @@ use applies the `phase-discovery` bootstrap.
    `workflow-reference → ### Model columns and resolution`. A scope change in a
    subtask with any populated provider model cell/column or legacy `Model` cell
    makes its recommendation stale and needs a fresh bulk `/pd-select-model`
-   before model-specific execution; report the stale recommendation without
+   before discovery finalization; mark the selection checkpoint incomplete and report the stale recommendation without
    assigning or silently changing models here. Started
    work that conflicts with the decision is a reconciliation blocker, not permission
    to rewrite progress.

@@ -131,7 +131,7 @@ has loaded context. Their Guards detect completed work before overwrite.
 | Group | Commands in execution order |
 |---|---|
 | Discovery | `/pd-analyze`, `/pd-decompose`, `/pd-design`, `/pd-finalize`, `/pd-archive` |
-| Optional model choice | `/pd-select-model <description-or-task> [--refresh]` (cached selection; bulk writes optional provider columns; called by `/spec-run`) |
+| Full-flow model choice | `/pd-select-model <description-or-task> [--refresh]` (cached selection; bulk writes optional provider columns; called by `/phase-discovery`) |
 | Execution | `/pe-execute`, `/pe-finalize` |
 | Atomic execution | `/pae-tests`, `/pae-implement`, `/pae-finalize` |
 | Atomic validation | `/pav-check`, `/pav-propose`, `/pav-close` |

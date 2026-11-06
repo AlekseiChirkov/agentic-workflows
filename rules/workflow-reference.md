@@ -141,6 +141,18 @@ added provider on every populated legacy row. Never infer that one legacy ID wor
 both providers or silently clear an existing request. A changed scope makes any populated
 model cell stale; rerun bulk selection before requesting a model for that scope.
 
+For each leaf, read its reasoning effort recommendation and support evidence from
+`## Model Selection`. Before dispatch, observe the current tool's supported effort levels
+for the resolved model again; request the recommended level only if currently supported
+and configurable. If the model changes, reassess effort for that model. If support is
+unknown or the recommended level is unavailable, report the mismatch and stop that
+explicit effort request; never silently substitute a level. If effort is explicitly not
+configurable, use the tool's default and report it as unknown. Legacy tasks without a
+recommendation retain their existing execution behavior without claiming a level was
+selected. Inline execution cannot switch its own reasoning setting. Report recommended,
+requested and actual reasoning separately; actual remains unknown unless separately
+observed for this execution. Model identity receipts alone do not establish reasoning.
+
 Before any model-specific request, resolve the leaf through this contract:
 
 1. Observe fresh support for this invocation from the actual exposed model-selection
@@ -275,6 +287,7 @@ The following sections are contracts read by orchestrators and must never be rem
 - `## Task Analysis → ### Assumptions` (decisions taken autonomously — never removed, never archived by `/pd-archive`)
 - `## Decomposition` (including `decomposition: complete` marker)
 - `## Solution Design` (Invariants, Off-limits, Acceptance Criteria, Decision, Scope)
+- `## Model Selection` — preserve the complete checkpoint, evidence and digests until explicitly invalidated or replaced by bulk selection.
 - `## Subtask Progress`
 - `## Execution Report`
 - `## Contract Check` (including `### Critical Failures Decision`)

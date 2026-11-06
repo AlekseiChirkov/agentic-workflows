@@ -117,7 +117,7 @@ leaf, silently promote the tier or implement code in the Orchestrator.
 
 ## Step 2 — Model selection
 
-Run `/pd-select-model <task-directory>` in bulk mode. It writes the optional
+Verify the discovery `## Model Selection` checkpoint and current leaf digests. For older completed discovery without a valid checkpoint, run `/pd-select-model <task-directory>` in bulk mode; unavailable or incomplete selection stops before execution. Selection writes the optional
 `Model (Claude)` / `Model (Codex)` columns in `plan.md → ## Subtasks`, preserving
 legacy `Model` values through explicit migration. Read the active provider column,
 legacy fallback and session default under
@@ -134,7 +134,7 @@ source root `SOURCE_ROOT`, the same source root as the helper. Read
 `$SOURCE_ROOT/docs/MODEL-CATALOG.md`; never infer a source root from CWD or an installed
 skill's location. Missing guide, schema or rubric means selection unavailable: preserve
 the session configuration and existing plan/catalog, never infer scores or candidates,
-and use only the conservative default-worker or explicit-eligibility stop paths below.
+and stop this setup until selection can be completed.
 
 Before each leaf Implementer model request or spawn, including recreation, run
 `model-catalog.py --resolve-plan <plan> --provider <provider> --row <row-id> --resolution <resolution.json>`

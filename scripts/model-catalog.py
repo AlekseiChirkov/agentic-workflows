@@ -269,14 +269,19 @@ def select_catalog(path: Path, request_path: Path, today: date) -> dict[str, Any
     inspected = inspect_catalog(path, today)
     unavailable = {"status": "unavailable", "selected": None, "session_action": "preserve",
                    "errors": inspected["errors"], "notice": inspected["notice"]}
-    if not inspected["selection_available"]:
-        return unavailable
     try:
         request = json.loads(Path(request_path).read_text(encoding="utf-8"),
                              object_pairs_hook=_unique_object, parse_constant=_reject_constant)
         selector = runpy.run_path(str(Path(__file__).with_name("model_selection.py")),
                                   run_name="local_model_selection")
-        report = selector["select_model"](inspected["catalog"], request, today)
+        if not inspected["selection_available"] and (not isinstance(request, dict)
+                                                     or "recommendation_fallback" not in request):
+            return unavailable
+        catalog = inspected["catalog"] if inspected["selection_available"] else {"schema_version": 1, "models": []}
+        report = selector["select_model"](catalog, request, today)
+        if not inspected["selection_available"]:
+            report["uncertainty"].extend(inspected["errors"])
+
     except (OSError, UnicodeError, ValueError, RecursionError) as error:
         unavailable["errors"] = [str(error)]
         return unavailable

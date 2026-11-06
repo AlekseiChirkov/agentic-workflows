@@ -1,9 +1,12 @@
 {
   "paths": [
+    "scripts/model-catalog.py",
+    "scripts/model_selection.py",
     "tests/git-rails.sh",
     "tests/hook-install.sh",
     "tests/hook-shell-quality.sh",
     "tests/log-step-hook.sh",
+    "tests/model-plan.py",
     "tests/model-selection.py",
     "tests/model-workflow.py",
     "tests/usage-analysis-corpus-schema.py",
@@ -2291,7 +2294,7 @@
             {
               "path": "tests/model-selection.py",
               "provenance": "direct lexical reference",
-              "sha256": "73d850f936422f4d873a0bda6539bb1666aec55788b4b894c261a602dc1cf0d5"
+              "sha256": "a27605fd0225104f626ea601beded83d8de7bf08f4d9e0007aeba5d5ed0ef802"
             }
           ],
           "before": [
@@ -2331,22 +2334,27 @@
         {
           "after": [
             {
-              "line": 381,
-              "line_sha256": "b80a492f95e172d1495c0d05a4aba6b36f7fbb459f12a23e0a3dddd29376d6e4",
-              "path": "tests/model-selection.py"
-            },
-            {
-              "line": 382,
-              "line_sha256": "fbcca565938d6c7f20f85097fefd6a490af0f7120a4f2936e2df2c2bdffede38",
-              "path": "tests/model-selection.py"
-            },
-            {
-              "line": 401,
+              "line": 156,
               "line_sha256": "caa34f12a550e22aee9a779c2881ad7836a6e3f055e0b8031ea8cfc18f293831",
               "path": "tests/model-selection.py"
             },
             {
-              "line": 406,
+              "line": 442,
+              "line_sha256": "b80a492f95e172d1495c0d05a4aba6b36f7fbb459f12a23e0a3dddd29376d6e4",
+              "path": "tests/model-selection.py"
+            },
+            {
+              "line": 443,
+              "line_sha256": "fbcca565938d6c7f20f85097fefd6a490af0f7120a4f2936e2df2c2bdffede38",
+              "path": "tests/model-selection.py"
+            },
+            {
+              "line": 462,
+              "line_sha256": "caa34f12a550e22aee9a779c2881ad7836a6e3f055e0b8031ea8cfc18f293831",
+              "path": "tests/model-selection.py"
+            },
+            {
+              "line": 467,
               "line_sha256": "c5babe9a02a2d63d59a37407a4d837f04335d5bd3950b384a794a3c9916604e1",
               "path": "tests/model-selection.py"
             }
@@ -2380,7 +2388,7 @@
         {
           "after": [
             {
-              "line": 384,
+              "line": 445,
               "line_sha256": "efd650b81b940f81e31b5f91e6b1d473e4db0a6d593226c3fc1e249b66d3332d",
               "path": "tests/model-selection.py"
             }
@@ -2404,7 +2412,7 @@
               "path": "tests/model-selection.py"
             },
             {
-              "line": 368,
+              "line": 429,
               "line_sha256": "fe348900bec2d262828c54ea79014a8ecb6b9ada79c1b37e187b1ffc18f91b49",
               "path": "tests/model-selection.py"
             }
@@ -2428,7 +2436,7 @@
         {
           "after": [
             {
-              "line": 383,
+              "line": 444,
               "line_sha256": "33661afb2cc677a5a26775d5d1d85f7b24e13a647d7399dc6af4a65ebbd2a12c",
               "path": "tests/model-selection.py"
             }
@@ -2452,22 +2460,22 @@
               "path": "tests/model-selection.py"
             },
             {
-              "line": 388,
+              "line": 449,
               "line_sha256": "ad5bf100969cc3e6f87d7e81abce3b59c95d9fa2d462def1fc6342f01b6b52f6",
               "path": "tests/model-selection.py"
             },
             {
-              "line": 395,
+              "line": 456,
               "line_sha256": "e3fb13a9825688f131b093d1a990c32fde925352b088c4e7fd48406ddf879ac9",
               "path": "tests/model-selection.py"
             },
             {
-              "line": 402,
+              "line": 463,
               "line_sha256": "a158bb0578e0658a1828331e8de05f490b6599391ff82b653836c47693590a7f",
               "path": "tests/model-selection.py"
             },
             {
-              "line": 407,
+              "line": 468,
               "line_sha256": "0858a70a6a75ba6fdd4417947b19964460b6efd9030041d7e8d822e628fb9440",
               "path": "tests/model-selection.py"
             }
@@ -2502,6 +2510,48 @@
           "field": "observations",
           "kind": "runtime_bounds",
           "path": "tests/model-selection.py"
+        },
+        {
+          "after": [
+            {
+              "path": "scripts/model_selection.py",
+              "provenance": "static import or dynamic target candidate",
+              "sha256": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece"
+            }
+          ],
+          "before": [
+            {
+              "path": "scripts/model_selection.py",
+              "provenance": "static import or dynamic target candidate",
+              "sha256": "08fcde7c203966b833304b0fe9dc83cb233ddf16ec9c909d47dbb07525bbbac4"
+            }
+          ],
+          "field": "source_references",
+          "path": "scripts/model_selection.py"
+        },
+        {
+          "after": [
+            {
+              "line": 56,
+              "line_sha256": "111bc5e250c539a815e97155b652398233ecaf5be24f5698078a32517c075198",
+              "path": "scripts/model_selection.py"
+            },
+            {
+              "line": 435,
+              "line_sha256": "28945cc1491d2ada056f5249f3bfb819fc757f524bef0532d1dd01325daf8f1f",
+              "path": "scripts/model_selection.py"
+            }
+          ],
+          "before": [
+            {
+              "line": 56,
+              "line_sha256": "111bc5e250c539a815e97155b652398233ecaf5be24f5698078a32517c075198",
+              "path": "scripts/model_selection.py"
+            }
+          ],
+          "field": "observations",
+          "kind": "runtime_bounds",
+          "path": "scripts/model_selection.py"
         }
       ],
       "name": "test_model_selection_acceptance"
@@ -2513,7 +2563,7 @@
             {
               "path": "tests/model-workflow.py",
               "provenance": "direct lexical reference",
-              "sha256": "92b148afb3076380f4671d12d8a2c9ddc1ab98dc32fdc9f84af4f3d6fa014cfe"
+              "sha256": "d513c0a02c3de22fd87983402865ef7210c8083b6289f272d25a1826585b2b2a"
             }
           ],
           "before": [
@@ -2564,47 +2614,47 @@
               "path": "tests/model-workflow.py"
             },
             {
-              "line": 256,
+              "line": 322,
               "line_sha256": "8c4f073bbe9967332dca3b9376b7b163af6e9a202495ec2f2d7c435b6475a01e",
               "path": "tests/model-workflow.py"
             },
             {
-              "line": 276,
+              "line": 342,
               "line_sha256": "8c4f073bbe9967332dca3b9376b7b163af6e9a202495ec2f2d7c435b6475a01e",
               "path": "tests/model-workflow.py"
             },
             {
-              "line": 284,
+              "line": 350,
               "line_sha256": "2043ed013580fc08c1161c3db7b5698e511db897fdae67963376c7d701826899",
               "path": "tests/model-workflow.py"
             },
             {
-              "line": 290,
+              "line": 356,
               "line_sha256": "7ea5c103c9b692d6b0d769e3c6ad42aa12eeee698640087e6b7996c871c08856",
               "path": "tests/model-workflow.py"
             },
             {
-              "line": 437,
+              "line": 503,
               "line_sha256": "f17ad8a09d574b09a4ff4cec4700b260bca25ea6bcd297c76709b34b109f3432",
               "path": "tests/model-workflow.py"
             },
             {
-              "line": 438,
+              "line": 504,
               "line_sha256": "41dcfac40656fea2507b5d163149da215930237b650f9e237a97c070e829035a",
               "path": "tests/model-workflow.py"
             },
             {
-              "line": 442,
+              "line": 508,
               "line_sha256": "415f2a3c64c138ef509d87a71081ae8a0da6a4cc1b8349a4b62a7e558aeed2ff",
               "path": "tests/model-workflow.py"
             },
             {
-              "line": 444,
+              "line": 510,
               "line_sha256": "eae9e44d152d75e4fecb5659aa1aa634fd8160cff1a7bd123b376677f45ded14",
               "path": "tests/model-workflow.py"
             },
             {
-              "line": 446,
+              "line": 512,
               "line_sha256": "3352e1f852acf3bed98e05fb8a47bb24070db4df657124d651a5a45e9b373739",
               "path": "tests/model-workflow.py"
             }
@@ -2772,22 +2822,37 @@
               "path": "tests/model-workflow.py"
             },
             {
-              "line": 237,
+              "line": 159,
+              "line_sha256": "76724438e026a29cb126d5e9b21181bd3f43a6cf03dd1ddb29270e0e8672c3c1",
+              "path": "tests/model-workflow.py"
+            },
+            {
+              "line": 199,
+              "line_sha256": "5ecac748b9017bed4fb74d41590f81bc6f7e3bfdb2babce5aa7dbb5e86d04e38",
+              "path": "tests/model-workflow.py"
+            },
+            {
+              "line": 202,
+              "line_sha256": "5ecac748b9017bed4fb74d41590f81bc6f7e3bfdb2babce5aa7dbb5e86d04e38",
+              "path": "tests/model-workflow.py"
+            },
+            {
+              "line": 303,
               "line_sha256": "6383fe2437293f6389c5a1f84634d3a18177201157bc13e3ea4edc5fc207976d",
               "path": "tests/model-workflow.py"
             },
             {
-              "line": 257,
+              "line": 323,
               "line_sha256": "6383fe2437293f6389c5a1f84634d3a18177201157bc13e3ea4edc5fc207976d",
               "path": "tests/model-workflow.py"
             },
             {
-              "line": 261,
+              "line": 327,
               "line_sha256": "e2e3eb660d3c3ece4a2f2d2279ed8b4b8a3dc5b4d0b434d4f69a37fee7401596",
               "path": "tests/model-workflow.py"
             },
             {
-              "line": 277,
+              "line": 343,
               "line_sha256": "6383fe2437293f6389c5a1f84634d3a18177201157bc13e3ea4edc5fc207976d",
               "path": "tests/model-workflow.py"
             }
@@ -7934,6 +7999,384 @@
         }
       ],
       "name": "test_user_hook_installation_acceptance"
+    },
+    {
+      "changes": [
+        {
+          "after": [
+            {
+              "path": "scripts/model-catalog.py",
+              "provenance": "static import or dynamic target candidate",
+              "sha256": "dfe20c5cac2eefa8f03b4dbc90dbc107abd3635104102ec0e24e7ad5109d6bd4"
+            }
+          ],
+          "before": [
+            {
+              "path": "scripts/model-catalog.py",
+              "provenance": "static import or dynamic target candidate",
+              "sha256": "c951e3bbd0ed6a1b3076469bc39db95db006db51d02a4ad63d8b483451c0ff85"
+            }
+          ],
+          "field": "source_references",
+          "path": "scripts/model-catalog.py"
+        },
+        {
+          "after": [
+            {
+              "path": "scripts/model_selection.py",
+              "provenance": "static import or dynamic target candidate",
+              "sha256": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece"
+            }
+          ],
+          "before": [
+            {
+              "path": "scripts/model_selection.py",
+              "provenance": "static import or dynamic target candidate",
+              "sha256": "08fcde7c203966b833304b0fe9dc83cb233ddf16ec9c909d47dbb07525bbbac4"
+            }
+          ],
+          "field": "source_references",
+          "path": "scripts/model_selection.py"
+        },
+        {
+          "after": [
+            {
+              "line": 275,
+              "path": "scripts/model-catalog.py",
+              "reason": "literal dynamic target candidate",
+              "target_candidates": [
+                "scripts/model_selection.py"
+              ]
+            },
+            {
+              "line": 356,
+              "path": "scripts/model-catalog.py",
+              "reason": "literal dynamic target candidate",
+              "target_candidates": [
+                "scripts/model_plan.py"
+              ]
+            }
+          ],
+          "before": [
+            {
+              "line": 277,
+              "path": "scripts/model-catalog.py",
+              "reason": "literal dynamic target candidate",
+              "target_candidates": [
+                "scripts/model_selection.py"
+              ]
+            },
+            {
+              "line": 351,
+              "path": "scripts/model-catalog.py",
+              "reason": "literal dynamic target candidate",
+              "target_candidates": [
+                "scripts/model_plan.py"
+              ]
+            }
+          ],
+          "field": "dynamic_dependencies",
+          "path": "scripts/model-catalog.py"
+        },
+        {
+          "after": [
+            {
+              "line": 56,
+              "line_sha256": "111bc5e250c539a815e97155b652398233ecaf5be24f5698078a32517c075198",
+              "path": "scripts/model_selection.py"
+            },
+            {
+              "line": 435,
+              "line_sha256": "28945cc1491d2ada056f5249f3bfb819fc757f524bef0532d1dd01325daf8f1f",
+              "path": "scripts/model_selection.py"
+            }
+          ],
+          "before": [
+            {
+              "line": 56,
+              "line_sha256": "111bc5e250c539a815e97155b652398233ecaf5be24f5698078a32517c075198",
+              "path": "scripts/model_selection.py"
+            }
+          ],
+          "field": "observations",
+          "kind": "runtime_bounds",
+          "path": "scripts/model_selection.py"
+        }
+      ],
+      "name": "test_model_catalog_acceptance"
+    },
+    {
+      "changes": [
+        {
+          "after": [
+            {
+              "path": "scripts/model_selection.py",
+              "provenance": "static import or dynamic target candidate",
+              "sha256": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece"
+            }
+          ],
+          "before": [
+            {
+              "path": "scripts/model_selection.py",
+              "provenance": "static import or dynamic target candidate",
+              "sha256": "08fcde7c203966b833304b0fe9dc83cb233ddf16ec9c909d47dbb07525bbbac4"
+            }
+          ],
+          "field": "source_references",
+          "path": "scripts/model_selection.py"
+        },
+        {
+          "after": [
+            {
+              "path": "tests/model-plan.py",
+              "provenance": "direct lexical reference",
+              "sha256": "76fadb71ae00bb738edb2f7f40c91e316ae64504dff89939430b440810ce8dc6"
+            }
+          ],
+          "before": [
+            {
+              "path": "tests/model-plan.py",
+              "provenance": "direct lexical reference",
+              "sha256": "eb48b52750f1be30f3720caa07aba5f4a28ef391a076397a3699bc8ccbfb0dc7"
+            }
+          ],
+          "field": "source_references",
+          "path": "tests/model-plan.py"
+        },
+        {
+          "after": [
+            {
+              "line": 183,
+              "line_sha256": "d6864f3a3c15742c44747eedc6252fc06da9e158d85949a5f38326ccdbe71a00",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 188,
+              "line_sha256": "4a87d6ebd91c961f8b7c55e1c92f940e2cc4b9f27d35bc5686b0da40556209ff",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 198,
+              "line_sha256": "8c7764c855d9d554039a6f448958651a4e195cb2161f5e589c1bbff2d1f35b8c",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 355,
+              "line_sha256": "f90c521e83e90162860ddadef5290194c2ad3b320887ee4ed02422145e3ce63f",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 356,
+              "line_sha256": "d297c718b7235ac8cd4ebb3b9f0e7fa907cd53b9be2483c82ce36b11aa78f0e3",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 358,
+              "line_sha256": "c0a94ec71a0b48d0c91af80c201dd9a2078412b6fe90c3924bdd9d93ff0495b2",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 359,
+              "line_sha256": "470dcf21cb27967e43d897766563fdb1ae9a97751e6da9dfea427a5521461244",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 380,
+              "line_sha256": "75ed208608bd76a3aa0dbf5b4aae501eb062dc64be8e97cc788965490aab0190",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 381,
+              "line_sha256": "2b3f682f92accf26f93c9aab6fbffcb054e3c3d39c38a8b192b6ed213dd5fcde",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 389,
+              "line_sha256": "7d98f79cfd5a2c442c7eeb8f5a983e56d77e86ecd71fd3b0d0e15bdfd1c86f7c",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 390,
+              "line_sha256": "5fe5f10b8bb0c7539d644949d7aba62089ca65b3036858b6466a4508382f21b6",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 405,
+              "line_sha256": "8c7764c855d9d554039a6f448958651a4e195cb2161f5e589c1bbff2d1f35b8c",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 406,
+              "line_sha256": "c1c11bc7bfd8da76556d6dac3f04fa8050d2be9e45f59db0c65c00d84fbe0aa8",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 423,
+              "line_sha256": "f8ee540e9e031aa3bb4b9f19a56ad50bcff50573cdff1e94c449e87ed0a94cd5",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 426,
+              "line_sha256": "c0a94ec71a0b48d0c91af80c201dd9a2078412b6fe90c3924bdd9d93ff0495b2",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 427,
+              "line_sha256": "470dcf21cb27967e43d897766563fdb1ae9a97751e6da9dfea427a5521461244",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 447,
+              "line_sha256": "65e1c13adb786fb4412b9fb1294d8a74ded2a5130429319222b8d68935042e83",
+              "path": "tests/model-plan.py"
+            }
+          ],
+          "before": [
+            {
+              "line": 183,
+              "line_sha256": "d6864f3a3c15742c44747eedc6252fc06da9e158d85949a5f38326ccdbe71a00",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 188,
+              "line_sha256": "4a87d6ebd91c961f8b7c55e1c92f940e2cc4b9f27d35bc5686b0da40556209ff",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 198,
+              "line_sha256": "8c7764c855d9d554039a6f448958651a4e195cb2161f5e589c1bbff2d1f35b8c",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 342,
+              "line_sha256": "f90c521e83e90162860ddadef5290194c2ad3b320887ee4ed02422145e3ce63f",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 343,
+              "line_sha256": "d297c718b7235ac8cd4ebb3b9f0e7fa907cd53b9be2483c82ce36b11aa78f0e3",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 345,
+              "line_sha256": "c0a94ec71a0b48d0c91af80c201dd9a2078412b6fe90c3924bdd9d93ff0495b2",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 346,
+              "line_sha256": "470dcf21cb27967e43d897766563fdb1ae9a97751e6da9dfea427a5521461244",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 367,
+              "line_sha256": "75ed208608bd76a3aa0dbf5b4aae501eb062dc64be8e97cc788965490aab0190",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 368,
+              "line_sha256": "2b3f682f92accf26f93c9aab6fbffcb054e3c3d39c38a8b192b6ed213dd5fcde",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 376,
+              "line_sha256": "7d98f79cfd5a2c442c7eeb8f5a983e56d77e86ecd71fd3b0d0e15bdfd1c86f7c",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 377,
+              "line_sha256": "5fe5f10b8bb0c7539d644949d7aba62089ca65b3036858b6466a4508382f21b6",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 392,
+              "line_sha256": "8c7764c855d9d554039a6f448958651a4e195cb2161f5e589c1bbff2d1f35b8c",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 393,
+              "line_sha256": "c1c11bc7bfd8da76556d6dac3f04fa8050d2be9e45f59db0c65c00d84fbe0aa8",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 410,
+              "line_sha256": "f8ee540e9e031aa3bb4b9f19a56ad50bcff50573cdff1e94c449e87ed0a94cd5",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 413,
+              "line_sha256": "c0a94ec71a0b48d0c91af80c201dd9a2078412b6fe90c3924bdd9d93ff0495b2",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 414,
+              "line_sha256": "470dcf21cb27967e43d897766563fdb1ae9a97751e6da9dfea427a5521461244",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 434,
+              "line_sha256": "65e1c13adb786fb4412b9fb1294d8a74ded2a5130429319222b8d68935042e83",
+              "path": "tests/model-plan.py"
+            }
+          ],
+          "field": "observations",
+          "kind": "source_writes",
+          "path": "tests/model-plan.py"
+        },
+        {
+          "after": [
+            {
+              "line": 10,
+              "line_sha256": "7773c884b8cd524d37b6b377f43cb5f05899db17d58442afb8508841ccc88991",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 344,
+              "line_sha256": "62ac861ce94e276f4c06104af489635d2e44c2f80e4a33f0324fba5692ba5b7e",
+              "path": "tests/model-plan.py"
+            }
+          ],
+          "before": [
+            {
+              "line": 10,
+              "line_sha256": "7773c884b8cd524d37b6b377f43cb5f05899db17d58442afb8508841ccc88991",
+              "path": "tests/model-plan.py"
+            },
+            {
+              "line": 331,
+              "line_sha256": "62ac861ce94e276f4c06104af489635d2e44c2f80e4a33f0324fba5692ba5b7e",
+              "path": "tests/model-plan.py"
+            }
+          ],
+          "field": "observations",
+          "kind": "ports",
+          "path": "tests/model-plan.py"
+        },
+        {
+          "after": [
+            {
+              "line": 56,
+              "line_sha256": "111bc5e250c539a815e97155b652398233ecaf5be24f5698078a32517c075198",
+              "path": "scripts/model_selection.py"
+            },
+            {
+              "line": 435,
+              "line_sha256": "28945cc1491d2ada056f5249f3bfb819fc757f524bef0532d1dd01325daf8f1f",
+              "path": "scripts/model_selection.py"
+            }
+          ],
+          "before": [
+            {
+              "line": 56,
+              "line_sha256": "111bc5e250c539a815e97155b652398233ecaf5be24f5698078a32517c075198",
+              "path": "scripts/model_selection.py"
+            }
+          ],
+          "field": "observations",
+          "kind": "runtime_bounds",
+          "path": "scripts/model_selection.py"
+        }
+      ],
+      "name": "test_model_plan_acceptance"
     }
   ],
   "schema": 1

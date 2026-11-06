@@ -145,9 +145,75 @@ class WorkflowContractTests(unittest.TestCase):
         return subprocess.run(["bash", "-eu", "-c", script], cwd=directory, env=environment,
                               capture_output=True, text=True, check=False, timeout=10)
 
+    def test_discovery_requires_verified_model_selection_and_recovery(self) -> None:
+        discovery = self.read("workflows/phase-discovery.md")
+        selector = self.read("workflows/pd-select-model.md")
+        finalizer = self.read("workflows/pd-finalize.md")
+        guide = self.read("docs/MODEL-CATALOG.md")
+        self.patterns(discovery, (r"pd-decompose.*pd-select-model.*pd-design",
+                                  r"selection.*incomplete.*stop", r"resume.*selection"))
+        self.patterns(selector, (r"selection: complete", r"selection: incomplete",
+                                 r"empty.*not.*(?:evidence|recommendation)",
+                                 r"actual.*unknown"))
+        self.patterns(finalizer, (r"selection: complete", r"scope.*(?:changed|stale)"))
+        self.patterns(guide, (r"export ORCHESTRAIL_HOME", r"--refresh", r"independent.*evidence"))
+
+    def test_selection_recommends_supported_reasoning_for_each_leaf(self) -> None:
+        selector = self.read("workflows/pd-select-model.md")
+        finalizer = self.read("workflows/pd-finalize.md")
+        reference = self.canonical()
+        self.patterns(selector, (r"reasoning.*(?:effort|level)", r"(?:current|actual).*supported.*(?:level|effort)",
+                                 r"each leaf.*reasoning", r"reasoning.*(?:unavailable|unknown)",
+                                 r"reasoning.*(?:actual|observed)"))
+        self.patterns(finalizer, (r"reasoning.*(?:recommendation|level)",))
+        self.patterns(reference, (r"reasoning.*(?:recommendation|level)", r"reasoning.*(?:actual|observed)"))
+
+    def test_selector_contains_the_selection_rubric_and_input_contract(self) -> None:
+        selector = self.read("workflows/pd-select-model.md")
+        self.patterns(selector, (r"0\.25\s*\*?\s*C.*0\.20\s*\*?\s*A",
+                                 r"Score.*complexity.*ambiguity.*context.*verification",
+                                 r"round half up.*RW.*Ver.*clamp",
+                                 r"allowed_models.*excluded_models", r"harness.*reference.*date.*models",
+                                 r"capability_evidence.*quality", r"total_cost_lower.*total_cost_upper",
+                                 r"long-context.*heavy-reasoning.*cost-efficient-bulk.*mechanical",
+                                 r"active provider.*allowed_models", r"empty.*active.*legacy",
+                                 r"reasoning.*support.*incomplete"))
+
+    def test_selector_does_not_require_the_companion_guide(self) -> None:
+        selector = self.read("workflows/pd-select-model.md")
+        preflight = selector.split("### Step 0", 1)[1].split("Catalog:", 1)[0]
+        self.patterns(preflight, (r"self-contained", r"optional companion.*not a prerequisite",
+                                  r"scripts/model-catalog\.py.*scripts/model_selection\.py.*scripts/model_plan\.py"))
+        self.assertNotIn("missing helper/siblings/guide/schema/rubric", preflight)
+
+    def test_selector_preflight_succeeds_without_guide_and_rejects_missing_helper(self) -> None:
+        selector = self.read("workflows/pd-select-model.md")
+        section = selector.split("### Step 0", 1)[1].split("Catalog:", 1)[0]
+        script = re.search(r"```bash\n(.*?)\n```", section, re.S)
+        self.assertIsNotNone(script)
+        assert script is not None
+        with tempfile.TemporaryDirectory(prefix="selector-preflight-") as temporary:
+            directory = Path(temporary)
+            source = guidance_source_fixture(directory)
+            (source / GUIDE).unlink()
+            result = self.run_guidance(script.group(1), (directory, {"ORCHESTRAIL_HOME": str(source)}))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            (source / "scripts/model_selection.py").unlink()
+            result = self.run_guidance(script.group(1), (directory, {"ORCHESTRAIL_HOME": str(source)}))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("selection unavailable", result.stderr)
+
+    def test_selector_rubric_matches_catalog_guide(self) -> None:
+        selector = self.read("workflows/pd-select-model.md")
+        guide = self.read(GUIDE)
+        header = "| Score | C complexity"
+        def table(text: str) -> str:
+            return header + text.split(header, 1)[1].split("\n\n", 1)[0]
+        self.assertEqual(table(selector), table(guide), "selection rubrics must not drift")
+
     def test_selector_cached_single_bulk_contract_is_compact_and_reachable(self) -> None:
         text = self.read("workflows/pd-select-model.md")
-        self.assertLessEqual(len(text.split()), 1500, "selector exceeds its invocation context budget")
+        self.assertLessEqual(len(text.split()), 3000, "selector exceeds its invocation context budget")
         self.patterns(text, (r"Invocation:.*path-to-atomic-description.*task-directory.*--refresh",
                              r"Single.*chat", r"Bulk.*plan\.md", r"model-catalog\.py",
                              r"--catalog", r"--select", r"MODEL-CATALOG\.md"))
