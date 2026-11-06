@@ -126,7 +126,7 @@ with explicit state on disk. The AI assistant is constrained by:
 │   ├── pd-design.md                 Discovery step 3
 │   ├── pd-finalize.md               Discovery step 4
 │   ├── pd-archive.md                Discovery step 4b — called by pd-finalize
-│   ├── pd-select-model.md           Discovery step 2.5 — opt-in model selection
+│   ├── pd-select-model.md           Discovery step 2.5 — required full-flow model selection
 │   ├── pe-execute.md                Execution step 1
 │   ├── pe-finalize.md               Execution step 2
 │   ├── pv-contract.md               Validation step 1
@@ -522,13 +522,13 @@ Path argument syntax:
 |---------------------|------|-------------------------------------------------------------------------------|-------------------------------------------------------|
 | `/pd-analyze <p>`   | 1    | Read spec + root state, minimal code reading, record assumptions, set `flow:` (asks only with `--step-by-step`) | `state.md → ## Task Analysis`, `flow:`  |
 | `/pd-decompose <p>` | 2    | Split into T-XX subtasks (3–15 steps each, ≤8 subtasks total)                 | `plan.md → ## Subtasks`, `T-XX/description.md` files  |
-| `/pd-select-model <description-or-task> [--refresh]` | 2.5 (opt-in) | Recommend from the local catalog; explicit `--refresh` authorizes research and validated replacement | Single: chat; bulk: optional `Model (Claude)` / `Model (Codex)` plan columns |
+| `/pd-select-model <description-or-task> [--refresh]` | 2.5 (full flow) | Recommend from the local catalog; explicit `--refresh` authorizes research and validated replacement | Single: chat; bulk: optional `Model (Claude)` / `Model (Codex)` plan columns |
 | `/pd-design <p>`    | 3    | 2–3 variants + trade-offs, decided by the Autonomous Decision Protocol (`--step-by-step` stops for the user) | `state.md → ## Solution Design → ### Decision` |
 | `/pd-finalize <p>`  | 4    | Sanity check, compress, mark `discovery: complete`                            | `state.md → ## Phases`                                |
 
 Model selection normally reads the optional local catalog. Use `--refresh` only when
 research and replacement are intended; a rejected refresh retains the prior catalog.
-An absent or unusable catalog preserves the session default visibly. Plan readers
+An absent or unusable catalog uses an owner-configured fallback as a preliminary recommendation; missing or prohibited fallback leaves full discovery incomplete. Plan readers
 accept legacy `Model`, missing columns and explicit active-provider defaults, and
 verify current invocation support before a model request. Requested and resolved
 identities do not establish actual execution: actual remains unknown without a
@@ -776,7 +776,7 @@ files are clean. Logs and local machine settings stay ignored in this repository
 | `pd-design.md`                  | Discovery step 3: generate 2–3 architectural variants and decide via the Autonomous Decision Protocol (`--step-by-step` waits for the user). |
 | `pd-finalize.md`                | Discovery step 4: sanity check, compress, set `discovery: complete`, invoke `pd-archive`, update root files. |
 | `pd-archive.md`                 | Discovery step 4b: move `## Task Analysis` (except `### Assumptions`), `### Variants` and `### Rejected` into `state-archive.md`, leaving pointer lines. Called by `pd-finalize` — never before `discovery: complete`. |
-| `pd-select-model.md`            | Discovery step 2.5 (opt-in): recommend from the cached catalog; `--refresh` authorizes research. Bulk mode writes optional `Model (Claude)` / `Model (Codex)` columns with explicit legacy migration; `/spec-run` calls it, `/phase-discovery` does not. |
+| `pd-select-model.md`            | Discovery step 2.5 (full flow): recommend from the cached catalog; `--refresh` authorizes research. Bulk mode writes optional `Model (Claude)` / `Model (Codex)` columns with explicit legacy migration; `/phase-discovery` calls it after decomposition. |
 | `pe-execute.md`                 | Execution step 1: per-T-XX atomic-execution → atomic-validation loop.             |
 | `pe-finalize.md`                | Execution step 2: write `## Execution Report`, mark `execution: complete`.        |
 | `pv-contract.md`                | Validation step 1: verify Invariants, Acceptance Criteria, Off-limits.            |

@@ -6,7 +6,7 @@ Invocation: `/phase-discovery <path-to-spec> [--phase N] [--step-by-step]`
 Example: `/phase-discovery .ai/specs/01-add-oauth.md --phase 2`
 
 The spec must be a file in `.ai/specs/`. Child workflows take the task directory,
-not the spec path. `/pd-select-model` is optional here; `/spec-run` invokes it separately.
+not the spec path. `/pd-select-model` is required after decomposition for full flow.
 
 ## Execution Modes
 
@@ -131,7 +131,7 @@ with project, resolved task, spec, current flow and flags. Keep `LOG_HELPER` and
 `RUN_ID`; on a later-session resume start a new run. A parent-owned run uses the
 parent's routing rather than opening an independent child run.
 
-Log each child actually executed (`pd-analyze`, `pd-decompose`, optional
+Log each child actually executed (`pd-analyze`, `pd-decompose`,
 `pd-select-model`, `pd-design`, `pd-finalize`, `pd-archive`); account for nested
 archive once. Add `--note approximate` to ordinary prompt steps. Carry observed
 questions, stops, decisions, escalations and quick-to-full promotion counts.
@@ -144,8 +144,9 @@ Use explicit markers in order:
 
 - `## Task Analysis` → Step 1 complete.
 - Above plus `## Decomposition` / `decomposition: complete` → Step 2 complete.
-- Above plus `## Solution Design` / `### Decision` → Step 3 complete.
-- `flow: quick` plus `## Contract (quick)` → Steps 2–3 intentionally skipped.
+- Above plus `## Model Selection` with `selection: complete` and current leaf evidence → selection complete. Missing, incomplete or stale evidence means resume at selection, even if design exists.
+- Above plus `## Solution Design` / `### Decision` → design complete.
+- `flow: quick` plus `## Contract (quick)` → Steps 2–4 intentionally skipped.
 
 A marker whose required artifact is missing or contradictory → **stop** and
 report the inconsistency. Partial T-XX artifacts without a completion marker
@@ -158,12 +159,13 @@ Run the remaining children in order, passing the task directory and selected mod
 
 1. `/pd-analyze <task-directory>` — analysis and flow selection.
 2. `/pd-decompose <task-directory>` — full flow only.
-3. `/pd-design <task-directory>` — full flow only.
-4. `/pd-finalize <task-directory>` — consistency, archive and final report.
+3. `/pd-select-model <task-directory>` — full flow only; persist verified or explicitly preliminary recommendations.
+4. `/pd-design <task-directory>` — full flow only. If design changes a leaf or decomposition, rerun selection before finalization.
+5. `/pd-finalize <task-directory>` — consistency, archive and final report.
 
-Read `flow:` after Step 1: for `flow: quick`, skip Steps 2 and 3; create no T-XX or
+Read `flow:` after Step 1: for `flow: quick`, skip Steps 2–4; create no T-XX or
 `plan.md`; full flow runs all steps. Apply `quick-flow` if scope requires promotion.
-A child Guard or hard blocker stops the phase in either mode. In autonomous mode,
+Selection incomplete or unavailable must stop the phase with `discovery: in-progress` and actionable recovery instructions. A child Guard or hard blocker stops the phase in either mode. In autonomous mode,
 immediately invoke the next child when the previous one succeeds.
 
 Let `/pd-finalize` supply the single final report: artifact paths, chosen approach,

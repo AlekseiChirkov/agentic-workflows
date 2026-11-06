@@ -230,6 +230,19 @@ class PlanContractTests(unittest.TestCase):
         self.assertIsNone(report["resolved"])
         self.assertIn("catalog-unlisted", report["reasons"])
 
+    def test_preliminary_recommendation_never_authorizes_execution(self) -> None:
+        api = self.api()
+        models, request = catalog(), resolution()
+        for model in models["models"]:
+            model["capability_evidence"] = None
+        request["requested"] = identity("strong")
+        request["selection"]["harness"]["models"] = []
+        request["selection"]["recommendation_fallback"] = {"model": identity("strong"), "reasoning_effort": "high"}
+        report = api["resolve_model"](models, request, TODAY)
+        self.assertEqual(report["status"], "stopped")
+        self.assertIsNone(report["resolved"])
+        self.assertIsNone(report["actual"])
+
     def test_unsupported_request_stops_visibly_without_undeclared_or_unauthorized_fallback(self) -> None:
         api = self.api()
         for fallback in ({"authorized": False, "model": None},

@@ -102,6 +102,67 @@ class SelectionContractTests(unittest.TestCase):
                request: dict[str, Any]) -> dict[str, Any]:
         return api["select_model"](catalog, request, TODAY)
 
+    def test_configured_fallback_recommends_unknown_evidence_without_authorizing_execution(self) -> None:
+        api = self.api()
+        catalog, request = fixture_catalog(), fixture_request()
+        for model in catalog["models"]:
+            model["capability_evidence"] = None
+        request["harness"]["models"] = []
+        request["recommendation_fallback"] = {"model": identity("fixture-strong"), "reasoning_effort": "high"}
+        report = self.select(api, catalog, request)
+        self.assertEqual(report["status"], "selected")
+        self.assertEqual(report["selected"], identity("fixture-strong"))
+        self.assertEqual(report["confidence"], "preliminary")
+        self.assertEqual(report["reasoning_effort"], "high")
+        self.assertIn("quality-unknown", report["uncertainty"])
+        self.assertIn("harness-unavailable", report["uncertainty"])
+        self.assertNotIn(identity("fixture-strong"), report["eligible"])
+
+    def test_fallback_never_bypasses_known_incompatibility_or_owner_exclusion(self) -> None:
+        api = self.api()
+        for case in ("owner", "unavailable", "quality", "context", "tools"):
+            catalog, request = fixture_catalog(), fixture_request()
+            for model in catalog["models"]:
+                model["capability_evidence"] = None
+            request["harness"]["models"] = []
+            fallback = catalog["models"][2]
+            request["recommendation_fallback"] = {"model": identity("fixture-strong"), "reasoning_effort": "high"}
+            if case == "owner": request["owner"]["excluded_models"] = [identity("fixture-strong")]
+            if case == "unavailable": fallback["availability"] = "unavailable"
+            if case == "quality": fallback["capability_evidence"] = {"reference": "fixture", "date": TODAY.isoformat(), "quality": 1}
+            if case == "context": fallback["context_window"] = 1
+            if case == "tools": fallback["tools"] = []
+            report = self.select(api, catalog, request)
+            self.assertEqual(report["status"], "stopped", case)
+            self.assertIsNone(report["selected"], case)
+
+    def test_unlisted_fallback_is_preliminary_when_catalog_is_missing(self) -> None:
+        api = self.api()
+        request = fixture_request()
+        request["harness"]["models"] = []
+        request["recommendation_fallback"] = {"model": identity("fixture-strong"), "reasoning_effort": "high"}
+        report = self.select(api, {"schema_version": 1, "models": []}, request)
+        self.assertEqual(report["status"], "selected")
+        self.assertEqual(report["confidence"], "preliminary")
+        self.assertIn("catalog-unlisted", report["uncertainty"])
+
+    def test_cli_recommends_fallback_when_catalog_is_missing(self) -> None:
+        request = fixture_request()
+        request["harness"]["models"] = []
+        request["recommendation_fallback"] = {"model": identity("fixture-strong"), "reasoning_effort": "high"}
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            request_path = directory / "request.json"
+            request_path.write_text(json.dumps(request))
+            result = subprocess.run([sys.executable, str(COMMAND), "--catalog", str(directory / "missing.md"),
+                                     "--today", TODAY.isoformat(), "--select", str(request_path)],
+                                    capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["selected"], identity("fixture-strong"))
+        self.assertEqual(report["confidence"], "preliminary")
+        self.assertIn("catalog-unlisted", report["uncertainty"])
+
     def test_floor_pairwise_scores_have_exact_bounded_weighted_result(self) -> None:
         api = self.api()
         observed = set()

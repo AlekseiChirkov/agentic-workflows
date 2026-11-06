@@ -1,4 +1,4 @@
-# Optional local model catalog
+# Local model catalog
 
 The selector uses a user-owned local catalog and current invocation evidence. It never
 executes a model. Ordinary lookup, recommendation and plan resolution are offline;
@@ -10,11 +10,31 @@ The canonical plan contract is
 [`workflow-reference → Model columns and resolution`](../rules/workflow-reference.md#model-columns-and-resolution).
 The public implementations are [the CLI/cache](../scripts/model-catalog.py),
 [selection policy](../scripts/model_selection.py) and [plan compatibility](../scripts/model_plan.py).
-Python 3.11+ is optional: missing Python, helper or siblings reports selection unavailable
+Python 3.11+ is required for full-flow selection: missing Python, helper or siblings reports selection unavailable
 and preserves session configuration. This never authorizes an unverified explicit model
 request. An independently eligible, declared authorized fallback or a visible stop is
 required before such execution. Without an explicit request, ordinary work can remain
 in its current session without claiming selection or a switch.
+
+## Setup for discovery
+
+Full discovery requires a verified selection for every leaf. Install or locate a trusted
+Orchestrail checkout and configure its absolute path in the shell that launches the agent:
+
+```bash
+export ORCHESTRAIL_HOME="/absolute/path/to/orchestrail"
+python3 --version
+```
+
+Verify Python 3.11+ and the guidance preflight below. If the catalog is missing or lacks
+independent capability evidence, run `/pd-select-model <task-directory> --refresh` after
+decomposition. This explicitly authorizes source research and candidate validation; provide
+independent dated evidence and current invocation support from the actual tool. Unknown
+evidence stays null and cannot qualify a model. If evidence or support is unavailable, a configured fallback gives a preliminary recommendation
+with the missing evidence disclosed. Configure the owner-chosen fallback as documented in
+`pd-select-model`; without a valid permitted fallback, selection remains incomplete. Do not
+populate a catalog with invented scores or confuse plan recommendations with observed execution.
+Persist the export in the user's shell configuration if desired, then restart the agent session.
 
 ## Ownership, refresh and recovery
 
@@ -30,8 +50,7 @@ prefer configured `ORCHESTRAIL_HOME`, otherwise use an already-known verified ab
 checkout in invocation-local `SOURCE_ROOT`. Read the helper, its siblings and
 `$SOURCE_ROOT/docs/MODEL-CATALOG.md` from the same verified source root. Never infer that
 root from CWD or from a per-skill relative link. Relative links in source documents serve
-repository readers. Missing helper/guide/schema/rubric reports selection unavailable and
-preserves session, plan and catalog; never fabricate scores, schema or refresh candidates.
+repository readers. Execution resolution requires this guide and reports unavailable if its helper, guide, schema or rubric is missing. The self-contained selector can operate without the guide when its verified helpers are available; missing selector dependencies preserve session, plan and catalog; never fabricate scores, schema or refresh candidates.
 Required sections are `## Schema and public operations` and
 `## Quality rubric, traits and uncertainty`. The preflight only reads files; it installs
 no runtime, configuration or documentation. With guidance available, explicit refresh can
@@ -59,6 +78,15 @@ Freshness policy uses calendar days since `refreshed`: 0–13 fresh, 14–30 dat
 Missing/malformed/future dates are invalid and selection unavailable. Evidence dates may
 not exceed refresh dates. Old but valid evidence is disclosed; it is never transformed
 into a fresh capability measurement. Failed research leaves the prior catalog untouched.
+
+## Reasoning effort
+
+The workflow recommends reasoning effort separately from model identity, using task demand,
+risk and currently observed model/tool support. It records the recommendation and evidence
+in the task's Model Selection checkpoint. The offline helper does not calculate or validate
+reasoning effort, and `heavy-reasoning` is a specialization trait, not an effort setting.
+Unknown support leaves reasoning preliminary; an explicitly non-configurable tool is
+reported as such. A recommendation or dispatch request is not evidence of actual effort.
 
 ## Schema and public operations
 
@@ -90,8 +118,12 @@ Rows must match the structured payload; do not maintain independent handwritten 
 The runnable example below derives its table, uses invented identities and references,
 and supplies synthetic evidence only to exercise validation. It is not a real catalog.
 
-Selection JSON requires exactly `scores`, `hard_constraints`, `traits`, `task_class`,
-`requirements`, `harness`, `owner`, `default_model`, `cost_comparisons`:
+Selection JSON requires `scores`, `hard_constraints`, `traits`, `task_class`,
+`requirements`, `harness`, `owner`, `default_model`, `cost_comparisons`; it optionally accepts
+`recommendation_fallback: {model: {provider, id}, reasoning_effort: string}`. A configured
+fallback produces `confidence: preliminary` when no verified model is eligible and no known
+contradiction exists. It does not authorize execution or prove optimal cost. Without one,
+the legacy strict behavior remains:
 
 - `scores`: all seven integer signals `C,A,V,R,Ver,Crit,RW`, each 1–5.
 - `hard_constraints`: unique names from `security`, `financial`, `architecture`,

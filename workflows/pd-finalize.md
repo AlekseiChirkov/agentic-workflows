@@ -14,7 +14,8 @@ standalone use applies the `phase-discovery` bootstrap.
 1. Missing/unreadable `state.md` or `## Task Analysis` → **stop**: run `/pd-analyze`.
 2. `discovery: complete` → **stop** for explicit overwrite confirmation unless
    the parent already obtained it for this exact rerun.
-3. Require `## Solution Design` with `### Decision` for full flow.
+3. For full flow require `## Model Selection` with `selection: complete`, a verified or explicitly preliminary model and reasoning recommendation (or evidenced `not configurable`) for every current leaf and matching recorded scope digests as defined by `/pd-select-model`. Missing recommendation, missing uncertainty disclosure or changed scope is stale: set `selection: incomplete`, keep discovery in progress, and stop for bulk reselection. Empty cells are not evidence.
+4. Require `## Solution Design` with `### Decision` for full flow.
    **Exception — `flow: quick`.** Verify `## Contract (quick)` instead, with
    `### Off-limits`, `### Invariants` and `### Acceptance Criteria`.
    Missing required contract/design → **stop**: rerun the applicable analysis/design step.
