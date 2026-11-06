@@ -897,7 +897,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "        target = next((index for index, value in enumerate(values)",
     "container": "_python",
-    "context_sha256": "0ee78f5e7dec314dd72927066af0a6b544694a99a8625280e127fc700434364c",
+    "context_sha256": "130f87ba648e8b4288feb38dfca1c9bc2cfead96c397e3b1f684a272da4999f5",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data or a filesystem path, not a validator invocation."
@@ -906,7 +906,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            relevant = any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))",
     "container": "_python",
-    "context_sha256": "0ee78f5e7dec314dd72927066af0a6b544694a99a8625280e127fc700434364c",
+    "context_sha256": "130f87ba648e8b4288feb38dfca1c9bc2cfead96c397e3b1f684a272da4999f5",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data or a filesystem path, not a validator invocation."
@@ -915,7 +915,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            if any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))",
     "container": "_python",
-    "context_sha256": "0ee78f5e7dec314dd72927066af0a6b544694a99a8625280e127fc700434364c",
+    "context_sha256": "130f87ba648e8b4288feb38dfca1c9bc2cfead96c397e3b1f684a272da4999f5",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data or a filesystem path, not a validator invocation."
@@ -1411,6 +1411,51 @@
     "statement": "        self.assert_rejected(\"p, = ('scripts/validate-contracts.sh',)\\nsubprocess.run(['bash', p])\")",
     "container": "test_subprocess_unpacked_path_requires_review",
     "context_sha256": "27baba192d63016c2b327f31675ce171a0f61124a59af62e04e812996c5ad1ec",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data, not a validator invocation."
+  },
+  {
+    "path": "tests/fixtures/validator-runtime/source_guard.py",
+    "statement": "        if any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))",
+    "container": "_python",
+    "context_sha256": "130f87ba648e8b4288feb38dfca1c9bc2cfead96c397e3b1f684a272da4999f5",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data, not a validator invocation."
+  },
+  {
+    "path": "tests/fixtures/validator-runtime/source_guard.py",
+    "statement": "                if default is not None and any(",
+    "container": "_python",
+    "context_sha256": "130f87ba648e8b4288feb38dfca1c9bc2cfead96c397e3b1f684a272da4999f5",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-executable.py",
+    "statement": "        self.assert_rejected(\"def launch(p='scripts/validate-contracts.sh'):\\n    os.execv('/bin/bash', ['bash', p])\\nlaunch()\")",
+    "container": "test_default_parameter_path_requires_review",
+    "context_sha256": "a7c6a6187ee62ec05c1beb84a571882550c16e4f86d772c98a429fd8c9e5970c",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-executable.py",
+    "statement": "        self.assert_rejected(\"def run(exe, script):\\n    os.execv(exe, ['bash', script])\\nrun('/bin/bash', 'scripts/validate-contracts.sh')\")",
+    "container": "test_known_name_with_validator_in_later_argument_requires_review",
+    "context_sha256": "5c8c16aafab443327c78bf72b250c433aaf7b0ed917da2af849a230a70580c95",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-executable.py",
+    "statement": "        self.assert_rejected(\"run('/bin/bash', script='scripts/validate-contracts.sh')\")",
+    "container": "test_known_name_with_validator_in_keyword_requires_review",
+    "context_sha256": "d083a3f3f13bf26dafa44bd51b3b9cc43cd7808cc39e7d1758896baa7404c154",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data, not a validator invocation."

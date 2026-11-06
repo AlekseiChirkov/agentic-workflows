@@ -188,6 +188,20 @@ def _python(path, source):
     changed = True
     while changed:
         changed = False
+        for function in ast.walk(tree):
+            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                continue
+            parameters = function.args.posonlyargs + function.args.args
+            defaults = list(zip(parameters[len(parameters) - len(function.args.defaults):], function.args.defaults))
+            defaults += list(zip(function.args.kwonlyargs, function.args.kw_defaults))
+            for parameter, default in defaults:
+                if default is not None and any(
+                    (_literal_string(item) is not None and VALIDATOR in _literal_string(item))
+                    or (isinstance(item, ast.Name) and item.id in reference_aliases)
+                    for item in ast.walk(default)
+                ) and parameter.arg not in reference_aliases:
+                    reference_aliases.add(parameter.arg)
+                    changed = True
         for assignment in ast.walk(tree):
             if not isinstance(assignment, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
                 continue
@@ -222,6 +236,11 @@ def _python(path, source):
                 if issue not in issues:
                     issues.append(issue)
             continue
+        extra_arguments = list(node.args[1:]) + [keyword.value for keyword in node.keywords if keyword.arg != "args"]
+        if any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))
+               or (isinstance(item, ast.Name) and item.id in aliases | reference_aliases | {"validator"})
+               for argument in extra_arguments for item in ast.walk(argument)):
+            issues.append(f"{path}:{node.lineno}: unclassified Python argument")
         keyword_args = [keyword.value for keyword in node.keywords if keyword.arg == "args"]
         commands = ([node.args[0]] if node.args else []) + keyword_args
         references = [item for command in commands for item in ast.walk(command) if
@@ -406,7 +425,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "7fe4a61938913533f8fed84db2df90ae5e8dda4474828d42426c5cec829ede08":
+        if hashlib.sha256(data).hexdigest() != "a756fb16e1f807ecfa086c58e4cf3dc4aa69747033d41205b72003f1fcd87399":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):
