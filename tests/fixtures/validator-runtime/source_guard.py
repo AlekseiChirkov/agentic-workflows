@@ -202,6 +202,35 @@ def _python(path, source):
                 ) and parameter.arg not in reference_aliases:
                     reference_aliases.add(parameter.arg)
                     changed = True
+        for match in (node for node in ast.walk(tree) if isinstance(node, ast.Match)):
+            if any(
+                (_literal_string(item) is not None and VALIDATOR in _literal_string(item))
+                or (isinstance(item, ast.Name) and item.id in reference_aliases)
+                for item in ast.walk(match.subject)
+            ):
+                for case in match.cases:
+                    for pattern in ast.walk(case.pattern):
+                        name = (pattern.name if isinstance(pattern, (ast.MatchAs, ast.MatchStar))
+                                else pattern.rest if isinstance(pattern, ast.MatchMapping) else None)
+                        if name is not None and name not in reference_aliases:
+                            reference_aliases.add(name)
+                            changed = True
+        for binding in ast.walk(tree):
+            if isinstance(binding, (ast.For, ast.AsyncFor, ast.comprehension)):
+                value, target = binding.iter, binding.target
+            elif isinstance(binding, ast.withitem) and binding.optional_vars is not None:
+                value, target = binding.context_expr, binding.optional_vars
+            else:
+                continue
+            if not any(isinstance(item, ast.Call) for item in ast.walk(value)) and any(
+                (_literal_string(item) is not None and VALIDATOR in _literal_string(item))
+                or (isinstance(item, ast.Name) and item.id in reference_aliases)
+                for item in ast.walk(value)
+            ):
+                for item in ast.walk(target):
+                    if isinstance(item, ast.Name) and item.id not in reference_aliases:
+                        reference_aliases.add(item.id)
+                        changed = True
         for assignment in ast.walk(tree):
             if not isinstance(assignment, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
                 continue
@@ -425,7 +454,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "a756fb16e1f807ecfa086c58e4cf3dc4aa69747033d41205b72003f1fcd87399":
+        if hashlib.sha256(data).hexdigest() != "c794ea4e2dafb843ec830728746c361762ea823555ee21b967476efd2c6203cc":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):
