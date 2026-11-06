@@ -97,6 +97,10 @@ class UnknownExecutableForms(unittest.TestCase):
             'true; (scripts/payload.sh)\n',
             'true && (scripts/payload.sh)\n',
             'true; { scripts/payload.sh; }\n',
+            'true; (FOO=bar scripts/payload.sh)\n',
+            'true && (A=1 B=two scripts/payload.sh)\n',
+            'true; (FOO="two words" scripts/payload.sh)\n',
+            'false || { FOO=bar scripts/payload.sh; }\n',
             'exec /tmp/payload.sh\n',
         ):
             with self.subTest(source=source):
