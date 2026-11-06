@@ -79,6 +79,17 @@ class UnknownExecutableForms(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertTrue(guard.inspect_sources({"tests/example.sh": source}))
 
+    def test_shell_inherited_input_and_direct_path_require_review(self):
+        for source in (
+            'bash < /tmp/payload.sh\n',
+            'bash\n',
+            'bash -e\n',
+            '/tmp/payload.sh\n',
+            'true; /tmp/payload.sh\n',
+        ):
+            with self.subTest(source=source):
+                self.assertTrue(guard.inspect_sources({"tests/example.sh": source}))
+
     def test_execl_validator_reference_requires_review(self):
         self.assert_rejected("os.execl('/bin/bash', 'bash', 'scripts/validate-contracts.sh')")
 
