@@ -189,7 +189,7 @@ def _python(path, source):
     while changed:
         changed = False
         for assignment in ast.walk(tree):
-            if not isinstance(assignment, (ast.Assign, ast.AnnAssign)):
+            if not isinstance(assignment, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
                 continue
             value = assignment.value
             if value is None or any(isinstance(item, ast.Call) for item in ast.walk(value)):
@@ -199,9 +199,10 @@ def _python(path, source):
                            for item in ast.walk(value))
             targets = assignment.targets if isinstance(assignment, ast.Assign) else [assignment.target]
             for target in targets:
-                if relevant and isinstance(target, ast.Name) and target.id not in reference_aliases:
-                    reference_aliases.add(target.id)
-                    changed = True
+                for item in ast.walk(target):
+                    if relevant and isinstance(item, ast.Name) and item.id not in reference_aliases:
+                        reference_aliases.add(item.id)
+                        changed = True
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -225,7 +226,7 @@ def _python(path, source):
         commands = ([node.args[0]] if node.args else []) + keyword_args
         references = [item for command in commands for item in ast.walk(command) if
                       (_literal_string(item) is not None and VALIDATOR in _literal_string(item))
-                      or (isinstance(item, ast.Name) and item.id in aliases | {"validator"})]
+                      or (isinstance(item, ast.Name) and item.id in aliases | reference_aliases | {"validator"})]
         if not references:
             continue
         if len(commands) != 1:
@@ -405,7 +406,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "68ebd24f59451b63adddc88d3f5a56ce04eb16dd5e46d84aa391b83426b069c1":
+        if hashlib.sha256(data).hexdigest() != "7fe4a61938913533f8fed84db2df90ae5e8dda4474828d42426c5cec829ede08":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):
