@@ -39,6 +39,8 @@ def _exception(path, source, statement, exceptions, used):
 
 def _direct_path_command(line):
     """Identify path-named commands at shell command boundaries."""
+    if re.match(r"^\s*(?:\(\s*|\{\s+)(?:exec\s+)?[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+(?:\s|[;)]|$)", line):
+        return True
     try:
         lexer = shlex.shlex(line, posix=True, punctuation_chars=";&|()")
         lexer.whitespace_split = True
@@ -47,16 +49,19 @@ def _direct_path_command(line):
     except ValueError:
         return False
     command_start = True
+    relative_allowed = True
     for token in tokens:
         if token and all(char in ";&|()" for char in token):
             command_start = True
-        elif command_start and token in {"if", "then", "do", "elif", "while", "until", "!"}:
+            relative_allowed = token in {";", "&&", "||", "|", "&"}
+        elif command_start and token in {"if", "then", "do", "elif", "while", "until", "!", "exec"}:
             continue
         elif command_start and re.match(r"^[A-Za-z_][A-Za-z_0-9]*=", token):
             continue
         elif command_start:
-            if (re.match(r"^(?:/|\./|\.\./)[A-Za-z0-9_.-]", token)
-                    and token not in {"/.", "/..", ".", ".."}):
+            absolute = re.match(r"^(?:/|\./|\.\./)[A-Za-z0-9_.-]", token)
+            relative = relative_allowed and re.fullmatch(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+", token)
+            if (absolute or relative) and token not in {"/.", "/..", ".", ".."}:
                 return True
             command_start = False
     return False
@@ -955,7 +960,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "7ee0b1e26714471c8536887cede63f11b006e3641b2bd2b6f504a88a3507a7b1":
+        if hashlib.sha256(data).hexdigest() != "8e8e1358683fd9750da5b66e559310026180a2894c7bccefece1748bd80e6094":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):
