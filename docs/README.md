@@ -20,6 +20,7 @@ Everything here is *about* the system; the system itself is `workflows/`, `rules
 
 ## Analysis (`analysis/`)
 
+- [Validator runtime specification review](analysis/2026-11-05-validator-runtime-review.md) — current test architecture, measured git-rails cost, corrected runtime requirements and independent validation cycles
 - [Usage telemetry specification review](analysis/2026-10-27-usage-telemetry-spec-review.md) — request finality, exact cost accounting, coverage, immutable usage records and advisory monitoring
 - [2026-09-16-comparative-analysis.ru.md](analysis/2026-09-16-comparative-analysis.ru.md) — full analysis vs BMAD, Spec Kit, Kiro, OpenSpec, Superpowers, Agent OS, Conductor; pros/cons; fit; improvements (English translation of the historical Russian record)
 - [2026-09-16-rules-workflows-naming-review.md](analysis/2026-09-16-rules-workflows-naming-review.md) — why five rule/workflow names collide, what differs, and renaming recommendations

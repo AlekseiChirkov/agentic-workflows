@@ -256,3 +256,23 @@ is measured separately from the unmeasured live 60-second target.
 No real initial catalog, model execution, new production default, paid comparison, global
 deployment, price ledger or full harness migration is introduced.
 
+
+## Planned — contract validator runtime (in flight, not implemented)
+
+The [runtime plan](../tasks/todo/task-06-1-test-suite-runtime/plan.md) preserves the Bash
+validator and existing suite bodies while replacing the recursive warning fixture with
+its guarded real prefix and the identity hot loop with byte-compatible per-file matching.
+New fail-closed scanner I/O behavior has a separate RED cycle.
+
+Planned acceptance scheduling uses an inline standard-library Linux supervisor with
+subreaper containment/per-worker ownership, validated bounded jobs, explicit result
+records, source-order channel replay and full snapshot barriers. Jobs=1 remains the
+sequential fallback; the default caps at four usable CPUs, with measured exclusivity
+for conflicting/timing-sensitive groups. Optional pre-expansion monotonic uptime timing
+must prove Bash compatibility before adoption; extracted run-log consumers stay intact.
+
+[Provisional ADR-0018](../adr/0018-task-06-1-bounded-validator-runtime.md) records the
+coverage exception and containment/timing choices. Implementation, containment/timing
+proof and fresh B/S/P performance acceptance are pending. Historical counts and timings
+are not delivery evidence; W6/W7 remain outside scope. No implemented inventory above
+is replaced by these planned interfaces.

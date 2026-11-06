@@ -27,3 +27,4 @@ so that a contributor can find the *why* without reading every rule. ADR-0007 an
 | 0015 | Optional cached catalog and conservative model resolution | Accepted | 2026-10-28 | [0015-task-04-cached-model-selection.md](0015-task-04-cached-model-selection.md) |
 | 0016 | Additive usage telemetry | Accepted | 2026-10-30 | [0016-task-05-additive-usage-telemetry.md](0016-task-05-additive-usage-telemetry.md) |
 | 0017 | Enforced git rails through a PreToolUse hook with owner-approval asks | Accepted | 2026-11-05 | [0017-task-06-enforced-git-rails-hook.md](0017-task-06-enforced-git-rails-hook.md) |
+| 0018 | Bounded contract validator runtime with preserved expression semantics | Provisional | 2026-11-05 | [0018-task-06-1-bounded-validator-runtime.md](0018-task-06-1-bounded-validator-runtime.md) |
