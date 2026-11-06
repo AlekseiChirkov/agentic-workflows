@@ -22,7 +22,13 @@ REFERENCE = REFERENCE_FUNCTION[REFERENCE_FUNCTION.index('    line_number=0\n'):
 def complete_function(source):
     start = source.index('test_public_identity_matches_exact_ledger_and_preserves_knowledge() (')
     end = source.index('\n)\n\ncheck ', start) + 3
-    return source[start:end]
+    result = source[start:end]
+    trusted = (ROOT / 'scripts/validate-contracts.sh').read_bytes().decode('utf-8')
+    trusted_start = trusted.index('test_public_identity_matches_exact_ledger_and_preserves_knowledge() (')
+    trusted_end = trusted.index('\n)\n\ncheck ', trusted_start) + 3
+    if result != trusted[trusted_start:trusted_end]:
+        raise ValueError('Identity fixture source differs from the reviewed function')
+    return result
 
 
 
@@ -39,12 +45,17 @@ def available_locales():
 
 
 def scan_loop():
-    source = SOURCE.read_text()
-    start = source.index('test_public_identity_matches_exact_ledger_and_preserves_knowledge()')
-    anchors = ('    line_number=0\n', '    # Bash read drops embedded NUL bytes; normalize once to retain that behavior.\n')
-    start = min(source.index(anchor, start) for anchor in anchors if anchor in source[start:])
-    end = source.index('  done < "$scratch/scan-files"', start)
-    return source[start:end]
+    source = SOURCE.read_bytes().decode('utf-8')
+    def extract(text):
+        start = text.index('test_public_identity_matches_exact_ledger_and_preserves_knowledge()')
+        anchors = ('    line_number=0\n', '    # Bash read drops embedded NUL bytes; normalize once to retain that behavior.\n')
+        start = min(text.index(anchor, start) for anchor in anchors if anchor in text[start:])
+        end = text.index('  done < "$scratch/scan-files"', start)
+        return text[start:end]
+    result = extract(source)
+    if result != extract((ROOT / 'scripts/validate-contracts.sh').read_bytes().decode('utf-8')):
+        raise ValueError('Identity fixture source differs from the reviewed loop')
+    return result
 
 
 class IdentityScanTests(unittest.TestCase):
@@ -143,7 +154,7 @@ exit "$status"
             # Diff headers contain nondeterministic scratch paths and timestamps.
             stdout = re.sub(rb'(?m)^(---|\+\+\+) [^\n]*$', rb'\1 <scratch>', process.stdout)
             return process.returncode, stdout, process.stderr
-        candidate = complete_function(SOURCE.read_text())
+        candidate = complete_function(SOURCE.read_bytes().decode('utf-8'))
         for selected in locales:
             with self.subTest(locale=selected, scenario='valid ledger'):
                 original = full_scan(REFERENCE_FUNCTION, selected)

@@ -1,14 +1,17 @@
 """Bounded source inspection for nested full-validator calls.
 
-This scanner classifies known shell and Python forms; unknown executable forms fail
-closed. It does not execute inspected source or claim to parse arbitrary shell.
+This scanner classifies bounded shell and Python forms and rejects detected unknown
+executables. Dynamic reflection and arbitrary shell are not comprehensively parsed.
+It does not execute inspected source.
 """
 import argparse
 import ast
+from functools import lru_cache
 import hashlib
 import json
 import re
 import shlex
+import symtable
 import sys
 from pathlib import Path
 
@@ -143,6 +146,13 @@ def _shell(path, source, exceptions, used):
 def _literal_string(node):
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
+    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "join" and len(node.args) == 1 and not node.keywords
+            and isinstance(node.args[0], (ast.List, ast.Tuple))):
+        separator = _literal_string(node.func.value)
+        parts = [_literal_string(item) for item in node.args[0].elts]
+        if separator is not None and all(part is not None for part in parts):
+            return separator.join(parts)
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
         left, right = _literal_string(node.left), _literal_string(node.right)
         if left is not None and right is not None:
@@ -150,22 +160,227 @@ def _literal_string(node):
     return None
 
 
+def _scoped_names(tree, source, path):
+    """Give lexical bindings distinct names before conservative dataflow analysis."""
+    root = symtable.symtable(source, path, "exec")
+
+    class ScopedNames(ast.NodeTransformer):
+        def __init__(self):
+            self.stack = [root]
+            self.ids = {id(root): "module"}
+            self.next_id = 0
+            self.used = set()
+            self.children = {}
+
+        def child(self, name, lineno):
+            table = next(item for item in reversed(self.stack) if not isinstance(item, dict))
+            candidates = self.children.setdefault(id(table), table.get_children())
+            for candidate in candidates:
+                if (id(candidate) not in self.used and candidate.get_name() == name
+                        and candidate.get_lineno() == lineno):
+                    self.used.add(id(candidate))
+                    self.next_id += 1
+                    self.ids[id(candidate)] = str(self.next_id)
+                    return candidate
+            return None
+
+        def name(self, name):
+            free = False
+            for table in reversed(self.stack):
+                if isinstance(table, dict):
+                    if name in table:
+                        return table[name]
+                    continue
+                if free and table.get_type() == "class":
+                    continue
+                try:
+                    symbol = table.lookup(name)
+                except KeyError:
+                    continue
+                if symbol.is_global():
+                    return name
+                if symbol.is_free() or symbol.is_nonlocal():
+                    free = True
+                    continue
+                if symbol.is_local() or symbol.is_parameter():
+                    if table.get_type() == "module":
+                        return name
+                    return name + "__scope_" + self.ids[id(table)]
+            return name
+
+        def visit_Name(self, node):
+            node.id = self.name(node.id)
+            return node
+
+        def visit_arg(self, node):
+            node.arg = self.name(node.arg)
+            if node.annotation:
+                node.annotation = self.visit(node.annotation)
+            return node
+
+        def function(self, node, name):
+            node.decorator_list = [self.visit(item) for item in node.decorator_list] if hasattr(node, "decorator_list") else []
+            defaults = [self.visit(item) for item in node.args.defaults]
+            kw_defaults = [self.visit(item) if item else None for item in node.args.kw_defaults]
+            arguments = (node.args.posonlyargs + node.args.args + node.args.kwonlyargs
+                         + ([node.args.vararg] if node.args.vararg else [])
+                         + ([node.args.kwarg] if node.args.kwarg else []))
+            annotations = [self.visit(arg.annotation) if arg.annotation else None for arg in arguments]
+            for arg in arguments:
+                arg.annotation = None
+            if getattr(node, "returns", None):
+                node.returns = self.visit(node.returns)
+            node.args.defaults = []
+            node.args.kw_defaults = []
+            table = self.child(name, node.lineno)
+            if table is None:
+                raise ValueError("cannot resolve Python lexical scope")
+            self.stack.append(table)
+            node.args = self.visit(node.args)
+            for arg, annotation in zip(arguments, annotations):
+                arg.annotation = annotation
+            node.args.defaults = defaults
+            node.args.kw_defaults = kw_defaults
+            if isinstance(node.body, list):
+                node.body = [self.visit(item) for item in node.body]
+            else:
+                node.body = self.visit(node.body)
+            self.stack.pop()
+            return node
+
+        def visit_FunctionDef(self, node):
+            return self.function(node, node.name)
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def visit_Lambda(self, node):
+            return self.function(node, "lambda")
+
+        def visit_ClassDef(self, node):
+            node.decorator_list = [self.visit(item) for item in node.decorator_list]
+            node.bases = [self.visit(item) for item in node.bases]
+            node.keywords = [self.visit(item) for item in node.keywords]
+            table = self.child(node.name, node.lineno)
+            if table is None:
+                raise ValueError("cannot resolve Python lexical scope")
+            self.stack.append(table)
+            node.body = [self.visit(item) for item in node.body]
+            self.stack.pop()
+            return node
+
+        def comprehension(self, node, name):
+            node.generators[0].iter = self.visit(node.generators[0].iter)
+            table = self.child(name, node.lineno)
+            if table is None:
+                self.next_id += 1
+                suffix = str(self.next_id)
+                names = {item.id for generator in node.generators
+                         for item in ast.walk(generator.target) if isinstance(item, ast.Name)}
+                table = {item: item + "__scope_" + suffix for item in names}
+            self.stack.append(table)
+            for index, generator in enumerate(node.generators):
+                generator.target = self.visit(generator.target)
+                if index:
+                    generator.iter = self.visit(generator.iter)
+                generator.ifs = [self.visit(item) for item in generator.ifs]
+            for field in ("elt", "key", "value"):
+                if hasattr(node, field):
+                    setattr(node, field, self.visit(getattr(node, field)))
+            self.stack.pop()
+            return node
+
+        def visit_ListComp(self, node):
+            return self.comprehension(node, "listcomp")
+
+        def visit_SetComp(self, node):
+            return self.comprehension(node, "setcomp")
+
+        def visit_DictComp(self, node):
+            return self.comprehension(node, "dictcomp")
+
+        def visit_GeneratorExp(self, node):
+            return self.comprehension(node, "genexpr")
+
+        def visit_ImportFrom(self, node):
+            for alias in node.names:
+                if alias.name != "*":
+                    alias.asname = self.name(alias.asname or alias.name)
+            return node
+
+        def visit_Import(self, node):
+            for alias in node.names:
+                original = alias.asname or alias.name.split(".")[0]
+                renamed = self.name(original)
+                if renamed != original:
+                    alias.asname = renamed
+            return node
+
+        def visit_MatchAs(self, node):
+            if node.pattern:
+                node.pattern = self.visit(node.pattern)
+            if node.name:
+                node.name = self.name(node.name)
+            return node
+
+        def visit_MatchStar(self, node):
+            if node.name:
+                node.name = self.name(node.name)
+            return node
+
+        def visit_MatchMapping(self, node):
+            self.generic_visit(node)
+            if node.rest:
+                node.rest = self.name(node.rest)
+            return node
+
+    return ScopedNames().visit(tree)
+
+
 def _python(path, source):
     issues = []
     try:
-        tree = ast.parse(source, filename=path)
-    except SyntaxError:
+        tree = _scoped_names(ast.parse(source, filename=path), source, path)
+    except (SyntaxError, ValueError):
         return [f"{path}: invalid Python source"]
     imported_calls = {alias.asname or alias.name
                       for node in ast.walk(tree)
                       if isinstance(node, ast.ImportFrom) and node.module == "subprocess"
                       for alias in node.names
                       if alias.name in {"run", "Popen", "call", "check_call", "check_output", "getoutput", "getstatusoutput"}}
+    subprocess_modules = {alias.asname or alias.name for node in ast.walk(tree)
+                          if isinstance(node, ast.Import) for alias in node.names
+                          if alias.name == "subprocess"} | {"subprocess"}
+    os_modules = {alias.asname or alias.name for node in ast.walk(tree)
+                  if isinstance(node, ast.Import) for alias in node.names
+                  if alias.name == "os"} | {"os"}
+    os_executables = {alias.asname or alias.name for node in ast.walk(tree)
+                      if isinstance(node, ast.ImportFrom) and node.module == "os"
+                      for alias in node.names
+                      if alias.name.startswith(("exec", "spawn"))}
+    os_systems = {alias.asname or alias.name for node in ast.walk(tree)
+                  if isinstance(node, ast.ImportFrom) and node.module == "os"
+                      for alias in node.names if alias.name in {"system", "popen"}}
+    dynamic_code = {"exec", "eval"}
+    for imported in (node for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+                     and node.module in {"os", "subprocess"}):
+        if any(alias.name == "*" for alias in imported.names):
+            issues.append(f"{path}:{imported.lineno}: unclassified Python executable")
     callable_aliases = set(imported_calls)
+    callable_containers = set()
+    module_containers = set()
+    callable_attributes = set()
     aliases = set()
     changed = True
     while changed:
         changed = False
+        for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
+            if (isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name)
+                    and call.func.attr in {'append', 'extend', 'insert', 'add', 'update'}):
+                if any(isinstance(item, ast.Attribute) and isinstance(item.value, ast.Name)
+                       and item.value.id in subprocess_modules | os_modules for arg in call.args for item in ast.walk(arg)):
+                    if call.func.value.id not in callable_containers:
+                        callable_containers.add(call.func.value.id)
+                        changed = True
         for assignment in ast.walk(tree):
             if not isinstance(assignment, (ast.Assign, ast.AnnAssign)):
                 continue
@@ -173,18 +388,92 @@ def _python(path, source):
             value = assignment.value
             if value is None:
                 continue
+            if isinstance(value, ast.Call) and isinstance(value.func, ast.Lambda):
+                value = value.func.body
             relevant = any((_literal_string(item) is not None and "validate-contracts." in _literal_string(item)) or (isinstance(item, ast.Name) and item.id in aliases) for item in ast.walk(value))
             callable_value = ((isinstance(value, ast.Attribute) and isinstance(value.value, ast.Name)
-                               and value.value.id == "subprocess" and value.attr in {"run", "Popen", "call", "check_call", "check_output", "getoutput", "getstatusoutput"})
+                               and value.value.id in subprocess_modules and value.attr in {"run", "Popen", "call", "check_call", "check_output", "getoutput", "getstatusoutput"})
+                              or (isinstance(value, ast.Call) and isinstance(value.func, ast.Name)
+                                  and value.func.id == "getattr" and value.args
+                                  and isinstance(value.args[0], ast.Name) and value.args[0].id in subprocess_modules)
                               or (isinstance(value, ast.Name) and value.id in callable_aliases))
+            executable_value = ((isinstance(value, ast.Attribute) and isinstance(value.value, ast.Name)
+                                 and value.value.id in os_modules and value.attr.startswith(("exec", "spawn")))
+                                or (isinstance(value, ast.Call) and isinstance(value.func, ast.Name)
+                                    and value.func.id == "getattr" and value.args
+                                    and isinstance(value.args[0], ast.Name) and value.args[0].id in os_modules)
+                                or (isinstance(value, ast.Name) and value.id in os_executables))
+            system_value = ((isinstance(value, ast.Attribute) and isinstance(value.value, ast.Name)
+                             and value.value.id in os_modules and value.attr in {"system", "popen"})
+                            or (isinstance(value, ast.Name) and value.id in os_systems))
+            dynamic_code_value = isinstance(value, ast.Name) and value.id in dynamic_code
+            contained_callable = (isinstance(value, (ast.Dict, ast.List, ast.Tuple, ast.Set)) and any(
+                (isinstance(item, ast.Attribute) and isinstance(item.value, ast.Name)
+                 and ((item.value.id in subprocess_modules and item.attr in {"run", "Popen", "call", "check_call", "check_output", "getoutput", "getstatusoutput"})
+                      or (item.value.id in os_modules and (item.attr.startswith(("exec", "spawn")) or item.attr in {"system", "popen"}))))
+                or (isinstance(item, ast.Name) and item.id in callable_aliases | os_systems | os_executables | dynamic_code)
+                for item in ast.walk(value))) or (isinstance(value, ast.Name) and value.id in callable_containers)
+            contained_module = (isinstance(value, (ast.Dict, ast.List, ast.Tuple, ast.Set)) and any(
+                isinstance(item, ast.Name) and item.id in subprocess_modules | os_modules | module_containers
+                for item in ast.walk(value))) or (isinstance(value, ast.Name) and value.id in module_containers)
+            def module_bindings(target, expression):
+                if isinstance(target, ast.Name) and isinstance(expression, ast.Name):
+                    return [(target, expression)]
+                if isinstance(target, (ast.Tuple, ast.List)) and isinstance(expression, (ast.Tuple, ast.List)):
+                    return [pair for left, right in zip(target.elts, expression.elts)
+                            for pair in module_bindings(left, right)]
+                return []
             for target in targets:
+                if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name):
+                    key = (target.value.id, target.attr)
+                    if (callable_value or executable_value or system_value or dynamic_code_value) and key not in callable_attributes:
+                        callable_attributes.add(key)
+                        changed = True
+                if (isinstance(target, ast.Name) and isinstance(value, ast.Call)
+                        and ((isinstance(value.func, ast.Attribute) and value.func.attr == 'import_module')
+                             or (isinstance(value.func, ast.Name) and value.func.id == '__import__'))):
+                    imported = _literal_string(value.args[0]) if value.args else None
+                    for module, names in (('subprocess', subprocess_modules), ('os', os_modules)):
+                        if (imported is None or imported == module) and target.id not in names:
+                            names.add(target.id)
+                            changed = True
+                if isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name):
+                    if (callable_value or executable_value or system_value or dynamic_code_value or contained_callable) and target.value.id not in callable_containers:
+                        callable_containers.add(target.value.id)
+                        changed = True
+                    if isinstance(value, ast.Name) and value.id in subprocess_modules | os_modules | module_containers and target.value.id not in module_containers:
+                        module_containers.add(target.value.id)
+                        changed = True
+                for destination, expression in module_bindings(target, value):
+                    for modules in (subprocess_modules, os_modules):
+                        if expression.id in modules and destination.id not in modules:
+                            modules.add(destination.id)
+                            changed = True
+                for item in ast.walk(target):
+                    if isinstance(item, ast.Name):
+                        if contained_callable and item.id not in callable_containers:
+                            callable_containers.add(item.id)
+                            changed = True
+                        if contained_module and item.id not in module_containers:
+                            module_containers.add(item.id)
+                            changed = True
                 if relevant and isinstance(target, ast.Name) and target.id not in aliases:
                     aliases.add(target.id)
                     changed = True
                 if callable_value and isinstance(target, ast.Name) and target.id not in callable_aliases:
                     callable_aliases.add(target.id)
                     changed = True
+                if executable_value and isinstance(target, ast.Name) and target.id not in os_executables:
+                    os_executables.add(target.id)
+                    changed = True
+                if system_value and isinstance(target, ast.Name) and target.id not in os_systems:
+                    os_systems.add(target.id)
+                    changed = True
+                if dynamic_code_value and isinstance(target, ast.Name) and target.id not in dynamic_code:
+                    dynamic_code.add(target.id)
+                    changed = True
     static_strings = {}
+    historical_strings = {}
     def static_string(node):
         if isinstance(node, ast.Name):
             return static_strings.get(node.id)
@@ -219,8 +508,58 @@ def _python(path, source):
                     static_strings.pop(target.id, None)
                 else:
                     static_strings[target.id] = value
+                    historical_strings.setdefault(target.id, set()).add(value)
                     if VALIDATOR in value:
                         reference_aliases.add(target.id)
+    def possible_strings(node):
+        if isinstance(node, ast.Name):
+            return historical_strings.get(node.id, set())
+        if isinstance(node, ast.JoinedStr):
+            parts = [possible_strings(part.value if isinstance(part, ast.FormattedValue) else part)
+                     for part in node.values]
+        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            parts = [possible_strings(node.left), possible_strings(node.right)]
+        else:
+            literal = _literal_string(node)
+            return {literal} if literal is not None else set()
+        result = {""}
+        for part in parts:
+            if len(result) * len(part) > 4096:
+                return {VALIDATOR}
+            result = {left + right for left in result for right in part}
+        return result
+
+    saturated = set()
+    changed = True
+    while changed:
+        changed = False
+        for assignment in nodes:
+            if isinstance(assignment, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+                targets = assignment.targets if isinstance(assignment, ast.Assign) else [assignment.target]
+                values = possible_strings(assignment.value) if assignment.value is not None else set()
+            elif isinstance(assignment, ast.AugAssign) and isinstance(assignment.op, ast.Add):
+                targets = [assignment.target]
+                left, right = possible_strings(assignment.target), possible_strings(assignment.value)
+                values = ({a + b for a in left for b in right}
+                          if len(left) * len(right) <= 4096 else {VALIDATOR})
+            else:
+                continue
+            for target in targets:
+                if not isinstance(target, ast.Name) or target.id in saturated:
+                    continue
+                previous = historical_strings.get(target.id, set())
+                combined = previous | values
+                if len(combined) > 64 or any(len(value) > 4096 for value in combined):
+                    historical_strings[target.id] = {VALIDATOR}
+                    saturated.add(target.id)
+                    reference_aliases.add(target.id)
+                    changed = True
+                elif combined != previous:
+                    historical_strings[target.id] = combined
+                    changed = True
+                if any(VALIDATOR in value for value in combined):
+                    reference_aliases.add(target.id)
+
     changed = True
     while changed:
         changed = False
@@ -286,15 +625,41 @@ def _python(path, source):
         if not isinstance(node, ast.Call):
             continue
         fn = node.func
+        if (isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name)
+                and (fn.value.id, fn.attr) in callable_attributes):
+            issues.append(f"{path}:{node.lineno}: unclassified Python executable")
+            continue
+        if isinstance(fn, ast.Subscript) and isinstance(fn.value, ast.Name) and fn.value.id in callable_containers:
+            issues.append(f"{path}:{node.lineno}: unclassified Python executable")
+            continue
+        if (isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Subscript)
+                and isinstance(fn.value.value, ast.Name) and fn.value.value.id in module_containers):
+            issues.append(f"{path}:{node.lineno}: unclassified Python executable")
+            continue
         name = fn.attr if isinstance(fn, ast.Attribute) else fn.id if isinstance(fn, ast.Name) else ""
         indirect = (isinstance(fn, ast.Call) and isinstance(fn.func, ast.Name) and fn.func.id == "getattr"
-                    and fn.args and isinstance(fn.args[0], ast.Name) and fn.args[0].id == "subprocess")
+                    and fn.args and isinstance(fn.args[0], ast.Name) and fn.args[0].id in subprocess_modules)
+        indirect_os = (isinstance(fn, ast.Call) and isinstance(fn.func, ast.Name) and fn.func.id == "getattr"
+                       and fn.args and isinstance(fn.args[0], ast.Name) and fn.args[0].id in os_modules)
         if indirect:
             name = "indirect_subprocess"
-        known_call = name in {"run", "Popen", "call", "check_call", "check_output", "getoutput", "getstatusoutput", "system", "exec", "indirect_subprocess"} | callable_aliases
+        os_exec = ((isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name)
+                    and fn.value.id in os_modules and fn.attr.startswith(("exec", "spawn")))
+                   or (isinstance(fn, ast.Name) and fn.id in os_executables))
+        if os_exec or indirect_os:
+            issues.append(f"{path}:{node.lineno}: unclassified Python executable")
+            continue
+        subprocess_call = (isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name)
+                           and fn.value.id in subprocess_modules and name in {"run", "Popen", "call", "check_call", "check_output", "getoutput", "getstatusoutput"})
+        known_call = (subprocess_call or indirect or (isinstance(fn, ast.Name) and name in callable_aliases | os_systems | dynamic_code)
+                      or (isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name)
+                          and fn.value.id in os_modules and name in {"system", "popen"}))
+        system_call = ((isinstance(fn, ast.Name) and name in os_systems)
+                       or (isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name)
+                           and fn.value.id in os_modules and name in {"system", "popen"}))
         if not known_call:
             arguments = list(node.args) + [keyword.value for keyword in node.keywords]
-            if any((static_string(item) is not None and VALIDATOR in static_string(item))
+            if any(any(VALIDATOR in value for value in possible_strings(item))
                    or (isinstance(item, ast.Name) and item.id in reference_aliases | partial_aliases)
                    for argument in arguments for item in ast.walk(argument)):
                 issue = f"{path}:{node.lineno}: unclassified Python reference"
@@ -302,24 +667,12 @@ def _python(path, source):
                     issues.append(issue)
             continue
         extra_arguments = list(node.args[1:]) + [keyword.value for keyword in node.keywords if keyword.arg != "args"]
-        if any((static_string(item) is not None and VALIDATOR in static_string(item))
+        if any(any(VALIDATOR in value for value in possible_strings(item))
                or (isinstance(item, ast.Name) and item.id in aliases | reference_aliases | partial_aliases | {"validator"})
                for argument in extra_arguments for item in ast.walk(argument)):
             issues.append(f"{path}:{node.lineno}: unclassified Python argument")
         keyword_args = [keyword.value for keyword in node.keywords if keyword.arg == "args"]
         commands = ([node.args[0]] if node.args else []) + keyword_args
-        references = [item for command in commands for item in ast.walk(command) if
-                      (static_string(item) is not None and VALIDATOR in static_string(item))
-                      or (isinstance(item, ast.Name) and item.id in aliases | reference_aliases | partial_aliases | {"validator"})]
-        if not references:
-            continue
-        if len(commands) != 1:
-            issues.append(f"{path}:{node.lineno}: ambiguous Python invocation")
-            continue
-        arg = commands[0]
-        if indirect:
-            issues.append(f"{path}:{node.lineno}: unclassified indirect subprocess invocation")
-            continue
         if any(keyword.arg in ("executable", None) for keyword in node.keywords):
             issues.append(f"{path}:{node.lineno}: subprocess executable override requires review")
             continue
@@ -327,6 +680,47 @@ def _python(path, source):
                                                   and keyword.value.value is False)
                for keyword in node.keywords):
             issues.append(f"{path}:{node.lineno}: subprocess shell mode requires review")
+            continue
+        references = [item for command in commands for item in ast.walk(command) if
+                      any(VALIDATOR in value for value in possible_strings(item))
+                      or (isinstance(item, ast.Name) and item.id in aliases | reference_aliases | partial_aliases | {"validator"})]
+        if not references:
+            if name in dynamic_code and (len(commands) != 1 or _literal_string(commands[0]) is None):
+                issues.append(f"{path}:{node.lineno}: unclassified Python executable")
+            if system_call and (len(commands) != 1 or _literal_string(commands[0]) is None):
+                issues.append(f"{path}:{node.lineno}: unclassified Python executable")
+            def unknown_executable(command):
+                if not isinstance(command, (ast.List, ast.Tuple)) or not command.elts:
+                    return True
+                values = [_literal_string(item) for item in command.elts]
+                if values[0] is None:
+                    return True
+                executable = values[0].rsplit('/', 1)[-1]
+                if executable == 'env':
+                    # Environment options and assignments can change how the next
+                    # executable is selected; require review of the complete argv.
+                    return True
+                if executable in {'bash', 'sh'} or re.fullmatch(r'python(?:[0-9]+(?:\.[0-9]+)*)?', executable):
+                    safe_options = ({'-e', '-l', '-u', '-x', '-n'} if executable in {'bash', 'sh'}
+                                    else {'-u', '-B', '-E', '-I', '-O', '-OO', '-s', '-S'})
+                    for value in values[1:]:
+                        if value is None or value in {'-c', '-m', '--command'}:
+                            return True
+                        if value.startswith('-') and value != '-' and value not in safe_options:
+                            return True
+                        if not value.startswith('-') or value == '-':
+                            return False
+                return False
+            if ((subprocess_call or name in callable_aliases)
+                    and len(commands) == 1 and unknown_executable(commands[0])):
+                issues.append(f"{path}:{node.lineno}: unclassified Python executable")
+            continue
+        if len(commands) != 1:
+            issues.append(f"{path}:{node.lineno}: ambiguous Python invocation")
+            continue
+        arg = commands[0]
+        if indirect:
+            issues.append(f"{path}:{node.lineno}: unclassified indirect subprocess invocation")
             continue
         if not isinstance(arg, (ast.List, ast.Tuple)):
             issues.append(f"{path}:{node.lineno}: unclassified Python invocation")
@@ -389,15 +783,44 @@ def inventory_sources(root):
     return result
 
 
+def _inventory_digest(root, sources):
+    """Bind a reviewed dynamic call to the complete source inventory."""
+    base = Path(root).resolve()
+    digest = hashlib.sha256()
+    for name, expected in sorted(sources.items()):
+        path = base / name
+        data = path.read_bytes()
+        if data.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n") != expected:
+            raise ValueError("source changed during inventory")
+        if name == "tests/fixtures/validator-runtime/source_guard.py":
+            data, count = re.subn(
+                rb'(hashlib\.sha256\(data\)\.hexdigest\(\) != ")[0-9a-f]{64}(":)',
+                rb'\g<1>' + b'0' * 64 + rb'\g<2>', data,
+            )
+            if count != 1:
+                raise ValueError("invalid manifest digest marker")
+        encoded = name.encode("utf-8")
+        digest.update(len(encoded).to_bytes(8, "big"))
+        digest.update(encoded)
+        digest.update(len(data).to_bytes(8, "big"))
+        digest.update(data)
+    return digest.hexdigest()
+
+
+
+@lru_cache(maxsize=32)
+def _function_contexts(path, source):
+    tree = ast.parse(source, filename=path)
+    return [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+
 
 def _context(path, source, number):
     lines = source.splitlines()
     if number < 1 or number > len(lines):
         raise ValueError("diagnostic line is outside the source")
     if path.endswith(".py"):
-        tree = ast.parse(source, filename=path)
-        functions = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                     and node.lineno <= number <= node.end_lineno]
+        functions = [node for node in _function_contexts(path, source)
+                     if node.lineno <= number <= node.end_lineno]
         if functions:
             node = min(functions, key=lambda item: item.end_lineno - item.lineno)
             return node.name, "\n".join(lines[node.lineno - 1:node.end_lineno])
@@ -432,6 +855,12 @@ def inspect_project(root, classified=()):
     """Inspect all regular project sources with exact classified-reference records."""
     sources = inventory_sources(root)
     issues = inspect_sources(sources)
+    try:
+        inventory_digest = _inventory_digest(root, sources) if any(
+            isinstance(entry, dict) and "inventory_sha256" in entry for entry in classified
+        ) else None
+    except (OSError, UnicodeError, ValueError, OverflowError):
+        return issues + ["cannot verify classified source inventory"]
     consumed = {}
     remaining = []
     for issue in issues:
@@ -451,6 +880,8 @@ def inspect_project(root, classified=()):
             remaining.append(issue)
             continue
         def dependencies_match(entry):
+            if "inventory_sha256" in entry and entry["inventory_sha256"] != inventory_digest:
+                return False
             dependencies = entry.get("dependencies", {})
             if not isinstance(dependencies, dict):
                 return False
@@ -490,7 +921,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "9dc3e879c281a5ef12f60760546722eb4fff36f93cf7753b6929260280d44e92":
+        if hashlib.sha256(data).hexdigest() != "5e93cc4b06a16f3d58d65fe542c61043a7e5e7cf04bd6f073ccf6a4b45af2c20":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):
