@@ -42,6 +42,25 @@ class UnknownExecutableForms(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertTrue(guard.inspect_sources({"tests/example.sh": source}))
 
+    def test_external_program_and_stdin_require_review(self):
+        for statement in (
+            "subprocess.run(['bash'], input='echo test', text=True)",
+            "subprocess.run(['python3'], stdin=stream)",
+            "subprocess.run(['/tmp/payload.sh'])",
+        ):
+            with self.subTest(statement=statement):
+                self.assert_rejected(statement)
+
+    def test_shell_external_script_and_conditional_source_require_review(self):
+        for source in (
+            'if source "$TARGET"; then :; fi\n',
+            'if . "$TARGET"; then :; fi\n',
+            'source /tmp/payload.sh\n',
+            'bash /tmp/payload.sh\n',
+        ):
+            with self.subTest(source=source):
+                self.assertTrue(guard.inspect_sources({"tests/example.sh": source}))
+
     def test_execl_validator_reference_requires_review(self):
         self.assert_rejected("os.execl('/bin/bash', 'bash', 'scripts/validate-contracts.sh')")
 
