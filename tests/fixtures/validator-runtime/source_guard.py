@@ -193,7 +193,14 @@ def _python(path, source):
                     and fn.args and isinstance(fn.args[0], ast.Name) and fn.args[0].id == "subprocess")
         if indirect:
             name = "indirect_subprocess"
-        if name not in {"run", "Popen", "call", "check_call", "check_output", "getoutput", "getstatusoutput", "system", "exec", "indirect_subprocess"} | callable_aliases:
+        known_call = name in {"run", "Popen", "call", "check_call", "check_output", "getoutput", "getstatusoutput", "system", "exec", "indirect_subprocess"} | callable_aliases
+        if not known_call:
+            arguments = list(node.args) + [keyword.value for keyword in node.keywords]
+            if any(_literal_string(item) is not None and VALIDATOR in _literal_string(item)
+                   for argument in arguments for item in ast.walk(argument)):
+                issue = f"{path}:{node.lineno}: unclassified Python reference"
+                if issue not in issues:
+                    issues.append(issue)
             continue
         keyword_args = [keyword.value for keyword in node.keywords if keyword.arg == "args"]
         commands = ([node.args[0]] if node.args else []) + keyword_args
@@ -379,7 +386,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "c966e4ebc6dc4e7819a2ed236574318f7e9b6dd421bd22af168a1a796593e1fe":
+        if hashlib.sha256(data).hexdigest() != "cc1a2a828c365709a4c051509af61e06a68ba4d62a560085c577dfa8135628d5":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):

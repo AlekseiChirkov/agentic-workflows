@@ -739,5 +739,149 @@
     "detail": "dynamic command requires review",
     "count": 1,
     "reason": "Private hygiene fixture invokes the git executable resolved by command -v git."
+  },
+  {
+    "path": "tests/fixtures/validator-runtime/source_guard.py",
+    "statement": "                count = block.count('output=\"$(bash scripts/validate-contracts.sh 2>&1)\"')",
+    "container": "inspect_sources",
+    "context_sha256": "6ca32ab9cd7d2cb0a244320cd3f366689b95fcd291a0098fa1ede16b26f70585",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-executable.py",
+    "statement": "        self.assert_rejected(\"os.execl('/bin/bash', 'bash', 'scripts/validate-contracts.sh')\")",
+    "container": "test_execl_validator_reference_requires_review",
+    "context_sha256": "2eab2098584c8c7d20c1e16696309e1574cf520499f68b31527a6ac32ed804e5",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-executable.py",
+    "statement": "        self.assert_rejected(\"os.execv('/bin/bash', ['bash', 'scripts/validate-contracts.sh'])\")",
+    "container": "test_execv_validator_reference_requires_review",
+    "context_sha256": "bfcb9e95f5ef1736d058d4d9a747e9887a10eb96ab66298825add2fd8064baa3",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-executable.py",
+    "statement": "        self.assert_rejected(\"custom_runner('scripts/validate-contracts.sh')\")",
+    "container": "test_unknown_callable_validator_reference_requires_review",
+    "context_sha256": "aa3562dc5dcf763af2588b1e1fd2409e617cb11085c85df8f9260b72502892b1",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-production.py",
+    "statement": "            (root / 'tests/new.sh').write_text('bash scripts/validate-contracts.sh\\n')",
+    "container": "test_new_full_call_is_not_authorized_by_existing_exception",
+    "context_sha256": "64c6bb5dc1aff01bdfe319854b503dea20eb986386ded8d5ec6f7c7bed04605f",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "        self.assertTrue(guard.inspect_sources({\"scripts/validate-contracts.sh\": source + source}))",
+    "container": "test_warning_exception_rejects_duplicate_container",
+    "context_sha256": "fa28d41ed98d84895daa24ab63edf5bbe2e5581add22eaf3fc53d7e71c0f4f43",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard-regressions.py",
+    "statement": "            self.assertEqual(set(guard.inventory_sources(root)), {",
+    "container": "test_inventory_reads_regular_project_sources",
+    "context_sha256": "5b0de1380d4975b80f6263dd35434d6ed2b7397a28140af36d0d04a849e3eead",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "        violations = self.violations({\"scripts/validate-contracts.sh\": before})",
+    "container": "test_rejects_three_untrimmed_history_calls",
+    "context_sha256": "e36025a33a6b70576ccac02a74c0995b1bbe6fdd4862d37d4558593aed93a26c",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "        self.assertTrue(all(\"scripts/validate-contracts.sh\" in str(item) for item in violations))",
+    "container": "test_rejects_three_untrimmed_history_calls",
+    "context_sha256": "e36025a33a6b70576ccac02a74c0995b1bbe6fdd4862d37d4558593aed93a26c",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "        self.assertEqual(self.violations({\"scripts/validate-contracts.sh\": after}), [])",
+    "container": "test_guarded_history_is_bound_to_context_and_exact_count",
+    "context_sha256": "426f1bde7c75ca9838021f605344126ca7262a029d5925843fba689dcb52ef19",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "            after.replace('write_contract_warning_prefix \"$root/scripts/validate-contracts.sh\"', 'printf unrelated-trim \"$root/scripts/validate-contracts.sh\"', 1),",
+    "container": "test_guarded_history_is_bound_to_context_and_exact_count",
+    "context_sha256": "426f1bde7c75ca9838021f605344126ca7262a029d5925843fba689dcb52ef19",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-guard.py",
+    "statement": "                self.assertTrue(self.violations({\"scripts/validate-contracts.sh\": mutated}))",
+    "container": "test_guarded_history_is_bound_to_context_and_exact_count",
+    "context_sha256": "426f1bde7c75ca9838021f605344126ca7262a029d5925843fba689dcb52ef19",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-identity.py",
+    "statement": "SOURCE = Path(os.environ.get('IDENTITY_SOURCE', ROOT / 'scripts/validate-contracts.sh'))",
+    "container": "top-level",
+    "context_sha256": "b7291d14bc7138cffef84eb133ad5d304c48d47877ea0e5735983bab3bb77f8d",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-oracle.py",
+    "statement": "        cls.inventory = ORACLE.inventory(ROOT / \"scripts/validate-contracts.sh\")",
+    "container": "setUpClass",
+    "context_sha256": "903acf094e288c32d6a48e8e274291c78eb94bd296620f526e3ad2894b364284",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-version-isolation.py",
+    "statement": "SOURCE = Path(os.environ.get('VERSION_FIXTURE_SOURCE', ROOT / 'scripts/validate-contracts.sh'))",
+    "container": "top-level",
+    "context_sha256": "5e71985b6c1a42ab9236394a00543fe6207daf8a02b38e3009af8427a4125072",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
+  },
+  {
+    "path": "tests/validator-runtime-warning-guard.py",
+    "statement": "            shutil.copy(ROOT / 'scripts/validate-contracts.sh', root / 'scripts/validate-contracts.sh')",
+    "container": "test_isolation_suite_creates_no_bytecode",
+    "context_sha256": "3dbc6e72767ddea111e76f13bc0683c84fa7a1536b82d8f3cd5216687f2d9b79",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The reference is source data or a filesystem path, not a validator invocation."
   }
 ]

@@ -39,6 +39,12 @@ class UnsafeInvocationRegressions(unittest.TestCase):
         source = "import subprocess\ngetattr(subprocess, 'run')(['bash', 'scripts/validate-' + 'contracts.sh'])\n"
         self.assertTrue(guard.inspect_sources({"tests/example.py": source}))
 
+    def test_unclassified_executable_regressions(self):
+        suite = ROOT / "tests/validator-runtime-guard-executable.py"
+        result = subprocess.run([sys.executable, "-B", str(suite)], capture_output=True,
+                                text=True, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_cli_scans_project_with_pinned_classifications(self):
         result = subprocess.run([sys.executable, '-B', str(ROOT / 'tests/fixtures/validator-runtime/source_guard.py'),
                                  '--root', str(ROOT)], capture_output=True, text=True, timeout=5)
