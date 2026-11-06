@@ -37,6 +37,31 @@ def _exception(path, source, statement, exceptions, used):
     return True
 
 
+def _direct_path_command(line):
+    """Identify path-named commands at shell command boundaries."""
+    try:
+        lexer = shlex.shlex(line, posix=True, punctuation_chars=";&|()")
+        lexer.whitespace_split = True
+        lexer.commenters = "#"
+        tokens = list(lexer)
+    except ValueError:
+        return False
+    command_start = True
+    for token in tokens:
+        if token and all(char in ";&|()" for char in token):
+            command_start = True
+        elif command_start and token in {"if", "then", "do", "elif", "while", "until", "!"}:
+            continue
+        elif command_start and re.match(r"^[A-Za-z_][A-Za-z_0-9]*=", token):
+            continue
+        elif command_start:
+            if (re.match(r"^(?:/|\./|\.\./)[A-Za-z0-9_.-]", token)
+                    and token not in {"/.", "/..", ".", ".."}):
+                return True
+            command_start = False
+    return False
+
+
 def _shell(path, source, exceptions, used):
     issues = []
     lines = source.splitlines()
@@ -88,9 +113,12 @@ def _shell(path, source, exceptions, used):
                 r"(?:^\s*|[;&|()]\s*|\b(?:if|then|do|elif|while|until)\s+)(?:source|\.)\s+[\"']?[^\s;&|()]+", line)
             external_script = re.search(
                 r"(?:^\s*|[;&|()]\s*|\b(?:if|then|do|elif|while|until)\s+)(?:bash|sh)\s+(?:-[A-Za-z0-9-]+\s+)*[\"']?[^-\s;&|()]+", line)
+            inherited_shell = re.search(
+                r"(?:^\s*|[;&|()]\s*|\b(?:if|then|do|elif|while|until)\s+)(?:bash|sh)(?:\s+-[A-Za-z0-9-]+)*(?:\s*(?:[;&|)]|$))", line)
+            direct_path = _direct_path_command(line)
             if dynamic_command:
                 issues.append(f"{path}:{number}: dynamic command requires review")
-            elif dynamic_executable or dynamic_source or external_script:
+            elif dynamic_executable or dynamic_source or external_script or inherited_shell or direct_path:
                 issues.append(f"{path}:{number}: dynamic executable requires review")
             continue
         direct_substitution = any(
@@ -927,7 +955,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "a160611f4eff1563c358046596bffaa18bc0982bf1b6de1b1c381eebc9db8c94":
+        if hashlib.sha256(data).hexdigest() != "7ee0b1e26714471c8536887cede63f11b006e3641b2bd2b6f504a88a3507a7b1":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):
