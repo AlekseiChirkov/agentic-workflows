@@ -1,6 +1,13 @@
 spec_path: .ai/specs/06-1-test-suite-runtime.md
 contract_version: 0.9.0
 flow: full
+status: completed
+
+## Owner-directed closure
+- The owner directed closure as completed after merging PR #79 on 2026-11-06.
+- PR #79 merged as 7bfc42ba2d496e2ab45ae418bd8c4b9139464824. PRs #77 and #78 were merged previously.
+- This is an administrative closure, not a validation verdict. Timing and parallel-runner candidates remain unmerged; their DEBUG compatibility regressions were unresolved. The source-guard candidate had unresolved diagnostics and its full guard did not pass. Comparative performance targets were not verified.
+- Existing phase, subtask, and acceptance records below retain their actual statuses and evidence. The separate candidate worktrees retain uncommitted changes.
 
 ## Phases
 - discovery: complete
@@ -52,6 +59,7 @@ flow: full
 ## Subtask Progress
 
 ### Current execution checkpoint
+- Closed by owner decision; the historical resume instructions below are retained as evidence and are no longer an active work queue.
 - Resume against `main` after merge commit 43d5c6faa1048e1a1350a9b7a68641e9d8193baf, or a verified descendant. PR #77 merged as f2b156b767a06cf730c50d8fada2c7efed60c400; PR #78 merged as 43d5c6faa1048e1a1350a9b7a68641e9d8193baf. Each PR had a separate reviewer; #78 was reviewed again after its documentation-only correction. Their merged work is partial delivery, not task completion.
 - Resume at T-01 reconciliation and validation: compare its recorded branch and checkpoints with the merged implementation, preserve the original base and commit history, and assess the remaining acceptance criteria before changing any atomic status. T-02 through T-05 also have implementation in the merged PRs and require criteria-by-criteria reconciliation; do not recreate their work or claim atomic validation solely from PR approval. T-06, T-07 and its children, and T-08 and its children remain unfinished.
 - `spec-run` requires a clean tracked working tree at preflight. The owner explicitly requested committing all existing changes to `main`; use a clean checkout of the updated `main` for the next invocation. Reconcile the recorded T-01 branch and its checkpoint at 600e948 explicitly against the merged work; do not assume that the old branch is the new delivery base.
