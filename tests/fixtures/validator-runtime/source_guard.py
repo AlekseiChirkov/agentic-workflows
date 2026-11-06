@@ -85,10 +85,12 @@ def _shell(path, source, exceptions, used):
             dynamic_executable = re.search(
                 r"(?:^|[;&|()\s])(?:bash|sh|exec)\s+(?:(?:--?[A-Za-z0-9-]+)\s+)*[\"']?\$", line)
             dynamic_source = re.search(
-                r"(?:^\s*|[;&|()]\s*)(?:source|\.)\s+[\"']?\$", line)
+                r"(?:^\s*|[;&|()]\s*|\b(?:if|then|do|elif|while|until)\s+)(?:source|\.)\s+[\"']?[^\s;&|()]+", line)
+            external_script = re.search(
+                r"(?:^\s*|[;&|()]\s*|\b(?:if|then|do|elif|while|until)\s+)(?:bash|sh)\s+[\"']?[^-\s;&|()]+", line)
             if dynamic_command:
                 issues.append(f"{path}:{number}: dynamic command requires review")
-            elif dynamic_executable or dynamic_source:
+            elif dynamic_executable or dynamic_source or external_script:
                 issues.append(f"{path}:{number}: dynamic executable requires review")
             continue
         direct_substitution = any(
@@ -695,6 +697,8 @@ def _python(path, source):
                 if values[0] is None:
                     return True
                 executable = values[0].rsplit('/', 1)[-1]
+                if ('/' in values[0] or executable.endswith(('.sh', '.py'))) and executable not in {'bash', 'sh'} and not re.fullmatch(r'python(?:[0-9]+(?:\.[0-9]+)*)?', executable):
+                    return True
                 if executable == 'env':
                     # Environment options and assignments can change how the next
                     # executable is selected; require review of the complete argv.
@@ -702,6 +706,8 @@ def _python(path, source):
                 if executable in {'bash', 'sh'} or re.fullmatch(r'python(?:[0-9]+(?:\.[0-9]+)*)?', executable):
                     safe_options = ({'-e', '-l', '-u', '-x', '-n'} if executable in {'bash', 'sh'}
                                     else {'-u', '-B', '-E', '-I', '-O', '-OO', '-s', '-S'})
+                    if not (executable in {'bash', 'sh'} and '-n' in values[1:]) and any(keyword.arg in {'input', 'stdin'} for keyword in node.keywords):
+                        return True
                     for value in values[1:]:
                         if value is None or value in {'-c', '-m', '--command'}:
                             return True
@@ -920,7 +926,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "954c170775acae90f55a281e42686c401937c211ed08c841ff2d75cea3a5dfa2":
+        if hashlib.sha256(data).hexdigest() != "9ae32a67ebe583da0d95dba1d71fc96c4db81015c434b530f5c71f3d88100d76":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):

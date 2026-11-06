@@ -26,3 +26,14 @@ When updating the guard:
 5. Run the guard, its regression and external-source suites, and the inventory
    oracle. Confirm that they pass and inspect the final diff, including all added,
    removed and modified exceptions. These checks do not substitute for review.
+
+## Fixture source overrides
+
+The identity and version isolation fixtures accept source overrides only when the
+extracted executable fragment matches the corresponding fragment in the fixture's
+checkout. The version fixture also requires its logging helper to match that
+checkout. Overrides containing a changed fragment were accepted previously; they
+are now rejected before execution. To compare a changed implementation, run the
+fixture in the reviewed candidate checkout, where that checkout's validator is the
+trusted source, and compare its results with the pinned original fixture. Verify
+the candidate checkout and its source provenance before running the comparison.
