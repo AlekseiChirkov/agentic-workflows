@@ -61,6 +61,18 @@ class UnknownExecutableForms(unittest.TestCase):
     def test_known_name_with_validator_in_keyword_requires_review(self):
         self.assert_rejected("run('/bin/bash', script='scripts/validate-contracts.sh')")
 
+    def test_for_loop_path_requires_review(self):
+        self.assert_rejected("for p in ['scripts/validate-contracts.sh']:\n    os.execv('/bin/bash', ['bash', p])")
+
+    def test_comprehension_path_requires_review(self):
+        self.assert_rejected("[custom_runner(p) for p in ['scripts/validate-contracts.sh']]")
+
+    def test_async_for_path_requires_review(self):
+        self.assert_rejected("async def f():\n    async for p in ['scripts/validate-contracts.sh']:\n        custom_runner(p)")
+
+    def test_match_capture_path_requires_review(self):
+        self.assert_rejected("match 'scripts/validate-contracts.sh':\n    case p: custom_runner(p)")
+
     def test_unknown_callable_validator_reference_requires_review(self):
         self.assert_rejected("custom_runner('scripts/validate-contracts.sh')")
 
