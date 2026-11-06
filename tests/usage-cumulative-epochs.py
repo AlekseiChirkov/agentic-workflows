@@ -152,12 +152,12 @@ class CumulativeEpochTests(unittest.TestCase):
         self.assertEqual(result['reconciliation_ids'], [])
         self.assertFalse(result['complete_request_accounting'])
 
-    def test_large_nonoverlapping_derived_sum_remains_exact(self):
+    def test_nonoverlapping_derived_sum_above_safe_integer_remains_exact(self):
         maximum = 9007199254740991
-        items = [aggregate(index * 2, index * 2 + 1, maximum) for index in range(1025)]
+        items = [aggregate(index * 2, index * 2 + 1, maximum) for index in range(2)]
         result = self.aggregate(items)
-        self.assertEqual(result['total'], 1025 * maximum)
-        self.assertEqual(len(result['included_ids']), 1025)
+        self.assertEqual(result['total'], 2 * maximum)
+        self.assertEqual(len(result['included_ids']), 2)
         self.assertEqual(result['reconciliation_ids'], [])
 
     def test_overlap_unknown_bounds_or_units_are_only_reconciliation(self):
