@@ -163,7 +163,7 @@ Run the remaining children in order, passing the task directory and selected mod
 4. `/pd-design <task-directory>` — full flow only. If design changes a leaf or decomposition, rerun selection before finalization.
 5. `/pd-finalize <task-directory>` — consistency, archive and final report.
 
-Read `flow:` after Step 1: for `flow: quick`, skip Steps 2–4; create no T-XX or
+Read `flow:` after Step 1: for `flow: quick`, skip Steps 2 and 3 and Step 4; create no T-XX or
 `plan.md`; full flow runs all steps. Apply `quick-flow` if scope requires promotion.
 Selection incomplete or unavailable must stop the phase with `discovery: in-progress` and actionable recovery instructions. A child Guard or hard blocker stops the phase in either mode. In autonomous mode,
 immediately invoke the next child when the previous one succeeds.

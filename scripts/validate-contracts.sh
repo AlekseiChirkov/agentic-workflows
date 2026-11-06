@@ -1411,8 +1411,8 @@ check "QUICK: pv-review reads the quick contract too" \
 check "QUICK: pd-analyze writes the quick contract" \
   "$(grep -q '## Contract (quick)' workflows/pd-analyze.md 2>/dev/null && echo pass || echo 'pd-analyze.md does not write ## Contract (quick) — the quick tier would have no contract at all')"
 
-check "QUICK: phase-discovery skips decompose, selection and design on the quick tier" \
-  "$(grep -qi 'skip Steps 2–4' workflows/phase-discovery.md 2>/dev/null && echo pass || echo 'phase-discovery.md does not branch on flow: quick')"
+check "QUICK: phase-discovery skips decompose+design on the quick tier" \
+  "$(grep -qi 'skip Steps 2 and 3' workflows/phase-discovery.md 2>/dev/null && echo pass || echo 'phase-discovery.md does not branch on flow: quick')"
 
 # ── Group 31: pv-classify-fixes ordering ─────────────────────────────
 check "FIX: pv-classify-fixes creates ## Fix-Tasks itself when it runs first" \
