@@ -73,6 +73,21 @@ class UnknownExecutableForms(unittest.TestCase):
     def test_match_capture_path_requires_review(self):
         self.assert_rejected("match 'scripts/validate-contracts.sh':\n    case p: custom_runner(p)")
 
+    def test_augmented_path_requires_review(self):
+        self.assert_rejected("p = 'scripts/'\np += 'validate-contracts.sh'\nos.execv('/bin/bash', ['bash', p])")
+
+    def test_split_augmented_path_requires_review(self):
+        self.assert_rejected("p = 'scripts/validate-'\np += 'contracts.sh'\ncustom_runner(p)")
+
+    def test_concatenated_alias_path_requires_review(self):
+        self.assert_rejected("a = 'scripts/validate-'\nb = 'contracts.sh'\np = a + b\ncustom_runner(p)")
+
+    def test_formatted_alias_path_requires_review(self):
+        self.assert_rejected("a = 'scripts/validate-'\np = f'{a}contracts.sh'\ncustom_runner(p)")
+
+    def test_composed_direct_argument_requires_review(self):
+        self.assert_rejected("a = 'scripts/validate-'\nb = 'contracts.sh'\ncustom_runner(a + b)")
+
     def test_unknown_callable_validator_reference_requires_review(self):
         self.assert_rejected("custom_runner('scripts/validate-contracts.sh')")
 
