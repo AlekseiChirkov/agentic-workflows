@@ -34,6 +34,24 @@ class UnknownExecutableForms(unittest.TestCase):
     def test_unknown_callable_validator_path_alias_requires_review(self):
         self.assert_rejected("p = 'scripts/validate-contracts.sh'\ncustom_runner(p)")
 
+    def test_tuple_unpacked_path_requires_review(self):
+        self.assert_rejected("p, = ('scripts/validate-contracts.sh',)\nos.execv('/bin/bash', ['bash', p])")
+
+    def test_nested_list_unpacked_path_requires_review(self):
+        self.assert_rejected("[other, [p]] = ['ignored', ['scripts/validate-contracts.sh']]\ncustom_runner(p)")
+
+    def test_chained_unpacked_path_requires_review(self):
+        self.assert_rejected("p, = ('scripts/validate-contracts.sh',)\nq = p\ncustom_runner(q)")
+
+    def test_assignment_expression_path_requires_review(self):
+        self.assert_rejected("(p := 'scripts/validate-contracts.sh')\ncustom_runner(p)")
+
+    def test_starred_unpacked_path_requires_review(self):
+        self.assert_rejected("*paths, = ['scripts/validate-contracts.sh']\ncustom_runner(paths)")
+
+    def test_subprocess_unpacked_path_requires_review(self):
+        self.assert_rejected("p, = ('scripts/validate-contracts.sh',)\nsubprocess.run(['bash', p])")
+
     def test_unknown_callable_validator_reference_requires_review(self):
         self.assert_rejected("custom_runner('scripts/validate-contracts.sh')")
 
