@@ -184,7 +184,39 @@ def _python(path, source):
                 if callable_value and isinstance(target, ast.Name) and target.id not in callable_aliases:
                     callable_aliases.add(target.id)
                     changed = True
+    static_strings = {}
+    def static_string(node):
+        if isinstance(node, ast.Name):
+            return static_strings.get(node.id)
+        if isinstance(node, ast.JoinedStr):
+            pieces = [static_string(part.value if isinstance(part, ast.FormattedValue) else part)
+                      for part in node.values]
+            return "".join(pieces) if all(piece is not None for piece in pieces) else None
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            left, right = static_string(node.left), static_string(node.right)
+            return left + right if left is not None and right is not None else None
+        return _literal_string(node)
+
     reference_aliases = set()
+    nodes = sorted(ast.walk(tree), key=lambda node: (getattr(node, "lineno", 0), getattr(node, "col_offset", 0)))
+    for assignment in nodes:
+        if isinstance(assignment, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+            targets = assignment.targets if isinstance(assignment, ast.Assign) else [assignment.target]
+            value = static_string(assignment.value) if assignment.value is not None else None
+        elif isinstance(assignment, ast.AugAssign) and isinstance(assignment.op, ast.Add):
+            targets = [assignment.target]
+            left, right = static_string(assignment.target), static_string(assignment.value)
+            value = left + right if left is not None and right is not None else None
+        else:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                if value is None:
+                    static_strings.pop(target.id, None)
+                else:
+                    static_strings[target.id] = value
+                    if VALIDATOR in value:
+                        reference_aliases.add(target.id)
     changed = True
     while changed:
         changed = False
@@ -258,7 +290,7 @@ def _python(path, source):
         known_call = name in {"run", "Popen", "call", "check_call", "check_output", "getoutput", "getstatusoutput", "system", "exec", "indirect_subprocess"} | callable_aliases
         if not known_call:
             arguments = list(node.args) + [keyword.value for keyword in node.keywords]
-            if any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))
+            if any((static_string(item) is not None and VALIDATOR in static_string(item))
                    or (isinstance(item, ast.Name) and item.id in reference_aliases)
                    for argument in arguments for item in ast.walk(argument)):
                 issue = f"{path}:{node.lineno}: unclassified Python reference"
@@ -266,14 +298,14 @@ def _python(path, source):
                     issues.append(issue)
             continue
         extra_arguments = list(node.args[1:]) + [keyword.value for keyword in node.keywords if keyword.arg != "args"]
-        if any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))
+        if any((static_string(item) is not None and VALIDATOR in static_string(item))
                or (isinstance(item, ast.Name) and item.id in aliases | reference_aliases | {"validator"})
                for argument in extra_arguments for item in ast.walk(argument)):
             issues.append(f"{path}:{node.lineno}: unclassified Python argument")
         keyword_args = [keyword.value for keyword in node.keywords if keyword.arg == "args"]
         commands = ([node.args[0]] if node.args else []) + keyword_args
         references = [item for command in commands for item in ast.walk(command) if
-                      (_literal_string(item) is not None and VALIDATOR in _literal_string(item))
+                      (static_string(item) is not None and VALIDATOR in static_string(item))
                       or (isinstance(item, ast.Name) and item.id in aliases | reference_aliases | {"validator"})]
         if not references:
             continue
@@ -295,7 +327,7 @@ def _python(path, source):
         if not isinstance(arg, (ast.List, ast.Tuple)):
             issues.append(f"{path}:{node.lineno}: unclassified Python invocation")
             continue
-        values = [_literal_string(item) for item in arg.elts]
+        values = [static_string(item) for item in arg.elts]
         target = next((index for index, value in enumerate(values)
                        if value is not None and VALIDATOR in value), None)
         if target is not None and "-c" in values[:target]:
@@ -454,7 +486,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "c794ea4e2dafb843ec830728746c361762ea823555ee21b967476efd2c6203cc":
+        if hashlib.sha256(data).hexdigest() != "547eb8eb5cf6585c9146ec818e4f069ba2f79c9780c5e584fc083d031ac4b8ae":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):

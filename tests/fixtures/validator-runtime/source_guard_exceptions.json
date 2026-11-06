@@ -897,7 +897,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "        target = next((index for index, value in enumerate(values)",
     "container": "_python",
-    "context_sha256": "c38b810274d7b44106448b2cfc923d181f6f471ee4e5efff4c582235bc060381",
+    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data or a filesystem path, not a validator invocation."
@@ -906,16 +906,16 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            relevant = any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))",
     "container": "_python",
-    "context_sha256": "c38b810274d7b44106448b2cfc923d181f6f471ee4e5efff4c582235bc060381",
+    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data or a filesystem path, not a validator invocation."
   },
   {
     "path": "tests/fixtures/validator-runtime/source_guard.py",
-    "statement": "            if any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))",
+    "statement": "            if any((static_string(item) is not None and VALIDATOR in static_string(item))",
     "container": "_python",
-    "context_sha256": "c38b810274d7b44106448b2cfc923d181f6f471ee4e5efff4c582235bc060381",
+    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data or a filesystem path, not a validator invocation."
@@ -1417,9 +1417,9 @@
   },
   {
     "path": "tests/fixtures/validator-runtime/source_guard.py",
-    "statement": "        if any((_literal_string(item) is not None and VALIDATOR in _literal_string(item))",
+    "statement": "        if any((static_string(item) is not None and VALIDATOR in static_string(item))",
     "container": "_python",
-    "context_sha256": "c38b810274d7b44106448b2cfc923d181f6f471ee4e5efff4c582235bc060381",
+    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data, not a validator invocation."
@@ -1428,7 +1428,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "                if default is not None and any(",
     "container": "_python",
-    "context_sha256": "c38b810274d7b44106448b2cfc923d181f6f471ee4e5efff4c582235bc060381",
+    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The reference is source data, not a validator invocation."
@@ -1464,7 +1464,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            if not any(isinstance(item, ast.Call) for item in ast.walk(value)) and any(",
     "container": "_python",
-    "context_sha256": "c38b810274d7b44106448b2cfc923d181f6f471ee4e5efff4c582235bc060381",
+    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "Scanner bookkeeping inspects strings and AST nodes without executing them."
@@ -1554,7 +1554,7 @@
     "path": "tests/fixtures/validator-runtime/source_guard.py",
     "statement": "            if any(",
     "container": "_python",
-    "context_sha256": "c38b810274d7b44106448b2cfc923d181f6f471ee4e5efff4c582235bc060381",
+    "context_sha256": "5ce757026ea0901fb142c10eff71dfcb05ffbb16e368664b73fee50a39315532",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "Scanner bookkeeping inspects AST nodes without executing them."
@@ -1564,6 +1564,15 @@
     "statement": "        self.assert_rejected(\"match 'scripts/validate-contracts.sh':\\n    case p: custom_runner(p)\")",
     "container": "test_match_capture_path_requires_review",
     "context_sha256": "c0377b4c83e3df42ca17b3f21fa38bd485558e280a7152cdb15f05408b15b700",
+    "detail": "unclassified Python reference",
+    "count": 1,
+    "reason": "The test passes a fixture source as data without executing it."
+  },
+  {
+    "path": "tests/validator-runtime-guard-executable.py",
+    "statement": "        self.assert_rejected(\"p = 'scripts/'\\np += 'validate-contracts.sh'\\nos.execv('/bin/bash', ['bash', p])\")",
+    "container": "test_augmented_path_requires_review",
+    "context_sha256": "ef392b1e26471ac1e84a60e55dcc4d2ca2ccfab8c2b3c2bb5b7a9f6c8be25e9b",
     "detail": "unclassified Python reference",
     "count": 1,
     "reason": "The test passes a fixture source as data without executing it."
