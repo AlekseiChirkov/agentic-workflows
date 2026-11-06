@@ -87,7 +87,7 @@ def _shell(path, source, exceptions, used):
             dynamic_source = re.search(
                 r"(?:^\s*|[;&|()]\s*|\b(?:if|then|do|elif|while|until)\s+)(?:source|\.)\s+[\"']?[^\s;&|()]+", line)
             external_script = re.search(
-                r"(?:^\s*|[;&|()]\s*|\b(?:if|then|do|elif|while|until)\s+)(?:bash|sh)\s+[\"']?[^-\s;&|()]+", line)
+                r"(?:^\s*|[;&|()]\s*|\b(?:if|then|do|elif|while|until)\s+)(?:bash|sh)\s+(?:-[A-Za-z0-9-]+\s+)*[\"']?[^-\s;&|()]+", line)
             if dynamic_command:
                 issues.append(f"{path}:{number}: dynamic command requires review")
             elif dynamic_executable or dynamic_source or external_script:
@@ -715,7 +715,8 @@ def _python(path, source):
                             return True
                         if not value.startswith('-') or value == '-':
                             return True
-                return False
+                    return not (executable in {'bash', 'sh'} and '-n' in values[1:])
+                return True
             if ((subprocess_call or name in callable_aliases)
                     and len(commands) == 1 and unknown_executable(commands[0])):
                 issues.append(f"{path}:{node.lineno}: unclassified Python executable")
@@ -926,7 +927,7 @@ def main(argv=None):
     manifest = Path(__file__).with_name("source_guard_exceptions.json")
     try:
         data = manifest.read_bytes()
-        if hashlib.sha256(data).hexdigest() != "9ae32a67ebe583da0d95dba1d71fc96c4db81015c434b530f5c71f3d88100d76":
+        if hashlib.sha256(data).hexdigest() != "a160611f4eff1563c358046596bffaa18bc0982bf1b6de1b1c381eebc9db8c94":
             raise ValueError("classified reference manifest digest differs")
         exceptions = json.loads(data)
         if not isinstance(exceptions, list):

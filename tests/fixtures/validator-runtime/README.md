@@ -37,3 +37,12 @@ are now rejected before execution. To compare a changed implementation, run the
 fixture in the reviewed candidate checkout, where that checkout's validator is the
 trusted source, and compare its results with the pinned original fixture. Verify
 the candidate checkout and its source provenance before running the comparison.
+
+## Scope of executable review
+
+The guard classifies source call sites and does not authenticate executables
+resolved by the process environment. Records for fixed commands such as `git`,
+`openssl` and `locale` document the reviewed arguments and fixture context; they
+do not pin or verify the binary found through `PATH`. Run the tests in an
+appropriately controlled environment. The scanner is bounded and is not a full
+Bash or Python execution model; review unfamiliar execution forms explicitly.
