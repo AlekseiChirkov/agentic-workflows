@@ -19,8 +19,11 @@ stderr only. Read commands create, modify and delete no file. A write holds the 
 lock file .state-tool.lock, checks the expected revision, changes only the lines of the
 named fields plus the state_receipts line, and replaces state.md with one rename of its
 own temporary file. Notes are only appended and target files only added; existing note
-text and existing target_files entries are never changed. Python 3.11 or newer and the standard library only; no input value is
-ever passed to a shell or interpreter.
+text and existing target_files entries are never changed. Lifecycle rules are checked
+against the header fields a write changes; a rule already broken in a field the write does
+not change is reported as a warning (pre-existing-violation, required-field-missing) and
+never blocks the write. Python 3.11 or newer and the standard library only; no input value
+is ever passed to a shell or interpreter.
 
 Exit codes: 0 read, valid, applied or unchanged; 1 internal-error; 2 invalid invocation
 (invalid-arguments, unknown-command, malformed-revision, invalid-operation-id,
@@ -29,7 +32,8 @@ section-duplicate, block-missing, block-duplicate, malformed-block, malformed-re
 unrecognized-prefix, unknown-header-field, unsupported-contract-version,
 unsupported-encoding); 4 revision conflict (revision-conflict, state-file-changed); 5 lock
 busy (lock-busy); 6 field, value or invariant refused (invalid-value, invalid-path,
-read-only-field, field-not-applicable, and for validate n-a-unjustified, completion-without-tests,
+read-only-field, field-not-applicable, n-a-unjustified, completion-without-tests, for writes
+downgrade, pinned-transition, invalid-transition, pre-tdd-not-applicable, and for validate
 required-field-missing); 7 file system or runtime (io-error, unsafe-state-file,
 unsafe-lock-path, locking-unavailable, python-too-old). validate exits 3 before 6 when
 both kinds of error exist and lists every error.
@@ -118,6 +122,9 @@ STATUS_VOCABULARY = {
 N_A_JUSTIFICATION = "tdd: none — "
 PRE_TDD_NOTE = "pre-TDD task, TDD step skipped"
 COMPLETION_TEST_VALUES = ("green", "n-a")
+# Rank of each atomic-tests value; an absent segment ranks with not-started; writes never lower it.
+ATOMIC_TESTS_RANK = {"not-started": 0, "red": 1, "pinned": 1, "n-a": 1, "failed": 1, "green": 2}
+GREEN_SOURCES = ("red", "pinned")
 # Fields set may change per block kind; every other field is read-only or not applicable.
 SET_WRITABLE_FIELDS = {
     "leaf": ("atomic-tests", "atomic-execution", "atomic-validation", "last_action", "blocker"),
@@ -674,6 +681,84 @@ def invariant_errors(block: Block) -> list[ToolError]:
         errors.append(ToolError(6, "required-field-missing",
                                 f"block {block.block_id}: missing " + ", ".join(missing), line))
     return errors
+
+
+def tests_transition_error(previous: str | None, value: str, notes: str) -> tuple[str, str] | None:
+    """Return (error code, reason) when atomic-tests may not move from previous to value: the
+    rank never decreases, pinned moves only to green, green comes only from red or pinned, and
+    n-a needs the test-level justification in the notes text of the result."""
+    previous_rank = ATOMIC_TESTS_RANK.get(previous, 0) if previous is not None else 0
+    if ATOMIC_TESTS_RANK[value] < previous_rank:
+        return "downgrade", f"atomic-tests may not move down from {previous} to {value}"
+    if previous == "pinned" and value != "green":
+        return "pinned-transition", f"atomic-tests pinned changes only to green, not to {value}"
+    if value == "green" and previous not in GREEN_SOURCES:
+        shown = "an absent segment" if previous is None else previous
+        return ("invalid-transition",
+                f"atomic-tests reaches green only from red or pinned, not from {shown}")
+    if value == "n-a" and not n_a_justified(notes):
+        return ("n-a-unjustified",
+                f"atomic-tests n-a needs a notes line containing '{N_A_JUSTIFICATION}'")
+    return None
+
+
+def execution_transition_error(header: dict[str, str], result: dict[str, str], value: str,
+                               notes: str) -> tuple[str, str] | None:
+    """Return (error code, reason) when atomic-execution may not change to value: a leaf
+    without atomic-tests leaves not-started only with atomic-tests in the same write, and
+    complete needs green or n-a tests, or no tests segment, a previous in-progress status and
+    the pre-TDD note in the notes text of the result."""
+    previous = header.get("atomic-execution")
+    if "atomic-tests" not in result and previous == "not-started":
+        return ("pre-tdd-not-applicable", "a leaf without atomic-tests leaves not-started only "
+                "with atomic-tests in the same set")
+    if value != "complete":
+        return None
+    tests = result.get("atomic-tests")
+    if tests in COMPLETION_TEST_VALUES:
+        return None
+    if tests is None and previous == "in-progress" and PRE_TDD_NOTE in notes:
+        return None
+    return ("completion-without-tests",
+            "atomic-execution complete needs green or n-a tests, or the pre-TDD note on a leaf "
+            "without atomic-tests that was in progress")
+
+
+def check_write_invariants(block: Block, changes: dict[str, str], notes: list[str]) -> list[str]:
+    """Refuse a write whose changed header fields break a lifecycle rule (exit 6), judged on the
+    resulting block with the notes of the same write; return the warnings for rule violations
+    that remain in fields the write does not change."""
+    known_header = KNOWN_HEADER_FIELDS[block.kind]
+    header = dict(block.header_fields)
+    result = header | {name: value for name, value in changes.items() if name in known_header}
+    notes_after = "\n".join(notes_parts(block) + notes)
+    if block.kind == "leaf":
+        problem = None
+        if "atomic-tests" in changes:
+            problem = tests_transition_error(header.get("atomic-tests"), changes["atomic-tests"],
+                                             notes_after)
+        if problem is None and "atomic-execution" in changes:
+            problem = execution_transition_error(header, result, changes["atomic-execution"],
+                                                 notes_after)
+        if problem is not None:
+            code, reason = problem
+            raise ToolError(6, code, f"block {block.block_id}: {reason}", block.start + 1)
+    warnings: list[str] = []
+    unchanged = {name: value for name, value in result.items() if name not in changes}
+    if any(name in known_header and not value_in_vocabulary(name, value)
+           for name, value in unchanged.items()):
+        warnings.append("pre-existing-violation")
+    if unchanged.get("atomic-tests") == "n-a" and not n_a_justified(notes_after):
+        warnings.append("pre-existing-violation")
+    if (unchanged.get("atomic-execution") == "complete"
+            and not completion_allowed(result.get("atomic-tests"), notes_after)):
+        warnings.append("pre-existing-violation")
+    names = {group.name for group in block.groups} | set(changes)
+    if notes:
+        names.add("notes")
+    if any(name not in names for name in REQUIRED_FIELDS[block.kind]):
+        warnings.append("required-field-missing")
+    return unique(warnings)
 
 
 def pre_tdd_exception(block: Block) -> str | None:
@@ -1298,15 +1383,16 @@ def command_write(command: str, options: dict[str, list[str]], report: dict[str,
         if not changes and not notes:
             report["result"] = "unchanged"
             return 0
+        warnings = check_write_invariants(block, changes, notes)
         digest = input_digest(command, block_id, write_inputs(command, pairs, notes, target_paths))
         receipt = f"{options['--operation-id'][0]}#{digest}"
         candidate = build_candidate(document, block, changes, notes, receipt)
         verify_candidate(document, block, candidate, changes)
         changed = candidate.changed
         candidate_bytes = candidate.text.encode("utf-8")
-        report["warnings"] = replace_state(paths, candidate_bytes, owner_token, source,
-                                           (opened.st_dev, opened.st_ino),
-                                           stat.S_IMODE(opened.st_mode), report)
+        report["warnings"] = warnings + replace_state(paths, candidate_bytes, owner_token, source,
+                                                      (opened.st_dev, opened.st_ino),
+                                                      stat.S_IMODE(opened.st_mode), report)
         report["result_revision"] = revision(candidate_bytes)
         report["changed_fields"] = changed
         report["result"] = "applied"

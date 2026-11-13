@@ -296,7 +296,12 @@ entry, re-parses the result and replaces `state.md` by renaming its own temporar
 `append-note` and `set --note` append notes (on an empty sole `notes:` line, as a new
 `notes:` line at its canonical position, or as 9-space continuation lines after the last
 `notes` group, never after an in-block fence) and `add-file` adds lexically checked target
-paths once each; existing note text and entries are never changed. `init-block`, receipt
+paths once each; existing note text and entries are never changed. Writes check lifecycle rules on
+the header fields they change (no downgrade of the `atomic-tests` rank, `pinned` only to
+`green`, `green` only from `red` or `pinned`, justified `n-a`, completion preconditions,
+the pre-TDD start guard); a rule already broken in an unchanged field never blocks the
+write and is reported as `pre-existing-violation` (`required-field-missing` for a missing
+required field). `init-block`, receipt
 lookup, the receipt cap and lock-busy details are planned. The suite `tests/state-tool.py` runs
 directly; validator registration and the exact oracle extension come with the
 receipts-grammar change.
