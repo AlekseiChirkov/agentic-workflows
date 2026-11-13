@@ -1,0 +1,53 @@
+.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md
+  s_75218c90170bfa::t_9a48b42311c07d 24-25,103-130,134
+.ai/memory/architecture.md
+  s_75218c90170bfa::t_04d2fb6029b1a7 286-290
+.ai/tasks/todo/task-07-state-tool/T-01-progress-parser-and-get/description.md
+  s_75218c90170bfa::t_185f16246d3f81 14-19,30-32,35-36,68-71,103-105,121
+.ai/tasks/todo/task-07-state-tool/T-02-static-validation-command/description.md
+  s_75218c90170bfa::t_f1f56087072bb2 41-42
+.ai/tasks/todo/task-07-state-tool/T-03-set-write-transaction/description.md
+  s_75218c90170bfa::t_7147f6b4c9a8c6 71-72
+.ai/tasks/todo/task-07-state-tool/T-04-note-and-file-additions/description.md
+  s_75218c90170bfa::t_ed92b4193aa403 44-45
+.ai/tasks/todo/task-07-state-tool/T-05-lifecycle-invariants/description.md
+  s_75218c90170bfa::t_4f7d8e0e646e69 45-46
+.ai/tasks/todo/task-07-state-tool/T-06-block-initialization/description.md
+  s_75218c90170bfa::t_5f434fe7b5abac 49-50
+.ai/tasks/todo/task-07-state-tool/T-07-idempotent-operation-receipts/description.md
+  s_75218c90170bfa::t_861c7a63f740bd 48-49
+.ai/tasks/todo/task-07-state-tool/T-08-lock-contention-and-recovery/description.md
+  s_75218c90170bfa::t_d595ad3ba387e2 58
+.ai/tasks/todo/task-07-state-tool/T-09-receipts-grammar-contract/description.md
+  s_75218c90170bfa::t_8f13866b19de54 4-6,19-26,35-37,49-50,56-60,64,67,69,72-76,89-92,105-106
+.ai/tasks/todo/task-07-state-tool/T-10-ignore-rules-and-usage-docs/description.md
+  s_75218c90170bfa::t_4c470ead946656 14-16,36-38,58-60,77
+.ai/tasks/todo/task-07-state-tool/plan.md
+  s_75218c90170bfa::t_9e3a1ea3097671 7,15,28-33,69-74
+.ai/tasks/todo/task-07-state-tool/state.md
+  s_4838ba6cfc7ef2::t_285c5ad74c05a1 24-29,40-42,44-55,59,106,112,143-151,260-285
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a02a8861f7537531bfefbcb78e07f33bb0e92ee4",
+  "prompts": {},
+  "sessions": {
+    "s_4838ba6cfc7ef2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a7c2bfe44c48dd1b3",
+        "model": "unknown"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_75218c90170bfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d90e062-887f-4faa-b97c-24c39cc0d6f4",
+        "model": "unknown"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
