@@ -1,0 +1,23 @@
+.ai/memory/progress.md
+  s_0531cfe71fe134::t_cfe6652c6046c4 131-132
+.ai/memory/state.md
+  s_0531cfe71fe134::t_48202ffd819c5f 18
+.ai/specs/07-state-tool.md
+  s_0531cfe71fe134::t_3fae93204e1179 220-222,270,279,282,300,357-361,394,435,474-481,512,572-573,602-613,631-632,665-672,737-743,749-752,806,837-839,852-853,858-859,901-903,946,950,973-978,1018,1073-1079,1088,1095,1097,1099-1100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "060ce6dbc7116002ac5e6cd47981cfd3c13d60ff",
+  "prompts": {},
+  "sessions": {
+    "s_0531cfe71fe134": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "45869962-bbf1-4e5d-bff4-31884129cedb",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
