@@ -6,7 +6,7 @@
 |----|------|---------------------|------------|--------| --- | --- |
 | T-01 | Progress parser and get command | suite harness → version guard and dispatch → vocabulary constants → path and encoding checks → section and block parser → get output → pinned source-guard fixtures | — | reviewed | claude-opus-5-5 |  |
 | T-02 | Static validation command | invariant predicates → receipts format check → validate with block scope → 3-before-6 exit rule | T-01 | reviewed | claude-opus-5-5 |  |
-| T-03 | Set write transaction | write arguments → lock and metadata → read and revision → structure and version refusals → writability and value rules → narrow serialization → receipt append → atomic replace → write output | T-01, T-02 | not-started | claude-opus-5-5 |  |
+| T-03 | Set write transaction | write arguments → lock and metadata → read and revision → structure and version refusals → writability and value rules → narrow serialization → receipt append → atomic replace → write output | T-01, T-02 | reviewed | claude-opus-5-5 |  |
 | T-04 | Note and target-file additions | note placement → note validation → append-note and set --note → path rules and add-file | T-03 | not-started | claude-opus-5-5 |  |
 | T-05 | Lifecycle invariants on set | rank order and pinned rule → green source rule → n-a and completion rules → pre-TDD guard → changed-field scoping and warnings → all-or-nothing group | T-02, T-03, T-04 | not-started | claude-opus-5-5 |  |
 | T-06 | Block initialization | argument and children validation → canonical leaf and composite lines → insertion layout → block-exists and section-missing refusals | T-03, T-04 | not-started | claude-opus-5-5 |  |

@@ -288,7 +288,13 @@ parser of `## Subtask Progress`, read-only, one JSON object on stdout) and `vali
 (structure, status vocabulary, n-a justification, static completion rule, required fields
 and `state_receipts:` format; exit 3 for structure before 6 for invariants). An indented
 fence inside a block is opaque block content, and a repeated header status segment makes
-the block malformed. The write commands are planned. The suite `tests/state-tool.py` runs
+the block malformed. `set` changes the named header
+statuses and `last_action` / `blocker` of one block under the per-task lock
+(`.state-tool.lock`, owner metadata) and the expected-revision check, inserts a missing
+field or the `atomic-tests` segment at its canonical position, appends a `state_receipts:`
+entry, re-parses the result and replaces `state.md` by renaming its own temporary file.
+`append-note`, `add-file`, `init-block`, receipt lookup, the receipt cap and lock-busy
+details are planned. The suite `tests/state-tool.py` runs
 directly; validator registration and the exact oracle extension come with the
 receipts-grammar change.
 Planned by task 07: an optional standard-library helper
