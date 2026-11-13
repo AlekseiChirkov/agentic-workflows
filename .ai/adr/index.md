@@ -31,3 +31,4 @@ so that a contributor can find the *why* without reading every rule. ADR-0007 an
 | 0019 | Independent bounded Devil's Advocate review in specification authoring | Accepted | 2026-11-13 | [0019-task-unknown-spec-draft-devils-advocate-review.md](0019-task-unknown-spec-draft-devils-advocate-review.md) |
 | 0020 | Source guard timeouts are watchdogs, not budgets | Accepted | 2026-11-13 | [0020-task-unknown-source-guard-watchdog-timeouts.md](0020-task-unknown-source-guard-watchdog-timeouts.md) |
 | 0021 | Schedule the state tool with a kernel-released lock, `scripts/` path and ignore rules | Accepted | 2026-11-13 | [0021-task-07-schedule-state-tool.md](0021-task-07-schedule-state-tool.md) |
+| 0022 | State tool: in-block operation receipts, invariant-only checks and line-preserving writes | Provisional | 2026-11-13 | [0022-task-07-state-tool-receipts-and-line-preserving-writes.md](0022-task-07-state-tool-receipts-and-line-preserving-writes.md) |

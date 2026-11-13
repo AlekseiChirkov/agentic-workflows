@@ -10,7 +10,7 @@ of every session. Updated after every phase transition.
 Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17; ADR-0017 moves 06 before 13a/13): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11 → 12; 07 is scheduled outside this order (ADR-0021). The roadmap is in `specs/README.md`; each spec becomes a task via
 `/phase-discovery .ai/specs/<NN>-<slug>.md`.
 
-- [State tool](../specs/07-state-tool.md) | phase: not started | status: scheduled 2026-11-13 by owner decision (ADR-0021) | note: next step `/spec-run .ai/specs/07-state-tool.md`; no task directory yet.
+- [task-07-state-tool](../tasks/todo/task-07-state-tool/state.md) | phase: discovery | status: complete | note: plan ready, 10 subtasks; spec `../specs/07-state-tool.md`, scheduled by ADR-0021; design in provisional ADR-0022; orchestrated run in progress.
 
 Runtime work was closed by owner decision; remaining roadmap scope is not automatically scheduled.
 
