@@ -2495,5 +2495,417 @@ class PreExistingViolationTests(LifecycleCase):
                 self.assertEqual(document["warnings"], warnings)
 
 
+LEAF_HEADER_CHANGES = ("atomic-tests", "atomic-execution", "atomic-validation")
+LEAF_INIT_CHANGES = LEAF_HEADER_CHANGES + ("last_action", "target_files", "blocker", "notes",
+                                           "state_receipts")
+COMPOSITE_INIT_CHANGES = ("rollup", "integration-validation", "children", "blocker", "notes",
+                          "state_receipts")
+LAST_BLOCK_T04 = leaf("T-04", body=leaf_body(extra="  pr: none\n"))
+
+
+def init_inputs(kind: str, name: str, *, paths: tuple[str, ...] = (),
+                children: tuple[str, ...] = (), notes: tuple[str, ...] = ()) -> dict[str, Any]:
+    """Digest inputs of init-block: kind, name, and paths, children and notes in argument order."""
+    return {"kind": kind, "name": name, "paths": list(paths), "children": list(children),
+            "notes": list(notes)}
+
+
+def new_leaf(block_id: str, name: str, receipt: str, *, paths: tuple[str, ...] = (),
+             notes: tuple[str, ...] = ()) -> str:
+    """The canonical initial lines of a new leaf block; empty values have no trailing space."""
+    lines = [f"{block_id} | {name} | atomic-tests: not-started | atomic-execution: not-started"
+             " | atomic-validation: not-started",
+             "  last_action:",
+             "  target_files:" + (" " + ", ".join(paths) if paths else ""),
+             "  blocker: none",
+             "  notes:" + (" " + notes[0] if notes else "")]
+    lines += [CONTINUATION + note for note in notes[1:]]
+    lines.append(f"  state_receipts: {receipt}")
+    return "\n".join(lines) + "\n"
+
+
+class InitBlockCase(NoteAndFileCase):
+    """Runner and outcome assertions for init-block."""
+
+    def init_block(self, block_id: str, kind: str, name: str, *options: str,
+                   revision: str | None = None, operation_id: str = OPERATION_ID,
+                   task: Path | None = None) -> ToolResult:
+        """Run init-block for the id, kind and name with the current revision by default."""
+        task_path = self.task if task is None else task
+        if revision is None:
+            revision = file_revision(task_path / "state.md")
+        return self.run_tool("init-block", "--root", str(self.root), "--task", str(task_path),
+                             "--block", block_id, "--kind", kind, "--name", name,
+                             "--expected-revision", revision, "--operation-id", operation_id,
+                             *options)
+
+    def initialized(self, result: ToolResult, block_id: str, kind: str) -> dict[str, Any]:
+        """An applied init-block lists every header field and field line it wrote."""
+        changed = LEAF_INIT_CHANGES if kind == "leaf" else COMPOSITE_INIT_CHANGES
+        document = self.write_applied(result, "init-block", *changed)
+        self.assertEqual(document["block_id"], block_id)
+        self.assertEqual(document["block_kind"], kind)
+        self.assertEqual(document["operation_id"], OPERATION_ID)
+        self.assertEqual(document["result_revision"], file_revision(self.task / "state.md"))
+        self.assertNotEqual(document["result_revision"], document["source_revision"])
+        return document
+
+    def assert_valid_state(self) -> None:
+        result = self.run_tool("validate", "--root", str(self.root), "--task", str(self.task))
+        self.assertEqual(result.code, 0, result.stdout + result.stderr)
+        self.assertEqual(self.output(result)["result"], "valid")
+
+    def init_refused(self, result: ToolResult, code: int, error: str) -> dict[str, Any]:
+        document = self.refused_by(result, "init-block", code, error)
+        if code in (4, 6):
+            self.assertIn(REFUSAL_SENTENCE, result.stderr)
+        return document
+
+
+class InitBlockLayoutTests(InitBlockCase):
+    def test_block_after_the_last_block_keeps_one_blank_line_before_the_next_heading(self) -> None:
+        original = state_text(LAST_BLOCK_T04, after="## Next\n")
+        self.write_state(original)
+        receipt = expected_receipt("init-block", init_inputs("leaf", "Demo"), block_id="T-05")
+
+        self.initialized(self.init_block("T-05", "leaf", "Demo"), "T-05", "leaf")
+
+        self.assertEqual(self.state(), original.replace(
+            "  pr: none\n\n## Next\n",
+            "  pr: none\n"
+            "\n"
+            "T-05 | Demo | atomic-tests: not-started | atomic-execution: not-started | "
+            "atomic-validation: not-started\n"
+            "  last_action:\n"
+            "  target_files:\n"
+            "  blocker: none\n"
+            "  notes:\n"
+            f"  state_receipts: {receipt}\n"
+            "\n"
+            "## Next\n", 1))
+        self.assert_valid_state()
+
+    def test_block_in_a_heading_only_section_follows_the_heading_directly(self) -> None:
+        receipt = expected_receipt("init-block", init_inputs("leaf", "Demo"), block_id="T-05")
+        block = new_leaf("T-05", "Demo", receipt)
+        cases = {"heading, blank line and next heading": (
+                     state_text(after="## Next\n"), "## Subtask Progress\n\n## Next\n",
+                     "## Subtask Progress\n" + block + "\n## Next\n"),
+                 "heading as the last line of the file": (
+                     state_text(after="").removesuffix("\n"), "## Subtask Progress\n",
+                     "## Subtask Progress\n" + block)}
+        for label, (original, before, after) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(original)
+                self.assertTrue(original.endswith(before), original)
+
+                self.initialized(self.init_block("T-05", "leaf", "Demo"), "T-05", "leaf")
+
+                self.assertEqual(self.state(), original.removesuffix(before) + after)
+                self.assert_valid_state()
+
+    def test_blank_lines_after_the_last_line_stay_after_the_new_block(self) -> None:
+        receipt = expected_receipt("init-block", init_inputs("leaf", "Demo"), block_id="T-05")
+        block = new_leaf("T-05", "Demo", receipt)
+        cases = {"two blank lines before the next heading": (
+                     state_text(LAST_BLOCK_T04, after="\n## Next\n"), "  pr: none\n\n\n## Next\n",
+                     "  pr: none\n\n" + block + "\n\n## Next\n"),
+                 "one blank line at the end of the file": (
+                     state_text(LAST_BLOCK_T04, after=""), "  pr: none\n\n",
+                     "  pr: none\n\n" + block + "\n"),
+                 "no blank line at the end of the file": (
+                     state_text(LAST_BLOCK_T04, after="").removesuffix("\n"), "  pr: none\n",
+                     "  pr: none\n\n" + block)}
+        for label, (original, before, after) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(original)
+                self.assertTrue(original.endswith(before), original)
+
+                self.initialized(self.init_block("T-05", "leaf", "Demo"), "T-05", "leaf")
+
+                self.assertEqual(self.state(), original.removesuffix(before) + after)
+
+    def test_section_at_the_end_of_a_file_without_a_final_newline_keeps_that_state(self) -> None:
+        original = state_text(LAST_BLOCK_T04, after="").rstrip("\n")
+        self.write_state(original)
+        self.assertTrue(original.endswith("  pr: none"), original)
+        receipt = expected_receipt("init-block", init_inputs("leaf", "Demo"), block_id="T-05")
+
+        self.initialized(self.init_block("T-05", "leaf", "Demo"), "T-05", "leaf")
+
+        result = self.state()
+        self.assertEqual(result, original + "\n\n" + new_leaf("T-05", "Demo", receipt)
+                         .removesuffix("\n"))
+        self.assertFalse(result.endswith("\n"))
+        self.assert_valid_state()
+
+    def test_last_non_blank_line_may_be_a_column_zero_foreign_line(self) -> None:
+        original = state_text(leaf("T-04"), "Foreign column-zero line\n", after="## Next\n")
+        self.write_state(original)
+        receipt = expected_receipt("init-block", init_inputs("leaf", "Demo"), block_id="T-05")
+
+        self.initialized(self.init_block("T-05", "leaf", "Demo"), "T-05", "leaf")
+
+        self.assertEqual(self.state(), original.replace(
+            "Foreign column-zero line\n\n## Next\n",
+            "Foreign column-zero line\n\n" + new_leaf("T-05", "Demo", receipt) + "\n## Next\n", 1))
+        self.assert_valid_state()
+
+    def test_last_non_blank_line_may_be_a_closing_fence_delimiter(self) -> None:
+        receipt = expected_receipt("init-block", init_inputs("leaf", "Demo"), block_id="T-05")
+        block = new_leaf("T-05", "Demo", receipt)
+        in_block_fence = leaf("T-04", body=leaf_body(extra="   ```\n  pr: hidden\n   ```\n"))
+        cases = {"fence after the last block": (state_text(leaf("T-04"), FENCE, after="## Next\n"),
+                                                "```\n\n## Next\n"),
+                 "fence inside the last block": (state_text(in_block_fence, after="## Next\n"),
+                                                 "   ```\n\n## Next\n")}
+        for label, (original, ending) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(original)
+                self.assertIn(ending, original)
+                fields_before = self.block(self.read_ok(self.get("--block", "T-04")), "T-04")["fields"]
+
+                self.initialized(self.init_block("T-05", "leaf", "Demo"), "T-05", "leaf")
+
+                closing = ending.removesuffix("\n\n## Next\n")
+                self.assertEqual(self.state(), original.replace(
+                    ending, closing + "\n\n" + block + "\n## Next\n", 1))
+                document = self.read_ok(self.get())
+                self.assertEqual([item["block_id"] for item in document["blocks"]], ["T-04", "T-05"])
+                self.assertEqual(self.block(document, "T-04")["fields"], fields_before)
+                self.assert_valid_state()
+
+    def test_fix_task_block_id_is_accepted(self) -> None:
+        original = state_text(LAST_BLOCK_T04)
+        self.write_state(original)
+
+        self.initialized(self.init_block("T-04-fix-some-slug", "leaf", "Fix"),
+                         "T-04-fix-some-slug", "leaf")
+
+        block = self.block(self.read_ok(self.get("--block", "T-04-fix-some-slug")),
+                           "T-04-fix-some-slug")
+        self.assertEqual(block["block_kind"], "leaf")
+        self.assertEqual(block["name"], "Fix")
+        self.assert_valid_state()
+
+
+class InitBlockContentTests(InitBlockCase):
+    def test_composite_block_has_its_canonical_lines_and_reads_back_as_composite(self) -> None:
+        original = state_text(LAST_BLOCK_T04)
+        self.write_state(original)
+        receipt = expected_receipt("init-block", init_inputs(
+            "composite", "Parent", children=("T-06a", "T-06b"), notes=("two components",)),
+            block_id="T-06")
+
+        self.initialized(self.init_block("T-06", "composite", "Parent", "--children", "T-06a,T-06b",
+                                         "--note", "two components"), "T-06", "composite")
+
+        self.assertEqual(self.state(), original.replace(
+            "  pr: none\n\n",
+            "  pr: none\n"
+            "\n"
+            "[composite] T-06 | Parent | rollup: not-started | integration-validation: not-started\n"
+            "  children: T-06a, T-06b\n"
+            "  blocker: none\n"
+            "  notes: two components\n"
+            f"  state_receipts: {receipt}\n"
+            "\n", 1))
+        block = self.block(self.read_ok(self.get("--block", "T-06")), "T-06")
+        self.assertEqual(block["block_kind"], "composite")
+        self.assertEqual(self.field_values(block, "children"), ["T-06a, T-06b"])
+        self.assert_valid_state()
+
+    def test_repeated_target_file_is_written_once_and_an_empty_notes_line_has_no_trailing_space(
+            self) -> None:
+        original = state_text(LAST_BLOCK_T04)
+        self.write_state(original)
+        options = ("--target-file", "a.sh", "--target-file", "a.sh", "--target-file", "b.sh")
+        receipt = expected_receipt("init-block", init_inputs(
+            "leaf", "Demo", paths=("a.sh", "a.sh", "b.sh")), block_id="T-05")
+
+        self.initialized(self.init_block("T-05", "leaf", "Demo", *options), "T-05", "leaf")
+
+        result = self.state()
+        self.assertEqual(result, original.replace(
+            "  pr: none\n\n",
+            "  pr: none\n\n" + new_leaf("T-05", "Demo", receipt, paths=("a.sh", "b.sh")) + "\n", 1))
+        self.assertIn("  target_files: a.sh, b.sh\n  blocker: none\n  notes:\n  state_receipts: ",
+                      result)
+        self.assertIn("\nT-05 | Demo | atomic-tests: not-started | atomic-execution: not-started | "
+                      "atomic-validation: not-started\n  last_action:\n  target_files: ", result)
+        self.assert_valid_state()
+
+    def test_further_notes_follow_the_first_note_as_continuation_lines(self) -> None:
+        cases = {"leaf": ("T-05", ()), "composite": ("T-06", ("--children", "T-06a"))}
+        for kind, (block_id, more) in cases.items():
+            with self.subTest(kind=kind):
+                self.write_state(state_text(LAST_BLOCK_T04))
+
+                self.initialized(self.init_block(block_id, kind, "Demo", *more, "--note", "a",
+                                                 "--note", "b c"), block_id, kind)
+
+                self.assertIn("  notes: a\n" + CONTINUATION + "b c\n  state_receipts: ",
+                              self.state())
+                block = self.block(self.read_ok(self.get("--block", block_id)), block_id)
+                notes = [item for item in block["fields"] if item["name"] == "notes"]
+                self.assertEqual([(item["value"], item["continuation"]) for item in notes],
+                                 [("a", [CONTINUATION + "b c"])])
+                self.assert_valid_state()
+
+    def test_receipt_digest_covers_the_inputs_in_argument_order(self) -> None:
+        cases = {
+            "leaf": ("T-05", "leaf", ("--note", "y", "--target-file", "b.sh", "--note", "x",
+                                      "--target-file", "a.sh"),
+                     init_inputs("leaf", "Demo", paths=("b.sh", "a.sh"), notes=("y", "x"))),
+            "composite": ("T-06", "composite", ("--children", "T-06b,T-06a", "--note", "y",
+                                                "--note", "x"),
+                          init_inputs("composite", "Demo", children=("T-06b", "T-06a"),
+                                      notes=("y", "x")))}
+        for label, (block_id, kind, options, inputs) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(LAST_BLOCK_T04))
+
+                self.initialized(self.init_block(block_id, kind, "Demo", *options), block_id, kind)
+
+                self.assertEqual(self.receipt_line(self.state()),
+                                 "  state_receipts: "
+                                 f"{expected_receipt('init-block', inputs, block_id=block_id)}\n")
+
+    def test_names_and_notes_are_stored_literally(self) -> None:
+        name = "Demo $(touch injected) `touch quoted` ; & > out"
+        note = "$HOME; touch noted && echo `id`"
+        self.write_state(state_text(LAST_BLOCK_T04))
+
+        self.initialized(self.init_block("T-05", "leaf", name, "--note", note), "T-05", "leaf")
+
+        block = self.block(self.read_ok(self.get("--block", "T-05")), "T-05")
+        self.assertEqual(block["name"], name)
+        self.assertEqual(self.field_values(block, "notes"), [note])
+        self.assertEqual(sorted(path.name for path in self.base.iterdir()), ["project"])
+
+
+class InitBlockRefusalTests(InitBlockCase):
+    def test_existing_id_is_refused_with_block_exists_and_nothing_changes(self) -> None:
+        cases = {"existing leaf": (state_text(leaf("T-04"), leaf("T-05")), "T-05", "leaf", ()),
+                 "existing composite": (state_text(leaf("T-04"), composite_block("T-05")), "T-05",
+                                        "composite", ("--children", "T-05a", "--note", "n")),
+                 "existing block that is not the last": (state_text(leaf("T-04"), leaf("T-05")),
+                                                         "T-04", "leaf", ())}
+        for label, (original, block_id, kind, options) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(original)
+                before = self.files_without_lock()
+
+                document = self.init_refused(self.init_block(block_id, kind, "Demo", *options), 6,
+                                             "block-exists")
+
+                self.assertEqual(document["block_id"], block_id)
+                self.assertEqual(document["block_kind"], kind)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_missing_section_exits_3_section_missing(self) -> None:
+        cases = {"leaf": ("T-05", ()), "composite": ("T-06", ("--children", "T-06a", "--note", "n"))}
+        original = state_text().replace("## Subtask Progress\n\n", "", 1)
+        for kind, (block_id, options) in cases.items():
+            with self.subTest(kind=kind):
+                self.write_state(original)
+                before = self.files_without_lock()
+
+                document = self.init_refused(self.init_block(block_id, kind, "Demo", *options), 3,
+                                             "section-missing")
+
+                self.assertEqual(document["block_kind"], kind)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_invalid_kind_combinations_exit_2_invalid_arguments(self) -> None:
+        path = self.write_state(state_text(LAST_BLOCK_T04))
+        common = ["--root", str(self.root), "--task", str(self.task), "--block", "T-06",
+                  "--expected-revision", file_revision(path), "--operation-id", OPERATION_ID]
+        cases = {
+            "composite without a note": ["--kind", "composite", "--name", "P",
+                                         "--children", "T-06a"],
+            "composite without children": ["--kind", "composite", "--name", "P", "--note", "n"],
+            "composite with a target file": ["--kind", "composite", "--name", "P",
+                                             "--children", "T-06a", "--note", "n",
+                                             "--target-file", "a.sh"],
+            "leaf with children": ["--kind", "leaf", "--name", "P", "--children", "T-06a"],
+            "kind outside leaf and composite": ["--kind", "group", "--name", "P"],
+            "kind missing": ["--name", "P"],
+            "name missing": ["--kind", "leaf"],
+            "children given twice": ["--kind", "composite", "--name", "P", "--children", "T-06a",
+                                     "--children", "T-06b", "--note", "n"],
+            "field option of set": ["--kind", "leaf", "--name", "P", "--field", "blocker=x"]}
+        before = snapshot(self.task)
+        for label, options in cases.items():
+            with self.subTest(case=label):
+                document = self.init_refused(self.run_tool("init-block", *common, *options), 2,
+                                             "invalid-arguments")
+
+                self.assertIsNone(document["source_revision"])
+                self.assertIsNone(document["result_revision"])
+                self.assertEqual(snapshot(self.task), before)
+
+    def test_invalid_children_lists_exit_2_invalid_arguments(self) -> None:
+        path = self.write_state(state_text(LAST_BLOCK_T04))
+        common = ["--root", str(self.root), "--task", str(self.task), "--block", "T-06",
+                  "--kind", "composite", "--name", "P", "--expected-revision",
+                  file_revision(path), "--operation-id", OPERATION_ID, "--note", "n"]
+        children = {"empty item": "T-01a,,T-01b", "repeated item": "T-01a,T-01a",
+                    "space after the comma": "T-01a, T-01b", "leading comma": ",T-01a",
+                    "trailing comma": "T-01a,", "empty list": "", "malformed id": "T-1a",
+                    "the block's own id": "T-06a,T-06"}
+        before = snapshot(self.task)
+        for label, value in children.items():
+            with self.subTest(case=label):
+                result = self.run_tool("init-block", *common, "--children", value)
+
+                self.init_refused(result, 2, "invalid-arguments")
+                self.assertEqual(snapshot(self.task), before)
+
+    def test_invalid_note_or_target_file_is_refused_with_exit_6(self) -> None:
+        cases = {
+            "empty note on a leaf": ("leaf", ("--note", ""), "invalid-value"),
+            "empty note on a composite": ("composite", ("--children", "T-05a", "--note", ""),
+                                          "invalid-value"),
+            "empty note after a valid one": ("composite", ("--children", "T-05a", "--note", "a",
+                                                           "--note", ""), "invalid-value"),
+            "note with a line feed": ("leaf", ("--note", "a\nb"), "invalid-value"),
+            "absolute path": ("leaf", ("--target-file", "/abs"), "invalid-path"),
+            "parent segment": ("leaf", ("--target-file", "a.sh", "--target-file", "../x"),
+                               "invalid-path"),
+            "comma in a path": ("leaf", ("--target-file", "a,b"), "invalid-path"),
+            "empty path": ("leaf", ("--target-file", ""), "invalid-path")}
+        for label, (kind, options, error) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(LAST_BLOCK_T04))
+                before = self.files_without_lock()
+
+                self.init_refused(self.init_block("T-05", kind, "Demo", *options), 6, error)
+
+                self.assert_unchanged_after_refusal(before)
+
+    def test_stale_revision_is_refused_with_the_no_bypass_sentence(self) -> None:
+        self.write_state(state_text(LAST_BLOCK_T04))
+        before = self.files_without_lock()
+
+        document = self.init_refused(self.init_block("T-05", "leaf", "Demo",
+                                                     revision=ZERO_REVISION), 4,
+                                     "revision-conflict")
+
+        self.assertEqual(document["block_kind"], "leaf")
+        self.assert_unchanged_after_refusal(before)
+
+    def test_malformed_revision_or_operation_id_exits_2(self) -> None:
+        self.write_state(state_text(LAST_BLOCK_T04))
+        before = snapshot(self.task)
+        cases = {"malformed revision": ({"revision": "sha256:abc"}, "malformed-revision"),
+                 "invalid operation id": ({"operation_id": "-op"}, "invalid-operation-id")}
+        for label, (keywords, error) in cases.items():
+            with self.subTest(case=label):
+                self.init_refused(self.init_block("T-05", "leaf", "Demo", **keywords), 2, error)
+
+                self.assertEqual(snapshot(self.task), before)
+
+
 if __name__ == "__main__":
     unittest.main()
