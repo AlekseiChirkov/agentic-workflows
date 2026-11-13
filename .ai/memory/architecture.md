@@ -280,3 +280,17 @@ proof and comparative performance acceptance remain unmet. The owner capped test
 cleanup at 900 seconds; repeated benchmark gates are superseded where they conflict.
 No unverified speedup is claimed. Deleted branch names do not imply delivery; detached
 worktrees preserve unintegrated candidate data. W6/W7 remain outside scope.
+
+## State tool — planned, in flight
+
+Partly delivered: `scripts/state-tool.py` provides `get` (fence-aware parser of
+`## Subtask Progress`, read-only, one JSON object on stdout); `validate` and the write
+commands are planned. The suite `tests/state-tool.py` runs directly; validator
+registration and the exact oracle extension come with the receipts-grammar change.
+Planned by task 07: an optional standard-library helper
+`scripts/state-tool.py` with `get`, `validate`, `set`, `append-note`, `add-file` and
+`init-block` over the `## Subtask Progress` section of one task `state.md`; a per-task
+advisory lock, expected-revision check, atomic replace and in-block operation receipts in
+an additive protected `state_receipts:` field; acceptance suite `tests/state-tool.py` with a
+focused `--state-tool-only` validator mode; ignore rules for the lock and temporary files.
+No workflow is wired to the tool. Decisions: ADR-0021 (Accepted) and ADR-0022 (Provisional).
