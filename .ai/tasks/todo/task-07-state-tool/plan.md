@@ -4,7 +4,7 @@
 
 | ID | Name | Key Steps (summary) | Depends On | Status | Model (Claude) | Model (Codex) |
 |----|------|---------------------|------------|--------| --- | --- |
-| T-01 | Progress parser and get command | suite harness → version guard and dispatch → vocabulary constants → path and encoding checks → section and block parser → get output → validator registration and pinned fixtures | — | not-started | claude-opus-5-5 |  |
+| T-01 | Progress parser and get command | suite harness → version guard and dispatch → vocabulary constants → path and encoding checks → section and block parser → get output → pinned source-guard fixtures | — | reviewed | claude-opus-5-5 |  |
 | T-02 | Static validation command | invariant predicates → receipts format check → validate with block scope → 3-before-6 exit rule | T-01 | not-started | claude-opus-5-5 |  |
 | T-03 | Set write transaction | write arguments → lock and metadata → read and revision → structure and version refusals → writability and value rules → narrow serialization → receipt append → atomic replace → write output | T-01, T-02 | not-started | claude-opus-5-5 |  |
 | T-04 | Note and target-file additions | note placement → note validation → append-note and set --note → path rules and add-file | T-03 | not-started | claude-opus-5-5 |  |
@@ -12,7 +12,7 @@
 | T-06 | Block initialization | argument and children validation → canonical leaf and composite lines → insertion layout → block-exists and section-missing refusals | T-03, T-04 | not-started | claude-opus-5-5 |  |
 | T-07 | Idempotent operation receipts | malformed-receipts refusal → receipt lookup before revision → init-block repeat → 20-entry cap → digest coverage | T-02, T-03, T-04, T-06 | not-started | claude-opus-5-5 |  |
 | T-08 | Lock contention and interruption recovery | busy-lock reporting → unsafe path refusals → fault seam → recheck before rename → sync-failure warning and locking-unavailable → stale temporary files | T-03, T-04, T-07 | not-started | claude-opus-5-5 |  |
-| T-09 | Receipts grammar contract and validator checks | failing validator checks → mutation fixtures → anchored line and reader rule → protected entry → validate-task receipts check → inventory amendment | T-01, T-07 | not-started | claude-opus-5-5 |  |
+| T-09 | Receipts grammar contract and validator checks | failing validator checks → suite registration → mutation fixtures → anchored line and reader rule → protected entry → validate-task receipts check → exact oracle extension | T-01, T-07 | not-started | claude-opus-5-5 |  |
 | T-10 | Ignore rules and usage documentation | failing ignore and doc checks → .gitignore → setup entries → usage entry list → State tool section → script inventory row → pinned digests | T-08, T-09 | not-started | claude-opus-5-5 |  |
 
 ## Execution Strategy
@@ -25,10 +25,12 @@ Shared-file constraints:
   suite by T-09 and T-10); each subtask builds on the previous branch tip.
 - Every change under `tests/` or to `scripts/validate-contracts.sh` invalidates the pinned
   source-guard inventory fingerprint, so each subtask ends by refreshing the pinned
-  validator-runtime fixtures (`tests/fixtures/validator-runtime/README.md`). Validator
-  edits are confined to T-01 (suite registration) and T-09 (contract checks).
-- The complete validator run takes 35–50 minutes; subtasks verify with the focused
-  state-tool mode and the guard suites, and the complete run happens at task-level
+  source-guard fixtures (`tests/fixtures/validator-runtime/README.md`). Validator edits
+  and the one exact extension of the frozen validator inventory are confined to T-09
+  (suite registration and contract checks); T-10 refreshes the suite's pinned digest once
+  more.
+- The complete validator run takes 35–50 minutes; subtasks verify with the suite run
+  directly (the focused state-tool mode from T-09 on) and the guard suites, and the complete run happens at task-level
   validation on the stack tip.
 
 ## Decomposition Decisions
@@ -64,6 +66,9 @@ Rejected boundaries:
   only once all four write commands exist; the transaction leaf keeps only the append.
 - Lifecycle invariants before note additions — rejected: the `n-a` justification and the
   pre-TDD note arrive through `set --note`, so additions come first.
-- Suite registration deferred to the contract leaf — rejected: every existing suite is
-  registered in the validator and the tool must be under the repository's test command
-  from its first branch (P7).
+- Suite registration in the first leaf — reversed by owner decision on 2026-11-13 (was
+  chosen in Discovery, citing P7): the frozen validator inventory cannot accept a new
+  check without an oracle extension, and a registered suite pins its digest, so early
+  registration would rewrite the oracle's pinned values in every leaf. The suite is
+  registered once in T-09; T-01 and T-09 scopes changed accordingly (T-01: registration
+  removed; T-09: registration and oracle extension added; T-10: suite digest refresh).

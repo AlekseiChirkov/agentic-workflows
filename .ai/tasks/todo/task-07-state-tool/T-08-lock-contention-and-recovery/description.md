@@ -55,7 +55,7 @@ Windows write support; no file under `workflows/` or `rules/`.
 7. Confirm every command lists files matching `.state.md.*.tmp` in `stale_temp_files`,
    never reads them as state and never deletes one it did not create.
 8. Refresh the pinned source-guard fingerprint and records, then run the guard suites and
-   the focused state-tool mode.
+   the suite (`python3 tests/state-tool.py`).
 
 ## Acceptance Criteria
 - Given a helper holding `flock` on `.state-tool.lock` with `started_at` 660 s in the

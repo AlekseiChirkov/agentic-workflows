@@ -45,8 +45,8 @@ no file under `workflows/` or `rules/`.
 6. Verify that the input digest covers the command, block id and inputs exactly as the
    spec defines (fields sorted by name; notes, paths and children in argument order;
    repeated paths as given).
-7. Refresh the pinned source-guard fingerprint and run the guard suites and the focused
-   state-tool mode.
+7. Refresh the pinned source-guard fingerprint and run the guard suites and the suite
+   (`python3 tests/state-tool.py`).
 
 ## Acceptance Criteria
 - For each of `set`, `append-note`, `add-file` and `init-block` applied once with

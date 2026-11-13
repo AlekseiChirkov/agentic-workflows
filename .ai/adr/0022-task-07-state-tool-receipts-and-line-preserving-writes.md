@@ -21,8 +21,8 @@ Provisional
 ADR-0021 scheduled the state tool and fixed its lock, location and ignore rules. This
 record covers the remaining design decisions that shape the canonical state format and
 the tool's internals: operation receipts stored in an additive in-block field,
-invariant-only lifecycle checks, a line-preserving write model, and the placement of the
-acceptance suite under the pinned test inventory.
+invariant-only lifecycle checks, a line-preserving write model, and the placement and
+registration of the acceptance suite under the pinned test inventory.
 
 ## Context
 
@@ -100,27 +100,38 @@ at its canonical position without moving existing lines.
 **Related files:**
 - `scripts/state-tool.py`
 
-### Decision 4: The acceptance suite lives under `tests/` and each change refreshes the pinned fixtures
+### Decision 4: The acceptance suite lives under `tests/` and is registered in the validator once
 
-**What was decided:** The suite is `tests/state-tool.py` (`unittest`), with a focused
-`--state-tool-only` validator mode and a registration in the default validator run. Every
-subtask that changes a file under `tests/` or the validator refreshes the pinned
-validator-runtime fixtures by the recorded maintenance procedure.
+**What was decided (amended 2026-11-13 by owner decision, before implementation):** The
+suite is `tests/state-tool.py` (`unittest`). It is registered in
+`scripts/validate-contracts.sh` — a focused `--state-tool-only` mode and a check in the
+default run — once, in the change that adds the grammar-extension contract checks. That
+change extends the frozen validator inventory exactly and by name: the added results, one
+focused flag, the suite's resource row and the two counts. Changes before it run the suite
+directly; every change under `tests/` still refreshes the pinned source-guard fixtures.
+Changes after it that edit the suite refresh its pinned digest.
 
-**Why:** The tool is under the repository test command from its first branch, in the same
-form as the existing Python helper suites, and every stack tip stays fully valid.
+**Why:** The frozen validator inventory accepts no new check, focused mode or resource
+row without a change to its oracle, and a registered suite pins its own digest. The
+contract checks the specification requires force one oracle extension in any case;
+registering the suite in the same change keeps that to one extension instead of one
+rewrite of the oracle's pinned values per change.
 
-**Alternatives:** A shell suite — rejected: it cannot run the in-process directory-sync
-case or the static scan without embedded Python. A standalone suite outside the pinned
-inventory with one final refresh — rejected: the tool would sit outside the test command
-for most of the stack and break the suite-registration pattern.
+**Alternatives:** Registration from the first change with a re-amendment in every later
+change (the original form of this decision) — rejected by the owner: about ten rewrites of
+a protective oracle. A permanently standalone suite — rejected: the suite would never be
+part of the repository test command. A shell suite — rejected: it cannot run the
+in-process directory-sync case or the static scan without embedded Python. A general
+"allow additions" path in the oracle — rejected: it conflicts with the frozen inventory's
+rejection of broad exemptions.
 
-**Consequences:** Each subtask pays a fixture refresh; validator edits are confined to the
-suite registration and the grammar-extension checks.
+**Consequences:** Until the registration change the suite is outside the default validator
+run and each stack branch verifies it directly. The oracle gains an exact, enumerated
+extension, and its amendment digest changes whenever the suite changes afterwards.
 
 **Related files:**
 - `tests/state-tool.py`, `scripts/validate-contracts.sh`
-- `tests/fixtures/validator-runtime/`
+- `tests/fixtures/validator-runtime/`, `tests/validator-runtime-oracle.py`
 
 ## Verification
 

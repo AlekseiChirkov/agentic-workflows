@@ -46,8 +46,8 @@ existing block; `children:` is written at creation only; no file under `workflow
    after L; blank lines that followed L stay after the new block.
 5. Refuse an existing id with exit 6 `block-exists` and a missing section with exit 3
    `section-missing`, leaving the file unchanged.
-6. Refresh the pinned source-guard fingerprint and run the guard suites and the focused
-   state-tool mode.
+6. Refresh the pinned source-guard fingerprint and run the guard suites and the suite
+   (`python3 tests/state-tool.py`).
 
 ## Acceptance Criteria
 - Given a section whose last block ends with `  pr: none` followed by one blank line and

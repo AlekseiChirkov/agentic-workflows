@@ -283,7 +283,11 @@ worktrees preserve unintegrated candidate data. W6/W7 remain outside scope.
 
 ## State tool — planned, in flight
 
-Planned by task 07 (not yet implemented): an optional standard-library helper
+Partly delivered: `scripts/state-tool.py` provides `get` (fence-aware parser of
+`## Subtask Progress`, read-only, one JSON object on stdout); `validate` and the write
+commands are planned. The suite `tests/state-tool.py` runs directly; validator
+registration and the exact oracle extension come with the receipts-grammar change.
+Planned by task 07: an optional standard-library helper
 `scripts/state-tool.py` with `get`, `validate`, `set`, `append-note`, `add-file` and
 `init-block` over the `## Subtask Progress` section of one task `state.md`; a per-task
 advisory lock, expected-revision check, atomic replace and in-block operation receipts in

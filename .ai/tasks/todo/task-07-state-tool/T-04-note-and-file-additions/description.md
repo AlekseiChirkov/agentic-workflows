@@ -41,8 +41,8 @@ removed; no lifecycle invariants; no file under `workflows/` or `rules/`.
    compare by exact string equality, append new paths with `, `, write a repeated input
    path once at its first position, insert a missing `target_files:` line at its canonical
    position, return `unchanged` when every path is already listed.
-6. Refresh the pinned source-guard fingerprint and run the guard suites and the focused
-   state-tool mode.
+6. Refresh the pinned source-guard fingerprint and run the guard suites and the suite
+   (`python3 tests/state-tool.py`).
 
 ## Acceptance Criteria
 - Given empty `notes:`, `append-note --note a --note b` makes the block read `  notes: a`

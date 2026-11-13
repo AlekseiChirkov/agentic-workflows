@@ -38,8 +38,8 @@ to `scripts/validate-task.sh` (its receipts check belongs to the grammar-extensi
    `--block X` check X only; unrecognized prefix and unknown header field are warnings.
 5. Apply the exit rule: path and file refusals keep exits 2 and 7; otherwise 3 when any
    structure error exists, else 6 when any invariant error exists, else 0.
-6. Refresh the pinned source-guard fingerprint and run the guard suites and the focused
-   state-tool mode.
+6. Refresh the pinned source-guard fingerprint and run the guard suites and the suite
+   (`python3 tests/state-tool.py`).
 
 ## Acceptance Criteria
 - A well-formed fixture exits 0 with `result` `valid`; every file in the task directory is

@@ -11,10 +11,12 @@ without creating, modifying or deleting any file.
   `### Read outcomes`, `### Output`, `### Exit codes and error codes`,
   `### Contract version check`. English only; no planning identifiers in code, tests,
   comments or documentation.
-- Pinned fixtures: every change under `tests/` or to `scripts/validate-contracts.sh`
-  invalidates the source-guard inventory fingerprint and may need reviewed call-site
-  records and a validator inventory amendment. Follow
-  `tests/fixtures/validator-runtime/README.md`; the guard suites must pass at the end.
+- Pinned fixtures: every change under `tests/` invalidates the source-guard inventory
+  fingerprint and may need reviewed call-site records. Follow
+  `tests/fixtures/validator-runtime/README.md`; the source guard must pass at the end.
+  The suite is not registered in `scripts/validate-contracts.sh` here: the frozen
+  validator inventory cannot accept a new check without an oracle extension, which the
+  receipts-grammar subtask performs once (owner decision, 2026-11-13).
 - Reason: the parser and the read command are the foundation every later command reuses;
   they are verifiable alone because reads need no lock, revision or write path.
 
@@ -25,14 +27,13 @@ behaviour; no change to `rules/` in this subtask.
 - **In scope:** tool skeleton and command dispatch; Python-version guard; root, task and
   `state.md` path checks for reads; encoding checks; fence-aware section and block parser;
   the four vocabulary constants; contract-version comparison for reads; `get` with
-  `--block` and `--field`; the common JSON output keys; the acceptance-suite harness and
-  its registration in the validator.
-- **Out of scope:** `validate`; every write command; lock, revision, receipts handling
+  `--block` and `--field`; the common JSON output keys; the acceptance-suite harness.
+- **Out of scope:** registering the suite in `scripts/validate-contracts.sh` (a later
+  subtask); `validate`; every write command; lock, revision, receipts handling
   beyond reporting a malformed `state_receipts:` line as a warning.
 - **Target files:** `scripts/state-tool.py`, `tests/state-tool.py`,
-  `scripts/validate-contracts.sh`, `tests/fixtures/validator-runtime/source_guard_exceptions.json`,
-  `tests/fixtures/validator-runtime/source_guard.py`,
-  `tests/fixtures/validator-runtime/inventory-amendment.json`
+  `tests/fixtures/validator-runtime/source_guard_exceptions.json`,
+  `tests/fixtures/validator-runtime/source_guard.py`
 
 ## Steps
 1. Create `tests/state-tool.py`: a `unittest` suite with disposable task-directory
@@ -64,10 +65,10 @@ behaviour; no change to `rules/` in this subtask.
    (`unrecognized-prefix`, `unknown-header-field`, `required-field-missing`,
    `malformed-receipts`, problems in other blocks); `stale_temp_files`; `null` for keys
    that cannot be computed; diagnostics on stderr only.
-9. Register the suite in `scripts/validate-contracts.sh`: a focused `--state-tool-only`
-   mode next to the other focused modes and a `test_state_tool_acceptance` check in the
-   default run; then refresh the pinned validator-runtime fixtures by the maintenance
-   procedure and run the guard suites.
+9. Refresh the pinned source-guard fixtures by the maintenance procedure (a reviewed
+   record for the suite's runner call, the inventory fingerprint, the manifest digest)
+   and run the suite, the source guard and the guard suites; leave
+   `scripts/validate-contracts.sh` unchanged.
 
 ## Acceptance Criteria
 - Given a fixture with leaf `T-01`, composite `[composite] T-02`, and a fenced block
@@ -99,8 +100,9 @@ behaviour; no change to `rules/` in this subtask.
 - A static AST scan of the tool finds only standard-library imports and none of
   `subprocess`, `os.system`, `os.exec*`, `eval`, `exec`, `shell=True`; the version guard
   precedes all imports other than `sys`; with the `fcntl` import blocked, `get` exits 0.
-- `bash scripts/validate-contracts.sh --state-tool-only` runs the suite and exits 0, and
-  the source-guard suites pass.
+- `python3 tests/state-tool.py` exits 0, `scripts/validate-contracts.sh` is unchanged, and
+  the source guard and the validator-runtime guard suites pass with the refreshed
+  fixtures.
 
 ## Test Plan
 - **Level:** integration (subprocess runs against disposable fixtures); unit for the AST
@@ -116,7 +118,7 @@ behaviour; no change to `rules/` in this subtask.
   - Missing required fields, 21 receipt entries → exit 0 with the named warning.
   - Symlinked `state.md`, task outside root → exit 7 / exit 2.
   - AST scan, guard position, blocked `fcntl` → no forbidden construct; `get` still works.
-  - Focused validator mode → exit 0.
+  - Direct suite run and guard suites → exit 0; validator file unchanged.
 - **Edge cases:** empty file, section with no blocks, missing final newline, blank lines
   inside continuation runs, quoted note values, column-0 foreign lines, several `notes`
   groups, tab-indented and one-space lines, CR/BOM/invalid UTF-8.

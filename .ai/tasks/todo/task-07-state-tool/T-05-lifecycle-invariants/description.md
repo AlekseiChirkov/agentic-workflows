@@ -42,8 +42,8 @@ test level and never removes `atomic-tests`; no file under `workflows/` or `rule
    shortcut; report a violation in an unchanged field as warning `pre-existing-violation`.
 7. Confirm that any refusal leaves `state.md` unchanged and no temporary file, whatever
    the number of valid fields and notes in the same call.
-8. Refresh the pinned source-guard fingerprint and run the guard suites and the focused
-   state-tool mode.
+8. Refresh the pinned source-guard fingerprint and run the guard suites and the suite
+   (`python3 tests/state-tool.py`).
 
 ## Acceptance Criteria
 - `pinned → green` is applied; `pinned → red` exits 6 `pinned-transition`; `green → red`

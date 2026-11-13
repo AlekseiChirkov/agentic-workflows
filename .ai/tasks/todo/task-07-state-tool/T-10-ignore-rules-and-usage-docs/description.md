@@ -11,7 +11,9 @@ the manual fallback.
   `-e`; its digest is pinned in the validator-runtime fixture. Numbers quoted in docs are
   updated in the same change. English only; no planning identifiers in product content.
 - Pinned fixtures: edits to `scripts/setup-new-project.sh` and under `tests/` invalidate
-  pinned digests; follow `tests/fixtures/validator-runtime/README.md`.
+  pinned digests; the suite is registered by now, so its resource row in the validator
+  inventory amendment and that amendment's pinned digest are refreshed too. Follow
+  `tests/fixtures/validator-runtime/README.md`.
 - Reason: ignore rules and the manual are the consumer-facing surface of the tool; the
   manual names the ignore patterns and the step for existing projects, so they are
   verified together.
@@ -31,7 +33,9 @@ changed; no workflow is wired to the tool; deployed copies are never edited.
 - **Target files:** `.gitignore`, `scripts/setup-new-project.sh`, `docs/USAGE.md`,
   `scripts/README.md`, `tests/state-tool.py`,
   `tests/fixtures/validator-runtime/source_guard_exceptions.json`,
-  `tests/fixtures/validator-runtime/source_guard.py`
+  `tests/fixtures/validator-runtime/source_guard.py`,
+  `tests/fixtures/validator-runtime/inventory-amendment.json`,
+  `tests/validator-runtime-oracle.py`
 
 ## Steps
 1. Add failing suite cases: `git check-ignore` on the two auxiliary paths and on a task
@@ -51,8 +55,9 @@ changed; no workflow is wired to the tool; deployed copies are never edited.
    project that tracks `.ai/`: rerun `scripts/setup-new-project.sh` or add the two lines
    by hand.
 6. Add the `state-tool.py` row to the inventory table of `scripts/README.md`.
-7. Refresh the pinned digests of `scripts/setup-new-project.sh` and the source-guard
-   fingerprint, then run the guard suites and the focused state-tool mode.
+7. Refresh the pinned digests of `scripts/setup-new-project.sh`, the suite's resource row
+   in the inventory amendment with its pinned digest, and the source-guard fingerprint,
+   then run the guard suites, the inventory oracle and the focused state-tool mode.
 
 ## Acceptance Criteria
 - In this repository `git check-ignore -q` exits 0 on
@@ -69,7 +74,7 @@ changed; no workflow is wired to the tool; deployed copies are never edited.
   add the two lines by hand.
 - The section lists the six commands and exit codes 0–8 with their meanings.
 - `scripts/README.md` has an inventory row for `state-tool.py`.
-- The source-guard suites pass with the refreshed digests.
+- The source-guard suites and the inventory oracle pass with the refreshed digests.
 
 ## Test Plan
 - **Level:** integration (git and setup script in disposable projects) and smoke

@@ -68,8 +68,8 @@ written by the tool; no file under `workflows/` or `rules/`.
 11. Print the write result (`operation_id`, `block_id`, `block_kind`, `source_revision`,
     `result_revision`, `changed_fields`); print the sentence
     `Do not edit state.md by hand to bypass this refusal.` on stderr for exits 4 and 6.
-12. Refresh the pinned source-guard fingerprint and run the guard suites and the focused
-    state-tool mode.
+12. Refresh the pinned source-guard fingerprint and run the guard suites and the suite
+   (`python3 tests/state-tool.py`).
 
 ## Acceptance Criteria
 - Given a leaf `T-01` with, in order, `last_action:`, an empty `target_files:`,
