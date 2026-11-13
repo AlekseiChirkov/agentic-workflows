@@ -22,7 +22,7 @@ Runtime task closure is administrative. Warning-fixture, identity-scan and sourc
 changes are integrated; concurrent acceptance execution, opt-in timing, an additional
 identity-output I/O correction and comparative performance acceptance remain undelivered.
 Deleted experimental branch names do not count as delivery. No task is currently active;
-07 remains backlog, and the other roadmap items require their own implementation work.
+07 was scheduled by the owner on 2026-11-13 (ADR-0021), and the other roadmap items require their own implementation work.
 
 ## Nine token optimization workstreams
 
@@ -76,7 +76,7 @@ an explicitly approved comparative evaluation under spec 09.
 | G2 — Comparable measurement | Same initial revision, specification, acceptance criteria and task set. Report input, cached input, cache writes, output/reasoning where available, API-equivalent cost, calls, retries, wall time and coverage separately. No model-run claims from word counts or simulations. |
 | G3 — Independent quality | Preserve test-first order, frozen RED evidence, contracts, git rails, owner stops, independent Validator and integration checks. Tests and reviewer verdicts are evidence, neither is absolute truth. Evaluate held-out criteria and later defects under spec 09. |
 | G4 — Compatibility | Legacy artifacts remain readable. Missing optional capabilities use a documented conservative path; unsafe or ambiguous state stops before mutation. Unknown usage stays unknown. No hidden model substitution. |
-| G5 — Ownership | Only the authorized writer updates shared state and git. Helpers do not spawn models, become a mandatory runtime, or bypass approval/sandbox policies. Spec 07 stays backlog. |
+| G5 — Ownership | Only the authorized writer updates shared state and git. Helpers do not spawn models, become a mandatory runtime, or bypass approval/sandbox policies. Spec 07 is scheduled as an optional, unwired tool (ADR-0021). |
 | G6 — Testing | New behavior has failing deterministic fixtures before implementation and passing fixtures afterward. Markdown receives contract/reachability checks. Paid runs never start during ordinary validation, sync, or default CI jobs. |
 | G7 — Rollback | Document disable/resume from the last verified checkpoint using the previous policy. Preserve task history, evidence and verified code. |
 | G8 — Economics | Compare expected total cost of a correct result, including planning, tools, verification, repair and escalation. Subscription payments are actual billing; API-equivalent USD is not an invoice or quota estimate. No production cost/time cap is introduced. |
@@ -113,7 +113,7 @@ script names in historical context identify their earlier locations.
 | 15 | [10 — references](10-generated-reference-docs.md) | 13, 08 | Render metadata without inlining optional context |
 | 16 | [11 — public readiness](11-open-source-readiness.md) | 01, 09, 10, 13 | Accurate docs; license/release remain explicit owner actions |
 | 17 | [12 — composite children](12-composite-branch-model-and-parallel-children.md) | 13, 09, 02, 03, 05, 14, 15, 16, 19, 20 | Integrate isolation, context, review and attribution before parallel rollout |
-| Backlog | [07 — state tool](07-state-tool.md) | — | Remains deferred, not a prerequisite of the nine tasks |
+| Scheduled | [07 — state tool](07-state-tool.md) | — | Scheduled by the owner on 2026-11-13 (ADR-0021); optional and unwired, not a prerequisite of the nine tasks |
 
 ## Review record and remaining decisions
 

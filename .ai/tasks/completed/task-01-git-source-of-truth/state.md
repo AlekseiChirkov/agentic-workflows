@@ -204,8 +204,6 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 | `docs/USAGE.md` | 254 | `agentic-workflows` × 1 |
 | `.ai/specs/completed/05-cost-and-duration-telemetry.md` | 698 | `agentic-workflows` × 5 |
 | `.ai/specs/completed/06-harness-git-rails.md` | 25 | `agentic-workflows` × 2 |
-| `.ai/specs/07-state-tool.md` | 19 | `agentic-workflows` × 2 |
-| `.ai/specs/07-state-tool.md` | 21 | `agentic-workflows` × 1 |
 | `.ai/specs/09-golden-run-tests.md` | 19 | `agentic-workflows` × 1 |
 | `.ai/specs/10-generated-reference-docs.md` | 19 | `agentic-workflows` × 2 |
 | `.ai/specs/11-open-source-readiness.md` | 19 | `agentic-workflows` × 3 |

@@ -7,12 +7,15 @@ of every session. Updated after every phase transition.
 ## Active Tasks
 
 
-Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17; ADR-0017 moves 06 before 13a/13): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11 → 12; 07 is backlog. The roadmap is in `specs/README.md`; each spec becomes a task via
+Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17; ADR-0017 moves 06 before 13a/13): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11 → 12; 07 is scheduled outside this order (ADR-0021). The roadmap is in `specs/README.md`; each spec becomes a task via
 `/phase-discovery .ai/specs/<NN>-<slug>.md`.
 
-None. Runtime work was closed by owner decision; remaining roadmap scope is not automatically scheduled.
+- [State tool](../specs/07-state-tool.md) | phase: not started | status: scheduled 2026-11-13 by owner decision (ADR-0021) | note: next step `/spec-run .ai/specs/07-state-tool.md`; no task directory yet.
+
+Runtime work was closed by owner decision; remaining roadmap scope is not automatically scheduled.
 
 ## Done
+- [State tool specification](../specs/07-state-tool.md) | completed: 2026-11-13 | note: backlog spec refined in English; design ready (4 review rounds, 100/100); scheduled the same day (ADR-0021 records the schedule, lock and executable-path amendments); Q-01 resolved by adding ignore rules to the scope (REQ-26, AC-23).
 - [Contract suite repair](../adr/0020-task-unknown-source-guard-watchdog-timeouts.md) | completed: 2026-11-13 | note: six failures fixed — identity ledger re-lined after the owner's audit deletions and spec edits (token totals unchanged); guard watchdog timeouts raised and exceptions re-pinned by the fixture procedure; mise shim failures resolved per run with `MISE_PYTHON_VERSION`.
 - [Specification review loop](../adr/0019-task-unknown-spec-draft-devils-advocate-review.md) | completed: 2026-11-13 | note: `/spec-draft` self-review replaced by a separate read-only Devil's Advocate critic, at most 10 rounds, 100-point rubric with severity caps, pass at 95 with no open critical or major finding; standalone `scripts/check-spec-draft.sh` (about 30 ms) outside the frozen validator inventory.
 - [Validator runtime](../tasks/completed/task-06-1-test-suite-runtime/state.md) | status: completed | closure: owner-directed, 2026-11-06 | note: #77–#79 integrated, archival commit 23bded3; partial implementation only. Concurrent acceptance execution, opt-in timing, the additional scanner I/O correction and comparative targets remain undelivered; phase/AC evidence was not promoted to passing.
