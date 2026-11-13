@@ -17,6 +17,7 @@ root from the parent of `scripts/`, unless `ORCHESTRAIL_HOME` selects another ch
 | `run-log-timing.sh` | Analyze only explicit run files with exact millisecond interval and coverage results. |
 | `validate-contracts.sh` | Check repository-wide workflow contracts. |
 | `validate-task.sh` | Validate one task directory passed as an argument. |
+| `check-spec-draft.sh` | Check the specification-authoring review contract in milliseconds; standalone, outside the validator inventory. |
 
 ## Exact run timing
 
