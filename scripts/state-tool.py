@@ -6,13 +6,20 @@ Usage:
   python3 scripts/state-tool.py validate --root R --task T [--block ID]
   python3 scripts/state-tool.py set      --root R --task T --block ID --expected-revision REV
                                          --operation-id OP --field NAME=VALUE [--field ...]
+                                         [--note TEXT ...] [--lock-wait-seconds N]
+  python3 scripts/state-tool.py append-note --root R --task T --block ID --expected-revision REV
+                                         --operation-id OP --note TEXT [--note ...]
+                                         [--lock-wait-seconds N]
+  python3 scripts/state-tool.py add-file --root R --task T --block ID --expected-revision REV
+                                         --operation-id OP --path P [--path ...]
                                          [--lock-wait-seconds N]
 
 Contract: stdout carries exactly one JSON object (schema_version 1); diagnostics go to
 stderr only. Read commands create, modify and delete no file. A write holds the per-task
 lock file .state-tool.lock, checks the expected revision, changes only the lines of the
 named fields plus the state_receipts line, and replaces state.md with one rename of its
-own temporary file. Python 3.11 or newer and the standard library only; no input value is
+own temporary file. Notes are only appended and target files only added; existing note
+text and existing target_files entries are never changed. Python 3.11 or newer and the standard library only; no input value is
 ever passed to a shell or interpreter.
 
 Exit codes: 0 read, valid, applied or unchanged; 1 internal-error; 2 invalid invocation
@@ -21,8 +28,8 @@ path-outside-root); 3 structure or version refused (state-missing, section-missi
 section-duplicate, block-missing, block-duplicate, malformed-block, malformed-receipts,
 unrecognized-prefix, unknown-header-field, unsupported-contract-version,
 unsupported-encoding); 4 revision conflict (revision-conflict, state-file-changed); 5 lock
-busy (lock-busy); 6 field, value or invariant refused (invalid-value, read-only-field,
-field-not-applicable, and for validate n-a-unjustified, completion-without-tests,
+busy (lock-busy); 6 field, value or invariant refused (invalid-value, invalid-path,
+read-only-field, field-not-applicable, and for validate n-a-unjustified, completion-without-tests,
 required-field-missing); 7 file system or runtime (io-error, unsafe-state-file,
 unsafe-lock-path, locking-unavailable, python-too-old). validate exits 3 before 6 when
 both kinds of error exist and lists every error.
@@ -118,8 +125,14 @@ SET_WRITABLE_FIELDS = {
 }
 NON_EMPTY_FIELDS = ("last_action", "blocker")
 SINGLE_LINE_FORBIDDEN = ("\r", "\n", "\x00")
+NOTE_CONTINUATION = " " * 9
+TARGET_FILES_SEPARATOR = ", "
 
 # Per command: options taking one value, repeatable options and required options.
+WRITE_SINGLE_OPTIONS = frozenset({"--root", "--task", "--block", "--expected-revision",
+                                  "--operation-id", "--lock-wait-seconds"})
+WRITE_REQUIRED_OPTIONS = frozenset({"--root", "--task", "--block", "--expected-revision",
+                                    "--operation-id"})
 COMMANDS: dict[str, dict[str, frozenset[str]]] = {
     "get": {"single": frozenset({"--root", "--task", "--block", "--field"}),
             "repeatable": frozenset(),
@@ -127,15 +140,20 @@ COMMANDS: dict[str, dict[str, frozenset[str]]] = {
     "validate": {"single": frozenset({"--root", "--task", "--block"}),
                  "repeatable": frozenset(),
                  "required": frozenset({"--root", "--task"})},
-    "set": {"single": frozenset({"--root", "--task", "--block", "--expected-revision",
-                                 "--operation-id", "--lock-wait-seconds"}),
-            "repeatable": frozenset({"--field"}),
-            "required": frozenset({"--root", "--task", "--block", "--expected-revision",
-                                   "--operation-id", "--field"})},
+    "set": {"single": WRITE_SINGLE_OPTIONS,
+            "repeatable": frozenset({"--field", "--note"}),
+            "required": WRITE_REQUIRED_OPTIONS | {"--field"}},
+    "append-note": {"single": WRITE_SINGLE_OPTIONS,
+                    "repeatable": frozenset({"--note"}),
+                    "required": WRITE_REQUIRED_OPTIONS | {"--note"}},
+    "add-file": {"single": WRITE_SINGLE_OPTIONS,
+                 "repeatable": frozenset({"--path"}),
+                 "required": WRITE_REQUIRED_OPTIONS | {"--path"}},
 }
-WRITE_COMMANDS = frozenset({"set"})
+WRITE_COMMANDS = frozenset({"set", "append-note", "add-file"})
 # The result a command reports for any non-zero exit.
-REFUSED_RESULT = {"get": "rejected", "validate": "invalid", "set": "rejected"}
+REFUSED_RESULT = {"get": "rejected", "validate": "invalid", "set": "rejected",
+                  "append-note": "rejected", "add-file": "rejected"}
 
 
 class ToolError(Exception):
@@ -611,14 +629,20 @@ def completion_allowed(tests: str | None, notes: str) -> bool:
     return tests in COMPLETION_TEST_VALUES
 
 
-def notes_text(block: Block) -> str:
-    """Every notes field group of the block in file order, continuation lines included."""
+def notes_parts(block: Block) -> list[str]:
+    """The notes of a block as entries in file order: each notes value, then its continuation
+    lines as written."""
     parts: list[str] = []
     for group in block.groups:
         if group.name == "notes":
             parts.append(group.value)
             parts.extend(group.continuation)
-    return "\n".join(parts)
+    return parts
+
+
+def notes_text(block: Block) -> str:
+    """Every notes field group of the block in file order, continuation lines included."""
+    return "\n".join(notes_parts(block))
 
 
 def invariant_errors(block: Block) -> list[ToolError]:
@@ -715,12 +739,9 @@ def writable_problem(block: Block, name: str) -> ToolError | None:
 def value_problem(name: str, value: str) -> str | None:
     """Return why a value breaks the content rules, or None: values are single-line UTF-8
     text, last_action and blocker are non-empty, and header statuses are in their vocabulary."""
-    if any(character in value for character in SINGLE_LINE_FORBIDDEN):
-        return "must be a single line without CR, LF or NUL"
-    try:
-        value.encode("utf-8")
-    except UnicodeEncodeError:
-        return "must be valid UTF-8"
+    reason = text_problem(value)
+    if reason is not None:
+        return reason
     if name in NON_EMPTY_FIELDS and not value.strip():
         return "must not be empty"
     if name in STATUS_VOCABULARY and not value_in_vocabulary(name, value):
@@ -738,6 +759,74 @@ def check_field_changes(block: Block, pairs: list[tuple[str, str]]) -> None:
         reason = value_problem(name, value)
         if reason is not None:
             raise ToolError(6, "invalid-value", f"block {block.block_id}: {name} value {reason}")
+
+
+def text_problem(text: str) -> str | None:
+    """Return why a text input is not single-line UTF-8 without CR, LF or NUL, or None."""
+    if any(character in text for character in SINGLE_LINE_FORBIDDEN):
+        return "must be a single line without CR, LF or NUL"
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        return "must be valid UTF-8"
+    return None
+
+
+def note_problem(note: str) -> str | None:
+    """Return why a note breaks the text rules, or None; an empty note carries no text."""
+    if not note:
+        return "must not be empty"
+    return text_problem(note)
+
+
+def path_problem(path: str) -> str | None:
+    """Return why a target path breaks the lexical rules, or None. Paths are never resolved
+    on disk: non-empty, relative, no '..' segment, no leading './', no ',' and no trailing '/'."""
+    reason = text_problem(path)
+    if reason is not None:
+        return reason
+    if not path:
+        return "must not be empty"
+    if path.startswith("/"):
+        return "must be relative"
+    if path.startswith("./"):
+        return "must not start with ./"
+    if path.endswith("/"):
+        return "must not end with /"
+    if "," in path:
+        return "must not contain a comma"
+    if ".." in path.split("/"):
+        return "must not contain a .. segment"
+    return None
+
+
+def check_additions(block: Block, notes: list[str], paths: list[str]) -> None:
+    """Check that target files apply to the block kind, then the content of every note and
+    path, so that one invalid input refuses the whole call."""
+    if paths and block.kind != "leaf":
+        raise ToolError(6, "field-not-applicable",
+                        f"field target_files does not apply to {block.kind} block {block.block_id}")
+    for note in notes:
+        reason = note_problem(note)
+        if reason is not None:
+            raise ToolError(6, "invalid-value", f"block {block.block_id}: note {reason}")
+    for path in paths:
+        reason = path_problem(path)
+        if reason is not None:
+            raise ToolError(6, "invalid-path", f"block {block.block_id}: path '{path}' {reason}")
+
+
+def target_files_change(block: Block, paths: list[str]) -> str | None:
+    """The new target_files value with every path not yet listed appended once, in argument
+    order; None when every path is already listed. Existing entries are the value split on
+    ', ' and compared by exact string equality; an empty value has no entries."""
+    groups = [group for group in block.groups if group.name == "target_files"]
+    current = groups[0].value if groups else ""
+    entries = current.split(TARGET_FILES_SEPARATOR) if current else []
+    new = [path for path in dict.fromkeys(paths) if path not in entries]
+    if not new:
+        return None
+    return TARGET_FILES_SEPARATOR.join(([current] if current else []) + new)
 
 
 def changed_pairs(block: Block, pairs: list[tuple[str, str]]) -> dict[str, str]:
@@ -793,24 +882,72 @@ def insertion_anchor(block: Block, name: str, planned: list[tuple[tuple[int, int
     return max(keys)[0] if keys else block.start
 
 
+@dataclass
+class Candidate:
+    """Candidate text of a write with the changed field names, the indexes of the original
+    lines it replaced and the note entries it appended, as notes_parts reads them back."""
+    text: str
+    changed: list[str]
+    replaced: set[int]
+    note_entries: list[str]
+
+
+@dataclass
+class NotePlacement:
+    """Where appended notes go: the notes line to rewrite (or None), the lines to insert and
+    the index of the line they follow (None for the canonical position of a new notes line)."""
+    replace: int | None
+    lines: list[str]
+    after: int | None
+
+
+def place_notes(block: Block, notes: list[str]) -> NotePlacement:
+    """Place appended notes: the first on the sole notes line when it is empty and has no
+    continuation lines; a new notes line at the canonical position when the block has none;
+    otherwise continuation lines after the last line of the last notes group. Every further
+    note is a continuation line indented by nine spaces."""
+    groups = [group for group in block.groups if group.name == "notes"]
+    continuations = [NOTE_CONTINUATION + note for note in notes[1:]]
+    if not groups:
+        return NotePlacement(None, [f"  notes: {notes[0]}"] + continuations, None)
+    if len(groups) == 1 and groups[0].value == "" and not groups[0].continuation:
+        return NotePlacement(groups[0].start, continuations, groups[0].start)
+    return NotePlacement(None, [NOTE_CONTINUATION + note for note in notes], groups[-1].end - 1)
+
+
 def build_candidate(document: Document, block: Block, changes: dict[str, str],
-                    receipt: str) -> tuple[str, list[str]]:
-    """Return the candidate text and the changed field names. Unchanged lines are copied
-    byte for byte; changed lines are replaced in place; missing fields and the receipts line
-    are inserted at their canonical positions; the final-newline state is kept."""
+                    notes: list[str], receipt: str) -> Candidate:
+    """Build the candidate. Unchanged lines are copied byte for byte; changed lines are
+    replaced in place; notes are appended; missing fields and the receipts line are inserted
+    at their canonical positions; the final-newline state is kept."""
     contents = [content(line) for line in document.lines]
     replacements: dict[int, str] = {}
     insertions: dict[int, list[str]] = {}
     planned: list[tuple[tuple[int, int], str]] = []
+    note_entries: list[str] = []
+
+    def insert(anchor: int, name: str, lines: list[str]) -> None:
+        insertions.setdefault(anchor, []).extend(lines)
+        planned.append(((anchor, len(insertions[anchor])), name))
 
     def put(name: str, line: str) -> None:
         groups = [group for group in block.groups if group.name == name]
         if groups:
             replacements[groups[0].start] = line
             return
-        anchor = insertion_anchor(block, name, planned)
-        insertions.setdefault(anchor, []).append(line)
-        planned.append(((anchor, len(insertions[anchor])), name))
+        insert(insertion_anchor(block, name, planned), name, [line])
+
+    def append_notes() -> None:
+        placement = place_notes(block, notes)
+        if placement.after is None:
+            insert(insertion_anchor(block, "notes", planned), "notes", placement.lines)
+            note_entries.extend([notes[0]] + placement.lines[1:])
+            return
+        if placement.replace is not None:
+            replacements[placement.replace] = f"  notes: {notes[0]}"
+            note_entries.append(notes[0])
+        insertions.setdefault(placement.after, []).extend(placement.lines)
+        note_entries.extend(placement.lines)
 
     header_changes = {name: value for name, value in changes.items()
                       if name in KNOWN_HEADER_FIELDS[block.kind]}
@@ -819,7 +956,10 @@ def build_candidate(document: Document, block: Block, changes: dict[str, str],
         replacements[block.start], changed = edit_header(contents[block.start], block.kind,
                                                          header_changes)
     for name in KNOWN_FIELDS[block.kind]:
-        if name in changes and name not in header_changes:
+        if name == "notes" and notes:
+            append_notes()
+            changed.append(name)
+        elif name in changes and name not in header_changes:
             put(name, f"  {name}: {changes[name]}")
             changed.append(name)
     existing = [group for group in block.groups if group.name == "state_receipts"]
@@ -831,18 +971,19 @@ def build_candidate(document: Document, block: Block, changes: dict[str, str],
         output.append(replacements.get(index, text))
         output.extend(insertions.get(index, []))
     final_newline = "\n" if "".join(document.lines).endswith("\n") else ""
-    return "\n".join(output) + final_newline, changed
+    return Candidate("\n".join(output) + final_newline, changed, set(replacements), note_entries)
 
 
-def verify_candidate(document: Document, block: Block, candidate: str,
+def verify_candidate(document: Document, block: Block, candidate: Candidate,
                      changes: dict[str, str]) -> None:
     """Re-parse the candidate and confirm that lines outside the block and every unchanged
-    line of the block are identical and that the block reads back the written values."""
+    line of the block are identical, that the block reads back the written values and that
+    its notes text ends with the appended notes."""
     original = [content(line) for line in document.lines]
-    lines = split_lines(candidate)
+    lines = split_lines(candidate.text)
     new = [content(line) for line in lines]
     try:
-        reparsed = parse_document(candidate)
+        reparsed = parse_document(candidate.text)
     except ToolError as error:
         raise ToolError(1, "internal-error", f"candidate does not parse: {error.message}") from None
     matches = [item for item in reparsed.blocks if item.block_id == block.block_id]
@@ -852,10 +993,8 @@ def verify_candidate(document: Document, block: Block, candidate: str,
         problems.append("target block does not read back")
     if new[:block.start] != original[:block.start] or new[len(new) - tail:] != original[block.end:]:
         problems.append("lines outside the block changed")
-    replaced = ({group.start for group in block.groups if group.name in changes
-                 or group.name == "state_receipts"} | {block.start})
     kept = [text for index, text in enumerate(original[block.start:block.end], block.start)
-            if index not in replaced]
+            if index not in candidate.replaced]
     remaining = iter(new[block.start:len(new) - tail])
     if not all(any(text == other for other in remaining) for text in kept):
         problems.append("an unchanged block line changed")
@@ -864,6 +1003,9 @@ def verify_candidate(document: Document, block: Block, candidate: str,
         values = dict(target.header_fields) | {group.name: group.value for group in target.groups}
         if any(values.get(name) != value for name, value in changes.items()):
             problems.append("a written value does not read back")
+        appended = candidate.note_entries
+        if appended and notes_parts(target)[-len(appended):] != appended:
+            problems.append("an appended note does not read back")
     if problems:
         raise ToolError(1, "internal-error", "candidate check failed: " + "; ".join(problems))
 
@@ -877,9 +1019,16 @@ def input_digest(command: str, block_id: str, inputs: dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
-def set_inputs(pairs: list[tuple[str, str]]) -> dict[str, Any]:
-    """Inputs of set for the digest: field pairs sorted by name, notes in argument order."""
-    return {"fields": [[name, value] for name, value in sorted(pairs)], "notes": []}
+def write_inputs(command: str, pairs: list[tuple[str, str]], notes: list[str],
+                 paths: list[str]) -> dict[str, Any]:
+    """Inputs of a write for the digest: set holds its field pairs sorted by name and its
+    notes; append-note its notes; add-file its paths. Notes and paths keep argument order and
+    repeated paths are kept as given."""
+    if command == "set":
+        return {"fields": [[name, value] for name, value in sorted(pairs)], "notes": list(notes)}
+    if command == "append-note":
+        return {"notes": list(notes)}
+    return {"paths": list(paths)}
 
 
 # ---------------------------------------------------------------- write transaction
@@ -1107,10 +1256,13 @@ def command_validate(options: dict[str, list[str]], report: dict[str, Any]) -> i
     return 0
 
 
-def command_set(options: dict[str, list[str]], report: dict[str, Any]) -> int:
-    """Change the named fields of one block under the task lock in one atomic replace."""
+def command_write(command: str, options: dict[str, list[str]], report: dict[str, Any]) -> int:
+    """Change the named fields of one block, append its notes and add its target files under
+    the task lock in one atomic replace; refuse the whole call when any input is refused."""
     require_locking()
     pairs = field_pairs(options)
+    notes = options.get("--note", [])
+    target_paths = options.get("--path", [])
     paths = resolve_paths(options["--root"][0], options["--task"][0])
     report["task"] = paths.relative_task
     report["stale_temp_files"] = stale_temp_files(paths.task)
@@ -1138,14 +1290,20 @@ def command_set(options: dict[str, list[str]], report: dict[str, Any]) -> int:
             raise ToolError(4, "revision-conflict",
                             "state.md changed since the expected revision was read")
         check_field_changes(block, pairs)
+        check_additions(block, notes, target_paths)
         changes = changed_pairs(block, pairs)
-        if not changes:
+        target_files = target_files_change(block, target_paths)
+        if target_files is not None:
+            changes["target_files"] = target_files
+        if not changes and not notes:
             report["result"] = "unchanged"
             return 0
-        receipt = f"{options['--operation-id'][0]}#{input_digest('set', block_id, set_inputs(pairs))}"
-        candidate, changed = build_candidate(document, block, changes, receipt)
+        digest = input_digest(command, block_id, write_inputs(command, pairs, notes, target_paths))
+        receipt = f"{options['--operation-id'][0]}#{digest}"
+        candidate = build_candidate(document, block, changes, notes, receipt)
         verify_candidate(document, block, candidate, changes)
-        candidate_bytes = candidate.encode("utf-8")
+        changed = candidate.changed
+        candidate_bytes = candidate.text.encode("utf-8")
         report["warnings"] = replace_state(paths, candidate_bytes, owner_token, source,
                                            (opened.st_dev, opened.st_ino),
                                            stat.S_IMODE(opened.st_mode), report)
@@ -1157,7 +1315,7 @@ def command_set(options: dict[str, list[str]], report: dict[str, Any]) -> int:
         os.close(descriptor)
 
 
-HANDLERS = {"get": command_get, "validate": command_validate, "set": command_set}
+READ_HANDLERS = {"get": command_get, "validate": command_validate}
 
 
 def emit(report: dict[str, Any], exit_code: int) -> None:
@@ -1187,7 +1345,10 @@ def main(argv: list[str]) -> int:
         if command in WRITE_COMMANDS:
             note_write_identity(options, report)
         check_arguments(command, options)
-        exit_code = HANDLERS[command](options, report)
+        if command in WRITE_COMMANDS:
+            exit_code = command_write(command, options, report)
+        else:
+            exit_code = READ_HANDLERS[command](options, report)
     except ToolError as error:
         report["errors"] = [error.as_error()]
         exit_code = error.exit_code

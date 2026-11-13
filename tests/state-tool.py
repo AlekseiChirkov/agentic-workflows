@@ -1876,7 +1876,8 @@ class AppendNotePlacementTests(NoteAndFileCase):
                     + receipt)), 1))
 
     def test_note_appended_to_the_last_line_keeps_the_missing_final_newline(self) -> None:
-        original = state_text(leaf("T-01", body=leaf_body("x")), after="").removesuffix("\n")
+        original = state_text(leaf("T-01", body=leaf_body("x")), after="").rstrip("\n")
+        self.assertFalse(original.endswith("\n"))
         self.write_state(original)
 
         self.write_applied(self.append_notes("y"), "append-note", "notes", "state_receipts")
