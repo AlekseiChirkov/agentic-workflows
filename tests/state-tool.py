@@ -1115,5 +1115,20 @@ class BlockGrammarTests(ValidateCase):
                 self.valid(self.validate("--block", "T-01"))
 
 
+SPECIFICATION_LABEL = re.compile(r"\b(?:REQ|AC|I|D|A)-[0-9]+\b")
+
+
+class SourceWordingTests(unittest.TestCase):
+    def test_sources_state_rules_without_specification_labels(self) -> None:
+        findings = []
+        for path in (TOOL, Path(__file__).resolve()):
+            self.assertTrue(path.is_file(), f"source unavailable: expected {path}")
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                findings.extend(f"{path.name}:{number}: {label}"
+                                for label in SPECIFICATION_LABEL.findall(line))
+
+        self.assertEqual(findings, [])
+
+
 if __name__ == "__main__":
     unittest.main()
