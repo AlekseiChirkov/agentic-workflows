@@ -283,10 +283,14 @@ worktrees preserve unintegrated candidate data. W6/W7 remain outside scope.
 
 ## State tool — planned, in flight
 
-Partly delivered: `scripts/state-tool.py` provides `get` (fence-aware parser of
-`## Subtask Progress`, read-only, one JSON object on stdout); `validate` and the write
-commands are planned. The suite `tests/state-tool.py` runs directly; validator
-registration and the exact oracle extension come with the receipts-grammar change.
+Partly delivered: `scripts/state-tool.py` provides the read commands `get` (fence-aware
+parser of `## Subtask Progress`, read-only, one JSON object on stdout) and `validate`
+(structure, status vocabulary, n-a justification, static completion rule, required fields
+and `state_receipts:` format; exit 3 for structure before 6 for invariants). An indented
+fence inside a block is opaque block content, and a repeated header status segment makes
+the block malformed. The write commands are planned. The suite `tests/state-tool.py` runs
+directly; validator registration and the exact oracle extension come with the
+receipts-grammar change.
 Planned by task 07: an optional standard-library helper
 `scripts/state-tool.py` with `get`, `validate`, `set`, `append-note`, `add-file` and
 `init-block` over the `## Subtask Progress` section of one task `state.md`; a per-task
