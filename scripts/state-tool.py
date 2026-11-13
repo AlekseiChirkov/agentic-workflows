@@ -498,18 +498,21 @@ def block_warnings(block: Block) -> list[str]:
 # ---------------------------------------------------------------- invariants
 
 def value_in_vocabulary(name: str, value: str) -> bool:
-    """I-1 for one known header field."""
+    """True when a known header status value is in that field's vocabulary; a value outside
+    it is reported as invalid-value."""
     return value in STATUS_VOCABULARY[name]
 
 
 def n_a_justified(notes: str) -> bool:
-    """I-4: an n-a test status needs the gate's justification line in the notes text."""
+    """True when the notes text holds the test-level gate's justification, which an n-a test
+    status needs; without it the block is reported as n-a-unjustified."""
     return N_A_JUSTIFICATION in notes
 
 
 def completion_allowed(tests: str | None, notes: str) -> bool:
-    """I-5, static part: completion needs green or n-a tests, or no tests segment and the
-    pre-TDD note in the notes text."""
+    """True when a leaf may record complete execution without a previous value to compare:
+    its tests are green or n-a, or it has no tests segment and its notes text holds the
+    pre-TDD note; otherwise the block is reported as completion-without-tests."""
     if tests is None:
         return PRE_TDD_NOTE in notes
     return tests in COMPLETION_TEST_VALUES
@@ -526,7 +529,9 @@ def notes_text(block: Block) -> str:
 
 
 def invariant_errors(block: Block) -> list[ToolError]:
-    """Static invariant violations of one block (I-1, I-4, I-5 static part, I-6); exit 6."""
+    """Rule violations of one block that need no previous value, each an exit-6 error:
+    header status values outside their vocabulary, an unjustified n-a test status,
+    completion without passing or justified tests, and missing required field lines."""
     errors: list[ToolError] = []
     line = block.start + 1
     known_header = KNOWN_HEADER_FIELDS[block.kind]
