@@ -1,0 +1,31 @@
+.ai/adr/index.md
+  s_007e3c3ec21eae::t_95b0977afde3ea 31
+.ai/context/runbook.md
+  s_007e3c3ec21eae::t_895a22d410f3bb 28-30
+.ai/memory/progress.md
+  s_007e3c3ec21eae::t_b5492f1d1841e3 123-124
+.ai/memory/state.md
+  s_007e3c3ec21eae::t_8f41e964499798 16
+.ai/principles/domain.md
+  s_007e3c3ec21eae::t_77b2998a76b3c4 36
+docs/USAGE.md
+  s_007e3c3ec21eae::t_94e599a45cf879 794
+workflows/spec-draft.md
+  s_007e3c3ec21eae::t_d86de423a6f5bb 200,202-281,302-305,307-308,315-319,327-329
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a3e09eb78fd0074301eec71aff4a9cba8465c7e7",
+  "prompts": {},
+  "sessions": {
+    "s_007e3c3ec21eae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a93960e-dcfb-4b6a-9d79-dea30d69ec30",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
