@@ -1,0 +1,19 @@
+tests/state-tool.py
+  s_0ff162e9fcc851::t_7e75d8f38d138d 2498-2909
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e67f9bb0d6a5f41ff8608ec84d333f8225cfb2a5",
+  "prompts": {},
+  "sessions": {
+    "s_0ff162e9fcc851": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a73fb5dad508b947d",
+        "model": "unknown"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
