@@ -2,16 +2,20 @@
 """Read the subtask-progress section of one task state.md through a structural parser.
 
 Usage:
-  python3 scripts/state-tool.py get --root R --task T [--block ID] [--field NAME]
+  python3 scripts/state-tool.py get      --root R --task T [--block ID] [--field NAME]
+  python3 scripts/state-tool.py validate --root R --task T [--block ID]
 
 Contract: stdout carries exactly one JSON object (schema_version 1); diagnostics go to
 stderr only. Read commands create, modify and delete no file. Python 3.11 or newer and
 the standard library only; no input value is ever passed to a shell or interpreter.
 
-Exit codes: 0 read; 1 internal-error; 2 invalid invocation (invalid-arguments,
+Exit codes: 0 read or valid; 1 internal-error; 2 invalid invocation (invalid-arguments,
 unknown-command, path-outside-root); 3 structure refused (state-missing, section-missing,
-section-duplicate, block-missing, block-duplicate, malformed-block, unsupported-encoding);
-7 file system or runtime (io-error, unsafe-state-file, python-too-old).
+section-duplicate, block-missing, block-duplicate, malformed-block, malformed-receipts,
+unsupported-encoding); 6 invariant refused by validate (invalid-value, n-a-unjustified,
+completion-without-tests, required-field-missing); 7 file system or runtime (io-error,
+unsafe-state-file, python-too-old). validate exits 3 before 6 when both kinds of error
+exist and lists every error.
 """
 import sys
 
@@ -73,13 +77,28 @@ REQUIRED_FIELDS = {
     "composite": ("children", "blocker", "notes"),
 }
 REPEATABLE_FIELDS = frozenset({"notes"})
+STATUS_VOCABULARY = {
+    "atomic-tests": ATOMIC_TESTS_VALUES,
+    "atomic-execution": ATOMIC_STATUS_VALUES,
+    "atomic-validation": ATOMIC_STATUS_VALUES,
+    "rollup": ROLLUP_VALUES,
+    "integration-validation": INTEGRATION_VALIDATION_VALUES,
+}
+N_A_JUSTIFICATION = "tdd: none — "
+PRE_TDD_NOTE = "pre-TDD task, TDD step skipped"
+COMPLETION_TEST_VALUES = ("green", "n-a")
 
 # Per command: options taking one value, repeatable options and required options.
 COMMANDS: dict[str, dict[str, frozenset[str]]] = {
     "get": {"single": frozenset({"--root", "--task", "--block", "--field"}),
             "repeatable": frozenset(),
             "required": frozenset({"--root", "--task"})},
+    "validate": {"single": frozenset({"--root", "--task", "--block"}),
+                 "repeatable": frozenset(),
+                 "required": frozenset({"--root", "--task"})},
 }
+# The result a command reports for any non-zero exit.
+REFUSED_RESULT = {"get": "rejected", "validate": "invalid"}
 
 
 class ToolError(Exception):
@@ -253,22 +272,28 @@ def content(line: str) -> str:
     return line[:-1] if line.endswith("\n") else line
 
 
-def fence_flags(lines: list[str]) -> list[bool]:
-    """Mark every line that opens, lies inside or closes a fenced code block."""
-    flags: list[bool] = []
+def fence_openers(lines: list[str]) -> list[int | None]:
+    """For every line that opens, lies inside or closes a fence, the index of its opening line."""
+    openers: list[int | None] = []
     marker: str | None = None
-    for line in lines:
+    opener = 0
+    for index, line in enumerate(lines):
         text = content(line)
         if marker is None:
             opened = FENCE_OPEN.match(text)
             if opened:
-                marker = opened.group(1)
-            flags.append(opened is not None)
+                marker, opener = opened.group(1), index
+            openers.append(index if opened else None)
             continue
-        flags.append(True)
+        openers.append(opener)
         if re.match(r" {0,3}" + re.escape(marker), text):
             marker = None
-    return flags
+    return openers
+
+
+def fence_flags(lines: list[str]) -> list[bool]:
+    """Mark every line that opens, lies inside or closes a fenced code block."""
+    return [opener is not None for opener in fence_openers(lines)]
 
 
 def task_contract_version(lines: list[str], fenced: list[bool]) -> tuple[str, tuple[int, ...]] | None:
@@ -347,8 +372,14 @@ def continues_after_blanks(lines: list[str], fenced: list[bool], index: int, end
             and indentation(content(lines[index])) >= 3)
 
 
-def parse_blocks(lines: list[str], fenced: list[bool], start: int, end: int) -> list[Block]:
-    """Parse the section body into blocks; lines outside blocks are foreign and kept as is."""
+def parse_blocks(lines: list[str], openers: list[int | None], start: int, end: int) -> list[Block]:
+    """Parse the section body into blocks; lines outside blocks are foreign and kept as is.
+
+    A fence opened at column 0 ends the current block. A fence opened at 1-3 spaces inside a
+    block is opaque block content: its lines are neither field, continuation nor malformed
+    lines, and a continuation line after it still belongs to the preceding field line.
+    """
+    fenced = [opener is not None for opener in openers]
     blocks: list[Block] = []
     current: Block | None = None
     group: FieldGroup | None = None
@@ -364,9 +395,12 @@ def parse_blocks(lines: list[str], fenced: list[bool], start: int, end: int) -> 
     while index < end:
         text = content(lines[index])
         header = None if fenced[index] else parse_header(text, index)
+        opener = openers[index]
         if header is not None:
             close(index)
             current = header
+        elif current is not None and opener is not None and indentation(content(lines[opener])):
+            pass  # A line of a fence opened inside this block: opaque block content.
         elif current is None or fenced[index]:
             close(index)
         elif text == "":
@@ -399,6 +433,10 @@ def parse_blocks(lines: list[str], fenced: list[bool], start: int, end: int) -> 
         index += 1
     close(end)
     for block in blocks:
+        statuses = [name for name, _ in block.header_fields
+                    if name in KNOWN_HEADER_FIELDS[block.kind]]
+        for name in unique([name for name in statuses if statuses.count(name) > 1]):
+            block.malformed.append((block.start + 1, f"repeated header field {name}"))
         known = KNOWN_FIELDS[block.kind]
         seen: set[str] = set()
         for item in block.groups:
@@ -410,43 +448,110 @@ def parse_blocks(lines: list[str], fenced: list[bool], start: int, end: int) -> 
 
 def parse_document(text: str) -> Document:
     lines = split_lines(text)
-    fenced = fence_flags(lines)
+    openers = fence_openers(lines)
+    fenced = [opener is not None for opener in openers]
     start, end = locate_section(lines, fenced)
-    return Document(lines, fenced, start, end, parse_blocks(lines, fenced, start, end))
+    return Document(lines, fenced, start, end, parse_blocks(lines, openers, start, end))
 
 
 # ---------------------------------------------------------------- block reporting
 
-def receipts_problem(block: Block) -> bool:
-    """True when a state_receipts line breaks the 1-20 unique well-formed entry rule."""
+def receipts_problem(block: Block) -> int | None:
+    """Return the 1-based line of the first state_receipts line that breaks the 1-20 unique
+    well-formed entry rule, or None when every such line is well formed."""
     for item in (group for group in block.groups if group.name == "state_receipts"):
         entries = item.value.split(", ") if item.value else []
-        if item.continuation or not 1 <= len(entries) <= MAX_RECEIPTS:
-            return True
-        identifiers = []
-        for entry in entries:
-            match = RECEIPT_ENTRY.fullmatch(entry)
-            if match is None:
-                return True
-            identifiers.append(match.group(1))
-        if len(set(identifiers)) != len(identifiers):
-            return True
-    return False
+        matches = [RECEIPT_ENTRY.fullmatch(entry) for entry in entries]
+        identifiers = [match.group(1) for match in matches if match is not None]
+        if (item.continuation or not 1 <= len(entries) <= MAX_RECEIPTS
+                or len(identifiers) != len(entries)
+                or len(set(identifiers)) != len(identifiers)):
+            return item.start + 1
+    return None
 
 
-def block_warnings(block: Block) -> list[str]:
+def missing_required_fields(block: Block) -> list[str]:
+    names = {group.name for group in block.groups}
+    return [name for name in REQUIRED_FIELDS[block.kind] if name not in names]
+
+
+def advisory_warnings(block: Block) -> list[str]:
+    """Warnings every read reports for a block: an unrecognized prefix or header field."""
     warnings = []
     if block.prefix is not None and block.prefix != COMPOSITE_PREFIX:
         warnings.append("unrecognized-prefix")
     known_header = KNOWN_HEADER_FIELDS[block.kind]
     if any(name not in known_header for name, _ in block.header_fields):
         warnings.append("unknown-header-field")
-    names = {group.name for group in block.groups}
-    if any(name not in names for name in REQUIRED_FIELDS[block.kind]):
+    return warnings
+
+
+def block_warnings(block: Block) -> list[str]:
+    warnings = advisory_warnings(block)
+    if missing_required_fields(block):
         warnings.append("required-field-missing")
     if receipts_problem(block):
         warnings.append("malformed-receipts")
     return warnings
+
+
+# ---------------------------------------------------------------- invariants
+
+def value_in_vocabulary(name: str, value: str) -> bool:
+    """I-1 for one known header field."""
+    return value in STATUS_VOCABULARY[name]
+
+
+def n_a_justified(notes: str) -> bool:
+    """I-4: an n-a test status needs the gate's justification line in the notes text."""
+    return N_A_JUSTIFICATION in notes
+
+
+def completion_allowed(tests: str | None, notes: str) -> bool:
+    """I-5, static part: completion needs green or n-a tests, or no tests segment and the
+    pre-TDD note in the notes text."""
+    if tests is None:
+        return PRE_TDD_NOTE in notes
+    return tests in COMPLETION_TEST_VALUES
+
+
+def notes_text(block: Block) -> str:
+    """Every notes field group of the block in file order, continuation lines included."""
+    parts: list[str] = []
+    for group in block.groups:
+        if group.name == "notes":
+            parts.append(group.value)
+            parts.extend(group.continuation)
+    return "\n".join(parts)
+
+
+def invariant_errors(block: Block) -> list[ToolError]:
+    """Static invariant violations of one block (I-1, I-4, I-5 static part, I-6); exit 6."""
+    errors: list[ToolError] = []
+    line = block.start + 1
+    known_header = KNOWN_HEADER_FIELDS[block.kind]
+    for name, value in block.header_fields:
+        if name in known_header and not value_in_vocabulary(name, value):
+            errors.append(ToolError(6, "invalid-value",
+                                    f"block {block.block_id}: {name} value '{value}' is not "
+                                    "in its vocabulary", line))
+    if block.kind == "leaf":
+        header = dict(block.header_fields)
+        notes = notes_text(block)
+        if header.get("atomic-tests") == "n-a" and not n_a_justified(notes):
+            errors.append(ToolError(6, "n-a-unjustified",
+                                    f"block {block.block_id}: atomic-tests n-a without a notes "
+                                    f"line containing '{N_A_JUSTIFICATION}'", line))
+        if (header.get("atomic-execution") == "complete"
+                and not completion_allowed(header.get("atomic-tests"), notes)):
+            errors.append(ToolError(6, "completion-without-tests",
+                                    f"block {block.block_id}: atomic-execution complete without "
+                                    "green or n-a tests or the pre-TDD note", line))
+    missing = missing_required_fields(block)
+    if missing:
+        errors.append(ToolError(6, "required-field-missing",
+                                f"block {block.block_id}: missing " + ", ".join(missing), line))
+    return errors
 
 
 def pre_tdd_exception(block: Block) -> str | None:
@@ -495,8 +600,10 @@ def unique(codes: list[str]) -> list[str]:
 
 # ---------------------------------------------------------------- commands
 
-def command_get(options: dict[str, list[str]], report: dict[str, Any]) -> int:
-    """Fill the report for get; raise ToolError for a refusal of the whole read."""
+def load_document(options: dict[str, list[str]], report: dict[str, Any],
+                  report_version: bool) -> tuple[Document, list[str]]:
+    """Resolve and read state.md for a read command, filling task, stale files, revision and,
+    when asked, contract_version; return the parsed document and the version warnings."""
     paths = resolve_paths(options["--root"][0], options["--task"][0])
     report["task"] = paths.relative_task
     report["stale_temp_files"] = stale_temp_files(paths.task)
@@ -505,11 +612,17 @@ def command_get(options: dict[str, list[str]], report: dict[str, Any]) -> int:
     text = decode_state(data)
     lines = split_lines(text)
     version = task_contract_version(lines, fence_flags(lines))
-    report["contract_version"] = version[0] if version else None
+    if report_version:
+        report["contract_version"] = version[0] if version else None
     warnings: list[str] = []
     if not contract_version_supported(version[1] if version else None):
         warnings.append("unsupported-contract-version")
-    document = parse_document(text)
+    return parse_document(text), warnings
+
+
+def command_get(options: dict[str, list[str]], report: dict[str, Any]) -> int:
+    """Fill the report for get; raise ToolError for a refusal of the whole read."""
+    document, warnings = load_document(options, report, report_version=True)
     problems = structure_problems(document.blocks)
     field_name = options.get("--field", [None])[0]
     target = options.get("--block", [None])[0]
@@ -537,7 +650,44 @@ def command_get(options: dict[str, list[str]], report: dict[str, Any]) -> int:
     return 0
 
 
-HANDLERS = {"get": command_get}
+def command_validate(options: dict[str, list[str]], report: dict[str, Any]) -> int:
+    """Check structure and static invariants of every block, or of the --block one only.
+
+    Exit 3 when any structure error exists, otherwise 6 when any invariant error exists,
+    otherwise 0; every error found is listed.
+    """
+    document, warnings = load_document(options, report, report_version=False)
+    problems = structure_problems(document.blocks)
+    target = options.get("--block", [None])[0]
+    if target is None:
+        selected = document.blocks
+        structure = [error for _, error in problems]
+    else:
+        selected = [block for block in document.blocks if block.block_id == target]
+        if not selected:
+            raise ToolError(3, "block-missing", f"block {target} not found")
+        structure = [error for block_id, error in problems if block_id == target]
+    invariants: list[ToolError] = []
+    for block in selected:
+        receipts_line = receipts_problem(block)
+        if receipts_line is not None:
+            structure.append(ToolError(3, "malformed-receipts",
+                                       f"block {block.block_id}: state_receipts needs 1-"
+                                       f"{MAX_RECEIPTS} well-formed entries with unique "
+                                       "operation ids", receipts_line))
+        invariants.extend(invariant_errors(block))
+        warnings.extend(advisory_warnings(block))
+    report["warnings"] = unique(warnings)
+    report["errors"] = [error.as_error() for error in structure + invariants]
+    if structure:
+        return 3
+    if invariants:
+        return 6
+    report["result"] = "valid"
+    return 0
+
+
+HANDLERS = {"get": command_get, "validate": command_validate}
 
 
 def emit(report: dict[str, Any]) -> None:
@@ -561,15 +711,13 @@ def main(argv: list[str]) -> int:
         command, options = parse_arguments(argv)
         exit_code = HANDLERS[command](options, report)
     except ToolError as error:
-        report["result"] = "rejected"
         report["errors"] = [error.as_error()]
         exit_code = error.exit_code
     except Exception as error:  # Any unexpected failure still yields one JSON object.
-        report["result"] = "rejected"
         report["errors"] = [{"code": "internal-error", "message": f"{type(error).__name__}: {error}"}]
         exit_code = 1
     if exit_code != 0:
-        report["result"] = "rejected"
+        report["result"] = REFUSED_RESULT.get(report["command"], "rejected")
         report.pop("blocks", None)
     emit(report)
     return exit_code
