@@ -33,6 +33,7 @@ appears in a rule.
 | **Arbiter** | Long-lived context holder; answers class-A questions only, always with a citation. |
 | **Implementer** | One sub-agent per subtask running the atomic execution cycle; pauses once at RED. |
 | **Validator** | A separate sub-agent per subtask running atomic validation without the Implementer's reasoning. |
+| **Devil's Advocate** | A read-only `/spec-draft` critic sub-agent that scores a draft spec without the authoring conversation, for at most 10 rounds; it never edits the spec. |
 | **Class A** | Missing context — the answer exists in project artifacts; the Arbiter resolves it. |
 | **Class B** | Missing intent — only the human may decide; harvested into `## Open Questions (batch)` during Discovery. |
 | **Batch gate** | The one planned stop of `/spec-run`: all class-B questions presented at once, before the first branch. |

@@ -197,11 +197,88 @@ Consider empty/boundary/malformed input, authorization, replay, concurrency, dep
 failure, partial completion, timeout and retry; explain inapplicable cases. Reference
 existing standards instead of restating them or inventing numeric targets.
 
-## Step 6 — Adversarial self-review
+## Step 6 — Devil's Advocate review
 
-Run two passes over the draft, fixing findings: implementability without conversation
-context, testability of each AC before implementation, contradictions, scope/REQ/AC
-coverage, and verified code citations. Report findings once; record remaining gaps as failed readiness checks.
+The author does not grade its own draft: an author that holds the conversation fills gaps
+from memory that an implementer will not have. Write the Step 5 draft to the destination
+the Guard authorized, then submit it to an independent critic.
+Review loop bounds: at most 10 rounds; pass at score ≥ 95/100 with no open critical or major finding.
+
+### Critic setup
+
+Spawn one Devil's Advocate sub-agent for the whole loop and address later rounds to it by message,
+so it verifies its own earlier findings instead of rediscovering the spec. Give it the spec
+path, the Step 1 sources and read access to the code.
+Do not give it the conversation, the author's reasoning or answers the spec does not record:
+the review tests whether the spec stands alone. It never edits the spec; the author applies
+every change.
+
+Where the harness has no sub-agents, run each round as a fresh pass that re-reads only the
+spec file and the Step 1 sources, and report `critic: inline`. An inline review is not
+independent: readiness check 14 records `FAIL — inline review` with the score.
+
+### Critic brief
+
+Instruct the critic to:
+
+1. Assume the spec is wrong until shown otherwise; look for what would make an implementer
+   guess, stall or build the wrong behavior, and for every claim about code it cannot verify.
+2. Score each rubric criterion with a one-line reason; every deducted point names a finding.
+3. Return findings one per line:
+   `- F-NN | <criterion #> | critical/major/minor | "<quoted text or missing section>" | <why it fails> | <proposed fix>`
+4. From round 2, first mark each earlier finding `resolved`, `open` or `withdrawn`, then add
+   only new findings with new ids.
+5. Raise no finding without a quoted location or a named missing section, and not repeat a
+   finding the author rejected with a citation unless it brings new evidence.
+
+Severity:
+
+| Severity | Meaning |
+|---|---|
+| critical | An implementer cannot proceed or would build wrong behavior: missing or contradictory REQ, untestable AC for core behavior, false code citation, unrecorded blocker |
+| major | An implementer must guess a material detail: untraced REQ/AC, missing edge or failure case on a covered path, unmeasurable NFR, undefined contract field |
+| minor | Wording, formatting or redundancy that changes neither the implementation nor its tests |
+
+### Rubric
+
+| # | Criterion | Weight | Readiness checks |
+|---|---|---|---|
+| 1 | Goal and scope are clear, bounded and feature-sized | 8 | 1, 2, 13 |
+| 2 | Each requirement is one unambiguous EARS behavior | 14 | 3 |
+| 3 | Each acceptance criterion is binary and testable before implementation | 14 | 5 |
+| 4 | Requirements and acceptance criteria trace both ways | 10 | 4 |
+| 5 | Edge cases and failure modes are specified | 12 | 8 |
+| 6 | Data model and contracts are complete | 10 | 7 |
+| 7 | Non-functional targets are measurable or justified N/A | 6 | 6 |
+| 8 | Existing-code claims are cited and verified | 10 | 11 |
+| 9 | Terminology is consistent and free of contradictions | 8 | 12 |
+| 10 | Every ambiguity is resolved or recorded; no blocker remains | 8 | 9, 10 |
+
+The score is the sum of awarded points. An open critical finding caps the score at 80; an open major finding caps it at 94.
+Minor findings together deduct at most 5 points; never start a round for minor findings alone.
+
+### Round
+
+1. The critic returns the score and findings.
+2. For each open critical or major finding, fix the spec or reject it with a citation —
+   principle, ADR, quoted source or verified `path:line` — that shows the finding is wrong.
+   Apply cheap minor fixes in the same edit. Preserve ids as Step 5 requires.
+3. A rejected finding the critic keeps open in the next round is disputed. `--brain-storm`:
+   ask the human under Step 4B rules, outside the ordinary round limit. `--auto-mode`: record
+   it under `## Open Questions` — critical as `blocker`, major as `non-blocker` — and stop
+   counting it toward stagnation.
+4. `## Blocker escalation` applies in every round.
+
+### Termination
+
+End the loop at the first of:
+
+- pass: score ≥ 95 and no open critical or major finding;
+- limit: round 10 has been scored;
+- stagnation: two consecutive rounds raised no new critical or major finding and the score did not increase.
+
+Keep the final score, round count, critic mode and every open finding for Steps 7 and 8.
+Close the critic when the loop ends.
 
 ## Step 7 — Readiness gate
 
@@ -222,16 +299,24 @@ Record `PASS` or `FAIL` with a concrete reason for every check:
 | 11 | Every existing-code claim has a verified path:line citation |
 | 12 | Terminology matches project domain definitions |
 | 13 | Scope is feature-sized, plausibly 1–8 implementation subtasks |
+| 14 | Devil's Advocate review passed: score ≥ 95/100 with no open critical or major finding |
 
-All pass → `READY FOR DEVELOPMENT`. Any failure in checks 4, 5, 9, 10 or 11 → `NOT READY`.
+Record check 14 as `Review: <N> rounds, score <S>/100, critic: sub-agent|inline, open:
+<finding ids or none>`; keep the full round log out of the spec.
+
+All pass → `READY FOR DEVELOPMENT`. Any failure in checks 4, 5, 9, 10 or 11, or an open
+critical finding → `NOT READY`.
 Otherwise → `READY WITH RESERVATIONS`, naming failures and downstream consequences.
 Check 13 alone recommends a split with a concrete boundary. Preserve every failed check;
 the verdict does not imply human sign-off.
 
 ## Step 8 — Report and stop
 
-Report output path, mode, REQ/AC/assumption/decision/question counts, readiness verdict and
-blocker questions. Print manual follow-up: `/phase-discovery <spec>` or `/spec-run <spec>`.
+Report output path, mode, REQ/AC/assumption/decision/question counts, readiness verdict,
+blocker questions, and the
+review rounds, the score of each round, critic mode and unresolved findings
+with their severity and the author's rejection citation where one exists.
+Print manual follow-up: `/phase-discovery <spec>` or `/spec-run <spec>`.
 For refinement, print `/spec-draft <spec> --brain-storm`. Then **stop** without invoking
 another workflow. State: "Automated readiness is not sign-off; review before implementation."
 
@@ -239,6 +324,7 @@ another workflow. State: "Automated readiness is not sign-off; review before imp
 
 Apply the Guard. Preserve original Source, ids, earlier clarification sessions and unrelated
 content. Append assumptions/decisions; mark superseded records with their replacement id.
-Add a dated clarification session, rerun the full readiness gate and replace only its
-current checklist result. Do not create a new numbered spec merely because input was an
+Add a dated clarification session, run a new Step 6 review loop with a fresh critic and a
+round count starting at 1, rerun the full readiness gate and replace only its current
+checklist result. Do not create a new numbered spec merely because input was an
 existing spec path.

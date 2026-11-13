@@ -28,3 +28,4 @@ so that a contributor can find the *why* without reading every rule. ADR-0007 an
 | 0016 | Additive usage telemetry | Accepted | 2026-10-30 | [0016-task-05-additive-usage-telemetry.md](0016-task-05-additive-usage-telemetry.md) |
 | 0017 | Enforced git rails through a PreToolUse hook with owner-approval asks | Accepted | 2026-11-05 | [0017-task-06-enforced-git-rails-hook.md](0017-task-06-enforced-git-rails-hook.md) |
 | 0018 | Bounded contract validator runtime with preserved expression semantics | Provisional | 2026-11-05 | [0018-task-06-1-bounded-validator-runtime.md](0018-task-06-1-bounded-validator-runtime.md) |
+| 0019 | Independent bounded Devil's Advocate review in specification authoring | Accepted | 2026-11-13 | [0019-task-unknown-spec-draft-devils-advocate-review.md](0019-task-unknown-spec-draft-devils-advocate-review.md) |
