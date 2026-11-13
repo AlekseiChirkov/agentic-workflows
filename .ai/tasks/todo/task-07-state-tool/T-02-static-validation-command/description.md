@@ -19,7 +19,10 @@ Off-limits: no write command behaviour; no file under `workflows/` or `rules/`; 
 to `scripts/validate-task.sh` (its receipts check belongs to the grammar-extension subtask).
 
 ## Scope
-- **In scope:** the `validate` command with optional `--block`; static checks: structure,
+- **In scope:** two parser corrections found by the review of the read command and
+  resolved from the spec grammar — an indented fence inside a block stays inside the
+  block as opaque lines, and a repeated header status segment makes the block
+  malformed; the `validate` command with optional `--block`; static checks: structure,
   I-1, I-4, I-5 (static part), I-6, `state_receipts:` format; the 3-before-6 exit rule;
   `result` `valid` / `invalid`; `stale_temp_files` listing.
 - **Out of scope:** I-2, I-3, I-7–I-10 (they need a previous value); any repair.
@@ -42,6 +45,12 @@ to `scripts/validate-task.sh` (its receipts check belongs to the grammar-extensi
    (`python3 tests/state-tool.py`).
 
 ## Acceptance Criteria
+- A leaf with `  notes: a`, a fence pair indented by 3 spaces around `  pr: hidden`, then
+  `  branch: after` is read as one block whose fields include `notes` and `branch` and
+  not `pr`; `validate` on it exits 0; a fence opened at column 0 still ends the block.
+- A header with two `atomic-tests` segments makes `get --block` and `validate` on that
+  block exit 3 `malformed-block`, and a `get --block` on another block exit 0 with a
+  warning.
 - A well-formed fixture exits 0 with `result` `valid`; every file in the task directory is
   unchanged and no file is created.
 - A leaf with `atomic-tests: n-a` whose notes contain `tdd: none - x` (hyphen) exits 6 with
@@ -63,6 +72,9 @@ to `scripts/validate-task.sh` (its receipts check belongs to the grammar-extensi
 ## Test Plan
 - **Level:** integration (subprocess runs against disposable fixtures).
 - **Scenarios:**
+  - Indented fence inside a block; column-0 fence → fields after the fence reported /
+    block ended.
+  - Repeated header status segment → exit 3 `malformed-block`; warning on other blocks.
   - Well-formed fixture → exit 0, `valid`, snapshot identical.
   - Hyphen versus em-dash justification → exit 6 / exit 0.
   - Missing required fields per kind → exit 6 `required-field-missing`.

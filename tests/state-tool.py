@@ -709,5 +709,426 @@ class SourceContractTests(unittest.TestCase):
                 self.assertEqual(ast.literal_eval(node.value), expected)
 
 
+EM_DASH_JUSTIFICATION = "tdd: none — smoke considered; no executable surface"
+HYPHEN_JUSTIFICATION = "tdd: none - smoke considered; no executable surface"
+PRE_TDD_NOTE = "pre-TDD task, TDD step skipped"
+STALE_TEMP_NAME = ".state.md.0123456789abcdef0123456789abcdef.tmp"
+
+
+def leaf_statuses(tests: str | None, execution: str = "not-started",
+                  validation: str = "not-started") -> str:
+    """Return leaf header statuses; tests None omits the atomic-tests segment."""
+    segments = [] if tests is None else [f"atomic-tests: {tests}"]
+    segments += [f"atomic-execution: {execution}", f"atomic-validation: {validation}"]
+    return " | ".join(segments)
+
+
+def leaf_body(*notes: str, extra: str = "") -> str:
+    """Return the required leaf field lines with one notes group per given note."""
+    lines = "  last_action:\n  target_files:\n  blocker: none\n"
+    lines += "".join(f"  notes: {note}\n" for note in notes) if notes else "  notes:\n"
+    return lines + extra
+
+
+def composite_block(block_id: str, *, rollup: str = "not-started",
+                    integration: str = "not-started", body: str | None = None) -> str:
+    """Build a composite block, optionally replacing its statuses or body."""
+    lines = body if body is not None else "  children: T-09a, T-09b\n  blocker: none\n  notes:\n"
+    return (f"[composite] {block_id} | Parent | rollup: {rollup} | "
+            f"integration-validation: {integration}\n{lines}")
+
+
+def copy_tool(directory: Path, version: str | None) -> Path:
+    """Copy the tool into a fresh tree whose VERSION file is the given text or absent."""
+    (directory / "scripts").mkdir(parents=True)
+    shutil.copy2(TOOL, directory / "scripts" / "state-tool.py")
+    if version is not None:
+        (directory / "VERSION").write_text(version + "\n", encoding="utf-8")
+    return directory / "scripts" / "state-tool.py"
+
+
+class ValidateCase(StateToolCase):
+    """Runner and outcome assertions for the validate command."""
+
+    def validate(self, *args: str, tool: Path = TOOL,
+                 task: Path | str | None = None) -> ToolResult:
+        return self.run_tool("validate", "--root", str(self.root), "--task",
+                             str(self.task if task is None else task), *args, tool=tool)
+
+    def valid(self, result: ToolResult) -> dict[str, Any]:
+        document = self.output(result)
+        self.assertEqual(result.code, 0, result.stdout + result.stderr)
+        self.assertEqual(document["command"], "validate")
+        self.assertEqual(document["result"], "valid")
+        self.assertEqual(document["errors"], [])
+        return document
+
+    def invalid(self, result: ToolResult, code: int, *errors: str) -> dict[str, Any]:
+        document = self.output(result)
+        self.assertEqual(result.code, code, result.stdout + result.stderr)
+        self.assertEqual(document["command"], "validate")
+        self.assertEqual(document["result"], "invalid")
+        codes = [item["code"] for item in document["errors"]]
+        for error in errors:
+            self.assertIn(error, codes, result.stdout)
+        self.assertTrue(result.stderr.strip(), "every invalid result writes a diagnostic on stderr")
+        return document
+
+
+class ValidateOutcomeTests(ValidateCase):
+    def test_well_formed_fixture_is_valid_and_leaves_every_file_unchanged(self) -> None:
+        path = self.write_state(state_text(LEAF_T01, COMPOSITE_T02, contract_version="0.9.0"))
+        (self.task / "plan.md").write_text("plan\n", encoding="utf-8")
+        expected_revision = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+        before = snapshot(self.task)
+
+        document = self.valid(self.validate())
+
+        self.assertEqual(document["task"], TASK_RELATIVE)
+        self.assertEqual(document["source_revision"], expected_revision)
+        self.assertEqual(document["warnings"], [])
+        self.assertEqual(document["stale_temp_files"], [])
+        self.assertEqual(snapshot(self.task), before)
+        self.assertFalse((self.task / ".state-tool.lock").exists())
+
+    def test_every_outcome_creates_modifies_and_deletes_nothing(self) -> None:
+        self.write_state(state_text(leaf("T-01"), leaf("T-02", header=leaf_statuses(
+            "not-started", execution="done"))))
+        before = snapshot(self.task)
+        variants = ((("--block", "T-01"), 0), ((), 6), (("--block", "T-09"), 3),
+                    (("--block", "T-1"), 2))
+
+        for arguments, code in variants:
+            with self.subTest(arguments=arguments):
+                result = self.validate(*arguments)
+
+                document = self.output(result)
+                self.assertEqual(result.code, code, result.stdout)
+                self.assertEqual(document["command"], "validate")
+                self.assertEqual(snapshot(self.task), before)
+        self.assertFalse((self.task / ".state-tool.lock").exists())
+
+    def test_repeated_validation_gives_identical_output(self) -> None:
+        self.write_state(state_text(LEAF_T01, leaf("T-03", header=leaf_statuses("passing"))))
+
+        first, second = self.validate(), self.validate()
+
+        self.invalid(first, 6, "invalid-value")
+        self.assertEqual(first.stdout, second.stdout)
+
+    def test_leftover_temporary_file_is_listed_and_kept(self) -> None:
+        self.write_state(state_text(leaf("T-01")))
+        (self.task / STALE_TEMP_NAME).write_text(state_text(leaf("T-01"), leaf("T-01")),
+                                                 encoding="utf-8")
+        before = snapshot(self.task)
+
+        document = self.valid(self.validate())
+
+        self.assertEqual(document["stale_temp_files"], [STALE_TEMP_NAME])
+        self.assertTrue((self.task / STALE_TEMP_NAME).is_file())
+        self.assertEqual(snapshot(self.task), before)
+
+    def test_newer_contract_version_is_a_warning_only(self) -> None:
+        self.require_tool()
+        tool = copy_tool(self.base / "tool", "1.0.0")
+        self.write_state(state_text(leaf("T-01"), contract_version="99.0.0"))
+
+        document = self.valid(self.validate(tool=tool))
+
+        self.assertIn("unsupported-contract-version", document["warnings"])
+
+    def test_empty_and_composite_only_sections_are_valid(self) -> None:
+        cases = {"empty section": state_text(),
+                 "composite only": state_text(composite_block("T-01"), COMPOSITE_T02)}
+        for label, text in cases.items():
+            with self.subTest(case=label):
+                self.write_state(text)
+
+                self.assertEqual(self.valid(self.validate())["warnings"], [])
+
+
+class ValidateInvariantTests(ValidateCase):
+    def test_n_a_requires_em_dash_justification(self) -> None:
+        cases = {HYPHEN_JUSTIFICATION: 6, EM_DASH_JUSTIFICATION: 0}
+        for note, code in cases.items():
+            with self.subTest(note=note):
+                self.write_state(state_text(leaf("T-01", header=leaf_statuses("n-a"),
+                                                 body=leaf_body(note))))
+
+                result = self.validate()
+
+                if code:
+                    self.invalid(result, 6, "n-a-unjustified")
+                else:
+                    self.valid(result)
+
+    def test_justification_in_a_later_notes_group_or_continuation_line_counts(self) -> None:
+        cases = {"later group": leaf_body("first note", "second note", EM_DASH_JUSTIFICATION),
+                 "continuation line": leaf_body("first note\n         " + EM_DASH_JUSTIFICATION)}
+        for label, body in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(leaf("T-01", header=leaf_statuses("n-a"), body=body)))
+
+                self.valid(self.validate())
+
+    def test_missing_required_fields_per_kind_exit_6(self) -> None:
+        cases = {"leaf without notes and target_files":
+                     leaf("T-01", body="  last_action:\n  blocker: none\n"),
+                 "composite without children":
+                     composite_block("T-01", body="  blocker: none\n  notes:\n"),
+                 "composite without blocker":
+                     composite_block("T-01", body="  children: T-01a\n  notes:\n")}
+        for label, block in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(block))
+
+                self.invalid(self.validate(), 6, "required-field-missing")
+
+    def test_completion_requires_green_or_justified_n_a_or_pre_tdd_note(self) -> None:
+        cases = {"red": ("red", leaf_body(), 6),
+                 "not-started": ("not-started", leaf_body(), 6),
+                 "pinned": ("pinned", leaf_body(), 6),
+                 "failed": ("failed", leaf_body(), 6),
+                 "absent without note": (None, leaf_body(), 6),
+                 "green": ("green", leaf_body(), 0),
+                 "justified n-a": ("n-a", leaf_body(EM_DASH_JUSTIFICATION), 0),
+                 "absent with pre-TDD note": (None, leaf_body(PRE_TDD_NOTE), 0)}
+        for label, (tests, body, code) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(leaf(
+                    "T-01", header=leaf_statuses(tests, execution="complete"), body=body)))
+
+                result = self.validate()
+
+                if code:
+                    self.invalid(result, 6, "completion-without-tests")
+                else:
+                    self.valid(result)
+
+    def test_header_status_outside_vocabulary_is_invalid_value(self) -> None:
+        cases = {"atomic-tests": leaf("T-01", header=leaf_statuses("passing")),
+                 "atomic-execution": leaf("T-01", header=leaf_statuses("red", execution="done")),
+                 "atomic-validation": leaf("T-01", header=leaf_statuses(
+                     "red", validation="reviewed")),
+                 "rollup": composite_block("T-01", rollup="complete"),
+                 "integration-validation": composite_block("T-01", integration="done")}
+        for label, block in cases.items():
+            with self.subTest(field=label):
+                self.write_state(state_text(block))
+
+                self.invalid(self.validate(), 6, "invalid-value")
+
+    def test_unknown_header_field_and_unrecognized_prefix_are_warnings_only(self) -> None:
+        header = ("atomic-tests: red | atomic-foo: x | atomic-execution: in-progress | "
+                  "atomic-validation: not-started")
+        self.write_state(state_text(leaf("T-01", header=header), "[x] " + leaf("T-02")))
+
+        document = self.valid(self.validate())
+
+        self.assertIn("unknown-header-field", document["warnings"])
+        self.assertIn("unrecognized-prefix", document["warnings"])
+
+    def test_every_invariant_error_of_every_block_is_listed(self) -> None:
+        self.write_state(state_text(
+            leaf("T-01", header=leaf_statuses("red", execution="done")),
+            leaf("T-02", header=leaf_statuses("n-a"), body=leaf_body(HYPHEN_JUSTIFICATION)),
+            leaf("T-03", body="  last_action:\n  blocker: none\n")))
+
+        self.invalid(self.validate(), 6, "invalid-value", "n-a-unjustified",
+                     "required-field-missing")
+
+
+class ValidateStructureTests(ValidateCase):
+    def test_duplicated_block_exits_3(self) -> None:
+        self.write_state(state_text(leaf("T-01"), leaf("T-02"), leaf("T-02")))
+
+        self.invalid(self.validate(), 3, "block-duplicate")
+
+    def test_two_progress_sections_exit_3(self) -> None:
+        self.write_state(state_text(leaf("T-01")) + "\n## Subtask Progress\n\n" + leaf("T-02"))
+
+        self.invalid(self.validate(), 3, "section-duplicate")
+
+    def test_missing_state_or_section_exits_3(self) -> None:
+        document = self.invalid(self.validate(), 3, "state-missing")
+        self.assertIsNone(document["source_revision"])
+
+        self.write_state("spec_path: x\n\n## Phases\n- discovery: complete\n")
+
+        self.invalid(self.validate(), 3, "section-missing")
+
+    def test_malformed_block_exits_3(self) -> None:
+        self.write_state(state_text(leaf("T-01", body="  last_action: x\n\tstray\n"
+                                                      "  target_files:\n  notes:\n")))
+
+        self.invalid(self.validate(), 3, "malformed-block")
+
+    def test_malformed_receipts_line_exits_3(self) -> None:
+        cases = {"over twenty entries": receipts(21),
+                 "bad entry": "op-01#0123456789ABCDEF",
+                 "repeated id": "op-01#0123456789abcdef, op-01#fedcba9876543210"}
+        for label, value in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(leaf("T-01", body=leaf_body(
+                    extra=f"  state_receipts: {value}\n"))))
+
+                self.invalid(self.validate(), 3, "malformed-receipts")
+
+    def test_twenty_well_formed_receipts_are_valid(self) -> None:
+        self.write_state(state_text(leaf("T-01", body=leaf_body(
+            extra=f"  state_receipts: {receipts(20)}\n"))))
+
+        self.valid(self.validate())
+
+    def test_structure_and_invariant_errors_are_both_listed_with_exit_3(self) -> None:
+        unjustified = leaf("T-01", header=leaf_statuses("n-a"), body=leaf_body(HYPHEN_JUSTIFICATION))
+        cases = {"duplicate block": (
+                     state_text(leaf("T-01", header=leaf_statuses("red", execution="done")),
+                                leaf("T-02"), leaf("T-02")),
+                     ("block-duplicate", "invalid-value")),
+                 "malformed receipts": (
+                     state_text(unjustified, leaf("T-02", body=leaf_body(
+                         extra=f"  state_receipts: {receipts(21)}\n"))),
+                     ("malformed-receipts", "n-a-unjustified"))}
+        for label, (text, errors) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(text)
+
+                self.invalid(self.validate(), 3, *errors)
+
+    def test_path_and_file_refusals_keep_exits_2_and_7(self) -> None:
+        outside = self.base / "outside"
+        outside.mkdir()
+        (outside / "state.md").write_text(state_text(leaf("T-01")), encoding="utf-8")
+
+        document = self.invalid(self.validate(task=outside), 2, "path-outside-root")
+        self.assertIsNone(document["task"])
+
+        (self.task / "real.md").write_text(state_text(leaf("T-01")), encoding="utf-8")
+        (self.task / "state.md").symlink_to("real.md")
+
+        document = self.invalid(self.validate(), 7, "unsafe-state-file")
+        self.assertIsNone(document["source_revision"])
+
+    def test_invalid_arguments_exit_2(self) -> None:
+        self.write_state(state_text(leaf("T-01")))
+        cases = {"field option": self.validate("--field", "notes"),
+                 "malformed block id": self.validate("--block", "T-1"),
+                 "missing task": self.run_tool("validate", "--root", str(self.root))}
+        for label, result in cases.items():
+            with self.subTest(case=label):
+                self.invalid(result, 2, "invalid-arguments")
+
+
+class ValidateScopeTests(ValidateCase):
+    def test_block_option_ignores_invariant_errors_of_other_blocks(self) -> None:
+        self.write_state(state_text(leaf("T-01"), leaf("T-02", header=leaf_statuses(
+            "red", execution="complete"))))
+
+        self.valid(self.validate("--block", "T-01"))
+        self.invalid(self.validate("--block", "T-02"), 6, "completion-without-tests")
+
+    def test_block_option_ignores_structure_errors_of_other_blocks(self) -> None:
+        self.write_state(state_text(leaf("T-01"), leaf("T-02"), leaf("T-02")))
+
+        self.valid(self.validate("--block", "T-01"))
+        self.invalid(self.validate("--block", "T-02"), 3, "block-duplicate")
+
+    def test_block_option_refuses_missing_or_structurally_broken_block(self) -> None:
+        self.write_state(state_text(
+            leaf("T-01", body=leaf_body(extra=f"  state_receipts: {receipts(21)}\n")),
+            leaf("T-02", body="  last_action: x\n stray\n  target_files:\n  notes:\n")))
+
+        self.invalid(self.validate("--block", "T-09"), 3, "block-missing")
+        self.invalid(self.validate("--block", "T-01"), 3, "malformed-receipts")
+        self.invalid(self.validate("--block", "T-02"), 3, "malformed-block")
+
+
+def fenced_leaf(fence_indent: str, inner: str = "  pr: hidden\n",
+                after: str = "  branch: after\n") -> str:
+    """Build leaf T-01 whose notes group is followed by a fence pair at the given indentation."""
+    return (f"T-01 | Leaf | {leaf_statuses('not-started')}\n"
+            "  last_action: x\n  target_files:\n  blocker: none\n  notes: a\n"
+            f"{fence_indent}```\n{inner}{fence_indent}```\n{after}")
+
+
+class BlockGrammarTests(ValidateCase):
+    def test_indented_fence_inside_a_block_is_opaque_block_content(self) -> None:
+        for indent in (" ", "  ", "   "):
+            with self.subTest(indent=len(indent)):
+                self.write_state(state_text(fenced_leaf(indent), leaf("T-02")))
+
+                result = self.get("--block", "T-01")
+
+                block = self.block(self.read_ok(result), "T-01")
+                self.assertEqual([field["name"] for field in block["fields"]],
+                                 ["last_action", "target_files", "blocker", "notes", "branch"])
+                self.assertEqual(self.field_values(block, "branch"), ["after"])
+                self.assertNotIn("hidden", result.stdout)
+                self.assertEqual(self.read_ok(result)["warnings"], [])
+                self.valid(self.validate())
+
+    def test_continuation_after_a_closing_fence_belongs_to_the_preceding_field(self) -> None:
+        self.write_state(state_text(fenced_leaf("   ", inner="   inner\n",
+                                                after="         continued\n")))
+
+        block = self.block(self.read_ok(self.get("--block", "T-01")), "T-01")
+
+        notes = [field for field in block["fields"] if field["name"] == "notes"][0]
+        self.assertEqual(notes["value"], "a")
+        self.assertEqual([line.strip() for line in notes["continuation"]], ["continued"])
+        self.valid(self.validate())
+
+    def test_column_zero_fence_ends_the_block(self) -> None:
+        self.write_state(state_text(fenced_leaf(""), leaf("T-02")))
+
+        result = self.get()
+
+        block = self.block(self.read_ok(result), "T-01")
+        self.assertEqual([field["name"] for field in block["fields"]],
+                         ["last_action", "target_files", "blocker", "notes"])
+        self.assertNotIn("hidden", result.stdout)
+        self.assertNotIn("after", result.stdout)
+        self.valid(self.validate())
+
+    def test_repeated_header_status_segment_makes_the_block_malformed(self) -> None:
+        cases = {"atomic-tests": leaf("T-02", header=(
+                     "atomic-tests: red | atomic-tests: green | atomic-execution: in-progress | "
+                     "atomic-validation: not-started")),
+                 "atomic-execution": leaf("T-02", header=(
+                     "atomic-tests: red | atomic-execution: in-progress | "
+                     "atomic-execution: complete | atomic-validation: not-started")),
+                 "rollup": ("[composite] T-02 | Parent | rollup: done | rollup: in-progress | "
+                            "integration-validation: not-started\n"
+                            "  children: T-02a\n  blocker: none\n  notes:\n")}
+        for label, block in cases.items():
+            with self.subTest(segment=label):
+                self.write_state(state_text(leaf("T-01"), block))
+
+                self.refused(self.get("--block", "T-02"), 3, "malformed-block")
+                whole = self.refused(self.get(), 3, "malformed-block")
+                other = self.read_ok(self.get("--block", "T-01"))
+                self.assertNotIn("blocks", whole)
+                self.assertIn("malformed-block", other["warnings"])
+                self.invalid(self.validate("--block", "T-02"), 3, "malformed-block")
+                self.invalid(self.validate(), 3, "malformed-block")
+                self.valid(self.validate("--block", "T-01"))
+
+
+SPECIFICATION_LABEL = re.compile(r"\b(?:REQ|AC|I|D|A)-[0-9]+\b")
+
+
+class SourceWordingTests(unittest.TestCase):
+    def test_sources_state_rules_without_specification_labels(self) -> None:
+        findings = []
+        for path in (TOOL, Path(__file__).resolve()):
+            self.assertTrue(path.is_file(), f"source unavailable: expected {path}")
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                findings.extend(f"{path.name}:{number}: {label}"
+                                for label in SPECIFICATION_LABEL.findall(line))
+
+        self.assertEqual(findings, [])
+
+
 if __name__ == "__main__":
     unittest.main()
