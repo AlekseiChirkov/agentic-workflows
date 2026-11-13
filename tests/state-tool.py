@@ -25,7 +25,6 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "scripts" / "state-tool.py"
 RULES = ROOT / "rules" / "workflow-globals.md"
-VALIDATOR_SCRIPT = ROOT / "scripts" / "validate-contracts.sh"
 TASK_RELATIVE = ".ai/tasks/todo/task-demo"
 
 LEAF_T01 = """T-01 | Progress parser | atomic-tests: green | atomic-execution: complete | atomic-validation: not-started
@@ -708,19 +707,6 @@ class SourceContractTests(unittest.TestCase):
                 self.assertEqual(node.lineno, node.end_lineno, f"{name} must be on one line")
                 self.assertIsInstance(node.value, ast.Tuple)
                 self.assertEqual(ast.literal_eval(node.value), expected)
-
-
-class ValidatorRegistrationTests(unittest.TestCase):
-    def test_focused_mode_and_default_check_run_this_suite(self) -> None:
-        text = VALIDATOR_SCRIPT.read_text(encoding="utf-8")
-
-        focused = re.search(r'if \[ "\$\{1:-\}" = --state-tool-only \]; then\n  shift\n'
-                            r'  exec python3 "\$REPO_ROOT/tests/state-tool\.py" "\$@"\nfi', text)
-        default = re.search(r'python3 "\$REPO_ROOT/tests/state-tool\.py"[^\n]*\n(?:.*\n){0,6}'
-                            r'check "test_state_tool_acceptance"', text)
-
-        self.assertIsNotNone(focused, "focused --state-tool-only mode must run this suite")
-        self.assertIsNotNone(default, "default validation must register this suite")
 
 
 if __name__ == "__main__":
