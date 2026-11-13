@@ -2141,5 +2141,44 @@ class NoteAndFileTransactionTests(NoteAndFileCase):
                 self.assertEqual(snapshot(self.task), before)
 
 
+class EmptyNoteTests(NoteAndFileCase):
+    def test_empty_note_is_invalid_value_and_the_call_writes_nothing(self) -> None:
+        cases = {"append-note with only an empty note": ("append-note", ("--note", "")),
+                 "append-note with a valid and an empty note": ("append-note",
+                                                               ("--note", "a", "--note", "")),
+                 "set with a changed field and an empty note": ("set", ("--field", "last_action=x",
+                                                                        "--note", "")),
+                 "set with an unchanged field and an empty note": ("set", ("--field", "blocker=none",
+                                                                           "--note", ""))}
+        for label, (command, options) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(leaf("T-01")))
+                before = self.files_without_lock()
+
+                result = self.write(command, *options)
+
+                self.refused_by(result, command, 6, "invalid-value")
+                self.assertIn(REFUSAL_SENTENCE, result.stderr)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_notes_line_with_a_whitespace_value_is_kept_and_followed_by_the_note(self) -> None:
+        cases = {"colon and one space is empty": ("  notes: \n", "  notes: a\n"),
+                 "two-space value is not empty": ("  notes:   \n",
+                                                  "  notes:   \n" + CONTINUATION + "a\n")}
+        for label, (line, written) in cases.items():
+            with self.subTest(case=label):
+                original = state_text(leaf("T-01", body="  last_action:\n  target_files:\n"
+                                                        "  blocker: none\n" + line))
+                self.write_state(original)
+                operation_id = f"op-{len(label)}"
+
+                self.write_applied(self.append_notes("a", operation_id=operation_id),
+                                   "append-note", "notes", "state_receipts")
+
+                result = self.state()
+                receipt = self.receipt_line(result, operation_id=operation_id)
+                self.assertEqual(result, original.replace(line, written + receipt, 1))
+
+
 if __name__ == "__main__":
     unittest.main()
