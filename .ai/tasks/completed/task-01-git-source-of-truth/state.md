@@ -187,8 +187,8 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 
 | Path | Line | Expected token counts |
 |---|---:|---|
-| `.ai/specs/completed/02-run-log-vocabulary-validation.md` | 15 | `agentic-workflows` × 1 |
-| `.ai/specs/completed/01-git-source-of-truth.md` | 22 | `agentic_workflows` × 1; `agentic-workflows` × 1 |
+| `.ai/specs/completed/02-run-log-vocabulary-validation.md` | 25 | `agentic-workflows` × 1 |
+| `.ai/specs/completed/01-git-source-of-truth.md` | 32 | `agentic_workflows` × 1; `agentic-workflows` × 1 |
 | `.ai/adr/0007-task-unknown-commit-ai-directory-in-this-repository.md` | 18 | `agentic_workflows` × 1 |
 | `.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md` | 70 | `agentic_workflows` × 1 |
 | `.ai/adr/0010-task-unknown-public-hygiene-and-local-publication.md` | 105 | `agentic-workflows` × 1 |
@@ -201,20 +201,19 @@ The final scan compares each `(path, line, token, count)` against this ledger. E
 | `docs/analysis/2026-09-16-comparative-analysis-tldr.ru.md` | 40 | `agentic_workflows` × 1 |
 | `docs/analysis/2026-09-16-comparative-analysis.ru.md` | 1, 14, 117, 225, 263, 444 | `agentic_workflows` × 1 per line |
 | `docs/analysis/2026-09-16-comparative-analysis.ru.md` | 429 | `AGENTIC_WORKFLOWS` × 1 |
-| `docs/audits/2026-07-21-logic-audit-fixes.md` | 1, 8, 568 | `agentic_workflows` × 1 per line |
 | `docs/USAGE.md` | 254 | `agentic-workflows` × 1 |
-| `.ai/specs/completed/05-cost-and-duration-telemetry.md` | 688 | `agentic-workflows` × 5 |
-| `.ai/specs/completed/06-harness-git-rails.md` | 15 | `agentic-workflows` × 2 |
-| `.ai/specs/07-state-tool.md` | 9 | `agentic-workflows` × 2 |
-| `.ai/specs/07-state-tool.md` | 11 | `agentic-workflows` × 1 |
-| `.ai/specs/09-golden-run-tests.md` | 9 | `agentic-workflows` × 1 |
-| `.ai/specs/10-generated-reference-docs.md` | 9 | `agentic-workflows` × 2 |
-| `.ai/specs/11-open-source-readiness.md` | 9 | `agentic-workflows` × 3 |
-| `.ai/specs/12-composite-branch-model-and-parallel-children.md` | 7 | `agentic-workflows` × 2 |
-| `.ai/specs/12-composite-branch-model-and-parallel-children.md` | 9 | `agentic-workflows` × 1 |
-| `.ai/specs/12-composite-branch-model-and-parallel-children.md` | 24 | `agentic-workflows` × 2 |
-| `.ai/specs/13-model-only-harnesses-and-rule-naming.md` | 13 | `agentic-workflows` × 1 |
-| `.ai/specs/13a-rules-workflows-audit.md` | 13 | `agentic-workflows` × 1 |
+| `.ai/specs/completed/05-cost-and-duration-telemetry.md` | 698 | `agentic-workflows` × 5 |
+| `.ai/specs/completed/06-harness-git-rails.md` | 25 | `agentic-workflows` × 2 |
+| `.ai/specs/07-state-tool.md` | 19 | `agentic-workflows` × 2 |
+| `.ai/specs/07-state-tool.md` | 21 | `agentic-workflows` × 1 |
+| `.ai/specs/09-golden-run-tests.md` | 19 | `agentic-workflows` × 1 |
+| `.ai/specs/10-generated-reference-docs.md` | 19 | `agentic-workflows` × 2 |
+| `.ai/specs/11-open-source-readiness.md` | 19 | `agentic-workflows` × 3 |
+| `.ai/specs/12-composite-branch-model-and-parallel-children.md` | 17 | `agentic-workflows` × 2 |
+| `.ai/specs/12-composite-branch-model-and-parallel-children.md` | 19 | `agentic-workflows` × 1 |
+| `.ai/specs/12-composite-branch-model-and-parallel-children.md` | 34 | `agentic-workflows` × 2 |
+| `.ai/specs/13-model-only-harnesses-and-rule-naming.md` | 23 | `agentic-workflows` × 1 |
+| `.ai/specs/13a-rules-workflows-audit.md` | 23 | `agentic-workflows` × 1 |
 
 ### Subsequent Publication Authorization — 2026-10-28
 
