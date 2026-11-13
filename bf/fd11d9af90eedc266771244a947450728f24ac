@@ -1,0 +1,29 @@
+.ai/adr/index.md
+  s_0531cfe71fe134::t_9c49f534916be3 21,33
+.ai/memory/progress.md
+  s_0531cfe71fe134::t_74665868dab726 127-130
+.ai/memory/state.md
+  s_0531cfe71fe134::t_75406508dede18 10,13-15,18
+.ai/specs/07-state-tool.md
+  s_0531cfe71fe134::t_5a3a7c3c96b418 1,3-16,23-231,233,235-385,387-429,431-454,457-586,588-589,591,593-652,654,656-859,861-1001,1003,1005,1007-1012,1014,1016-1019,1021,1023,1025-1043
+.ai/specs/README.md
+  s_0531cfe71fe134::t_94567598805c2a 25,79,116
+.ai/adr/0021-task-07-schedule-state-tool.md
+  s_0531cfe71fe134::t_eec5c45ba0ab44 1-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bffd11d9af90eedc266771244a947450728f24ac",
+  "prompts": {},
+  "sessions": {
+    "s_0531cfe71fe134": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "45869962-bbf1-4e5d-bff4-31884129cedb",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
