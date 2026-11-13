@@ -293,8 +293,11 @@ statuses and `last_action` / `blocker` of one block under the per-task lock
 (`.state-tool.lock`, owner metadata) and the expected-revision check, inserts a missing
 field or the `atomic-tests` segment at its canonical position, appends a `state_receipts:`
 entry, re-parses the result and replaces `state.md` by renaming its own temporary file.
-`append-note`, `add-file`, `init-block`, receipt lookup, the receipt cap and lock-busy
-details are planned. The suite `tests/state-tool.py` runs
+`append-note` and `set --note` append notes (on an empty sole `notes:` line, as a new
+`notes:` line at its canonical position, or as 9-space continuation lines after the last
+`notes` group, never after an in-block fence) and `add-file` adds lexically checked target
+paths once each; existing note text and entries are never changed. `init-block`, receipt
+lookup, the receipt cap and lock-busy details are planned. The suite `tests/state-tool.py` runs
 directly; validator registration and the exact oracle extension come with the
 receipts-grammar change.
 Planned by task 07: an optional standard-library helper

@@ -1722,5 +1722,464 @@ class SetFileSafetyTests(SetCase):
         self.assertEqual(snapshot(self.task), before)
 
 
+CONTINUATION = " " * 9
+
+
+def expected_receipt(command: str, inputs: dict[str, Any], block_id: str = "T-01",
+                     operation_id: str = OPERATION_ID) -> str:
+    """Receipt entry of an operation: its id, '#' and the first 16 hex digits of SHA-256 over
+    the sorted-key compact UTF-8 JSON of command, block id and inputs."""
+    payload = json.dumps({"command": command, "block_id": block_id, "inputs": inputs},
+                         sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return f"{operation_id}#{hashlib.sha256(payload.encode('utf-8')).hexdigest()[:16]}"
+
+
+class NoteAndFileCase(SetCase):
+    """Runners and outcome assertions for append-note, add-file and set with notes."""
+
+    def write(self, command: str, *options: str, block: str = "T-01",
+              revision: str | None = None, operation_id: str = OPERATION_ID,
+              task: Path | None = None) -> ToolResult:
+        """Run a write command against the block with the current revision by default."""
+        task_path = self.task if task is None else task
+        if revision is None:
+            revision = file_revision(task_path / "state.md")
+        return self.run_tool(command, "--root", str(self.root), "--task", str(task_path),
+                             "--block", block, "--expected-revision", revision,
+                             "--operation-id", operation_id, *options)
+
+    def append_notes(self, *notes: str, **keywords: Any) -> ToolResult:
+        return self.write("append-note", *[part for note in notes for part in ("--note", note)],
+                          **keywords)
+
+    def add_files(self, *paths: str, **keywords: Any) -> ToolResult:
+        return self.write("add-file", *[part for path in paths for part in ("--path", path)],
+                          **keywords)
+
+    def write_applied(self, result: ToolResult, command: str, *changed: str) -> dict[str, Any]:
+        document = self.output(result)
+        self.assertEqual(result.code, 0, result.stdout + result.stderr)
+        self.assertEqual(document["command"], command)
+        self.assertEqual(document["result"], "applied", result.stdout)
+        self.assertEqual(document["errors"], [])
+        for key in WRITE_KEYS:
+            self.assertIn(key, document, result.stdout)
+        self.assertEqual(document["changed_fields"], list(changed))
+        return document
+
+    def refused_by(self, result: ToolResult, command: str, code: int, error: str) -> dict[str, Any]:
+        document = self.refused(result, code, error)
+        self.assertEqual(document["command"], command)
+        for key in WRITE_KEYS:
+            self.assertIn(key, document, result.stdout)
+        self.assertEqual(document["changed_fields"], [])
+        return document
+
+    def notes_fields(self, block_id: str = "T-01") -> list[dict[str, Any]]:
+        block = self.block(self.read_ok(self.get("--block", block_id)), block_id)
+        return [item for item in block["fields"] if item["name"] == "notes"]
+
+
+class AppendNotePlacementTests(NoteAndFileCase):
+    def test_first_note_goes_on_an_empty_notes_line_and_further_notes_follow_as_continuations(
+            self) -> None:
+        original = state_text(leaf("T-01"), leaf("T-02"))
+        self.write_state(original)
+
+        document = self.write_applied(self.append_notes("a", "b"), "append-note",
+                                      "notes", "state_receipts")
+
+        result = self.state()
+        receipt = self.receipt_line(result)
+        self.assertEqual(result, original.replace(
+            "  notes:\n", "  notes: a\n" + CONTINUATION + "b\n" + receipt, 1))
+        self.assertEqual(document["block_kind"], "leaf")
+        self.assertEqual(document["result_revision"], file_revision(self.task / "state.md"))
+        self.assertEqual([(item["value"], item["continuation"]) for item in self.notes_fields()],
+                         [("a", [CONTINUATION + "b"])])
+
+    def test_note_after_continuation_lines_follows_the_last_continuation_line(self) -> None:
+        original = state_text(RICH_T01, leaf("T-02"))
+        self.write_state(original)
+        last = "         third line after an inner blank\n"
+
+        self.write_applied(self.append_notes("fourth note"), "append-note", "notes", "state_receipts")
+
+        result = self.state()
+        receipt = self.receipt_line(result)
+        self.assertEqual(result, original.replace(
+            last, last + CONTINUATION + "fourth note\n" + receipt, 1))
+
+    def test_note_follows_the_last_line_of_the_last_notes_group(self) -> None:
+        head = "  last_action: x\n  target_files: a.sh\n  blocker: none\n"
+        tail = "  branch: feat/x\n  pr: none\n"
+        four_groups = ("  notes: first group\n  notes: second group\n         second continued\n"
+                       "  notes: third group\n  notes: fourth group\n         fourth continued\n"
+                       "\n         fourth after an inner blank\n")
+        cases = {"four notes groups": four_groups,
+                 "two groups, the last one empty": "  notes: x\n  notes:\n",
+                 "empty notes line with a continuation line": "  notes:\n         x\n"}
+        for label, notes in cases.items():
+            with self.subTest(case=label):
+                block = leaf("T-01", body=head + notes + tail)
+                original = state_text(block, leaf("T-02"))
+                self.write_state(original)
+                operation_id = f"op-{len(label)}"
+
+                self.write_applied(self.append_notes("added", operation_id=operation_id),
+                                   "append-note", "notes", "state_receipts")
+
+                result = self.state()
+                receipt = self.receipt_line(result, operation_id=operation_id)
+                expected = leaf("T-01", body=head + notes + CONTINUATION + "added\n" + tail + receipt)
+                self.assertEqual(result, original.replace(block, expected, 1))
+
+    def test_note_is_never_placed_after_an_in_block_fence(self) -> None:
+        cases = {"fence after the notes line":
+                     (fenced_leaf("   ", after="  verification: x\n"), "  notes: a\n"),
+                 "continuation after the closing fence":
+                     (fenced_leaf("   ", inner="   inner\n",
+                                  after="         continued\n  verification: x\n"),
+                      "         continued\n")}
+        for label, (block, anchor) in cases.items():
+            with self.subTest(case=label):
+                original = state_text(block, leaf("T-02"))
+                self.write_state(original)
+                operation_id = f"op-{len(label)}"
+
+                self.write_applied(self.append_notes("b", operation_id=operation_id),
+                                   "append-note", "notes", "state_receipts")
+
+                result = self.state()
+                receipt = self.receipt_line(result, operation_id=operation_id)
+                self.assertEqual(result, original.replace(
+                    anchor, anchor + CONTINUATION + "b\n" + receipt, 1))
+
+    def test_missing_notes_line_is_inserted_after_the_blocker_group(self) -> None:
+        body = "  last_action: x\n  blocker: none\n  branch: feat/x\n"
+        cases = {"one note": (("a",), "  notes: a\n"),
+                 "two notes": (("a", "b"), "  notes: a\n" + CONTINUATION + "b\n")}
+        for label, (notes, inserted) in cases.items():
+            with self.subTest(case=label):
+                block = leaf("T-01", body=body)
+                original = state_text(block, leaf("T-02"))
+                self.write_state(original)
+                operation_id = f"op-{len(label)}"
+
+                self.write_applied(self.append_notes(*notes, operation_id=operation_id),
+                                   "append-note", "notes", "state_receipts")
+
+                result = self.state()
+                receipt = self.receipt_line(result, operation_id=operation_id)
+                self.assertEqual(result, original.replace(block, leaf("T-01", body=(
+                    "  last_action: x\n  blocker: none\n" + inserted + "  branch: feat/x\n"
+                    + receipt)), 1))
+
+    def test_note_appended_to_the_last_line_keeps_the_missing_final_newline(self) -> None:
+        original = state_text(leaf("T-01", body=leaf_body("x")), after="").rstrip("\n")
+        self.assertFalse(original.endswith("\n"))
+        self.write_state(original)
+
+        self.write_applied(self.append_notes("y"), "append-note", "notes", "state_receipts")
+
+        result = self.state()
+        self.assertFalse(result.endswith("\n"), result[-80:])
+        receipt = self.receipt_line(result)
+        self.assertEqual(result, original + "\n" + CONTINUATION + "y\n" + receipt)
+
+    def test_append_note_applies_to_a_composite_block(self) -> None:
+        composite = composite_block("T-02")
+        original = state_text(leaf("T-01"), composite)
+        self.write_state(original)
+
+        document = self.write_applied(self.append_notes("n", block="T-02"), "append-note",
+                                      "notes", "state_receipts")
+
+        self.assertEqual(document["block_kind"], "composite")
+        result = self.state()
+        receipt = self.receipt_line(result)
+        self.assertEqual(result, original.replace(composite, composite.replace(
+            "  notes:\n", "  notes: n\n" + receipt, 1), 1))
+
+
+class NoteTextTests(NoteAndFileCase):
+    def test_invalid_note_text_writes_no_note_of_the_call(self) -> None:
+        cases = {"line feed after a valid note": ("append-note", ("--note", "ok", "--note", "a\nb")),
+                 "carriage return": ("append-note", ("--note", "a\rb")),
+                 "line feed in a set note": ("set", ("--field", "last_action=x", "--note", "a\nb")),
+                 "valid note with an invalid field": ("set", ("--field", "atomic-execution=done",
+                                                              "--note", "y"))}
+        for label, (command, options) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(leaf("T-01")))
+                before = self.files_without_lock()
+
+                result = self.write(command, *options)
+
+                self.refused_by(result, command, 6, "invalid-value")
+                self.assertIn(REFUSAL_SENTENCE, result.stderr)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_note_with_nul_is_invalid_value(self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        before = self.files_without_lock()
+
+        result = InProcessTests.run_in_process(
+            self, "append-note", "--root", str(self.root), "--task", str(self.task),
+            "--block", "T-01", "--expected-revision", file_revision(path),
+            "--operation-id", OPERATION_ID, "--note", "fine", "--note", "a\x00b")
+
+        self.refused_by(result, "append-note", 6, "invalid-value")
+        self.assert_unchanged_after_refusal(before)
+
+    def test_note_and_path_with_shell_metacharacters_are_stored_literally(self) -> None:
+        note = "$(touch pwned); rm -rf x"
+        path = "$(touch pwned-path)/a `id` b.sh"
+        self.write_state(state_text(leaf("T-01")))
+        keep = self.base / "x"
+        keep.write_text("keep\n", encoding="utf-8")
+
+        self.write_applied(self.append_notes(note), "append-note", "notes", "state_receipts")
+        self.write_applied(self.add_files(path, operation_id="op-2"), "add-file",
+                           "target_files", "state_receipts")
+
+        self.assertIn("  notes: " + note + "\n", self.state())
+        self.assertIn("  target_files: " + path + "\n", self.state())
+        self.assertEqual([item["value"] for item in self.notes_fields()], [note])
+        self.assertEqual(list(self.base.rglob("pwned*")), [])
+        self.assertTrue(keep.is_file())
+
+
+class SetNoteTests(NoteAndFileCase):
+    def test_set_with_a_field_and_a_note_applies_both_in_one_revision(self) -> None:
+        original = state_text(leaf("T-01"), leaf("T-02"))
+        path = self.write_state(original)
+        source = file_revision(path)
+
+        document = self.applied(self.set_fields("last_action=x", extra=("--note", "y")),
+                                "last_action", "notes", "state_receipts")
+
+        result = self.state()
+        receipt = self.receipt_line(result)
+        self.assertRegex(receipt, rf"^  state_receipts: {OPERATION_ID}#[0-9a-f]{{16}}\n$")
+        self.assertEqual(result, original.replace("  last_action:\n", "  last_action: x\n", 1)
+                         .replace("  notes:\n", "  notes: y\n" + receipt, 1))
+        self.assertEqual(document["source_revision"], source)
+        self.assertEqual(document["result_revision"], file_revision(path))
+
+    def test_set_with_an_unchanged_field_still_appends_its_notes(self) -> None:
+        original = state_text(leaf("T-01"))
+        self.write_state(original)
+
+        self.applied(self.set_fields("blocker=none", extra=("--note", "a", "--note", "b")),
+                     "notes", "state_receipts")
+
+        result = self.state()
+        receipt = self.receipt_line(result)
+        self.assertEqual(result, original.replace(
+            "  notes:\n", "  notes: a\n" + CONTINUATION + "b\n" + receipt, 1))
+
+
+class AddFileTests(NoteAndFileCase):
+    def test_new_paths_are_appended_once_in_argument_order(self) -> None:
+        body = "  last_action:\n  target_files: a.sh\n  blocker: none\n  notes:\n"
+        original = state_text(leaf("T-01", body=body))
+        cases = {"new and listed path": (("b.sh", "a.sh"), "a.sh, b.sh"),
+                 "repeated new path": (("c.sh", "c.sh"), "a.sh, c.sh"),
+                 "several new paths": (("d.sh", "b.sh", "d.sh"), "a.sh, d.sh, b.sh")}
+        for label, (paths, value) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(original)
+
+                self.write_applied(self.add_files(*paths), "add-file", "target_files",
+                                   "state_receipts")
+
+                result = self.state()
+                receipt = self.receipt_line(result)
+                self.assertEqual(result, original.replace(
+                    "  target_files: a.sh\n", f"  target_files: {value}\n", 1)
+                    .replace("  notes:\n", "  notes:\n" + receipt, 1))
+
+    def test_already_listed_paths_give_unchanged_without_write_or_receipt(self) -> None:
+        body = "  last_action:\n  target_files: a.sh, docs/my guide.md\n  blocker: none\n  notes:\n"
+        for paths in (("a.sh",), ("docs/my guide.md", "a.sh", "a.sh")):
+            with self.subTest(paths=paths):
+                path = self.write_state(state_text(leaf("T-01", body=body)))
+                source = file_revision(path)
+                before = self.files_without_lock()
+
+                result = self.add_files(*paths)
+
+                document = self.output(result)
+                self.assertEqual(result.code, 0, result.stdout + result.stderr)
+                self.assertEqual(document["command"], "add-file")
+                self.assertEqual(document["result"], "unchanged")
+                self.assertEqual(document["changed_fields"], [])
+                self.assertEqual(document["source_revision"], source)
+                self.assertEqual(document["result_revision"], source)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_existing_entries_are_compared_whole_and_an_empty_value_has_none(self) -> None:
+        cases = {"empty value": ("  target_files:\n", ("b.sh",), "  target_files: b.sh\n"),
+                 "entries with spaces and prose": (
+                     "  target_files: scripts/a.sh (new), docs/my guide.md\n",
+                     ("docs/my guide.md", "scripts/a.sh"),
+                     "  target_files: scripts/a.sh (new), docs/my guide.md, scripts/a.sh\n")}
+        for label, (line, paths, expected) in cases.items():
+            with self.subTest(case=label):
+                original = state_text(leaf("T-01", body="  last_action:\n" + line
+                                           + "  blocker: none\n  notes:\n"))
+                self.write_state(original)
+                operation_id = f"op-{len(label)}"
+
+                self.write_applied(self.add_files(*paths, operation_id=operation_id), "add-file",
+                                   "target_files", "state_receipts")
+
+                result = self.state()
+                receipt = self.receipt_line(result, operation_id=operation_id)
+                self.assertEqual(result, original.replace(line, expected, 1)
+                                 .replace("  notes:\n", "  notes:\n" + receipt, 1))
+
+    def test_missing_target_files_line_is_inserted_after_the_last_action_group(self) -> None:
+        body = "  last_action: x\n  blocker: none\n  branch: feat/x\n"
+        block = leaf("T-01", body=body)
+        original = state_text(block, leaf("T-02"))
+        self.write_state(original)
+
+        self.write_applied(self.add_files("b.sh"), "add-file", "target_files", "state_receipts")
+
+        result = self.state()
+        receipt = self.receipt_line(result)
+        self.assertEqual(result, original.replace(block, leaf("T-01", body=(
+            "  last_action: x\n  target_files: b.sh\n  blocker: none\n  branch: feat/x\n"
+            + receipt)), 1))
+
+    def test_invalid_paths_exit_6_invalid_path(self) -> None:
+        cases = {"absolute": ("/abs",), "parent segment": ("../x",), "comma": ("a,b",),
+                 "empty": ("",), "leading dot slash": ("./a.sh",), "trailing slash": ("a/",),
+                 "inner parent segment": ("a/../b.sh",), "final parent segment": ("a/..",),
+                 "valid path before an invalid one": ("ok.sh", "/abs")}
+        for label, paths in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(leaf("T-01")))
+                before = self.files_without_lock()
+
+                result = self.add_files(*paths)
+
+                self.refused_by(result, "add-file", 6, "invalid-path")
+                self.assertIn(REFUSAL_SENTENCE, result.stderr)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_add_file_on_a_composite_block_is_not_applicable(self) -> None:
+        self.write_state(state_text(leaf("T-01"), composite_block("T-02")))
+        before = self.files_without_lock()
+
+        result = self.add_files("a.sh", block="T-02")
+
+        self.refused_by(result, "add-file", 6, "field-not-applicable")
+        self.assert_unchanged_after_refusal(before)
+
+
+class NoteAndFileTransactionTests(NoteAndFileCase):
+    def test_receipt_digest_covers_notes_and_paths_in_argument_order(self) -> None:
+        original = state_text(leaf("T-01"))
+        cases = {"append-note": (("--note", "b", "--note", "a"), {"notes": ["b", "a"]}),
+                 "add-file": (("--path", "c.sh", "--path", "c.sh"), {"paths": ["c.sh", "c.sh"]}),
+                 "set": (("--field", "last_action=x", "--note", "y", "--note", "z"),
+                         {"fields": [["last_action", "x"]], "notes": ["y", "z"]})}
+        for command, (options, inputs) in cases.items():
+            with self.subTest(command=command):
+                task = self.task_copy(f"task-{command}", original)
+
+                result = self.write(command, *options, task=task)
+
+                self.assertEqual(result.code, 0, result.stdout + result.stderr)
+                self.assertEqual(self.output(result)["result"], "applied")
+                self.assertEqual(self.receipt_line(self.state(task)),
+                                 f"  state_receipts: {expected_receipt(command, inputs)}\n")
+
+    def test_stale_revision_is_refused_with_the_no_bypass_sentence(self) -> None:
+        self.write_state(state_text(leaf("T-01")))
+        before = self.files_without_lock()
+
+        for command, options in {"append-note": ("--note", "a"),
+                                 "add-file": ("--path", "a.sh")}.items():
+            with self.subTest(command=command):
+                result = self.write(command, *options, revision=ZERO_REVISION)
+
+                self.refused_by(result, command, 4, "revision-conflict")
+                self.assertIn(REFUSAL_SENTENCE, result.stderr)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_invalid_note_and_file_invocations_exit_2(self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        target = ["--root", str(self.root), "--task", str(self.task), "--block", "T-01"]
+        expected = ["--expected-revision", file_revision(path)]
+        operation = ["--operation-id", OPERATION_ID]
+        cases = {
+            "append-note without a note": ("append-note", target + expected + operation,
+                                           "invalid-arguments"),
+            "add-file without a path": ("add-file", target + expected + operation,
+                                        "invalid-arguments"),
+            "append-note with a field": ("append-note", target + expected + operation
+                                         + ["--note", "a", "--field", "last_action=x"],
+                                         "invalid-arguments"),
+            "add-file with a note": ("add-file", target + expected + operation
+                                     + ["--path", "a.sh", "--note", "a"], "invalid-arguments"),
+            "append-note without an operation id": ("append-note", target + expected
+                                                    + ["--note", "a"], "invalid-arguments"),
+            "add-file with a malformed revision": ("add-file", target
+                                                   + ["--expected-revision", "sha256:abc"]
+                                                   + operation + ["--path", "a.sh"],
+                                                   "malformed-revision")}
+        before = snapshot(self.task)
+        for label, (command, arguments, error) in cases.items():
+            with self.subTest(case=label):
+                document = self.refused_by(self.run_tool(command, *arguments), command, 2, error)
+
+                self.assertIsNone(document["source_revision"])
+                self.assertIsNone(document["result_revision"])
+                self.assertEqual(snapshot(self.task), before)
+
+
+class EmptyNoteTests(NoteAndFileCase):
+    def test_empty_note_is_invalid_value_and_the_call_writes_nothing(self) -> None:
+        cases = {"append-note with only an empty note": ("append-note", ("--note", "")),
+                 "append-note with a valid and an empty note": ("append-note",
+                                                               ("--note", "a", "--note", "")),
+                 "set with a changed field and an empty note": ("set", ("--field", "last_action=x",
+                                                                        "--note", "")),
+                 "set with an unchanged field and an empty note": ("set", ("--field", "blocker=none",
+                                                                           "--note", ""))}
+        for label, (command, options) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(leaf("T-01")))
+                before = self.files_without_lock()
+
+                result = self.write(command, *options)
+
+                self.refused_by(result, command, 6, "invalid-value")
+                self.assertIn(REFUSAL_SENTENCE, result.stderr)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_notes_line_with_a_whitespace_value_is_kept_and_followed_by_the_note(self) -> None:
+        cases = {"colon and one space is empty": ("  notes: \n", "  notes: a\n"),
+                 "two-space value is not empty": ("  notes:   \n",
+                                                  "  notes:   \n" + CONTINUATION + "a\n")}
+        for label, (line, written) in cases.items():
+            with self.subTest(case=label):
+                original = state_text(leaf("T-01", body="  last_action:\n  target_files:\n"
+                                                        "  blocker: none\n" + line))
+                self.write_state(original)
+                operation_id = f"op-{len(label)}"
+
+                self.write_applied(self.append_notes("a", operation_id=operation_id),
+                                   "append-note", "notes", "state_receipts")
+
+                result = self.state()
+                receipt = self.receipt_line(result, operation_id=operation_id)
+                self.assertEqual(result, original.replace(line, written + receipt, 1))
+
+
 if __name__ == "__main__":
     unittest.main()
