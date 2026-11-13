@@ -2895,6 +2895,62 @@ class InitBlockRefusalTests(InitBlockCase):
         self.assertEqual(document["block_kind"], "leaf")
         self.assert_unchanged_after_refusal(before)
 
+    def test_invalid_name_content_is_invalid_value_and_nothing_changes(self) -> None:
+        cases = {"empty name": ("leaf", "", ()),
+                 "vertical bar in the name": ("leaf", "a | b", ()),
+                 "line feed in the name": ("leaf", "a\nb", ()),
+                 "carriage return in the name": ("leaf", "a\rb", ()),
+                 "empty name of a composite": ("composite", "",
+                                               ("--children", "T-05a", "--note", "n"))}
+        for label, (kind, name, options) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(LAST_BLOCK_T04))
+                before = self.files_without_lock()
+
+                document = self.init_refused(self.init_block("T-05", kind, name, *options), 6,
+                                             "invalid-value")
+
+                self.assertEqual(document["block_kind"], kind)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_invalid_name_with_a_stale_revision_is_a_revision_conflict(self) -> None:
+        self.write_state(state_text(LAST_BLOCK_T04))
+        before = self.files_without_lock()
+
+        self.init_refused(self.init_block("T-05", "leaf", "a | b", revision=ZERO_REVISION), 4,
+                          "revision-conflict")
+
+        self.assert_unchanged_after_refusal(before)
+
+    def test_missing_name_option_exits_2_invalid_arguments(self) -> None:
+        path = self.write_state(state_text(LAST_BLOCK_T04))
+        before = snapshot(self.task)
+
+        document = self.init_refused(self.run_tool(
+            "init-block", "--root", str(self.root), "--task", str(self.task), "--block", "T-05",
+            "--kind", "leaf", "--expected-revision", file_revision(path),
+            "--operation-id", OPERATION_ID), 2, "invalid-arguments")
+
+        self.assertIsNone(document["source_revision"])
+        self.assertEqual(snapshot(self.task), before)
+
+    def test_unclosed_fence_at_the_end_of_the_section_exits_1_and_writes_nothing(self) -> None:
+        cases = {"column-zero fence after the last block": state_text(
+                     leaf("T-04"), "```text\nunclosed example\n", after="## Next\n"),
+                 "indented fence inside the last block": state_text(
+                     leaf("T-04", body=leaf_body(extra="   ```\n  pr: hidden\n")), after="")}
+        for label, original in cases.items():
+            with self.subTest(case=label):
+                self.write_state(original)
+                before = self.files_without_lock()
+
+                document = self.init_refused(self.init_block("T-05", "leaf", "Demo"), 1,
+                                             "internal-error")
+
+                self.assertEqual(document["block_kind"], "leaf")
+                self.assertEqual(self.state(), original)
+                self.assert_unchanged_after_refusal(before)
+
     def test_malformed_revision_or_operation_id_exits_2(self) -> None:
         self.write_state(state_text(LAST_BLOCK_T04))
         before = snapshot(self.task)
