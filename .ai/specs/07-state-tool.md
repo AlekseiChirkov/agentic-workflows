@@ -217,6 +217,9 @@ tool on 2026-11-13 (D-09); it stays optional and unwired.
 - Network filesystems, Windows writes, multi-host locking.
 - Repairing damaged blocks automatically; deduplicating existing duplicate ids.
 - Run-log telemetry from the tool.
+- Changing `scripts/sync.sh`: it keeps leaving the ignore file untouched where `.ai/` is
+  tracked (`scripts/sync.sh:267-276`); an existing consumer project gets the ignore entries
+  by rerunning `scripts/setup-new-project.sh` or by hand (A-28).
 - Removing the grammar duplication between `rules/workflow-globals.md` and
   `rules/workflow-reference.md` (spec 13a/13 territory).
 
@@ -264,7 +267,7 @@ tool on 2026-11-13 (D-09); it stays optional and unwired.
   fenced code, and IF `state.md` is missing, the section occurs more than once, the target id
   occurs more than once, the target block contains a malformed line, or, for a write
   command, the target block has a malformed `state_receipts:` line, THEN THE SYSTEM SHALL
-  refuse with exit 3 and leave every file unchanged; other read outcomes follow
+  refuse with exit 3 and leave `state.md` unchanged and create no temporary file; other read outcomes follow
   `## Contracts & Interfaces → ### Read outcomes`.
 - **REQ-03 Field serialization (rewritten 2026-11-13).** WHEN a write command changes a
   block, THE SYSTEM SHALL keep the existing order of all lines, insert a missing known field
@@ -273,10 +276,10 @@ tool on 2026-11-13 (D-09); it stays optional and unwired.
 - **REQ-04 Invariant checks (rewritten 2026-11-13, D-05).** WHEN a write command would
   change a block, THE SYSTEM SHALL evaluate the write invariants under
   `## Contracts & Interfaces → ### Invariants` against the fields the operation changes and
-  IF any fails THEN THE SYSTEM SHALL refuse with exit 6 and leave every file unchanged.
+  IF any fails THEN THE SYSTEM SHALL refuse with exit 6 and leave `state.md` unchanged and create no temporary file.
 - **REQ-05 Expected revision.** WHEN a write command carries an operation without a matching
   receipt, THE SYSTEM SHALL compare `--expected-revision` with the revision of the current
-  file bytes and IF they differ THEN refuse with exit 4 and leave every file unchanged.
+  file bytes and IF they differ THEN refuse with exit 4 and leave `state.md` unchanged and create no temporary file.
 - **REQ-06 Lock (rewritten 2026-11-13, D-03).** WHEN a write command runs, THE SYSTEM SHALL
   hold an exclusive OS advisory lock on `<task>/.state-tool.lock` from before reading
   `state.md` until after the replace, and IF the lock is not acquired within the wait bound
@@ -294,7 +297,7 @@ tool on 2026-11-13 (D-09); it stays optional and unwired.
 - **REQ-09 Safe paths.** IF the task directory does not resolve inside the resolved root, the
   `state.md` path or lock path is a symbolic link or not a regular file, or the file identity
   or bytes changed between the read and the rename, THEN THE SYSTEM SHALL refuse without
-  writing; THE SYSTEM SHALL never pass input values to a shell or interpreter.
+  writing, read commands included for the root and `state.md` checks; THE SYSTEM SHALL never pass input values to a shell or interpreter.
 - **REQ-10 Optionality (rewritten 2026-11-13).** WHEN THE SYSTEM refuses with exit 4, 5, 6
   or 8, it SHALL print on stderr that the refusal must not be bypassed by a manual edit, and
   the documentation SHALL describe the manual procedure for when the tool is absent.
@@ -351,10 +354,11 @@ tool on 2026-11-13 (D-09); it stays optional and unwired.
   SYSTEM SHALL only terminate itself or pause at the named point, and SHALL behave identically
   to an unset variable for any other value.
 
-- **REQ-26 Ignore rules (added 2026-11-13, D-10).** THE SYSTEM SHALL list the patterns
-  `.state-tool.lock` and `.state.md.*.tmp` in this repository's `.gitignore` and in the
-  ignore entries `scripts/setup-new-project.sh` appends to a consumer project, and SHALL
-  NOT ignore any task `state.md`.
+- **REQ-26 Ignore rules (added 2026-11-13, D-10).** THE REPOSITORY SHALL list the patterns
+  `.state-tool.lock` and `.state.md.*.tmp` in its own `.gitignore`, in the ignore entries
+  `scripts/setup-new-project.sh` appends to a consumer project and in the entry list of
+  `docs/USAGE.md`, whose "State tool" section names the rerun-or-by-hand step for an existing
+  consumer project that tracks `.ai/`, without ignoring any task `state.md`.
 
 ## Data Model
 
@@ -387,7 +391,7 @@ Known field lines and canonical order:
 | Leaf | `last_action`, `target_files`, `blocker`, `notes`, `branch`, `base_branch`, `base_commit`, `commits`, `pr`, `state_receipts` |
 | Composite | `children`, `blocker`, `notes`, `state_receipts` |
 
-The first nine leaf/three composite names are existing (`rules/workflow-globals.md:178-187,213-215`);
+The first nine leaf/three composite names are existing (`rules/workflow-globals.md:178-186,213-215`);
 `state_receipts` is **new**.
 
 **Insertion of a missing known field (REQ-03).** The new field line goes directly after the
@@ -428,7 +432,7 @@ An existing `state_receipts:` line is replaced in place.
 
 | File | Content | Lifecycle |
 |---|---|---|
-| `<task>/.state-tool.lock` | JSON `{"owner_token", "pid", "host", "started_at"}` written by the lock holder after acquiring | Created with mode 0600 on first write command; never deleted by the tool |
+| `<task>/.state-tool.lock` | JSON `{"owner_token", "pid", "host", "started_at"}` written by the lock holder after acquiring | Created with mode 0600 by the first write command that acquires the lock, also when that command is then refused; metadata rewritten on every acquisition; never deleted by the tool |
 | `<task>/.state.md.<owner_token>.tmp` | Candidate bytes | Created exclusively; renamed over `state.md` or removed by its creator |
 
 `owner_token` is 32 lowercase hex characters from a cryptographic random source; `started_at`
@@ -467,6 +471,14 @@ python3 scripts/state-tool.py init-block  --root R --task T --block ID --kind le
   `--children` or without `--note`, `--target-file` with `--kind composite`, `--children`
   with `--kind leaf`. Value and path content rules are exit 6 (`invalid-value`,
   `invalid-path`).
+- Block ids: every `--block` value and every `--children` item matches the id part of the
+  block-header rule under `## Data Model`
+  (`^T-[0-9]{2,}[a-z]?(-fix-[a-z0-9]+(-[a-z0-9]+)*)?$`). `--children` is split on `,` with no
+  surrounding spaces; an empty item, a repeated item or the block's own id is invalid. Each
+  violation is exit 2 `invalid-arguments`. Whether the child blocks exist is not checked.
+- Repeated inputs: a `--field` name given more than once in one `set` is exit 2
+  `invalid-arguments`. A path given more than once in one `add-file` or `init-block` call is
+  written once, at its first position; the input digest covers the arguments as given.
 - `init-block` canonical initial lines — leaf:
   `T-ID | NAME | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started`,
   `  last_action:`, `  target_files: <paths joined by ", ">`, `  blocker: none`,
@@ -497,7 +509,7 @@ before the operation; an absent `atomic-tests` segment has rank 0.
 | I-3 | Previous `atomic-tests: pinned` changes only to `green` | write | `pinned-transition` | `rules/workflow-globals.md:199-201` |
 | I-4 | Resulting `atomic-tests: n-a` requires notes text containing `tdd: none — ` | write (when `atomic-tests` changes to `n-a`), validate | `n-a-unjustified` | `rules/tdd.md:78` |
 | I-5 | Resulting `atomic-execution: complete` requires `atomic-tests` `green` or `n-a`; or `atomic-tests` absent, previous `atomic-execution` `in-progress` (write) and notes text containing `pre-TDD task, TDD step skipped` | write (when `atomic-execution` changes to `complete`), validate (static part) | `completion-without-tests` | `workflows/pae-finalize.md:20-21`; `rules/workflow-globals.md:203-208` |
-| I-6 | Leaf blocks carry `notes:` and `target_files:`; composite blocks carry `children:`, `blocker:`, `notes:`; the tool never removes a field line | validate (exit 6); `get` and writes report it as a warning; a write that supplies the missing field inserts it (REQ-17, REQ-18) | `required-field-missing` | `rules/workflow-globals.md:226-230,240-242` |
+| I-6 | Leaf blocks carry `notes:` and `target_files:`; composite blocks carry `children:`, `blocker:`, `notes:`; the tool never removes a field line | validate (exit 6); `get` and writes report it as a warning; a write that supplies the missing field inserts it (REQ-17, REQ-18) | `required-field-missing` | `rules/workflow-globals.md:226-230,240-243` |
 | I-7 | Only fields writable for the block kind and command change (see Field writability) | write | `read-only-field`, `field-not-applicable` | `rules/workflow-globals.md:233-236` |
 | I-8 | Every pre-existing field line and continuation line other than the changed ones is byte-identical | write | `internal-error` (post-serialization re-check) | `rules/workflow-globals.md:237-238` |
 | I-9 | On a leaf without `atomic-tests`, changing `atomic-execution` from `not-started` requires `atomic-tests` in the same `set` | write | `pre-tdd-not-applicable` | `workflows/phase-atomic-execution.md:71-73` |
@@ -557,6 +569,8 @@ composite statuses are checked by vocabulary only.
 | Situation | `get` | `validate` |
 |---|---|---|
 | `state.md` missing | exit 3, `rejected`, `state-missing` | exit 3, `invalid`, `state-missing` |
+| Task outside root | exit 2, `rejected`, `path-outside-root` | exit 2, `invalid`, `path-outside-root` |
+| `state.md` a symbolic link or not a regular file | exit 7, `rejected`, `unsafe-state-file` | exit 7, `invalid`, `unsafe-state-file` |
 | Section missing or duplicated; encoding refused | exit 3, `rejected` | exit 3, `invalid` |
 | `--block X`, X unique and well-formed | exit 0, `read`; problems in other blocks listed in `warnings` | checks X only |
 | `--block X`, X absent / duplicated / malformed | exit 3, `rejected`, `block-missing` / `block-duplicate` / `malformed-block` | exit 3, `invalid` |
@@ -585,6 +599,18 @@ codes), `stale_temp_files` (list of names).
 | write commands | `applied`, `already_applied`, `unchanged`, `rejected` | `operation_id`, `block_id`, `block_kind`, `result_revision` (current file revision after the command; equals `source_revision` unless applied), `changed_fields` |
 | refusal with exit 5 | `rejected` | `lock_owner` (parsed metadata or null), `lock_age_seconds` (integer or null), `stale_suspected` (true when age ≥ 600) |
 
+A key that cannot be computed is present with the value `null`: `source_revision` and
+`result_revision` when the refusal precedes reading `state.md` (exit 2, exit 5,
+`state-missing`, `unsafe-state-file`, `unsafe-lock-path`, `python-too-old`,
+`locking-unavailable`); `task` for `path-outside-root`; `command` for `unknown-command`;
+`operation_id` when it is absent or invalid; `block_id` when no block was named;
+`block_kind` when the block was not found (for `init-block` it is the requested `--kind`).
+
+`changed_fields` lists changed header fields in header order, then changed field lines in
+canonical order, with `state_receipts` last. An inserted header segment or field line counts
+as changed. For an applied `init-block` it lists every header field and field line written.
+It is empty for `rejected`, `unchanged` and `already_applied`.
+
 `result_revision` is never a historical value: storing the revision of a file inside that
 file is self-referential (A-03).
 
@@ -602,7 +628,8 @@ file is self-referential (A-03).
 | 7 | File system or runtime | `io-error`, `unsafe-state-file`, `unsafe-lock-path`, `locking-unavailable`, `python-too-old` |
 | 8 | Operation conflict | `operation-conflict` |
 
-`validate` exits 0 when valid, 3 when any structure error exists, otherwise 6 when any
+Apart from the path and file refusals with exits 2 and 7 (`### Read outcomes`), `validate`
+exits 0 when valid, 3 when any structure error exists, otherwise 6 when any
 invariant error exists. Its static checks are: structure, I-1, I-4, I-5 (static part:
 `complete` with `green`, `n-a`, or absent `atomic-tests` plus the pre-TDD note), I-6, and
 `state_receipts:` format (1–20 entries, entry pattern, unique ids; violation
@@ -635,7 +662,14 @@ Any other value is ignored.
 - `scripts/README.md`: an inventory row for `state-tool.py`.
 - `.gitignore`: the lines `.state-tool.lock` and `.state.md.*.tmp` (REQ-26).
 - `scripts/setup-new-project.sh`: the same two patterns in `GITIGNORE_ENTRIES`
-  (`scripts/setup-new-project.sh:247-254`), and the entry list in `docs/USAGE.md:310`.
+  (`scripts/setup-new-project.sh:247-254`), and the entry list in `docs/USAGE.md:310`. The
+  "State tool" section of `docs/USAGE.md` tells an existing consumer project that tracks
+  `.ai/` to rerun `scripts/setup-new-project.sh` or add the two lines by hand.
+- `tests/fixtures/validator-runtime/source_guard_exceptions.json`: it pins the SHA-256 of
+  `scripts/setup-new-project.sh` (`:332`, `:358`); those two values, and every other digest
+  in that fixture that an edit to a pinned script invalidates, are refreshed under the
+  fixture maintenance procedure
+  (`.ai/adr/0020-task-unknown-source-guard-watchdog-timeouts.md:56-66`).
 - `docs/USAGE.md`: a "State tool" section (commands, exit codes, manual fallback).
 - File names follow constraint C-4.
 
@@ -700,12 +734,22 @@ Any other value is ignored.
 | `set` with values equal to current | `unchanged`, no write, no receipt | REQ-11 |
 | `fcntl` unavailable (Windows) | Writes exit 7, reads work | REQ-24 |
 | Python older than 3.11 | Exit 7 `python-too-old` | REQ-22 |
+| Block id or child id not matching the id pattern; empty, repeated or self-referencing child | Exit 2 `invalid-arguments` | REQ-15 |
+| Same `--field` name twice in one `set` | Exit 2 `invalid-arguments` | REQ-15 |
+| Same path twice in one `add-file` or `init-block` call | Written once, at its first position | REQ-18 |
+| Read command with the task outside root, or `state.md` a symlink or not a regular file | Exit 2 `path-outside-root` / exit 7 `unsafe-state-file` | REQ-09 |
+| Write command refused after acquiring the lock | `state.md` unchanged, no temporary file left; `.state-tool.lock` may be created or its metadata rewritten | REQ-06 |
+| Existing consumer project that tracks `.ai/` | Gets the ignore entries by rerunning `scripts/setup-new-project.sh` or by hand; `scripts/sync.sh` adds none | REQ-26 |
+| Consumer `.gitignore` absent, or already holding an entry | File created; an existing entry is not repeated | REQ-26 |
 | Concurrency between reads and writes | Reads take no lock and see one complete file because writes rename | REQ-07 |
 
 ## Acceptance Criteria
 
 Fixtures are disposable task directories; "unchanged" means byte, mode and mtime identity of
-every file in the task directory unless stated otherwise.
+every file in the task directory unless stated otherwise. For a write command that is
+refused, "unchanged" leaves out `.state-tool.lock`: a write command that reaches step 3 of the
+write algorithm may create that file or rewrite its metadata before it refuses. No temporary
+file remains after a refusal.
 
 - **AC-01** (REQ-02): Given a fixture with leaf `T-01`, composite `[composite] T-02`, and a
   fenced block containing `## Subtask Progress` and `T-01 | Example | atomic-tests: red | atomic-execution: not-started | atomic-validation: not-started`,
@@ -759,7 +803,7 @@ every file in the task directory unless stated otherwise.
   `state_receipts:` holds the 20 newest entries in order.
 - **AC-08** (REQ-09, REQ-25): Given `--task` with a `..` escape or a symlinked directory
   leaving root, when `set` runs, then it exits 2 `path-outside-root`; given `state.md` as a
-  symlink, then exit 7 `unsafe-state-file`; given `pause-before-recheck` and `state.md`
+  symlink, then `set` and `get` each exit 7 `unsafe-state-file`; given `pause-before-recheck` and `state.md`
   rewritten by the test during the pause, then exit 4 `state-file-changed`, the test's bytes
   are retained and the tool's temporary file is gone; given `pause-before-recheck` and
   `state.md` replaced during the pause by a different file with identical bytes (new inode),
@@ -790,8 +834,9 @@ every file in the task directory unless stated otherwise.
   none` is inserted directly after `target_files:` and `atomic-tests: red | ` is inserted
   directly before `atomic-execution:`; no other line moves.
 - **AC-14** (REQ-15): Given an unknown command, a write without `--operation-id`, a
-  `--expected-revision` not matching `^sha256:[0-9a-f]{64}$`, or an invalid `operation_id`,
-  then exit 2; for every AC run without `STATE_TOOL_TEST_FAULT`, stdout parses as exactly
+  `--expected-revision` not matching `^sha256:[0-9a-f]{64}$`, an invalid `operation_id`, a `set` naming one field twice, `get --block T-1`, or
+  `init-block` with `--children T-01a,,T-01b`, `--children T-01a,T-01a` or
+  `--children "T-01a, T-01b"`, then exit 2; for every AC run without `STATE_TOOL_TEST_FAULT`, stdout parses as exactly
   one JSON object with `schema_version` 1, and every refusal writes a non-empty stderr.
 - **AC-15** (REQ-16): Given a section whose last block ends with `  pr: none` followed by one
   blank line and `## Next`, when `init-block --block T-05 --kind leaf --name Demo` applies,
@@ -804,13 +849,14 @@ every file in the task directory unless stated otherwise.
 - **AC-16** (REQ-17, REQ-23): Given empty `notes:`, when `append-note --note a --note b`
   applies, then the block reads `  notes: a` followed by `         b`; given non-empty notes
   with continuation lines, then the new line follows the last continuation line; given a
-  block with three `notes:` field groups (task-05 shape), then the new line follows the last
-  line of the third group; given a note containing LF, then exit 6 and no note from the same
+  block with four `notes:` field groups (task-05 shape), then the new line follows the last
+  line of the fourth group; given a note containing LF, then exit 6 and no note from the same
   call is written.
 - **AC-17** (REQ-18): Given `target_files: a.sh`, when `add-file --path b.sh --path a.sh`
   applies, then the line is `target_files: a.sh, b.sh`; when `add-file --path a.sh` runs, then
   `unchanged` and the file is unchanged; given `/abs`, `../x`, `a,b` or an empty path, then
-  exit 6 `invalid-path`.
+  exit 6 `invalid-path`; given `target_files: a.sh`, when `add-file --path c.sh --path c.sh`
+  applies, then the line is `target_files: a.sh, c.sh`.
 - **AC-18** (REQ-20): Given the source tree, then `scripts/validate-contracts.sh` passes and
   fails on a mutation fixture where a tool vocabulary constant differs from
   `rules/workflow-globals.md`, where the anchored `state_receipts:` line is absent, or where
@@ -852,7 +898,9 @@ every file in the task directory unless stated otherwise.
   and on `.ai/tasks/todo/task-x/state.md` it exits 1; given a disposable git project where
   `scripts/setup-new-project.sh` ran twice, then its `.gitignore` contains the lines
   `.state-tool.lock` and `.state.md.*.tmp` exactly once each; and the entry list in
-  `docs/USAGE.md` names both patterns.
+  `docs/USAGE.md` names both patterns and its "State tool" section tells an existing consumer
+  project that tracks `.ai/` to rerun `scripts/setup-new-project.sh` or add the two lines by
+  hand.
 
 ## Traceability
 
@@ -895,11 +943,11 @@ every file in the task directory unless stated otherwise.
 | Tool stays unused because it is optional and unwired | Effort without effect | Medium | Accepted by the owner at scheduling (D-09); wiring is a follow-up spec |
 | Network filesystems give weak `flock` semantics | Mutual exclusion fails | Low | Out of scope; documented |
 | Receipt line grows block size | Larger `state.md` | Low | 20-entry cap |
-| Real blocks contain shapes the grammar marks malformed | Writes refused on legacy tasks | Low: the header pattern and line grammar matched all 98 block headers and found no malformed line across the eight completed tasks' `state.md` on 2026-11-13 | Writes refuse rather than guess; reads still work; collect consumer examples at scheduling (C-2) |
+| Real blocks contain shapes the grammar marks malformed | Writes refused on legacy tasks | Low: the header pattern and line grammar matched all 98 block headers and found no malformed line across the eight completed tasks' `state.md` on 2026-11-13 | Writes refuse rather than guess; reads still work; consumer examples are collected after delivery, before any wiring spec (D-07) |
 
 ## Assumptions
 
-- A-01 | Receipt field name | Resolved: `state_receipts` with an underscore, matching field-line names | Source: `rules/workflow-globals.md:178-187` naming pattern | Reversible: yes
+- A-01 | Receipt field name | Resolved: `state_receipts` with an underscore, matching field-line names | Source: `rules/workflow-globals.md:178-186` naming pattern | Reversible: yes
 - A-02 | Receipt entry and digest format | Resolved: `<operation_id>#<16-hex>` with the stated id pattern and canonical JSON digest | Source: best practice (smallest unambiguous form) | Reversible: yes
 - A-03 | Historical result revision in `already_applied` (original §8 step 5) | Resolved: not stored; `result_revision` is the current revision, because a file cannot contain its own hash | Source: best practice | Reversible: yes
 - A-04 | Lock file name, wait default and bound | Resolved: `.state-tool.lock`, 5 s default, 0–600 s, 25 ms polling | Source: `scripts/install-hooks.py:528-541` | Reversible: yes
@@ -922,6 +970,12 @@ every file in the task directory unless stated otherwise.
 - A-21 | Invariant scope on legacy blocks | Resolved: write invariants apply to changed fields; other violations become warnings | Source: best practice (refuse no unrelated write on legacy data) | Reversible: yes
 - A-22 | `init-block` layout | Resolved: one blank separator except directly after the heading | Source: `.ai/tasks/completed/task-03-hook-based-logging/state.md:361-363`; `.ai/tasks/completed/task-01-git-source-of-truth/state.md:33-34` | Reversible: yes
 - A-23 | Missing tool `VERSION` with a versioned task | Resolved: writes refused, reads warn | Source: best practice (fail closed for writes) | Reversible: yes
+- A-24 | "Unchanged" for a refused write | Resolved: `state.md` unchanged and no temporary file; the lock file may be created or have its metadata rewritten, because the lock is taken before the read | Source: write algorithm step 3; REQ-06 | Reversible: yes
+- A-25 | Block and child id validation | Resolved: ids must match the header id pattern; children split on `,` without spaces, no empty, repeated or self item; violations exit 2; child existence not checked | Source: `## Data Model` header rule; best practice (smallest check) | Reversible: yes
+- A-26 | Repeated inputs in one call | Resolved: a repeated `--field` name is exit 2; a repeated path is written once at its first position | Source: best practice (reject ambiguity, keep additions idempotent) | Reversible: yes
+- A-27 | Output keys without a value, and `changed_fields` content | Resolved: `null` for keys that cannot be computed; `changed_fields` in header order, then canonical order, `state_receipts` last; empty unless applied | Source: best practice (stable machine output for the Determinism target) | Reversible: yes
+- A-28 | Existing consumer projects and `scripts/sync.sh` | Resolved: `scripts/sync.sh` is not changed; consumers that track `.ai/` rerun `scripts/setup-new-project.sh` or add the two lines by hand | Source: `scripts/sync.sh:267-276` preserves a repository-owned tracking policy | Reversible: yes
+- A-29 | Safe-path checks for read commands | Resolved: reads refuse a task outside root (exit 2) and a symlinked or non-regular `state.md` (exit 7) | Source: REQ-09; best practice (never read through a link) | Reversible: yes
 
 ## Decisions
 
@@ -961,6 +1015,7 @@ collapse); `bin/` location (new top-level directory for sync and layout rules).
 
 - Q: Is the tool scheduled now, given that no corruption evidence exists? → A: Scheduled; the evidence precondition is waived.
 - Q: Are ignore rules added for the lock and temporary files (Q-01)? → A: Yes, in this repository and in consumer setup, as part of this spec.
+- Review of the amended spec ran in autonomous mode; its gaps were resolved as assumptions A-24–A-29 without further questions.
 
 ## Open Questions
 
@@ -1015,8 +1070,13 @@ None. Q-01 (ignore rules for the lock and temporary files) was resolved by D-10 
 
 - Owner scheduled the tool (D-09) and resolved Q-01 (D-10): backlog wording removed from
   the title, Source, Goal and Out of Scope; REQ-26 and AC-23 added; C-1 marked satisfied
-  and C-2 waived; superseding decision record cited. This amendment was owner-directed and
-  was not put through another Devil's Advocate round.
+  and C-2 waived; superseding decision record cited.
+- A fresh Devil's Advocate review of the amended spec followed. It resolved: the meaning of
+  "unchanged" for refused writes (lock file excluded), id and repeated-input validation,
+  `null` output keys and `changed_fields` order, safe-path refusals for read commands, the
+  pinned script digests in the validator fixture, the unchanged `scripts/sync.sh` path for
+  existing consumers, and corrected citations (A-24–A-29). Scores: 80, then 98; the two
+  minor findings of the last round were fixed without a further round.
 
 ## Readiness Checklist
 
@@ -1025,19 +1085,19 @@ Result of 2026-11-13:
 | # | Check | Result |
 |---|---|---|
 | 1 | Goal is one domain-language paragraph | PASS — one paragraph: problem, outcome, scheduled status |
-| 2 | Out of Scope names concrete exclusions | PASS — eleven named exclusions |
+| 2 | Out of Scope names concrete exclusions | PASS — ten named exclusions |
 | 3 | Each REQ has a stable id and one EARS behaviour | PASS — REQ-01–REQ-26, REQ-14 withdrawn with reason |
 | 4 | Every REQ maps to ≥1 AC and every AC to ≥1 REQ | PASS — Traceability table; AC-12 withdrawn with REQ-14 |
 | 5 | Every AC is binary and observable | PASS — exit codes, error codes and exact layouts named |
 | 6 | Non-functional targets measurable or N/A | PASS — performance N/A with reason; others verified by AC-02, AC-06, AC-08, AC-14, AC-19 |
 | 7 | Data model and contracts specified | PASS — grammar, writability, receipts, files, commands, outputs, exit codes |
 | 8 | Error, empty, boundary, concurrency cases covered | PASS — Edge Cases & Failure Modes table |
-| 9 | Every Step 3 ambiguity recorded | PASS — D-01–D-10, A-01–A-23 |
+| 9 | Every Step 3 ambiguity recorded | PASS — D-01–D-10, A-01–A-29 |
 | 10 | No blocker question remains | PASS — no open question |
-| 11 | Existing-code claims cited and verified | PASS — every `path:line` verified by author and critic |
+| 11 | Existing-code claims cited and verified | PASS — every `path:line` verified by author and critic, the scheduling amendment included |
 | 12 | Terminology matches project definitions | PASS — Terminology table aligned with `.ai/principles/domain.md` |
-| 13 | Feature-sized scope | PASS — plausibly 6–8 subtasks: parser and reads, invariants, write path, receipts, mutating commands, grammar extension and checks, documentation |
-| 14 | Devil's Advocate review passed | PASS — Review: 4 rounds, score 100/100, critic: sub-agent, open: none (before the scheduling amendment, which was not re-reviewed) |
+| 13 | Feature-sized scope | PASS — plausibly 6–8 subtasks: parser and reads, invariants, write path, receipts, mutating commands, grammar extension and checks, ignore rules, documentation |
+| 14 | Devil's Advocate review passed | PASS — Review: 2 rounds, score 98/100, critic: sub-agent, open: none |
 
 Verdict: **READY FOR DEVELOPMENT**. The owner scheduled the work on 2026-11-13 (D-09);
 automated readiness is not sign-off.
