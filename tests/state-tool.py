@@ -2181,5 +2181,319 @@ class EmptyNoteTests(NoteAndFileCase):
                 self.assertEqual(result, original.replace(line, written + receipt, 1))
 
 
+def status_leaf(tests: str | None, execution: str = "not-started", *notes: str,
+                validation: str = "not-started") -> str:
+    """Build leaf T-01 with the given statuses and one notes group per given note."""
+    return leaf("T-01", header=leaf_statuses(tests, execution, validation), body=leaf_body(*notes))
+
+
+Outcome = str | tuple[str, ...]
+
+
+class LifecycleCase(NoteAndFileCase):
+    """Runs set with fields and notes against a fresh fixture and checks the named outcome:
+    an error code means exit 6 with nothing changed; a tuple names the changed fields."""
+
+    def set_with(self, *fields: str, notes: tuple[str, ...] = ()) -> ToolResult:
+        return self.set_fields(*fields, extra=tuple(part for note in notes
+                                                    for part in ("--note", note)))
+
+    def check_set(self, block_text: str, fields: tuple[str, ...], notes: tuple[str, ...],
+                  expected: Outcome) -> dict[str, Any]:
+        self.write_state(state_text(block_text, leaf("T-02")))
+        before = self.files_without_lock()
+
+        result = self.set_with(*fields, notes=notes)
+
+        if isinstance(expected, str):
+            document = self.write_refused(result, 6, expected)
+            self.assertIn(REFUSAL_SENTENCE, result.stderr)
+            self.assert_unchanged_after_refusal(before)
+            return document
+        return self.applied(result, *expected)
+
+    def header_after(self, block_id: str = "T-01") -> dict[str, str]:
+        return self.header_values(self.block(self.read_ok(self.get("--block", block_id)), block_id))
+
+    def validate_codes(self) -> tuple[int, list[str]]:
+        result = self.run_tool("validate", "--root", str(self.root), "--task", str(self.task))
+        return result.code, [item["code"] for item in self.output(result)["errors"]]
+
+
+class TestsStatusTransitionTests(LifecycleCase):
+    def test_downgrade_and_pinned_rules_refuse_only_their_moves(self) -> None:
+        tests_changed = ("atomic-tests", "state_receipts")
+        cases: dict[str, tuple[str, tuple[str, ...], tuple[str, ...], Outcome]] = {
+            "pinned to red": (status_leaf("pinned"), ("atomic-tests=red",), (),
+                              "pinned-transition"),
+            "pinned to failed": (status_leaf("pinned"), ("atomic-tests=failed",), (),
+                                 "pinned-transition"),
+            "pinned to justified n-a": (status_leaf("pinned"), ("atomic-tests=n-a",),
+                                        (EM_DASH_JUSTIFICATION,), "pinned-transition"),
+            "green to red": (status_leaf("green"), ("atomic-tests=red",), (), "downgrade"),
+            "green to justified n-a": (status_leaf("green"), ("atomic-tests=n-a",),
+                                       (EM_DASH_JUSTIFICATION,), "downgrade"),
+            "red to not-started": (status_leaf("red"), ("atomic-tests=not-started",), (),
+                                   "downgrade"),
+            "failed to not-started": (status_leaf("failed"), ("atomic-tests=not-started",), (),
+                                      "downgrade"),
+            "pinned to green": (status_leaf("pinned"), ("atomic-tests=green",), (), tests_changed),
+            "not-started to red": (status_leaf("not-started"), ("atomic-tests=red",), (),
+                                   tests_changed),
+            "failed to red inside the middle rank": (status_leaf("failed"), ("atomic-tests=red",),
+                                                     (), tests_changed),
+            "red to failed inside the middle rank": (status_leaf("red"), ("atomic-tests=failed",),
+                                                     (), tests_changed),
+            "red to justified n-a inside the middle rank": (
+                status_leaf("red"), ("atomic-tests=n-a",), (EM_DASH_JUSTIFICATION,),
+                ("atomic-tests", "notes", "state_receipts")),
+            "validation status moved back": (
+                status_leaf("green", "complete", validation="complete"),
+                ("atomic-validation=not-started",), (), ("atomic-validation", "state_receipts")),
+        }
+        for label, (block_text, fields, notes, expected) in cases.items():
+            with self.subTest(case=label):
+                self.check_set(block_text, fields, notes, expected)
+                if not isinstance(expected, str):
+                    name, value = fields[0].split("=", 1)
+                    self.assertEqual(self.header_after()[name], value)
+
+    def test_composite_statuses_are_checked_by_vocabulary_only(self) -> None:
+        cases = {"rollup moved back": (composite_block("T-01", rollup="done"), "rollup=not-started",
+                                       ("rollup", "state_receipts")),
+                 "integration validation moved back": (
+                     composite_block("T-01", integration="complete"),
+                     "integration-validation=not-started",
+                     ("integration-validation", "state_receipts")),
+                 "pinned leaf beside it moved to red": (status_leaf("pinned"), "atomic-tests=red",
+                                                        "pinned-transition")}
+        for label, (block_text, pair, expected) in cases.items():
+            with self.subTest(case=label):
+                self.check_set(block_text, (pair,), (), expected)
+
+    def test_green_is_reached_only_from_red_or_pinned(self) -> None:
+        cases: dict[str, tuple[str, Outcome]] = {
+            "from justified n-a": (status_leaf("n-a", "not-started", EM_DASH_JUSTIFICATION),
+                                   "invalid-transition"),
+            "from failed": (status_leaf("failed"), "invalid-transition"),
+            "from not-started": (status_leaf("not-started"), "invalid-transition"),
+            "from an absent tests status": (status_leaf(None, "in-progress"), "invalid-transition"),
+            "from red": (status_leaf("red", "in-progress"), ("atomic-tests", "state_receipts"))}
+        for label, (block_text, expected) in cases.items():
+            with self.subTest(case=label):
+                self.check_set(block_text, ("atomic-tests=green",), (), expected)
+
+    def test_n_a_needs_the_justification_in_the_notes_of_the_result(self) -> None:
+        later_group = leaf_body("first note", EM_DASH_JUSTIFICATION)
+        continuation = leaf_body("first note", extra=CONTINUATION + EM_DASH_JUSTIFICATION + "\n")
+        cases: dict[str, tuple[str, tuple[str, ...], Outcome]] = {
+            "no note": (status_leaf("not-started"), (), "n-a-unjustified"),
+            "hyphen instead of the dash": (status_leaf("not-started", "not-started",
+                                                       HYPHEN_JUSTIFICATION),
+                                           (), "n-a-unjustified"),
+            "note of the same call": (status_leaf("not-started"), (EM_DASH_JUSTIFICATION,),
+                                      ("atomic-tests", "notes", "state_receipts")),
+            "justification in a later notes group": (
+                leaf("T-01", header=leaf_statuses("not-started"), body=later_group), (),
+                ("atomic-tests", "state_receipts")),
+            "justification on a continuation line": (
+                leaf("T-01", header=leaf_statuses("not-started"), body=continuation), (),
+                ("atomic-tests", "state_receipts"))}
+        for label, (block_text, notes, expected) in cases.items():
+            with self.subTest(case=label):
+                self.check_set(block_text, ("atomic-tests=n-a",), notes, expected)
+                if not isinstance(expected, str):
+                    self.assertEqual(self.header_after()["atomic-tests"], "n-a")
+
+
+class CompletionAndStartTests(LifecycleCase):
+    def test_completion_needs_green_or_justified_tests_or_the_pre_tdd_note(self) -> None:
+        execution_changed = ("atomic-execution", "state_receipts")
+        cases: dict[str, tuple[str, tuple[str, ...], tuple[str, ...], Outcome]] = {
+            "tests not started":(status_leaf("not-started", "in-progress"), (), (),
+                                  "completion-without-tests"),
+            "tests red": (status_leaf("red", "in-progress"), (), (), "completion-without-tests"),
+            "tests failed": (status_leaf("failed", "in-progress"), (), (),
+                             "completion-without-tests"),
+            "pre-TDD note but previous execution blocked": (
+                status_leaf(None, "blocked", PRE_TDD_NOTE), (), (), "completion-without-tests"),
+            "pre-TDD note already recorded": (status_leaf(None, "in-progress", PRE_TDD_NOTE), (),
+                                              (), execution_changed),
+            "tests green": (status_leaf("green", "in-progress"), (), (), execution_changed),
+            "tests justified n-a": (status_leaf("n-a", "in-progress", EM_DASH_JUSTIFICATION), (),
+                                    (), execution_changed),
+            "tests turned green by the same call": (
+                status_leaf("red", "in-progress"), ("atomic-tests=green",), (),
+                ("atomic-tests", "atomic-execution", "state_receipts"))}
+        for label, (block_text, more, notes, expected) in cases.items():
+            with self.subTest(case=label):
+                self.check_set(block_text, ("atomic-execution=complete",) + more, notes, expected)
+                if not isinstance(expected, str):
+                    self.assertEqual(self.header_after()["atomic-execution"], "complete")
+
+    def test_pre_tdd_completion_keeps_the_header_without_a_tests_segment(self) -> None:
+        self.check_set(status_leaf(None, "in-progress"), ("atomic-execution=complete",), (),
+                       "completion-without-tests")
+
+        self.check_set(status_leaf(None, "in-progress"), ("atomic-execution=complete",),
+                       (PRE_TDD_NOTE,), ("atomic-execution", "notes", "state_receipts"))
+
+        self.assertIn("T-01 | Leaf | atomic-execution: complete | atomic-validation: not-started\n"
+                      "  last_action:\n", self.state())
+        self.assertNotIn("atomic-tests", self.header_after())
+
+    def test_leaving_not_started_without_a_tests_status_needs_one_in_the_same_call(self) -> None:
+        cases: dict[str, tuple[str, tuple[str, ...], Outcome]] = {
+            "to blocked": (status_leaf(None), ("atomic-execution=blocked",),
+                           "pre-tdd-not-applicable"),
+            "from in-progress to blocked": (status_leaf(None, "in-progress"),
+                                            ("atomic-execution=blocked",),
+                                            ("atomic-execution", "state_receipts"))}
+        for label, (block_text, fields, expected) in cases.items():
+            with self.subTest(case=label):
+                self.check_set(block_text, fields, (), expected)
+
+        self.assertIn("T-01 | Leaf | atomic-execution: blocked | atomic-validation: not-started\n",
+                      self.state())
+
+    def test_pre_tdd_start_with_a_tests_status_writes_it_before_the_execution_segment(self) -> None:
+        self.check_set(status_leaf(None), ("atomic-execution=in-progress",), (),
+                       "pre-tdd-not-applicable")
+
+        self.check_set(status_leaf(None), ("atomic-execution=in-progress", "atomic-tests=red"), (),
+                       ("atomic-tests", "atomic-execution", "state_receipts"))
+
+        self.assertIn("T-01 | Leaf | atomic-tests: red | atomic-execution: in-progress | "
+                      "atomic-validation: not-started\n", self.state())
+
+
+class FieldGroupAtomicityTests(LifecycleCase):
+    def test_one_refused_input_among_valid_fields_and_notes_changes_nothing(self) -> None:
+        cases: dict[str, tuple[str, tuple[str, ...], tuple[str, ...], str]] = {
+            "value outside the vocabulary": (status_leaf("not-started"),
+                                             ("last_action=x", "atomic-execution=done"), ("y",),
+                                             "invalid-value"),
+            "value rules before transition rules": (
+                status_leaf("not-started"), ("atomic-tests=green", "atomic-validation=passed"), (),
+                "invalid-value"),
+            "green from not-started": (status_leaf("not-started"),
+                                       ("last_action=x", "atomic-tests=green"), ("y",),
+                                       "invalid-transition"),
+            "completion with red tests": (status_leaf("red", "in-progress"),
+                                          ("blocker=waiting", "last_action=x",
+                                           "atomic-execution=complete"), ("a", "b"),
+                                          "completion-without-tests"),
+            "justification does not allow a downgrade": (
+                status_leaf("green", "in-progress"), ("atomic-tests=n-a", "last_action=x"),
+                (EM_DASH_JUSTIFICATION,), "downgrade")}
+        for label, (block_text, fields, notes, error) in cases.items():
+            with self.subTest(case=label):
+                self.check_set(block_text, fields, notes, error)
+
+    def test_justified_n_a_with_a_field_and_its_note_is_one_revision(self) -> None:
+        self.check_set(status_leaf("not-started"), ("atomic-tests=n-a", "last_action=x"), ("y",),
+                       "n-a-unjustified")
+        original = self.state()
+        source = file_revision(self.task / "state.md")
+
+        document = self.check_set(status_leaf("not-started"),
+                                  ("atomic-tests=n-a", "last_action=x"), (EM_DASH_JUSTIFICATION,),
+                                  ("atomic-tests", "last_action", "notes", "state_receipts"))
+
+        result = self.state()
+        receipt = self.receipt_line(result)
+        self.assertRegex(receipt, rf"^  state_receipts: {OPERATION_ID}#[0-9a-f]{{16}}\n$")
+        self.assertEqual(result, original.replace("atomic-tests: not-started", "atomic-tests: n-a", 1)
+                         .replace("  last_action:\n", "  last_action: x\n", 1)
+                         .replace("  notes:\n", "  notes: " + EM_DASH_JUSTIFICATION + "\n" + receipt,
+                                  1))
+        self.assertEqual(document["source_revision"], source)
+        self.assertEqual(document["result_revision"], file_revision(self.task / "state.md"))
+
+    def test_status_named_with_its_current_value_is_not_a_transition(self) -> None:
+        unjustified = status_leaf("n-a", "not-started", HYPHEN_JUSTIFICATION)
+        cases: dict[str, tuple[str, str, list[str]]] = {
+            "green kept": (status_leaf("green", "in-progress"), "atomic-tests=green", []),
+            "pinned kept": (status_leaf("pinned", "in-progress"), "atomic-tests=pinned", []),
+            "pre-TDD not-started kept": (status_leaf(None), "atomic-execution=not-started", []),
+            "unjustified n-a kept": (unjustified, "atomic-tests=n-a", ["pre-existing-violation"]),
+            "completion with red tests kept": (status_leaf("red", "complete"),
+                                               "atomic-execution=complete",
+                                               ["pre-existing-violation"])}
+        for label, (block_text, pair, warnings) in cases.items():
+            with self.subTest(case=label):
+                document = self.check_set(block_text, (pair, "last_action=x"), (),
+                                          ("last_action", "state_receipts"))
+                self.assertEqual(document["warnings"], warnings)
+
+
+class PreExistingViolationTests(LifecycleCase):
+    def test_violation_in_an_unchanged_field_is_applied_with_a_warning(self) -> None:
+        unjustified = status_leaf("n-a", "not-started", HYPHEN_JUSTIFICATION)
+        cases: dict[str, tuple[str, str, tuple[str, ...], tuple[str, ...]]] = {
+            "unjustified n-a with set": (unjustified, "set", ("--field", "last_action=y"),
+                                         ("last_action", "state_receipts")),
+            "unjustified n-a with another status": (
+                unjustified, "set", ("--field", "atomic-validation=in-progress"),
+                ("atomic-validation", "state_receipts")),
+            "unjustified n-a with append-note": (unjustified, "append-note", ("--note", "z"),
+                                                 ("notes", "state_receipts")),
+            "unjustified n-a with add-file": (unjustified, "add-file", ("--path", "c.sh"),
+                                              ("target_files", "state_receipts")),
+            "value outside the vocabulary": (status_leaf("not-started", validation="reviewed"),
+                                             "set", ("--field", "last_action=y"),
+                                             ("last_action", "state_receipts")),
+            "completion with red tests": (status_leaf("red", "complete"), "set",
+                                          ("--field", "last_action=y"),
+                                          ("last_action", "state_receipts"))}
+        for label, (block_text, command, options, changed) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(block_text, leaf("T-02")))
+
+                document = self.write_applied(self.write(command, *options), command, *changed)
+
+                self.assertEqual(document["warnings"], ["pre-existing-violation"])
+
+    def test_unjustified_n_a_stays_invalid_after_an_unrelated_write(self) -> None:
+        self.write_state(state_text(status_leaf("n-a", "not-started", HYPHEN_JUSTIFICATION)))
+
+        document = self.applied(self.set_fields("last_action=y"), "last_action", "state_receipts")
+
+        self.assertEqual(document["warnings"], ["pre-existing-violation"])
+        code, errors = self.validate_codes()
+        self.assertEqual(code, 6)
+        self.assertIn("n-a-unjustified", errors)
+
+    def test_missing_required_field_is_reported_by_writes_unless_the_write_supplies_it(
+            self) -> None:
+        no_target_files = "  last_action:\n  blocker: none\n  notes:\n"
+        no_notes = "  last_action:\n  target_files:\n  blocker: none\n"
+        neither = "  last_action:\n  blocker: none\n"
+        cases: dict[str, tuple[str, str, tuple[str, ...], tuple[str, ...], list[str]]] = {
+            "set on a leaf without target_files": (
+                leaf("T-01", body=no_target_files), "set", ("--field", "last_action=x"),
+                ("last_action", "state_receipts"), ["required-field-missing"]),
+            "set on a composite without children": (
+                composite_block("T-01", body="  blocker: none\n  notes:\n"), "set",
+                ("--field", "rollup=in-progress"), ("rollup", "state_receipts"),
+                ["required-field-missing"]),
+            "append-note on a leaf without notes and target_files": (
+                leaf("T-01", body=neither), "append-note", ("--note", "a"),
+                ("notes", "state_receipts"), ["required-field-missing"]),
+            "append-note supplying the only missing field": (
+                leaf("T-01", body=no_notes), "append-note", ("--note", "a"),
+                ("notes", "state_receipts"), []),
+            "add-file supplying the only missing field": (
+                leaf("T-01", body=no_target_files), "add-file", ("--path", "b.sh"),
+                ("target_files", "state_receipts"), [])}
+        for label, (block_text, command, options, changed, warnings) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(block_text, leaf("T-02")))
+
+                document = self.write_applied(self.write(command, *options), command, *changed)
+
+                self.assertEqual(document["warnings"], warnings)
+
+
 if __name__ == "__main__":
     unittest.main()
