@@ -1,0 +1,59 @@
+.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md
+  s_b01367d73efb08::t_14d4a7d12cb7f4 1-127
+.ai/adr/index.md
+  s_75218c90170bfa::t_b960157fae3e77 34
+.ai/memory/architecture.md
+  s_75218c90170bfa::t_b3f35ce6a9ea38 283-292
+.ai/memory/state.md
+  s_75218c90170bfa::t_e743efe58e472f 13
+.ai/tasks/todo/task-07-state-tool/plan.md
+  s_75218c90170bfa::t_ac90e2f2cae035 1-69
+.ai/tasks/todo/task-07-state-tool/state-archive.md
+  s_75218c90170bfa::t_3c02c87823f325 1-98
+.ai/tasks/todo/task-07-state-tool/state.md
+  s_75218c90170bfa::t_21ac41943b5606 1-248
+.ai/tasks/todo/task-07-state-tool/T-01-progress-parser-and-get/description.md
+  s_75218c90170bfa::t_1b7095e23c0f77 1-122
+.ai/tasks/todo/task-07-state-tool/T-02-static-validation-command/description.md
+  s_75218c90170bfa::t_5ae0459a8e58c3 1-76
+.ai/tasks/todo/task-07-state-tool/T-03-set-write-transaction/description.md
+  s_75218c90170bfa::t_2bd57078f13e70 1-123
+.ai/tasks/todo/task-07-state-tool/T-04-note-and-file-additions/description.md
+  s_75218c90170bfa::t_5eebdd7e71f674 1-77
+.ai/tasks/todo/task-07-state-tool/T-05-lifecycle-invariants/description.md
+  s_75218c90170bfa::t_352f2d1909b761 1-82
+.ai/tasks/todo/task-07-state-tool/T-06-block-initialization/description.md
+  s_75218c90170bfa::t_30921762d23b9a 1-82
+.ai/tasks/todo/task-07-state-tool/T-07-idempotent-operation-receipts/description.md
+  s_75218c90170bfa::t_4546c35224def0 1-77
+.ai/tasks/todo/task-07-state-tool/T-08-lock-contention-and-recovery/description.md
+  s_75218c90170bfa::t_cf250c9755e6a5 1-105
+.ai/tasks/todo/task-07-state-tool/T-09-receipts-grammar-contract/description.md
+  s_75218c90170bfa::t_bbeb063f300d1a 1-86
+.ai/tasks/todo/task-07-state-tool/T-10-ignore-rules-and-usage-docs/description.md
+  s_75218c90170bfa::t_bb1a5cb7597fba 1-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "360b2975644dee07c7c69807d308391f90775221",
+  "prompts": {},
+  "sessions": {
+    "s_75218c90170bfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d90e062-887f-4faa-b97c-24c39cc0d6f4",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_b01367d73efb08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6a630a4e-362d-45d4-9075-72f7ca7c44e3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
