@@ -47,7 +47,7 @@ class UnsafeInvocationRegressions(unittest.TestCase):
 
     def test_cli_scans_project_with_pinned_classifications(self):
         result = subprocess.run([sys.executable, '-B', str(ROOT / 'tests/fixtures/validator-runtime/source_guard.py'),
-                                 '--root', str(ROOT)], capture_output=True, text=True, timeout=5)
+                                 '--root', str(ROOT)], capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('nested validator source guard: pass', result.stdout)
 

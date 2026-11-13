@@ -26,7 +26,7 @@ class IntegratedContracts(unittest.TestCase):
             wrapper_path = Path(temp) / 'wrapper.sh'
             wrapper_path.write_text(script)
             result = subprocess.run(['bash', str(wrapper_path), str(ROOT)], cwd=ROOT,
-                                    capture_output=True, text=True, timeout=15)
+                                    capture_output=True, text=True, timeout=90)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, '')
 

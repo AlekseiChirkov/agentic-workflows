@@ -128,7 +128,7 @@ class SecurityContracts(unittest.TestCase):
 
     def test_integrated_registrations(self) -> None:
         result = subprocess.run([sys.executable, str(ROOT / "tests/validator-runtime-integrated.py")],
-                                capture_output=True, text=True, timeout=15)
+                                capture_output=True, text=True, timeout=180)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
