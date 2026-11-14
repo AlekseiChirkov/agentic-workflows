@@ -4,8 +4,8 @@ flow: full
 
 ## Phases
 - discovery: complete
-- execution: not-started
-- validation: not-started
+- execution: complete
+- validation: in-progress
 
 ## Task Analysis
 
@@ -22,6 +22,7 @@ flow: full
 - flow: full — gate: 1fail 2fail 3pass 4pass (more than three files; a new protected field and new invariants are introduced) (source: `rules/quick-flow.md → ## The escalation gate`).
 - Specification labels in product code (raised by the T-02 validation: four docstrings named invariants as `I-1`, `I-4`, `I-5`, `I-6`) → requirement, criterion, invariant, decision and assumption labels of the spec are planning identifiers; product code, tests, comments and docs state the rule in words. T-02 is corrected by its Implementer and re-validated by a new independent Validator, then the run continues (source: user, 2026-11-13).
 - Test cases that pass before implementation because they guard behaviour that already exists (raised at the T-09 RED stop; the pipeline rules have no such category and the Arbiter cannot waive the premature-pass stop) → a real RED is preferred wherever a case can be made to fail first (in T-09 the vocabulary-drift validator check moves to the implementation step so its suite case fails first); remaining guard cases are acceptable when each is named in the block's `notes:`, shown non-vacuous by mutation evidence, and every criterion that adds behaviour keeps at least one failing test. The decision covers the guard cases already committed in T-02, T-05 and T-08 and those in T-09 and T-10 (source: user, 2026-11-14; arbiter analysis citing `rules/tdd.md` and `workflows/pae-tests.md`).
+- `set` on a field whose existing value has continuation lines (raised by the task-level code review; the spec does not define it and the delivered tool replaced only the field line, leaving the old continuation text under the new value) → the write is refused with exit 6 and nothing changes; existing text is never deleted by `set` (source: user, 2026-11-14).
 - Worker model support for selection (the worker tool does not expose a context window) → the documented 1,000,000-token context of the catalog is confirmed as the support observation; selection uses the current catalog without a refresh (source: user, 2026-11-13).
 - Registration of the acceptance suite in `scripts/validate-contracts.sh`, given the frozen validator inventory (raised by T-01 during implementation) → register once in the receipts-grammar subtask (T-09) together with the three contract checks, through one exact, enumerated oracle extension; T-10 refreshes the suite's pinned digest once more; earlier subtasks run the suite directly plus the guard suites; the registration test already in the committed RED set of T-01 is deferred to T-09 (source: user, 2026-11-13; arbiter recommendation with citations: ADR-0018, ADR-0019 Decision 3, ADR-0022 Decision 4, spec REQ-20 / AC-18).
 
@@ -340,13 +341,78 @@ T-09 | Receipts grammar contract and validator checks | atomic-tests: green | at
   base_branch: feat/state-tool-lock-and-recovery
   base_commit: 6aa7f917a4942205ebe7c80984f31b7f5299cf50
   commits: d1af768 test(state-tool): cover the receipts grammar contract and suite registration, a2de798 feat(rules): define the tool-managed receipts field and check it, 9341755 test(state-tool): require the rule to state where the receipts line goes, f489cdf fix(rules): state the receipts line position as the last known field
-  pr: none
+  pr: #88 draft
 
-T-10 | Ignore rules and usage documentation | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action:
+T-10 | Ignore rules and usage documentation | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: reviewed — all seven acceptance criteria met after the rework; the manual's consumer step followed by hand and by rerun gives the documented end state; suite 215/215 and all pins verified; 11 improvement proposals recorded, none applied
   target_files: .gitignore, scripts/setup-new-project.sh, docs/USAGE.md, scripts/README.md, tests/state-tool.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py
   blocker: none
+  notes: tdd: integration (git check-ignore on this repository; scripts/setup-new-project.sh run twice in disposable git projects) + smoke (content checks on docs/USAGE.md and scripts/README.md) — 10 tests, AC coverage 7/7; unit considered and inapplicable (ignore rules, a shell script and a manual have no unit seam)
+         tdd: red digest — AC-1 → test_repository_ignores_the_tool_files_and_never_a_task_state_file; AC-2 → test_setup_run_twice_creates_the_ignore_file_with_each_tool_pattern_once, test_setup_does_not_repeat_a_tool_pattern_the_project_already_ignores; AC-3 → test_setup_table_entry_list_names_both_tool_patterns; AC-4 → test_state_tool_section_lists_the_manual_fallback_steps_in_order, test_state_tool_section_tells_a_tracking_consumer_to_rerun_setup_or_edit_by_hand; AC-5 → test_state_tool_section_lists_the_six_commands_and_every_exit_code; AC-6 → test_script_inventory_has_a_row_for_the_state_tool; AC-7 → the existing source guard (tests/fixtures/validator-runtime/source_guard.py) and oracle suite (tests/validator-runtime-oracle.py), both failing at RED on the changed suite; edge → absent consumer .gitignore (first setup test), a consumer .gitignore already holding either pattern (second setup test, one subcase each), test_state_tool_section_keeps_refusals_binding_and_states_the_limits, test_manual_reference_sections_name_the_tool_its_mode_and_its_receipts_field
+         RED observed 2026-11-14: suite 214 tests, 14 failures counting subtests, 0 errors, about 30 s; ignore check exits 1 on the lock and temporary paths where 0 is required; setup leaves both patterns out of .gitignore (count 0 where 1 is required, in all three projects); the setup table row lacks both patterns; the manual has no State tool section (four tests); the script inventory has no state-tool.py row; the directory tree lacks state-tool.py; the 204 earlier tests pass. Source guard at RED: 136 stale classified records (inventory fingerprint) and 1 new call site (tests/state-tool.py run_isolated); oracle suite 4 failures on the suite's resource row; both refreshed once at GREEN
+         guard subcases (pass at RED by design): in test_repository_ignores_the_tool_files_and_never_a_task_state_file, task-x state.md exits 1 with and without the index, and every existing task state.md of this repository exits 1 without the index — non-vacuous: in a scratch mirror whose .gitignore adds the line *state* all 11 state.md subcases fail; in test_setup_run_twice_creates_the_ignore_file_with_each_tool_pattern_once, the .ai/ entry appears once — non-vacuous: a scratch copy of the setup script without the once-only grep check makes it fail (2 != 1)
+         isolation: one new helper run_isolated (one subprocess call site, fixed callers git check-ignore in this repository, git init in a disposable project, bash scripts/setup-new-project.sh in a disposable project); HOME, XDG_CONFIG_HOME, XDG_STATE_HOME and XDG_CACHE_HOME point into a temporary directory, ORCHESTRAIL_HOME is this checkout (read only), inherited GIT_* variables, BASH_ENV, ENV, CDPATH, PYTHONPATH, PYTHONSTARTUP and the test fault variables are dropped, GIT_CONFIG_NOSYSTEM is set, and the running interpreter's directory leads PATH (a version-manager shim with a fake HOME otherwise downloads and installs Python into it); each setup test asserts the project was registered in the disposable configuration root
+         implementation: .gitignore gains a commented group with .state-tool.lock and .state.md.*.tmp; GITIGNORE_ENTRIES of scripts/setup-new-project.sh gains the same two entries (the once-only grep loop is unchanged); docs/USAGE.md gains the two patterns in the section 5 setup-table entry list, a state-tool.py line in the section 2 directory tree, a scripts/state-tool.py row in the section 9 file-roles table, a sentence on the tool-managed state_receipts: line in section 10, and a new final section 11 State Tool (purpose and optional, unwired status; the six command forms and a command table; the JSON result keys and the --state-tool-only mode; write protocol with expected revision, operation id, receipts, idempotent repeat and the two interruption outcomes; the lock-busy owner details; exit codes 0 to 8 with every error code the tool lists; the no-bypass sentence and rule; the six manual fallback steps in order; limits; ignore rules with the rerun-or-by-hand step for a consumer that tracks .ai/); scripts/README.md gains the state-tool.py inventory row; no section was renumbered
+         tdd: test amended — none; tests/state-tool.py is unchanged since the test commit (10 RED tests and 204 earlier tests intact, no skip or expected-failure marker); one documentation line was reflowed so "no workflow" is not split by a line break, which the frozen limits test reads on one line
+         fixture refresh (after every shell and Python edit was final): suite resource row test_state_tool_acceptance recomputed with the oracle's inventory (suite digest 1089fb24… → 17501690…, 26 new observation lines, all in tests/state-tool.py, tool digest unchanged) and written into inventory-amendment.json with the file's existing serialization (verified byte-identical before the edit); AMENDMENT_SHA256 → 3b2fdfa3db45a5027d0a8d89531ea70c59d5b9e9486422f8623bcd2e41d96ed2; inventory inputs changed versus the base commit: tests/state-tool.py and tests/validator-runtime-oracle.py only; 136 inventory_sha256 fields → 03b68f964274816eb8a0b39a6e628b39db921a0d341e570d753911d51dda7c5c; scripts/setup-new-project.sh dependency digest 359fe102… → 21bd309e15514f4490eebf02f75e3bee2fdedc80e6a4edadf01aad8a9d8ee6ad in the two relocation records; one reviewed record added after the run_bash record for the run_isolated call site (context 9a9944fc…, count 1, dependency scripts/setup-new-project.sh 21bd309e…, same inventory digest), 338 → 339 records; run_tool, launch and run_bash contexts unchanged; manifest digest in source_guard.py → 28df23249c923892e505907797d20d02176445b0e17b8bfd467a342d080f8dbe; no other resource row of the frozen inventory hashes docs/USAGE.md, scripts/README.md, .gitignore or the setup script (they appear only in check expressions)
+         GREEN 2026-11-14: suite 214/214 in about 30 s; --state-tool-only exit 0; source guard pass; oracle 23/23; validator-runtime guard (6), guard-executable (90), guard-regressions (25), guard-production (2), guard-dynamic (4), integrated (2), allowlist, allowlist-guard, allowlist-shell, sourceguard-allowlist, external-source-guard (5), identity (11), security (3), version-isolation, wrapper-shadow, warning (3), warning-guard (2), warning-fingerprint (2), warning-strict (2), warning-operators, warning-isolation (2) and characterization (17) pass; focused --hook-workflow-only (5), --model-workflow-only (26 + 30), --hook-timing-only (51) and --hook-install-only (78) pass; the validator's contract region (startup, groups 1 to 49, script path portability, public examples, public package materials, the git-rails capability and safety-rail checks, summary) run from a temporary copy of the tracked tree: 637 pass, 0 fail, 1 skip (no local hygiene pattern file); bash -n clean on scripts/, hooks/ and tests/ shell files (shellcheck not installed); typecheck not configured; build (deploy) and the complete validator not run by direction; git check-ignore by hand: the lock and temporary paths match .gitignore lines 16 and 17, this task's state.md exits 1
+         observation (out of scope, for an improvement proposal): the section 10 quick reference of docs/USAGE.md lists the atomic-tests values without pinned; it predates this subtask and was left unchanged by coordinator direction
+         finalize (orchestrated mode, nothing shared written): plan.md T-10 → done returned as a delta; .ai/memory/architecture.md deltas proposed, not applied (state-tool paragraph: ignore rules, manual section, script inventory row; Layer 5 table row for scripts/state-tool.py; the quoted inventory 10 shell scripts and 30 Python helpers under scripts/ is stale against the tree, which tracks 11 and 31); .ai/context/environment.md seeded .gitignore entries delta proposed; no composite membership (no rollup); compression requested from the orchestrator
+         pav-check 2026-11-14 (independent Validator): verdict NEEDS WORK. Acceptance criteria 1 to 7 all met; TDD audit clean (test commit only adds 226 lines to the suite, the suite is unchanged since, all 10 new tests fail on the pre-implementation tree with 14 failures counting subtests, the named guard subcases fail under mutation: 11 state-file subcases with a broad ignore line, the once-only subcase with the grep check removed). Verified: suite 214/214; focused state-tool mode exit 0; bash -n on the setup script; oracle 23/23; source guard pass; validator-runtime guard, guard-executable, guard-regressions, guard-production, guard-dynamic, integrated, allowlist, allowlist-guard, allowlist-shell, sourceguard-allowlist, external-source-guard and identity suites pass; focused hook-workflow, model-workflow, hook-timing and hook-install modes pass; the validator's contract region (startup, groups 1 to 49, script path portability, public examples, public package materials, git-rails capability and safety-rail checks, summary) from a temporary committed copy of the tracked tree with a disposable home: 637 pass, 0 fail, 1 skip (no local hygiene pattern file); all pinned digests recomputed and equal (suite row, amendment, inventory fingerprint on 137 records, both setup-script dependency digests, manifest); exception manifest 338 to 339 records, nothing removed or reordered, the one new record matches the runner's three fixed callers; an unlisted subprocess call appended to the suite in a scratch copy fails the oracle (4 failures) and the source guard; setup script differs from the base commit by the two entries only; the real project registry is unchanged (same modification time and digest before and after); no planning identifiers in touched product files; commit messages clean; nothing outside the target files changed
+         pav-check finding 1 (important, docs/USAGE.md section 11, Ignore rules paragraph, with the setup-table row 6): the paragraph tells a consumer that tracks its knowledge base to rerun the setup script, "which only appends missing entries". In such a project the knowledge-base entry itself is missing, so the rerun appends it and every new task directory, its state file included, becomes ignored (reproduced in a disposable project: after the rerun git check-ignore reports the new task state file as ignored by the appended line). This contradicts the same paragraph's statement that no ignore rule may match a task state file and row 6's statement that existing tracking policy is authoritative (true of the sync script, not of setup). The script behaviour predates this subtask and the spec asks for the rerun wording, so the in-scope correction is in the manual: warn about the appended knowledge-base entry (remove it after the rerun) or recommend the by-hand step first for tracking projects; changing the script is outside this subtask
+         pav-check findings (optional): (2) the manual's operation id rule omits that the first character must be a letter or digit — ids starting with a dot or underscore are refused with exit 2; (3) the setup script appends without checking for a final newline and matches existing entries as substrings — an ignore file whose unterminated last line is the lock pattern ends with one merged line that ignores neither file and is reported as present on every rerun, and a comment, negation or narrower line containing a pattern suppresses the entry (behaviour predates this subtask; applies to the two new entries); (4) the Limits text calls the lock an advisory fcntl lock while the tool takes a flock through the fcntl module; (5) the result-key sentence omits command, task, block_kind and the read command's contract_version and blocks; (6) the reason of the new source-guard record says literal task path although the no-index subcases also pass paths found by a glob over existing task directories; (7) a directory named like either pattern would have its contents ignored (implausible shape, no action needed)
+         validation last_action (kept from pav-check, replaced as the current last_action by the rework): pav-check NEEDS WORK — all seven acceptance criteria are met and every check passes, but the manual's step for a consumer that tracks its knowledge base, followed as written, makes the setup script append the knowledge-base ignore entry so that new task files become ignored (one important finding; findings listed in notes)
+         tdd: integration — rework for the validation finding: 1 test, test_tracking_consumer_step_states_what_rerunning_setup_does_to_the_knowledge_base, in the existing ConsumerSetupIgnoreTests class: a disposable git project whose .gitignore holds node_modules/ stages .ai/tasks/todo/task-01-a/state.md with git add, setup runs twice through run_isolated (no new call site), and git check-ignore probes a new .ai/tasks/todo/task-02-b/state.md; the State Tool section's consumer paragraph must still name both routes (rerunning scripts/setup-new-project.sh and adding the lines by hand), and one of its sentences must name `.ai/`, say it is appended or added, and say it is removed — required exactly when the observed script appends .ai/ and the probe is ignored, so the case fails whenever the manual and the script disagree
+         tdd: red digest (rework) — validation finding → test_tracking_consumer_step_states_what_rerunning_setup_does_to_the_knowledge_base
+         rework RED observed 2026-11-14: suite 215 tests, 1 failure, 0 errors, about 32 s; the setup script appends .ai/ to the tracking project's .gitignore and the new task state path is ignored (observed true), while the manual paragraph carries no such warning (false); the 214 earlier tests pass
+         rework note: run_isolated gains a fourth fixed caller, git add -- <literal fixture path> in a disposable project; the call site and its context are unchanged, so no record is added, but the reviewed record's reason (which names three callers) is updated at GREEN to name it
+         rework implementation: docs/USAGE.md only — the ignore-rules paragraph of section 11 recommends adding the two lines by hand for a consumer that tracks .ai/ and keeps the rerun route with the warning that the setup script also appends the .ai/ entry whenever no .gitignore line contains it, which ignores every new file under .ai/ including a new task state.md, so the line is removed right after the rerun; the phrase presenting the rerun as harmless is gone; setup-table row 6 now says each entry is appended only when no existing line contains it, that .ai/ is appended even where the repository tracks it (such a project removes that line again) and that scripts/sync.sh, unlike this script, respects an existing tracking policy; the operation-id sentence states the full rule (first character a letter or digit, then letters, digits, ., _ or -; 64 characters at most); scripts/setup-new-project.sh untouched; nothing else changed
+         tdd: no test amended in the rework; tests/state-tool.py is unchanged since the rework test commit (215 tests intact)
+         rework fixture refresh: suite resource row recomputed (suite digest → 3e015dda…, 5 new observation lines in tests/state-tool.py, tool digest unchanged), AMENDMENT_SHA256 3d529ea9fd770bf74ceb4f9ceb349bcad2c2bab660e85366326bf1c9141119eb; 137 inventory_sha256 fields → a009e8abd5fcdee4d6dbb5a848e989d86edb62bc1f7027b200236f0d7bcd7b21; the run_isolated record's reason now names its four fixed callers (git check-ignore on a literal task path or on state.md paths from a glob over existing task directories, git init, git add of a literal fixture path, the pinned setup script); its context and dependency digests are unchanged and verified; no record added or removed (339); manifest digest c4be4bfc306db12dae60ab3d22cc147d3f98670504e41ae2375131e2fc83e3f8
+         rework GREEN 2026-11-14: suite 215/215 in about 31 s; --state-tool-only exit 0; source guard pass; oracle 23/23; the 22 fast validator-runtime suites (guard, guard-executable, guard-regressions, guard-production, guard-dynamic, integrated, allowlist, allowlist-guard, allowlist-shell, sourceguard-allowlist, external-source-guard, identity, security, version-isolation, wrapper-shadow, six warning suites, characterization) pass; --hook-workflow-only (5) and --model-workflow-only pass; the validator's contract region run from a temporary copy of the tracked tree: 637 pass, 0 fail, 1 skip (no local hygiene pattern file); the complete validator not run by direction
+         execution last_action (kept from the rework, replaced as the current last_action by the re-validation): rework complete — the manual tells a consumer that tracks .ai/ to add the two lines by hand and warns that a setup rerun also appends the .ai/ entry, which must be removed again; setup-table row 6 and the operation-id rule corrected; pinned fixtures refreshed; ready for re-validation
+         pav-check 2026-11-14 (re-validation after the rework, new independent Validator): verdict DONE. Acceptance criteria 1 to 7 all met; the earlier important finding is resolved. Consumer step followed in isolated disposable projects that track files under .ai/: by hand (two lines appended, with and without an existing ignore file) the lock and temporary files are ignored and existing and new task files, plan files and memory files stay unignored; rerun followed by removing the appended .ai/ line gives the same end state; without the removal new files under .ai/ are ignored, as the manual warns; a line already containing the entry (.ai/cache/, !.ai/) suppresses the append, as the manual and table row 6 say. Operation-id sentence matches the tool: first character letter or digit accepted, leading dot, underscore or hyphen exit 2, 64 characters accepted, 65 exit 2. TDD audit clean: the two test commits only add lines to the suite (226 and 32), the implementation and correction commits do not touch it, no skip or expected-failure marker; on a scratch snapshot of the first test commit all 10 new tests fail (14 failures counting subtests, 214 tests); on a snapshot of the correction test commit exactly the correction test fails (1 of 215) and it passes at the tip; correction test mutations on a scratch copy: manual without the removal instruction fails, manual without the rerun sentences fails, script without the .ai/ entry fails (both directions); guard subcases non-vacuous: a broad ignore line fails 11 state-file subcases, the once-only check removed gives counts of 2 and 3. Verified: suite 215/215; focused state-tool mode exit 0; bash -n on the setup script; oracle 23/23; source guard pass; validator-runtime guard (6), guard-executable (90), guard-regressions (25), guard-production (2), guard-dynamic (4), integrated (2), allowlist, allowlist-guard, allowlist-shell, sourceguard-allowlist, external-source-guard (5), identity (11), six warning suites and characterization (17) pass; focused hook-workflow, model-workflow, hook-timing and hook-install modes exit 0; the validator's contract region (startup, groups 1 to 49, script path portability, public examples, public package materials, git-rails capability and safety-rail checks, summary) from a temporary committed copy of the tracked tree with a disposable home: 633 pass, 0 fail, 1 skip (no local hygiene pattern file), plus the four self-inspecting checks at the end of that region (source guard, warning, characterization, oracle) run from the intact tree and passing — the same 637 in total; pinned values recomputed and equal (suite row, suite digest 3e015dda…, amendment digest, inventory fingerprint on 137 records, setup-script digest in the two relocation records and the runner record, manifest digest); manifest 338 to 339 records versus the base commit, nothing removed or reordered, the two dependency digests and one added record are the only changes besides the fingerprint, and the correction commit changes only that record's reason; an unlisted subprocess call appended to a scratch copy of the suite fails the oracle (4 failures) and the source guard; each documented command form run on a scratch task (results, exits 0, 2, 4, 5, 6 and 8, the refusal sentence, busy details, both interruption outcomes, repeat with a stale revision) matches the manual; exit-code table equals the tool description and the specification table; the correction commit changes three places of the manual, the pins and one reason text only; the setup script is byte-identical to the implementation commit and differs from the base commit by the two entries; no tracked file became ignored; the real project registry is unchanged (same modification time, size and digest before and after); no planning identifiers in touched product files; commit messages clean; nothing outside the target files changed
+         pav-check findings (optional, re-validation): (1) the reviewed runner record's reason says git check-ignore runs in this checkout, while the correction test also runs it once on a literal path inside the disposable project (tests/state-tool.py:4177) — read only, same call site and context digest; (2) the earlier consumer-step content test stays green when the rerun sentences are deleted, because the setup script name also appears in the paragraph's parenthesis — only the correction test notices; (3) with an unterminated last line in the consumer ignore file the rerun merges its first appended entry into that line: where .ai/ is the first missing entry the result is a merged line that ignores neither the knowledge base nor the earlier pattern and there is no separate .ai/ line to remove; where every earlier entry is present the lock pattern is merged and the lock file is not ignored although the manual says the rerun adds both (script behaviour predates this subtask); (4) the command list does not say that a composite init-block needs --children and --note and refuses --target-file; the earlier optional observations on the lock wording, the result-key sentence, a directory named like a pattern and the quick-reference tests-status list still apply
+         pav-propose 2026-11-14 (batch, nothing applied): 3 Do Now (stricter rerun-route test; lock wording in the manual; composite init-block requirements in the manual), 4 Do Later (setup script skipping the knowledge-base entry where it is tracked; final line break and whole-line matching in the setup append loop; pinned missing from the quick-reference tests-status list; knowledge-base deltas for the script counts and seeded ignore entries), 4 Optional (runner record reason; result-key sentence; negation entry absent from table row 6; directory named like a pattern)
+         pav-close 2026-11-14 (orchestrated mode, nothing shared written): plan.md T-10 → reviewed returned as a delta; no composite membership (no trigger); compression requested from the orchestrator
+  branch: feat/state-tool-ignore-rules-and-manual
+  base_branch: feat/state-receipts-contract
+  base_commit: 8488c5b0d9b9dfd3df4fc044c5aeec3ede6a4573
+  commits: cc936b8 test(state-tool): cover ignore rules and the operating manual section, 97442d9 feat(state-tool): ignore auxiliary files and document the tool, 3051b92 test(state-tool): require the manual to state what a setup rerun does to a tracked knowledge base, db26e1a fix(docs): warn that a setup rerun ignores a tracked knowledge base
+  pr: #89 draft
+
+T-11-fix-identity-ledger-line | Identity ledger line for the manual | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action:
+  target_files: .ai/tasks/completed/task-01-git-source-of-truth/state.md
+  blocker: none
   notes:
+
+T-12-fix-non-utf8-arguments | Refusal of arguments that are not valid UTF-8 | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action:
+  target_files: scripts/state-tool.py, tests/state-tool.py, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
+  blocker: none
+  notes:
+
+T-13-fix-set-continuation-refusal | Refusal of set on a field with continuation lines | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action:
+  target_files: scripts/state-tool.py, tests/state-tool.py, docs/USAGE.md, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
+  blocker: none
+  notes:
+
+## Execution Report
+- T-01: reviewed — structural parser and `get`; 43 tests at closing; one registration test deferred to T-09 by owner decision
+- T-02: reviewed — `validate` and two grammar corrections; re-validated after one correction (specification labels removed from docstrings)
+- T-03: reviewed — `set` write transaction (lock, revision, line-preserving serialization, receipt append, atomic replace)
+- T-04: reviewed — `append-note`, `add-file`, `set --note`; two arbiter rulings on empty and whitespace-only note values
+- T-05: reviewed — lifecycle invariants on status changes and pre-existing-violation warnings
+- T-06: reviewed — `init-block`; three arbiter rulings on layout near fences and name content
+- T-07: reviewed — idempotent repeats, operation conflicts, the 20-entry receipt cap; order correction for `init-block` on an existing id
+- T-08: reviewed — busy-lock owner details, fault seam, interruption recovery; re-validated after one correction (unreportable lock metadata)
+- T-09: reviewed — receipts field definition and protection, validator checks, suite registration through one exact inventory extension; re-validated after one correction (receipts line position in the rule text)
+- T-10: reviewed — ignore rules, operating manual section, script inventory row; re-validated after one correction (setup rerun warning for projects that track their knowledge base)
+
+Summary: 10 of 10 leaves reviewed; none blocked, deferred or not reached. Suite `tests/state-tool.py`: 215 tests on the stack tip. The complete contract validator has not been run during execution; it runs in task-level validation.
+spec-run: proposals retained for post-delivery review; no application (18 Do Now items across T-01–T-10, plus Do Later and Optional items, all pending).
 
 ## Solution Design
 
@@ -478,6 +544,248 @@ The task is accepted when spec criteria AC-01–AC-11 and AC-13–AC-23 hold on 
 | AC-21 | T-01, T-02, T-03, T-04, T-05 |
 | AC-22 | T-01, T-02, T-03, T-07 |
 | AC-23 | T-10 |
+
+## Contract Check
+
+Checked 2026-11-14 on the stack tip `5574d9b` (ten branches over base `060ce6d`). Evidence:
+the suite `tests/state-tool.py` (215 tests, OK, 30 s), `bash scripts/validate-contracts.sh
+--state-tool-only` (OK), `tests/validator-runtime-oracle.py` (23 tests, OK), the complete
+contract validator run supplied by the orchestrator on this HEAD (720 passed, 1 failed,
+2 skipped), and independent probes of the tool on disposable task copies outside the
+repository (rich-block diff run twice, revision conflict, held lock with old metadata and
+14 hostile lock contents, four unsafe lock paths, kill before and after the rename for all
+four write commands, four changes during the pause before the recheck, repeats, the
+21-write receipt cap, 48 concurrent appends from 8 writers, a Python 3.11 run).
+Result: 36 passes, 2 failures (1 critical). The critical-failure gate is open: the owner
+has not yet chosen between pausing and continuing with the failure marked, so no decision
+is recorded here.
+
+### Invariants
+| Invariant | Status |
+|-----------|--------|
+| After any refused or failed write, `state.md` is byte-identical and no temporary file of that process remains | PASS — refusals with exits 1–8 probed and pinned by the suite's snapshot helper; a write killed before the rename leaves its temporary file by design and is reported, not removed |
+| After an applied write, every byte outside the changed and inserted lines of the target block is identical | PASS — rich-block diff is exactly the changed line plus the receipts line; 48 concurrent appends left every byte outside the block identical |
+| Read commands create, modify and delete nothing | PASS — `get` and `validate` leave bytes, modes and mtimes unchanged and create no lock file |
+| The tests status is never removed or moved to a lower rank; the pinned value changes only to the green value | PASS — refused with `downgrade` and `pinned-transition`; no code path deletes a header segment |
+| stdout carries exactly one JSON object; diagnostics go to stderr only | PASS — every run without a kill fault, hostile lock metadata and invalid UTF-8 arguments included |
+| The tool's vocabulary constants equal the anchored lines of `rules/workflow-globals.md` | PASS — contract check passes on source and fails on a dropped value, a changed order and a value added to the rule |
+| Blocks without `state_receipts:` remain valid for every reader | PASS — the tool, `scripts/validate-task.sh` and every completed task directory accept them |
+| `scripts/validate-contracts.sh` passes on the stack tip | FAIL: 1 of 723 results fails — the public identity ledger check. The manual change inserted one line into the directory tree of `docs/USAGE.md` (new line 96), which moved the one approved former-repository-name occurrence in the clone command from line 254 to line 255, while the exact ledger in `.ai/tasks/completed/task-01-git-source-of-truth/state.md` (table row at line 204, prose reference at line 182) still records 254. No other ledger row moved and no knowledge file was removed |
+
+### Acceptance Criteria
+| Criterion | Status |
+|-----------|--------|
+| AC-01 structural reads, fenced lines ignored, damaged structure refuses writes | PASS — suite lines 197, 1491; probe |
+| AC-02 line-preserving change on a rich block, identical on two copies | PASS — suite line 1227; probe: same bytes and same stdout on both copies, missing final newline kept |
+| AC-03 status transitions, unknown header field, unrecognized prefix, newer contract version | PASS — suite lines 406, 1524, 1556, 1571, 2229, 2279, 2291 |
+| AC-04 second writer with the same revision; change in another section kept | PASS — suite lines 1459, 1476; probe |
+| AC-05 held lock with old metadata, holder killed, metadata without a held lock | PASS — suite lines 3378, 3446; probe: exit 5 after the 1 s bound, owner reported, lock file bytes, inode and mtime unchanged |
+| AC-06 kill before and after the rename, directory sync failure | PASS — suite lines 3486, 3517, 3542; probe for all four write commands |
+| AC-07 repeats, operation conflict, 20 newest receipts | PASS — suite lines 3019, 3034, 3203; probe |
+| AC-08 path escapes, linked state file, both pause cases, literal note | PASS — suite lines 569, 1940, 3593, 3609, 3635; probe also covers removal and a link swapped in during the pause |
+| AC-09 no-bypass sentence for exits 4, 5, 6, 8; manual fallback steps | PASS — suite lines 1612, 3014, 3370, 4254, 4292 |
+| AC-10 reads change nothing; plain field change reports two changed fields | PASS — suite lines 319, 799, 1245 |
+| AC-11 pre-TDD reporting, completion and start rules | PASS — suite lines 346–363, 2315, 2339, 2350, 2364 |
+| AC-13 missing field and missing header segment inserted at canonical positions | PASS — suite line 1265 |
+| AC-14 invalid invocations exit 2; one JSON object; non-empty stderr on refusal | PASS — suite lines 373–388, 1625, 2853 and the shared output assertion |
+| AC-15 block insertion layout and refusals | PASS — suite lines 2571, 2593, 2793, 2811, 2825 |
+| AC-16 note placement and all-or-nothing notes | PASS — suite lines 1789, 1806, 1818, 1911 |
+| AC-17 target-file additions and invalid paths | PASS — suite lines 1989, 2008, 2062 |
+| AC-18 validator checks for the receipts grammar and the vocabulary | FAIL: the three contract checks and the task-validator check pass on source and fail on each named mutation (suite lines 3865, 3880, 3898, 3964–4002; probe), but the first clause — the contract validator passes on the source tree — does not hold on the stack tip (identity ledger, see Invariants) |
+| AC-19 standard library only, forbidden calls, version guard, missing lock module | PASS — suite lines 629, 637, 654, 685, 1716 |
+| AC-20 one invalid field refuses the group; justified not-applicable tests applied in one revision | PASS — suite lines 2376, 2398 |
+| AC-21 pre-existing violation warning, missing required fields, read-only field | PASS — suite lines 453, 879, 1591, 1863, 2048, 2436, 2462, 2472 |
+| AC-22 duplicated block, missing state file, absent field, missing tool version, 21 receipts, unknown header field | PASS — suite lines 256, 416, 434, 460, 493, 505, 971, 1571, 3236 |
+| AC-23 ignore rules, setup run twice, manual entry list and consumer step | PASS — suite lines 4109, 4146, 4245, 4263; probe: lock and temporary file ignored, task state file not ignored |
+| Non-functional targets (standard library, forbidden calls, determinism, atomic visibility, one JSON object, no run-log writes) | PASS — static scan, double-run probe, rename-only replacement; the tool has no logging call |
+
+### Off-limits
+| Constraint | Status |
+|------------|--------|
+| No file under `workflows/` changes; no deployed copy under the home directory is edited | PASS — the whole-task diff touches no path under `workflows/`, `templates/`, `principles/` or `scripts/sync.sh`; no commit or probe touched a deployed copy |
+| The tool writes only the task `state.md`, the lock file and its own temporary file | PASS — directory snapshots after every probe show only those three names |
+| The tool never passes an input value to a shell or interpreter and imports no third-party module | PASS — imports are standard library; no process-spawning or dynamic-evaluation call; shell metacharacters stored literally |
+| A held lock is never deleted, truncated or taken over; a foreign temporary file is never deleted or read as state | PASS — the lock file is rewritten only after the lock is acquired; leftover temporary files are listed by name only |
+| No existing field, vocabulary value, section name or exit code of an existing script is renamed or removed | PASS — both validators and the setup script change additively; one message of the task validator gains the missing pinned value |
+| No ignore rule may match a task `state.md` | PASS — `git check-ignore` exits 1 for a new and for an existing task state file of this repository |
+| No planning identifier or tool attribution in product code, tests, comments, documentation, branch names, commits or pull requests | PASS — 44 commit messages, ten branch names, ten pull request texts and the product diff scanned |
+
+### Critical Failures Decision: continue-marked
+Decided by the owner on 2026-11-14: validation continues with the failing invariant (the contract validator fails on the stack tip because the identity ledger records the manual's former line) marked critical in the issue list; it is fixed in this run and the complete validator must pass before any pull request is promoted.
+
+## Code Review
+
+Reviewed 2026-11-14 on the stack tip `5574d9b`: the whole of `scripts/state-tool.py`, the
+non-fixture parts of the whole-task diff, the suite `tests/state-tool.py` as code, the edits to
+both validators and the oracle extension. Reproductions ran on disposable task copies outside
+the repository. Items already recorded as pending proposals are listed once at the end and
+are not raised again.
+
+### Findings
+
+1. contract: `scripts/validate-contracts.sh` does not pass on the stack tip (1 of 723 results
+   fails: the public identity ledger check). `docs/USAGE.md` gained one line in its directory
+   tree (line 96), which moved the one approved former-repository-name occurrence in the clone
+   command from line 254 to line 255; the exact ledger in
+   `.ai/tasks/completed/task-01-git-source-of-truth/state.md` still records 254 (table row at
+   line 204; prose reference at line 182, which the check does not read). No other ledger row
+   moved, no count or digest pins that record, and no knowledge file was removed. Remedy: set
+   both lines to 255 and run the complete validator again. Severity: critical.
+2. `scripts/state-tool.py:1332-1336` (`input_digest`), called at `:1685` and `:1286` before the
+   content checks at `:1689-1690` and `:1295-1298` — an argument that is not valid UTF-8 ends
+   with exit 1 `internal-error` (an encoding error from the digest) instead of exit 6
+   `invalid-value` or `invalid-path`. Reproduction: `set` with a field value, `append-note`
+   with a note, `add-file` with a path or `init-block` with a name holding the byte 0xFF;
+   nothing is written and stdout stays one JSON object. The content checks ran before the
+   digest until the receipt lookup was moved ahead of them, so the UTF-8 branch of
+   `text_problem` (`:925-928`) is now unreachable for writes. No test covers it, and the pending
+   T-04 test proposal that expects exit 6 for such notes and paths would fail as written.
+   Severity: important.
+3. `scripts/state-tool.py:1116-1121` (`put` in `build_candidate`) — `set` on a field whose
+   existing value has continuation lines replaces only the field line, so the old continuation
+   text stays under the new value and the write is reported as applied. Reproduction: a blocker
+   line with one continuation line, then `set` with a new blocker value; the block reads back
+   the new value followed by the old continuation line. Required behaviour by owner ruling of
+   2026-11-14 (recorded under `### Assumptions`): such a write is refused with exit 6 and
+   changes nothing. Needs a failing test first. Severity: important.
+4. Process: the complete contract validator was not run during execution, so a repository-wide
+   pin broken by the last subtask's manual change surfaced only at task-level validation
+   (finding 1). Remedy: the complete validator is re-run after the fixes of this validation,
+   and any later change that inserts or removes lines in a ledger-pinned file refreshes the
+   ledger in the same change. Severity: important.
+5. `scripts/state-tool.py:1756` — the sentence that forbids bypassing a refusal is printed only
+   for write commands, so `validate` exiting 6 does not carry it, while the specification's
+   exit-code text names exits 4, 5, 6 and 8 without that limit (the manual says these exits
+   refuse a write). Align the specification wording or the tool. Severity: optional.
+6. `scripts/state-tool.py:557-562` (`continues_after_blanks`, called per blank line from `:597`)
+   — parse time is quadratic in a run of blank lines that is followed by a continuation line:
+   `get` takes 1 s for 4,000 such lines and 16 s for 16,000. Other hostile shapes (very long
+   header lines, 20,000 blocks, 100,000 fence lines) stay under 0.4 s. Severity: optional.
+7. `scripts/state-tool.py:1493-1535` (`replace_state`) — a `state.md` with mode 0444 is still
+   replaced, because the rename needs only directory permission; the mode is kept, the file
+   owner is not. One line under the manual's Limits would state it. Severity: optional.
+8. `scripts/state-tool.py:248` and `:256` — `Document.fenced` and `TaskPaths.root` are stored and
+   never read. Severity: optional.
+9. `scripts/state-tool.py:420-422` (`read_state_file`) — the open has no non-blocking flag, so a
+   named pipe swapped in between the inspection and the open would block the command; it also
+   sets no binary flag, which by reading the code (not tested) would let Windows translate
+   bytes on the read commands that are meant to work there. Severity: optional.
+10. `tests/validator-runtime-oracle.py:50-60` and `:202-209` — the four approved names are held
+    twice (`ADDED_NAMES`, and `NAMED_RESULTS` with `NAMED_ACCEPTANCE` and `NAMED_FLAG`). The
+    extension itself weakens no existing protection: the amendment stays digest-pinned,
+    sections and names are exact, resource paths are limited to the two tool files, and the
+    source-guard manifest gained only four reviewed records for the new suite.
+    Severity: optional.
+11. `tests/state-tool.py:654-683` — the static scan would not catch `os.popen`, `os.spawn*`,
+    `os.posix_spawn` or `__import__`; the tool uses none of them. Severity: optional.
+12. `tests/state-tool.py:4019` — the suite runs the task validator over every completed task
+    directory, so a future completed task that trips that validator fails this suite.
+    Severity: optional.
+13. `scripts/state-tool.py:307, 391, 489, 867, 1516, 1569, 1784` — seven lines exceed 100
+    characters (longest 104); the other Python helpers are looser, so this is a consistency
+    note only. Severity: optional.
+
+Already recorded as pending proposals, reproduced or confirmed here, severities unchanged:
+an interrupt signal leaves a traceback and possibly a temporary file (T-03, T-08); a
+lock-wait value of thousands of digits ends with exit 1 (T-03); a start time in the future
+gives a negative lock age (T-08); an operation whose receipt was dropped is applied again at
+the current revision (T-07, specification edge case); the vocabulary check accepts an
+augmented assignment (T-09); the manual's lock wording and omitted result keys (T-10); the
+full read of `state.md` before the lock (T-03).
+
+Test integrity: the four recorded test amendments name a test defect or an owner decision,
+never the implementation; no subtask records a not-applicable tests status; every spec
+criterion has covering tests (see `## Contract Check`); the suite is deterministic, isolated
+in temporary directories, reaps its helper processes and leaves nothing in the repository.
+No recorded owner decision or Arbiter ruling is contradicted by the delivered code.
+
+### Summary
+13 findings: 1 critical (the carried-in contract failure), 3 important, 9 optional. The tool
+is well structured, its write path held under every probe (48 concurrent appends from 8
+writers applied each note once, no temporary file left), and the validator and oracle edits
+are additive and exact. The fixes needed before promotion are the ledger alignment with a
+passing complete validator run, exit 6 for arguments that are not valid UTF-8, and the
+refusal of `set` on a field with continuation lines.
+
+## Issue List
+
+Split recorded automatically under the orchestrated-run override: critical and important approved, optional deferred (2026-11-14).
+
+[1]. Identity ledger alignment
+     Problem: the complete contract validator fails on the stack tip; the identity ledger of the repository records the manual's clone command on line 254, and the manual change of this task moved it to line 255.
+     Solution: update the ledger row and the prose line above it to line 255 in the completed task record that carries the ledger; re-run the complete validator.
+     Priority: critical
+[2]. Arguments that are not valid UTF-8
+     Problem: a field value, note, path or block name that is not valid UTF-8 ends a write command with exit 1 and an internal error, because the receipt input digest is computed before the content rules; the content rules require exit 6.
+     Solution: run the text and path content rules before the digest (or make the digest tolerate such input) so that the refusal is exit 6 with the invalid-value or invalid-path code; failing tests first for all four write commands.
+     Priority: important
+[3]. `set` on a field with continuation lines
+     Problem: `set` replaces only the field line, so old continuation lines stay under the new value and the write is reported as applied.
+     Solution: refuse with exit 6 and change nothing when the field named by `set` has continuation lines (owner ruling of 2026-11-14); failing tests first; state the rule in the manual's limits.
+     Priority: important
+[4]. Complete validator not run before the stack tip
+     Problem: subtasks verified with focused suites only, so a repository-wide pin broken by the last subtask surfaced only at task-level validation.
+     Solution: process remedy, no code change: re-run the complete validator after the fixes; record in the knowledge base that a change which moves lines in a ledger-pinned file refreshes the ledger in the same change.
+     Priority: important
+[5]. `validate` refusal sentence
+     Problem: `validate` exiting 6 prints no no-bypass sentence although the specification names exit 6 without limiting it to writes.
+     Solution: align the specification wording or the tool.
+     Priority: optional
+[6]. Quadratic parse time on long blank runs
+     Problem: a long run of blank lines followed by a continuation line makes reads quadratic (16,000 blank lines take about 16 s).
+     Solution: scan blank runs once.
+     Priority: optional
+[7]. Read-only state file is replaced
+     Problem: a state file with mode 0444 is still replaced because the rename needs only directory permission; ownership is not kept.
+     Solution: state it in the manual's limits or refuse.
+     Priority: optional
+[8]. Dead fields in the document model
+     Problem: two stored fields are never read.
+     Solution: remove them.
+     Priority: optional
+[9]. Blocking open on a swapped-in named pipe; binary mode on Windows reads
+     Problem: the state file is opened without a non-blocking flag, and without a binary flag where the platform distinguishes it.
+     Solution: add the flags.
+     Priority: optional
+[10]. Approved names listed twice in the inventory oracle suite
+     Problem: the four approved additions are held in two places of the oracle suite.
+     Solution: derive one from the other.
+     Priority: optional
+[11]. Static scan misses some process-spawning calls
+     Problem: the suite's static scan would not catch several other spawning or import forms; the tool uses none.
+     Solution: extend the scan.
+     Priority: optional
+[12]. Suite depends on every completed task directory
+     Problem: one case runs the task validator over all completed task directories, so a future completed task that trips it fails this suite.
+     Solution: pin the set or copy fixtures.
+     Priority: optional
+[13]. Long lines in the tool
+     Problem: seven lines exceed 100 characters.
+     Solution: re-wrap.
+     Priority: optional
+
+### Approved
+- [1] Identity ledger alignment — critical
+- [2] Arguments that are not valid UTF-8 — important
+- [3] `set` on a field with continuation lines — important
+- [4] Complete validator not run before the stack tip — important; process remedy applied by the orchestrator (complete validator re-run after the fixes, knowledge note), no fix-task
+
+### Deferred
+- [5]–[13] — deferred: optional; kept with the pending improvement proposals for review after delivery
+
+## Fix-Tasks
+fixes-created: complete
+fixes-count: 3
+Created: T-11-fix-identity-ledger-line, T-12-fix-non-utf8-arguments, T-13-fix-set-continuation-refusal
+
+### Fix Classification
+| Issue | Severity | Gate 1 | Gate 2 | Gate 3 | Gate 4 | Grouping | Branch |
+|-------|----------|--------|--------|--------|--------|----------|--------|
+| #1 Identity ledger alignment | critical | pass | pass | pass | pass | dedicated | T-11-fix-identity-ledger-line |
+| #2 Arguments that are not valid UTF-8 | important | fail | pass | pass | pass | dedicated | T-12-fix-non-utf8-arguments |
+| #3 `set` on a field with continuation lines | important | fail | fail | pass | pass | dedicated | T-13-fix-set-continuation-refusal |
+
+Gate notes: #1 is dedicated because it is critical. #2 and #3 each touch the tool, the suite and four pinned fixture files (more than three files); #3 also adds a refusal rule. Issue #4 is a process remedy applied by the orchestrator and has no fix-task.
 
 ## Model Selection
 selection: complete
@@ -654,3 +962,22 @@ actual model and actual reasoning: unknown until separately observed execution e
 - Readability: the reason text of the reviewed `run_bash` record in `tests/fixtures/validator-runtime/source_guard_exceptions.json` says "two fixed callers"; the helper has three call sites of two forms (the task validator on a fixture, the task validator on a completed task directory, and `-c` with assembled validator fragments). Reword on the next refresh of the manifest.
 - Robustness (tests): `test_rule_states_the_receipts_position_the_tool_writes` requires the paragraph to mention each position field in backticks and not to contain the old sentence; it would accept a paragraph that names both fields with the wrong meaning. Tightening it means pinning rule prose, so it is worth doing only if the sentence changes again.
 - Readability: the anchored definition line in `rules/workflow-globals.md` is followed directly by the entry description, so a markdown renderer joins them into one paragraph; a blank line after the anchored line would separate the definition from its explanation without changing the anchored bytes (the definition check counts the exact line and stays valid).
+
+## Improvement Proposals (T-10)
+
+### Do Now
+- [batch, not applied] Robustness (tests): `test_state_tool_section_tells_a_tracking_consumer_to_rerun_setup_or_edit_by_hand` in `tests/state-tool.py` accepts a paragraph that names only the by-hand route, because the setup script name also appears in the paragraph's parenthesis about new projects (shown on a scratch copy: with the two rerun sentences deleted this test stays green and only the correction test fails, through its warning predicate). Require a sentence of the paragraph that holds both a rerun word and the script name, start from a failing mutation of a scratch manual, and refresh the suite's pinned digests once afterwards.
+- [batch, not applied] Readability (manual): the Limits list of `docs/USAGE.md` section 11 calls the lock "an advisory `fcntl` lock"; the tool takes a `flock` lock through the `fcntl` module (`scripts/state-tool.py:1438`). Say "an advisory `flock` lock (taken through Python's `fcntl` module)" so that the next bullet about a missing `fcntl` module still reads correctly; the frozen limits test needs only the backticked module name.
+- [batch, not applied] Readability (manual): the command list of section 11 shows `--children` and `--note` as optional for `init-block`, but a composite block needs both and refuses `--target-file` (exit 2, `invalid-arguments`; reproduced: `--kind composite` without `--note`). Add one sentence under the command table.
+
+### Do Later
+- Robustness (script behaviour, deferred by the scope decision of the rework): `scripts/setup-new-project.sh` appends the knowledge-base ignore entry in a project that tracks its knowledge base, and the manual now compensates with a removal step. Make the script skip that entry when files under the knowledge-base directory are tracked (for example when `git ls-files` lists any), print why, then shorten the manual paragraph and table row 6 to match; the correction test already derives its expectation from the script, so it follows the change without an amendment.
+- Robustness (script behaviour, predates this subtask): the append loop of `scripts/setup-new-project.sh` does not check that the ignore file ends with a line break and matches existing entries as substrings. Reproduced in disposable projects: an ignore file whose only line is an unterminated `node_modules` becomes `node_modules.ai/` (that directory is no longer ignored and no separate knowledge-base line exists to remove); a file that already holds the six older entries with an unterminated last line ends with `__pycache__/.state-tool.lock`, so the lock file is not ignored and every rerun reports the entry as present; a comment, negation or narrower line that contains an entry suppresses it. Terminate the last line before the first append and compare whole lines; needs its own tests and a refresh of the script's pinned digests.
+- Readability (manual, outside this subtask's sections): the quick reference of `docs/USAGE.md` section 10 lists the tests-status values without `pinned` (`docs/USAGE.md:853`), while the canonical vocabulary line and the tool accept it; update the list together with any contract check that mirrors that line.
+- Readability (knowledge base, for the orchestrator at finalization): the architecture record quotes 10 shell scripts and 30 Python helpers under `scripts/` while the tree tracks 11 and 31, and the environment record lists the seeded ignore entries without the two tool patterns.
+
+### Optional
+- Readability: the reason of the reviewed runner record in `tests/fixtures/validator-runtime/source_guard_exceptions.json` says the ignore check runs in this checkout; the correction test also runs it once on a literal path inside the disposable project (`tests/state-tool.py:4177`, read only, same call site and context digest). Reword on the next refresh of the manifest.
+- Readability (manual): the result-key sentence of section 11 omits `command`, `task`, `block_kind` and, for `get`, `contract_version` and `blocks`; list them or say that the sentence names the keys a caller acts on.
+- Readability (manual): table row 6 of section 5 lists the appended entries without the negation entry for the skills placeholder file that the script also appends; it was already absent before this subtask.
+- Robustness: a directory named like either pattern would have its contents ignored; the shape is implausible and needs no action unless a consumer reports it.
