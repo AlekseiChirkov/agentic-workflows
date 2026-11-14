@@ -1330,10 +1330,14 @@ def receipt_matches(block: Block, operation_id: str, digest: str) -> bool:
 
 
 def input_digest(command: str, block_id: str, inputs: dict[str, Any]) -> str:
-    """First 16 hex characters of SHA-256 over the canonical UTF-8 JSON of an operation."""
+    """First 16 hex characters of SHA-256 over the canonical UTF-8 JSON of an operation.
+    Text that is not valid UTF-8 is digested too, so that the receipt lookup and the revision
+    check run before the content rules refuse it: its surrogate code points are encoded as
+    they stand, which yields bytes no valid input produces, so such an operation never matches
+    a recorded receipt. The bytes of valid text are the same with or without that handler."""
     payload = json.dumps({"command": command, "block_id": block_id, "inputs": inputs},
                          sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256(payload.encode("utf-8", "surrogatepass")).hexdigest()[:16]
 
 
 def write_inputs(command: str, pairs: list[tuple[str, str]], notes: list[str],
