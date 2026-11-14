@@ -1994,6 +1994,13 @@ check "BUGFIX: reproduction precedes the fix" \
 check "BUGFIX: the reproduction becomes the failing test" \
   "$(tr '\n' ' ' < workflows/bugfix.md 2>/dev/null | tr -s ' ' | grep -qi 'reproduction \*is\* the RED test' && echo pass || echo 'bugfix.md does not turn the reproduction into a RED test, so the fix would be unverified and unguarded against regression')"
 
+# ── Group 49: tool-managed receipts ─────────────────────────────────
+check "RECEIPTS: workflow-globals defines state_receipts: on one anchored line and keeps blocks without it valid" \
+  "$([ "$(grep -cxF 'Tool-managed field state_receipts: <operation_id>#<16-hex digest>, … — at most 20 entries, oldest first; written only by scripts/state-tool.py; never edited or removed by hand or by /compress-state.' rules/workflow-globals.md 2>/dev/null)" = 1 ] && grep -qF 'a block without a `state_receipts:` line is valid' rules/workflow-globals.md 2>/dev/null && echo pass || echo 'workflow-globals.md must define state_receipts: on exactly one anchored line and state that a block without it is valid — otherwise the tool-managed field has no canonical definition')"
+
+check "RECEIPTS: the Protected Sections Contract protects state_receipts: lines" \
+  "$(awk '/^## Protected Sections Contract/,/^## Multi-Phase Spec Rules/' rules/workflow-reference.md 2>/dev/null | grep -qE '^- `state_receipts:` lines' && echo pass || echo 'workflow-reference.md Protected Sections Contract does not protect state_receipts: lines — /compress-state could drop the receipts that make a repeated state-tool write idempotent')"
+
 # ── Script path portability smoke checks ────────────────────────────
 test_shell_paths_public_defaults_pass_syntax() {
   local script

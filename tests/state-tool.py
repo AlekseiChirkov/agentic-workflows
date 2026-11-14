@@ -3769,5 +3769,261 @@ class LockMetadataRobustnessTests(RecoveryCase):
                 self.assertEqual(snapshot(self.task), before)
 
 
+CONTRACT_VALIDATOR = ROOT / "scripts" / "validate-contracts.sh"
+TASK_VALIDATOR = ROOT / "scripts" / "validate-task.sh"
+REFERENCE_RULES = ROOT / "rules" / "workflow-reference.md"
+COMPLETED_TASKS = ROOT / ".ai" / "tasks" / "completed"
+RECEIPTS_DEFINITION = (
+    "Tool-managed field state_receipts: <operation_id>#<16-hex digest>, … — at most 20 entries, "
+    "oldest first; written only by scripts/state-tool.py; never edited or removed by hand or by "
+    "/compress-state.")
+READER_RULE = "a block without a `state_receipts:` line is valid"
+PROTECTED_ENTRY = re.compile(r"^- `state_receipts:` lines.*$", re.M)
+DEFINITION_CHECK = ("RECEIPTS: workflow-globals defines state_receipts: on one anchored line and "
+                    "keeps blocks without it valid")
+PROTECTED_CHECK = "RECEIPTS: the Protected Sections Contract protects state_receipts: lines"
+VOCABULARY_CHECK = "RECEIPTS: the state tool vocabulary constants equal the anchored status lines"
+VOCABULARY_CONSTANTS = ("ATOMIC_STATUS_VALUES", "ATOMIC_TESTS_VALUES", "ROLLUP_VALUES",
+                        "INTEGRATION_VALIDATION_VALUES")
+RECEIPTS_TASK_CHECK = "every state_receipts: line has 1 to 20 well-formed entries with unique operation ids"
+ATOMIC_TESTS_MESSAGE = "not-started|red|pinned|green|n-a|failed expected"
+ACCEPTANCE_START = "# ── End public identity smoke checks"
+ACCEPTANCE_END = "hygiene_tracked_tree_result() {"
+FOCUSED_DISPATCH = ('if [ "${1:-}" = --state-tool-only ]; then\n  shift\n'
+                    '  exec python3 "$REPO_ROOT/tests/state-tool.py" "$@"\nfi\n')
+ACCEPTANCE_NAME = "test_state_tool_acceptance"
+
+
+def run_bash(arguments: list[str], cwd: Path) -> ToolResult:
+    """Run bash on a validator script or on fragments copied from the contract validator."""
+    environment = {key: value for key, value in os.environ.items()
+                   if key != "STATE_TOOL_TEST_FAULT"}
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    completed = subprocess.run(["bash", *arguments], capture_output=True, text=True,
+                               cwd=str(cwd), env=environment, timeout=60)
+    return ToolResult(completed.returncode, completed.stdout, completed.stderr)
+
+
+class ContractValidatorCase(unittest.TestCase):
+    """Evaluate single contract-validator statements against a disposable copy of their inputs."""
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.tree = Path(temporary.name)
+        self.source = CONTRACT_VALIDATOR.read_text(encoding="utf-8")
+        for path in (RULES, REFERENCE_RULES, TOOL):
+            target = self.tree / path.relative_to(ROOT)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, target)
+
+    def statement(self, name: str) -> str:
+        head = f'check "{name}" \\\n'
+        self.assertEqual(self.source.count(head), 1, f"validator statement missing: {name}")
+        start = self.source.index(head)
+        return self.source[start:self.source.index("\n", start + len(head)) + 1]
+
+    def helpers(self, statement: str) -> str:
+        """Return the validator functions the statement's expression calls, in call order."""
+        found = []
+        for name in re.findall(r"\$\(([A-Za-z_][A-Za-z_0-9]*)", statement):
+            definitions = re.findall(rf"^{name}\(\) \{{\n.*?^\}}\n", self.source, re.M | re.S)
+            self.assertLessEqual(len(definitions), 1, f"validator function repeated: {name}")
+            found.extend(definitions)
+        return "".join(found)
+
+    def evaluate(self, name: str) -> str:
+        """Return the one result line the validator statement prints in the disposable tree."""
+        statement = self.statement(name)
+        renderer = self.source[self.source.index("check() {"):self.source.index("\n# ── Group 1:")]
+        script = ("PASS=0\nFAIL=0\nSKIP=0\n" + renderer + "\n" + self.helpers(statement)
+                  + statement)
+        result = run_bash(["-c", script], self.tree)
+        self.assertEqual(result.code, 0, result.stderr)
+        lines = result.stdout.splitlines()
+        self.assertEqual(len(lines), 1, result.stdout)
+        return lines[0]
+
+    def passes(self, name: str) -> None:
+        self.assertEqual(self.evaluate(name), f"[PASS] {name}")
+
+    def fails(self, name: str) -> None:
+        self.assertTrue(self.evaluate(name).startswith(f"[FAIL] {name}: "))
+
+    def edit(self, path: Path, old: str, new: str) -> None:
+        """Replace one exact occurrence of old in the disposable copy of path."""
+        target = self.tree / path.relative_to(ROOT)
+        text = target.read_text(encoding="utf-8")
+        self.assertEqual(text.count(old), 1, f"mutation anchor not unique in {path.name}: {old!r}")
+        target.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+    def restore(self, path: Path) -> None:
+        shutil.copyfile(path, self.tree / path.relative_to(ROOT))
+
+
+class ContractValidatorTests(ContractValidatorCase):
+    def test_receipts_definition_passes_on_source_and_fails_without_its_anchored_line(self) -> None:
+        self.passes(DEFINITION_CHECK)
+        line = RECEIPTS_DEFINITION + "\n"
+        mutations = {
+            "anchored line absent": (RULES, line, ""),
+            "anchored line repeated": (RULES, line, line + line),
+            "anchored line altered": (RULES, line, line.replace("at most 20", "at most 21")),
+            "reader rule absent": (RULES, READER_RULE, "a block is read"),
+        }
+        for label, (path, old, new) in mutations.items():
+            with self.subTest(mutation=label):
+                self.restore(path)
+                self.edit(path, old, new)
+                self.fails(DEFINITION_CHECK)
+
+    def test_protected_entry_passes_on_source_and_fails_when_absent_or_outside_the_contract(self) -> None:
+        self.passes(PROTECTED_CHECK)
+        text = REFERENCE_RULES.read_text(encoding="utf-8")
+        entries = PROTECTED_ENTRY.findall(text)
+        self.assertEqual(len(entries), 1, entries)
+        entry = entries[0] + "\n"
+        for label, new in (("entry absent", ""), ("entry renamed", entry.replace("state_receipts", "receipts"))):
+            with self.subTest(mutation=label):
+                self.restore(REFERENCE_RULES)
+                self.edit(REFERENCE_RULES, entry, new)
+                self.fails(PROTECTED_CHECK)
+        with self.subTest(mutation="entry outside the contract"):
+            self.restore(REFERENCE_RULES)
+            self.edit(REFERENCE_RULES, entry, "")
+            target = self.tree / REFERENCE_RULES.relative_to(ROOT)
+            target.write_text(target.read_text(encoding="utf-8") + "\n" + entry, encoding="utf-8")
+            self.fails(PROTECTED_CHECK)
+
+    def test_vocabulary_constants_pass_on_source_and_fail_on_any_value_or_order_drift(self) -> None:
+        self.passes(VOCABULARY_CHECK)
+        tool_text = TOOL.read_text(encoding="utf-8")
+        for name in VOCABULARY_CONSTANTS:
+            lines = re.findall(rf"^{name} = \(.*\)$", tool_text, re.M)
+            self.assertEqual(len(lines), 1, name)
+            values = ast.literal_eval(lines[0].split(" = ", 1)[1])
+            for label, changed in (("last value dropped", values[:-1]),
+                                   ("first two values swapped", (values[1], values[0], *values[2:]))):
+                with self.subTest(constant=name, mutation=label):
+                    self.restore(TOOL)
+                    self.edit(TOOL, lines[0] + "\n", f"{name} = {changed!r}\n")
+                    self.fails(VOCABULARY_CHECK)
+        self.restore(TOOL)
+        anchor = "Status values for `rollup`: `not-started` | `in-progress` | `done` | `blocked`."
+        with self.subTest(mutation="anchored line gained a value"):
+            self.edit(RULES, anchor, anchor[:-1] + " | `paused`.")
+            self.fails(VOCABULARY_CHECK)
+
+
+class ValidatorRegistrationTests(unittest.TestCase):
+    def test_focused_mode_and_default_registration_run_this_suite(self) -> None:
+        source = CONTRACT_VALIDATOR.read_text(encoding="utf-8")
+        self.assertEqual(source.count(FOCUSED_DISPATCH), 1, "focused --state-tool-only mode missing")
+        self.assertLess(source.index(FOCUSED_DISPATCH), source.index('if [ "$#" -gt 0 ]; then'))
+        functions = re.findall(rf"^{ACCEPTANCE_NAME}\(\) \{{\n.*?^\}}\n", source, re.M | re.S)
+        self.assertEqual(len(functions), 1, "acceptance function missing")
+        self.assertIn('python3 "$REPO_ROOT/tests/state-tool.py"', functions[0])
+        head = (f'check "{ACCEPTANCE_NAME}" \\\n'
+                f'  "$({ACCEPTANCE_NAME} && echo pass || echo \'')
+        self.assertEqual(source.count(head), 1, "default-run registration missing")
+        position = source.index(head)
+        self.assertLess(source.index(ACCEPTANCE_START), position)
+        self.assertLess(position, source.index(ACCEPTANCE_END))
+        self.assertLess(source.index(functions[0]), position)
+
+
+def task_state(*blocks: str, progress: bool = True, preamble: str = "") -> str:
+    """Return a task state.md that the task validator reads as a conforming full-tier task."""
+    text = ("spec_path: .ai/specs/demo.md\nflow: full\n\n## Phases\n- discovery: in-progress\n"
+            "- execution: not-started\n- validation: not-started\n\n" + preamble)
+    if progress:
+        text += "## Subtask Progress\n\n" + "\n".join(blocks)
+    return text
+
+
+def receipts_leaf(block_id: str, value: str | None, notes: str = "  notes:\n") -> str:
+    receipts_line = "" if value is None else f"  state_receipts:{' ' + value if value else ''}\n"
+    return leaf(block_id, body=f"  last_action:\n  target_files:\n  blocker: none\n{notes}{receipts_line}")
+
+
+class TaskValidatorReceiptsTests(StateToolCase):
+    def validate_task(self, text: str) -> ToolResult:
+        self.write_state(text)
+        return run_bash([str(TASK_VALIDATOR), str(self.task)], self.base)
+
+    def rejected(self, text: str) -> None:
+        result = self.validate_task(text)
+        self.assertEqual(result.code, 1, result.stdout)
+        self.assertIn(f"[FAIL] {RECEIPTS_TASK_CHECK}: ", result.stdout)
+
+    def accepted(self, text: str) -> None:
+        result = self.validate_task(text)
+        self.assertEqual(result.code, 0, result.stdout)
+        self.assertIn(f"[PASS] {RECEIPTS_TASK_CHECK}\n", result.stdout)
+
+    def test_receipts_line_with_twenty_one_entries_fails(self) -> None:
+        self.rejected(task_state(receipts_leaf("T-01", receipts(21))))
+
+    def test_malformed_receipt_entries_fail(self) -> None:
+        digest = "0123456789abcdef"
+        cases = {"uppercase digest": "op-1#0123456789ABCDEF",
+                 "short digest": "op-1#0123456789abcde",
+                 "long digest": "op-1#0123456789abcdef0",
+                 "missing separator": "op-1" + digest,
+                 "two separators": f"op-1#{digest}#{digest}",
+                 "identifier starts with punctuation": f"-op#{digest}",
+                 "identifier with a space": f"op 1#{digest}",
+                 "identifier over 64 characters": "A" * 65 + f"#{digest}",
+                 "entries joined without a space": f"op-1#{digest},op-2#{digest}",
+                 "trailing separator": f"op-1#{digest}, ",
+                 "empty value": "",
+                 "malformed entry after a valid one": f"op-1#{digest}, op-2#xyz"}
+        for label, value in cases.items():
+            with self.subTest(case=label):
+                self.rejected(task_state(receipts_leaf("T-01", value)))
+
+    def test_repeated_operation_id_fails(self) -> None:
+        value = "op-1#0123456789abcdef, op-2#0123456789abcdef, op-1#fedcba9876543210"
+        self.rejected(task_state(receipts_leaf("T-01", value)))
+
+    def test_bad_receipts_in_any_block_fail_even_when_another_block_is_well_formed(self) -> None:
+        self.rejected(task_state(receipts_leaf("T-01", receipts(3)),
+                                 receipts_leaf("T-02", "op-1#0123456789abcdef, op-1#0123456789abcdef")))
+
+    def test_well_formed_receipts_pass(self) -> None:
+        composite = (COMPOSITE_T02.rstrip("\n").replace("  notes:", "  notes: composite rationale")
+                     + "\n  state_receipts: init.T-02#00000000000000ff\n")
+        prose = ("  notes: receipts are tool-managed\n"
+                 "         state_receipts: x is how the field begins, not a field line\n")
+        self.accepted(task_state(receipts_leaf("T-01", receipts(20)), composite,
+                                 receipts_leaf("T-03", "A" + "b" * 62 + "9#0123456789abcdef"),
+                                 receipts_leaf("T-04", None, notes=prose)))
+
+    def test_task_without_receipts_passes(self) -> None:
+        self.accepted(task_state(receipts_leaf("T-01", None), receipts_leaf("T-02", None)))
+
+    def test_task_without_progress_section_ignores_receipts_text(self) -> None:
+        preamble = "## Task Analysis\n  state_receipts: not a block field\n\n"
+        result = self.validate_task(task_state(progress=False, preamble=preamble))
+        self.assertEqual(result.code, 0, result.stdout)
+        self.assertNotIn("state_receipts", result.stdout)
+
+    def test_atomic_tests_vocabulary_message_names_all_six_values(self) -> None:
+        text = task_state(receipts_leaf("T-01", None)).replace("atomic-tests: not-started",
+                                                               "atomic-tests: bogus")
+        result = self.validate_task(text)
+        self.assertEqual(result.code, 1, result.stdout)
+        self.assertIn(f"[FAIL] atomic-tests: uses the canonical vocabulary: {ATOMIC_TESTS_MESSAGE}",
+                      result.stdout)
+
+    def test_completed_task_directories_still_conform(self) -> None:
+        directories = sorted(path for path in COMPLETED_TASKS.iterdir() if (path / "state.md").is_file())
+        self.assertTrue(directories)
+        for directory in directories:
+            with self.subTest(task=directory.name):
+                result = run_bash([str(TASK_VALIDATOR), str(directory)], ROOT)
+                self.assertEqual(result.code, 0, result.stdout[-2000:])
+
+
 if __name__ == "__main__":
     unittest.main()
