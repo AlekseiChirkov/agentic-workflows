@@ -3262,6 +3262,206 @@ class MalformedReceiptsWriteTests(ReceiptCase):
             self.assert_unchanged_after_refusal(after)
 
 
+# Byte sequences that are not valid UTF-8. The operating system hands argument bytes to the
+# tool unchanged, and the tool's interpreter carries each such byte as a lone surrogate escape.
+INVALID_UTF8_BYTES = {"a byte no sequence may hold": b"\xff",
+                      "a truncated sequence": b"\xc3",
+                      "an encoded surrogate": b"\xed\xb3\xbf",
+                      "a continuation byte alone": b"caf\x80 x"}
+# Receipts as an earlier version of the tool recorded them for valid inputs with text outside
+# ASCII; each digest is a literal, so it does not follow a change to how digests are computed.
+EARLIER_RECEIPTS = {
+    "set": ("T-01", "earlier-set#585f438914844999",
+            ("--field", "last_action=naïve café — done", "--field", "blocker=wartet auf Prüfung",
+             "--note", "заметка")),
+    "append-note": ("T-01", "earlier-note#9337b78b81f029eb",
+                    ("--note", "first ✓", "--note", "second")),
+    "add-file": ("T-01", "earlier-file#bf03f5fccdaf0371",
+                 ("--path", "docs/über.md", "--path", "a.sh")),
+    "init-block": ("T-05", "earlier-block#bd78147907c8c0db",
+                   ("--kind", "leaf", "--name", "Öffnung", "--target-file", "src/ü.py",
+                    "--note", "日本語"))}
+
+
+def argument_with(data: bytes) -> str:
+    """Text that reaches a subprocess as exactly the given argument bytes."""
+    text = os.fsdecode(data)
+    assert os.fsencode(text) == data
+    return text
+
+
+def invalid_text_writes(invalid: str) -> dict[str, tuple[str, str, tuple[str, ...], str]]:
+    """Each text input of each write command carrying the invalid text: the command, its
+    target block, its options and the content error code that refuses it."""
+    return {
+        "set field value": ("set", "T-01", ("--field", f"last_action=done {invalid}"),
+                            "invalid-value"),
+        "set note": ("set", "T-01", ("--field", "last_action=done", "--note", f"note {invalid}"),
+                     "invalid-value"),
+        "append-note note": ("append-note", "T-01", ("--note", f"note {invalid}"),
+                             "invalid-value"),
+        "add-file path": ("add-file", "T-01", ("--path", f"src/{invalid}.py"), "invalid-path"),
+        "init-block name": ("init-block", "T-05", ("--kind", "leaf", "--name", f"Name {invalid}"),
+                            "invalid-value"),
+        "init-block target file": ("init-block", "T-05",
+                                   ("--kind", "leaf", "--name", "Demo",
+                                    "--target-file", f"src/{invalid}.py"), "invalid-path"),
+        "init-block note": ("init-block", "T-05",
+                            ("--kind", "leaf", "--name", "Demo", "--note", f"note {invalid}"),
+                            "invalid-value")}
+
+
+class InvalidUtf8ArgumentTests(ReceiptCase):
+    """Write commands given text that is not valid UTF-8: the receipt lookup and the revision
+    check come first, as for any input, and then the content rules refuse the text."""
+
+    def content_refusal(self, result: ToolResult, command: str, error: str) -> None:
+        document = self.refused_by(result, command, 6, error)
+        self.assertEqual([item["code"] for item in document["errors"]], [error], result.stdout)
+        self.assertIn("UTF-8", document["errors"][0]["message"])
+        self.assertIn(REFUSAL_SENTENCE, result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_text_that_is_not_valid_utf8_is_refused_by_the_content_rules(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        before = self.files_without_lock()
+        invalid = argument_with(INVALID_UTF8_BYTES["a byte no sequence may hold"])
+        for label, (command, block_id, options, error) in invalid_text_writes(invalid).items():
+            with self.subTest(case=label):
+                result = self.write(command, *options, block=block_id)
+
+                self.content_refusal(result, command, error)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_every_kind_of_invalid_byte_sequence_is_refused_alike(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        before = self.files_without_lock()
+        for label, data in INVALID_UTF8_BYTES.items():
+            invalid = argument_with(data)
+            cases = {"note": ("append-note", ("--note", invalid), "invalid-value"),
+                     "path": ("add-file", ("--path", invalid), "invalid-path")}
+            for kind, (command, options, error) in cases.items():
+                with self.subTest(sequence=label, input=kind):
+                    result = self.write(command, *options)
+
+                    self.content_refusal(result, command, error)
+                    self.assert_unchanged_after_refusal(before)
+
+    def test_invalid_text_at_a_stale_revision_is_a_revision_conflict(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        before = self.files_without_lock()
+        invalid = argument_with(INVALID_UTF8_BYTES["a byte no sequence may hold"])
+        for label, (command, block_id, options, _) in invalid_text_writes(invalid).items():
+            with self.subTest(case=label):
+                result = self.write(command, *options, block=block_id, revision=ZERO_REVISION)
+
+                self.refused_by(result, command, 4, "revision-conflict")
+                self.assertIn(REFUSAL_SENTENCE, result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_repeat_of_a_refused_call_is_refused_again_and_records_no_receipt(self) -> None:
+        invalid = argument_with(INVALID_UTF8_BYTES["a byte no sequence may hold"])
+        for label, (command, block_id, options, error) in invalid_text_writes(invalid).items():
+            with self.subTest(case=label):
+                task = self.task_copy("task-" + label.replace(" ", "-"), RECEIPT_STATE)
+                before = self.files_without_lock(task)
+
+                for _ in ("first", "repeat"):
+                    result = self.write(command, *options, block=block_id, task=task)
+
+                    self.content_refusal(result, command, error)
+                    self.assert_untouched(task, before)
+
+                valid = REPEATABLE_WRITES[command][1]
+                self.applied_once(self.write(command, *valid, block=block_id, task=task))
+                self.assertEqual(self.state(task).count("  state_receipts: "), 1)
+
+    def test_one_invalid_text_among_valid_inputs_refuses_the_whole_call(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        before = self.files_without_lock()
+        invalid = argument_with(INVALID_UTF8_BYTES["a truncated sequence"])
+        cases = {
+            "second of three notes": (
+                "append-note", "T-01", ("--note", "first", "--note", invalid, "--note", "third"),
+                "invalid-value"),
+            "second of two field values": (
+                "set", "T-01", ("--field", "last_action=done", "--field", f"blocker={invalid}"),
+                "invalid-value"),
+            "note after a valid field and a valid note": (
+                "set", "T-01", ("--field", "last_action=done", "--note", "fine",
+                                "--note", invalid), "invalid-value"),
+            "path after a valid path": (
+                "add-file", "T-01", ("--path", "a.sh", "--path", f"b{invalid}.sh"),
+                "invalid-path"),
+            "target file after a valid name and note": (
+                "init-block", "T-05", ("--kind", "leaf", "--name", "Demo", "--note", "fine",
+                                       "--target-file", "a.sh", "--target-file", invalid),
+                "invalid-path")}
+        for label, (command, block_id, options, error) in cases.items():
+            with self.subTest(case=label):
+                result = self.write(command, *options, block=block_id)
+
+                self.content_refusal(result, command, error)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_reused_operation_id_with_invalid_text_is_an_operation_conflict(self) -> None:
+        invalid = argument_with(INVALID_UTF8_BYTES["a byte no sequence may hold"])
+        reuses = {"set": ("--field", f"last_action={invalid}"),
+                  "append-note": ("--note", invalid),
+                  "add-file": ("--path", invalid),
+                  "init-block": ("--kind", "leaf", "--name", invalid)}
+        for command, (block_id, first, _) in REPEATABLE_WRITES.items():
+            task = self.task_copy(f"task-{command}", RECEIPT_STATE)
+            initial = file_revision(task / "state.md")
+            self.applied_once(self.write(command, *first, block=block_id, task=task))
+            before = self.files_without_lock(task)
+            for label, revision in {"stale": initial,
+                                    "current": file_revision(task / "state.md")}.items():
+                with self.subTest(command=command, revision=label):
+                    result = self.write(command, *reuses[command], block=block_id,
+                                        revision=revision, task=task)
+
+                    self.conflict(result, command)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assert_untouched(task, before)
+
+    def test_existing_id_with_an_invalid_name_is_judged_like_any_existing_id(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        stale = file_revision(self.task / "state.md")
+        self.applied_once(self.init_block("T-05", "leaf", "Demo"))
+        before = self.files_without_lock()
+        invalid = argument_with(INVALID_UTF8_BYTES["a byte no sequence may hold"])
+        cases = {"stale revision": (stale, (4, "revision-conflict")),
+                 "current revision": (file_revision(self.task / "state.md"),
+                                      (6, "block-exists"))}
+        for label, (revision, refusal) in cases.items():
+            with self.subTest(case=label):
+                result = self.init_block("T-05", "leaf", invalid, revision=revision,
+                                         operation_id="op-other")
+
+                self.init_refused(result, *refusal)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_receipts_recorded_for_valid_inputs_are_still_recognised(self) -> None:
+        recorded = ", ".join(entry for block_id, entry, _ in EARLIER_RECEIPTS.values()
+                             if block_id == "T-01")
+        self.write_state(state_text(
+            leaf("T-01", body=leaf_body(extra=f"  state_receipts: {recorded}\n")),
+            leaf("T-05", body=leaf_body(
+                extra=f"  state_receipts: {EARLIER_RECEIPTS['init-block'][1]}\n"))))
+        before = self.files_without_lock()
+        for command, (block_id, entry, options) in EARLIER_RECEIPTS.items():
+            with self.subTest(command=command):
+                result = self.write(command, *options, block=block_id, revision=ZERO_REVISION,
+                                    operation_id=entry.partition("#")[0])
+
+                self.already_applied(result, command, block_id, "leaf",
+                                     operation_id=entry.partition("#")[0])
+                self.assert_unchanged_after_refusal(before)
+
+
 # The helper takes the lock on an existing lock file, reports it on stdout and keeps it until it
 # is killed or its standard input is closed, so it never outlives the test that started it.
 LOCK_HOLDER_SOURCE = (
