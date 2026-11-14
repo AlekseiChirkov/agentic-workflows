@@ -24,7 +24,7 @@ SPEC.loader.exec_module(ORACLE)
 FROZEN_INVENTORY_SHA256 = "57f7872d3525f608b57b29410792e2e02106542f28456f806319e2e7065557a1"
 
 
-AMENDMENT_SHA256 = "a54ae236dfb95ec9f73a3b54e239b0d05ff41eb25181a47d7022e384ff375815"
+AMENDMENT_SHA256 = "69037d9229bf51f25043ae4e3ed5fb79204429e93ac27e576758e1b1a728fbd0"
 APPROVED_PATHS = frozenset({
     "scripts/model-catalog.py", "scripts/model_selection.py", "tests/model-plan.py",
     "tests/usage-observation-bundle-schema.py", "tests/usage-status-large-authority.py",
@@ -44,9 +44,61 @@ APPROVED_PATHS = frozenset({
 })
 
 
+# The one approved extension of the frozen inventory, by name: the state tool contract
+# results, its acceptance result, focused mode and resource row. Each entry is inserted
+# directly after its anchor; any other addition, rename or omission is rejected.
+ADDED_NAMES = {
+    "results": [
+        "RECEIPTS: workflow-globals defines state_receipts: on one anchored line and keeps blocks without it valid",
+        "RECEIPTS: the Protected Sections Contract protects state_receipts: lines",
+        "RECEIPTS: the state tool vocabulary constants equal the anchored status lines",
+        "test_state_tool_acceptance",
+    ],
+    "expressions": ["test_state_tool_acceptance"],
+    "focused": ["--state-tool-only"],
+    "resources": ["test_state_tool_acceptance"],
+}
+ADDED_RESOURCE_PATHS = frozenset({"scripts/state-tool.py", "tests/state-tool.py"})
+
+
+def add_named_entries(amended: dict, added: dict) -> None:
+    """Insert exactly the approved named entries into the amended inventory in place."""
+    if not isinstance(added, dict) or set(added) != set(ADDED_NAMES):
+        raise ValueError("Invalid amendment additions")
+    for section, names in ADDED_NAMES.items():
+        key = "flag" if section == "focused" else "name"
+        items, target = added[section], amended[section]
+        if (not isinstance(items, list)
+                or any(not isinstance(item, dict) or set(item) != {"after", "value"}
+                       or not isinstance(item["value"], dict) or set(item["value"]) != set(target[0])
+                       for item in items)
+                or [item["value"][key] for item in items] != names):
+            raise ValueError("Unexpected added entries")
+        for item in items:
+            if any(entry[key] == item["value"][key] for entry in target):
+                raise ValueError("Added entry already exists")
+            anchors = [index for index, entry in enumerate(target)
+                       if (entry if section == "results" else entry[key]) == item["after"]]
+            if len(anchors) != 1:
+                raise ValueError("Added entry anchor is missing or repeated")
+            target.insert(anchors[0] + 1, copy.deepcopy(item["value"]))
+    name = ADDED_NAMES["expressions"][0]
+    result = next(entry for entry in amended["results"] if entry["name"] == name)
+    expression = next(entry for entry in amended["expressions"] if entry["name"] == name)
+    if result["expression"] != expression["expression"]:
+        raise ValueError("Added acceptance expression differs")
+    row = next(entry for entry in amended["resources"] if entry["name"] == name)
+    paths = {item["path"] for item in row["source_references"] + row["dynamic_dependencies"]}
+    paths |= {item["path"] for values in row["observations"].values() for item in values}
+    paths |= {path for item in row["dynamic_dependencies"]
+              for field in ("target_candidates", "callsite_candidates") for path in item.get(field, [])}
+    if not paths or not paths <= ADDED_RESOURCE_PATHS:
+        raise ValueError("Added resource path is not approved")
+
+
 def apply_amendment(frozen: dict, amendment: dict) -> dict:
     """Apply exact approved test-resource changes to a copy of the frozen inventory."""
-    if set(amendment) != {"schema", "paths", "removed_results", "resources"}:
+    if set(amendment) != {"schema", "paths", "removed_results", "resources", "added"}:
         raise ValueError("Invalid amendment fields")
     if amendment["schema"] != 1 or amendment["paths"] != sorted(APPROVED_PATHS):
         raise ValueError("Invalid amendment scope")
@@ -89,6 +141,7 @@ def apply_amendment(frozen: dict, amendment: dict) -> dict:
                 raise ValueError("Frozen resource differs")
             items[:] = sorted([item for item in items if item["path"] != path] + copy.deepcopy(after),
                               key=lambda item: (item["path"], item.get("line", 0)))
+    add_named_entries(amended, amendment["added"])
     return amended
 
 

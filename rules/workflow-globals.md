@@ -243,6 +243,16 @@ T-XX subdirectories no longer contain their own `state.md` or `plan.md`. All ato
 - `notes:` in a composite block MUST include the classifier rationale (which signals fired).
 - `/compress-state` must NOT remove or summarize composite block headers or field lines.
 
+**Tool-managed receipts (leaf and composite blocks):**
+Tool-managed field state_receipts: <operation_id>#<16-hex digest>, … — at most 20 entries, oldest first; written only by scripts/state-tool.py; never edited or removed by hand or by /compress-state.
+Each entry is `<operation_id>#<digest>`: the operation id matches `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, the
+digest is 16 lowercase hexadecimal characters, entries are separated by `, `, and an operation id
+appears at most once on the line. The line follows the block's last `notes:` group. The receipts
+let the tool recognise a repeated write and apply it only once.
+**Backward compatibility (required of every reader):** a block without a `state_receipts:` line is valid.
+The tool creates the line with the first write it applies to a block; existing blocks are never
+migrated, and a reader that does not know the field treats it as an unknown field.
+
 ---
 
 **Fix-task progress blocks:**

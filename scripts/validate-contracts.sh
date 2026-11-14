@@ -345,6 +345,12 @@ if [ "${1:-}" = --git-rails-only ]; then
   exec bash "$REPO_ROOT/tests/git-rails.sh" "$@"
 fi
 
+# Run the state tool acceptance suite against disposable task fixtures.
+if [ "${1:-}" = --state-tool-only ]; then
+  shift
+  exec python3 "$REPO_ROOT/tests/state-tool.py" "$@"
+fi
+
 # Resolve private patterns from an explicit local override or user config. Keep the
 # pattern file outside the repository so it does not publish the identifiers it guards.
 hygiene_patterns_path() {
@@ -1994,12 +2000,55 @@ check "BUGFIX: reproduction precedes the fix" \
 check "BUGFIX: the reproduction becomes the failing test" \
   "$(tr '\n' ' ' < workflows/bugfix.md 2>/dev/null | tr -s ' ' | grep -qi 'reproduction \*is\* the RED test' && echo pass || echo 'bugfix.md does not turn the reproduction into a RED test, so the fix would be unverified and unguarded against regression')"
 
-# ── Group 49: tool-managed receipts ─────────────────────────────────
+# ── Group 49: tool-managed receipts and the state tool vocabulary ────
+# The state tool enforces the status vocabularies through its own constants. A value added
+# to an anchored line but not to the tool, or the reverse, would make the tool refuse a legal
+# status or accept an undefined one, so values and their order are compared, not mentions.
+state_tool_vocabulary_matches_rules() {
+  python3 -B - <<'PYSTATEVOCABULARY'
+import ast
+import re
+import sys
+from pathlib import Path
+
+anchors = (
+    ("ATOMIC_STATUS_VALUES", "Status values for atomic-execution / atomic-validation:"),
+    ("ATOMIC_TESTS_VALUES", "Status values for `atomic-tests`:"),
+    ("ROLLUP_VALUES", "Status values for `rollup`:"),
+    ("INTEGRATION_VALIDATION_VALUES", "Status values for `integration-validation`:"),
+)
+rule_lines = Path("rules/workflow-globals.md").read_text(encoding="utf-8").splitlines()
+tool = ast.parse(Path("scripts/state-tool.py").read_text(encoding="utf-8"))
+problems = []
+for name, anchor in anchors:
+    lines = [line for line in rule_lines if line.startswith(anchor)]
+    assignments = [node for node in tool.body if isinstance(node, ast.Assign)
+                   and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
+                   and node.targets[0].id == name]
+    if len(lines) != 1 or len(assignments) != 1:
+        problems.append(f"{name}: expected one anchored line and one module-level assignment")
+        continue
+    expected = tuple(re.findall(r"`([a-z-]+)`", lines[0][len(anchor):]))
+    try:
+        actual = ast.literal_eval(assignments[0].value)
+    except (ValueError, TypeError, SyntaxError):
+        actual = None
+    if actual != expected:
+        problems.append(f"{name} is {actual!r}; its anchored line lists {expected!r}")
+for problem in problems:
+    print(problem, file=sys.stderr)
+sys.exit(1 if problems else 0)
+PYSTATEVOCABULARY
+}
+
 check "RECEIPTS: workflow-globals defines state_receipts: on one anchored line and keeps blocks without it valid" \
   "$([ "$(grep -cxF 'Tool-managed field state_receipts: <operation_id>#<16-hex digest>, … — at most 20 entries, oldest first; written only by scripts/state-tool.py; never edited or removed by hand or by /compress-state.' rules/workflow-globals.md 2>/dev/null)" = 1 ] && grep -qF 'a block without a `state_receipts:` line is valid' rules/workflow-globals.md 2>/dev/null && echo pass || echo 'workflow-globals.md must define state_receipts: on exactly one anchored line and state that a block without it is valid — otherwise the tool-managed field has no canonical definition')"
 
 check "RECEIPTS: the Protected Sections Contract protects state_receipts: lines" \
   "$(awk '/^## Protected Sections Contract/,/^## Multi-Phase Spec Rules/' rules/workflow-reference.md 2>/dev/null | grep -qE '^- `state_receipts:` lines' && echo pass || echo 'workflow-reference.md Protected Sections Contract does not protect state_receipts: lines — /compress-state could drop the receipts that make a repeated state-tool write idempotent')"
+
+check "RECEIPTS: the state tool vocabulary constants equal the anchored status lines" \
+  "$(state_tool_vocabulary_matches_rules && echo pass || echo 'scripts/state-tool.py vocabulary constants must list the values of their anchored lines in rules/workflow-globals.md, in the same order')"
 
 # ── Script path portability smoke checks ────────────────────────────
 test_shell_paths_public_defaults_pass_syntax() {
@@ -4535,7 +4584,7 @@ test_contract_version_rule_history_warns_until_version_changes() (
   # Keep the real startup and warning code, stopping before ordinary checks.
   # The previous fixture copied the complete tree and ran the validator three
   # times; only warning and exit behavior is relevant to this history check.
-  expected_prefix_sha256='3f3fbbe09cf5c8578763e01f4b818a5d7c5d29093a5dc705c31b815e7f4f35e1'
+  expected_prefix_sha256='dc5f5684b764be02aaacaa873d5838f4f506eb4d429b1fb8d8414dacb3f1e324'
   write_contract_warning_prefix() {
     python3 - "$1" "$2" "$expected_prefix_sha256" <<'PYWARNING'
 from pathlib import Path
@@ -5234,6 +5283,17 @@ test_user_hook_installation_acceptance() {
 }
 check "test_user_hook_installation_acceptance" \
   "$(test_user_hook_installation_acceptance && echo pass || echo 'owned user hook lifecycle and isolated deployment fixtures must pass')"
+
+# ── State tool acceptance ───────────────────────────────────────────
+test_state_tool_acceptance() {
+  local output
+  output="$(python3 "$REPO_ROOT/tests/state-tool.py" 2>&1)" || {
+    printf '%s\n' "$output" | tail -n 35
+    return 1
+  }
+}
+check "test_state_tool_acceptance" \
+  "$(test_state_tool_acceptance && echo pass || echo 'state tool reads, guarded writes, receipts, lock and recovery fixtures must pass')"
 
 hygiene_tracked_tree_result() {
   local pattern_file pattern_status=0
