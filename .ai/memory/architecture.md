@@ -301,8 +301,13 @@ the header fields they change (no downgrade of the `atomic-tests` rank, `pinned`
 `green`, `green` only from `red` or `pinned`, justified `n-a`, completion preconditions,
 the pre-TDD start guard); a rule already broken in an unchanged field never blocks the
 write and is reported as `pre-existing-violation` (`required-field-missing` for a missing
-required field). `init-block`, receipt
-lookup, the receipt cap and lock-busy details are planned. The suite `tests/state-tool.py` runs
+required field). `init-block` inserts a new leaf
+or composite block with its canonical initial lines after the last non-blank line of the
+section (fence lines included; directly after the heading when the section holds nothing
+else, otherwise after one blank line), refuses an existing id and never changes an
+existing block; a block that would not read back, for example inside an unclosed fence,
+exits 1 with nothing written. Receipt lookup, the receipt cap and lock-busy details are
+planned. The suite `tests/state-tool.py` runs
 directly; validator registration and the exact oracle extension come with the
 receipts-grammar change.
 Planned by task 07: an optional standard-library helper

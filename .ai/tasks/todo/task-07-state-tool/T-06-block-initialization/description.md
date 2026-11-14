@@ -30,11 +30,14 @@ existing block; `children:` is written at creation only; no file under `workflow
 
 ## Steps
 1. Add failing suite cases for the criteria below.
-2. Validate arguments (exit 2 `invalid-arguments`): `--kind leaf|composite`, non-empty
-   `--name` without `|`; `--kind composite` without `--children` or without `--note`;
+2. Validate arguments (exit 2 `invalid-arguments`): `--kind leaf|composite`, a missing
+   `--name` option; `--kind composite` without `--children` or without `--note`;
    `--target-file` with `--kind composite`; `--children` with `--kind leaf`; `--children`
    split on `,` with no surrounding spaces, each item matching the block-id pattern, no
    empty item, no repeated item, not the block's own id.
+   The content of `--name` is a value rule, checked with the other value rules after the
+   revision check: an empty name, a name containing `|`, or one containing CR, LF or NUL
+   exits 6 `invalid-value`.
 3. Build the canonical lines — leaf: header with the three statuses `not-started`,
    `  last_action:`, `  target_files: <paths joined by ", ">`, `  blocker: none`,
    `  notes: <first note>` plus 9-space continuation lines, `  state_receipts: <entry>`;
@@ -60,6 +63,11 @@ existing block; `children:` is written at creation only; no file under `workflow
   `invalid-arguments`.
 - `--children T-01a,,T-01b`, `--children T-01a,T-01a` and `--children "T-01a, T-01b"`
   exit 2.
+- An empty `--name`, a name containing `|`, and a name containing a line feed each exit 6
+  `invalid-value` with the fixture unchanged; a missing `--name` option exits 2.
+- When the section's last non-blank line lies inside a fence that is never closed, the
+  command exits 1 `internal-error`, prints one JSON object, and leaves the fixture
+  unchanged with no temporary file.
 - An applied composite `init-block --children T-06a,T-06b --note "two components"` writes
   the `[composite]` header, `  children: T-06a, T-06b`, `  blocker: none`, the note and a
   `state_receipts:` line; `get --block` on it reports `block_kind` `composite`.
@@ -75,6 +83,8 @@ existing block; `children:` is written at creation only; no file under `workflow
   - Heading-only section → block directly after the heading.
   - Existing id, missing section → exit 6 / exit 3, unchanged.
   - Invalid kind combinations and children lists → exit 2.
+  - Invalid name content → exit 6; missing name option → exit 2.
+  - Unclosed fence at the end of the section → exit 1, nothing written.
   - Composite creation → canonical lines and reported kind.
   - Repeated target file, no note → single entry, bare `notes:` line.
   - `changed_fields` and follow-up `validate` → full list, exit 0.
