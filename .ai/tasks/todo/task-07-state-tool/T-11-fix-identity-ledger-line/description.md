@@ -3,7 +3,7 @@ The repository's identity ledger records the manual's clone command on its curre
 
 ## Context
 - Dependencies: T-10 — its manual change moved the recorded occurrence from line 254 to line 255 of `docs/USAGE.md`.
-- Constraints: the ledger lives in the completed task record `.ai/tasks/completed/task-01-git-source-of-truth/state.md` under `### Exact Identity Match Ledger`; the identity check reads only the ledger rows. That file is a shared knowledge record: under the orchestrated run only the orchestrator writes it, so the change is applied by the orchestrator as a shared-file delta, not by a worker. Later fixes in this task must not insert lines above the recorded occurrence in `docs/USAGE.md`; if one does, it refreshes the ledger in the same change.
+- Constraints: the ledger lives in the completed task record `.ai/tasks/completed/task-01-git-source-of-truth/state.md` under its exact-identity match ledger heading (the heading text is not quoted here, because the identity check discovers the ledger file by that heading and requires exactly one file to carry it); the identity check reads only the ledger rows. That file is a shared knowledge record: under the orchestrated run only the orchestrator writes it, so the change is applied by the orchestrator as a shared-file delta, not by a worker. Later fixes in this task must not insert lines above the recorded occurrence in `docs/USAGE.md`; if one does, it refreshes the ledger in the same change.
 - Reason: a critical contract failure found by the task-level contract check; fixed alone because it is critical.
 
 Off-limits: no other ledger row, count or prose changes; no change to `docs/USAGE.md`, to the identity check or to any other completed-task content.
