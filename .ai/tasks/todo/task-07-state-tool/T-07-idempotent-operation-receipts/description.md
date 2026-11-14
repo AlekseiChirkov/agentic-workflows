@@ -19,7 +19,10 @@ Off-limits: receipts are never stored outside the block; no historical revision 
 no file under `workflows/` or `rules/`.
 
 ## Scope
-- **In scope:** receipt lookup before the revision check; `already_applied` (exit 0, no
+- **In scope:** one order correction in `init-block` resolved from the normative write
+  order — the expected-revision check runs before the existing-id refusal, so an existing
+  id without a matching receipt and with a stale revision is a revision conflict; receipt
+  lookup before the revision check; `already_applied` (exit 0, no
   write, regardless of `--expected-revision`); `operation-conflict` (exit 8) with the
   no-bypass sentence; 20-entry cap dropping the oldest; write refusal on a malformed
   `state_receipts:` line (exit 3 `malformed-receipts`); `init-block` repeat on an existing
@@ -49,6 +52,11 @@ no file under `workflows/` or `rules/`.
    (`python3 tests/state-tool.py`).
 
 ## Acceptance Criteria
+- `init-block` on an existing id whose block holds no matching receipt exits 4
+  `revision-conflict` with a stale revision and exits 6 `block-exists` with the current
+  revision; with a matching receipt it exits 0 `already_applied` for any revision; with
+  the same operation id and different inputs it exits 8 `operation-conflict` for any
+  revision. The file is unchanged in all four cases.
 - For each of `set`, `append-note`, `add-file` and `init-block` applied once with
   `operation_id` X, a repeat with identical inputs and a stale revision exits 0
   `already_applied` and the file is unchanged.
@@ -67,6 +75,8 @@ no file under `workflows/` or `rules/`.
 ## Test Plan
 - **Level:** integration (subprocess runs against disposable fixtures).
 - **Scenarios:**
+  - Existing id on `init-block`: stale revision, current revision, matching receipt,
+    conflicting receipt → exits 4, 6, 0, 8.
   - Repeat of each write command with a stale revision → `already_applied`, unchanged.
   - Same id, different inputs → exit 8 with the sentence.
   - 21 operations → 20 newest entries in order.

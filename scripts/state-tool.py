@@ -29,21 +29,26 @@ block. Notes are only appended and target files only added; existing note
 text and existing target_files entries are never changed. Lifecycle rules are checked
 against the header fields a write changes; a rule already broken in a field the write does
 not change is reported as a warning (pre-existing-violation, required-field-missing) and
-never blocks the write. Python 3.11 or newer and the standard library only; no input value
-is ever passed to a shell or interpreter.
+never blocks the write. Each applied write records its operation id and input digest on the
+block's state_receipts line, which keeps the 20 newest entries; a repeat of a recorded
+operation with the same inputs is already applied and writes nothing, whatever its expected
+revision, while the recorded id with other inputs is an operation conflict. Python 3.11 or
+newer and the standard library only; no input value is ever passed to a shell or
+interpreter.
 
-Exit codes: 0 read, valid, applied or unchanged; 1 internal-error; 2 invalid invocation
-(invalid-arguments, unknown-command, malformed-revision, invalid-operation-id,
-path-outside-root); 3 structure or version refused (state-missing, section-missing,
-section-duplicate, block-missing, block-duplicate, malformed-block, malformed-receipts,
-unrecognized-prefix, unknown-header-field, unsupported-contract-version,
+Exit codes: 0 read, valid, applied, already applied or unchanged; 1 internal-error; 2
+invalid invocation (invalid-arguments, unknown-command, malformed-revision,
+invalid-operation-id, path-outside-root); 3 structure or version refused (state-missing,
+section-missing, section-duplicate, block-missing, block-duplicate, malformed-block,
+malformed-receipts, unrecognized-prefix, unknown-header-field, unsupported-contract-version,
 unsupported-encoding); 4 revision conflict (revision-conflict, state-file-changed); 5 lock
 busy (lock-busy); 6 field, value or invariant refused (invalid-value, invalid-path,
 read-only-field, field-not-applicable, n-a-unjustified, completion-without-tests, for writes
 downgrade, pinned-transition, invalid-transition, pre-tdd-not-applicable, block-exists, and
 for validate required-field-missing); 7 file system or runtime (io-error, unsafe-state-file,
-unsafe-lock-path, locking-unavailable, python-too-old). validate exits 3 before 6 when
-both kinds of error exist and lists every error.
+unsafe-lock-path, locking-unavailable, python-too-old); 8 operation conflict
+(operation-conflict). validate exits 3 before 6 when both kinds of error exist and lists
+every error.
 """
 import sys
 
@@ -95,6 +100,7 @@ RECEIPT_ENTRY = re.compile(r"([A-Za-z0-9][A-Za-z0-9._-]{0,63})#[0-9a-f]{16}")
 STALE_TEMP = re.compile(r"\.state\.md\..+\.tmp")
 BOM = b"\xef\xbb\xbf"
 MAX_RECEIPTS = 20
+RECEIPT_SEPARATOR = ", "
 REVISION = re.compile(r"sha256:[0-9a-f]{64}")
 OPERATION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 LOCK_WAIT = re.compile(r"[0-9]+")
@@ -1045,6 +1051,16 @@ class Candidate:
 
 
 @dataclass
+class WriteOutcome:
+    """The result a write command decided and, when applied, its candidate text, the fields it
+    changes and its write warnings."""
+    result: str
+    text: str = ""
+    changed: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+
+@dataclass
 class NotePlacement:
     """Where appended notes go: the notes line to rewrite (or None), the lines to insert and
     the index of the line they follow (None for the canonical position of a new notes line)."""
@@ -1114,9 +1130,8 @@ def build_candidate(document: Document, block: Block, changes: dict[str, str],
         elif name in changes and name not in header_changes:
             put(name, f"  {name}: {changes[name]}")
             changed.append(name)
-    existing = [group for group in block.groups if group.name == "state_receipts"]
-    entries = existing[0].value + ", " + receipt if existing else receipt
-    put("state_receipts", f"  state_receipts: {entries}")
+    entries = receipt_entries(block)[-(MAX_RECEIPTS - 1):] + [receipt]
+    put("state_receipts", f"  state_receipts: {RECEIPT_SEPARATOR.join(entries)}")
     changed.append("state_receipts")
     output: list[str] = []
     for index, text in enumerate(contents):
@@ -1246,22 +1261,26 @@ def verify_new_block(document: Document, text: str, new: NewBlock, start: int,
 
 
 def init_block_candidate(document: Document, options: dict[str, list[str]],
-                         source: str) -> tuple[str, list[str]]:
-    """Build and check the candidate of init-block: refuse an id the section already holds,
-    a stale revision and invalid name, note or path content; return the candidate text and
-    the fields written. Existing lines are copied byte for byte; the final-newline state is
-    kept."""
+                         source: str) -> WriteOutcome:
+    """Decide init-block and build its checked candidate. An id the section already holds is
+    located like any write target; a matching receipt there makes the call already applied,
+    otherwise the revision is checked and the id is refused as existing. A new id is refused
+    on a stale revision and on invalid name, note or path content. Existing lines are copied
+    byte for byte; the final-newline state is kept."""
     new = new_block_input(options)
-    existing = [block for block in document.blocks if block.block_id == new.block_id]
-    if existing:
+    digest = input_digest("init-block", new.block_id, init_inputs(new))
+    if any(block.block_id == new.block_id for block in document.blocks):
+        existing = write_target(document, new.block_id)
+        if receipt_matches(existing, options["--operation-id"][0], digest):
+            return WriteOutcome("already_applied")
+        check_revision(options, source)
         raise ToolError(6, "block-exists", f"block {new.block_id} already exists",
-                        existing[0].start + 1)
+                        existing.start + 1)
     check_revision(options, source)
     reason = name_problem(new.name)
     if reason is not None:
         raise ToolError(6, "invalid-value", f"block {new.block_id}: name {reason}")
     check_note_and_path_content(new.block_id, new.notes, new.paths)
-    digest = input_digest("init-block", new.block_id, init_inputs(new))
     lines, written = new_block_lines(new, f"{options['--operation-id'][0]}#{digest}")
     anchor, separator = block_insertion(document)
     contents = [content(line) for line in document.lines]
@@ -1269,10 +1288,31 @@ def init_block_candidate(document: Document, options: dict[str, list[str]],
     final_newline = "\n" if "".join(document.lines).endswith("\n") else ""
     text = "\n".join(output) + final_newline
     verify_new_block(document, text, new, anchor + 1 + len(separator), len(lines))
-    return text, written
+    return WriteOutcome("applied", text, written)
 
 
 # ---------------------------------------------------------------- receipts
+
+def receipt_entries(block: Block) -> list[str]:
+    """Entries of the block's receipts line, oldest first; none when the line is absent."""
+    lines = [group for group in block.groups if group.name == "state_receipts"]
+    return lines[0].value.split(RECEIPT_SEPARATOR) if lines else []
+
+
+def receipt_matches(block: Block, operation_id: str, digest: str) -> bool:
+    """Look an operation up in the receipts of its target block, which must be well formed:
+    True when the id is recorded with the same input digest, False when it is not recorded;
+    the id recorded with another digest is refused with exit 8."""
+    for entry in receipt_entries(block):
+        recorded_id, _, recorded_digest = entry.partition("#")
+        if recorded_id == operation_id:
+            if recorded_digest == digest:
+                return True
+            raise ToolError(8, "operation-conflict",
+                            f"operation {operation_id} was already applied to block "
+                            f"{block.block_id} with other inputs")
+    return False
+
 
 def input_digest(command: str, block_id: str, inputs: dict[str, Any]) -> str:
     """First 16 hex characters of SHA-256 over the canonical UTF-8 JSON of an operation."""
@@ -1532,11 +1572,11 @@ def check_revision(options: dict[str, list[str]], source: str) -> None:
 
 
 def field_write_candidate(command: str, document: Document, options: dict[str, list[str]],
-                          source: str, report: dict[str, Any]
-                          ) -> tuple[str, list[str], list[str]] | None:
-    """Build and check the candidate that changes the named fields of one block, appends its
-    notes and adds its target files; return its text, the changed fields and the write
-    warnings, or None when nothing would change. One refused input refuses the whole call."""
+                          source: str, report: dict[str, Any]) -> WriteOutcome:
+    """Decide a write that changes the named fields of one block, appends its notes and adds
+    its target files. A matching receipt makes it already applied before the revision is
+    checked; a write that would change nothing is unchanged and records no receipt; otherwise
+    the candidate is built and checked. One refused input refuses the whole call."""
     pairs = field_pairs(options)
     notes = options.get("--note", [])
     target_paths = options.get("--path", [])
@@ -1545,6 +1585,9 @@ def field_write_candidate(command: str, document: Document, options: dict[str, l
     if matches:
         report["block_kind"] = matches[0].kind
     block = write_target(document, block_id)
+    digest = input_digest(command, block_id, write_inputs(command, pairs, notes, target_paths))
+    if receipt_matches(block, options["--operation-id"][0], digest):
+        return WriteOutcome("already_applied")
     check_revision(options, source)
     check_field_changes(block, pairs)
     check_additions(block, notes, target_paths)
@@ -1553,13 +1596,12 @@ def field_write_candidate(command: str, document: Document, options: dict[str, l
     if target_files is not None:
         changes["target_files"] = target_files
     if not changes and not notes:
-        return None
+        return WriteOutcome("unchanged")
     warnings = check_write_invariants(block, changes, notes)
-    digest = input_digest(command, block_id, write_inputs(command, pairs, notes, target_paths))
     receipt = f"{options['--operation-id'][0]}#{digest}"
     candidate = build_candidate(document, block, changes, notes, receipt)
     verify_candidate(document, block, candidate, changes)
-    return candidate.text, candidate.changed, warnings
+    return WriteOutcome("applied", candidate.text, candidate.changed, warnings)
 
 
 def command_write(command: str, options: dict[str, list[str]], report: dict[str, Any]) -> int:
@@ -1585,20 +1627,18 @@ def command_write(command: str, options: dict[str, list[str]], report: dict[str,
                             "the task records a contract version this tool does not support")
         document = parse_document(text)
         if command == "init-block":
-            candidate_text, changed = init_block_candidate(document, options, source)
-            warnings: list[str] = []
+            outcome = init_block_candidate(document, options, source)
         else:
             outcome = field_write_candidate(command, document, options, source, report)
-            if outcome is None:
-                report["result"] = "unchanged"
-                return 0
-            candidate_text, changed, warnings = outcome
-        candidate_bytes = candidate_text.encode("utf-8")
-        report["warnings"] = warnings + replace_state(paths, candidate_bytes, owner_token, source,
-                                                      (opened.st_dev, opened.st_ino),
-                                                      stat.S_IMODE(opened.st_mode), report)
+        if outcome.result != "applied":
+            report["result"] = outcome.result
+            return 0
+        candidate_bytes = outcome.text.encode("utf-8")
+        report["warnings"] = outcome.warnings + replace_state(
+            paths, candidate_bytes, owner_token, source, (opened.st_dev, opened.st_ino),
+            stat.S_IMODE(opened.st_mode), report)
         report["result_revision"] = revision(candidate_bytes)
-        report["changed_fields"] = changed
+        report["changed_fields"] = outcome.changed
         report["result"] = "applied"
         return 0
     finally:

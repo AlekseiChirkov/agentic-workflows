@@ -306,8 +306,13 @@ or composite block with its canonical initial lines after the last non-blank lin
 section (fence lines included; directly after the heading when the section holds nothing
 else, otherwise after one blank line), refuses an existing id and never changes an
 existing block; a block that would not read back, for example inside an unclosed fence,
-exits 1 with nothing written. Receipt lookup, the receipt cap and lock-busy details are
-planned. The suite `tests/state-tool.py` runs
+exits 1 with nothing written. Every write looks its
+operation id up on the target block's `state_receipts:` line before the expected-revision
+check: the same id and input digest return `already_applied` (nothing written, whatever
+the revision), the same id with other inputs is exit 8 `operation-conflict`; the line
+keeps the 20 newest entries and an `unchanged` result records no receipt. `init-block` on
+an existing id checks receipts, then the revision, then refuses it as `block-exists`.
+Lock-busy details and interruption recovery are planned. The suite `tests/state-tool.py` runs
 directly; validator registration and the exact oracle extension come with the
 receipts-grammar change.
 Planned by task 07: an optional standard-library helper
