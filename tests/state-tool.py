@@ -3462,6 +3462,234 @@ class InvalidUtf8ArgumentTests(ReceiptCase):
                 self.assert_unchanged_after_refusal(before)
 
 
+CONTINUED_VALUES = {"last_action": "tests pass", "blocker": "waiting for review"}
+# Lines that follow a field line and belong to its field group.
+CONTINUATION_SHAPES = {
+    "one continuation line": "     since Monday\n",
+    "a line indented by three spaces": "   barely indented\n",
+    "several continuation lines": "     since Monday\n         second detail\n     third detail\n",
+    "a blank line followed by a continuation line": "\n     after a blank line\n",
+    "a continuation line after an in-block fence": ("   ```text\n   fenced\n   ```\n"
+                                                    "     after the fence\n")}
+IN_BLOCK_FENCE = "   ```text\n  blocker: fenced\n     fenced\n   ```\n"
+
+
+def continued_leaf(name: str | None, lines: str = "", *, statuses: str | None = None,
+                   value: str | None = None) -> str:
+    """Build leaf T-01 whose named field line is directly followed by the given lines."""
+    values = {"last_action": CONTINUED_VALUES["last_action"], "target_files": "",
+              "blocker": CONTINUED_VALUES["blocker"], "notes": "first note"}
+    if name is not None and value is not None:
+        values[name] = value
+    body = ""
+    for field, text in values.items():
+        body += f"  {field}:{' ' + text if text else ''}\n"
+        if field == name:
+            body += lines
+    return leaf("T-01", header=statuses, body=body)
+
+
+class SetContinuationTests(ReceiptCase):
+    """set on a field whose value continues on following lines: the write is refused whole,
+    because replacing the field line alone would leave the old text under the new value."""
+
+    def continuation_of(self, name: str, block_id: str = "T-01") -> list[str]:
+        block = self.block(self.read_ok(self.get("--block", block_id)), block_id)
+        fields = [item for item in block["fields"] if item["name"] == name]
+        self.assertEqual(len(fields), 1, block["fields"])
+        return fields[0]["continuation"]
+
+    def sole_error(self, result: ToolResult, error: str) -> str:
+        """Check a refusal of set with exactly one error of the given code; return its message."""
+        document = self.write_refused(result, 6, error)
+        self.assertEqual([item["code"] for item in document["errors"]], [error], result.stdout)
+        self.assertIn(REFUSAL_SENTENCE, result.stderr)
+        return document["errors"][0]["message"]
+
+    def continuation_refusal(self, result: ToolResult, name: str, before: Snapshot) -> None:
+        message = self.sole_error(result, "invalid-value")
+        self.assertIn(name, message)
+        self.assertIn("continuation line", message)
+        self.assert_unchanged_after_refusal(before)
+
+    def test_set_on_a_field_with_continuation_lines_is_refused_and_changes_nothing(self) -> None:
+        for name in CONTINUED_VALUES:
+            for label, lines in CONTINUATION_SHAPES.items():
+                with self.subTest(field=name, shape=label):
+                    self.write_state(state_text(continued_leaf(name, lines), leaf("T-02")))
+                    self.assertTrue(self.continuation_of(name))
+                    before = self.files_without_lock()
+
+                    result = self.set_fields(f"{name}=replaced")
+
+                    self.continuation_refusal(result, name, before)
+
+    def test_empty_first_line_and_composite_block_are_refused_alike(self) -> None:
+        composite = composite_block("T-01", body=(
+            "  children: T-01a, T-01b\n  blocker: waiting for review\n     since Monday\n"
+            "  notes:\n"))
+        cases = {"empty first line": (continued_leaf("blocker", "     only a continuation\n",
+                                                     value=""), "blocker"),
+                 "empty last_action line": (continued_leaf("last_action", "     carried over\n",
+                                                           value=""), "last_action"),
+                 "blocker of a composite block": (composite, "blocker")}
+        for label, (block_text, name) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(block_text, leaf("T-02")))
+                self.assertTrue(self.continuation_of(name))
+                before = self.files_without_lock()
+
+                result = self.set_fields(f"{name}=replaced")
+
+                self.continuation_refusal(result, name, before)
+
+    def test_naming_the_current_first_line_value_is_refused_not_reported_unchanged(self) -> None:
+        for name, current in CONTINUED_VALUES.items():
+            for label, lines in CONTINUATION_SHAPES.items():
+                with self.subTest(field=name, shape=label):
+                    self.write_state(state_text(continued_leaf(name, lines), leaf("T-02")))
+                    before = self.files_without_lock()
+
+                    result = self.set_fields(f"{name}={current}")
+
+                    self.continuation_refusal(result, name, before)
+
+    def test_one_field_with_continuation_lines_refuses_the_whole_call(self) -> None:
+        cases: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+            "another field line first": (("last_action=x", "blocker=none"), ()),
+            "another field line last": (("blocker=none", "last_action=x"), ()),
+            "header status and a note": (("atomic-execution=in-progress", "blocker=none"),
+                                         ("a note",)),
+            "current value, another field and notes": (
+                (f"blocker={CONTINUED_VALUES['blocker']}", "last_action=x"), ("a", "b"))}
+        for label, (fields, notes) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(continued_leaf("blocker", "     since Monday\n"),
+                                            leaf("T-02")))
+                before = self.files_without_lock()
+
+                result = self.set_fields(*fields, extra=tuple(
+                    part for note in notes for part in ("--note", note)))
+
+                self.continuation_refusal(result, "blocker", before)
+
+    def test_fields_without_continuation_lines_are_applied_as_before(self) -> None:
+        continued_blocker = continued_leaf("blocker", "     since Monday\n")
+        continued_action = continued_leaf("last_action", "     carried over\n")
+        fenced_blocker = continued_leaf("blocker", IN_BLOCK_FENCE)
+        cases: dict[str, tuple[str, tuple[str, ...], tuple[str, str], str]] = {
+            "field line above the continued field": (
+                continued_blocker, ("last_action=x",),
+                ("  last_action: tests pass\n", "  last_action: x\n"), "last_action"),
+            "field line below the continued field": (
+                continued_action, ("blocker=none",),
+                ("  blocker: waiting for review\n", "  blocker: none\n"), "blocker"),
+            "header status of the block": (
+                continued_blocker, ("atomic-execution=in-progress",),
+                ("atomic-execution: not-started | atomic-validation",
+                 "atomic-execution: in-progress | atomic-validation"), "atomic-execution"),
+            "field line directly followed by an in-block fence": (
+                fenced_blocker, ("blocker=none",),
+                ("  blocker: waiting for review\n", "  blocker: none\n"), "blocker")}
+        for label, (block_text, fields, (old, new), changed) in cases.items():
+            with self.subTest(case=label):
+                original = state_text(block_text, leaf("T-02"))
+                self.assertIn(old, original)
+                self.write_state(original)
+
+                self.applied(self.set_fields(*fields), changed, "state_receipts")
+
+                written = self.state()
+                self.assertEqual(written.replace(self.receipt_line(written), "", 1),
+                                 original.replace(old, new, 1))
+
+    def test_notes_and_target_files_still_grow_in_a_block_with_a_continued_field(self) -> None:
+        original = state_text(continued_leaf("blocker", "     since Monday\n"), leaf("T-02"))
+        cases = {"append-note": (("--note", "second note"), "notes",
+                                 ("  notes: first note\n",
+                                  "  notes: first note\n" + CONTINUATION + "second note\n")),
+                 "add-file": (("--path", "a.sh"), "target_files",
+                              ("  target_files:\n", "  target_files: a.sh\n")),
+                 "set": (("--field", "last_action=tests pass", "--note", "second note"), "notes",
+                         ("  notes: first note\n",
+                          "  notes: first note\n" + CONTINUATION + "second note\n"))}
+        for command, (options, changed, (old, new)) in cases.items():
+            with self.subTest(command=command):
+                self.write_state(original)
+
+                self.write_applied(self.write(command, *options), command, changed,
+                                   "state_receipts")
+
+                written = self.state()
+                self.assertEqual(written.replace(self.receipt_line(written), "", 1),
+                                 original.replace(old, new, 1))
+
+    def test_receipt_and_revision_checks_precede_the_refusal(self) -> None:
+        path = self.write_state(state_text(continued_leaf(None), leaf("T-02")))
+        stale = file_revision(path)
+        self.applied_once(self.set_fields("blocker=held"))
+        edited = self.state().replace("  blocker: held\n", "  blocker: held\n     since Monday\n")
+        self.write_state(edited)
+        self.assertEqual(self.continuation_of("blocker"), ["     since Monday"])
+        current = file_revision(path)
+        before = self.files_without_lock()
+
+        for label, revision in {"stale": stale, "current": current}.items():
+            with self.subTest(case="repeat of the applied operation", revision=label):
+                self.already_applied(self.set_fields("blocker=held", revision=revision),
+                                     "set", "T-01", "leaf")
+                self.assert_unchanged_after_refusal(before)
+            with self.subTest(case="applied operation id with other inputs", revision=label):
+                self.conflict(self.set_fields("blocker=none", revision=revision), "set")
+                self.assert_unchanged_after_refusal(before)
+        with self.subTest(case="new operation at a stale revision"):
+            result = self.set_fields("blocker=none", revision=stale, operation_id="op-2")
+            self.write_refused(result, 4, "revision-conflict")
+            self.assert_unchanged_after_refusal(before)
+        for label, value in {"new value": "none", "current value": "held"}.items():
+            with self.subTest(case="new operation at the current revision", value=label):
+                result = self.set_fields(f"blocker={value}", operation_id=f"op-{value}")
+                self.continuation_refusal(result, "blocker", before)
+
+    def test_refusal_follows_the_other_field_rules_and_precedes_notes_and_lifecycle_rules(
+            self) -> None:
+        lines = "     since Monday\n"
+        plain = continued_leaf("blocker", lines)
+        green = continued_leaf("blocker", lines, statuses=leaf_statuses("green", "in-progress"))
+        red = continued_leaf("blocker", lines, statuses=leaf_statuses("red", "in-progress"))
+        earlier: dict[str, tuple[tuple[str, ...], str, str]] = {
+            "read-only field": (("blocker=none", "branch=feat/x"), "read-only-field", "branch"),
+            "field of the other block kind": (("blocker=none", "rollup=done"),
+                                              "field-not-applicable", "rollup"),
+            "value of another field outside its vocabulary": (
+                ("blocker=none", "atomic-execution=done"), "invalid-value", "atomic-execution"),
+            "empty value for the field itself": (("blocker=",), "invalid-value", "blocker")}
+        for label, (fields, error, named) in earlier.items():
+            with self.subTest(reported_first=label):
+                self.write_state(state_text(plain, leaf("T-02")))
+                before = self.files_without_lock()
+
+                message = self.sole_error(self.set_fields(*fields), error)
+
+                self.assertIn(named, message)
+                self.assertNotIn("continuation line", message)
+                self.assert_unchanged_after_refusal(before)
+        later: dict[str, tuple[str, tuple[str, ...], tuple[str, ...]]] = {
+            "empty note": (plain, ("blocker=none",), ("",)),
+            "tests-status downgrade": (green, ("blocker=none", "atomic-tests=not-started"), ()),
+            "completion without green tests": (red, ("atomic-execution=complete", "blocker=none"),
+                                               ())}
+        for label, (block_text, fields, notes) in later.items():
+            with self.subTest(reported_after=label):
+                self.write_state(state_text(block_text, leaf("T-02")))
+                before = self.files_without_lock()
+
+                result = self.set_fields(*fields, extra=tuple(
+                    part for note in notes for part in ("--note", note)))
+
+                self.continuation_refusal(result, "blocker", before)
+
+
 # The helper takes the lock on an existing lock file, reports it on stdout and keeps it until it
 # is killed or its standard input is closed, so it never outlives the test that started it.
 LOCK_HOLDER_SOURCE = (
@@ -4501,6 +4729,19 @@ class ManualTests(unittest.TestCase):
         for label, pattern in statements.items():
             with self.subTest(statement=label):
                 self.assertRegex(section, pattern)
+
+    def test_limits_state_that_set_refuses_a_field_whose_value_continues(self) -> None:
+        section = self.section(STATE_TOOL_HEADING)
+        start = re.search(r"^### Limits$", section, re.M)
+        self.assertIsNotNone(start, "the state tool section has no Limits subsection")
+        following = re.compile(r"^### ", re.M).search(section, start.end())
+        limits = section[start.end():following.start() if following else len(section)]
+        items = [" ".join(item.split()) for item in re.split(r"(?m)^- ", limits)]
+        statements = (r"`set`", r"(?i)\bcontinu", r"(?i)\brefuse", r"(?i)\bmanual procedure\b",
+                      r"(?i)\bappend\w* a note\b")
+        matching = [item for item in items
+                    if all(re.search(pattern, item) for pattern in statements)]
+        self.assertEqual(len(matching), 1, "limit on fields with continuation lines missing")
 
     def test_manual_reference_sections_name_the_tool_its_mode_and_its_receipts_field(self) -> None:
         tree = self.section(re.compile(r"^## 2\. Directory Structure$", re.M))
