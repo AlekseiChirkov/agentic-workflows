@@ -318,9 +318,14 @@ A writer that cannot take the lock within the wait bound exits 5 with the record
 without a held lock never blocks. For tests, `STATE_TOOL_TEST_FAULT` (`kill-before-replace`,
 `kill-after-replace`, `pause-before-recheck` with `STATE_TOOL_TEST_RESUME`, at most 10 s)
 kills or pauses the tool; any other value is ignored. A state file changed at the recheck
-is exit 4 `state-file-changed` with the tool's temporary file removed. The suite `tests/state-tool.py` runs
-directly; validator registration and the exact oracle extension come with the
-receipts-grammar change.
+is exit 4 `state-file-changed` with the tool's temporary file removed. The suite `tests/state-tool.py` is registered
+through the focused `--state-tool-only` validator mode and the default-run check
+`test_state_tool_acceptance`, via one exact, named extension of the frozen validator
+inventory. `state_receipts:` is defined on one anchored line in `rules/workflow-globals.md`
+(blocks without it stay valid) and protected in `rules/workflow-reference.md`;
+`scripts/validate-task.sh` checks every receipts line, and the contract validator checks the
+definition, the protected entry, and that the tool's vocabulary constants equal the
+anchored lines.
 Planned by task 07: an optional standard-library helper
 `scripts/state-tool.py` with `get`, `validate`, `set`, `append-note`, `add-file` and
 `init-block` over the `## Subtask Progress` section of one task `state.md`; a per-task
