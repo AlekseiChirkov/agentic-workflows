@@ -251,6 +251,8 @@ GITIGNORE_ENTRIES=(
   ".env"
   "*.pyc"
   "__pycache__/"
+  ".state-tool.lock"
+  ".state.md.*.tmp"
 )
 for entry in "${GITIGNORE_ENTRIES[@]}"; do
   if ! grep -qF "$entry" .gitignore; then
