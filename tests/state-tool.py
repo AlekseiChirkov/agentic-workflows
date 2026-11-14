@@ -4025,5 +4025,38 @@ class TaskValidatorReceiptsTests(StateToolCase):
                 self.assertEqual(result.code, 0, result.stdout[-2000:])
 
 
+GIT_FIELD_LINES = ("  branch: feat/demo\n  base_branch: main\n  base_commit: " + "a" * 40 + "\n"
+                   "  commits: none\n  pr: none\n")
+FIELD_NAME = re.compile(r"^  ([a-z][a-z0-9_-]*):(?: .*)?$")
+
+
+class ReceiptsPositionRuleTests(SetCase):
+    def receipts_paragraph(self) -> str:
+        text = RULES.read_text(encoding="utf-8")
+        self.assertEqual(text.count(RECEIPTS_DEFINITION + "\n"), 1)
+        start = text.index(RECEIPTS_DEFINITION)
+        return text[start:text.index("**Backward compatibility", start)]
+
+    def field_before_receipts(self, body: str) -> str:
+        """Apply one write to a leaf with the given body; return the field line written before the receipts."""
+        self.write_state(state_text(leaf("T-01", body=body)))
+        self.applied(self.set_fields("last_action=x"), "last_action", "state_receipts")
+        lines = self.state().splitlines()
+        index = next(number for number, line in enumerate(lines) if line.startswith("  state_receipts:"))
+        field = next(line for line in reversed(lines[:index]) if FIELD_NAME.match(line))
+        return FIELD_NAME.match(field).group(1)
+
+    def test_rule_states_the_receipts_position_the_tool_writes(self) -> None:
+        paragraph = self.receipts_paragraph()
+        plain = "  last_action:\n  target_files:\n  blocker: none\n  notes: first\n         second\n"
+        positions = {"without git fields": self.field_before_receipts(plain),
+                     "with git fields": self.field_before_receipts(plain + GIT_FIELD_LINES)}
+        self.assertEqual(positions, {"without git fields": "notes", "with git fields": "pr"})
+        for label, field in positions.items():
+            with self.subTest(block=label):
+                self.assertIn(f"`{field}:`", paragraph)
+        self.assertNotRegex(paragraph, r"[Tt]he line follows the block's last `notes:` group\.")
+
+
 if __name__ == "__main__":
     unittest.main()
