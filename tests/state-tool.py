@@ -3727,5 +3727,47 @@ class FaultSeamTests(RecoveryCase):
                 self.assertEqual(sorted(os.listdir(faulted)), sorted(os.listdir(unset)))
 
 
+def strict_json(text: str) -> Any:
+    """Parse text as standard JSON, refusing the non-finite number tokens Python accepts."""
+    def refuse(token: str) -> Any:
+        raise ValueError(f"non-standard JSON number token {token}")
+    return json.loads(text, parse_constant=refuse)
+
+
+class LockMetadataRobustnessTests(RecoveryCase):
+    def test_metadata_that_cannot_be_reported_as_standard_json_reports_no_owner(self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        arguments = self.set_arguments("last_action=x", file_revision(path))
+        self.hold_lock()
+        cases = {"deeply nested object": b'{"a":' * 9997 + b"1" + b"}" * 9997,
+                 "deeply nested array": b"[" * 60000,
+                 "non-finite constants": b'{"pid": NaN, "x": Infinity}',
+                 "negative infinity": b'{"pid": -Infinity}',
+                 "number overflowing to infinity": b'{"pid": 1e999}'}
+        for label, content in cases.items():
+            with self.subTest(case=label):
+                self.assertLess(len(content), 65536)
+                self.lock.write_bytes(content)
+                before = snapshot(self.task)
+
+                result = self.run_tool(*arguments, "--lock-wait-seconds", "0")
+
+                try:
+                    document = strict_json(result.stdout)
+                except (ValueError, RecursionError) as error:
+                    self.fail(f"stdout is not one standard JSON object ({error}); exit "
+                              f"{result.code}; stderr: {result.stderr[-300:]!r}")
+                self.assertIsInstance(document, dict)
+                self.assertEqual(result.code, 5, result.stdout[:300])
+                self.assertEqual(document["result"], "rejected")
+                self.assertEqual([item["code"] for item in document["errors"]], ["lock-busy"])
+                self.assertIsNone(document.get("lock_owner", "missing"))
+                self.assertIsNone(document.get("lock_age_seconds", "missing"))
+                self.assertIs(document.get("stale_suspected"), False)
+                self.assertIn(REFUSAL_SENTENCE, result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertEqual(snapshot(self.task), before)
+
+
 if __name__ == "__main__":
     unittest.main()
