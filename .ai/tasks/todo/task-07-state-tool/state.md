@@ -4,7 +4,7 @@ flow: full
 
 ## Phases
 - discovery: complete
-- execution: not-started
+- execution: complete
 - validation: not-started
 
 ## Task Analysis
@@ -378,7 +378,22 @@ T-10 | Ignore rules and usage documentation | atomic-tests: green | atomic-execu
   base_branch: feat/state-receipts-contract
   base_commit: 8488c5b0d9b9dfd3df4fc044c5aeec3ede6a4573
   commits: cc936b8 test(state-tool): cover ignore rules and the operating manual section, 97442d9 feat(state-tool): ignore auxiliary files and document the tool, 3051b92 test(state-tool): require the manual to state what a setup rerun does to a tracked knowledge base, db26e1a fix(docs): warn that a setup rerun ignores a tracked knowledge base
-  pr: none
+  pr: #89 draft
+
+## Execution Report
+- T-01: reviewed — structural parser and `get`; 43 tests at closing; one registration test deferred to T-09 by owner decision
+- T-02: reviewed — `validate` and two grammar corrections; re-validated after one correction (specification labels removed from docstrings)
+- T-03: reviewed — `set` write transaction (lock, revision, line-preserving serialization, receipt append, atomic replace)
+- T-04: reviewed — `append-note`, `add-file`, `set --note`; two arbiter rulings on empty and whitespace-only note values
+- T-05: reviewed — lifecycle invariants on status changes and pre-existing-violation warnings
+- T-06: reviewed — `init-block`; three arbiter rulings on layout near fences and name content
+- T-07: reviewed — idempotent repeats, operation conflicts, the 20-entry receipt cap; order correction for `init-block` on an existing id
+- T-08: reviewed — busy-lock owner details, fault seam, interruption recovery; re-validated after one correction (unreportable lock metadata)
+- T-09: reviewed — receipts field definition and protection, validator checks, suite registration through one exact inventory extension; re-validated after one correction (receipts line position in the rule text)
+- T-10: reviewed — ignore rules, operating manual section, script inventory row; re-validated after one correction (setup rerun warning for projects that track their knowledge base)
+
+Summary: 10 of 10 leaves reviewed; none blocked, deferred or not reached. Suite `tests/state-tool.py`: 215 tests on the stack tip. The complete contract validator has not been run during execution; it runs in task-level validation.
+spec-run: proposals retained for post-delivery review; no application (18 Do Now items across T-01–T-10, plus Do Later and Optional items, all pending).
 
 ## Solution Design
 
