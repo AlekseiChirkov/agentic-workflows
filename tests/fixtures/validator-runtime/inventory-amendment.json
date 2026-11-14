@@ -1005,7 +1005,7 @@
             {
               "path": "tests/state-tool.py",
               "provenance": "direct lexical reference",
-              "sha256": "351b742566344a92f76949695a587bcfa670d23ab5e55f6c9ee37f25ae61a55d"
+              "sha256": "1089fb2462815b9e258695ac9e80a237dd76ba31efb7ef072450027fd1690e9b"
             }
           ],
           "transitive_status": "unresolved"
