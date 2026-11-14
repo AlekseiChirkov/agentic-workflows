@@ -312,7 +312,13 @@ check: the same id and input digest return `already_applied` (nothing written, w
 the revision), the same id with other inputs is exit 8 `operation-conflict`; the line
 keeps the 20 newest entries and an `unchanged` result records no receipt. `init-block` on
 an existing id checks receipts, then the revision, then refuses it as `block-exists`.
-Lock-busy details and interruption recovery are planned. The suite `tests/state-tool.py` runs
+A writer that cannot take the lock within the wait bound exits 5 with the recorded
+`lock_owner` (parsed metadata or null), `lock_age_seconds` and `stale_suspected` (age of
+600 s or more); a held lock is never deleted, truncated or taken over, and metadata
+without a held lock never blocks. For tests, `STATE_TOOL_TEST_FAULT` (`kill-before-replace`,
+`kill-after-replace`, `pause-before-recheck` with `STATE_TOOL_TEST_RESUME`, at most 10 s)
+kills or pauses the tool; any other value is ignored. A state file changed at the recheck
+is exit 4 `state-file-changed` with the tool's temporary file removed. The suite `tests/state-tool.py` runs
 directly; validator registration and the exact oracle extension come with the
 receipts-grammar change.
 Planned by task 07: an optional standard-library helper

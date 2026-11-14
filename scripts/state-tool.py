@@ -32,9 +32,16 @@ not change is reported as a warning (pre-existing-violation, required-field-miss
 never blocks the write. Each applied write records its operation id and input digest on the
 block's state_receipts line, which keeps the 20 newest entries; a repeat of a recorded
 operation with the same inputs is already applied and writes nothing, whatever its expected
-revision, while the recorded id with other inputs is an operation conflict. Python 3.11 or
-newer and the standard library only; no input value is ever passed to a shell or
-interpreter.
+revision, while the recorded id with other inputs is an operation conflict. A lock still
+held at the end of the wait bound is refused with exit 5 and the recorded owner, its age in
+seconds and stale_suspected (age of 600 s or more); age never proves that the owner is gone,
+so a held lock is never deleted, truncated or taken over. Leftover .state.md.*.tmp files are
+listed in stale_temp_files and are never read as state or deleted. For tests only,
+STATE_TOOL_TEST_FAULT set to kill-before-replace or kill-after-replace kills the tool after
+its temporary file is synced or after the rename, and pause-before-recheck pauses it before
+the recheck until the file named by STATE_TOOL_TEST_RESUME exists (at most 10 s); any other
+value is ignored. Python 3.11 or newer and the standard library only; no input value is
+ever passed to a shell or interpreter.
 
 Exit codes: 0 read, valid, applied, already applied or unchanged; 1 internal-error; 2
 invalid invocation (invalid-arguments, unknown-command, malformed-revision,
@@ -68,6 +75,7 @@ import json
 import os
 import re
 import secrets
+import signal
 import socket
 import stat
 import time
@@ -108,6 +116,13 @@ MAX_LOCK_WAIT_SECONDS = 600
 DEFAULT_LOCK_WAIT_SECONDS = 5
 LOCK_RETRY_SECONDS = 0.025
 LOCK_NAME = ".state-tool.lock"
+LOCK_METADATA_LIMIT = 65536
+LOCK_METADATA_DEPTH = 16
+STALE_LOCK_SECONDS = 600
+TEST_FAULT_VARIABLE = "STATE_TOOL_TEST_FAULT"
+TEST_RESUME_VARIABLE = "STATE_TOOL_TEST_RESUME"
+TEST_FAULTS = frozenset({"kill-before-replace", "kill-after-replace", "pause-before-recheck"})
+TEST_PAUSE_SECONDS = 10
 NO_BYPASS = "Do not edit state.md by hand to bypass this refusal."
 NO_BYPASS_EXITS = frozenset({4, 5, 6, 8})
 
@@ -1347,9 +1362,65 @@ def require_locking() -> None:
         raise ToolError(7, "locking-unavailable", "the fcntl module is unavailable; writes need it")
 
 
-def acquire_lock(task: str, wait_seconds: int) -> int:
-    """Open the task lock file without following links, take the exclusive lock within the wait
-    bound and record owner metadata; return the descriptor whose closing releases the lock."""
+def refuse_non_finite(token: str) -> Any:
+    raise ValueError(f"non-standard JSON number token {token}")
+
+
+def nesting_within(value: Any, limit: int) -> bool:
+    """Tell, without recursion, whether nested lists and objects stay within the depth limit."""
+    pending = [(value, 1)]
+    while pending:
+        item, depth = pending.pop()
+        if isinstance(item, (dict, list)):
+            if depth > limit:
+                return False
+            pending.extend((child, depth + 1)
+                           for child in (item.values() if isinstance(item, dict) else item))
+    return True
+
+
+def read_lock_owner(descriptor: int) -> dict[str, Any] | None:
+    """Return the recorded owner object of the lock file, or None when the bounded read is not a
+    JSON object that can be reported again as standard JSON within the nesting limit."""
+    try:
+        metadata = json.loads(os.pread(descriptor, LOCK_METADATA_LIMIT, 0).decode("utf-8"),
+                              parse_constant=refuse_non_finite)
+        if not isinstance(metadata, dict) or not nesting_within(metadata, LOCK_METADATA_DEPTH):
+            return None
+        json.dumps(metadata, allow_nan=False)  # A number overflowing to infinity is refused here.
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError):
+        return None
+    return metadata
+
+
+def lock_owner_details(descriptor: int) -> dict[str, Any]:
+    """Report the recorded owner of a held lock and its age without changing the lock file; lock
+    age never proves that the owner is gone, so it only marks a suspicion. Any failure while
+    building the details reports them as unknown, so the busy refusal is never replaced."""
+    try:
+        return owner_details(read_lock_owner(descriptor))
+    except Exception:  # The refusal must stay a lock-busy refusal whatever the metadata holds.
+        return owner_details(None)
+
+
+def owner_details(owner: dict[str, Any] | None) -> dict[str, Any]:
+    age = None
+    if owner is not None and isinstance(owner.get("started_at"), str):
+        try:
+            started = datetime.fromisoformat(owner["started_at"])
+        except ValueError:
+            started = None
+        if started is not None and started.tzinfo is not None:
+            age = int((datetime.now(timezone.utc) - started).total_seconds())
+    return {"lock_owner": owner, "lock_age_seconds": age,
+            "stale_suspected": age is not None and age >= STALE_LOCK_SECONDS}
+
+
+def acquire_lock(task: str, wait_seconds: int, report: dict[str, Any]) -> int:
+    """Open the task lock file without following links and take the exclusive lock within the
+    wait bound; return the descriptor whose closing releases the lock. A lock still held at the
+    bound is refused with the recorded owner details and is never deleted, truncated or taken
+    over."""
     path = os.path.join(task, LOCK_NAME)
     flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
     try:
@@ -1371,6 +1442,7 @@ def acquire_lock(task: str, wait_seconds: int) -> int:
                     raise ToolError(7, "io-error",
                                     f"cannot lock {LOCK_NAME}: {error.strerror}") from None
                 if time.monotonic() >= deadline:
+                    report.update(lock_owner_details(descriptor))
                     raise ToolError(5, "lock-busy",
                                     f"{LOCK_NAME} is held by another writer") from None
                 time.sleep(LOCK_RETRY_SECONDS)
@@ -1398,8 +1470,29 @@ def remove_own(path: str) -> None:
         pass
 
 
+def test_fault() -> str | None:
+    """Return the configured test fault; any value outside the known faults counts as unset."""
+    value = os.environ.get(TEST_FAULT_VARIABLE)
+    return value if value in TEST_FAULTS else None
+
+
+def apply_test_fault(fault: str | None, point: str) -> None:
+    """At a named point of the replace, kill this process or pause it until the resume file
+    exists; the seam never changes any file."""
+    if fault != point:
+        return
+    if fault == "pause-before-recheck":
+        resume = os.environ.get(TEST_RESUME_VARIABLE)
+        deadline = time.monotonic() + TEST_PAUSE_SECONDS
+        while not (resume and os.path.exists(resume)) and time.monotonic() < deadline:
+            time.sleep(LOCK_RETRY_SECONDS)
+        return
+    os.kill(os.getpid(), signal.SIGKILL)
+
+
 def replace_state(paths: TaskPaths, data: bytes, owner_token: str, source: str,
-                  identity: tuple[int, int], mode: int, report: dict[str, Any]) -> list[str]:
+                  identity: tuple[int, int], mode: int, report: dict[str, Any],
+                  fault: str | None) -> list[str]:
     """Write the candidate to this process's own temporary file, re-check that state.md is the
     file that was read, rename over it and sync the directory; return write warnings."""
     temporary = os.path.join(paths.task, f".state.md.{owner_token}.tmp")
@@ -1421,11 +1514,14 @@ def replace_state(paths: TaskPaths, data: bytes, owner_token: str, source: str,
         if created:
             remove_own(temporary)
         raise ToolError(7, "io-error", f"cannot write the temporary file: {error.strerror}") from None
+    apply_test_fault(fault, "kill-before-replace")
+    apply_test_fault(fault, "pause-before-recheck")
     try:
         current, opened = read_state_file(paths.state)
         info = os.lstat(paths.state)
     except (ToolError, OSError):
         remove_own(temporary)
+        report["result_revision"] = None  # No current revision exists to report.
         raise ToolError(4, "state-file-changed", "state.md changed during the write") from None
     if ((opened.st_dev, opened.st_ino) != identity or (info.st_dev, info.st_ino) != identity
             or revision(current) != source):
@@ -1437,6 +1533,7 @@ def replace_state(paths: TaskPaths, data: bytes, owner_token: str, source: str,
     except OSError as error:
         remove_own(temporary)
         raise ToolError(7, "io-error", f"cannot replace state.md: {error.strerror}") from None
+    apply_test_fault(fault, "kill-after-replace")
     try:
         directory = os.open(paths.task, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
         try:
@@ -1613,12 +1710,13 @@ def command_write(command: str, options: dict[str, list[str]], report: dict[str,
     report["stale_temp_files"] = stale_temp_files(paths.task)
     read_state_file(paths.state)  # Refuse a missing or unsafe state.md before taking the lock.
     owner_token = secrets.token_hex(16)
-    descriptor = acquire_lock(paths.task, lock_wait_seconds(options))
+    descriptor = acquire_lock(paths.task, lock_wait_seconds(options), report)
     try:
         write_lock_owner(descriptor, owner_token)
         data, opened = read_state_file(paths.state)
         source = revision(data)
         report["source_revision"] = source
+        report["result_revision"] = source  # Until this write replaces or finds a changed file.
         text = decode_state(data)
         lines = split_lines(text)
         version = task_contract_version(lines, fence_flags(lines))
@@ -1636,7 +1734,7 @@ def command_write(command: str, options: dict[str, list[str]], report: dict[str,
         candidate_bytes = outcome.text.encode("utf-8")
         report["warnings"] = outcome.warnings + replace_state(
             paths, candidate_bytes, owner_token, source, (opened.st_dev, opened.st_ino),
-            stat.S_IMODE(opened.st_mode), report)
+            stat.S_IMODE(opened.st_mode), report, test_fault())
         report["result_revision"] = revision(candidate_bytes)
         report["changed_fields"] = outcome.changed
         report["result"] = "applied"
@@ -1690,8 +1788,6 @@ def main(argv: list[str]) -> int:
         report.pop("blocks", None)
         if report["command"] in WRITE_COMMANDS:
             report["changed_fields"] = []
-    if report["command"] in WRITE_COMMANDS and report["result_revision"] is None:
-        report["result_revision"] = report["source_revision"]
     emit(report, exit_code)
     return exit_code
 
