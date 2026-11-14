@@ -4058,5 +4058,231 @@ class ReceiptsPositionRuleTests(SetCase):
         self.assertNotRegex(paragraph, r"[Tt]he line follows the block's last `notes:` group\.")
 
 
+STATE_TOOL_PATTERNS = (".state-tool.lock", ".state.md.*.tmp")
+SETUP_SCRIPT = ROOT / "scripts" / "setup-new-project.sh"
+MANUAL = ROOT / "docs" / "USAGE.md"
+SCRIPT_INVENTORY = ROOT / "scripts" / "README.md"
+ISOLATED_VARIABLES = frozenset({
+    "HOME", "XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "ORCHESTRAIL_HOME",
+    "ORCHESTRAIL_LOG_ROOT", "BASH_ENV", "ENV", "CDPATH", "PYTHONPATH", "PYTHONSTARTUP",
+    "STATE_TOOL_TEST_FAULT", "STATE_TOOL_TEST_RESUME"})
+
+
+def run_isolated(arguments: list[str], cwd: Path, home: Path, stdin: str = "") -> ToolResult:
+    """Run git or the project setup script with HOME and the XDG roots inside a disposable tree.
+
+    Inherited git variables and shell startup files are dropped, the source root is this
+    checkout, and the running interpreter's directory leads PATH so that the setup script's
+    python3 never resolves to a version-manager shim that would install into the fake home.
+    """
+    environment = {key: value for key, value in os.environ.items()
+                   if key not in ISOLATED_VARIABLES and not key.startswith("GIT_")}
+    environment.update(
+        HOME=str(home), XDG_CONFIG_HOME=str(home / ".config"),
+        XDG_STATE_HOME=str(home / ".local" / "state"), XDG_CACHE_HOME=str(home / ".cache"),
+        ORCHESTRAIL_HOME=str(ROOT), GIT_CONFIG_NOSYSTEM="1", PYTHONDONTWRITEBYTECODE="1",
+        PATH=os.path.dirname(sys.executable) + os.pathsep + os.environ.get("PATH", os.defpath))
+    completed = subprocess.run(arguments, capture_output=True, text=True, cwd=str(cwd),
+                               env=environment, input=stdin, timeout=60)
+    return ToolResult(completed.returncode, completed.stdout, completed.stderr)
+
+
+class DisposableHomeCase(unittest.TestCase):
+    """Provide a disposable home directory below a temporary base for isolated processes."""
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name).resolve()
+        self.home = self.base / "home"
+        (self.home / ".claude" / "skills" / "demo-skill").mkdir(parents=True)
+
+
+class RepositoryIgnoreRuleTests(DisposableHomeCase):
+    def ignored(self, relative: str, *options: str) -> int:
+        """Return the exit of git check-ignore for a path of this repository."""
+        result = run_isolated(["git", "check-ignore", "-q", *options, "--", relative], ROOT,
+                              self.home)
+        self.assertIn(result.code, (0, 1), result.stderr)
+        return result.code
+
+    def test_repository_ignores_the_tool_files_and_never_a_task_state_file(self) -> None:
+        task = ".ai/tasks/todo/task-x/"
+        cases = {"lock file": (task + ".state-tool.lock", 0),
+                 "temporary file": (task + ".state.md.0123456789abcdef0123456789abcdef.tmp", 0),
+                 "task state file": (task + "state.md", 1)}
+        for label, (relative, expected) in cases.items():
+            with self.subTest(path=label):
+                self.assertEqual(self.ignored(relative), expected)
+        existing = sorted(path.relative_to(ROOT).as_posix()
+                          for path in (ROOT / ".ai" / "tasks").glob("*/*/state.md"))
+        self.assertTrue(existing, "no task state file found in this repository")
+        for relative in [task + "state.md", *existing]:
+            with self.subTest(path=relative, index="not consulted"):
+                self.assertEqual(self.ignored(relative, "--no-index"), 1)
+
+
+class ConsumerSetupIgnoreTests(DisposableHomeCase):
+    def new_project(self, name: str, ignore_text: str | None = None) -> Path:
+        """Create a disposable git project, optionally with an initial .gitignore."""
+        project = self.base / name
+        project.mkdir()
+        initialized = run_isolated(["git", "init", "-q"], project, self.home)
+        self.assertEqual(initialized.code, 0, initialized.stderr)
+        if ignore_text is not None:
+            (project / ".gitignore").write_text(ignore_text, encoding="utf-8")
+        return project
+
+    def set_up_twice(self, project: Path) -> list[str]:
+        """Run the setup script twice in the project and return its .gitignore lines."""
+        for _ in range(2):
+            result = run_isolated(["bash", str(SETUP_SCRIPT)], project, self.home, stdin="2\n")
+            self.assertEqual(result.code, 0, result.stdout + result.stderr)
+        registry = self.home / ".config" / "orchestrail" / "projects"
+        self.assertIn(str(project), registry.read_text(encoding="utf-8").splitlines(),
+                      "setup did not register the project in the disposable configuration root")
+        return (project / ".gitignore").read_text(encoding="utf-8").splitlines()
+
+    def test_setup_run_twice_creates_the_ignore_file_with_each_tool_pattern_once(self) -> None:
+        project = self.new_project("fresh consumer")
+        self.assertFalse((project / ".gitignore").exists())
+
+        lines = self.set_up_twice(project)
+
+        for pattern in (*STATE_TOOL_PATTERNS, ".ai/"):
+            with self.subTest(pattern=pattern):
+                self.assertEqual(lines.count(pattern), 1, lines)
+
+    def test_setup_does_not_repeat_a_tool_pattern_the_project_already_ignores(self) -> None:
+        for index, present in enumerate(STATE_TOOL_PATTERNS):
+            with self.subTest(present=present):
+                project = self.new_project(f"consumer {index}", f"{present}\n")
+
+                lines = self.set_up_twice(project)
+
+                self.assertEqual(lines[0], present)
+                for pattern in STATE_TOOL_PATTERNS:
+                    self.assertEqual(lines.count(pattern), 1, lines)
+
+
+STATE_TOOL_HEADING = re.compile(r"^## (?:[0-9]+\. )?State tool$", re.I | re.M)
+FALLBACK_STEPS = (r"(?i)\bstop\b.*\bconcurrent writers\b", r"(?i)\bread the whole block\b",
+                  r"(?i)\bchange only the needed fields\b", r"(?i)\breview the diff\b",
+                  r"`scripts/validate-task\.sh`", r"(?i)\brecord the reason\b.*`notes:`")
+COMMANDS = ("get", "validate", "set", "append-note", "add-file", "init-block")
+
+
+def tool_exit_codes() -> dict[int, list[str]]:
+    """Return the error codes the tool's own description lists for each exit code."""
+    description = " ".join(ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8"))).split())
+    text = description[description.index("Exit codes:") + len("Exit codes:"):
+                       description.index(" validate exits")]
+    segments = re.split(r";\s+(?=[0-9] )", text.strip())
+    return {int(segment.split()[0]): re.findall(r"\b[a-z]+(?:-[a-z]+)+\b", segment)
+            for segment in segments}
+
+
+def numbered_items(text: str) -> list[str]:
+    """Return the items of ordered lists in the text, each with its continuation lines."""
+    items: list[str] = []
+    current = False
+    for line in text.splitlines():
+        match = re.match(r"[0-9]+\. (\S.*)", line)
+        if match:
+            items.append(match.group(1))
+            current = True
+        elif current and line.startswith("   ") and line.strip():
+            items[-1] += " " + line.strip()
+        else:
+            current = False
+    return items
+
+
+class ManualTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.manual = MANUAL.read_text(encoding="utf-8")
+
+    def section(self, heading: re.Pattern[str]) -> str:
+        """Return the text below one level-two heading of the manual, up to the next one."""
+        matches = list(heading.finditer(self.manual))
+        self.assertEqual(len(matches), 1, f"manual section missing or repeated: {heading.pattern}")
+        start = matches[0].end()
+        following = re.compile(r"^## ", re.M).search(self.manual, start)
+        return self.manual[start:following.start() if following else len(self.manual)]
+
+    def test_setup_table_entry_list_names_both_tool_patterns(self) -> None:
+        setup = self.section(re.compile(r"^## 5\. Adding the System to a Project$", re.M))
+        rows = [line for line in setup.splitlines()
+                if line.startswith("|") and "`.gitignore` entries" in line]
+        self.assertEqual(len(rows), 1, "setup table entry list missing or repeated")
+        for pattern in STATE_TOOL_PATTERNS:
+            with self.subTest(pattern=pattern):
+                self.assertIn(f"`{pattern}`", rows[0])
+
+    def test_state_tool_section_lists_the_manual_fallback_steps_in_order(self) -> None:
+        items = numbered_items(self.section(STATE_TOOL_HEADING))
+        position = 0
+        for pattern in FALLBACK_STEPS:
+            index = next((number for number in range(position, len(items))
+                          if re.search(pattern, items[number])), None)
+            self.assertIsNotNone(index, f"fallback step missing or out of order: {pattern}")
+            position = index + 1
+
+    def test_state_tool_section_tells_a_tracking_consumer_to_rerun_setup_or_edit_by_hand(self) -> None:
+        paragraphs = re.split(r"\n\s*\n", self.section(STATE_TOOL_HEADING))
+        matching = [paragraph for paragraph in paragraphs
+                    if re.search(r"(?i)\btrack", paragraph) and "`.ai/`" in paragraph
+                    and "scripts/setup-new-project.sh" in paragraph
+                    and re.search(r"(?i)\bby hand\b", paragraph)
+                    and all(f"`{pattern}`" in paragraph for pattern in STATE_TOOL_PATTERNS)]
+        self.assertEqual(len(matching), 1, "consumer step for projects that track .ai/ missing")
+
+    def test_state_tool_section_lists_the_six_commands_and_every_exit_code(self) -> None:
+        section = self.section(STATE_TOOL_HEADING)
+        for command in COMMANDS:
+            with self.subTest(command=command):
+                self.assertRegex(section, rf"python3 scripts/state-tool\.py {re.escape(command)} ")
+        rows: dict[int, list[str]] = {}
+        for line in section.splitlines():
+            match = re.match(r"\| *`?([0-9]+)`? *\|(.*\S.*)\|$", line)
+            if match:
+                rows.setdefault(int(match.group(1)), []).append(match.group(2))
+        expected = tool_exit_codes()
+        self.assertEqual(sorted(expected), list(range(9)))
+        self.assertEqual(sorted(rows), list(range(9)), "exit-code table must list 0 to 8")
+        self.assertRegex(" ".join(rows[0]), r"(?i)\bapplied\b")
+        for code, names in expected.items():
+            self.assertEqual(len(rows[code]), 1, f"exit {code} listed more than once")
+            for name in names:
+                with self.subTest(exit=code, error=name):
+                    self.assertIn(f"`{name}`", rows[code][0])
+
+    def test_state_tool_section_keeps_refusals_binding_and_states_the_limits(self) -> None:
+        section = self.section(STATE_TOOL_HEADING)
+        self.assertIn(REFUSAL_SENTENCE, section)
+        statements = {"optional": r"(?i)\boptional\b",
+                      "not wired": r"(?i)\bno workflow\b",
+                      "external editors": r"(?i)\bexternal editors?\b",
+                      "local file systems": r"(?i)\blocal file ?systems?\b",
+                      "reads without fcntl": r"`fcntl`",
+                      "temporary files kept": r"(?is)`\.state\.md\.\*\.tmp`.{0,300}\bnever deleted\b"}
+        for label, pattern in statements.items():
+            with self.subTest(statement=label):
+                self.assertRegex(section, pattern)
+
+    def test_manual_reference_sections_name_the_tool_its_mode_and_its_receipts_field(self) -> None:
+        tree = self.section(re.compile(r"^## 2\. Directory Structure$", re.M))
+        self.assertRegex(tree, r"(?m)^│   [├└]── state-tool\.py +\S")
+        roles = self.section(re.compile(r"^## 9\. File Roles Quick Reference$", re.M))
+        self.assertRegex(roles, r"(?m)^\| `scripts/state-tool\.py` +\| +\S")
+        reference = self.section(re.compile(r"^## 10\. Status & Contract Quick Reference$", re.M))
+        self.assertIn("`state_receipts:`", reference)
+        self.assertIn("--state-tool-only", self.section(STATE_TOOL_HEADING))
+
+    def test_script_inventory_has_a_row_for_the_state_tool(self) -> None:
+        inventory = SCRIPT_INVENTORY.read_text(encoding="utf-8")
+        self.assertRegex(inventory, r"(?m)^\| `state-tool\.py` \| [^|]*\S[^|]* \|$")
+
+
 if __name__ == "__main__":
     unittest.main()
