@@ -2963,5 +2963,284 @@ class InitBlockRefusalTests(InitBlockCase):
                 self.assertEqual(snapshot(self.task), before)
 
 
+RECEIPT_STATE = state_text(leaf("T-01"), LAST_BLOCK_T04)
+# Each write command: its target block, the options of a first operation, and other options
+# that a reused operation id must not carry.
+REPEATABLE_WRITES = {
+    "set": ("T-01", ("--field", "last_action=first"), ("--field", "last_action=second")),
+    "append-note": ("T-01", ("--note", "first"), ("--note", "second")),
+    "add-file": ("T-01", ("--path", "a.sh"), ("--path", "b.sh")),
+    "init-block": ("T-05", ("--kind", "leaf", "--name", "First"),
+                   ("--kind", "leaf", "--name", "Second"))}
+LONGEST_OPERATION_ID = "A" + "b" * 62 + "9"
+
+
+class ReceiptCase(InitBlockCase):
+    """Outcome assertions for repeated and reused operation ids."""
+
+    def assert_untouched(self, task: Path, before: Snapshot) -> None:
+        self.assertEqual(self.files_without_lock(task), before)
+        self.assertEqual([path.name for path in task.glob(".state.md.*.tmp")], [])
+
+    def applied_once(self, result: ToolResult) -> None:
+        self.assertEqual(result.code, 0, result.stdout + result.stderr)
+        self.assertEqual(self.output(result)["result"], "applied", result.stdout)
+
+    def already_applied(self, result: ToolResult, command: str, block_id: str, kind: str,
+                        task: Path | None = None,
+                        operation_id: str = OPERATION_ID) -> dict[str, Any]:
+        """A repeat writes nothing and reports the current revision as both revisions."""
+        document = self.output(result)
+        self.assertEqual(result.code, 0, result.stdout + result.stderr)
+        self.assertEqual(document["command"], command)
+        self.assertEqual(document["result"], "already_applied", result.stdout)
+        self.assertEqual(document["errors"], [])
+        self.assertEqual(document["changed_fields"], [])
+        self.assertEqual(document["operation_id"], operation_id)
+        self.assertEqual(document["block_id"], block_id)
+        self.assertEqual(document["block_kind"], kind)
+        current = file_revision((self.task if task is None else task) / "state.md")
+        self.assertEqual(document["source_revision"], current)
+        self.assertEqual(document["result_revision"], current)
+        return document
+
+    def conflict(self, result: ToolResult, command: str) -> dict[str, Any]:
+        document = self.refused_by(result, command, 8, "operation-conflict")
+        self.assertIn(REFUSAL_SENTENCE, result.stderr)
+        return document
+
+
+class ReceiptRepeatTests(ReceiptCase):
+    def test_repeat_with_identical_inputs_is_already_applied_for_every_write_command(self) -> None:
+        for command, (block_id, first, _) in REPEATABLE_WRITES.items():
+            task = self.task_copy(f"task-{command}", RECEIPT_STATE)
+            initial = file_revision(task / "state.md")
+            self.applied_once(self.write(command, *first, block=block_id, task=task))
+            before = self.files_without_lock(task)
+            for label, revision in {"stale": initial,
+                                    "current": file_revision(task / "state.md")}.items():
+                with self.subTest(command=command, revision=label):
+                    result = self.write(command, *first, block=block_id, revision=revision,
+                                        task=task)
+
+                    self.already_applied(result, command, block_id, "leaf", task)
+                    self.assert_untouched(task, before)
+
+    def test_reused_operation_id_with_other_inputs_is_an_operation_conflict(self) -> None:
+        for command, (block_id, first, other) in REPEATABLE_WRITES.items():
+            task = self.task_copy(f"task-{command}", RECEIPT_STATE)
+            initial = file_revision(task / "state.md")
+            self.applied_once(self.write(command, *first, block=block_id, task=task))
+            before = self.files_without_lock(task)
+            for label, revision in {"stale": initial,
+                                    "current": file_revision(task / "state.md")}.items():
+                with self.subTest(command=command, revision=label):
+                    result = self.write(command, *other, block=block_id, revision=revision,
+                                        task=task)
+
+                    self.conflict(result, command)
+                    self.assert_untouched(task, before)
+
+    def test_operation_id_is_matched_within_its_block_and_across_commands(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        self.applied_once(self.write("set", "--field", "last_action=first"))
+        before = self.files_without_lock()
+
+        with self.subTest(case="another command on the same block"):
+            self.conflict(self.append_notes("first"), "append-note")
+            self.assert_unchanged_after_refusal(before)
+
+        with self.subTest(case="the same inputs on another block"):
+            self.applied_once(self.write("set", "--field", "last_action=first", block="T-04"))
+            self.assertEqual(self.state().count("  state_receipts: "), 2)
+
+    def test_field_order_keeps_the_digest_while_note_and_path_order_change_it(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        cases = {
+            "fields in the other order": (
+                "fields-op", "set", ("--field", "last_action=a", "--field", "blocker=b"),
+                ("--field", "blocker=b", "--field", "last_action=a"), "already_applied"),
+            "notes in the other order": (
+                "notes-op", "set", ("--field", "last_action=c", "--note", "a", "--note", "b"),
+                ("--field", "last_action=c", "--note", "b", "--note", "a"), "operation-conflict"),
+            "paths in the other order": (
+                "paths-op", "add-file", ("--path", "a.sh", "--path", "b.sh"),
+                ("--path", "b.sh", "--path", "a.sh"), "operation-conflict"),
+            "a repeated path given once": (
+                "repeat-op", "add-file", ("--path", "c.sh", "--path", "c.sh"),
+                ("--path", "c.sh"), "operation-conflict")}
+        for label, (operation_id, command, first, repeat, outcome) in cases.items():
+            with self.subTest(case=label):
+                initial = file_revision(self.task / "state.md")
+                self.applied_once(self.write(command, *first, operation_id=operation_id))
+                before = self.files_without_lock()
+
+                result = self.write(command, *repeat, revision=initial, operation_id=operation_id)
+
+                if outcome == "already_applied":
+                    self.already_applied(result, command, "T-01", "leaf",
+                                         operation_id=operation_id)
+                else:
+                    self.conflict(result, command)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_unchanged_result_records_no_receipt_so_its_repeat_is_unchanged_again(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        original = self.state()
+
+        for attempt in ("first", "repeat"):
+            with self.subTest(attempt=attempt):
+                result = self.write("set", "--field", "blocker=none")
+
+                self.assertEqual(result.code, 0, result.stdout + result.stderr)
+                self.assertEqual(self.output(result)["result"], "unchanged")
+                self.assertEqual(self.state(), original)
+                self.assertNotIn("state_receipts", self.state())
+
+        before_change = file_revision(self.task / "state.md")
+        self.applied_once(self.write("set", "--field", "blocker=waiting"))
+        before = self.files_without_lock()
+        result = self.write("set", "--field", "blocker=waiting", revision=before_change)
+
+        self.already_applied(result, "set", "T-01", "leaf")
+        self.assert_unchanged_after_refusal(before)
+
+    def test_receipts_on_a_composite_block_make_repeats_idempotent(self) -> None:
+        self.write_state(state_text(composite_block("T-02")))
+        cases = {"append-note": ("note-op", ("--note", "first")),
+                 "set": ("blocker-op", ("--field", "blocker=waiting"))}
+        for command, (operation_id, options) in cases.items():
+            with self.subTest(command=command):
+                initial = file_revision(self.task / "state.md")
+                self.applied_once(self.write(command, *options, block="T-02",
+                                             operation_id=operation_id))
+                before = self.files_without_lock()
+
+                result = self.write(command, *options, block="T-02", revision=initial,
+                                    operation_id=operation_id)
+
+                self.already_applied(result, command, "T-02", "composite",
+                                     operation_id=operation_id)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_operation_id_at_the_length_limit_is_recorded_and_recognized(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        initial = file_revision(self.task / "state.md")
+        self.assertEqual(len(LONGEST_OPERATION_ID), 64)
+        self.applied_once(self.write("set", "--field", "last_action=x",
+                                     operation_id=LONGEST_OPERATION_ID))
+        self.receipt_line(self.state(), operation_id=LONGEST_OPERATION_ID)
+        before = self.files_without_lock()
+
+        result = self.write("set", "--field", "last_action=x", revision=initial,
+                            operation_id=LONGEST_OPERATION_ID)
+
+        self.already_applied(result, "set", "T-01", "leaf", operation_id=LONGEST_OPERATION_ID)
+        self.assert_unchanged_after_refusal(before)
+
+
+class InitBlockReceiptTests(ReceiptCase):
+    def test_existing_id_is_judged_by_its_receipts_then_the_revision_then_block_exists(
+            self) -> None:
+        self.write_state(state_text(LAST_BLOCK_T04))
+        stale = file_revision(self.task / "state.md")
+        self.applied_once(self.init_block("T-05", "leaf", "Demo"))
+        self.applied_once(self.write("set", "--field", "last_action=started", block="T-05",
+                                     operation_id="later-op"))
+        current = file_revision(self.task / "state.md")
+        before = self.files_without_lock()
+        cases = {
+            "other operation id, stale revision": ("T-05", "op-other", "Demo", stale,
+                                                   (4, "revision-conflict")),
+            "block without receipts, stale revision": ("T-04", OPERATION_ID, "Demo", stale,
+                                                       (4, "revision-conflict")),
+            "other operation id, current revision": ("T-05", "op-other", "Demo", current,
+                                                     (6, "block-exists")),
+            "block without receipts, current revision": ("T-04", OPERATION_ID, "Demo", current,
+                                                         (6, "block-exists")),
+            "matching receipt, stale revision": ("T-05", OPERATION_ID, "Demo", stale, None),
+            "matching receipt, current revision": ("T-05", OPERATION_ID, "Demo", current, None),
+            "same operation id, other name, stale revision": ("T-05", OPERATION_ID, "Other",
+                                                              stale, (8, "operation-conflict")),
+            "same operation id, other name, current revision": ("T-05", OPERATION_ID, "Other",
+                                                                current,
+                                                                (8, "operation-conflict"))}
+        for label, (block_id, operation_id, name, revision, refusal) in cases.items():
+            with self.subTest(case=label):
+                result = self.init_block(block_id, "leaf", name, revision=revision,
+                                         operation_id=operation_id)
+
+                if refusal is None:
+                    self.already_applied(result, "init-block", block_id, "leaf")
+                elif refusal[0] == 8:
+                    self.conflict(result, "init-block")
+                else:
+                    self.init_refused(result, *refusal)
+                self.assert_unchanged_after_refusal(before)
+
+
+class ReceiptCapTests(ReceiptCase):
+    def test_twenty_one_operations_keep_the_twenty_newest_receipts_and_a_dropped_one_is_new(
+            self) -> None:
+        self.write_state(RECEIPT_STATE)
+        operations = [(f"step-{index:02d}", f"last_action=value {index}") for index in range(21)]
+        revisions = []
+        for operation_id, pair in operations:
+            revisions.append(file_revision(self.task / "state.md"))
+            self.applied_once(self.write("set", "--field", pair, operation_id=operation_id))
+        entries = [expected_receipt("set", {"fields": [pair.split("=", 1)], "notes": []},
+                                    operation_id=operation_id)
+                   for operation_id, pair in operations]
+
+        self.assertEqual(self.receipt_line(self.state(), operation_id="step-20"),
+                         "  state_receipts: " + ", ".join(entries[1:]) + "\n")
+        before = self.files_without_lock()
+
+        with self.subTest(case="the dropped oldest operation"):
+            result = self.write("set", "--field", operations[0][1], revision=revisions[0],
+                                operation_id=operations[0][0])
+
+            self.refused_by(result, "set", 4, "revision-conflict")
+            self.assertIn(REFUSAL_SENTENCE, result.stderr)
+            self.assert_unchanged_after_refusal(before)
+
+        with self.subTest(case="the oldest kept operation"):
+            result = self.write("set", "--field", operations[1][1], revision=revisions[1],
+                                operation_id=operations[1][0])
+
+            self.already_applied(result, "set", "T-01", "leaf", operation_id=operations[1][0])
+            self.assert_unchanged_after_refusal(before)
+
+
+class MalformedReceiptsWriteTests(ReceiptCase):
+    def test_malformed_receipts_line_refuses_writes_to_its_block_only(self) -> None:
+        damaged = f"  state_receipts: {receipts(21)}\n"
+        self.write_state(state_text(leaf("T-01", body=leaf_body(extra=damaged)), leaf("T-02")))
+        before = self.files_without_lock()
+        cases = {"set": ("set", ("--field", "last_action=x"), {}),
+                 "set reusing a listed id with a stale revision": (
+                     "set", ("--field", "last_action=x"),
+                     {"operation_id": "op-00", "revision": ZERO_REVISION}),
+                 "append-note": ("append-note", ("--note", "x"), {}),
+                 "add-file": ("add-file", ("--path", "x.sh"), {})}
+        for label, (command, options, keywords) in cases.items():
+            with self.subTest(case=label):
+                result = self.write(command, *options, **keywords)
+
+                self.refused_by(result, command, 3, "malformed-receipts")
+                self.assert_unchanged_after_refusal(before)
+
+        initial = file_revision(self.task / "state.md")
+        self.applied_once(self.write("set", "--field", "last_action=x", block="T-02"))
+        self.assertIn(damaged, self.state())
+        after = self.files_without_lock()
+
+        with self.subTest(case="repeat on the well-formed block"):
+            result = self.write("set", "--field", "last_action=x", block="T-02", revision=initial)
+
+            self.already_applied(result, "set", "T-02", "leaf")
+            self.assert_unchanged_after_refusal(after)
+
+
 if __name__ == "__main__":
     unittest.main()
