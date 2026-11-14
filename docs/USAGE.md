@@ -995,6 +995,9 @@ When the tool is absent or cannot run, edit the block by hand in this order:
 - Leftover temporary files `.state.md.*.tmp` are listed in `stale_temp_files` by every
   command and never deleted by the tool, nor read as state. Remove them by hand once no
   write is running.
+- `set` refuses to change `last_action` or `blocker` when the value continues on following
+  lines (exit 6, `invalid-value`), because it replaces the field line only and never deletes
+  text; edit such a block by the manual procedure above, or append a note.
 
 ### Ignore rules for the auxiliary files
 

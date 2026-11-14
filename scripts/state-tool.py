@@ -26,7 +26,9 @@ own temporary file. init-block inserts a new block with its canonical initial li
 the last non-blank line of the progress section (directly after the heading when the
 section holds nothing else, otherwise after one blank line) and never changes an existing
 block. Notes are only appended and target files only added; existing note
-text and existing target_files entries are never changed. Lifecycle rules are checked
+text and existing target_files entries are never changed. set replaces a field line only and
+never deletes text, so it refuses a field whose value has continuation lines (invalid-value)
+instead of leaving the old lines under a new value. Lifecycle rules are checked
 against the header fields a write changes; a rule already broken in a field the write does
 not change is reported as a warning (pre-existing-violation, required-field-missing) and
 never blocks the write. Each applied write records its operation id and input digest on the
@@ -906,8 +908,18 @@ def value_problem(name: str, value: str) -> str | None:
     return None
 
 
+def continued_field(block: Block, pairs: list[tuple[str, str]]) -> str | None:
+    """The first named field line whose field group has continuation lines, or None. Header
+    statuses have no field group, so a field line that shares a status name is not theirs."""
+    statuses = KNOWN_HEADER_FIELDS[block.kind]
+    continued = {group.name for group in block.groups if group.continuation}
+    return next((name for name, _ in pairs if name not in statuses and name in continued), None)
+
+
 def check_field_changes(block: Block, pairs: list[tuple[str, str]]) -> None:
-    """Check writability of every named field first, then the content of every value."""
+    """Check writability of every named field first, then the content of every value, then
+    that no named field has continuation lines: set replaces the field line only, so the old
+    lines would stay under the new value. Naming the current value is refused as well."""
     for name, _ in pairs:
         problem = writable_problem(block, name)
         if problem is not None:
@@ -916,6 +928,11 @@ def check_field_changes(block: Block, pairs: list[tuple[str, str]]) -> None:
         reason = value_problem(name, value)
         if reason is not None:
             raise ToolError(6, "invalid-value", f"block {block.block_id}: {name} value {reason}")
+    name = continued_field(block, pairs)
+    if name is not None:
+        raise ToolError(6, "invalid-value",
+                        f"block {block.block_id}: {name} has continuation lines, which set "
+                        "does not replace; append a note instead")
 
 
 def text_problem(text: str) -> str | None:
