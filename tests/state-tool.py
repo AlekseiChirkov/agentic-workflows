@@ -3178,6 +3178,21 @@ class InitBlockReceiptTests(ReceiptCase):
                     self.init_refused(result, *refusal)
                 self.assert_unchanged_after_refusal(before)
 
+    def test_existing_id_whose_receipts_cannot_be_looked_up_is_refused_with_exit_3(
+            self) -> None:
+        cases = {"duplicated id": (state_text(leaf("T-04"), leaf("T-05"), leaf("T-05")),
+                                   "block-duplicate"),
+                 "malformed receipts line": (state_text(leaf("T-04"), leaf("T-05", body=leaf_body(
+                     extra=f"  state_receipts: {receipts(21)}\n"))), "malformed-receipts")}
+        for label, (original, error) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(original)
+                before = self.files_without_lock()
+
+                self.init_refused(self.init_block("T-05", "leaf", "Demo"), 3, error)
+
+                self.assert_unchanged_after_refusal(before)
+
 
 class ReceiptCapTests(ReceiptCase):
     def test_twenty_one_operations_keep_the_twenty_newest_receipts_and_a_dropped_one_is_new(
