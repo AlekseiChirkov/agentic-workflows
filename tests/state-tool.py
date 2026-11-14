@@ -4164,6 +4164,38 @@ class ConsumerSetupIgnoreTests(DisposableHomeCase):
                 for pattern in STATE_TOOL_PATTERNS:
                     self.assertEqual(lines.count(pattern), 1, lines)
 
+    def test_tracking_consumer_step_states_what_rerunning_setup_does_to_the_knowledge_base(self) -> None:
+        project = self.new_project("tracking consumer", "node_modules/\n")
+        tracked = project / ".ai" / "tasks" / "todo" / "task-01-a" / "state.md"
+        tracked.parent.mkdir(parents=True)
+        tracked.write_text("tracked task state\n", encoding="utf-8")
+        added = run_isolated(["git", "add", "--", ".ai/tasks/todo/task-01-a/state.md"], project,
+                             self.home)
+        self.assertEqual(added.code, 0, added.stderr)
+
+        lines = self.set_up_twice(project)
+        probe = run_isolated(["git", "check-ignore", "-q", "--", ".ai/tasks/todo/task-02-b/state.md"],
+                             project, self.home)
+        self.assertIn(probe.code, (0, 1), probe.stderr)
+        rerun_ignores_new_knowledge = ".ai/" in lines and probe.code == 0
+
+        manual = MANUAL.read_text(encoding="utf-8")
+        heading = STATE_TOOL_HEADING.search(manual)
+        self.assertIsNotNone(heading, "manual State tool section missing")
+        following = re.compile(r"^## ", re.M).search(manual, heading.end())
+        section = manual[heading.end():following.start() if following else len(manual)]
+        paragraphs = [paragraph for paragraph in re.split(r"\n\s*\n", section)
+                      if re.search(r"(?i)\btrack", paragraph) and "`.ai/`" in paragraph
+                      and "scripts/setup-new-project.sh" in paragraph
+                      and re.search(r"(?i)\bby hand\b", paragraph)]
+        self.assertEqual(len(paragraphs), 1, "consumer step naming both routes missing or repeated")
+        sentences = re.split(r"(?<=\.)\s+", " ".join(paragraphs[0].split()))
+        warns = any("`.ai/`" in sentence and re.search(r"(?i)\b(?:appends|adds)\b", sentence)
+                    and re.search(r"(?i)\bremov", sentence) for sentence in sentences)
+        self.assertEqual(warns, rerun_ignores_new_knowledge,
+                         "the consumer step must warn that rerunning setup appends the .ai/ entry, "
+                         "which must be removed again, exactly when the setup script does so")
+
 
 STATE_TOOL_HEADING = re.compile(r"^## (?:[0-9]+\. )?State tool$", re.I | re.M)
 FALLBACK_STEPS = (r"(?i)\bstop\b.*\bconcurrent writers\b", r"(?i)\bread the whole block\b",
