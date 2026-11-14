@@ -4,6 +4,8 @@ from __future__ import annotations
 import ast
 import contextlib
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+import errno
 import hashlib
 import io
 import json
@@ -11,11 +13,14 @@ import os
 from pathlib import Path
 import re
 import runpy
+import select
 import shutil
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 from typing import Any
 import unittest
 from unittest.mock import patch
@@ -3255,6 +3260,471 @@ class MalformedReceiptsWriteTests(ReceiptCase):
 
             self.already_applied(result, "set", "T-02", "leaf")
             self.assert_unchanged_after_refusal(after)
+
+
+# The helper takes the lock on an existing lock file, reports it on stdout and keeps it until it
+# is killed or its standard input is closed, so it never outlives the test that started it.
+LOCK_HOLDER_SOURCE = (
+    "import fcntl, os, sys\n"
+    "descriptor = os.open(sys.argv[1], os.O_RDWR)\n"
+    "fcntl.flock(descriptor, fcntl.LOCK_EX)\n"
+    "sys.stdout.write('locked\\n')\n"
+    "sys.stdout.flush()\n"
+    "sys.stdin.read()\n")
+LOCK_READY = "locked\n"
+PROCESS_TIMEOUT_SECONDS = 30
+PAUSE_PROOF_SECONDS = 0.3
+POLL_SECONDS = 0.005
+STALE_AGE_SECONDS = 660
+TEMPORARY_FILE = re.compile(r"\.state\.md\.[0-9a-f]{32}\.tmp")
+HOLDER_TOKEN = "0123456789abcdef" * 2
+
+
+def started_at(seconds_ago: int) -> str:
+    """UTC start time of a lock owner the given number of seconds ago, in whole seconds."""
+    moment = datetime.now(timezone.utc) - timedelta(seconds=seconds_ago)
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class RecoveryCase(NoteAndFileCase):
+    """Helper processes for lock contention and tool runs with a test fault configured."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.lock = self.task / ".state-tool.lock"
+
+    def launch(self, arguments: list[str],
+               environment: dict[str, str] | None = None) -> subprocess.Popen[str]:
+        """Start the current interpreter without bytecode on the given arguments; inherited test
+        fault variables are dropped, and a process still running at cleanup is killed."""
+        variables = {key: value for key, value in os.environ.items()
+                     if not key.startswith("STATE_TOOL_TEST_")}
+        variables["PYTHONDONTWRITEBYTECODE"] = "1"
+        variables.update(environment or {})
+        process = subprocess.Popen([sys.executable, "-B", *arguments], stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                   cwd=str(self.base), env=variables)
+        self.addCleanup(self.reap, process)
+        return process
+
+    @staticmethod
+    def reap(process: subprocess.Popen[str]) -> None:
+        """Kill the started process if it still runs, wait for it and close its pipes."""
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=PROCESS_TIMEOUT_SECONDS)
+        for stream in (process.stdin, process.stdout, process.stderr):
+            if stream is not None and not stream.closed:
+                with contextlib.suppress(OSError):
+                    stream.close()
+
+    def hold_lock(self) -> subprocess.Popen[str]:
+        """Create the task lock file with mode 0600 and keep it locked by a helper process."""
+        self.lock.touch(mode=0o600)
+        holder = self.launch(["-c", LOCK_HOLDER_SOURCE, str(self.lock)])
+        assert holder.stdout is not None
+        ready, _, _ = select.select([holder.stdout], [], [], PROCESS_TIMEOUT_SECONDS)
+        self.assertTrue(ready, "the lock holder did not report the lock in time")
+        self.assertEqual(holder.stdout.readline(), LOCK_READY, "the lock holder failed to lock")
+        return holder
+
+    def owner(self, pid: int, seconds_ago: int = STALE_AGE_SECONDS) -> dict[str, Any]:
+        return {"owner_token": HOLDER_TOKEN, "pid": pid, "host": "holder-host",
+                "started_at": started_at(seconds_ago)}
+
+    def start_tool(self, fault: str | None, *arguments: str,
+                   resume: Path | None = None) -> subprocess.Popen[str]:
+        """Start the tool with the given test fault and resume file configured."""
+        environment = {}
+        if fault is not None:
+            environment["STATE_TOOL_TEST_FAULT"] = fault
+        if resume is not None:
+            environment["STATE_TOOL_TEST_RESUME"] = str(resume)
+        return self.launch([str(TOOL), *arguments], environment)
+
+    @staticmethod
+    def finish(process: subprocess.Popen[str]) -> ToolResult:
+        stdout, stderr = process.communicate(timeout=PROCESS_TIMEOUT_SECONDS)
+        return ToolResult(process.returncode, stdout, stderr)
+
+    def set_arguments(self, field: str, revision: str, task: Path | None = None,
+                      operation_id: str = OPERATION_ID) -> tuple[str, ...]:
+        return ("set", "--root", str(self.root), "--task", str(self.task if task is None else task),
+                "--block", "T-01", "--expected-revision", revision, "--operation-id", operation_id,
+                "--field", field)
+
+    def note_arguments(self, note: str, revision: str,
+                       task: Path | None = None) -> tuple[str, ...]:
+        return ("append-note", "--root", str(self.root), "--task",
+                str(self.task if task is None else task), "--block", "T-01",
+                "--expected-revision", revision, "--operation-id", OPERATION_ID, "--note", note)
+
+    def temporary_files(self, task: Path | None = None) -> list[str]:
+        directory = self.task if task is None else task
+        return sorted(path.name for path in directory.iterdir()
+                      if TEMPORARY_FILE.fullmatch(path.name))
+
+    def busy(self, result: ToolResult) -> dict[str, Any]:
+        """An exit-5 refusal: one JSON object with the owner details and the no-bypass sentence."""
+        document = self.write_refused(result, 5, "lock-busy")
+        self.assertIn(REFUSAL_SENTENCE, result.stderr)
+        self.assertIsNone(document["source_revision"])
+        for key in ("lock_owner", "lock_age_seconds", "stale_suspected"):
+            self.assertIn(key, document, result.stdout)
+        return document
+
+
+class LockContentionTests(RecoveryCase):
+    def test_held_lock_with_old_metadata_is_refused_with_owner_details_until_the_holder_dies(
+            self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        arguments = self.set_arguments("last_action=x", file_revision(path))
+        holder = self.hold_lock()
+        owner = self.owner(holder.pid)
+        self.lock.write_text(json.dumps(owner) + "\n", encoding="utf-8")
+        before = snapshot(self.task)
+
+        with self.subTest(phase="lock held"):
+            document = self.busy(self.run_tool(*arguments, "--lock-wait-seconds", "1"))
+
+            self.assertEqual(document["lock_owner"], owner)
+            self.assertIsInstance(document["lock_age_seconds"], int)
+            self.assertGreaterEqual(document["lock_age_seconds"], STALE_AGE_SECONDS)
+            self.assertLess(document["lock_age_seconds"], STALE_AGE_SECONDS + 60)
+            self.assertIs(document["stale_suspected"], True)
+            self.assertEqual(snapshot(self.task), before)
+
+        holder.kill()
+        self.assertEqual(holder.wait(timeout=PROCESS_TIMEOUT_SECONDS), -signal.SIGKILL)
+
+        with self.subTest(phase="holder killed"):
+            self.applied(self.run_tool(*arguments, "--lock-wait-seconds", "1"),
+                         "last_action", "state_receipts")
+
+    def test_owner_details_follow_the_recorded_start_time_with_a_zero_wait(self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        arguments = self.set_arguments("last_action=x", file_revision(path))
+        holder = self.hold_lock()
+        fresh = self.owner(holder.pid, seconds_ago=5)
+        undated = dict(fresh, started_at="yesterday")
+        cases = {"fresh owner": (fresh, 5), "start time not readable": (undated, None)}
+        for label, (owner, age) in cases.items():
+            with self.subTest(case=label):
+                self.lock.write_text(json.dumps(owner) + "\n", encoding="utf-8")
+                before = snapshot(self.task)
+
+                document = self.busy(self.run_tool(*arguments, "--lock-wait-seconds", "0"))
+
+                self.assertEqual(document["lock_owner"], owner)
+                if age is None:
+                    self.assertIsNone(document["lock_age_seconds"])
+                else:
+                    self.assertIsInstance(document["lock_age_seconds"], int)
+                    self.assertGreaterEqual(document["lock_age_seconds"], age)
+                    self.assertLess(document["lock_age_seconds"], age + 60)
+                self.assertIs(document["stale_suspected"], False)
+                self.assertEqual(snapshot(self.task), before)
+
+    def test_unreadable_metadata_while_the_lock_is_held_reports_no_owner(self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        arguments = self.set_arguments("last_action=x", file_revision(path))
+        self.hold_lock()
+        cases = {"empty": b"", "not JSON": b"owner unknown\n", "JSON list": b"[1, 2]\n",
+                 "JSON text": b"\"owner\"\n", "not UTF-8": b"\xff\xfe{}\n"}
+        for label, content in cases.items():
+            with self.subTest(case=label):
+                self.lock.write_bytes(content)
+                before = snapshot(self.task)
+
+                document = self.busy(self.run_tool(*arguments, "--lock-wait-seconds", "0"))
+
+                self.assertIsNone(document["lock_owner"])
+                self.assertIsNone(document["lock_age_seconds"])
+                self.assertIs(document["stale_suspected"], False)
+                self.assertEqual(snapshot(self.task), before)
+
+    def test_metadata_naming_a_live_process_without_the_lock_never_blocks(self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        recorded = self.owner(os.getpid())
+        self.lock.write_text(json.dumps(recorded) + "\n", encoding="utf-8")
+        self.lock.chmod(0o600)
+
+        self.applied(self.run_tool(*self.set_arguments("last_action=x", file_revision(path)),
+                                   "--lock-wait-seconds", "0"), "last_action", "state_receipts")
+
+        metadata = json.loads(self.lock.read_text(encoding="utf-8"))
+        self.assertEqual(sorted(metadata), ["host", "owner_token", "pid", "started_at"])
+        self.assertNotEqual(metadata["owner_token"], HOLDER_TOKEN)
+        self.assertNotEqual(metadata["pid"], os.getpid())
+
+    def test_refused_write_keeps_the_lock_file_with_its_own_metadata(self) -> None:
+        self.write_state(state_text(leaf("T-01")))
+        self.lock.write_text(json.dumps(self.owner(os.getpid())) + "\n", encoding="utf-8")
+        self.lock.chmod(0o600)
+        before = self.files_without_lock()
+
+        self.write_refused(self.run_tool(*self.set_arguments("last_action=x", ZERO_REVISION)),
+                           4, "revision-conflict")
+
+        self.assert_unchanged_after_refusal(before)
+        metadata = json.loads(self.lock.read_text(encoding="utf-8"))
+        self.assertEqual(sorted(metadata), ["host", "owner_token", "pid", "started_at"])
+        self.assertRegex(metadata["owner_token"], r"^[0-9a-f]{32}$")
+        self.assertNotEqual(metadata["owner_token"], HOLDER_TOKEN)
+        self.assertEqual(stat.S_IMODE(os.lstat(self.lock).st_mode), 0o600)
+
+
+class InterruptionRecoveryTests(RecoveryCase):
+    def reference_bytes(self, original: str, note: str) -> bytes:
+        """Bytes of an uninterrupted append-note with the same inputs on a copy of the task."""
+        copy = self.task_copy("task-reference", original)
+        result = self.run_tool(*self.note_arguments(note, file_revision(copy / "state.md"),
+                                                    task=copy))
+        self.write_applied(result, "append-note", "notes", "state_receipts")
+        return (copy / "state.md").read_bytes()
+
+    def test_kill_before_replace_keeps_the_old_file_and_a_retry_applies_the_note_once(
+            self) -> None:
+        original = state_text(leaf("T-01"))
+        path = self.write_state(original)
+        initial = file_revision(path)
+        note = "recorded after an interruption"
+        expected = self.reference_bytes(original, note)
+
+        result = self.finish(self.start_tool("kill-before-replace",
+                                             *self.note_arguments(note, initial)))
+
+        self.assertEqual(result.code, -signal.SIGKILL, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(path.read_bytes(), original.encode("utf-8"))
+        leftovers = self.temporary_files()
+        self.assertEqual(len(leftovers), 1, leftovers)
+        leftover_bytes = (self.task / leftovers[0]).read_bytes()
+
+        validation = self.output(self.run_tool("validate", "--root", str(self.root),
+                                               "--task", str(self.task)))
+        self.assertEqual(validation["stale_temp_files"], leftovers)
+        self.assertEqual(self.temporary_files(), leftovers)
+
+        retry = self.write_applied(self.append_notes(note, revision=initial), "append-note",
+                                   "notes", "state_receipts")
+        self.assertEqual(retry["stale_temp_files"], leftovers)
+        self.assertEqual(path.read_bytes(), expected)
+        self.assertEqual(self.state().count(note), 1)
+        self.assertEqual(self.temporary_files(), leftovers)
+        self.assertEqual((self.task / leftovers[0]).read_bytes(), leftover_bytes)
+
+    def test_kill_after_replace_leaves_the_new_file_and_a_retry_is_already_applied(
+            self) -> None:
+        original = state_text(leaf("T-01"))
+        path = self.write_state(original)
+        initial = file_revision(path)
+        note = "recorded before an interruption"
+        expected = self.reference_bytes(original, note)
+
+        result = self.finish(self.start_tool("kill-after-replace",
+                                             *self.note_arguments(note, initial)))
+
+        self.assertEqual(result.code, -signal.SIGKILL, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(path.read_bytes(), expected)
+        self.assertEqual(self.temporary_files(), [])
+        after = self.files_without_lock()
+
+        retry = self.append_notes(note, revision=initial)
+
+        document = self.output(retry)
+        self.assertEqual(retry.code, 0, retry.stdout + retry.stderr)
+        self.assertEqual(document["result"], "already_applied", retry.stdout)
+        self.assertEqual(self.state().count(note), 1)
+        self.assertEqual(self.files_without_lock(), after)
+
+    def test_directory_sync_failure_after_the_rename_is_applied_with_a_warning(self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        real_sync = os.fsync
+
+        def failing_directory_sync(descriptor: int) -> None:
+            if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                raise OSError(errno.EIO, "injected directory sync failure")
+            real_sync(descriptor)
+
+        with patch.dict(os.environ), patch.object(os, "fsync", failing_directory_sync):
+            for key in [key for key in os.environ if key.startswith("STATE_TOOL_TEST_")]:
+                del os.environ[key]
+            result = InProcessTests.run_in_process(
+                self, *self.set_arguments("last_action=synced", file_revision(path)))
+
+        document = self.applied(result, "last_action", "state_receipts")
+        self.assertEqual(document["warnings"], ["directory-sync-failed"])
+        self.assertIn("directory-sync-failed", result.stderr)
+        self.assertIn("  last_action: synced\n", self.state())
+        self.assertEqual(document["result_revision"], file_revision(path))
+        self.assertEqual(self.temporary_files(), [])
+
+
+class RecheckTests(RecoveryCase):
+    def pause_before_recheck(self, path: Path) -> tuple[subprocess.Popen[str], Path]:
+        """Start a set that pauses before its recheck and return once it is proven paused."""
+        resume = self.base / "resume"
+        process = self.start_tool("pause-before-recheck",
+                                  *self.set_arguments("last_action=x", file_revision(path)),
+                                  resume=resume)
+        deadline = time.monotonic() + PROCESS_TIMEOUT_SECONDS
+        while not self.temporary_files():
+            if process.poll() is not None:
+                self.fail("the tool finished without pausing before the recheck: "
+                          f"exit {process.returncode}")
+            self.assertLess(time.monotonic(), deadline, "no temporary file appeared")
+            time.sleep(POLL_SECONDS)
+        with self.assertRaises(subprocess.TimeoutExpired,
+                               msg="the tool did not stay paused before the recheck"):
+            process.wait(timeout=PAUSE_PROOF_SECONDS)
+        self.assertEqual(len(self.temporary_files()), 1)
+        return process, resume
+
+    def changed(self, process: subprocess.Popen[str], resume: Path) -> dict[str, Any]:
+        resume.touch()
+        result = self.finish(process)
+        document = self.write_refused(result, 4, "state-file-changed")
+        self.assertIn(REFUSAL_SENTENCE, result.stderr)
+        self.assertEqual(self.temporary_files(), [])
+        return document
+
+    def test_rewrite_during_the_pause_is_refused_and_the_temporary_file_is_removed(
+            self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        rewritten = state_text(leaf("T-01", name="Rewritten elsewhere")).encode("utf-8")
+        process, resume = self.pause_before_recheck(path)
+        inode = os.lstat(path).st_ino
+        with path.open("r+b") as handle:
+            handle.write(rewritten)
+            handle.truncate()
+
+        document = self.changed(process, resume)
+
+        self.assertEqual(path.read_bytes(), rewritten)
+        self.assertEqual(os.lstat(path).st_ino, inode)
+        self.assertEqual(document["result_revision"], file_revision(path))
+
+    def test_identical_bytes_under_a_new_inode_during_the_pause_are_refused(self) -> None:
+        original = state_text(leaf("T-01")).encode("utf-8")
+        path = self.write_state(original)
+        process, resume = self.pause_before_recheck(path)
+        inode = os.lstat(path).st_ino
+        replacement = self.task / "replacement.md"
+        replacement.write_bytes(original)
+        os.replace(replacement, path)
+        self.assertNotEqual(os.lstat(path).st_ino, inode)
+
+        self.changed(process, resume)
+
+        self.assertEqual(path.read_bytes(), original)
+
+    def test_state_file_removed_during_the_pause_reports_no_result_revision(self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        process, resume = self.pause_before_recheck(path)
+        path.unlink()
+
+        document = self.changed(process, resume)
+
+        self.assertFalse(path.exists())
+        self.assertIsNone(document["result_revision"])
+
+
+class WritePathSafetyTests(RecoveryCase):
+    def test_write_paths_outside_root_or_through_links_are_refused(self) -> None:
+        text = state_text(leaf("T-01"))
+        outside = self.base / "outside"
+        outside.mkdir()
+        (outside / "state.md").write_text(text, encoding="utf-8")
+        (self.root / "escape").symlink_to(outside, target_is_directory=True)
+        revision = file_revision(outside / "state.md")
+        outside_before = snapshot(outside)
+        for label, task in {"dot-dot escape": self.root / ".." / "outside",
+                            "symbolic link leaving root": self.root / "escape"}.items():
+            with self.subTest(case=label):
+                document = self.write_refused(
+                    self.run_tool(*self.set_arguments("last_action=x", revision, task=task)),
+                    2, "path-outside-root")
+
+                self.assertIsNone(document["task"])
+                self.assertIsNone(document["source_revision"])
+                self.assertEqual(snapshot(outside), outside_before)
+
+        (self.task / "real.md").write_text(text, encoding="utf-8")
+        (self.task / "state.md").symlink_to("real.md")
+        before = snapshot(self.task)
+        with self.subTest(case="state file is a symbolic link"):
+            document = self.write_refused(
+                self.run_tool(*self.set_arguments("last_action=x", revision)),
+                7, "unsafe-state-file")
+
+            self.assertIsNone(document["source_revision"])
+            self.assertEqual(snapshot(self.task), before)
+
+    def test_lock_path_that_is_a_directory_or_a_named_pipe_is_refused(self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        for label, make in {"directory": self.lock.mkdir,
+                            "named pipe": lambda: os.mkfifo(self.lock, 0o600)}.items():
+            with self.subTest(case=label):
+                make()
+                before = snapshot(self.task)
+
+                document = self.write_refused(
+                    self.run_tool(*self.set_arguments("last_action=x", file_revision(path))),
+                    7, "unsafe-lock-path")
+
+                self.assertIsNone(document["source_revision"])
+                self.assertEqual(snapshot(self.task), before)
+                if self.lock.is_dir():
+                    self.lock.rmdir()
+                else:
+                    self.lock.unlink()
+
+    @unittest.skipIf(os.geteuid() == 0, "permission bits do not restrict the superuser")
+    def test_unwritable_task_directory_exits_7_with_the_file_unchanged(self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        self.addCleanup(self.task.chmod, 0o755)
+        for label, lock_present in {"lock file absent": False, "lock file present": True}.items():
+            with self.subTest(case=label):
+                self.task.chmod(0o755)
+                if lock_present:
+                    self.lock.touch(mode=0o600)
+                self.task.chmod(0o555)
+                before = self.files_without_lock()
+
+                self.write_refused(
+                    self.run_tool(*self.set_arguments("last_action=x", file_revision(path))),
+                    7, "io-error")
+
+                self.assertEqual(self.files_without_lock(), before)
+                self.assertEqual(self.temporary_files(), [])
+                self.assertEqual(self.lock.exists(), lock_present)
+
+
+class FaultSeamTests(RecoveryCase):
+    def test_unknown_fault_values_behave_exactly_as_unset(self) -> None:
+        text = state_text(leaf("T-01"))
+        for number, value in enumerate(("anything-else", "", "KILL-BEFORE-REPLACE",
+                                        "kill-before-replace ", "pause-before-recheck-now")):
+            with self.subTest(value=value):
+                unset = self.task_copy(f"task-unset-{number}", text)
+                faulted = self.task_copy(f"task-faulted-{number}", text)
+                revision = file_revision(unset / "state.md")
+
+                expected = self.run_tool(*self.set_arguments("last_action=x", revision, task=unset))
+                actual = self.finish(self.start_tool(
+                    value, *self.set_arguments("last_action=x", revision, task=faulted)))
+
+                self.assertEqual(actual.code, expected.code, actual.stdout + actual.stderr)
+                self.assertEqual(actual.stderr, expected.stderr)
+                reports = [self.output(item) for item in (expected, actual)]
+                for report in reports:
+                    report.pop("task")
+                self.assertEqual(reports[1], reports[0])
+                self.assertEqual((faulted / "state.md").read_bytes(),
+                                 (unset / "state.md").read_bytes())
+                self.assertEqual(sorted(os.listdir(faulted)), sorted(os.listdir(unset)))
 
 
 if __name__ == "__main__":
