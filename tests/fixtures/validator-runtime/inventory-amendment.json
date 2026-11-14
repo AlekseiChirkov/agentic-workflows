@@ -190,6 +190,16 @@
                 "line": 4141,
                 "line_sha256": "b1950606f9404a35214cf327d4e43ad19cc83e0d13fed672c3d3933eb6907f59",
                 "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4173,
+                "line_sha256": "cba26e55be923954bd5a2d1414c22752e9230799faefe8af5de266e9d9ed26bc",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4178,
+                "line_sha256": "3edef88ac8f627fc6a4db3bf91d8e75a16449e80461b2eab54366bff3c75a430",
+                "path": "tests/state-tool.py"
               }
             ],
             "locks": [
@@ -863,12 +873,17 @@
                 "path": "tests/state-tool.py"
               },
               {
-                "line": 4177,
+                "line": 4192,
+                "line_sha256": "098290ffa2dc1f08525476b4e27d94fe73b0cb80419c7e5bdbbe5878c386912c",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4209,
                 "line_sha256": "a71c9502df64296dd6ed45cbe9694f966319250020f2605899c74f4b48acfc62",
                 "path": "tests/state-tool.py"
               },
               {
-                "line": 4253,
+                "line": 4285,
                 "line_sha256": "15ee1698d2f9ade0f9a0880bc687c6a881f0deba6ac38845016086d507c6d036",
                 "path": "tests/state-tool.py"
               }
@@ -1123,6 +1138,16 @@
                 "line": 4133,
                 "line_sha256": "b058af676a9434c2be53b896add1058a035bb8ac2414e3b26eaaadea7e1ed09d",
                 "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4170,
+                "line_sha256": "429a3333c0bb2bbb9cf4b2dc805feb39b010c25a95d615b0029e9303425b3f74",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4171,
+                "line_sha256": "822d42004018c37b8eac12de5c9e4287f28c6f0ba218a0919dc146d71c7f016c",
+                "path": "tests/state-tool.py"
               }
             ]
           },
@@ -1135,7 +1160,7 @@
             {
               "path": "tests/state-tool.py",
               "provenance": "direct lexical reference",
-              "sha256": "1750169015a7816b32f6abf3f225fd8ecefbcad2f5b8c64deb84a86cd32cd24d"
+              "sha256": "3e015dda49fc185252f90a5d4a59a7fe6099107a4ef824cbb635e3e95cb86ed6"
             }
           ],
           "transitive_status": "unresolved"

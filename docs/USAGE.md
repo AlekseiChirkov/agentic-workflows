@@ -308,7 +308,7 @@ The script (idempotent — safe to re-run):
 | 3    | Notes about `.windsurf/workflows/` — uses global workflows unless local override exists     |
 | 4    | `.claude/skills/<name>` symlinks pointing at `~/.claude/skills/<name>` (Claude Code workaround) |
 | 5    | `.ai/` knowledge base seeded from `templates/.ai/` (never overwrites existing files), then `AGENTS.md` for Codex from `templates/AGENTS.md` |
-| 6    | `.gitignore` entries: `.ai/` (default for new consumer projects; existing repository tracking policy is authoritative), `.claude/skills/`, `.env`, `*.pyc`, `__pycache__/`, `.state-tool.lock`, `.state.md.*.tmp` (state tool lock and temporary files, section 11) |
+| 6    | `.gitignore` entries, each appended only when no existing line contains it: `.ai/` (default for new consumer projects; the script appends it even where the repository tracks `.ai/`, so such a project removes that line again — section 11; `scripts/sync.sh`, unlike this script, respects an existing tracking policy), `.claude/skills/`, `.env`, `*.pyc`, `__pycache__/`, `.state-tool.lock`, `.state.md.*.tmp` (state tool lock and temporary files, section 11) |
 
 ### Manual steps required after the script runs
 
@@ -926,7 +926,8 @@ runs with `bash scripts/validate-contracts.sh --state-tool-only`.
 1. Read the current revision: `source_revision` of a `get`, or `result_revision` of the
    previous write (`sha256:` and 64 hex characters).
 2. Pass it as `--expected-revision` and choose a fresh `--operation-id` for the change
-   (letters, digits, `.`, `_`, `-`; at most 64 characters).
+   (first character a letter or digit, then letters, digits, `.`, `_` or `-`; 64 characters
+   at most).
 3. The tool takes the per-task lock `<task>/.state-tool.lock`, waiting at most
    `--lock-wait-seconds` (default 5, at most 600), rereads `state.md`, refuses with exit 4
    when its revision differs, changes only the named fields plus the block's
@@ -1000,6 +1001,9 @@ When the tool is absent or cannot run, edit the block by hand in this order:
 The lock file and the temporary files sit next to the task `state.md`. This repository and
 new consumer projects ignore `.state-tool.lock` and `.state.md.*.tmp` through `.gitignore`
 (`scripts/setup-new-project.sh` adds both entries; `scripts/sync.sh` does not). An existing
-consumer project that tracks `.ai/` should rerun `scripts/setup-new-project.sh`, which only
-appends missing entries, or add the two lines by hand; no ignore rule may match a task
-`state.md`. A project that ignores `.ai/` already ignores both files.
+consumer project that tracks `.ai/` should add the two lines by hand. Rerunning
+`scripts/setup-new-project.sh` there adds them too, but it also appends the `.ai/` entry
+whenever no `.gitignore` line contains it, which ignores every new file under `.ai/`,
+including a new task `state.md`; remove that `.ai/` line again right after the rerun so the
+knowledge base stays tracked. No ignore rule may match a task `state.md`. A project that
+ignores `.ai/` already ignores both files.
