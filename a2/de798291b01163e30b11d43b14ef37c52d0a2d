@@ -1,0 +1,53 @@
+scripts/validate-contracts.sh
+  s_75218c90170bfa::t_791dbf58f7a82a 348-353,2003-2043,2050-2052,4587,5287-5297
+scripts/validate-task.sh
+  s_e5aa4dc7176981::t_60df3911bcf218 141,156-181
+tests/fixtures/validator-runtime/inventory-amendment.json
+  s_75218c90170bfa::t_0b7eb74d8ceb8a 2-1057
+tests/fixtures/validator-runtime/oracle.py
+  s_75218c90170bfa::t_ba3e53fef124ee 250
+tests/fixtures/validator-runtime/source_guard.py
+  s_75218c90170bfa::t_3ff91d8d36af20 18-19,963
+tests/fixtures/validator-runtime/source_guard_exceptions.json
+  s_75218c90170bfa::t_62f80f60e776df 1964,2001,2038,2075,2112,2149,2186,2223,2260,2297,2334,2371,2408,2445,2482,2497,2512,2527,2542,2579,2616,2653,2690,2727,2764,2801,2811,2821,2831,2841,2851,2861,2871,2881,2891,2901,2911,2921,2958,2995,3032,3047,3062,3100,3138,3176,3214,3252,3290,3328,3366,3404,3442,3452,3462,3472,3482,3492,3502,3512,3522,3532,3542,3552,3565,3568,3587,3590,3609,3646,3683,3720,3757,3794,3831,3868,3905,3942,3979,3989,3999,4009,4019,4029,4039,4049,4059,4069,4079,4089,4099,4109,4119,4129,4139,4154,4164,4174,4184,4194,4204,4214,4224,4234,4244,4257,4267,4277,4287,4297,4307,4317,4327,4337,4347,4357,4367,4377,4387,4397,4407,4417,4427,4437,4447,4457,4467,4477,4487,4497,4507,4517,4527,4537,4547,4560,4573-4586
+tests/fixtures/validator-runtime/warning-history-after.txt
+  s_75218c90170bfa::t_c9444891eaa921 10
+tests/validator-runtime-oracle.py
+  s_75218c90170bfa::t_2b8eec09ab7fb2 27,47-98,101,144
+rules/workflow-globals.md
+  s_115e6720a62765::t_895f218c804d0b 246-255
+rules/workflow-reference.md
+  s_115e6720a62765::t_4f60d304057903 292-294
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a2de798291b01163e30b11d43b14ef37c52d0a2d",
+  "prompts": {},
+  "sessions": {
+    "s_115e6720a62765": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a2abe55fe5f4ee295",
+        "model": "unknown"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_75218c90170bfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d90e062-887f-4faa-b97c-24c39cc0d6f4",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_e5aa4dc7176981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "93bb84e1-7d07-4dfb-81de-92403e80d816",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
