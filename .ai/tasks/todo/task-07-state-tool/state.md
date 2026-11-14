@@ -381,11 +381,24 @@ T-10 | Ignore rules and usage documentation | atomic-tests: green | atomic-execu
   commits: cc936b8 test(state-tool): cover ignore rules and the operating manual section, 97442d9 feat(state-tool): ignore auxiliary files and document the tool, 3051b92 test(state-tool): require the manual to state what a setup rerun does to a tracked knowledge base, db26e1a fix(docs): warn that a setup rerun ignores a tracked knowledge base
   pr: #89 draft
 
-T-11-fix-identity-ledger-line | Identity ledger line for the manual | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action:
+T-11-fix-identity-ledger-line | Identity ledger line for the manual | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: validated — identity check passes alone on the branch tip and fails on the base ledger; ledger diff is two lines; complete contract validator still to be re-run by the orchestrator after all fixes
   target_files: .ai/tasks/completed/task-01-git-source-of-truth/state.md
   blocker: none
-  notes:
+  notes: execution result (was last_action): ledger row and prose line changed from 254 to 255; identity check passes alone on the branch tip
+         tdd: smoke — the existing identity check of the contract validator is the failing test; observed failing in the complete validator run on the stack tip 5574d9b (720 passed, 1 failed: expected line 254, found line 255, one hunk), no new test file, so one fix commit without a separate test commit
+         tdd: green — the identity check function run alone on the branch tip passes; the complete validator is re-run after all fixes
+         applied by the orchestrator as a shared-file delta: the ledger lives in a completed task record that workers may not write (shared-file discipline); delta proposed by the task-level contract check
+         the fix description first quoted the ledger heading, which made the identity check find two ledger files; reworded in the same commit
+         pav-check 2026-11-14 (independent Validator): DONE, no critical or important finding. Evidence: the identity check function extracted from the contract validator and run alone on the branch tip 6c999c6 passes (both halves: ledger scan and knowledge inventory); on a scratch copy of the base tree 0eca27e it fails; with the base ledger and the reworded description it fails with exactly one hunk (the manual, line 254 expected, line 255 found); with the tip ledger and the reworded description it passes; with the tip ledger and the base description it fails on two ledger candidates. The ledger file's diff is two lines (prose line and table row, 254 to 255); the commit touches only that file and one line of the fix description; the manual carries its single occurrence on line 255 (the clone command); exactly one file on the tip carries the ledger heading; the task validator passes on the completed record that holds the ledger (22 passed) and on this task (21 passed, 1 skipped). The criterion on the complete contract validator is not checked here: the orchestrator runs it after all fixes of this task
+         pav-check findings (optional): (1) the base commit failed the check for a second reason besides the line number, the heading quoted in the fix description, so the observed RED (one hunk, 254 against 255) belongs to the earlier stack tip 5574d9b and both causes are removed by the one commit; (2) the block has no red digest line because no test file was written; the frozen test is the check function, and the contract validator script is unchanged between base and tip, so the test was not weakened; (3) the diff-shape criterion has no automated test and was confirmed by inspection; (4) the prose list above the ledger repeats line numbers that no check reads
+         pav-propose 2026-11-14 (batch, nothing applied): 0 Do Now, 2 Do Later (candidate paths in the identity check's message for more than one ledger file; a recorded rule that a change above the manual's clone line refreshes the ledger row and that no other file quotes the ledger heading), 1 Optional (line numbers repeated in the prose above the ledger table)
+         pav-close 2026-11-14 (orchestrated mode, nothing shared written): plan.md T-11-fix-identity-ledger-line → reviewed returned as a delta; no composite membership (no trigger); compression requested from the orchestrator
+  branch: fix/identity-ledger-manual-line
+  base_branch: feat/state-tool-ignore-rules-and-manual
+  base_commit: 0eca27ef3e62956710fcd4ec18b21a6e3cb82edf
+  commits: 6c999c6 fix(hygiene): align the identity ledger with the manual's clone line
+  pr: none
 
 T-12-fix-non-utf8-arguments | Refusal of arguments that are not valid UTF-8 | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action:
@@ -981,3 +994,15 @@ actual model and actual reasoning: unknown until separately observed execution e
 - Readability (manual): the result-key sentence of section 11 omits `command`, `task`, `block_kind` and, for `get`, `contract_version` and `blocks`; list them or say that the sentence names the keys a caller acts on.
 - Readability (manual): table row 6 of section 5 lists the appended entries without the negation entry for the skills placeholder file that the script also appends; it was already absent before this subtask.
 - Robustness: a directory named like either pattern would have its contents ignored; the shape is implausible and needs no action unless a consumer reports it.
+
+## Improvement Proposals (T-11-fix-identity-ledger-line)
+
+### Do Now
+None
+
+### Do Later
+- Robustness (contract validator, outside this task's scope): when the identity check finds more than one file carrying the ledger heading it reports only that exactly one was expected. Print the candidate paths in that message, so a planning note that quotes the heading is found at once; in this fix the second candidate was the fix description itself and the cause had to be found by search.
+- Robustness (knowledge base, for the orchestrator or a later task): the ledger pins a line number inside the living operating manual, so any line added above the clone command in `docs/USAGE.md` fails the complete contract validator. Record in the coding principles or the runbook that a change above that line refreshes the ledger row in the same change, and that no other file may quote the ledger heading.
+
+### Optional
+- Duplication: the prose list above the ledger table repeats the line numbers of the table rows, and no check reads the prose, so the two can drift apart unnoticed; either drop the line numbers from the prose or state that the table is authoritative.
