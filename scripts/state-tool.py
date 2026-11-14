@@ -117,6 +117,7 @@ DEFAULT_LOCK_WAIT_SECONDS = 5
 LOCK_RETRY_SECONDS = 0.025
 LOCK_NAME = ".state-tool.lock"
 LOCK_METADATA_LIMIT = 65536
+LOCK_METADATA_DEPTH = 16
 STALE_LOCK_SECONDS = 600
 TEST_FAULT_VARIABLE = "STATE_TOOL_TEST_FAULT"
 TEST_RESUME_VARIABLE = "STATE_TOOL_TEST_RESUME"
@@ -1361,14 +1362,48 @@ def require_locking() -> None:
         raise ToolError(7, "locking-unavailable", "the fcntl module is unavailable; writes need it")
 
 
-def lock_owner_details(descriptor: int) -> dict[str, Any]:
-    """Read the recorded owner of a held lock without changing the lock file and report it with
-    its age; lock age never proves that the owner is gone, so it only marks a suspicion."""
+def refuse_non_finite(token: str) -> Any:
+    raise ValueError(f"non-standard JSON number token {token}")
+
+
+def nesting_within(value: Any, limit: int) -> bool:
+    """Tell, without recursion, whether nested lists and objects stay within the depth limit."""
+    pending = [(value, 1)]
+    while pending:
+        item, depth = pending.pop()
+        if isinstance(item, (dict, list)):
+            if depth > limit:
+                return False
+            pending.extend((child, depth + 1)
+                           for child in (item.values() if isinstance(item, dict) else item))
+    return True
+
+
+def read_lock_owner(descriptor: int) -> dict[str, Any] | None:
+    """Return the recorded owner object of the lock file, or None when the bounded read is not a
+    JSON object that can be reported again as standard JSON within the nesting limit."""
     try:
-        metadata = json.loads(os.pread(descriptor, LOCK_METADATA_LIMIT, 0).decode("utf-8"))
-    except (OSError, UnicodeDecodeError, ValueError):
-        metadata = None
-    owner = metadata if isinstance(metadata, dict) else None
+        metadata = json.loads(os.pread(descriptor, LOCK_METADATA_LIMIT, 0).decode("utf-8"),
+                              parse_constant=refuse_non_finite)
+        if not isinstance(metadata, dict) or not nesting_within(metadata, LOCK_METADATA_DEPTH):
+            return None
+        json.dumps(metadata, allow_nan=False)  # A number overflowing to infinity is refused here.
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError):
+        return None
+    return metadata
+
+
+def lock_owner_details(descriptor: int) -> dict[str, Any]:
+    """Report the recorded owner of a held lock and its age without changing the lock file; lock
+    age never proves that the owner is gone, so it only marks a suspicion. Any failure while
+    building the details reports them as unknown, so the busy refusal is never replaced."""
+    try:
+        return owner_details(read_lock_owner(descriptor))
+    except Exception:  # The refusal must stay a lock-busy refusal whatever the metadata holds.
+        return owner_details(None)
+
+
+def owner_details(owner: dict[str, Any] | None) -> dict[str, Any]:
     age = None
     if owner is not None and isinstance(owner.get("started_at"), str):
         try:
