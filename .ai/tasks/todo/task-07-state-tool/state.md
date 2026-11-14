@@ -5,7 +5,7 @@ flow: full
 ## Phases
 - discovery: complete
 - execution: complete
-- validation: not-started
+- validation: in-progress
 
 ## Task Analysis
 
@@ -22,6 +22,7 @@ flow: full
 - flow: full — gate: 1fail 2fail 3pass 4pass (more than three files; a new protected field and new invariants are introduced) (source: `rules/quick-flow.md → ## The escalation gate`).
 - Specification labels in product code (raised by the T-02 validation: four docstrings named invariants as `I-1`, `I-4`, `I-5`, `I-6`) → requirement, criterion, invariant, decision and assumption labels of the spec are planning identifiers; product code, tests, comments and docs state the rule in words. T-02 is corrected by its Implementer and re-validated by a new independent Validator, then the run continues (source: user, 2026-11-13).
 - Test cases that pass before implementation because they guard behaviour that already exists (raised at the T-09 RED stop; the pipeline rules have no such category and the Arbiter cannot waive the premature-pass stop) → a real RED is preferred wherever a case can be made to fail first (in T-09 the vocabulary-drift validator check moves to the implementation step so its suite case fails first); remaining guard cases are acceptable when each is named in the block's `notes:`, shown non-vacuous by mutation evidence, and every criterion that adds behaviour keeps at least one failing test. The decision covers the guard cases already committed in T-02, T-05 and T-08 and those in T-09 and T-10 (source: user, 2026-11-14; arbiter analysis citing `rules/tdd.md` and `workflows/pae-tests.md`).
+- `set` on a field whose existing value has continuation lines (raised by the task-level code review; the spec does not define it and the delivered tool replaced only the field line, leaving the old continuation text under the new value) → the write is refused with exit 6 and nothing changes; existing text is never deleted by `set` (source: user, 2026-11-14).
 - Worker model support for selection (the worker tool does not expose a context window) → the documented 1,000,000-token context of the catalog is confirmed as the support observation; selection uses the current catalog without a refresh (source: user, 2026-11-13).
 - Registration of the acceptance suite in `scripts/validate-contracts.sh`, given the frozen validator inventory (raised by T-01 during implementation) → register once in the receipts-grammar subtask (T-09) together with the three contract checks, through one exact, enumerated oracle extension; T-10 refreshes the suite's pinned digest once more; earlier subtasks run the suite directly plus the guard suites; the registration test already in the committed RED set of T-01 is deferred to T-09 (source: user, 2026-11-13; arbiter recommendation with citations: ADR-0018, ADR-0019 Decision 3, ADR-0022 Decision 4, spec REQ-20 / AC-18).
 
@@ -380,6 +381,24 @@ T-10 | Ignore rules and usage documentation | atomic-tests: green | atomic-execu
   commits: cc936b8 test(state-tool): cover ignore rules and the operating manual section, 97442d9 feat(state-tool): ignore auxiliary files and document the tool, 3051b92 test(state-tool): require the manual to state what a setup rerun does to a tracked knowledge base, db26e1a fix(docs): warn that a setup rerun ignores a tracked knowledge base
   pr: #89 draft
 
+T-11-fix-identity-ledger-line | Identity ledger line for the manual | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action:
+  target_files: .ai/tasks/completed/task-01-git-source-of-truth/state.md
+  blocker: none
+  notes:
+
+T-12-fix-non-utf8-arguments | Refusal of arguments that are not valid UTF-8 | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action:
+  target_files: scripts/state-tool.py, tests/state-tool.py, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
+  blocker: none
+  notes:
+
+T-13-fix-set-continuation-refusal | Refusal of set on a field with continuation lines | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action:
+  target_files: scripts/state-tool.py, tests/state-tool.py, docs/USAGE.md, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
+  blocker: none
+  notes:
+
 ## Execution Report
 - T-01: reviewed — structural parser and `get`; 43 tests at closing; one registration test deferred to T-09 by owner decision
 - T-02: reviewed — `validate` and two grammar corrections; re-validated after one correction (specification labels removed from docstrings)
@@ -525,6 +544,248 @@ The task is accepted when spec criteria AC-01–AC-11 and AC-13–AC-23 hold on 
 | AC-21 | T-01, T-02, T-03, T-04, T-05 |
 | AC-22 | T-01, T-02, T-03, T-07 |
 | AC-23 | T-10 |
+
+## Contract Check
+
+Checked 2026-11-14 on the stack tip `5574d9b` (ten branches over base `060ce6d`). Evidence:
+the suite `tests/state-tool.py` (215 tests, OK, 30 s), `bash scripts/validate-contracts.sh
+--state-tool-only` (OK), `tests/validator-runtime-oracle.py` (23 tests, OK), the complete
+contract validator run supplied by the orchestrator on this HEAD (720 passed, 1 failed,
+2 skipped), and independent probes of the tool on disposable task copies outside the
+repository (rich-block diff run twice, revision conflict, held lock with old metadata and
+14 hostile lock contents, four unsafe lock paths, kill before and after the rename for all
+four write commands, four changes during the pause before the recheck, repeats, the
+21-write receipt cap, 48 concurrent appends from 8 writers, a Python 3.11 run).
+Result: 36 passes, 2 failures (1 critical). The critical-failure gate is open: the owner
+has not yet chosen between pausing and continuing with the failure marked, so no decision
+is recorded here.
+
+### Invariants
+| Invariant | Status |
+|-----------|--------|
+| After any refused or failed write, `state.md` is byte-identical and no temporary file of that process remains | PASS — refusals with exits 1–8 probed and pinned by the suite's snapshot helper; a write killed before the rename leaves its temporary file by design and is reported, not removed |
+| After an applied write, every byte outside the changed and inserted lines of the target block is identical | PASS — rich-block diff is exactly the changed line plus the receipts line; 48 concurrent appends left every byte outside the block identical |
+| Read commands create, modify and delete nothing | PASS — `get` and `validate` leave bytes, modes and mtimes unchanged and create no lock file |
+| The tests status is never removed or moved to a lower rank; the pinned value changes only to the green value | PASS — refused with `downgrade` and `pinned-transition`; no code path deletes a header segment |
+| stdout carries exactly one JSON object; diagnostics go to stderr only | PASS — every run without a kill fault, hostile lock metadata and invalid UTF-8 arguments included |
+| The tool's vocabulary constants equal the anchored lines of `rules/workflow-globals.md` | PASS — contract check passes on source and fails on a dropped value, a changed order and a value added to the rule |
+| Blocks without `state_receipts:` remain valid for every reader | PASS — the tool, `scripts/validate-task.sh` and every completed task directory accept them |
+| `scripts/validate-contracts.sh` passes on the stack tip | FAIL: 1 of 723 results fails — the public identity ledger check. The manual change inserted one line into the directory tree of `docs/USAGE.md` (new line 96), which moved the one approved former-repository-name occurrence in the clone command from line 254 to line 255, while the exact ledger in `.ai/tasks/completed/task-01-git-source-of-truth/state.md` (table row at line 204, prose reference at line 182) still records 254. No other ledger row moved and no knowledge file was removed |
+
+### Acceptance Criteria
+| Criterion | Status |
+|-----------|--------|
+| AC-01 structural reads, fenced lines ignored, damaged structure refuses writes | PASS — suite lines 197, 1491; probe |
+| AC-02 line-preserving change on a rich block, identical on two copies | PASS — suite line 1227; probe: same bytes and same stdout on both copies, missing final newline kept |
+| AC-03 status transitions, unknown header field, unrecognized prefix, newer contract version | PASS — suite lines 406, 1524, 1556, 1571, 2229, 2279, 2291 |
+| AC-04 second writer with the same revision; change in another section kept | PASS — suite lines 1459, 1476; probe |
+| AC-05 held lock with old metadata, holder killed, metadata without a held lock | PASS — suite lines 3378, 3446; probe: exit 5 after the 1 s bound, owner reported, lock file bytes, inode and mtime unchanged |
+| AC-06 kill before and after the rename, directory sync failure | PASS — suite lines 3486, 3517, 3542; probe for all four write commands |
+| AC-07 repeats, operation conflict, 20 newest receipts | PASS — suite lines 3019, 3034, 3203; probe |
+| AC-08 path escapes, linked state file, both pause cases, literal note | PASS — suite lines 569, 1940, 3593, 3609, 3635; probe also covers removal and a link swapped in during the pause |
+| AC-09 no-bypass sentence for exits 4, 5, 6, 8; manual fallback steps | PASS — suite lines 1612, 3014, 3370, 4254, 4292 |
+| AC-10 reads change nothing; plain field change reports two changed fields | PASS — suite lines 319, 799, 1245 |
+| AC-11 pre-TDD reporting, completion and start rules | PASS — suite lines 346–363, 2315, 2339, 2350, 2364 |
+| AC-13 missing field and missing header segment inserted at canonical positions | PASS — suite line 1265 |
+| AC-14 invalid invocations exit 2; one JSON object; non-empty stderr on refusal | PASS — suite lines 373–388, 1625, 2853 and the shared output assertion |
+| AC-15 block insertion layout and refusals | PASS — suite lines 2571, 2593, 2793, 2811, 2825 |
+| AC-16 note placement and all-or-nothing notes | PASS — suite lines 1789, 1806, 1818, 1911 |
+| AC-17 target-file additions and invalid paths | PASS — suite lines 1989, 2008, 2062 |
+| AC-18 validator checks for the receipts grammar and the vocabulary | FAIL: the three contract checks and the task-validator check pass on source and fail on each named mutation (suite lines 3865, 3880, 3898, 3964–4002; probe), but the first clause — the contract validator passes on the source tree — does not hold on the stack tip (identity ledger, see Invariants) |
+| AC-19 standard library only, forbidden calls, version guard, missing lock module | PASS — suite lines 629, 637, 654, 685, 1716 |
+| AC-20 one invalid field refuses the group; justified not-applicable tests applied in one revision | PASS — suite lines 2376, 2398 |
+| AC-21 pre-existing violation warning, missing required fields, read-only field | PASS — suite lines 453, 879, 1591, 1863, 2048, 2436, 2462, 2472 |
+| AC-22 duplicated block, missing state file, absent field, missing tool version, 21 receipts, unknown header field | PASS — suite lines 256, 416, 434, 460, 493, 505, 971, 1571, 3236 |
+| AC-23 ignore rules, setup run twice, manual entry list and consumer step | PASS — suite lines 4109, 4146, 4245, 4263; probe: lock and temporary file ignored, task state file not ignored |
+| Non-functional targets (standard library, forbidden calls, determinism, atomic visibility, one JSON object, no run-log writes) | PASS — static scan, double-run probe, rename-only replacement; the tool has no logging call |
+
+### Off-limits
+| Constraint | Status |
+|------------|--------|
+| No file under `workflows/` changes; no deployed copy under the home directory is edited | PASS — the whole-task diff touches no path under `workflows/`, `templates/`, `principles/` or `scripts/sync.sh`; no commit or probe touched a deployed copy |
+| The tool writes only the task `state.md`, the lock file and its own temporary file | PASS — directory snapshots after every probe show only those three names |
+| The tool never passes an input value to a shell or interpreter and imports no third-party module | PASS — imports are standard library; no process-spawning or dynamic-evaluation call; shell metacharacters stored literally |
+| A held lock is never deleted, truncated or taken over; a foreign temporary file is never deleted or read as state | PASS — the lock file is rewritten only after the lock is acquired; leftover temporary files are listed by name only |
+| No existing field, vocabulary value, section name or exit code of an existing script is renamed or removed | PASS — both validators and the setup script change additively; one message of the task validator gains the missing pinned value |
+| No ignore rule may match a task `state.md` | PASS — `git check-ignore` exits 1 for a new and for an existing task state file of this repository |
+| No planning identifier or tool attribution in product code, tests, comments, documentation, branch names, commits or pull requests | PASS — 44 commit messages, ten branch names, ten pull request texts and the product diff scanned |
+
+### Critical Failures Decision: continue-marked
+Decided by the owner on 2026-11-14: validation continues with the failing invariant (the contract validator fails on the stack tip because the identity ledger records the manual's former line) marked critical in the issue list; it is fixed in this run and the complete validator must pass before any pull request is promoted.
+
+## Code Review
+
+Reviewed 2026-11-14 on the stack tip `5574d9b`: the whole of `scripts/state-tool.py`, the
+non-fixture parts of the whole-task diff, the suite `tests/state-tool.py` as code, the edits to
+both validators and the oracle extension. Reproductions ran on disposable task copies outside
+the repository. Items already recorded as pending proposals are listed once at the end and
+are not raised again.
+
+### Findings
+
+1. contract: `scripts/validate-contracts.sh` does not pass on the stack tip (1 of 723 results
+   fails: the public identity ledger check). `docs/USAGE.md` gained one line in its directory
+   tree (line 96), which moved the one approved former-repository-name occurrence in the clone
+   command from line 254 to line 255; the exact ledger in
+   `.ai/tasks/completed/task-01-git-source-of-truth/state.md` still records 254 (table row at
+   line 204; prose reference at line 182, which the check does not read). No other ledger row
+   moved, no count or digest pins that record, and no knowledge file was removed. Remedy: set
+   both lines to 255 and run the complete validator again. Severity: critical.
+2. `scripts/state-tool.py:1332-1336` (`input_digest`), called at `:1685` and `:1286` before the
+   content checks at `:1689-1690` and `:1295-1298` — an argument that is not valid UTF-8 ends
+   with exit 1 `internal-error` (an encoding error from the digest) instead of exit 6
+   `invalid-value` or `invalid-path`. Reproduction: `set` with a field value, `append-note`
+   with a note, `add-file` with a path or `init-block` with a name holding the byte 0xFF;
+   nothing is written and stdout stays one JSON object. The content checks ran before the
+   digest until the receipt lookup was moved ahead of them, so the UTF-8 branch of
+   `text_problem` (`:925-928`) is now unreachable for writes. No test covers it, and the pending
+   T-04 test proposal that expects exit 6 for such notes and paths would fail as written.
+   Severity: important.
+3. `scripts/state-tool.py:1116-1121` (`put` in `build_candidate`) — `set` on a field whose
+   existing value has continuation lines replaces only the field line, so the old continuation
+   text stays under the new value and the write is reported as applied. Reproduction: a blocker
+   line with one continuation line, then `set` with a new blocker value; the block reads back
+   the new value followed by the old continuation line. Required behaviour by owner ruling of
+   2026-11-14 (recorded under `### Assumptions`): such a write is refused with exit 6 and
+   changes nothing. Needs a failing test first. Severity: important.
+4. Process: the complete contract validator was not run during execution, so a repository-wide
+   pin broken by the last subtask's manual change surfaced only at task-level validation
+   (finding 1). Remedy: the complete validator is re-run after the fixes of this validation,
+   and any later change that inserts or removes lines in a ledger-pinned file refreshes the
+   ledger in the same change. Severity: important.
+5. `scripts/state-tool.py:1756` — the sentence that forbids bypassing a refusal is printed only
+   for write commands, so `validate` exiting 6 does not carry it, while the specification's
+   exit-code text names exits 4, 5, 6 and 8 without that limit (the manual says these exits
+   refuse a write). Align the specification wording or the tool. Severity: optional.
+6. `scripts/state-tool.py:557-562` (`continues_after_blanks`, called per blank line from `:597`)
+   — parse time is quadratic in a run of blank lines that is followed by a continuation line:
+   `get` takes 1 s for 4,000 such lines and 16 s for 16,000. Other hostile shapes (very long
+   header lines, 20,000 blocks, 100,000 fence lines) stay under 0.4 s. Severity: optional.
+7. `scripts/state-tool.py:1493-1535` (`replace_state`) — a `state.md` with mode 0444 is still
+   replaced, because the rename needs only directory permission; the mode is kept, the file
+   owner is not. One line under the manual's Limits would state it. Severity: optional.
+8. `scripts/state-tool.py:248` and `:256` — `Document.fenced` and `TaskPaths.root` are stored and
+   never read. Severity: optional.
+9. `scripts/state-tool.py:420-422` (`read_state_file`) — the open has no non-blocking flag, so a
+   named pipe swapped in between the inspection and the open would block the command; it also
+   sets no binary flag, which by reading the code (not tested) would let Windows translate
+   bytes on the read commands that are meant to work there. Severity: optional.
+10. `tests/validator-runtime-oracle.py:50-60` and `:202-209` — the four approved names are held
+    twice (`ADDED_NAMES`, and `NAMED_RESULTS` with `NAMED_ACCEPTANCE` and `NAMED_FLAG`). The
+    extension itself weakens no existing protection: the amendment stays digest-pinned,
+    sections and names are exact, resource paths are limited to the two tool files, and the
+    source-guard manifest gained only four reviewed records for the new suite.
+    Severity: optional.
+11. `tests/state-tool.py:654-683` — the static scan would not catch `os.popen`, `os.spawn*`,
+    `os.posix_spawn` or `__import__`; the tool uses none of them. Severity: optional.
+12. `tests/state-tool.py:4019` — the suite runs the task validator over every completed task
+    directory, so a future completed task that trips that validator fails this suite.
+    Severity: optional.
+13. `scripts/state-tool.py:307, 391, 489, 867, 1516, 1569, 1784` — seven lines exceed 100
+    characters (longest 104); the other Python helpers are looser, so this is a consistency
+    note only. Severity: optional.
+
+Already recorded as pending proposals, reproduced or confirmed here, severities unchanged:
+an interrupt signal leaves a traceback and possibly a temporary file (T-03, T-08); a
+lock-wait value of thousands of digits ends with exit 1 (T-03); a start time in the future
+gives a negative lock age (T-08); an operation whose receipt was dropped is applied again at
+the current revision (T-07, specification edge case); the vocabulary check accepts an
+augmented assignment (T-09); the manual's lock wording and omitted result keys (T-10); the
+full read of `state.md` before the lock (T-03).
+
+Test integrity: the four recorded test amendments name a test defect or an owner decision,
+never the implementation; no subtask records a not-applicable tests status; every spec
+criterion has covering tests (see `## Contract Check`); the suite is deterministic, isolated
+in temporary directories, reaps its helper processes and leaves nothing in the repository.
+No recorded owner decision or Arbiter ruling is contradicted by the delivered code.
+
+### Summary
+13 findings: 1 critical (the carried-in contract failure), 3 important, 9 optional. The tool
+is well structured, its write path held under every probe (48 concurrent appends from 8
+writers applied each note once, no temporary file left), and the validator and oracle edits
+are additive and exact. The fixes needed before promotion are the ledger alignment with a
+passing complete validator run, exit 6 for arguments that are not valid UTF-8, and the
+refusal of `set` on a field with continuation lines.
+
+## Issue List
+
+Split recorded automatically under the orchestrated-run override: critical and important approved, optional deferred (2026-11-14).
+
+[1]. Identity ledger alignment
+     Problem: the complete contract validator fails on the stack tip; the identity ledger of the repository records the manual's clone command on line 254, and the manual change of this task moved it to line 255.
+     Solution: update the ledger row and the prose line above it to line 255 in the completed task record that carries the ledger; re-run the complete validator.
+     Priority: critical
+[2]. Arguments that are not valid UTF-8
+     Problem: a field value, note, path or block name that is not valid UTF-8 ends a write command with exit 1 and an internal error, because the receipt input digest is computed before the content rules; the content rules require exit 6.
+     Solution: run the text and path content rules before the digest (or make the digest tolerate such input) so that the refusal is exit 6 with the invalid-value or invalid-path code; failing tests first for all four write commands.
+     Priority: important
+[3]. `set` on a field with continuation lines
+     Problem: `set` replaces only the field line, so old continuation lines stay under the new value and the write is reported as applied.
+     Solution: refuse with exit 6 and change nothing when the field named by `set` has continuation lines (owner ruling of 2026-11-14); failing tests first; state the rule in the manual's limits.
+     Priority: important
+[4]. Complete validator not run before the stack tip
+     Problem: subtasks verified with focused suites only, so a repository-wide pin broken by the last subtask surfaced only at task-level validation.
+     Solution: process remedy, no code change: re-run the complete validator after the fixes; record in the knowledge base that a change which moves lines in a ledger-pinned file refreshes the ledger in the same change.
+     Priority: important
+[5]. `validate` refusal sentence
+     Problem: `validate` exiting 6 prints no no-bypass sentence although the specification names exit 6 without limiting it to writes.
+     Solution: align the specification wording or the tool.
+     Priority: optional
+[6]. Quadratic parse time on long blank runs
+     Problem: a long run of blank lines followed by a continuation line makes reads quadratic (16,000 blank lines take about 16 s).
+     Solution: scan blank runs once.
+     Priority: optional
+[7]. Read-only state file is replaced
+     Problem: a state file with mode 0444 is still replaced because the rename needs only directory permission; ownership is not kept.
+     Solution: state it in the manual's limits or refuse.
+     Priority: optional
+[8]. Dead fields in the document model
+     Problem: two stored fields are never read.
+     Solution: remove them.
+     Priority: optional
+[9]. Blocking open on a swapped-in named pipe; binary mode on Windows reads
+     Problem: the state file is opened without a non-blocking flag, and without a binary flag where the platform distinguishes it.
+     Solution: add the flags.
+     Priority: optional
+[10]. Approved names listed twice in the inventory oracle suite
+     Problem: the four approved additions are held in two places of the oracle suite.
+     Solution: derive one from the other.
+     Priority: optional
+[11]. Static scan misses some process-spawning calls
+     Problem: the suite's static scan would not catch several other spawning or import forms; the tool uses none.
+     Solution: extend the scan.
+     Priority: optional
+[12]. Suite depends on every completed task directory
+     Problem: one case runs the task validator over all completed task directories, so a future completed task that trips it fails this suite.
+     Solution: pin the set or copy fixtures.
+     Priority: optional
+[13]. Long lines in the tool
+     Problem: seven lines exceed 100 characters.
+     Solution: re-wrap.
+     Priority: optional
+
+### Approved
+- [1] Identity ledger alignment — critical
+- [2] Arguments that are not valid UTF-8 — important
+- [3] `set` on a field with continuation lines — important
+- [4] Complete validator not run before the stack tip — important; process remedy applied by the orchestrator (complete validator re-run after the fixes, knowledge note), no fix-task
+
+### Deferred
+- [5]–[13] — deferred: optional; kept with the pending improvement proposals for review after delivery
+
+## Fix-Tasks
+fixes-created: complete
+fixes-count: 3
+Created: T-11-fix-identity-ledger-line, T-12-fix-non-utf8-arguments, T-13-fix-set-continuation-refusal
+
+### Fix Classification
+| Issue | Severity | Gate 1 | Gate 2 | Gate 3 | Gate 4 | Grouping | Branch |
+|-------|----------|--------|--------|--------|--------|----------|--------|
+| #1 Identity ledger alignment | critical | pass | pass | pass | pass | dedicated | T-11-fix-identity-ledger-line |
+| #2 Arguments that are not valid UTF-8 | important | fail | pass | pass | pass | dedicated | T-12-fix-non-utf8-arguments |
+| #3 `set` on a field with continuation lines | important | fail | fail | pass | pass | dedicated | T-13-fix-set-continuation-refusal |
+
+Gate notes: #1 is dedicated because it is critical. #2 and #3 each touch the tool, the suite and four pinned fixture files (more than three files); #3 also adds a refusal rule. Issue #4 is a process remedy applied by the orchestrator and has no fix-task.
 
 ## Model Selection
 selection: complete

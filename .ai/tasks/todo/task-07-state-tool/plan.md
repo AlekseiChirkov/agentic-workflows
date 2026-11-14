@@ -14,6 +14,9 @@
 | T-08 | Lock contention and interruption recovery | busy-lock reporting → unsafe path refusals → fault seam → recheck before rename → sync-failure warning and locking-unavailable → stale temporary files | T-03, T-04, T-07 | reviewed | claude-opus-5-5 |  |
 | T-09 | Receipts grammar contract and validator checks | failing validator checks → suite registration → mutation fixtures → anchored line and reader rule → protected entry → validate-task receipts check → exact oracle extension | T-01, T-07 | reviewed | claude-opus-5-5 |  |
 | T-10 | Ignore rules and usage documentation | failing ignore and doc checks → .gitignore → setup entries → usage entry list → State tool section → script inventory row → pinned digests | T-08, T-09 | reviewed | claude-opus-5-5 |  |
+| T-11-fix-identity-ledger-line | Identity ledger line for the manual | confirm failing identity check → update ledger row and prose line → identity check passes | T-10 | not-started |  |  |
+| T-12-fix-non-utf8-arguments | Refusal of arguments that are not valid UTF-8 | failing cases for four write commands → content rules decide before the digest fails → digests of valid input unchanged → pinned fixtures | T-11-fix-identity-ledger-line | not-started |  |  |
+| T-13-fix-set-continuation-refusal | Refusal of set on a field with continuation lines | failing cases → refusal with the field rules before the unchanged shortcut → manual limit sentence → pinned fixtures | T-12-fix-non-utf8-arguments | not-started |  |  |
 
 ## Execution Strategy
 
