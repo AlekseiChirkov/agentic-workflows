@@ -32,6 +32,7 @@ Notes:
 - `bash scripts/check-spec-draft.sh` pins the `/spec-draft` review contract (critic, round
   limit, rubric and threshold) in about 30 ms. It runs standalone, outside the frozen validator
   inventory, so run it after every change to `workflows/spec-draft.md`.
+- `--state-tool-only` runs `tests/state-tool.py` (the state tool's acceptance suite, about 30 s) through `scripts/validate-contracts.sh`; the default run includes it as `test_state_tool_acceptance`.
 - Optional model helpers use offline focused suites `--model-catalog-only`,
   `--model-selection-only` and `--model-plan-only` through `scripts/validate-contracts.sh`.
   `--model-workflow-only` runs catalog, selection, plan, workflow and unchanged general
@@ -120,6 +121,7 @@ Follow `.ai/principles/coding.md → Changing a contract`. Additionally:
 4. Multi-repo: `scripts/setup-umbrella.sh` at the root first, then `scripts/setup-all-repos.sh` or
    `scripts/setup-new-project.sh` per service.
 5. Respect repository-owned tracking policy. New consumers keep `.ai/` ignored by default; existing tracked knowledge is preserved and is not a preflight failure.
+6. A consumer that tracks `.ai/` gets the two state-tool ignore entries by adding `.state-tool.lock` and `.state.md.*.tmp` to its `.gitignore` by hand, or by rerunning `scripts/setup-new-project.sh` and then removing the `.ai/` line the rerun appends.
 
 ### Recover from a bad deploy
 - Deployed copies are disposable. Fix the source here, re-run `scripts/sync.sh`.
