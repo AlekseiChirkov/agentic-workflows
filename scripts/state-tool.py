@@ -13,12 +13,19 @@ Usage:
   python3 scripts/state-tool.py add-file --root R --task T --block ID --expected-revision REV
                                          --operation-id OP --path P [--path ...]
                                          [--lock-wait-seconds N]
+  python3 scripts/state-tool.py init-block --root R --task T --block ID --kind leaf|composite
+                                         --name NAME --expected-revision REV --operation-id OP
+                                         [--target-file P ...] [--children ID,ID...]
+                                         [--note TEXT ...] [--lock-wait-seconds N]
 
 Contract: stdout carries exactly one JSON object (schema_version 1); diagnostics go to
 stderr only. Read commands create, modify and delete no file. A write holds the per-task
 lock file .state-tool.lock, checks the expected revision, changes only the lines of the
 named fields plus the state_receipts line, and replaces state.md with one rename of its
-own temporary file. Notes are only appended and target files only added; existing note
+own temporary file. init-block inserts a new block with its canonical initial lines after
+the last non-blank line of the progress section (directly after the heading when the
+section holds nothing else, otherwise after one blank line) and never changes an existing
+block. Notes are only appended and target files only added; existing note
 text and existing target_files entries are never changed. Lifecycle rules are checked
 against the header fields a write changes; a rule already broken in a field the write does
 not change is reported as a warning (pre-existing-violation, required-field-missing) and
@@ -33,8 +40,8 @@ unrecognized-prefix, unknown-header-field, unsupported-contract-version,
 unsupported-encoding); 4 revision conflict (revision-conflict, state-file-changed); 5 lock
 busy (lock-busy); 6 field, value or invariant refused (invalid-value, invalid-path,
 read-only-field, field-not-applicable, n-a-unjustified, completion-without-tests, for writes
-downgrade, pinned-transition, invalid-transition, pre-tdd-not-applicable, and for validate
-required-field-missing); 7 file system or runtime (io-error, unsafe-state-file,
+downgrade, pinned-transition, invalid-transition, pre-tdd-not-applicable, block-exists, and
+for validate required-field-missing); 7 file system or runtime (io-error, unsafe-state-file,
 unsafe-lock-path, locking-unavailable, python-too-old). validate exits 3 before 6 when
 both kinds of error exist and lists every error.
 """
@@ -156,11 +163,17 @@ COMMANDS: dict[str, dict[str, frozenset[str]]] = {
     "add-file": {"single": WRITE_SINGLE_OPTIONS,
                  "repeatable": frozenset({"--path"}),
                  "required": WRITE_REQUIRED_OPTIONS | {"--path"}},
+    "init-block": {"single": WRITE_SINGLE_OPTIONS | {"--kind", "--name", "--children"},
+                   "repeatable": frozenset({"--target-file", "--note"}),
+                   "required": WRITE_REQUIRED_OPTIONS | {"--kind", "--name"}},
 }
-WRITE_COMMANDS = frozenset({"set", "append-note", "add-file"})
+WRITE_COMMANDS = frozenset({"set", "append-note", "add-file", "init-block"})
 # The result a command reports for any non-zero exit.
 REFUSED_RESULT = {"get": "rejected", "validate": "invalid", "set": "rejected",
-                  "append-note": "rejected", "add-file": "rejected"}
+                  "append-note": "rejected", "add-file": "rejected", "init-block": "rejected"}
+INITIAL_STATUS = "not-started"
+CHILDREN_SEPARATOR = ","
+CHILDREN_JOINER = ", "
 
 
 class ToolError(Exception):
@@ -258,6 +271,8 @@ def check_arguments(command: str, options: dict[str, list[str]]) -> None:
             raise ToolError(2, "invalid-arguments", f"invalid block id: {block_id}")
     if command in WRITE_COMMANDS:
         check_write_arguments(options)
+        if command == "init-block":
+            check_init_arguments(options)
         return
     for name in options.get("--field", []):
         if not name:
@@ -274,6 +289,39 @@ def check_write_arguments(options: dict[str, list[str]]) -> None:
         raise ToolError(2, "invalid-operation-id", f"invalid operation id: {operation_id}")
     field_pairs(options)
     lock_wait_seconds(options)
+
+
+def check_init_arguments(options: dict[str, list[str]]) -> None:
+    """Refuse an init-block invocation whose kind or option combination is invalid: a
+    composite needs children and a note and takes no target file, a leaf takes no children."""
+    kind = options["--kind"][0]
+    if kind not in KNOWN_FIELDS:
+        raise ToolError(2, "invalid-arguments", f"--kind must be leaf or composite: {kind}")
+    if kind == "composite":
+        for option in ("--children", "--note"):
+            if option not in options:
+                raise ToolError(2, "invalid-arguments", f"--kind composite needs {option}")
+        if "--target-file" in options:
+            raise ToolError(2, "invalid-arguments", "--target-file does not apply to a composite")
+    elif "--children" in options:
+        raise ToolError(2, "invalid-arguments", "--children does not apply to a leaf")
+    children_list(options)
+
+
+def children_list(options: dict[str, list[str]]) -> list[str]:
+    """Split --children on ',' with no surrounding spaces; every item is a well-formed block id,
+    none is empty or repeated, and none is the block's own id."""
+    if "--children" not in options:
+        return []
+    items = options["--children"][0].split(CHILDREN_SEPARATOR)
+    for item in items:
+        if not BLOCK_ID.fullmatch(item):
+            raise ToolError(2, "invalid-arguments", f"invalid child block id: '{item}'")
+    if len(set(items)) != len(items):
+        raise ToolError(2, "invalid-arguments", "--children names a block more than once")
+    if options["--block"][0] in items:
+        raise ToolError(2, "invalid-arguments", "--children names the block itself")
+    return items
 
 
 def field_pairs(options: dict[str, list[str]]) -> list[tuple[str, str]]:
@@ -305,6 +353,9 @@ def note_write_identity(options: dict[str, list[str]], report: dict[str, Any]) -
     block_id = options.get("--block", [None])[0]
     if block_id is not None and BLOCK_ID.fullmatch(block_id):
         report["block_id"] = block_id
+    kind = options.get("--kind", [None])[0]
+    if kind in KNOWN_FIELDS:
+        report["block_kind"] = kind  # init-block reports the requested kind.
 
 
 # ---------------------------------------------------------------- paths and file reads
@@ -864,6 +915,16 @@ def note_problem(note: str) -> str | None:
     return text_problem(note)
 
 
+def name_problem(name: str) -> str | None:
+    """Return why a block name breaks the text rules, or None: a name is non-empty single-line
+    text without '|', which separates the header segments."""
+    if not name:
+        return "must not be empty"
+    if "|" in name:
+        return "must not contain |"
+    return text_problem(name)
+
+
 def path_problem(path: str) -> str | None:
     """Return why a target path breaks the lexical rules, or None. Paths are never resolved
     on disk: non-empty, relative, no '..' segment, no leading './', no ',' and no trailing '/'."""
@@ -891,14 +952,20 @@ def check_additions(block: Block, notes: list[str], paths: list[str]) -> None:
     if paths and block.kind != "leaf":
         raise ToolError(6, "field-not-applicable",
                         f"field target_files does not apply to {block.kind} block {block.block_id}")
+    check_note_and_path_content(block.block_id, notes, paths)
+
+
+def check_note_and_path_content(block_id: str, notes: list[str], paths: list[str]) -> None:
+    """Refuse the first note that breaks the text rules (invalid-value), then the first path
+    that breaks the lexical rules (invalid-path)."""
     for note in notes:
         reason = note_problem(note)
         if reason is not None:
-            raise ToolError(6, "invalid-value", f"block {block.block_id}: note {reason}")
+            raise ToolError(6, "invalid-value", f"block {block_id}: note {reason}")
     for path in paths:
         reason = path_problem(path)
         if reason is not None:
-            raise ToolError(6, "invalid-path", f"block {block.block_id}: path '{path}' {reason}")
+            raise ToolError(6, "invalid-path", f"block {block_id}: path '{path}' {reason}")
 
 
 def target_files_change(block: Block, paths: list[str]) -> str | None:
@@ -1095,6 +1162,116 @@ def verify_candidate(document: Document, block: Block, candidate: Candidate,
         raise ToolError(1, "internal-error", "candidate check failed: " + "; ".join(problems))
 
 
+# ---------------------------------------------------------------- block initialization
+
+@dataclass
+class NewBlock:
+    """The inputs of init-block: id, kind and name, then target paths, children and notes in
+    argument order, repeated paths as given."""
+    block_id: str
+    kind: str
+    name: str
+    paths: list[str]
+    children: list[str]
+    notes: list[str]
+
+
+def new_block_input(options: dict[str, list[str]]) -> NewBlock:
+    return NewBlock(options["--block"][0], options["--kind"][0], options["--name"][0],
+                    list(options.get("--target-file", [])), children_list(options),
+                    list(options.get("--note", [])))
+
+
+def field_text(name: str, value: str) -> str:
+    """A field line; an empty value leaves no space after the colon."""
+    return f"  {name}: {value}" if value else f"  {name}:"
+
+
+def new_block_lines(new: NewBlock, receipt: str) -> tuple[list[str], list[str]]:
+    """The canonical initial lines of a new block, and the header fields and field lines they
+    write in header order, then canonical order, with state_receipts last. Every status starts
+    at not-started; a repeated target path is written once, at its first position; the first
+    note goes on the notes line and every further note on a continuation line."""
+    header_names = KNOWN_HEADER_FIELDS[new.kind]
+    statuses = " | ".join(f"{name}: {INITIAL_STATUS}" for name in header_names)
+    prefix = f"{COMPOSITE_PREFIX} " if new.kind == "composite" else ""
+    values = {"last_action": "",
+              "target_files": TARGET_FILES_SEPARATOR.join(dict.fromkeys(new.paths)),
+              "children": CHILDREN_JOINER.join(new.children), "blocker": "none",
+              "notes": new.notes[0] if new.notes else "", "state_receipts": receipt}
+    names = [name for name in KNOWN_FIELDS[new.kind] if name in values]
+    lines = [f"{prefix}{new.block_id} | {new.name} | {statuses}"]
+    for name in names:
+        lines.append(field_text(name, values[name]))
+        if name == "notes":
+            lines.extend(NOTE_CONTINUATION + note for note in new.notes[1:])
+    return lines, list(header_names) + names
+
+
+def block_insertion(document: Document) -> tuple[int, list[str]]:
+    """Index of the line a new block follows and the separator lines before the block: the last
+    non-blank line of the section, fence lines included; nothing between it and the block when
+    it is the section heading, otherwise one blank line. Blank lines that followed that line
+    stay after the new block."""
+    anchor = next(index for index in range(document.section_end - 1, document.section_start - 1, -1)
+                  if content(document.lines[index]) != "")
+    return anchor, ([] if anchor == document.section_start else [""])
+
+
+def block_shape(block: Block) -> tuple[dict[str, Any], list[str]]:
+    """What a reader sees of a block, without line numbers."""
+    return describe_block(block, None), [reason for _, reason in block.malformed]
+
+
+def verify_new_block(document: Document, text: str, new: NewBlock, start: int,
+                     count: int) -> None:
+    """Re-parse the candidate and confirm that it reads back the new block, exactly on its
+    inserted lines and well formed, and that every other block reads as before. A block that
+    does not read back, for example because it landed inside an unclosed fence, is refused."""
+    try:
+        reparsed = parse_document(text)
+    except ToolError as error:
+        raise ToolError(1, "internal-error", f"candidate does not parse: {error.message}") from None
+    matches = [block for block in reparsed.blocks if block.block_id == new.block_id]
+    problems = []
+    if (len(matches) != 1 or (matches[0].start, matches[0].end) != (start, start + count)
+            or matches[0].malformed or receipts_problem(matches[0]) is not None
+            or matches[0].kind != new.kind or matches[0].name != new.name):
+        problems.append(f"new block {new.block_id} does not read back")
+    others = [block_shape(block) for block in reparsed.blocks if block.block_id != new.block_id]
+    if others != [block_shape(block) for block in document.blocks]:
+        problems.append("another block reads differently")
+    if problems:
+        raise ToolError(1, "internal-error", "candidate check failed: " + "; ".join(problems))
+
+
+def init_block_candidate(document: Document, options: dict[str, list[str]],
+                         source: str) -> tuple[str, list[str]]:
+    """Build and check the candidate of init-block: refuse an id the section already holds,
+    a stale revision and invalid name, note or path content; return the candidate text and
+    the fields written. Existing lines are copied byte for byte; the final-newline state is
+    kept."""
+    new = new_block_input(options)
+    existing = [block for block in document.blocks if block.block_id == new.block_id]
+    if existing:
+        raise ToolError(6, "block-exists", f"block {new.block_id} already exists",
+                        existing[0].start + 1)
+    check_revision(options, source)
+    reason = name_problem(new.name)
+    if reason is not None:
+        raise ToolError(6, "invalid-value", f"block {new.block_id}: name {reason}")
+    check_note_and_path_content(new.block_id, new.notes, new.paths)
+    digest = input_digest("init-block", new.block_id, init_inputs(new))
+    lines, written = new_block_lines(new, f"{options['--operation-id'][0]}#{digest}")
+    anchor, separator = block_insertion(document)
+    contents = [content(line) for line in document.lines]
+    output = contents[:anchor + 1] + separator + lines + contents[anchor + 1:]
+    final_newline = "\n" if "".join(document.lines).endswith("\n") else ""
+    text = "\n".join(output) + final_newline
+    verify_new_block(document, text, new, anchor + 1 + len(separator), len(lines))
+    return text, written
+
+
 # ---------------------------------------------------------------- receipts
 
 def input_digest(command: str, block_id: str, inputs: dict[str, Any]) -> str:
@@ -1114,6 +1291,13 @@ def write_inputs(command: str, pairs: list[tuple[str, str]], notes: list[str],
     if command == "append-note":
         return {"notes": list(notes)}
     return {"paths": list(paths)}
+
+
+def init_inputs(new: NewBlock) -> dict[str, Any]:
+    """Inputs of init-block for the digest: kind and name, then its target paths, children and
+    notes in argument order, repeated paths as given; every key is always present."""
+    return {"kind": new.kind, "name": new.name, "paths": list(new.paths),
+            "children": list(new.children), "notes": list(new.notes)}
 
 
 # ---------------------------------------------------------------- write transaction
@@ -1341,13 +1525,47 @@ def command_validate(options: dict[str, list[str]], report: dict[str, Any]) -> i
     return 0
 
 
-def command_write(command: str, options: dict[str, list[str]], report: dict[str, Any]) -> int:
-    """Change the named fields of one block, append its notes and add its target files under
-    the task lock in one atomic replace; refuse the whole call when any input is refused."""
-    require_locking()
+def check_revision(options: dict[str, list[str]], source: str) -> None:
+    if options["--expected-revision"][0] != source:
+        raise ToolError(4, "revision-conflict",
+                        "state.md changed since the expected revision was read")
+
+
+def field_write_candidate(command: str, document: Document, options: dict[str, list[str]],
+                          source: str, report: dict[str, Any]
+                          ) -> tuple[str, list[str], list[str]] | None:
+    """Build and check the candidate that changes the named fields of one block, appends its
+    notes and adds its target files; return its text, the changed fields and the write
+    warnings, or None when nothing would change. One refused input refuses the whole call."""
     pairs = field_pairs(options)
     notes = options.get("--note", [])
     target_paths = options.get("--path", [])
+    block_id = options["--block"][0]
+    matches = [block for block in document.blocks if block.block_id == block_id]
+    if matches:
+        report["block_kind"] = matches[0].kind
+    block = write_target(document, block_id)
+    check_revision(options, source)
+    check_field_changes(block, pairs)
+    check_additions(block, notes, target_paths)
+    changes = changed_pairs(block, pairs)
+    target_files = target_files_change(block, target_paths)
+    if target_files is not None:
+        changes["target_files"] = target_files
+    if not changes and not notes:
+        return None
+    warnings = check_write_invariants(block, changes, notes)
+    digest = input_digest(command, block_id, write_inputs(command, pairs, notes, target_paths))
+    receipt = f"{options['--operation-id'][0]}#{digest}"
+    candidate = build_candidate(document, block, changes, notes, receipt)
+    verify_candidate(document, block, candidate, changes)
+    return candidate.text, candidate.changed, warnings
+
+
+def command_write(command: str, options: dict[str, list[str]], report: dict[str, Any]) -> int:
+    """Run one write command under the task lock and replace state.md in one atomic rename;
+    refuse the whole call when any input is refused."""
+    require_locking()
     paths = resolve_paths(options["--root"][0], options["--task"][0])
     report["task"] = paths.relative_task
     report["stale_temp_files"] = stale_temp_files(paths.task)
@@ -1366,30 +1584,16 @@ def command_write(command: str, options: dict[str, list[str]], report: dict[str,
             raise ToolError(3, "unsupported-contract-version",
                             "the task records a contract version this tool does not support")
         document = parse_document(text)
-        block_id = options["--block"][0]
-        matches = [block for block in document.blocks if block.block_id == block_id]
-        if matches:
-            report["block_kind"] = matches[0].kind
-        block = write_target(document, block_id)
-        if options["--expected-revision"][0] != source:
-            raise ToolError(4, "revision-conflict",
-                            "state.md changed since the expected revision was read")
-        check_field_changes(block, pairs)
-        check_additions(block, notes, target_paths)
-        changes = changed_pairs(block, pairs)
-        target_files = target_files_change(block, target_paths)
-        if target_files is not None:
-            changes["target_files"] = target_files
-        if not changes and not notes:
-            report["result"] = "unchanged"
-            return 0
-        warnings = check_write_invariants(block, changes, notes)
-        digest = input_digest(command, block_id, write_inputs(command, pairs, notes, target_paths))
-        receipt = f"{options['--operation-id'][0]}#{digest}"
-        candidate = build_candidate(document, block, changes, notes, receipt)
-        verify_candidate(document, block, candidate, changes)
-        changed = candidate.changed
-        candidate_bytes = candidate.text.encode("utf-8")
+        if command == "init-block":
+            candidate_text, changed = init_block_candidate(document, options, source)
+            warnings: list[str] = []
+        else:
+            outcome = field_write_candidate(command, document, options, source, report)
+            if outcome is None:
+                report["result"] = "unchanged"
+                return 0
+            candidate_text, changed, warnings = outcome
+        candidate_bytes = candidate_text.encode("utf-8")
         report["warnings"] = warnings + replace_state(paths, candidate_bytes, owner_token, source,
                                                       (opened.st_dev, opened.st_ino),
                                                       stat.S_IMODE(opened.st_mode), report)
