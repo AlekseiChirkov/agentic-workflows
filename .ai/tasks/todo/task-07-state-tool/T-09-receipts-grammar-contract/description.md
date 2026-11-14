@@ -21,6 +21,11 @@ default run.
   contract results, one added acceptance result with its resource row, one added focused
   flag, and the counts 36 → 37 acceptance checks and 37 → 38 focused modes. No general
   "allow additions" path is introduced (the frozen inventory rejects broad exemptions).
+  The focused dispatch sits in the validator's startup prefix, whose digest is pinned in
+  three places (the rule-history function of the validator, the warning digest in
+  `source_guard.py`, and `warning-history-after.txt`); those three exact values are
+  re-pinned, with no other change to the function or the fixture and no word `check` in
+  the prefix.
   Then refresh the source-guard fingerprint per
   `tests/fixtures/validator-runtime/README.md`. This is the only subtask that registers
   the suite (owner decision, 2026-11-13).
@@ -47,7 +52,8 @@ rule files; deployed copies under the home directory are never edited.
   `tests/fixtures/validator-runtime/source_guard_exceptions.json`,
   `tests/fixtures/validator-runtime/source_guard.py`,
   `tests/fixtures/validator-runtime/inventory-amendment.json`,
-  `tests/fixtures/validator-runtime/oracle.py`, `tests/validator-runtime-oracle.py`
+  `tests/fixtures/validator-runtime/oracle.py`, `tests/validator-runtime-oracle.py`,
+  `tests/fixtures/validator-runtime/warning-history-after.txt`
 
 ## Steps
 1. Add failing checks to `scripts/validate-contracts.sh`: the anchored `state_receipts:`

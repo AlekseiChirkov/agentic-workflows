@@ -5,6 +5,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -23,7 +24,7 @@ SPEC.loader.exec_module(ORACLE)
 FROZEN_INVENTORY_SHA256 = "57f7872d3525f608b57b29410792e2e02106542f28456f806319e2e7065557a1"
 
 
-AMENDMENT_SHA256 = "a54ae236dfb95ec9f73a3b54e239b0d05ff41eb25181a47d7022e384ff375815"
+AMENDMENT_SHA256 = "25846792d19ac9859d85dc19c02df5cbe65279c801d68a3fa98e171a1cb298c9"
 APPROVED_PATHS = frozenset({
     "scripts/model-catalog.py", "scripts/model_selection.py", "tests/model-plan.py",
     "tests/usage-observation-bundle-schema.py", "tests/usage-status-large-authority.py",
@@ -43,9 +44,61 @@ APPROVED_PATHS = frozenset({
 })
 
 
+# The one approved extension of the frozen inventory, by name: the state tool contract
+# results, its acceptance result, focused mode and resource row. Each entry is inserted
+# directly after its anchor; any other addition, rename or omission is rejected.
+ADDED_NAMES = {
+    "results": [
+        "RECEIPTS: workflow-globals defines state_receipts: on one anchored line and keeps blocks without it valid",
+        "RECEIPTS: the Protected Sections Contract protects state_receipts: lines",
+        "RECEIPTS: the state tool vocabulary constants equal the anchored status lines",
+        "test_state_tool_acceptance",
+    ],
+    "expressions": ["test_state_tool_acceptance"],
+    "focused": ["--state-tool-only"],
+    "resources": ["test_state_tool_acceptance"],
+}
+ADDED_RESOURCE_PATHS = frozenset({"scripts/state-tool.py", "tests/state-tool.py"})
+
+
+def add_named_entries(amended: dict, added: dict) -> None:
+    """Insert exactly the approved named entries into the amended inventory in place."""
+    if not isinstance(added, dict) or set(added) != set(ADDED_NAMES):
+        raise ValueError("Invalid amendment additions")
+    for section, names in ADDED_NAMES.items():
+        key = "flag" if section == "focused" else "name"
+        items, target = added[section], amended[section]
+        if (not isinstance(items, list)
+                or any(not isinstance(item, dict) or set(item) != {"after", "value"}
+                       or not isinstance(item["value"], dict) or set(item["value"]) != set(target[0])
+                       for item in items)
+                or [item["value"][key] for item in items] != names):
+            raise ValueError("Unexpected added entries")
+        for item in items:
+            if any(entry[key] == item["value"][key] for entry in target):
+                raise ValueError("Added entry already exists")
+            anchors = [index for index, entry in enumerate(target)
+                       if (entry if section == "results" else entry[key]) == item["after"]]
+            if len(anchors) != 1:
+                raise ValueError("Added entry anchor is missing or repeated")
+            target.insert(anchors[0] + 1, copy.deepcopy(item["value"]))
+    name = ADDED_NAMES["expressions"][0]
+    result = next(entry for entry in amended["results"] if entry["name"] == name)
+    expression = next(entry for entry in amended["expressions"] if entry["name"] == name)
+    if result["expression"] != expression["expression"]:
+        raise ValueError("Added acceptance expression differs")
+    row = next(entry for entry in amended["resources"] if entry["name"] == name)
+    paths = {item["path"] for item in row["source_references"] + row["dynamic_dependencies"]}
+    paths |= {item["path"] for values in row["observations"].values() for item in values}
+    paths |= {path for item in row["dynamic_dependencies"]
+              for field in ("target_candidates", "callsite_candidates") for path in item.get(field, [])}
+    if not paths or not paths <= ADDED_RESOURCE_PATHS:
+        raise ValueError("Added resource path is not approved")
+
+
 def apply_amendment(frozen: dict, amendment: dict) -> dict:
     """Apply exact approved test-resource changes to a copy of the frozen inventory."""
-    if set(amendment) != {"schema", "paths", "removed_results", "resources"}:
+    if set(amendment) != {"schema", "paths", "removed_results", "resources", "added"}:
         raise ValueError("Invalid amendment fields")
     if amendment["schema"] != 1 or amendment["paths"] != sorted(APPROVED_PATHS):
         raise ValueError("Invalid amendment scope")
@@ -88,6 +141,7 @@ def apply_amendment(frozen: dict, amendment: dict) -> dict:
                 raise ValueError("Frozen resource differs")
             items[:] = sorted([item for item in items if item["path"] != path] + copy.deepcopy(after),
                               key=lambda item: (item["path"], item.get("line", 0)))
+    add_named_entries(amended, amendment["added"])
     return amended
 
 
@@ -141,6 +195,18 @@ class SecurityContracts(unittest.TestCase):
         result = subprocess.run([sys.executable, str(ROOT / "tests/validator-runtime-sourceguard-allowlist.py")],
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+# The one approved extension of the frozen inventory: the state tool contract results,
+# its acceptance result, focused mode and resource row. Nothing else may be added.
+NAMED_RESULTS = [
+    "RECEIPTS: workflow-globals defines state_receipts: on one anchored line and keeps blocks without it valid",
+    "RECEIPTS: the Protected Sections Contract protects state_receipts: lines",
+    "RECEIPTS: the state tool vocabulary constants equal the anchored status lines",
+    "test_state_tool_acceptance",
+]
+NAMED_ACCEPTANCE = "test_state_tool_acceptance"
+NAMED_FLAG = "--state-tool-only"
 
 
 def sample(seconds: float) -> dict:
@@ -327,6 +393,85 @@ class OracleContract(unittest.TestCase):
         with self.assertRaises(ValueError):
             apply_amendment(raw, bad)
 
+    def test_inventory_extension_accepts_only_the_named_additions(self) -> None:
+        path = ROOT / "tests/fixtures/validator-runtime/source-inventory.json.gz"
+        raw = ORACLE.load_inventory(path)
+        amendment = json.loads(path.with_name("inventory-amendment.json").read_bytes())
+        added = amendment.get("added", {})
+        self.assertEqual([item["value"]["name"] for item in added.get("results", [])], NAMED_RESULTS)
+        self.assertEqual([item["value"]["name"] for item in added.get("expressions", [])],
+                         [NAMED_ACCEPTANCE])
+        self.assertEqual([item["value"]["flag"] for item in added.get("focused", [])], [NAMED_FLAG])
+        self.assertEqual([item["value"]["name"] for item in added.get("resources", [])],
+                         [NAMED_ACCEPTANCE])
+        self.assertTrue(ORACLE.matches(apply_amendment(raw, amendment), self.inventory))
+
+        source = (ROOT / "scripts/validate-contracts.sh").read_text()
+        def statement(name: str) -> str:
+            start = source.index('check "' + name + '" \\\n')
+            return source[start:source.index("\n", source.index("\n", start) + 1) + 1]
+        contract, acceptance = statement(NAMED_RESULTS[2]), statement(NAMED_ACCEPTANCE)
+        dispatch = re.search(r'^if \[ "\$\{1:-\}" = ' + NAMED_FLAG + r' \]; then\n.*?^fi\n',
+                             source, re.M | re.S).group(0)
+        candidates = {
+            "unlisted contract check": source.replace(
+                contract, contract + contract.replace(NAMED_RESULTS[2], "RECEIPTS: an unlisted check"), 1),
+            "unlisted acceptance check": source.replace(
+                acceptance, acceptance + acceptance.replace(
+                    'check "' + NAMED_ACCEPTANCE, 'check "test_unlisted_acceptance', 1), 1),
+            "unlisted focused mode": source.replace(
+                dispatch, dispatch + dispatch.replace(NAMED_FLAG, "--unlisted-only"), 1),
+            "named contract check missing": source.replace(contract, "", 1),
+            "named focused mode missing": source.replace(dispatch, "", 1),
+        }
+        with tempfile.TemporaryDirectory(prefix="oracle-extension-") as temp:
+            candidate = Path(temp) / "validate-contracts.sh"
+            for label, text in candidates.items():
+                with self.subTest(source=label):
+                    self.assertNotEqual(text, source)
+                    candidate.write_text(text)
+                    try:
+                        accepted = ORACLE.matches_structure(
+                            apply_amendment(raw, amendment),
+                            ORACLE.inventory(candidate, include_resources=False))
+                    except ValueError:
+                        accepted = False
+                    self.assertFalse(accepted, label)
+
+        def changed(section: str, change) -> dict:
+            altered = copy.deepcopy(amendment)
+            change(altered["added"][section])
+            return altered
+        def extra(items: list) -> None:
+            item = copy.deepcopy(items[-1])
+            key = "flag" if "flag" in item["value"] else "name"
+            item["after"] = item["value"][key] if isinstance(item["after"], str) else copy.deepcopy(item["value"])
+            item["value"][key] = "unlisted-addition"
+            items.append(item)
+        def rename(items: list) -> None:
+            key = "flag" if "flag" in items[0]["value"] else "name"
+            items[0]["value"][key] += " renamed"
+        def foreign_path(items: list) -> None:
+            items[0]["value"]["source_references"].append(
+                {"path": "tests/unapproved.py", "sha256": "0" * 64, "provenance": "direct lexical reference"})
+        def missing_anchor(items: list) -> None:
+            items[0]["after"] = "no such entry" if isinstance(items[0]["after"], str) else {"name": "none", "expression": "none"}
+        bad_amendments = {"unlisted result": changed("results", extra),
+                          "unlisted focused flag": changed("focused", extra),
+                          "unlisted acceptance expression": changed("expressions", extra),
+                          "unlisted resource row": changed("resources", extra),
+                          "renamed result": changed("results", rename),
+                          "renamed focused flag": changed("focused", rename),
+                          "named result missing": changed("results", lambda items: items.pop()),
+                          "resource path outside the suite": changed("resources", foreign_path),
+                          "missing anchor": changed("results", missing_anchor)}
+        unknown_section = copy.deepcopy(amendment)
+        unknown_section["added"]["unlisted"] = []
+        bad_amendments["unknown section"] = unknown_section
+        for label, altered in bad_amendments.items():
+            with self.subTest(amendment=label), self.assertRaises(ValueError):
+                apply_amendment(raw, altered)
+
     def test_unapproved_nonstandard_check_is_rejected(self) -> None:
         source = (ROOT / "scripts/validate-contracts.sh").read_text()
         with tempfile.TemporaryDirectory(prefix="oracle-syntax-") as temp:
@@ -338,10 +483,10 @@ class OracleContract(unittest.TestCase):
     def test_inventory_contains_all_source_contracts(self) -> None:
         inventory = self.inventory
         self.assertIsInstance(inventory, dict)
-        self.assertEqual(len(inventory["expressions"]), 36)
-        self.assertEqual(len(inventory["focused"]), 37)
-        self.assertGreater(len(inventory["results"]), 36)
-        self.assertEqual(len(inventory["resources"]), 36)
+        self.assertEqual(len(inventory["expressions"]), 37)
+        self.assertEqual(len(inventory["focused"]), 38)
+        self.assertGreater(len(inventory["results"]), 37)
+        self.assertEqual(len(inventory["resources"]), 37)
         self.assertTrue(all(row["classification"] in {"independent", "exclusive", "conflict"}
                             and row["evidence"] for row in inventory["resources"]))
 

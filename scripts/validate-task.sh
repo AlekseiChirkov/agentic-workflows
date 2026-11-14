@@ -138,7 +138,7 @@ if grep -q '^## Subtask Progress' "$STATE"; then
 
   BAD_TESTS="$(grep -oE 'atomic-tests: *[a-z-]+' "$STATE" | grep -vE 'atomic-tests: *(not-started|red|pinned|green|n-a|failed)$' || true)"
   check "atomic-tests: uses the canonical vocabulary" \
-    "$([ -z "$BAD_TESTS" ] && echo pass || echo "not-started|red|green|n-a|failed expected, found: $(echo "$BAD_TESTS" | tr '\n' ';')")"
+    "$([ -z "$BAD_TESTS" ] && echo pass || echo "not-started|red|pinned|green|n-a|failed expected, found: $(echo "$BAD_TESTS" | tr '\n' ';')")"
 
   BAD_STAT="$(grep -oE 'atomic-(execution|validation): *[a-z-]+' "$STATE" | grep -vE ': *(not-started|in-progress|complete|blocked|skipped|failed)$' || true)"
   check "atomic-execution/validation use the canonical vocabulary" \
@@ -152,6 +152,32 @@ if grep -q '^## Subtask Progress' "$STATE"; then
       "$([ "${COUNT:-0}" -ge "${LEAVES:-0}" ] && echo pass \
          || echo "$COUNT ${field}: lines for $LEAVES leaf blocks — the field is mandatory even when empty")"
   done
+
+  # Tool-managed receipts, per workflow-globals: only field lines (exactly two spaces of
+  # indentation) inside the progress section and outside fences are read, so prose that
+  # mentions the field never counts. A block without the line is valid.
+  BAD_RECEIPTS="$(LC_ALL=C awk '
+    inside && /^ ? ? ?(```|~~~)/ { fenced = !fenced; next }
+    inside && fenced { next }
+    /^(#|##) / { inside = ($0 ~ /^## Subtask Progress[[:space:]]*$/); fenced = 0; next }
+    !inside || !/^  state_receipts:/ { next }
+    {
+      value = substr($0, length("  state_receipts:") + 1)
+      if (value != "" && substr(value, 1, 1) != " ") { print NR; next }
+      value = substr(value, 2)
+      count = (value == "") ? 0 : split(value, entries, ", ")
+      bad = (count < 1 || count > 20)
+      delete seen
+      for (i = 1; i <= count && !bad; i++) {
+        parts = split(entries[i], piece, "#")
+        if (parts != 2 || length(piece[1]) > 64 || piece[1] !~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/ ||
+            length(piece[2]) != 16 || piece[2] ~ /[^0-9a-f]/ || (piece[1] in seen)) bad = 1
+        seen[piece[1]] = 1
+      }
+      if (bad) print NR
+    }' "$STATE" | tr '\n' ' ')"
+  check "every state_receipts: line has 1 to 20 well-formed entries with unique operation ids" \
+    "$([ -z "$BAD_RECEIPTS" ] && echo pass || echo "malformed state_receipts: line(s) at line ${BAD_RECEIPTS% } — each holds 1 to 20 entries <operation_id>#<16 lowercase hex> separated by ', ' with unique operation ids; the line is tool-managed (workflow-globals → ## Canonical Status Formats)")"
 
   # Composite blocks must declare children and blocker.
   COMPOSITES="$(grep -cE '^\[composite\] T-' "$STATE" || true)"

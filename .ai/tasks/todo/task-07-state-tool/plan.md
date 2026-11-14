@@ -12,7 +12,7 @@
 | T-06 | Block initialization | argument and children validation → canonical leaf and composite lines → insertion layout → block-exists and section-missing refusals | T-03, T-04 | reviewed | claude-opus-5-5 |  |
 | T-07 | Idempotent operation receipts | malformed-receipts refusal → receipt lookup before revision → init-block repeat → 20-entry cap → digest coverage | T-02, T-03, T-04, T-06 | reviewed | claude-opus-5-5 |  |
 | T-08 | Lock contention and interruption recovery | busy-lock reporting → unsafe path refusals → fault seam → recheck before rename → sync-failure warning and locking-unavailable → stale temporary files | T-03, T-04, T-07 | reviewed | claude-opus-5-5 |  |
-| T-09 | Receipts grammar contract and validator checks | failing validator checks → suite registration → mutation fixtures → anchored line and reader rule → protected entry → validate-task receipts check → exact oracle extension | T-01, T-07 | not-started | claude-opus-5-5 |  |
+| T-09 | Receipts grammar contract and validator checks | failing validator checks → suite registration → mutation fixtures → anchored line and reader rule → protected entry → validate-task receipts check → exact oracle extension | T-01, T-07 | reviewed | claude-opus-5-5 |  |
 | T-10 | Ignore rules and usage documentation | failing ignore and doc checks → .gitignore → setup entries → usage entry list → State tool section → script inventory row → pinned digests | T-08, T-09 | not-started | claude-opus-5-5 |  |
 
 ## Execution Strategy
