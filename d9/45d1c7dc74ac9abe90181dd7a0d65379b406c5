@@ -1,0 +1,19 @@
+tests/state-tool.py
+  s_75218c90170bfa::t_1e99e2b6373629 5074,5455-5456,5597-5606,5729-5797,6320-6322,6686-6734,7111-7139,7227-7250,7268-7270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d945d1c7dc74ac9abe90181dd7a0d65379b406c5",
+  "prompts": {},
+  "sessions": {
+    "s_75218c90170bfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d90e062-887f-4faa-b97c-24c39cc0d6f4",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
