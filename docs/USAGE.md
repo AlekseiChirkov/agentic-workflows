@@ -947,7 +947,8 @@ lost result, repeat the identical command: a write killed before the rename leav
 repeat applies once; a write killed after the rename is answered `already_applied`. An
 interrupt (Ctrl-C) or a termination signal counts as a kill: the tool ends by the signal
 without a JSON object, an exit code from the table or a traceback, also while it waits for
-the lock.
+the lock; only an interrupt that arrives before the interpreter has started the script can
+still print the interpreter's own traceback.
 
 An `unchanged` result writes nothing and records no receipt, so its operation id is not
 reserved: the same id may later be applied to that block with any inputs, and the receipts
@@ -1032,8 +1033,9 @@ When the tool is absent or cannot run, edit the block by hand in this order:
   insertion point. An in-block fence that is never closed makes its block malformed (exit
   3, `malformed-block`). A column-0 fence that is never closed hides every later block up
   to the end of the file: `get` and `validate` do not see them and a command that names
-  one exits 3 `block-missing`. In both cases `init-block` exits 1 and writes nothing; close
-  the fence by hand first.
+  one exits 3 `block-missing`. `init-block` that names the block holding an unclosed
+  in-block fence exits 3 `malformed-block`, and `init-block` for a new block id exits 1 in
+  both cases; nothing is written either way. Close the fence by hand first.
 
 ### Ignore rules for the auxiliary files
 

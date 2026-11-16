@@ -271,7 +271,9 @@ for entry in "${GITIGNORE_ENTRIES[@]}"; do
     echo "  skipped: .ai/ — files under .ai/ are tracked in this repository; preserving its tracking policy"
   else
     # End an unterminated last line once, so the first appended entry starts its own line.
-    if [ "$GITIGNORE_APPENDED" -eq 0 ] && [ -s .gitignore ] && [ -n "$(tail -c 1 .gitignore)" ]; then
+    # The last byte is compared as a byte: command substitution alone would drop a NUL byte.
+    if [ "$GITIGNORE_APPENDED" -eq 0 ] && [ -s .gitignore ] &&
+       [ "$(tail -c 1 .gitignore | od -An -tx1 | tr -d ' \n')" != "0a" ]; then
       echo >> .gitignore
       echo "  ok: ended the unterminated last line of .gitignore"
     fi
