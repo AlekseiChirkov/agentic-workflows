@@ -484,7 +484,7 @@ A file digest covers the file's raw bytes; an absent file has digest `null`.
 
 | Identifier | Form | Example |
 |---|---|---|
-| `leaf_id` | `^T-[0-9]{2,}[a-z]?(-fix-[a-z0-9]+(-[a-z0-9]+)*)?$` (header id of `.ai/specs/07-state-tool.md` `## Data Model`; forms from `workflows/pv-create-fixes.md:58,75`) | `T-04d-fix-rounding` |
+| `leaf_id` | `^T-[0-9]{2,}[a-z]?(-fix-[a-z0-9]+(-[a-z0-9]+)*)?$` (header id of `.ai/specs/completed/07-state-tool.md` `## Data Model`; forms from `workflows/pv-create-fixes.md:58,75`) | `T-04d-fix-rounding` |
 | `role` | `implementer` or `validator` | |
 | `attempt` | integer ≥ 1 without leading zeros | `2` |
 | `attempt_id` | `<leaf_id>.<role>.<attempt>` | `T-03.implementer.1` |
@@ -592,7 +592,7 @@ Rendering rules: a `Status` cell is rewritten as one space, `to`, and spaces pad
 its previous character length (no padding when `to` is longer, then one trailing space). A
 header segment `field: value` keeps its position. `section-append` keeps one blank line before
 the next `## ` heading and separates a created section from preceding content by one blank
-line. Blocks are parsed with the grammar of `.ai/specs/07-state-tool.md` `## Data Model →
+line. Blocks are parsed with the grammar of `.ai/specs/completed/07-state-tool.md` `## Data Model →
 Section and block grammar` (a formalization of `rules/workflow-globals.md:173-222`); unknown
 fields, including `state_receipts:`, are preserved byte for byte.
 
@@ -1302,7 +1302,7 @@ REQ-35, REQ-39; G7 — REQ-33, REQ-46, C-8; G8 — REQ-47, NFR-05.
 - A-23 | Validator inputs | Resolved: unchanged until 16 | Source: `workflows/spec-run.md:284-292`; previous revision §8 | Reversible: yes
 - A-24 | Other orchestrators | Resolved: unchanged | Source: spec 09 Q-05 (separate run-log change recommended) | Reversible: yes
 - A-25 | Gates | Resolved: G1–G8 | Source: `.ai/specs/README.md` → "Shared acceptance gates"; previous revision §10 | Reversible: no
-- A-26 | Line endings | Resolved: LF targets only; CR → fallback | Source: `.ai/specs/07-state-tool.md` grammar ("Line endings are LF") | Reversible: yes
+- A-26 | Line endings | Resolved: LF targets only; CR → fallback | Source: `.ai/specs/completed/07-state-tool.md` grammar ("Line endings are LF") | Reversible: yes
 - A-27 | Waiting | Resolved: trigger list without a numeric polling interval | Source: previous revision §8; no owner target | Reversible: yes
 - A-28 | Unlisted changes | Resolved: reported, not staged, no stop | Source: `workflows/spec-run.md:261-263` (exact paths only); P5 (no undeclared new stop) | Reversible: yes
 - A-29 | Frozen tests | Resolved: recorded, no stop | Source: `rules/orchestration.md:89-91` (Validator audits the test set) | Reversible: yes

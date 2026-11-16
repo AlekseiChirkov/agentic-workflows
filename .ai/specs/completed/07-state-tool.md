@@ -8,9 +8,9 @@ completed_at: 2026-11-16
 
 ## Source
 
-- **Request:** `/spec-draft .ai/specs/07-state-tool.md` (interactive refinement, 2026-11-13).
+- **Request:** `/spec-draft .ai/specs/completed/07-state-tool.md` (interactive refinement, 2026-11-13).
 - **Input:** the existing Russian-language specification at commit
-  `3ee594a`, file `.ai/specs/07-state-tool.md`. Its full original text stays in git history.
+  `3ee594a`, file `.ai/specs/completed/07-state-tool.md`. Its full original text stays in git history.
   The English translation below is faithful in substance. Links to the old public repository
   location are replaced with repository-relative paths at the pinned commit
   `8c2fa08c18115ffcf38a1798742c41e53a2c7461` (decision D-08).
@@ -25,7 +25,7 @@ completed_at: 2026-11-16
 - **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
 - **Delivered evidence:** The existing task validator and manual progress-block workflow are foundations only.
 - **Outstanding scope and limits:** The get/set/append-note/add-file/init-block/validate writer, expected-revision protocol, and transactional task-state serializer are not delivered. This review does not schedule implementation.
-- **Sources:** [`scripts/validate-task.sh`](../../scripts/validate-task.sh), [`rules/workflow-globals.md`](../../rules/workflow-globals.md).
+- **Sources:** [`scripts/validate-task.sh`](../../../scripts/validate-task.sh), [`rules/workflow-globals.md`](../../../rules/workflow-globals.md).
 - Existing requirement and acceptance identifiers remain binding (annotation 2026-11-13: except REQ-14 and AC-12, withdrawn by D-01). Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
 
 ### Delivery record — 2026-11-16
@@ -34,7 +34,7 @@ completed_at: 2026-11-16
 - **Verified source scope:** stack tip `fc63efb` over base `060ce6d` (ten changes and three fixes on stacked branches, pull requests #80–#92, not yet merged at the time of this record).
 - **Delivered evidence:** `scripts/state-tool.py` with the six commands; acceptance suite `tests/state-tool.py` (232 tests) registered in the contract validator as `--state-tool-only` and `test_state_tool_acceptance`; the `state_receipts:` definition, protection and validator checks; ignore rules; the operating manual section. The complete contract validator on that tip: 721 passed, 0 failed, 2 skipped (hygiene checks that need a local pattern file).
 - **Outstanding scope and limits:** none of the requirements is deferred. The tool is optional and no workflow calls it (D-07). Improvement proposals recorded by the reviews are pending with the owner and are not requirements of this specification.
-- **Sources:** `.ai/tasks/todo/task-07-state-tool/state.md` (contract check, code review, issue list, execution report), `.ai/adr/0021-task-07-schedule-state-tool.md`, `.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md`.
+- **Sources:** `.ai/tasks/completed/task-07-state-tool/state.md` (contract check, code review, issue list, execution report), `.ai/adr/0021-task-07-schedule-state-tool.md`, `.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md`.
 
 ### Delivery record — 2026-11-16, follow-up changes
 
@@ -42,8 +42,9 @@ completed_at: 2026-11-16
 - **Verified source scope:** stack tip `75c54b7` over `d7bccc2` (five changes on stacked branches following pull requests #80–#92; awaiting review, not yet merged at the time of this record).
 - **Delivered evidence:** guard cases for behaviour that was delivered but unpinned; one rule for fences inside a block, blank lines and NUL bytes; refusals for continued target files, whitespace-only text, a tests-status change that would break a completed leaf and a state file the caller cannot write; the lock owner report rule and silent termination by a signal; project setup that compares whole ignore lines and keeps a tracked knowledge base tracked, with stricter contract checks. Acceptance suite `tests/state-tool.py`: 347 tests (232 before the series), passing through `--state-tool-only`. The complete contract validator result for the series is recorded under Verification of ADR-0022.
 - **Review follow-ups (2026-11-16, tip `52b0680`):** the optional findings of the independent reviews were fixed in one further change: a start-up interrupt ends the tool silently once its first statement has run and only when it runs as the main program; error messages keep each diagnostic on one line; both setup scripts end an ignore file whose last byte is not a line feed (NUL included) and the umbrella setup compares whole lines; two manual sentences were corrected. Suite: 357 tests; complete contract validator: 721 passed, 0 failed, 2 skipped.
+- **Integration (2026-11-16):** by owner instruction the stack was merged into main in order through pull requests #80–#98, after main's refined roadmap specifications were merged into the stack tip (conflicts only in the progress log, the state index and the roadmap table, resolved by keeping both sides); this specification and its task were then archived under `completed/`.
 - **Outstanding scope and limits:** none of the requirements is deferred and no proposal is pending. The tool is optional and no workflow calls it (D-07). A column-0 fence that is never closed stays a documented limit; read commands on a platform without `fcntl` are not covered by the acceptance suite.
-- **Sources:** `.ai/tasks/todo/task-07-state-tool/state.md` (`## Proposal Resolution` and the progress blocks of the five follow-up subtasks), `.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md` (Decisions 6–10).
+- **Sources:** `.ai/tasks/completed/task-07-state-tool/state.md` (`## Proposal Resolution` and the progress blocks of the five follow-up subtasks), `.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md` (Decisions 6–10).
 
 ### Original text (translated from Russian)
 

@@ -63,7 +63,7 @@ See Alternatives.
 
 Any script added to the repository must remain optional for the pipeline to function
 (logging never blocks; validation blocks only deploy). A future state-tool
-(`specs/07-state-tool.md`) is the first script a workflow would *depend* on at run time,
+(`specs/completed/07-state-tool.md`) is the first script a workflow would *depend* on at run time,
 and needs its own ADR.
 
 ## Verification

@@ -103,7 +103,7 @@ See Alternatives.
 ## Implications for Future Work
 
 Parallelism is the largest available speed-up and is blocked only by Decision 3's premise;
-see `specs/07-state-tool.md` and `specs/README.md` for the ordering.
+see `specs/completed/07-state-tool.md` and `specs/README.md` for the ordering.
 
 ## Verification
 

@@ -10,8 +10,8 @@ Accepted
 
 ## Related Task
 
-- Task: owner decision to schedule `.ai/specs/07-state-tool.md` for implementation.
-- Related files: `.ai/specs/07-state-tool.md`, `.ai/specs/README.md`,
+- Task: owner decision to schedule `.ai/specs/completed/07-state-tool.md` for implementation.
+- Related files: `.ai/specs/completed/07-state-tool.md`, `.ai/specs/README.md`,
   `.ai/memory/state.md`, `.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md`.
 
 ## Summary
