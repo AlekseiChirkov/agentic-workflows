@@ -20,7 +20,7 @@
 | T-14-fix-guard-cases | Guard cases for delivered behaviour | suite cases for unpinned read, write, receipts, lock and validator behaviour → wording and static-scan guards → pinned fixtures | T-13-fix-set-continuation-refusal | done |  |  |
 | T-15-fix-fences-and-file-shape | In-block fences, file shape and read-path cleanup | failing cases → blank runs and fences → NUL refusal → open flags → parse-once refactoring → manual limits → pinned fixtures | T-14-fix-guard-cases | done |  |  |
 | T-16-fix-write-rules | Write-rule refusals and message hygiene | failing cases → whitespace and continued-path refusals → completed-leaf rule → read-only state file → message rendering → manual sentences → pinned fixtures | T-15-fix-fences-and-file-shape | done |  |  |
-| T-17-fix-lock-owner-and-signals | Lock owner report and termination signals | failing cases → owner and age rules → silent interrupt → module description and manual → pinned fixtures | T-16-fix-write-rules | pending |  |  |
+| T-17-fix-lock-owner-and-signals | Lock owner report and termination signals | failing cases → owner and age rules → silent interrupt → module description and manual → pinned fixtures | T-16-fix-write-rules | done |  |  |
 | T-18-fix-contract-surface | Setup ignore lines, contract checks and manual corrections | failing cases → vocabulary check → receipts fence pass → setup whole-line rule and tracked knowledge base → identity message → manual and rule text → pinned fixtures | T-17-fix-lock-owner-and-signals | pending |  |  |
 
 ## Execution Strategy

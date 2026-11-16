@@ -492,6 +492,21 @@ T-16-fix-write-rules | Write-rule refusals and message hygiene | atomic-tests: g
   commits: e83c7c6 test(state-tool): require write refusals for unsafe or empty input, 9166dfe fix(state-tool): refuse writes that would store unsafe or empty input
   pr: none
 
+T-17-fix-lock-owner-and-signals | Lock owner report and termination signals | atomic-tests: green | atomic-execution: complete | atomic-validation: not-started
+  last_action: implementation done 2026-11-16 — suite 326 → 335 tests, all passing in three consecutive runs; test file identical to the failing snapshot
+  target_files: scripts/state-tool.py, tests/state-tool.py, docs/USAGE.md, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
+  blocker: none
+  notes: tdd: integration — 9 new tests (7 failing first, 2 guards) for a start time in the future, a lock file over the size limit, a lone surrogate in the metadata, an interrupt while waiting for the lock and before the recheck, and two manual sentences.
+         observed RED 2026-11-16: 335 tests, the 326 earlier pass, 7 new fail for the decided reasons (age -3599 where null is decided; owner reported where null is decided; traceback on stderr where silence is decided; sentences absent); the two termination guards pass and fail against a scratch tool with a termination handler.
+         tdd: green — suite 335 passed three times with the test file byte-identical to the failing snapshot; the signal tests passed 15 further runs.
+         the interrupt is handled only where the entry point is called (default action restored, signal re-sent), so no disposition changes at start-up and in-process test runs are unaffected.
+         verification: focused validator mode passed (335); inventory oracle suite 23 passed; source-guard suites passed; the manual changed only below line 940.
+  branch: fix/state-tool-lock-owner-and-signals
+  base_branch: fix/state-tool-write-rules
+  base_commit: 2025b97ca7fd1c4c10ef2ec215c0adfced22e761
+  commits: 036903c test(state-tool): require a strict lock owner report and silent interrupts, ec190ad fix(state-tool): report a lock owner only when the whole file is one
+  pr: none
+
 ## Execution Report
 - T-01: reviewed — structural parser and `get`; 43 tests at closing; one registration test deferred to T-09 by owner decision
 - T-02: reviewed — `validate` and two grammar corrections; re-validated after one correction (specification labels removed from docstrings)
