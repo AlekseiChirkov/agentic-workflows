@@ -6713,5 +6713,206 @@ class ManualWriteRuleLimitTests(unittest.TestCase):
                 self.assertEqual(limits.count(text), 1, f"limit missing or repeated: {label}")
 
 
+FUTURE_START_SECONDS = 3600
+LOCK_FILE_LIMIT = 65536
+UNOBSERVED_WAIT_PROOF_SECONDS = 2.0
+
+
+class LockOwnerRuleTests(RecoveryCase):
+    def busy_with_lock_content(self, content: bytes) -> dict[str, Any]:
+        """Run a write with a zero wait against the held lock whose file holds the content and
+        return the busy refusal, which leaves the task directory unchanged."""
+        self.lock.write_bytes(content)
+        before = snapshot(self.task)
+
+        document = self.busy_in_standard_json(self.run_tool(
+            *self.set_arguments("last_action=x", file_revision(self.task / "state.md")),
+            "--lock-wait-seconds", "0"))
+
+        self.assertEqual(snapshot(self.task), before)
+        return document
+
+    def test_start_time_in_the_future_reports_the_owner_without_an_age(self) -> None:
+        self.write_state(state_text(leaf("T-01")))
+        holder = self.hold_lock()
+        owner = self.owner(holder.pid, seconds_ago=-FUTURE_START_SECONDS)
+
+        document = self.busy_with_lock_content((json.dumps(owner) + "\n").encode("utf-8"))
+
+        self.assertEqual(document["lock_owner"], owner)
+        self.assertIsNone(document["lock_age_seconds"])
+        self.assertIs(document["stale_suspected"], False)
+
+    def test_lock_file_longer_than_the_size_limit_reports_no_owner(self) -> None:
+        self.write_state(state_text(leaf("T-01")))
+        self.hold_lock()
+        padding = "x" * (LOCK_FILE_LIMIT - len(b'{"pad":""}'))
+        complete = b'{"pad":"' + padding.encode("ascii") + b'"}'
+        self.assertEqual(len(complete), LOCK_FILE_LIMIT)
+        self.assertEqual(json.loads(complete), {"pad": padding})
+        for label, suffix in {"one newline after the limit": b"\n",
+                              "other text after the limit": b"\ngarbage"}.items():
+            with self.subTest(case=label):
+                document = self.busy_with_lock_content(complete + suffix)
+
+                self.assertIsNone(document["lock_owner"])
+                self.assertIsNone(document["lock_age_seconds"])
+                self.assertIs(document["stale_suspected"], False)
+
+    def test_metadata_with_a_lone_surrogate_reports_no_owner(self) -> None:
+        self.write_state(state_text(leaf("T-01")))
+        self.hold_lock()
+        for label, content in {"lone surrogate in a value": b'{"k":"\\ud800"}',
+                               "lone surrogate in a key": b'{"\\udc00":1}'}.items():
+            with self.subTest(case=label):
+                self.lock.write_bytes(content)
+                before = snapshot(self.task)
+
+                result = self.run_tool(
+                    *self.set_arguments("last_action=x", file_revision(self.task / "state.md")),
+                    "--lock-wait-seconds", "0")
+
+                document = self.busy_in_standard_json(result)
+                self.assertIsNone(document["lock_owner"])
+                self.assertIsNone(document["lock_age_seconds"])
+                self.assertIs(document["stale_suspected"], False)
+                try:
+                    result.stdout.encode("utf-8")
+                    json.dumps(document, ensure_ascii=False, allow_nan=False).encode("utf-8")
+                except ValueError as error:
+                    self.fail(f"the refusal cannot be written as strict UTF-8: {error}")
+                self.assertEqual(snapshot(self.task), before)
+
+
+class SignalInterruptionTests(RecoveryCase):
+    """A signal that ends the process is a silent kill: no output, no exit code of the table."""
+
+    def wait_for_the_held_lock(self, path: Path) -> subprocess.Popen[str]:
+        """Start a set against the held lock with a long wait and return once it is proven to
+        wait: where the system lists the open files of a process, the tool holds the lock file
+        open and stays alive; elsewhere it is still alive after a longer proof period."""
+        process = self.start_tool(None, *self.set_arguments("last_action=x", file_revision(path)),
+                                  "--lock-wait-seconds", "20")
+        descriptors = Path("/proc") / str(process.pid) / "fd"
+        proof = UNOBSERVED_WAIT_PROOF_SECONDS
+        if descriptors.is_dir():
+            proof = PAUSE_PROOF_SECONDS
+            held = os.stat(self.lock)
+            deadline = time.monotonic() + PROCESS_TIMEOUT_SECONDS
+            while not self.has_open(descriptors, held):
+                if process.poll() is not None:
+                    self.fail("the tool finished without waiting for the lock: "
+                              f"exit {process.returncode}")
+                self.assertLess(time.monotonic(), deadline, "the tool never opened the lock file")
+                time.sleep(POLL_SECONDS)
+        with self.assertRaises(subprocess.TimeoutExpired,
+                               msg="the tool did not keep waiting for the lock"):
+            process.wait(timeout=proof)
+        return process
+
+    @staticmethod
+    def has_open(descriptors: Path, wanted: os.stat_result) -> bool:
+        """Whether one of the listed open files of a process is the wanted file."""
+        with contextlib.suppress(OSError):
+            for entry in os.listdir(descriptors):
+                with contextlib.suppress(OSError):
+                    info = os.stat(descriptors / entry)
+                    if (info.st_dev, info.st_ino) == (wanted.st_dev, wanted.st_ino):
+                        return True
+        return False
+
+    def ended_silently(self, process: subprocess.Popen[str], number: signal.Signals) -> None:
+        """Send the signal and check that the process ends by it without any output."""
+        process.send_signal(number)
+        result = self.finish(process)
+        self.assertEqual(result.code, -number, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(result.stderr, "")
+
+    def signal_while_waiting_for_the_lock(self, number: signal.Signals) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        holder = self.hold_lock()
+        self.lock.write_text(json.dumps(self.owner(holder.pid)) + "\n", encoding="utf-8")
+        before = snapshot(self.task)
+        process = self.wait_for_the_held_lock(path)
+
+        self.ended_silently(process, number)
+
+        self.assertEqual(snapshot(self.task), before)
+        self.assertEqual(self.temporary_files(), [])
+        self.assertIsNone(holder.poll(), "the lock holder must outlive the interrupted writer")
+
+    def signal_during_the_pause_before_the_recheck(self, number: signal.Signals) -> None:
+        original = state_text(leaf("T-01"))
+        path = self.write_state(original)
+        initial = file_revision(path)
+        arguments = self.set_arguments("last_action=x", initial)
+        process, _ = RecheckTests.pause_before_recheck(self, path)  # type: ignore[arg-type]
+
+        self.ended_silently(process, number)
+
+        self.assertEqual(path.read_bytes(), original.encode("utf-8"))
+        leftovers = self.temporary_files()
+        self.assertEqual(len(leftovers), 1, leftovers)
+        leftover_bytes = (self.task / leftovers[0]).read_bytes()
+
+        validation = self.output(self.run_tool("validate", "--root", str(self.root),
+                                               "--task", str(self.task)))
+        self.assertEqual(validation["stale_temp_files"], leftovers)
+
+        retry = self.applied(self.run_tool(*arguments), "last_action", "state_receipts")
+        self.assertEqual(retry["stale_temp_files"], leftovers)
+        self.assertEqual(self.state().count("  last_action: x\n"), 1)
+        self.assertEqual(len(self.receipt_line(self.state()).split(", ")), 1)
+        self.assertEqual(self.temporary_files(), leftovers)
+        self.assertEqual((self.task / leftovers[0]).read_bytes(), leftover_bytes)
+
+        again = self.run_tool(*arguments)
+        self.assertEqual(again.code, 0, again.stdout + again.stderr)
+        self.assertEqual(self.output(again)["result"], "already_applied", again.stdout)
+
+    def test_interrupt_while_waiting_for_the_lock_ends_the_tool_silently(self) -> None:
+        self.signal_while_waiting_for_the_lock(signal.SIGINT)
+
+    def test_interrupt_during_the_pause_before_the_recheck_ends_the_tool_silently(self) -> None:
+        self.signal_during_the_pause_before_the_recheck(signal.SIGINT)
+
+    def test_termination_while_waiting_for_the_lock_ends_the_tool_silently(self) -> None:
+        self.signal_while_waiting_for_the_lock(signal.SIGTERM)
+
+    def test_termination_during_the_pause_before_the_recheck_ends_the_tool_silently(
+            self) -> None:
+        self.signal_during_the_pause_before_the_recheck(signal.SIGTERM)
+
+
+SIGNAL_SENTENCE = (
+    "a write killed after the rename is answered `already_applied`. An interrupt (Ctrl-C) or a "
+    "termination signal counts as a kill: the tool ends by the signal without a JSON object, an "
+    "exit code from the table or a traceback, also while it waits for the lock.")
+OWNER_SENTENCE = (
+    "`lock_owner` (the recorded owner metadata, or null unless the whole lock file is one JSON "
+    "object of at most 64 KiB that can be reported as standard JSON), `lock_age_seconds` (null "
+    "when the start time is missing, unreadable or in the future) and `stale_suspected`")
+REPLACED_OWNER_PHRASE = "or null when it cannot be read"
+
+
+class ManualOwnerAndSignalTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.manual = MANUAL.read_text(encoding="utf-8")
+
+    def section_text(self) -> str:
+        """The state tool section of the manual with every run of white space as one space."""
+        section = ManualTests.section(self, STATE_TOOL_HEADING)  # type: ignore[arg-type]
+        return " ".join(section.split())
+
+    def test_state_tool_section_states_that_a_signal_counts_as_a_kill(self) -> None:
+        self.assertEqual(self.section_text().count(SIGNAL_SENTENCE), 1)
+
+    def test_state_tool_section_states_when_the_owner_and_the_age_are_null(self) -> None:
+        text = self.section_text()
+        self.assertEqual(text.count(OWNER_SENTENCE), 1)
+        self.assertNotIn(REPLACED_OWNER_PHRASE, text)
+
+
 if __name__ == "__main__":
     unittest.main()
