@@ -447,6 +447,20 @@ T-13-fix-set-continuation-refusal | Refusal of set on a field with continuation 
   commits: b9253c1 test(state-tool): require set to refuse a field whose value continues, a394cae fix(state-tool): refuse set on a field whose value continues
   pr: #92 ready
 
+T-14-fix-guard-cases | Guard cases for delivered behaviour | atomic-tests: n-a | atomic-execution: complete | atomic-validation: not-started
+  last_action: implementation done 2026-11-16 — 43 guard cases added, suite 232 → 275 tests, all passing against the unchanged tool
+  target_files: tests/state-tool.py, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
+  blocker: none
+  notes: tdd: none — the subtask adds guard cases only, for behaviour that already exists; no behaviour changes, so no case can fail first. Each case is named with mutation evidence instead: 75 one-line mutants of the tool and scripts were run on scratch copies, 74 killed.
+         the surviving mutant: a receipt digest that escapes invalid text with backslashes shares no digest with valid text (JSON doubles the backslash), so the analyst's expectation that it would fail a case was wrong; the cases stand as decided.
+         two existing test bodies gained cases or an assertion as their decisions direct (invalid paths: CR and LF cases; the tracking-consumer manual test: a rerun sentence); nothing existing was removed. The static scan moved into a helper that keeps every earlier finding.
+         verification: suite 275 passed; focused validator mode passed; inventory oracle suite 23 passed; source-guard suites passed.
+  branch: test/state-tool-guard-cases
+  base_branch: fix/state-tool-set-continuation-refusal
+  base_commit: d7bccc273e08d71b715f6b63d759fdb8d5c81229
+  commits: a56f227 test(state-tool): pin delivered behaviour that no case covered
+  pr: none
+
 ## Execution Report
 - T-01: reviewed — structural parser and `get`; 43 tests at closing; one registration test deferred to T-09 by owner decision
 - T-02: reviewed — `validate` and two grammar corrections; re-validated after one correction (specification labels removed from docstrings)
