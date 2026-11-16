@@ -1,0 +1,37 @@
+.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md
+  s_75218c90170bfa::t_a7012bf1c889ad 14-15,18,80-81,158-328,338-343
+.ai/adr/index.md
+  s_75218c90170bfa::t_be5caa4b81e049 34
+.ai/context/environment.md
+  s_75218c90170bfa::t_9b6ce734823750 38
+.ai/context/runbook.md
+  s_75218c90170bfa::t_9b43317849b146 124
+.ai/memory/architecture.md
+  s_75218c90170bfa::t_77403c4ecd1e3b 335-336
+.ai/memory/progress.md
+  s_75218c90170bfa::t_ad2290d5f4fa65 135-136
+.ai/memory/state.md
+  s_75218c90170bfa::t_363bec92fe35da 17
+.ai/principles/coding.md
+  s_75218c90170bfa::t_f35730cc1ad658 100-106
+.ai/specs/07-state-tool.md
+  s_75218c90170bfa::t_0a6707d64deead 39-46,357,391-396,404-418,426,429-430,435-436,454-455,514-516,519-524,526,559-560,568,581-582,592-602,609-612,668-675,712-716,786-790,795-797,799,803,810,812-813,821-822,826,829,839-840,844-845,1012-1049,1057-1058,1061,1065,1070-1072,1082,1106,1246-1296,1305-1306
+.ai/tasks/completed/task-01-git-source-of-truth/state.md
+  s_75218c90170bfa::t_2cfd7897d9fab3 186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f83d39d1b28fe02f5bdf6771b6e515dfeec78bc3",
+  "prompts": {},
+  "sessions": {
+    "s_75218c90170bfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d90e062-887f-4faa-b97c-24c39cc0d6f4",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
