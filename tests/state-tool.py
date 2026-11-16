@@ -5609,5 +5609,405 @@ class ManualTests(unittest.TestCase):
         self.assertRegex(inventory, r"(?m)^\| `state-tool\.py` \| [^|]*\S[^|]* \|$")
 
 
+BLANK_RUN_LENGTH = 40_000
+BLANK_RUN_SECONDS = 10
+UNCLOSED_FENCE_MESSAGE = "block T-02: fence opened inside the block is not closed"
+NUL_MESSAGE = "state.md contains NUL bytes"
+# A flag bit no open of the suite's platform uses; it stands in for the binary-mode flag.
+BINARY_FLAG = 1 << 30
+FENCE_MARKERS = {"backtick fence": ("```", "~~~"), "tilde fence": ("~~~", "```")}
+
+
+def blank_fenced_leaf(blanks: int, fence_indent: str) -> str:
+    """Build leaf T-01 whose notes line is followed by blank lines and then a fence pair."""
+    return fenced_leaf(fence_indent).replace("  notes: a\n", "  notes: a\n" + "\n" * blanks, 1)
+
+
+def unclosed_fence_state(marker: str, other_marker: str) -> str:
+    """Leaf T-01, leaf T-02 holding a three-space fence that is never closed, a line of the
+    other fence marker, and leaf T-03, which records completion under red tests."""
+    holder = leaf("T-02", body=leaf_body(extra=f"   {marker}\n  pr: hidden\n   {other_marker}\n"))
+    return state_text(leaf("T-01"), holder, leaf("T-03", header=leaf_statuses("red", "complete")))
+
+
+class FenceCase(RecoveryCase, InitBlockCase, ValidateCase):
+    """Runners for reads and writes of blocks that hold fences and blank runs."""
+
+    def fields_of(self, block_id: str = "T-01") -> list[dict[str, Any]]:
+        return self.block(self.read_ok(self.get("--block", block_id)), block_id)["fields"]
+
+
+class BlankRunBeforeFenceTests(FenceCase):
+    def test_blank_lines_before_an_in_block_fence_do_not_end_the_block(self) -> None:
+        for blanks in (1, 2):
+            for indent in (" ", "  ", "   "):
+                with self.subTest(blanks=blanks, indent=len(indent)):
+                    self.write_state(state_text(blank_fenced_leaf(blanks, indent), leaf("T-02")))
+
+                    result = self.get("--block", "T-01")
+
+                    document = self.read_ok(result)
+                    fields = self.block(document, "T-01")["fields"]
+                    self.assertEqual([item["name"] for item in fields],
+                                     ["last_action", "target_files", "blocker", "notes", "branch"])
+                    self.assertEqual(fields[-1]["value"], "after")
+                    self.assertEqual(fields[-2]["continuation"], [])
+                    self.assertNotIn("hidden", result.stdout)
+                    self.assertEqual(document["warnings"], [])
+                    self.assertEqual(self.read_ok(self.get())["warnings"], [])
+                    self.valid(self.validate())
+
+    def test_note_goes_before_the_blank_lines_and_the_receipt_after_the_longer_block(self) -> None:
+        for blanks in (1, 2):
+            for indent in (" ", "  ", "   "):
+                with self.subTest(blanks=blanks, indent=len(indent)):
+                    original = state_text(blank_fenced_leaf(blanks, indent), leaf("T-02"))
+                    self.write_state(original)
+
+                    self.write_applied(self.append_notes("b"), "append-note", "notes",
+                                       "state_receipts")
+
+                    result = self.state()
+                    receipt = self.receipt_line(result)
+                    expected = original.replace(
+                        "  notes: a\n", "  notes: a\n" + CONTINUATION + "b\n", 1).replace(
+                        "  branch: after\n", "  branch: after\n" + receipt, 1)
+                    self.assertEqual(result, expected)
+
+    def test_set_replaces_only_the_field_line_above_blank_lines_and_a_fence(self) -> None:
+        for blanks in (1, 2):
+            for indent in (" ", "  ", "   "):
+                with self.subTest(blanks=blanks, indent=len(indent)):
+                    fence = f"{indent}```text\n  blocker: fenced\n     fenced\n{indent}```\n"
+                    original = state_text(continued_leaf("last_action", "\n" * blanks + fence),
+                                          leaf("T-02"))
+                    self.write_state(original)
+
+                    document = self.applied(self.set_fields("last_action=new"), "last_action",
+                                            "state_receipts")
+
+                    written = self.state()
+                    receipt = self.receipt_line(written)
+                    expected = original.replace(
+                        "  last_action: tests pass\n", "  last_action: new\n", 1).replace(
+                        "  notes: first note\n", "  notes: first note\n" + receipt, 1)
+                    self.assertEqual(written, expected)
+                    self.assertEqual(document["warnings"], [])
+
+    def test_continuation_after_a_fence_that_follows_blank_lines_refuses_set(self) -> None:
+        lines = "\n   ```\n   fenced\n   ```\n\n     cont\n"
+        for name in CONTINUED_VALUES:
+            with self.subTest(field=name):
+                self.write_state(state_text(continued_leaf(name, lines), leaf("T-02")))
+                fields = [item for item in self.fields_of() if item["name"] == name]
+                self.assertEqual([item["continuation"] for item in fields], [["", "     cont"]])
+                before = self.files_without_lock()
+
+                result = self.set_fields(f"{name}=replaced")
+
+                document = self.write_refused(result, 6, "invalid-value")
+                self.assertIn("continuation line", document["errors"][0]["message"])
+                self.assert_unchanged_after_refusal(before)
+
+    def test_blank_lines_before_other_lines_still_end_the_block(self) -> None:
+        cases = {"column-zero fence": "```\n  pr: hidden\n```\n  branch: after\n",
+                 "field line": "  branch: after\n",
+                 "column-zero line": "foreign text\n  branch: after\n"}
+        for label, following in cases.items():
+            for blanks in (1, 2):
+                with self.subTest(following=label, blanks=blanks):
+                    body = leaf_body("a") + "\n" * blanks + following
+                    self.write_state(state_text(leaf("T-01", body=body), leaf("T-02")))
+
+                    result = self.get()
+
+                    fields = self.block(self.read_ok(result), "T-01")["fields"]
+                    self.assertEqual([item["name"] for item in fields],
+                                     ["last_action", "target_files", "blocker", "notes"])
+                    self.assertEqual(fields[-1]["continuation"], [])
+                    self.assertNotIn("after", result.stdout)
+                    self.valid(self.validate())
+
+    def test_long_blank_run_is_read_within_its_time_bound(self) -> None:
+        body = leaf_body("a") + "\n" * BLANK_RUN_LENGTH + CONTINUATION + "tail\n"
+        self.write_state(state_text(leaf("T-01", body=body), leaf("T-02")))
+        process = self.launch([str(TOOL), "get", "--root", str(self.root), "--task",
+                               str(self.task), "--block", "T-01"])
+
+        try:
+            stdout, stderr = process.communicate(timeout=BLANK_RUN_SECONDS)
+        except subprocess.TimeoutExpired:
+            self.fail(f"get did not finish within {BLANK_RUN_SECONDS} seconds on a run of "
+                      f"{BLANK_RUN_LENGTH} blank lines")
+
+        document = self.read_ok(ToolResult(process.returncode, stdout, stderr))
+        notes = [item for item in self.block(document, "T-01")["fields"]
+                 if item["name"] == "notes"]
+        self.assertEqual(len(notes), 1)
+        continuation = notes[0]["continuation"]
+        self.assertEqual(len(continuation), BLANK_RUN_LENGTH + 1)
+        self.assertEqual(set(continuation[:-1]), {""})
+        self.assertEqual(continuation[-1], CONTINUATION + "tail")
+
+
+class UnclosedFenceTests(FenceCase):
+    def test_unclosed_in_block_fence_makes_its_block_malformed_for_reads(self) -> None:
+        for label, (marker, other_marker) in FENCE_MARKERS.items():
+            with self.subTest(case=label):
+                text = unclosed_fence_state(marker, other_marker)
+                self.write_state(text)
+                line = text.split("\n").index(f"   {marker}") + 1
+
+                whole = self.refused(self.get(), 3, "malformed-block")
+                self.assertNotIn("blocks", whole)
+                self.assertEqual(whole["errors"], [{"code": "malformed-block",
+                                                    "message": UNCLOSED_FENCE_MESSAGE,
+                                                    "line": line}])
+                named = self.refused(self.get("--block", "T-02"), 3, "malformed-block")
+                self.assertNotIn("blocks", named)
+                other = self.read_ok(self.get("--block", "T-01"))
+                self.assertIn("malformed-block", other["warnings"])
+                self.refused(self.get("--block", "T-03"), 3, "block-missing")
+                invalid = self.invalid(self.validate(), 3, "malformed-block")
+                self.assertEqual(invalid["errors"], whole["errors"])
+                self.invalid(self.validate("--block", "T-02"), 3, "malformed-block")
+                self.valid(self.validate("--block", "T-01"))
+
+    def test_unclosed_in_block_fence_refuses_writes_to_its_block_only(self) -> None:
+        writes = {"set": ("--field", "last_action=x"),
+                  "append-note": ("--note", "n"),
+                  "add-file": ("--path", "a.sh"),
+                  "init-block": ("--kind", "leaf", "--name", "Demo")}
+        for label, (marker, other_marker) in FENCE_MARKERS.items():
+            original = unclosed_fence_state(marker, other_marker)
+            for command, options in writes.items():
+                with self.subTest(case=label, command=command):
+                    self.write_state(original)
+                    before = self.files_without_lock()
+
+                    result = self.write(command, *options, block="T-02")
+
+                    self.refused_by(result, command, 3, "malformed-block")
+                    self.assertIn(UNCLOSED_FENCE_MESSAGE, result.stdout)
+                    self.assert_unchanged_after_refusal(before)
+            with self.subTest(case=label, command="set on another block"):
+                self.write_state(original)
+
+                self.applied(self.set_fields("last_action=x"), "last_action", "state_receipts")
+
+                written = self.state()
+                receipt = self.receipt_line(written)
+                self.assertEqual(written, original.replace(
+                    "  last_action:\n", "  last_action: x\n", 1).replace(
+                    "  notes:\n", "  notes:\n" + receipt, 1))
+
+    def test_unclosed_column_zero_fence_hides_later_blocks_and_stays_valid(self) -> None:
+        hidden = leaf("T-02", header=leaf_statuses("red", "complete"))
+        for label, (marker, other_marker) in FENCE_MARKERS.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(
+                    leaf("T-01"), f"{marker}text\nunclosed example\n{other_marker}\n", hidden))
+
+                self.valid(self.validate())
+                document = self.read_ok(self.get())
+                self.assertEqual([item["block_id"] for item in document["blocks"]], ["T-01"])
+                self.assertEqual(document["warnings"], [])
+                self.refused(self.get("--block", "T-02"), 3, "block-missing")
+
+    def test_in_block_fence_closed_by_the_last_line_without_a_newline_stays_valid(self) -> None:
+        for label, (marker, _) in FENCE_MARKERS.items():
+            with self.subTest(case=label):
+                holder = leaf("T-02", body=leaf_body(
+                    extra=f"   {marker}\n  pr: hidden\n   {marker}\n"))
+                text = state_text(leaf("T-01"), holder, after="").rstrip("\n")
+                self.assertTrue(text.endswith(f"   {marker}"))
+                self.write_state(text)
+
+                self.valid(self.validate())
+                document = self.read_ok(self.get())
+                self.assertEqual([item["block_id"] for item in document["blocks"]],
+                                 ["T-01", "T-02"])
+                self.assertEqual(document["warnings"], [])
+
+
+class NulByteTests(FenceCase):
+    def nul_states(self) -> dict[str, bytes]:
+        text = state_text(leaf("T-01", body=leaf_body("ab")), leaf("T-02")).encode("utf-8")
+        states = {"inside the progress section": text.replace(b"notes: ab", b"notes: a\x00b"),
+                  "before the progress section": text.replace(b"flow: full", b"flow: fu\x00ll"),
+                  "after the progress section": text + b"\x00"}
+        for label, data in states.items():
+            self.assertEqual(data.count(b"\x00"), 1, label)
+        return states
+
+    def test_nul_byte_refuses_reads_as_unsupported_encoding(self) -> None:
+        for label, data in self.nul_states().items():
+            with self.subTest(case=label):
+                path = self.write_state(data)
+
+                read = self.refused(self.get(), 3, "unsupported-encoding")
+                checked = self.invalid(self.validate(), 3, "unsupported-encoding")
+
+                for document in (read, checked):
+                    self.assertEqual([item["message"] for item in document["errors"]],
+                                     [NUL_MESSAGE])
+                    self.assertEqual(document["source_revision"], file_revision(path))
+                self.assertNotIn("blocks", read)
+
+    def test_nul_byte_refuses_writes_and_leaves_the_file_unchanged(self) -> None:
+        writes = {"set": ("--field", "last_action=x"),
+                  "append-note": ("--note", "n"),
+                  "add-file": ("--path", "a.sh"),
+                  "init-block": ("--kind", "leaf", "--name", "Demo")}
+        for label, data in self.nul_states().items():
+            for command, options in writes.items():
+                with self.subTest(case=label, command=command):
+                    path = self.write_state(data)
+                    before = self.files_without_lock()
+                    block = "T-05" if command == "init-block" else "T-01"
+
+                    result = self.write(command, *options, block=block)
+
+                    document = self.refused_by(result, command, 3, "unsupported-encoding")
+                    self.assertEqual([item["message"] for item in document["errors"]],
+                                     [NUL_MESSAGE])
+                    self.assertEqual(document["source_revision"], file_revision(path))
+                    self.assertEqual(path.read_bytes(), data)
+                    self.assert_unchanged_after_refusal(before)
+
+
+class StateFileOpenTests(FenceCase):
+    def recorded_flags(self, *arguments: str) -> tuple[ToolResult, list[int]]:
+        """Run the tool in this process with a binary-mode flag defined, recording the flags of
+        every open of state.md; the stand-in bit is removed before the real open."""
+        recorded: list[int] = []
+        real_open = os.open
+
+        def recording_open(path: Any, flags: int, *rest: Any, **keywords: Any) -> int:
+            if os.path.basename(os.fspath(path)) == "state.md":
+                recorded.append(flags)
+            return real_open(path, flags & ~BINARY_FLAG, *rest, **keywords)
+
+        with patch.object(os, "O_BINARY", BINARY_FLAG, create=True), \
+                patch.object(os, "open", recording_open):
+            result = InProcessTests.run_in_process(self, *arguments)
+        return result, recorded
+
+    def test_state_file_is_opened_non_blocking_and_in_binary_mode(self) -> None:
+        non_blocking = getattr(os, "O_NONBLOCK", None)
+        if non_blocking is None:
+            self.skipTest("the platform has no non-blocking open flag")
+        path = self.write_state(state_text(leaf("T-01"), leaf("T-02")))
+        location = ("--root", str(self.root), "--task", str(self.task))
+
+        with self.subTest(command="get"):
+            result, recorded = self.recorded_flags("get", *location)
+
+            self.read_ok(result)
+            self.assertEqual(len(recorded), 1, recorded)
+            for flags in recorded:
+                self.assertTrue(flags & non_blocking, f"non-blocking flag missing: {flags:#o}")
+                self.assertTrue(flags & BINARY_FLAG, f"binary flag missing: {flags:#o}")
+        with self.subTest(command="set"):
+            result, recorded = self.recorded_flags(
+                "set", *location, "--block", "T-01", "--expected-revision", file_revision(path),
+                "--operation-id", OPERATION_ID, "--field", "last_action=x")
+
+            self.applied(result, "last_action", "state_receipts")
+            self.assertGreaterEqual(len(recorded), 2, recorded)
+            for flags in recorded:
+                self.assertTrue(flags & non_blocking, f"non-blocking flag missing: {flags:#o}")
+                self.assertTrue(flags & BINARY_FLAG, f"binary flag missing: {flags:#o}")
+            self.assertIn("  last_action: x\n", self.state())
+
+
+class StateMissingMessageTests(FenceCase):
+    def test_missing_state_file_is_named_by_its_root_relative_path(self) -> None:
+        expected = f"state.md is missing: {TASK_RELATIVE}/state.md"
+        reads = {"get": self.get(), "validate": self.validate()}
+        for command, result in reads.items():
+            with self.subTest(command=command):
+                document = self.output(result)
+                self.assertEqual(result.code, 3, result.stdout)
+                self.assertEqual(document["errors"],
+                                 [{"code": "state-missing", "message": expected}])
+                self.assertEqual(document["task"], TASK_RELATIVE)
+                self.assertNotIn(str(self.root), result.stdout)
+        with self.subTest(command="set"):
+            before = snapshot(self.task)
+
+            result = self.set_fields("last_action=x", revision=ZERO_REVISION)
+
+            document = self.write_refused(result, 3, "state-missing")
+            self.assertEqual(document["errors"], [{"code": "state-missing", "message": expected}])
+            self.assertNotIn(str(self.root), result.stdout)
+            self.assertEqual(snapshot(self.task), before)
+
+    def test_missing_state_file_of_a_task_that_is_the_root_is_named_from_the_root(self) -> None:
+        result = self.get(task=self.root)
+
+        document = self.refused(result, 3, "state-missing")
+        self.assertEqual(document["task"], ".")
+        self.assertEqual(document["errors"],
+                         [{"code": "state-missing", "message": "state.md is missing: ./state.md"}])
+        self.assertNotIn(str(self.root), result.stdout)
+
+
+FILE_SHAPE_LIMIT = (
+    "File shape: `state.md` must be UTF-8 without a byte order mark, carriage returns or NUL "
+    "bytes (exit 3, `unsupported-encoding`). A blank line is an empty line. Inside a block a "
+    "line holding only one or two spaces makes the block malformed (exit 3, `malformed-block`) "
+    "and a line of three or more spaces is a continuation line; `init-block` treats a "
+    "spaces-only line as the last non-blank line of the section.")
+FENCE_LIMIT = (
+    "Fences inside the section: a fence opened at column 0 ends the block before it. A fence "
+    "opened at one to three spaces inside a block stays part of that block, together with blank "
+    "lines directly before it; its lines are never reported, changed or used as an insertion "
+    "point. An in-block fence that is never closed makes its block malformed (exit 3, "
+    "`malformed-block`). A column-0 fence that is never closed hides every later block up to "
+    "the end of the file: `get` and `validate` do not see them and a command that names one "
+    "exits 3 `block-missing`. In both cases `init-block` exits 1 and writes nothing; close the "
+    "fence by hand first.")
+FENCED_TEXT_SENTENCE = (
+    "Fenced text placed under a field line is not a continuation line: `set` replaces the field "
+    "line and leaves the fenced lines, and blank lines directly before them, where they are.")
+UNCOVERED_READS_SENTENCE = (
+    "Read commands on such a platform are not covered by the acceptance suite.")
+
+
+class ManualLimitTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.manual = MANUAL.read_text(encoding="utf-8")
+
+    def limits(self) -> list[str]:
+        """The items of the Limits list of the state tool section, each on one line."""
+        section = ManualTests.section(self, STATE_TOOL_HEADING)  # type: ignore[arg-type]
+        start = re.search(r"^### Limits$", section, re.M)
+        self.assertIsNotNone(start, "the state tool section has no Limits subsection")
+        assert start is not None
+        following = re.compile(r"^### ", re.M).search(section, start.end())
+        limits = section[start.end():following.start() if following else len(section)]
+        return [" ".join(item.split()) for item in re.split(r"(?m)^- ", limits)]
+
+    def test_limits_hold_the_file_shape_and_the_fence_rules_as_items_of_their_own(self) -> None:
+        items = self.limits()
+        for label, text in {"file shape": FILE_SHAPE_LIMIT, "fences": FENCE_LIMIT}.items():
+            with self.subTest(limit=label):
+                self.assertEqual(items.count(text), 1, f"limit missing or repeated: {label}")
+
+    def test_limit_on_continued_values_states_that_fenced_text_is_left_in_place(self) -> None:
+        matching = [item for item in self.limits() if FENCED_TEXT_SENTENCE in item]
+        self.assertEqual(len(matching), 1, "sentence on fenced text missing or repeated")
+        for pattern in (r"`set`", r"(?i)\bcontinu", r"(?i)\brefuse", r"(?i)\bmanual procedure\b",
+                        r"(?i)\bappend\w* a note\b"):
+            with self.subTest(statement=pattern):
+                self.assertRegex(matching[0], pattern)
+
+    def test_limit_on_platforms_without_locking_states_that_reads_are_not_covered(self) -> None:
+        matching = [item for item in self.limits() if UNCOVERED_READS_SENTENCE in item]
+        self.assertEqual(len(matching), 1, "sentence on uncovered read commands missing")
+        self.assertTrue(matching[0].startswith("Without `fcntl`"), matching[0])
+
+
 if __name__ == "__main__":
     unittest.main()
