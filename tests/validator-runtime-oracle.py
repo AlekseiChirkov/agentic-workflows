@@ -24,7 +24,7 @@ SPEC.loader.exec_module(ORACLE)
 FROZEN_INVENTORY_SHA256 = "57f7872d3525f608b57b29410792e2e02106542f28456f806319e2e7065557a1"
 
 
-AMENDMENT_SHA256 = "d636f076165a7fdcb03168762d37d0eb1978fc8dace29266779c2f79b834991b"
+AMENDMENT_SHA256 = "980ac8d3ed9741156f5b8d3de9884a28b989f74bc31111877478db4b11ec57ae"
 APPROVED_PATHS = frozenset({
     "scripts/model-catalog.py", "scripts/model_selection.py", "tests/model-plan.py",
     "tests/usage-observation-bundle-schema.py", "tests/usage-status-large-authority.py",

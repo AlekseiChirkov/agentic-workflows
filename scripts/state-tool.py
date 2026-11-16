@@ -247,7 +247,6 @@ class Block:
 class Document:
     """Lines of state.md (each with its own terminator) and the parsed progress section."""
     lines: list[str]
-    fenced: list[bool]
     section_start: int
     section_end: int
     blocks: list[Block]
@@ -255,7 +254,6 @@ class Document:
 
 @dataclass
 class TaskPaths:
-    root: str
     task: str
     relative_task: str
     state: str
@@ -305,8 +303,9 @@ def check_arguments(command: str, options: dict[str, list[str]]) -> None:
 def check_write_arguments(options: dict[str, list[str]]) -> None:
     expected = options["--expected-revision"][0]
     if not REVISION.fullmatch(expected):
-        raise ToolError(2, "malformed-revision",
-                        f"expected revision must be sha256: and 64 lowercase hex digits: {expected}")
+        raise ToolError(
+            2, "malformed-revision",
+            f"expected revision must be sha256: and 64 lowercase hex digits: {expected}")
     operation_id = options["--operation-id"][0]
     if not OPERATION_ID.fullmatch(operation_id):
         raise ToolError(2, "invalid-operation-id", f"invalid operation id: {operation_id}")
@@ -390,9 +389,10 @@ def resolve_paths(root_argument: str, task_argument: str) -> TaskPaths:
         raise ToolError(2, "invalid-arguments", f"root is not a directory: {root_argument}")
     task = os.path.realpath(task_argument)
     if task != root and not task.startswith(root.rstrip(os.sep) + os.sep):
-        raise ToolError(2, "path-outside-root", f"task {task_argument} is outside root {root_argument}")
+        raise ToolError(2, "path-outside-root",
+                        f"task {task_argument} is outside root {root_argument}")
     relative = os.path.relpath(task, root).replace(os.sep, "/")
-    return TaskPaths(root, task, relative, os.path.join(task, "state.md"))
+    return TaskPaths(task, relative, os.path.join(task, "state.md"))
 
 
 def stale_temp_files(task: str) -> list[str]:
@@ -404,22 +404,27 @@ def stale_temp_files(task: str) -> list[str]:
     return sorted(name for name in names if STALE_TEMP.fullmatch(name))
 
 
-def read_state(path: str) -> bytes:
+def read_state(paths: TaskPaths) -> bytes:
     """Read state.md without following a symbolic link and require a regular file."""
-    return read_state_file(path)[0]
+    return read_state_file(paths)[0]
 
 
-def read_state_file(path: str) -> tuple[bytes, os.stat_result]:
-    """Read state.md like read_state and return its bytes with the status of the open file."""
+def read_state_file(paths: TaskPaths) -> tuple[bytes, os.stat_result]:
+    """Read state.md like read_state and return its bytes with the status of the open file.
+    The open never blocks, so a file that stopped being regular after the inspection is refused
+    instead of waited for, and it is binary where the platform separates text from binary."""
+    path = paths.state
     try:
         info = os.lstat(path)
     except FileNotFoundError:
-        raise ToolError(3, "state-missing", f"state.md is missing: {path}") from None
+        raise ToolError(3, "state-missing",
+                        f"state.md is missing: {paths.relative_task}/state.md") from None
     except OSError as error:
         raise ToolError(7, "io-error", f"cannot inspect state.md: {error.strerror}") from None
     if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
         raise ToolError(7, "unsafe-state-file", "state.md must be a regular file, not a link")
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    flags = (os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+             | getattr(os, "O_BINARY", 0))
     try:
         descriptor = os.open(path, flags)
     except OSError as error:
@@ -437,11 +442,13 @@ def revision(data: bytes) -> str:
 
 
 def decode_state(data: bytes) -> str:
-    """Accept only UTF-8 without a byte order mark and without carriage returns."""
+    """Accept only UTF-8 without a byte order mark, carriage returns or NUL bytes."""
     if data.startswith(BOM):
         raise ToolError(3, "unsupported-encoding", "state.md starts with a byte order mark")
     if b"\r" in data:
         raise ToolError(3, "unsupported-encoding", "state.md contains carriage returns")
+    if b"\x00" in data:
+        raise ToolError(3, "unsupported-encoding", "state.md contains NUL bytes")
     try:
         return data.decode("utf-8")
     except UnicodeDecodeError as error:
@@ -449,7 +456,7 @@ def decode_state(data: bytes) -> str:
                         f"state.md is not valid UTF-8 at byte {error.start}") from None
 
 
-# ---------------------------------------------------------------- contract version
+# ---------------------------------------------------------------- lines and fences
 
 def split_lines(text: str) -> list[str]:
     """Split on LF only, keeping each terminator so the bytes can be reassembled exactly."""
@@ -483,12 +490,22 @@ def fence_openers(lines: list[str]) -> list[int | None]:
     return openers
 
 
-def fence_flags(lines: list[str]) -> list[bool]:
-    """Mark every line that opens, lies inside or closes a fenced code block."""
-    return [opener is not None for opener in fence_openers(lines)]
+def unclosed_opener(lines: list[str], openers: list[int | None]) -> int | None:
+    """Index of the line opening a fence that no later line closes, or None. A closing line
+    that is the last line counts as closing, with or without a final newline."""
+    if not openers or openers[-1] is None:
+        return None
+    opener, last = openers[-1], len(lines) - 1
+    marker = FENCE_OPEN.match(content(lines[opener])).group(1)
+    if last > opener and re.match(r" {0,3}" + re.escape(marker), content(lines[last])):
+        return None
+    return opener
 
 
-def task_contract_version(lines: list[str], fenced: list[bool]) -> tuple[str, tuple[int, ...]] | None:
+# ---------------------------------------------------------------- contract version
+
+def task_contract_version(lines: list[str],
+                          fenced: list[bool]) -> tuple[str, tuple[int, ...]] | None:
     """Return the first well-formed contract_version line before the first level-2 heading."""
     for line, is_fenced in zip(lines, fenced):
         text = content(line)
@@ -519,6 +536,16 @@ def contract_version_supported(task_version: tuple[int, ...] | None) -> bool:
         return True
     tool_version = tool_contract_version()
     return tool_version is not None and task_version <= tool_version
+
+
+def recorded_contract_version(lines: list[str],
+                              openers: list[int | None]) -> tuple[str | None, bool]:
+    """The contract version text the task records, None when it records none, and whether this
+    tool supports it; a task that records no version is supported."""
+    version = task_contract_version(lines, [opener is not None for opener in openers])
+    if version is None:
+        return None, True
+    return version[0], contract_version_supported(version[1])
 
 
 # ---------------------------------------------------------------- document parsing
@@ -556,22 +583,26 @@ def indentation(text: str) -> int:
     return len(text) - len(text.lstrip(" "))
 
 
-def continues_after_blanks(lines: list[str], fenced: list[bool], index: int, end: int) -> bool:
-    """True when blank lines at index are followed by a continuation-indented line."""
+def blank_run_end(lines: list[str], index: int, end: int) -> int:
+    """Index of the first line after the run of blank lines at index, at most end."""
     while index < end and content(lines[index]) == "":
         index += 1
-    return (index < end and not fenced[index]
-            and indentation(content(lines[index])) >= 3)
+    return index
 
 
 def parse_blocks(lines: list[str], openers: list[int | None], start: int, end: int) -> list[Block]:
     """Parse the section body into blocks; lines outside blocks are foreign and kept as is.
 
     A fence opened at column 0 ends the current block. A fence opened at 1-3 spaces inside a
-    block is opaque block content: its lines are neither field, continuation nor malformed
-    lines, and a continuation line after it still belongs to the preceding field line.
+    block is opaque block content, together with the blank lines directly before it: these
+    lines are neither field, continuation nor malformed lines and belong to no field group,
+    and a continuation line after the fence still belongs to the preceding field line. Such a
+    fence that is never closed makes its block malformed. Other blank lines continue the
+    preceding field when a continuation-indented line follows them and end the block
+    otherwise; a run of blank lines is scanned once.
     """
     fenced = [opener is not None for opener in openers]
+    unclosed = unclosed_opener(lines, openers)
     blocks: list[Block] = []
     current: Block | None = None
     group: FieldGroup | None = None
@@ -592,15 +623,22 @@ def parse_blocks(lines: list[str], openers: list[int | None], start: int, end: i
             close(index)
             current = header
         elif current is not None and opener is not None and indentation(content(lines[opener])):
-            pass  # A line of a fence opened inside this block: opaque block content.
+            # A line of a fence opened inside this block: opaque block content.
+            if index == unclosed:
+                current.malformed.append((index + 1, "fence opened inside the block is not closed"))
         elif current is None or fenced[index]:
             close(index)
         elif text == "":
-            if not continues_after_blanks(lines, fenced, index, end):
-                close(index)
-            elif group is not None:
-                group.continuation.append(text)
-                group.end = index + 1
+            after = blank_run_end(lines, index, end)
+            following = content(lines[after]) if after < end else ""
+            if after < end and not fenced[after] and indentation(following) >= 3:
+                if group is not None:
+                    group.continuation.extend([""] * (after - index))
+                    group.end = after
+            elif not (after < end and fenced[after] and indentation(following)):
+                close(index)  # Blank lines before a fence opened inside the block stay opaque.
+            index = after
+            continue
         elif text.startswith("\t"):
             current.malformed.append((index + 1, "tab-indented line"))
         elif indentation(text) >= 3:
@@ -638,12 +676,15 @@ def parse_blocks(lines: list[str], openers: list[int | None], start: int, end: i
     return blocks
 
 
+def parse_lines(lines: list[str], openers: list[int | None]) -> Document:
+    """Locate the progress section in lines whose fences are already scanned and parse it."""
+    start, end = locate_section(lines, [opener is not None for opener in openers])
+    return Document(lines, start, end, parse_blocks(lines, openers, start, end))
+
+
 def parse_document(text: str) -> Document:
     lines = split_lines(text)
-    openers = fence_openers(lines)
-    fenced = [opener is not None for opener in openers]
-    start, end = locate_section(lines, fenced)
-    return Document(lines, fenced, start, end, parse_blocks(lines, openers, start, end))
+    return parse_lines(lines, fence_openers(lines))
 
 
 # ---------------------------------------------------------------- block reporting
@@ -866,13 +907,28 @@ def structure_problems(blocks: list[Block]) -> list[tuple[str, ToolError]]:
         if counts[block.block_id] > 1 and block.block_id not in reported:
             reported.add(block.block_id)
             problems.append((block.block_id, ToolError(
-                3, "block-duplicate", f"block {block.block_id} occurs {counts[block.block_id]} times",
-                block.start + 1)))
+                3, "block-duplicate",
+                f"block {block.block_id} occurs {counts[block.block_id]} times", block.start + 1)))
     for block in blocks:
         for line, reason in block.malformed:
             problems.append((block.block_id, ToolError(
                 3, "malformed-block", f"block {block.block_id}: {reason}", line)))
     return problems
+
+
+def select_blocks(document: Document,
+                  target: str | None) -> tuple[list[Block], list[ToolError], list[ToolError]]:
+    """The blocks a read command reports, their structure errors and the structure errors of
+    the other blocks: every block when no target is named, otherwise the blocks with the
+    target id, which must exist."""
+    problems = structure_problems(document.blocks)
+    if target is None:
+        return document.blocks, [error for _, error in problems], []
+    selected = [block for block in document.blocks if block.block_id == target]
+    if not selected:
+        raise ToolError(3, "block-missing", f"block {target} not found")
+    return (selected, [error for block_id, error in problems if block_id == target],
+            [error for block_id, error in problems if block_id != target])
 
 
 def unique(codes: list[str]) -> list[str]:
@@ -1534,11 +1590,12 @@ def replace_state(paths: TaskPaths, data: bytes, owner_token: str, source: str,
     except OSError as error:
         if created:
             remove_own(temporary)
-        raise ToolError(7, "io-error", f"cannot write the temporary file: {error.strerror}") from None
+        raise ToolError(7, "io-error",
+                        f"cannot write the temporary file: {error.strerror}") from None
     apply_test_fault(fault, "kill-before-replace")
     apply_test_fault(fault, "pause-before-recheck")
     try:
-        current, opened = read_state_file(paths.state)
+        current, opened = read_state_file(paths)
         info = os.lstat(paths.state)
     except (ToolError, OSError):
         remove_own(temporary)
@@ -1587,7 +1644,8 @@ def write_target(document: Document, block_id: str) -> Block:
     if block.prefix is not None and block.prefix != COMPOSITE_PREFIX:
         raise ToolError(3, "unrecognized-prefix", f"block {block_id} has prefix {block.prefix}",
                         block.start + 1)
-    unknown = [name for name, _ in block.header_fields if name not in KNOWN_HEADER_FIELDS[block.kind]]
+    unknown = [name for name, _ in block.header_fields
+               if name not in KNOWN_HEADER_FIELDS[block.kind]]
     if unknown:
         raise ToolError(3, "unknown-header-field",
                         f"block {block_id} has unknown header field {unknown[0]}", block.start + 1)
@@ -1603,41 +1661,27 @@ def load_document(options: dict[str, list[str]], report: dict[str, Any],
     paths = resolve_paths(options["--root"][0], options["--task"][0])
     report["task"] = paths.relative_task
     report["stale_temp_files"] = stale_temp_files(paths.task)
-    data = read_state(paths.state)
+    data = read_state(paths)
     report["source_revision"] = revision(data)
-    text = decode_state(data)
-    lines = split_lines(text)
-    version = task_contract_version(lines, fence_flags(lines))
+    lines = split_lines(decode_state(data))
+    openers = fence_openers(lines)
+    version, supported = recorded_contract_version(lines, openers)
     if report_version:
-        report["contract_version"] = version[0] if version else None
-    warnings: list[str] = []
-    if not contract_version_supported(version[1] if version else None):
-        warnings.append("unsupported-contract-version")
-    return parse_document(text), warnings
+        report["contract_version"] = version
+    warnings = [] if supported else ["unsupported-contract-version"]
+    return parse_lines(lines, openers), warnings
 
 
 def command_get(options: dict[str, list[str]], report: dict[str, Any]) -> int:
     """Fill the report for get; raise ToolError for a refusal of the whole read."""
     document, warnings = load_document(options, report, report_version=True)
-    problems = structure_problems(document.blocks)
     field_name = options.get("--field", [None])[0]
-    target = options.get("--block", [None])[0]
-    if target is None:
-        if problems:
-            report["warnings"] = warnings
-            report["errors"] = [error.as_error() for _, error in problems]
-            return 3
-        selected = document.blocks
-    else:
-        selected = [block for block in document.blocks if block.block_id == target]
-        if not selected:
-            raise ToolError(3, "block-missing", f"block {target} not found")
-        own = [error for block_id, error in problems if block_id == target]
-        if own:
-            report["warnings"] = warnings
-            report["errors"] = [error.as_error() for error in own]
-            return 3
-        warnings.extend(error.code for block_id, error in problems if block_id != target)
+    selected, structure, others = select_blocks(document, options.get("--block", [None])[0])
+    if structure:
+        report["warnings"] = warnings
+        report["errors"] = [error.as_error() for error in structure]
+        return 3
+    warnings.extend(error.code for error in others)
     for block in selected:
         warnings.extend(block_warnings(block))
     report["warnings"] = unique(warnings)
@@ -1653,16 +1697,7 @@ def command_validate(options: dict[str, list[str]], report: dict[str, Any]) -> i
     otherwise 0; every error found is listed.
     """
     document, warnings = load_document(options, report, report_version=False)
-    problems = structure_problems(document.blocks)
-    target = options.get("--block", [None])[0]
-    if target is None:
-        selected = document.blocks
-        structure = [error for _, error in problems]
-    else:
-        selected = [block for block in document.blocks if block.block_id == target]
-        if not selected:
-            raise ToolError(3, "block-missing", f"block {target} not found")
-        structure = [error for block_id, error in problems if block_id == target]
+    selected, structure, _ = select_blocks(document, options.get("--block", [None])[0])
     invariants: list[ToolError] = []
     for block in selected:
         receipts_line = receipts_problem(block)
@@ -1729,22 +1764,21 @@ def command_write(command: str, options: dict[str, list[str]], report: dict[str,
     paths = resolve_paths(options["--root"][0], options["--task"][0])
     report["task"] = paths.relative_task
     report["stale_temp_files"] = stale_temp_files(paths.task)
-    read_state_file(paths.state)  # Refuse a missing or unsafe state.md before taking the lock.
+    read_state_file(paths)  # Refuse a missing or unsafe state.md before taking the lock.
     owner_token = secrets.token_hex(16)
     descriptor = acquire_lock(paths.task, lock_wait_seconds(options), report)
     try:
         write_lock_owner(descriptor, owner_token)
-        data, opened = read_state_file(paths.state)
+        data, opened = read_state_file(paths)
         source = revision(data)
         report["source_revision"] = source
         report["result_revision"] = source  # Until this write replaces or finds a changed file.
-        text = decode_state(data)
-        lines = split_lines(text)
-        version = task_contract_version(lines, fence_flags(lines))
-        if not contract_version_supported(version[1] if version else None):
+        lines = split_lines(decode_state(data))
+        openers = fence_openers(lines)
+        if not recorded_contract_version(lines, openers)[1]:
             raise ToolError(3, "unsupported-contract-version",
                             "the task records a contract version this tool does not support")
-        document = parse_document(text)
+        document = parse_lines(lines, openers)
         if command == "init-block":
             outcome = init_block_candidate(document, options, source)
         else:
@@ -1802,7 +1836,8 @@ def main(argv: list[str]) -> int:
         report["errors"] = [error.as_error()]
         exit_code = error.exit_code
     except Exception as error:  # Any unexpected failure still yields one JSON object.
-        report["errors"] = [{"code": "internal-error", "message": f"{type(error).__name__}: {error}"}]
+        report["errors"] = [{"code": "internal-error",
+                             "message": f"{type(error).__name__}: {error}"}]
         exit_code = 1
     if exit_code != 0:
         report["result"] = REFUSED_RESULT.get(report["command"], "rejected")

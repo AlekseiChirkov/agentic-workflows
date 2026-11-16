@@ -991,13 +991,29 @@ When the tool is absent or cannot run, edit the block by hand in this order:
 - Local filesystems only: the lock is an advisory `fcntl` lock, which network filesystems
   may not honour. Locking across hosts is not supported.
 - Without `fcntl` (for example on Windows) only `get` and `validate` work; write commands
-  exit 7 `locking-unavailable`.
+  exit 7 `locking-unavailable`. Read commands on such a platform are not covered by the
+  acceptance suite.
 - Leftover temporary files `.state.md.*.tmp` are listed in `stale_temp_files` by every
   command and never deleted by the tool, nor read as state. Remove them by hand once no
   write is running.
 - `set` refuses to change `last_action` or `blocker` when the value continues on following
   lines (exit 6, `invalid-value`), because it replaces the field line only and never deletes
-  text; edit such a block by the manual procedure above, or append a note.
+  text; edit such a block by the manual procedure above, or append a note. Fenced text
+  placed under a field line is not a continuation line: `set` replaces the field line and
+  leaves the fenced lines, and blank lines directly before them, where they are.
+- File shape: `state.md` must be UTF-8 without a byte order mark, carriage returns or NUL
+  bytes (exit 3, `unsupported-encoding`). A blank line is an empty line. Inside a block a
+  line holding only one or two spaces makes the block malformed (exit 3, `malformed-block`)
+  and a line of three or more spaces is a continuation line; `init-block` treats a
+  spaces-only line as the last non-blank line of the section.
+- Fences inside the section: a fence opened at column 0 ends the block before it. A fence
+  opened at one to three spaces inside a block stays part of that block, together with
+  blank lines directly before it; its lines are never reported, changed or used as an
+  insertion point. An in-block fence that is never closed makes its block malformed (exit
+  3, `malformed-block`). A column-0 fence that is never closed hides every later block up
+  to the end of the file: `get` and `validate` do not see them and a command that names
+  one exits 3 `block-missing`. In both cases `init-block` exits 1 and writes nothing; close
+  the fence by hand first.
 
 ### Ignore rules for the auxiliary files
 
