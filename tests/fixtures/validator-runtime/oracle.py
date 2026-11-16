@@ -247,7 +247,7 @@ def inventory(source, include_resources=True):
         raise ValueError("Runtime checks do not match the approved suffix")
     results = [{"name": name, "expression": expression} for name, expression in
                all_results[:-len(ADDITIVE_RESULTS)]]
-    if len(expressions) != 36 or len(focused) != 37:
+    if len(expressions) != 37 or len(focused) != 38:
         raise ValueError("Source does not match the expected acceptance or focused inventory")
     return {"results": results, "expressions": expressions, "focused": focused, "resources": resources}
 

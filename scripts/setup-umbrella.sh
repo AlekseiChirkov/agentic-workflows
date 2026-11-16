@@ -89,12 +89,23 @@ if [ ! -f ".gitignore" ]; then
   echo "  created: .gitignore"
 fi
 GITIGNORE_ENTRIES=(".env")
+# An entry is present only when a whole line equals it; comments, negations and longer or
+# narrower lines never count.
+GITIGNORE_APPENDED=0
 for entry in "${GITIGNORE_ENTRIES[@]}"; do
-  if ! grep -qF "$entry" .gitignore; then
+  if grep -qxF -e "$entry" .gitignore; then
+    echo "  ok: $entry already in .gitignore"
+  else
+    # End an unterminated last line once, so the first appended entry starts its own line.
+    # The last byte is compared as a byte: command substitution alone would drop a NUL byte.
+    if [ "$GITIGNORE_APPENDED" -eq 0 ] && [ -s .gitignore ] &&
+       [ "$(tail -c 1 .gitignore | od -An -tx1 | tr -d ' \n')" != "0a" ]; then
+      echo >> .gitignore
+      echo "  ok: ended the unterminated last line of .gitignore"
+    fi
+    GITIGNORE_APPENDED=1
     echo "$entry" >> .gitignore
     echo "  appended to .gitignore: $entry"
-  else
-    echo "  ok: $entry already in .gitignore"
   fi
 done
 

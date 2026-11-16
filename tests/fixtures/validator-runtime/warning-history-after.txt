@@ -7,7 +7,7 @@ test_contract_version_rule_history_warns_until_version_changes() (
   # Keep the real startup and warning code, stopping before ordinary checks.
   # The previous fixture copied the complete tree and ran the validator three
   # times; only warning and exit behavior is relevant to this history check.
-  expected_prefix_sha256='3f3fbbe09cf5c8578763e01f4b818a5d7c5d29093a5dc705c31b815e7f4f35e1'
+  expected_prefix_sha256='dc5f5684b764be02aaacaa873d5838f4f506eb4d429b1fb8d8414dacb3f1e324'
   write_contract_warning_prefix() {
     python3 - "$1" "$2" "$expected_prefix_sha256" <<'PYWARNING'
 from pathlib import Path
