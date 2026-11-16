@@ -1,23 +1,23 @@
-# 13a. Audit of rules, workflows and harness adapters before the naming migration
+# 08. Audit of rules, workflows and harness adapters before the naming migration
 
 ## Source
 
 - **Origin:** ADR-0009 Decision 3 (`.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:130-131`):
-  "The audit of all rule and workflow files is its own spec, **13a**, executed before 13; spec
-  13 is amended via `/spec-sync` from its findings." Order: ADR-0009 Decision 7 as amended by
-  ADR-0017 (06 before 13a and 13); roadmap order 1 in `.ai/specs/README.md` → "Dependency order".
+  "The audit of all rule and workflow files is its own spec, **08**, executed before 09; spec
+  09 is amended via `/spec-sync` from its findings." Order: ADR-0009 Decision 7 as amended by
+  ADR-0017 (06 before 08 and 09); roadmap order 1 in `.ai/specs/README.md` → "Dependency order".
 - **Previous revision:** 2026-10-28 in Russian, plus the 2026-11-06 review (preserved below);
   its text with REQ-01–REQ-14 and AC-01–AC-10 is in this file's git history at `060ce6d…`.
-- **Request, translated from Russian (13a revision 2026-10-28, §1 "Purpose and status"):**
+- **Request, translated from Russian (08 revision 2026-10-28, §1 "Purpose and status"):**
   "Revision: 2026-10-28. This is a specification of an audit, not a statement that the audit
   is already complete. It defines a verifiable result for the next executor. Executing the
   specification does not rename rules, install skills or run models. The goal is to obtain a
   complete map of the active instructions, references, loads, mixed responsibilities and
-  duplication on one pinned snapshot of the sources. From this map specification 13 receives
+  duplication on one pinned snapshot of the sources. From this map specification 09 receives
   exact changes to its requirements before the migration starts. The criteria of this document
   are checked by the completeness of the inventory and the reproducibility of the observations,
   not by the size of the report. Main decisions: ADR-0009, decisions 2, 3 and 7. Mandatory
-  prerequisite: completed specification 01. The full 13a audit precedes 13; a partial review of
+  prerequisite: completed specification 01. The full 08 audit precedes 09; a partial review of
   the workflows does not replace it."
 - **Snapshot the previous revision verified (translated from Russian, §2):**
   `8c2fa08c18115ffcf38a1798742c41e53a2c7461`; [source tree](https://github.com/AlekseiChirkov/agentic-workflows/tree/8c2fa08c18115ffcf38a1798742c41e53a2c7461).
@@ -26,7 +26,7 @@
   Identifier history lists the changes.
 - **This revision:** 2026-11-14, refined in place under `/spec-draft --auto-mode` with the
   owner's authorization to replace the file. No human questions were asked; every resolved gap
-  is recorded under Assumptions with its source. Spec 13 (refined the same day) withdrew its
+  is recorded under Assumptions with its source. Spec 09 (refined the same day) withdrew its
   REQ-01–REQ-04 and AC-01 into this spec; their content is covered here (Notes → Identifier
   history).
 
@@ -46,8 +46,8 @@ Verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
 1. **The audited set.** `rules/` holds 14 Markdown files, `workflows/` 42 (41 workflows and
    `workflows/PIPELINE.md`), `harness/` four (`harness/claude/capabilities.md`, `hooks.json`,
    `permissions.json`, `harness/codex/capabilities.md`); none has subdirectories. The Codex
-   always-on body lives outside them in `templates/codex-global-AGENTS.md`, and spec 13 moves it
-   to `harness/codex/always-on.md` (spec 13 REQ-55). `.ai/memory/architecture.md:22-23` states "42
+   always-on body lives outside them in `templates/codex-global-AGENTS.md`, and spec 09 moves it
+   to `harness/codex/always-on.md` (spec 09 REQ-55). `.ai/memory/architecture.md:22-23` states "42
    workflows, 14 rules, 4 principles, 10 shell scripts and 30 Python helpers"; `scripts/` holds
    11 `.sh` and 30 `.py` files.
 2. **Five stems name both a rule and a workflow:** `phase-discovery`, `phase-execution`,
@@ -80,22 +80,22 @@ Verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
 7. **Some duplication is intentional.** ADR-0003 Decision 2 duplicates the always-on essentials
    into `rules/global-claude.md` and `templates/codex-global-AGENTS.md`, restated at
    `rules/workflow-globals.md:29-33`.
-8. **Spec 13 depends on this audit.** Spec 13 withdrew its REQ-01–REQ-04 and AC-01 into 13a;
-   its Notes → Ownership between 13 and 13a give 13a the inventory, link graph, duplicate
-   clusters, mixed-kind detection and measurements, ask 13a to count words with spec 13's word
-   count (DM-19, used by REQ-32) and to use the rule kinds of spec 13 DM-2, and ask 13a to report
-   files missing from spec 13's maps. The maps DM-10, DM-11 and DM-12 are "binding unless amended
-   from 13a's accepted report via `/spec-sync`"; REQ-21 lets Discovery conduct merge into
-   `protocol-autonomous-decision` only WHERE 13a's accepted report proves complete coverage; its
-   implementing task stops when 13a's report is missing or not accepted (Notes → Prerequisites
-   and Guard). Spec 08 consumes the proposals 13a assigns to owner 08
-   (spec 08 Scope item 9).
+8. **Spec 09 depends on this audit.** Spec 09 withdrew its REQ-01–REQ-04 and AC-01 into 08;
+   its Notes → Ownership between 09 and 08 give 08 the inventory, link graph, duplicate
+   clusters, mixed-kind detection and measurements, ask 08 to count words with spec 09's word
+   count (DM-19, used by REQ-32) and to use the rule kinds of spec 09 DM-2, and ask 08 to report
+   files missing from spec 09's maps. The maps DM-10, DM-11 and DM-12 are "binding unless amended
+   from 08's accepted report via `/spec-sync`"; REQ-21 lets Discovery conduct merge into
+   `protocol-autonomous-decision` only WHERE 08's accepted report proves complete coverage; its
+   implementing task stops when 08's report is missing or not accepted (Notes → Prerequisites
+   and Guard). Spec 11 consumes the proposals 08 assigns to owner 11
+   (spec 11 Scope item 9).
 9. **The validator's check inventory is frozen.** ADR-0019 Decision 3
    (`.ai/adr/0019-task-unknown-spec-draft-devils-advocate-review.md:68-80`) puts new contract
    tests outside `scripts/validate-contracts.sh`; the nested source guard binds the validator
    and every `.sh`/`.py` file under `tests/` (`tests/fixtures/validator-runtime/source_guard.py:809-822`),
    so `scripts/` is outside it. Precedent: the standalone `scripts/check-spec-draft.sh`
-   (`scripts/README.md:20`). Re-pointing frozen checks after renames is spec 13's amendment
+   (`scripts/README.md:20`). Re-pointing frozen checks after renames is spec 09's amendment
    mechanism (REQ-51, REQ-52; schema 2 of `tests/fixtures/validator-runtime/inventory-amendment.json`).
 10. **Every tracked file is scanned for the former repository name.** The validator assembles a
     case-insensitive pattern (`scripts/validate-contracts.sh:4682-4685,4801`) and compares every
@@ -104,9 +104,9 @@ Verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
     (`scripts/validate-contracts.sh:371-427`). New audit outputs must therefore not contain the
     former name.
 
-**Consequence:** without a complete, reproducible audit spec 13 renames and splits files on
+**Consequence:** without a complete, reproducible audit spec 09 renames and splits files on
 defaults that nobody has checked against the full set of references, loads and duplicates;
-spec 13's Discovery has no accepted report to start from (its Guard stops); spec 08 receives no
+spec 09's Discovery has no accepted report to start from (its Guard stops); spec 11 receives no
 proposals; and dangling or ambiguous references found only after the migration are mixed with
 defects the migration itself introduced.
 
@@ -115,8 +115,8 @@ defects the migration itself introduced.
 Maintainers obtain one pinned, reproducible audit of every rule, workflow and harness adapter
 file — its kinds, sections, sizes, references in both directions, loads, legacy mentions,
 verbatim and semantic duplication — produced by a read-only deterministic extractor and a
-complete, machine-verified assessment, so that spec 13 receives a checked migration map and
-exact amendments with their evidence, spec 08 and specs 14–17 receive owned proposals, and no
+complete, machine-verified assessment, so that spec 09 receives a checked migration map and
+exact amendments with their evidence, spec 11 and specs 12–15 receive owned proposals, and no
 instruction, adapter or installed copy changes in the process.
 
 ## Scope
@@ -131,7 +131,7 @@ instruction, adapter or installed copy changes in the process.
    `YYYY-MM-DD-rules-workflows-audit.assessment.json`, indexed in `docs/README.md`.
 4. The auditor's full reading of the primary and adapter sets and the assessment: kinds,
    mixed-kind sections, load modes, candidate dispositions, legacy roles, duplicate groups,
-   migration map, spec 13 inputs, findings and proposed amendments to spec 13.
+   migration map, spec 09 inputs, findings and proposed amendments to spec 09.
 5. Index and knowledge updates: `scripts/README.md`, `.ai/context/runbook.md`,
    `.ai/memory/architecture.md` (inventory counts), `.ai/memory/state.md`,
    `.ai/memory/progress.md`.
@@ -141,14 +141,14 @@ instruction, adapter or installed copy changes in the process.
 - Any change to `rules/`, `workflows/`, `harness/`, `templates/`, `principles/`, `hooks/`,
   `tests/`, `scripts/validate-contracts.sh`, `scripts/sync.sh` or another existing script, and
   fixing any defect the audit finds (REQ-04, REQ-14).
-- Applying amendments to spec 13 or any other spec; `/spec-sync` of spec 13 and the owner's
+- Applying amendments to spec 09 or any other spec; `/spec-sync` of spec 09 and the owner's
   acceptance happen after this delivery (Notes → Handoff).
-- Spec 13's contracts: the checker `scripts/lint-instructions.py` and its executable-reference
-  grammar (spec 13 REQ-22, REQ-31), the name map, the binding maps (DM-10–DM-12), the semantics
+- Spec 09's contracts: the checker `scripts/lint-instructions.py` and its executable-reference
+  grammar (spec 09 REQ-22, REQ-31), the name map, the binding maps (DM-10–DM-12), the semantics
   record, re-pointing references (REQ-25, REQ-53) and the schema-2 inventory amendment (REQ-51,
-  REQ-52). 13a reuses some of their definitions without enforcing them.
-- Spec 08's load metadata, tiering, size limits and measurement tool; specs 14–17's
-  mechanisms; spec 10's generated documents; spec 09's golden runs.
+  REQ-52). 08 reuses some of their definitions without enforcing them.
+- Spec 11's load metadata, tiering, size limits and measurement tool; specs 12–15's
+  mechanisms; spec 19's generated documents; spec 10's golden runs.
 - Token counts, cost, cached input, model or paid runs, and any economic conclusion (REQ-03).
 - Reading or changing installed copies under `~/.claude`, `~/.codex` or `~/.codeium` by the
   tool; an optional manual comparison is recorded only as REQ-03 describes.
@@ -160,7 +160,7 @@ instruction, adapter or installed copy changes in the process.
 
 | Actor | Allowed actions |
 |---|---|
-| Owner | Accepts or rejects the report and each amendment; runs `/spec-sync` on spec 13; decides contradictions |
+| Owner | Accepts or rejects the report and each amendment; runs `/spec-sync` on spec 09; decides contradictions |
 | Auditor (Implementer role) | Builds the tool test-first; runs `extract`; reads every primary and adapter file in full; writes the assessment and the hand-written report sections; never edits an audited file |
 | Independent reviewer (Validator role) | Re-checks completeness, disputed classifications and evidence; its verdict is written to the report's review line by the single writer of the task's files |
 | `scripts/audit-instructions.py extract` | Reads the root and git metadata; writes only the `--out` file |
@@ -173,9 +173,9 @@ instruction, adapter or installed copy changes in the process.
 | Term | Definition | Source |
 |---|---|---|
 | Audit | The delivery of this spec: tool, suite, inventory, assessment, report | This spec |
-| Root | The repository directory the tool reads (`--root`, default the parent of `scripts/`) | Convention of `scripts/model-catalog.py` and spec 13 |
+| Root | The repository directory the tool reads (`--root`, default the parent of `scripts/`) | Convention of `scripts/model-catalog.py` and spec 09 |
 | Primary set | Every directory entry under `rules/` and `workflows/`, recursively | Previous revision §3 |
-| Adapter set | Every directory entry under `harness/`, recursively, plus `templates/codex-global-AGENTS.md` | Previous revision §3; spec 13 REQ-55 (A-03) |
+| Adapter set | Every directory entry under `harness/`, recursively, plus `templates/codex-global-AGENTS.md` | Previous revision §3; spec 09 REQ-55 (A-03) |
 | Audited file | A member of the primary or adapter set | This spec |
 | Reader | A file outside the audited set that the tool scans for references to audited files; it has one reader class (DM-3) | Previous revision §3 |
 | Reader class | `active`, `frozen`, `planning` or `history` (DM-3) | This spec |
@@ -184,26 +184,26 @@ instruction, adapter or installed copy changes in the process.
 | Report | The Markdown document (DM-8) | Previous REQ-11 |
 | Edge | One occurrence of a reference from a source file to one or more audited files (DM-4) | Previous REQ-07 |
 | Defect edge | An edge for which DM-4 → Defect predicate holds | This spec |
-| Load edge | An edge on a load line (DM-5 → Load lines) | Spec 08 → Textual load command detection |
+| Load edge | An edge on a load line (DM-5 → Load lines) | Spec 11 → Textual load command detection |
 | Candidate | A tool-detected item the auditor must disposition: repeated load (`RL-NNN`), full-output line (`FO-NNN`) or harness-name line (`HN-NNN`) | This spec |
 | Duplicate cluster | Verbatim-equal text units in two or more places (`DUP-NNN`, DM-6) | Previous REQ-08 |
 | Duplicate group | The auditor's grouping of clusters and read-detected repeats with one disposition (`DG-NNN`) | Previous REQ-08 |
-| Finding | `AUD-13A-NNN`, one observed problem or observation with owner and closure criterion (DM-7) | Previous §5.3 |
-| Proposal | A finding of a proposal type (DM-7) owned by spec 08, 14, 15, 16 or 17 | Previous REQ-02 |
+| Finding | `AUD-08-NNN`, one observed problem or observation with owner and closure criterion (DM-7) | Previous §5.3 |
+| Proposal | A finding of a proposal type (DM-7) owned by spec 11, 12, 13, 15 or 14 | Previous REQ-02 |
 | Migration map | One decision per audited file: keep, move, rename, split or merge (DM-7) | Previous REQ-09 |
-| Amendment | `AMD-13A-NN`, a proposed change to one identifier of spec 13 (DM-7) | Previous REQ-10 |
-| Spec 13 default | The target(s) spec 13's maps give an audited file at audit time; `null` when the file is absent from them | Spec 13 DM-10, DM-11, DM-12 |
-| Word | Spec 13's word count (DM-19, used by REQ-32): strict UTF-8, U+001C–U+001F rejected, `len(text.split())` over the whole text | Spec 13; equal to spec 08 counter version 1 |
+| Amendment | `AMD-08-NN`, a proposed change to one identifier of spec 09 (DM-7) | Previous REQ-10 |
+| Spec 09 default | The target(s) spec 09's maps give an audited file at audit time; `null` when the file is absent from them | Spec 09 DM-10, DM-11, DM-12 |
+| Word | Spec 09's word count (DM-19, used by REQ-32): strict UTF-8, U+001C–U+001F rejected, `len(text.split())` over the whole text | Spec 09; equal to spec 11 counter version 1 |
 | Audit complete | `verify` exits 0 and the report's review line records `pass` (REQ-14) | Previous REQ-14 |
-| Report accepted | The report's acceptance line records the owner and a date | Spec 13 Notes → Prerequisites and Guard |
+| Report accepted | The report's acceptance line records the owner and a date | Spec 09 Notes → Prerequisites and Guard |
 | Defects fixed | A later state reached by other specs; never claimed by this audit | Previous REQ-14 |
 
-**Kinds** (classification of the report; the first four are spec 13 DM-2's rule-stem kinds,
+**Kinds** (classification of the report; the first four are spec 09 DM-2's rule-stem kinds,
 named by ADR-0009 Decision 3; their operational definitions are this audit's, A-04):
 
 | Kind | A file or section of this kind |
 |---|---|
-| `bootstrap` | Lists the ordered context sources one phase loads before acting, and that phase's behaviours (spec 13 REQ-19 shape) |
+| `bootstrap` | Lists the ordered context sources one phase loads before acting, and that phase's behaviours (spec 09 REQ-19 shape) |
 | `contract` | States formats, vocabularies, invariants or obligations that hold across workflows regardless of the current decision point |
 | `protocol` | States how to decide at a named decision point: inputs, criteria and outcomes |
 | `procedure` | States an ordered sequence of actions triggered by a named condition, usable from more than one workflow |
@@ -224,7 +224,7 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
   file system at that moment, with the fields of DM-2, and SHALL NOT take a file count, file kind
   or capability from any record, earlier report or harness name.
 - **REQ-02 Owned proposals.** EACH finding of a proposal type (DM-7 → Finding types) SHALL name
-  its source path and section and exactly one owner from `08`, `14`, `15`, `16`, `17`.
+  its source path and section and exactly one owner from `11`, `12`, `13`, `15`, `14`.
 - **REQ-03 Separate measurements.** THE inventory, assessment and report SHALL state words,
   bytes, edge counts and load counts as separate fields, SHALL contain no token count and no
   monetary amount (DM-9 → `economics-claim`), and WHERE the auditor compares an installed copy,
@@ -232,7 +232,7 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
   in `~/`-relative form, with conclusions limited to that installation.
 - **REQ-04 Audit boundary.** THE audit delivery SHALL change no file outside the list of REQ-11,
   SHALL run neither `scripts/sync.sh`, an installer, a workflow nor a model, and SHALL record
-  every change it proposes to spec 13 only as an amendment (DM-7).
+  every change it proposes to spec 09 only as an amendment (DM-7).
 - **REQ-05 Row completeness.** THE assessment SHALL contain exactly one `files` row per audited
   path of the inventory, including symbolic links and other non-regular entries, each with a
   non-empty `kinds` list.
@@ -254,11 +254,11 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
   exactly once, a target path is shared without a merge reason on every sharing target, two
   installed names are equal under Unicode casefolding, a rule stem equals a workflow stem, or a
   top-level rule target lacks a kind prefix (DM-9 → map codes).
-- **REQ-10 Amendments.** EACH amendment SHALL name one existing target in spec 13 (DM-7 →
+- **REQ-10 Amendments.** EACH amendment SHALL name one existing target in spec 09 (DM-7 →
   Amendment target forms) or a new requirement or criterion, the change type (`semantic`,
   `editorial` or `relocation`), the current and proposed text, the reason, the evidence, the
   affected acceptance criteria, its dependencies and whether it requires an ADR; EVERY map entry
-  that deviates from its spec 13 default (DM-7 → Spec 13 defaults) SHALL cite an amendment.
+  that deviates from its spec 09 default (DM-7 → Spec 09 defaults) SHALL cite an amendment.
 - **REQ-11 Output files and permitted changes.** THE delivery SHALL create or change only:
   `scripts/audit-instructions.py`, `scripts/check-audit-instructions.py`, the three
   `docs/audits/<run_date>-rules-workflows-audit.*` files (DM-1, DM-7, DM-8), one index line in
@@ -266,9 +266,9 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
   `.ai/context/runbook.md`, the inventory sentence `.ai/memory/architecture.md:22-23`,
   `.ai/memory/state.md` and `.ai/memory/progress.md`, plus the records the pipeline itself
   writes for this task: `.ai/tasks/todo/task-*-rules-workflows-audit/**` and its archived copy
-  under `.ai/tasks/completed/`, the 13a row of `.ai/specs/README.md`, this spec file
+  under `.ai/tasks/completed/`, the 08 row of `.ai/specs/README.md`, this spec file
   (`/spec-sync` only), and, only when the pipeline archives this spec to
-  `.ai/specs/completed/13a-rules-workflows-audit.md`, the path cell of identity-ledger row
+  `.ai/specs/completed/08-rules-workflows-audit.md`, the path cell of identity-ledger row
   `.ai/tasks/completed/task-01-git-source-of-truth/state.md:214` (the precedent of the archived
   rows above it).
 - **REQ-12 Read coverage.** THE assessment SHALL hold exactly one coverage entry per audited path
@@ -283,8 +283,8 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
 - **REQ-14 Closure states.** THE report SHALL distinguish audit complete, report accepted and
   defects fixed: THE delivery SHALL NOT claim audit complete unless `verify` exits 0 and the
   review line records `pass`, SHALL leave the acceptance line `Accepted: pending`, and MAY
-  deliver open findings, each with `blocks_13` set by DM-7 → Blocking predicate and listed under
-  `## Blockers for spec 13` when true.
+  deliver open findings, each with `blocks_09` set by DM-7 → Blocking predicate and listed under
+  `## Blockers for spec 09` when true.
 
 ### Added in this revision
 
@@ -300,7 +300,7 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
 - **REQ-17 Reference grammar.** THE extractor SHALL produce edges exactly by DM-4 and DM-5,
   including the context, form, `load` flag, status and per-candidate heading status of each.
 - **REQ-18 Legacy mentions.** THE extractor SHALL record every case-insensitive match of
-  `windsurf`, `codeium` or `\bdevin\b` (spec 13 DM-17 → L pattern) in audited Markdown and JSON
+  `windsurf`, `codeium` or `\bdevin\b` (spec 09 DM-17 → L pattern) in audited Markdown and JSON
   files, and THE assessment SHALL give each such mention exactly one role: `active-behavior`,
   `legacy-detection`, `historical` or `example`.
 - **REQ-19 Loads and candidates.** THE extractor SHALL list repeated-load, full-output and
@@ -308,14 +308,14 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
   is an audited file as `mandatory` or `conditional` (with the condition text) and SHALL give
   every candidate a disposition (`finding` with a finding id, `guarded` or `not-applicable` with
   a reason).
-- **REQ-20 Spec 13 inputs.** THE assessment SHALL record, for spec 13: the spec 13 default of
-  every map entry derived by DM-7 → Spec 13 defaults, the REQ-21 coverage verdict with exactly one
+- **REQ-20 Spec 09 inputs.** THE assessment SHALL record, for spec 09: the spec 09 default of
+  every map entry derived by DM-7 → Spec 09 defaults, the REQ-21 coverage verdict with exactly one
   mapping per statement unit (DM-5 → Statement units) of
   `rules/phase-discovery.md → ## Codebase Reading Rules` and `## Decision Protocol`, and THE
   report SHALL render the word counts of every section of every audited file.
 - **REQ-21 Validator impact counts.** FOR every map entry whose decision is not `keep`, THE
   report SHALL render the number of edges that target the source, grouped as DM-8 → Validator and
-  test impact lists, so that spec 13 can size its re-pointing and schema-2 amendment work.
+  test impact lists, so that spec 09 can size its re-pointing and schema-2 amendment work.
 - **REQ-22 Verification.** WHEN `verify` runs, THE verifier SHALL check the inventory, assessment
   and report by every rule of DM-9, print one diagnostic per violation in the form
   `<code> <location> <message>`, and exit 0 only when it prints none.
@@ -345,10 +345,10 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
   repeated checkpoint or status records and repeated review of unchanged inputs, as three lists of
   finding ids of types `report-repeat`, `checkpoint-repeat` and `review-repeat` (an empty list
   meaning examined, none found).
-- **REQ-29 Owned fixes for references outside spec 13's grammar.** IF a finding owned by `13`
-  names a defect edge that spec 13's executable-reference grammar does not cover (DM-4 →
-  `in_spec13_grammar` false), THEN THE finding's `evidence` SHALL cite an amendment that gives
-  spec 13 the obligation to fix it.
+- **REQ-29 Owned fixes for references outside spec 09's grammar.** IF a finding owned by `09`
+  names a defect edge that spec 09's executable-reference grammar does not cover (DM-4 →
+  `in_spec09_grammar` false), THEN THE finding's `evidence` SHALL cite an amendment that gives
+  spec 09 the obligation to fix it.
 
 ## Data Model
 
@@ -362,7 +362,7 @@ stated; "path order" means Python string order of the path.
 | Key | Type | Content |
 |---|---|---|
 | `schema_version` | integer | `1` |
-| `method_version` | string | `"13a-extract-1"`; any change to DM-2–DM-6 behaviour changes it |
+| `method_version` | string | `"08-extract-1"`; any change to DM-2–DM-6 behaviour changes it |
 | `source_revision` | string or null | `git rev-parse --verify HEAD` of the root; null when git or the work tree is unavailable |
 | `worktree` | object | `{"state": "clean" | "dirty" | "unknown", "paths": [...]}`; `paths` lists, in path order, every audited or reader path (after the DM-3 exclusions) that `git status --porcelain=v1 -z --untracked-files=all` reports; `state` is `dirty` exactly when `paths` is non-empty, otherwise `clean`; changes to excluded or unread files (the audit outputs, `VERSION`) do not count; `unknown` with `[]` when git is unavailable |
 | `inventory_digest` | string | SHA-256 of the UTF-8 text formed by one line `<path>\t<set or class>\t<sha256 or ->\n` per entry of `files` and `readers` merged into one list sorted in path order |
@@ -407,12 +407,12 @@ first matching class:
 | `history` | `.ai/adr/**`, `.ai/specs/completed/**`, `.ai/tasks/completed/**`, `.ai/memory/progress.md`, `docs/**` below a subdirectory |
 
 Any other file is not read (for example `VERSION`, `.gitignore`). Audited files are edge sources
-of class `active`. The `active` class equals spec 13's scan set R (DM-17) plus `README.md`, minus
+of class `active`. The `active` class equals spec 09's scan set R (DM-17) plus `README.md`, minus
 the paths R excludes that do not exist yet.
 
 ### DM-4 Edge, grammar and statuses
 
-Edge entry: `{"source", "class", "line", "column", "context", "form", "raw", "load", "md_suffix", "in_spec13_grammar", "status", "targets"}`.
+Edge entry: `{"source", "class", "line", "column", "context", "form", "raw", "load", "md_suffix", "in_spec09_grammar", "status", "targets"}`.
 `line` is 1-based; `raw` is the matched text without enclosing backticks (for G1, the whole span
 content); `column` is the 0-based code-point offset of the first character of `raw` in the line
 with a trailing CR removed. `context` is `front-matter`, `fence`, `span` (inside a single-backtick span), `text`,
@@ -427,7 +427,7 @@ list of `{"path", "heading_status"}` in path order; `heading_status` is null unl
 **Span grammar G1** (Markdown sources, spans outside fences and front matter; first match wins):
 
 1. `command` — a span not containing ` → ` that matches `^/([a-z0-9][a-z0-9-]*)(\.md)?( .*)?$`: a
-   workflow stem → `resolved`; otherwise `unknown-command` (spec 13 DM-16 form 1). Spans
+   workflow stem → `resolved`; otherwise `unknown-command` (spec 09 DM-16 form 1). Spans
    containing ` → `, such as `` `/spec-run → ## Step 4 → 4.2` `` (`rules/orchestration.md:67`),
    go to form 2.
 2. `section-ref` — the span contains ` → `; the head (text before the first ` → `), after removing
@@ -438,7 +438,7 @@ list of `{"path", "heading_status"}` in path order; `heading_status` is null unl
    `missing-target`; any other head is a document reference and yields no edge. Components after
    the head, per candidate, from the start of the file: a marked component `#{n} T` resolves when
    a heading line inside the current extent equals `#{n} T` after trailing whitespace is removed
-   (`resolved`), else when one starts with `#{n} T — ` (`resolved-prefix`, accepted by spec 13
+   (`resolved`), else when one starts with `#{n} T — ` (`resolved-prefix`, accepted by spec 09
    DM-16), else `missing-heading` and resolution stops; the matched heading's extent becomes the
    current extent (DM-5 → Extent). An unmarked first component resolves against any heading of level 2 or deeper whose
    text equals `T` or starts with `T — `, `T (` or `T:` (`heading-unmarked`), else
@@ -488,16 +488,16 @@ Non-Markdown sources use G2 only, with context `text` (or the two validator cont
 **Defect predicate.** An edge is a defect edge when its class is `active`, its context is not
 `fence`, its form is not `bare-name`, and either its status is not `resolved` or
 `resolved-prefix`, or its `md_suffix` is true. `resolved-prefix` is counted but is not a defect,
-because spec 13 DM-16 accepts it; `heading-unmarked` is a defect, because it does not follow the
-cross-reference syntax of `.ai/principles/coding.md:45-51` and spec 13's grammar does not read
+because spec 09 DM-16 accepts it; `heading-unmarked` is a defect, because it does not follow the
+cross-reference syntax of `.ai/principles/coding.md:45-51` and spec 09's grammar does not read
 it.
 
-**`in_spec13_grammar`** is true when the source is a top-level `rules/*.md`, `workflows/*.md` or
+**`in_spec09_grammar`** is true when the source is a top-level `rules/*.md`, `workflows/*.md` or
 `harness/*/always-on.md` file, the context is `span`, the form is `command`, `section-ref` whose
 head, after one optional leading `/`, matches `[a-z0-9][a-z0-9-]*` with an optional `.md` and
-whose first component is marked `##` or `###` (spec 13 DM-16 form 2), `rule-name` or `path` (not `glob`: spec 13 DM-16 form 4 skips paths containing `*`), and the
+whose first component is marked `##` or `###` (spec 09 DM-16 form 2), `rule-name` or `path` (not `glob`: spec 09 DM-16 form 4 skips paths containing `*`), and the
 status is not `heading-unmarked`; such defects are the
-pre-existing defects spec 13 fixes (spec 13 DM-16, last paragraph). Otherwise false (REQ-29).
+pre-existing defects spec 09 fixes (spec 09 DM-16, last paragraph). Otherwise false (REQ-29).
 
 ### DM-5 Text model
 
@@ -507,13 +507,13 @@ pre-existing defects spec 13 fixes (spec 13 DM-16, last paragraph). Otherwise fa
   a line `^([a-z_]+):( .*)?$` is a key (repeated keys are listed again in `keys`); `trigger` and
   `description` record the value after `: ` with trailing whitespace removed (first occurrence);
   any other non-empty line is a continuation line.
-- **Fences** (spec 08 → Section resolution, generalised to the indentation found in the sources):
+- **Fences** (spec 11 → Section resolution, generalised to the indentation found in the sources):
   a line whose text after leading spaces starts with three or more backticks or tildes opens a
   fence; it closes at the next line whose text after leading spaces is a run of the same
   character at least as long, followed only by whitespace. An unclosed fence runs to the end of
   the file.
 - **Headings**: ATX lines (`#` to `######` followed by a space) outside fences and front matter.
-- **Extent** (spec 08 → Section resolution): a heading's extent runs from its line to the line
+- **Extent** (spec 11 → Section resolution): a heading's extent runs from its line to the line
   before the next heading of the same or a higher level, or to the end of the file; the whole
   file is the extent before the first component.
 - **Spans**: maximal single-backtick pairs on one line outside fences; double-backtick spans are
@@ -523,14 +523,14 @@ pre-existing defects spec 13 fixes (spec 13 DM-16, last paragraph). Otherwise fa
   removed, or `(preamble)` for the lines before the first level-2 heading (omitted when there are
   none); words and bytes cover the section's lines, so their sums equal the file's. A `## ` line
   inside a fence (the template headings of `rules/workflow-reference.md:37-60`) is not a section
-  and travels with its enclosing section; spec 13 DM-12 and REQ-46 also count such lines, so a
+  and travels with its enclosing section; spec 09 DM-12 and REQ-46 also count such lines, so a
   split proposal states in its amendment or map `sections` where they go when that differs.
 - **Statement units** (for REQ-20): inside a section, outside fences, excluding its heading line,
   a unit starts at a list-item line (`^\s*([-*+]|\d+[.)])\s`), at a table row other than the
   separator, at a fence opening line (the whole fenced block is one unit), or at the first
   non-blank line after a blank line or after the heading; following non-blank lines that start no
   unit belong to it. A unit is identified by its first line number.
-- **Load lines** (spec 08 → Textual load command detection, extended to workflow targets): a line
+- **Load lines** (spec 11 → Textual load command detection, extended to workflow targets): a line
   of an audited `.md` file outside fences and front matter whose text with spans removed matches,
   case-insensitively, `\b(load|loads|loaded|loading|read|reads|reading)\b`; every edge with
   context `span` on that line gets `load: true`.
@@ -594,8 +594,8 @@ Written by the auditor. Keys, in order; an unknown or missing key is `assessment
 | `loads` | One per load edge whose source is audited: `{"source", "line", "column", "mode", "condition"}`; `condition` non-empty when `mode` is `conditional`, else null |
 | `candidates` | One per `RL`, `FO` and `HN` id: `{"id", "disposition", "finding", "reason"}`; `disposition` `finding`, `guarded` or `not-applicable`; `finding` required for `finding`, `reason` non-empty otherwise; an `RL` or `FO` finding has a proposal type, an `HN` finding type `naming` |
 | `legacy` | One per legacy mention: `{"source", "line", "column", "role", "note"}` |
-| `duplicate_groups` | `{"id": "DG-NNN", "clusters", "locations", "normative_source", "condition_differences", "disposition", "owner", "finding", "rationale"}`: `clusters` DUP ids; `locations` read-detected `{"path", "line_start", "line_end"}`; a group has at least two locations in total; `normative_source` `{"path", "section"}`; `disposition` `consolidate`, `intentional`, `condition-specific` or `contradiction`; `owner` `08` or `13` for `consolidate`, `owner` for `contradiction`, `none` otherwise; `finding` required for `consolidate` and `contradiction`; `rationale` non-empty |
-| `map` | One per audited path: `{"source", "decision", "targets", "spec13_default", "spec13_optional", "amendment"}`; `targets` a list of `{"path", "sections", "merge_reason"}` (`sections` null or headings of the source; `merge_reason` null or non-empty); `spec13_default` null or a list of `{"path", "sections"}`; `spec13_optional` a list of paths (possibly empty); `amendment` null or an `AMD-13A-NN` id |
+| `duplicate_groups` | `{"id": "DG-NNN", "clusters", "locations", "normative_source", "condition_differences", "disposition", "owner", "finding", "rationale"}`: `clusters` DUP ids; `locations` read-detected `{"path", "line_start", "line_end"}`; a group has at least two locations in total; `normative_source` `{"path", "section"}`; `disposition` `consolidate`, `intentional`, `condition-specific` or `contradiction`; `owner` `11` or `09` for `consolidate`, `owner` for `contradiction`, `none` otherwise; `finding` required for `consolidate` and `contradiction`; `rationale` non-empty |
+| `map` | One per audited path: `{"source", "decision", "targets", "spec09_default", "spec09_optional", "amendment"}`; `targets` a list of `{"path", "sections", "merge_reason"}` (`sections` null or headings of the source; `merge_reason` null or non-empty); `spec09_default` null or a list of `{"path", "sections"}`; `spec09_optional` a list of paths (possibly empty); `amendment` null or an `AMD-08-NN` id |
 | `req21` | `{"verdict": "covered" | "not-covered", "statements": [{"source": "rules/phase-discovery.md:<line>", "text", "covered_by"}]}`; exactly one statement per statement unit (DM-5) of the two sections, `source` naming the unit's first line; `covered_by` null or `path:line`; `covered` exactly when no `covered_by` is null |
 | `findings` | DM-7 → Finding |
 | `amendments` | DM-7 → Amendment |
@@ -604,40 +604,40 @@ Written by the auditor. Keys, in order; an unknown or missing key is `assessment
 **Decisions.** `keep`: one target equal to the source. `rename`: one target in the same directory
 with another name. `move`: one target in another directory. `split`: two or more targets whose
 `sections` lists together hold every section of the source exactly once; an optional overflow
-target (`spec13_optional`, spec 13 REQ-19) carries `sections: null`, holds no whole section and
+target (`spec09_optional`, spec 09 REQ-19) carries `sections: null`, holds no whole section and
 is left out of that cover. `merge`: one target
 shared with another entry. Top-level `rules/*.md` targets need a stem prefix `bootstrap-`,
 `contract-`, `protocol-` or `procedure-` (ADR-0009 Decision 3); `rules/reference/` targets (spec
-08) are exempt. Installed names: top-level `rules/<stem>.md` → `rule-<stem>`, `workflows/<stem>.md`
+11) are exempt. Installed names: top-level `rules/<stem>.md` → `rule-<stem>`, `workflows/<stem>.md`
 → `<stem>`; other paths are not deployed.
 
-**Spec 13 defaults.** The auditor derives `spec13_default` from spec 13 as it stands at the
+**Spec 09 defaults.** The auditor derives `spec09_default` from spec 09 as it stands at the
 audited revision; the reviewer re-derives it by the same table:
 
-| Source | `spec13_default` | `spec13_optional` |
+| Source | `spec09_default` | `spec09_optional` |
 |---|---|---|
-| A `rules/` file named in spec 13 DM-10 | DM-10's targets in order; for split rules each target's `sections` from DM-12 (DM-12's catch-all "every other line … → `contract-state-files`" expanded to explicit headings) | The overflow rule DM-10 permits for that phase, if any |
+| A `rules/` file named in spec 09 DM-10 | DM-10's targets in order; for split rules each target's `sections` from DM-12 (DM-12's catch-all "every other line … → `contract-state-files`" expanded to explicit headings) | The overflow rule DM-10 permits for that phase, if any |
 | `rules/global-claude.md`, `templates/codex-global-AGENTS.md` | The DM-10 / REQ-55 target (`harness/claude/always-on.md`, `harness/codex/always-on.md`) | `[]` |
-| `workflows/PIPELINE.md` | `docs/PIPELINE.md` (spec 13 REQ-23) | `[]` |
+| `workflows/PIPELINE.md` | `docs/PIPELINE.md` (spec 09 REQ-23) | `[]` |
 | A workflow whose stem is a DM-11 `Old` value | `workflows/<New>.md` | `[]` |
 | A workflow named in DM-11's "Unchanged names" list | The same path | `[]` |
-| A `harness/` file | The same path (spec 13 REQ-35 extends existing adapter files in place) | `[]` |
+| A `harness/` file | The same path (spec 09 REQ-35 extends existing adapter files in place) | `[]` |
 | Any other audited file | null | `[]` |
 
-**Deviation** is computed, not written: an entry deviates when `spec13_default` is null, or when
+**Deviation** is computed, not written: an entry deviates when `spec09_default` is null, or when
 the set of target paths is neither the default's set nor the default's set plus some members of
-`spec13_optional`, or when a default target with non-null `sections` and the same-path target
-list different section sets. Exception (spec 13 REQ-21): for `rules/phase-discovery.md`, replacing
+`spec09_optional`, or when a default target with non-null `sections` and the same-path target
+list different section sets. Exception (spec 09 REQ-21): for `rules/phase-discovery.md`, replacing
 `rules/protocol-discovery-conduct.md` by `rules/protocol-autonomous-decision.md` with the same
 sections is not a deviation when `req21.verdict` is `covered`. Every deviating entry needs a
 non-null `amendment`.
 
-**Blocking predicate.** `blocks_13` is true exactly when an amendment cites the finding in its
+**Blocking predicate.** `blocks_09` is true exactly when an amendment cites the finding in its
 `evidence`, or the finding's type is `contradiction`, or its type is `coverage-gap` and its source
-is audited. Severity `blocker` is allowed only when `blocks_13` is true.
+is audited. Severity `blocker` is allowed only when `blocks_09` is true.
 
-**Finding** `{"id", "type", "severity", "source", "section", "sha256", "lines", "observation", "consequence", "owner", "closure", "blocks_13", "status", "evidence", "edges"}`:
-`id` `AUD-13A-NNN` (unique); `source` a DM-2 or DM-3 path; `sha256` that entry's digest;
+**Finding** `{"id", "type", "severity", "source", "section", "sha256", "lines", "observation", "consequence", "owner", "closure", "blocks_09", "status", "evidence", "edges"}`:
+`id` `AUD-08-NNN` (unique); `source` a DM-2 or DM-3 path; `sha256` that entry's digest;
 `section` a DM-5 section heading of an audited source, `(file)`, or free text for a reader;
 `lines` 1-based line numbers within the source; `severity` `blocker`, `major` or `minor`;
 `status` `open` or `historical-fixed` (an earlier recorded defect confirmed absent in the current
@@ -646,22 +646,22 @@ list of `{"source", "line", "column"}` naming defect edges. Types and their owne
 
 | Type | Allowed owners |
 |---|---|
-| `load-repeat`, `conditional-context`, `report-repeat`, `checkpoint-repeat`, `review-repeat`, `full-output` (proposal types) | `08`, `14`, `15`, `16`, `17` |
-| `reference-defect`, `ambiguous-name`, `mixed-kind`, `naming`, `legacy-mention`, `duplicate` | `13`, `08`; a `13`-owned finding naming an edge with `in_spec13_grammar` false cites an amendment in `evidence` (REQ-29) |
+| `load-repeat`, `conditional-context`, `report-repeat`, `checkpoint-repeat`, `review-repeat`, `full-output` (proposal types) | `11`, `12`, `13`, `15`, `14` |
+| `reference-defect`, `ambiguous-name`, `mixed-kind`, `naming`, `legacy-mention`, `duplicate` | `09`, `11`; a `09`-owned finding naming an edge with `in_spec09_grammar` false cites an amendment in `evidence` (REQ-29) |
 | `contradiction` | `owner` |
-| `coverage-gap`, `other` | `13`, `08`, `14`, `15`, `16`, `17`, `owner` |
-| `accepted-observation` (a defect edge or candidate that is correct on reading, with the reason in `observation`) | `none`; `severity` `minor`, `blocks_13` false |
+| `coverage-gap`, `other` | `09`, `11`, `12`, `13`, `15`, `14`, `owner` |
+| `accepted-observation` (a defect edge or candidate that is correct on reading, with the reason in `observation`) | `none`; `severity` `minor`, `blocks_09` false |
 
-Default owners for proposals (A-07): `load-repeat` 14, `conditional-context` 08, `report-repeat`
-08, `checkpoint-repeat` 15, `review-repeat` 16, `full-output` 17.
+Default owners for proposals (A-07): `load-repeat` 12, `conditional-context` 11, `report-repeat`
+11, `checkpoint-repeat` 13, `review-repeat` 15, `full-output` 14.
 
 **Amendment** `{"id", "target", "change", "current", "proposed", "reason", "evidence", "affected", "depends_on", "requires_adr", "disposition"}`:
-`id` `AMD-13A-NN`; `target` in one of the **amendment target forms**: an identifier `REQ-NN`,
-`AC-NN`, `DM-NN`, `A-NN` or `Q-NN` occurring as a whole token in spec 13; `Notes:<heading>` where
-spec 13 has a line `### <heading>`; `Terminology:<term>` where spec 13 has a table row starting
+`id` `AMD-08-NN`; `target` in one of the **amendment target forms**: an identifier `REQ-NN`,
+`AC-NN`, `DM-NN`, `A-NN` or `Q-NN` occurring as a whole token in spec 09; `Notes:<heading>` where
+spec 09 has a line `### <heading>`; `Terminology:<term>` where spec 09 has a table row starting
 `| <term> |`; or `new-REQ` / `new-AC`; `change` `semantic`, `editorial` or `relocation`; `current`
 the exact current text (null for `new-*`); `proposed` non-empty; `evidence` non-empty, each item a
-finding id or `path:line`; `affected` AC ids occurring in spec 13; `depends_on` amendment ids;
+finding id or `path:line`; `affected` AC ids occurring in spec 09; `depends_on` amendment ids;
 `requires_adr` true when the change alters a decision of ADR-0009 Decision 3 (kind prefixes, the
 three-way `workflow-reference` split, frozen `##` headings) or merges sections; `disposition`
 `proposed`.
@@ -671,8 +671,8 @@ three-way `workflow-reference` split, frozen `##` headings) or merges sections; 
 Exact top-level layout, in this order: `# Rules and workflows audit — <run_date>`; `## Summary`
 (hand-written); `## Method` (hand-written: commands run, deviations from the plan, time taken);
 one line `<!-- audit:generated:begin -->`; the generated region; one line
-`<!-- audit:generated:end -->`; `## Blockers for spec 13` (hand-written; names every finding with
-`blocks_13: true`, or `None.`); `## Independent review` with exactly one line
+`<!-- audit:generated:end -->`; `## Blockers for spec 09` (hand-written; names every finding with
+`blocks_09: true`, or `None.`); `## Independent review` with exactly one line
 `Reviewed: pending` or `Reviewed: <role> <YYYY-MM-DD> pass|fail <40-hex commit>` (`<role>` matches
 `^[A-Za-z][A-Za-z0-9-]*$`, the date is a valid calendar date, and the commit must exist:
 `git -C <root> cat-file -e <sha>^{commit}`); `## Acceptance` with exactly one line
@@ -687,7 +687,7 @@ the renderer's own and deterministic):
 
 | Subsection | Columns and rows |
 |---|---|
-| Passport | Bullet lines `source_revision`, `worktree`, `inventory_digest`, `method_version`, `scope` (sets, reader classes, exclusions), `installed_access`, `read_coverage` (`complete` or `partial (<n> gaps)`), `findings` (`<n> total, <m> open, <b> blocking spec 13`), `run_date`, `environment` |
+| Passport | Bullet lines `source_revision`, `worktree`, `inventory_digest`, `method_version`, `scope` (sets, reader classes, exclusions), `installed_access`, `read_coverage` (`complete` or `partial (<n> gaps)`), `findings` (`<n> total, <m> open, <b> blocking spec 09`), `run_date`, `environment` |
 | Inventory | Path, Set, Entry, Tracked, Words, Bytes, Kinds, Coverage, Decision, Findings — audited paths in path order |
 | Sections | Path, Section, Line, Words, Bytes, Kind, Proposed home — every section of every audited file |
 | References | A count table class × status; then every defect edge: Source:line:column, Raw, Form, Context, Status, Candidates, Findings |
@@ -698,11 +698,11 @@ the renderer's own and deterministic):
 | Repetition review | Workflow, Report findings, Checkpoint findings, Review findings (`none` for an empty list) |
 | Legacy mentions | Source:line, Term, Role, Note |
 | Duplicates | Group, Clusters, Locations, Normative source, Condition differences, Disposition, Owner, Finding |
-| Migration map | Source, Decision, Targets (with sections), Spec 13 default, Deviation, Amendment |
+| Migration map | Source, Decision, Targets (with sections), Spec 09 default, Deviation, Amendment |
 | Validator and test impact | Per non-`keep` map entry: Source, Decision, and edge counts for `scripts/validate-contracts.sh` by context (`text`, `check-description`, `comment`), other `tests/**`, `frozen`, `hooks/**`, other `active` |
-| Spec 13 inputs | Map entries with a null default; the REQ-21 verdict and statement table |
-| Findings | ID, Type, Severity, Source, Section, Owner, Blocks 13, Status, Observation, Closure |
-| Amendments to spec 13 | ID, Target, Change, Proposed, Reason, Evidence, Affected, Depends on, Requires ADR, Disposition |
+| Spec 09 inputs | Map entries with a null default; the REQ-21 verdict and statement table |
+| Findings | ID, Type, Severity, Source, Section, Owner, Blocks 09, Status, Observation, Closure |
+| Amendments to spec 09 | ID, Target, Change, Proposed, Reason, Evidence, Affected, Depends on, Requires ADR, Disposition |
 | Read coverage | Path, Status, SHA-256, Reader |
 | Installed comparison | Path, Location, Source SHA-256, Installed SHA-256, Match — or the line `Not verified.` |
 
@@ -727,7 +727,7 @@ Location is `<path>:<line>` (`0` for a whole file) or `<json file>#<id or index>
 | `legacy-role-missing` | A legacy mention lacks a `legacy` entry |
 | `duplicate-ungrouped`, `duplicate-multigrouped`, `group-invalid` | A cluster in no group, in two groups, or a group breaking DM-7 rules |
 | `defect-unrecorded` | A defect edge is named in no finding's `edges` |
-| `finding-invalid` | A finding breaks DM-7: owner not allowed for its type, `blocks_13` unequal to the blocking predicate, severity `blocker` with `blocks_13` false, bad `status`, `lines` or `section`, or a `13`-owned finding naming an edge with `in_spec13_grammar` false without an amendment id in `evidence` (REQ-29) |
+| `finding-invalid` | A finding breaks DM-7: owner not allowed for its type, `blocks_09` unequal to the blocking predicate, severity `blocker` with `blocks_09` false, bad `status`, `lines` or `section`, or a `09`-owned finding naming an edge with `in_spec09_grammar` false without an amendment id in `evidence` (REQ-29) |
 | `finding-stale` | A finding's `sha256` differs from its source's |
 | `reference-unknown` | A finding, candidate, group or map entry cites an id that does not exist |
 | `map-invalid` | A decision's target shape is wrong (DM-7 → Decisions) |
@@ -737,14 +737,14 @@ Location is `<path>:<line>` (`0` for a whole file) or `<json file>#<id or index>
 | `stem-overlap` | A final top-level rule stem equals a final workflow stem |
 | `kind-prefix-invalid` | A top-level rule target lacks a kind prefix |
 | `deviation-unamended` | An entry deviates (DM-7 → Deviation) and its `amendment` is null or names no existing amendment |
-| `spec13-unavailable` | No single file matches `.ai/specs/13-*.md` under the root |
-| `amendment-invalid`, `amendment-target-unknown` | An amendment breaks DM-7, or its `target` does not satisfy DM-7 → Amendment target forms against spec 13, or an `affected` id is not a whole token of spec 13 |
+| `spec09-unavailable` | No single file matches `.ai/specs/09-*.md` under the root |
+| `amendment-invalid`, `amendment-target-unknown` | An amendment breaks DM-7, or its `target` does not satisfy DM-7 → Amendment target forms against spec 09, or an `affected` id is not a whole token of spec 09 |
 | `req21-invalid` | The statements are not exactly one per statement unit of `## Codebase Reading Rules` and `## Decision Protocol` of `rules/phase-discovery.md` (missing, extra, repeated or outside them), or the verdict contradicts the `covered_by` values |
 | `coverage-inconsistent` | An `unavailable` or `changed` entry has no `coverage-gap` finding, `not-a-file` is used for a regular file, or a non-file has another status |
 | `report-layout` | DM-8 headings, markers or the review/acceptance line are missing, repeated or malformed |
 | `review-commit-unknown` | The commit of a `Reviewed:` line does not exist in the root's repository |
 | `report-generated-mismatch` | The generated region differs from `render` output |
-| `blocker-unlisted` | A `blocks_13: true` finding id does not occur in `## Blockers for spec 13` |
+| `blocker-unlisted` | A `blocks_09: true` finding id does not occur in `## Blockers for spec 09` |
 | `economics-claim` | The report or any assessment string matches `(?i)\b\d[\d,.]*\s*k?\s*tokens?\b`, `[$€£]\s?\d` or `\b(USD|EUR)\b` |
 | `installed-invalid` | `installed` breaks REQ-03 (non-empty with `not-verified`, a location not starting `~/`, or a `source_sha256` unequal to the inventory) |
 
@@ -833,8 +833,8 @@ use synthetic stems (for example `alpha-flow`, `beta-step`), never the repositor
 | Different skill names on different harnesses | Classified from the capability records and deployment code, never by harness name | REQ-01 |
 | Installed copy differs from its source | Both digests recorded under `installed`; conclusion limited to that installation | REQ-03 |
 | No access to installed copies | `installed_access: not-verified`, empty `installed`, passport says so | REQ-03 |
-| Spec 13 file absent or ambiguous | `spec13-unavailable`; amendments cannot pass | REQ-10 |
-| Spec 13 renumbers an identifier after the audit | The amendment target no longer exists; `verify` on a later tree fails `amendment-target-unknown`; the audit stays valid at its own revision | REQ-10 |
+| Spec 09 file absent or ambiguous | `spec09-unavailable`; amendments cannot pass | REQ-10 |
+| Spec 09 renumbers an identifier after the audit | The amendment target no longer exists; `verify` on a later tree fails `amendment-target-unknown`; the audit stays valid at its own revision | REQ-10 |
 | Large volume for one reader | Parallel readers are allowed; `coverage.reader` names each; exactly one entry per path; the assessment has one writer | REQ-12 |
 | Concurrent writers of the assessment | Not supported: one writer (P4) | REQ-11 |
 | Python older than 3.11 | Exit 2 with the guard message | REQ-27 |
@@ -849,7 +849,7 @@ Fixture criteria (AC-11 onward, and the fixture parts of AC-01–AC-10) are case
 - **AC-01** (REQ-01, REQ-02, REQ-05) — Given a fixture root with `rules/a-b.md`,
   `rules/reference/c.md`, `workflows/d-e.md` and `harness/x/y.json`, when `extract` runs, then
   `files` holds exactly those four paths; and given an assessment with a proposal finding whose
-  owner is `13`, when `verify` runs, then it prints `finding-invalid`; and given the delivered
+  owner is `09`, when `verify` runs, then it prints `finding-invalid`; and given the delivered
   report, when `verify --root . --report <report>` runs at the delivery commit, then it exits 0
   with empty output.
 - **AC-02** (REQ-03, REQ-04) — Given an assessment string `saves 3,000 tokens` or `$5`, when
@@ -877,12 +877,12 @@ Fixture criteria (AC-11 onward, and the fixture parts of AC-01–AC-10) are case
   workflow the same final stem, (e) target `rules/plain.md`, when `verify` runs, then it prints
   `split-sections-incomplete`, `map-collision`, `installed-name-collision`, `stem-overlap` and
   `kind-prefix-invalid` respectively.
-- **AC-08** (REQ-10) — Given a fixture spec 13 file containing `REQ-21`, `AC-05` and a line
+- **AC-08** (REQ-10) — Given a fixture spec 09 file containing `REQ-21`, `AC-05` and a line
   `### Ownership`, when an amendment targets `REQ-99` or `Notes:Missing`, lacks evidence, or a map
-  entry's targets differ from its `spec13_default` (or the default is null) with `amendment: null`,
+  entry's targets differ from its `spec09_default` (or the default is null) with `amendment: null`,
   then `verify` prints `amendment-target-unknown`, `amendment-target-unknown`,
   `amendment-invalid` and `deviation-unamended` respectively; and an entry whose targets equal the
-  default plus one `spec13_optional` path prints nothing.
+  default plus one `spec09_optional` path prints nothing.
 - **AC-09** (REQ-11, REQ-26) — Given the delivery, then the three output files exist under
   `docs/audits/` with the same `run_date` prefix, the section ``## Audits (`audits/`)`` of
   `docs/README.md` links the report, `scripts/README.md` has one row per new script, and the
@@ -890,7 +890,7 @@ Fixture criteria (AC-11 onward, and the fixture parts of AC-01–AC-10) are case
   counts `ls scripts/*.sh | wc -l` and `ls scripts/*.py | wc -l` give at the delivery commit.
 - **AC-10** (REQ-14) — Given the delivered report, then `## Independent review` holds
   `Reviewed: <role> <date> pass <sha>`, `## Acceptance` holds `Accepted: pending`, and every
-  finding with `blocks_13: true` is named under `## Blockers for spec 13`; and given a fixture
+  finding with `blocks_09: true` is named under `## Blockers for spec 09`; and given a fixture
   report missing one such id, `verify` prints `blocker-unlisted`.
 - **AC-11** (REQ-15) — Given a fixture root and the SHA-256 of every file in it, when `extract`
   and `verify` run, then only the `--out` file is new or changed; and when `render --write` runs,
@@ -913,7 +913,7 @@ Fixture criteria (AC-11 onward, and the fixture parts of AC-01–AC-10) are case
   ` rule`, `resolved-prefix` (not a defect), `heading-unmarked` (a defect), `unknown-command`,
   `missing-target`, `missing-path`, `glob-empty`, `section-ref` (not `command`) for
   `` `/w-one → ## Step 1` ``, `md_suffix: false` for `` `rules/r-one.md` `` and `true` for
-  `` `w-one.md → ## Step 1` ``, `in_spec13_grammar` true for a span in `rules/r-one.md` and false
+  `` `w-one.md → ## Step 1` ``, `in_spec09_grammar` true for a span in `rules/r-one.md` and false
   for the same text in `docs/G.md`, no edge for `` `state.md → ## X` ``, and `check-description`
   and `comment` contexts in a fixture `scripts/validate-contracts.sh`.
 - **AC-16** (REQ-18) — Given a fixture rule containing `Windsurf`, `.devin/` and `devinly`, when
@@ -932,7 +932,7 @@ Fixture criteria (AC-11 onward, and the fixture parts of AC-01–AC-10) are case
 - **AC-18** (REQ-20) — Given a fixture `rules/phase-discovery.md` whose two sections hold three
   statement units, when `req21` lists two of them, lists a line outside them, or has verdict
   `covered` with a null `covered_by`, then `verify` prints `req21-invalid`; and in the delivered
-  report the Spec 13 inputs subsection lists every map entry with a null default and the REQ-21
+  report the Spec 09 inputs subsection lists every map entry with a null default and the REQ-21
   verdict.
 - **AC-19** (REQ-21) — Given a fixture map renaming `rules/a-b.md` and readers naming it once in a
   `check "…"` description, once in a validator expression, once in `tests/t.py` and once under
@@ -967,10 +967,10 @@ Fixture criteria (AC-11 onward, and the fixture parts of AC-01–AC-10) are case
   or a `repetition.report` id naming a finding of type `full-output`, when `verify` runs, then it
   prints `repetition-invalid`; and the delivered assessment has a non-null `repetition` exactly for
   the audited workflows whose inventory `invocation_lines` is greater than 0.
-- **AC-29** (REQ-29, REQ-14) — Given a `13`-owned `reference-defect` finding naming a
-  `missing-path` edge from an `active` reader (so `in_spec13_grammar` is false) with no amendment
+- **AC-29** (REQ-29, REQ-14) — Given a `09`-owned `reference-defect` finding naming a
+  `missing-path` edge from an `active` reader (so `in_spec09_grammar` is false) with no amendment
   id in `evidence`, when `verify` runs, then it prints `finding-invalid`; and given a finding cited
-  by an amendment but with `blocks_13: false`, or a `minor` finding with `blocks_13: true` that no
+  by an amendment but with `blocks_09: false`, or a `minor` finding with `blocks_09: true` that no
   amendment cites and whose type is not `contradiction` or `coverage-gap`, it prints
   `finding-invalid`.
 
@@ -1016,41 +1016,41 @@ Every AC names at least one REQ above; no AC is unmapped.
 |---|---|---|---|
 | Heuristic forms (bare names, full-output words, sentence split) produce noise | Auditor time; false defects | High | Fixed method version; `accepted-observation` findings; candidates need only a disposition |
 | Verbatim detection misses reworded repetition | Semantic duplicates unreported | Medium | Groups take read-detected `locations`; the reviewer checks them |
-| Spec 13 changes its identifiers or maps after the audit | Amendments point at moved text | Medium | Amendments cite identifiers and exact current text; `verify` re-checks targets at the audited revision |
+| Spec 09 changes its identifiers or maps after the audit | Amendments point at moved text | Medium | Amendments cite identifiers and exact current text; `verify` re-checks targets at the audited revision |
 | Readers evolve after extraction (knowledge files, index) | `--strict` fails on later commits | High | `--strict` is run on a checkout of `source_revision` (AC-03); plain `verify` checks only audited digests |
 | The full validator takes 34–52 minutes (`.ai/context/runbook.md` notes) | Slow final gate | High | Run once at the end; standalone suite for iteration |
 | Assessment volume (60+ rows, every load edge, every cluster) | Long reading work | High | Discovery may split reading by file group; one writer of the assessment |
-| Kind definitions differ from the ones spec 13 later adopts | Reclassification | Low | Definitions recorded here (A-04) and proposed to 13 as an amendment if they are to become canonical |
+| Kind definitions differ from the ones spec 09 later adopts | Reclassification | Low | Definitions recorded here (A-04) and proposed to 09 as an amendment if they are to become canonical |
 
 ## Assumptions
 
 - A-01 | Whether a tool is part of this spec (the previous §8 put new tool behaviour in "a separate change with tests") | Resolved: the tool and its suite are delivered by this spec as their own test-first subtasks; REQ-11 lists them | Source: previous §8 last paragraph; REQ-13 and AC-05 need a deterministic method with a control example; global test-first rule (`.ai/principles/architecture.md` P7) | Reversible: yes
-- A-02 | Where the tool and suite live | Resolved: `scripts/`, run directly, never from the validator or sync | Source: ADR-0019 Decision 3; `tests/fixtures/validator-runtime/source_guard.py:809-822`; spec 13 REQ-50 precedent | Reversible: yes
-- A-03 | Whether `templates/codex-global-AGENTS.md` is audited | Resolved: yes, in the adapter set | Source: spec 13 REQ-55 moves it into `harness/codex/`; ADR-0003 Decision 2 | Reversible: yes
-- A-04 | Operational definitions of the rule kinds | Resolved: Terminology → Kinds; proposed to spec 13 only through an amendment | Source: ADR-0009 Decision 3 names kinds without defining them; spec 13 Terminology ("Rule kind … the file-stem prefix"); P6; naming review §2 | Reversible: yes
-- A-05 | Reference grammar | Resolved: spec 13 DM-16 forms on current names, extended with unmarked headings, load lines, bare names, reader token forms and statuses | Source: spec 13 REQ-22, REQ-31; spec 08 → Section resolution and Textual load command detection; Context facts 4–5 | Reversible: yes
-- A-06 | Reader classes | Resolved: DM-3; `active` = spec 13 scan set R plus `README.md` | Source: spec 13 DM-17; previous §3 (history counted separately) | Reversible: yes
+- A-02 | Where the tool and suite live | Resolved: `scripts/`, run directly, never from the validator or sync | Source: ADR-0019 Decision 3; `tests/fixtures/validator-runtime/source_guard.py:809-822`; spec 09 REQ-50 precedent | Reversible: yes
+- A-03 | Whether `templates/codex-global-AGENTS.md` is audited | Resolved: yes, in the adapter set | Source: spec 09 REQ-55 moves it into `harness/codex/`; ADR-0003 Decision 2 | Reversible: yes
+- A-04 | Operational definitions of the rule kinds | Resolved: Terminology → Kinds; proposed to spec 09 only through an amendment | Source: ADR-0009 Decision 3 names kinds without defining them; spec 09 Terminology ("Rule kind … the file-stem prefix"); P6; naming review §2 | Reversible: yes
+- A-05 | Reference grammar | Resolved: spec 09 DM-16 forms on current names, extended with unmarked headings, load lines, bare names, reader token forms and statuses | Source: spec 09 REQ-22, REQ-31; spec 11 → Section resolution and Textual load command detection; Context facts 4–5 | Reversible: yes
+- A-06 | Reader classes | Resolved: DM-3; `active` = spec 09 scan set R plus `README.md` | Source: spec 09 DM-17; previous §3 (history counted separately) | Reversible: yes
 - A-07 | Proposal default owners | Resolved: DM-7 table | Source: `.ai/specs/README.md` → "Nine token optimization workstreams" (workstream boundaries) | Reversible: yes
-- A-08 | Legacy scope | Resolved: audited files only; readers are spec 13's scan set L | Source: previous §5.2 (column of the inventory row); spec 13 REQ-11, REQ-29 | Reversible: yes
+- A-08 | Legacy scope | Resolved: audited files only; readers are spec 09's scan set L | Source: previous §5.2 (column of the inventory row); spec 09 REQ-11, REQ-29 | Reversible: yes
 - A-09 | Economic statements | Resolved: none allowed in the outputs | Source: previous REQ-03; `.ai/specs/README.md` ("Word/byte reductions are diagnostics"); ADR-0014 rejected options | Reversible: yes
 - A-10 | Installed-copy comparison | Resolved: optional, manual, recorded with both digests; the tool never reads installed copies | Source: previous §3 and §7; owner's rule not to touch deployed copies | Reversible: yes
 - A-11 | Clean tree for delivery | Resolved: `worktree-dirty` blocks `verify`; dirty extraction only for drafts | Source: previous REQ-13 (same bytes, same output); best practice: the smallest reproducible choice | Reversible: yes
 - A-12 | Runtime target | Resolved: none set; measured time recorded | Source: no project source states one; the skill forbids inventing numeric targets | Reversible: yes
-- A-13 | Minimum duplicate unit of 8 words; 160-code-point context cut | Resolved: method parameters of `13a-extract-1` | Source: best practice (shorter units are mostly list fragments); reversible by a new method version | Reversible: yes
-- A-14 | How acceptance is recorded | Resolved: the report's `Accepted:` line, written by the owner after delivery | Source: spec 13 Notes → Prerequisites and Guard ("13a's report accepted"); previous §9 | Reversible: yes
-- A-15 | Per-occurrence classification of validator lines | Resolved: not done here; counts only (REQ-21); classification into `path_changes`/`contract_changes` is spec 13's delivery | Source: spec 13 REQ-51, REQ-52, DM-9; spec 13 Notes → Ownership | Reversible: yes
-- A-16 | Which audit-time decision owners exist | Resolved: specs 08, 13–17 and `owner`; 10, 11, 12 receive no findings from this audit | Source: previous REQ-02; spec 13 Out of Scope | Reversible: yes
-- A-17 | ADR | Resolved: none required; amendments that alter ADR-0009 Decision 3 carry `requires_adr` for spec 13's `/spec-sync` | Source: `.ai/principles/coding.md` → Changing a contract (formats, stops, mode overrides); previous §6 step 8 | Reversible: yes
-- A-18 | Boundary with spec 13 for pre-existing reference defects | Resolved: 13a records them as findings with owner 13; spec 13 fixes them | Source: spec 13 DM-16 last paragraph; previous REQ-04 | Reversible: yes
-- A-19 | Where unmarked headings, `resolved-prefix` and bare names stand | Resolved: unmarked headings are defects (coding syntax); `resolved-prefix` and bare names are counted but never defects (A-27) | Source: `.ai/principles/coding.md:45-51`; spec 13 DM-17 stale-name forms | Reversible: yes
-- A-20 | Duplicate consolidation owner | Resolved: 13 when a map rename, split or move performs it, otherwise 08; contradictions go to the owner | Source: spec 13 REQ-46; spec 08 Scope item 6; previous §3 (owner accepts changes of agreed behaviour) | Reversible: yes
-- A-21 | How deviation from spec 13 is decided | Resolved: computed by `verify` from the auditor's `spec13_default`, derived by the DM-7 table; the reviewer re-derives defaults | Source: spec 13 DM-10, DM-11 (including "Unchanged names"), DM-12, REQ-23, REQ-35, REQ-55; spec 13 Notes → Ownership | Reversible: yes
-- A-22 | What a "normative statement" is for REQ-21 coverage | Resolved: DM-5 statement units (list items, table rows, fenced blocks, paragraphs) | Source: spec 13 REQ-21 ("proves … covers them completely"); best practice: the smallest unit `verify` can enumerate | Reversible: yes
+- A-13 | Minimum duplicate unit of 8 words; 160-code-point context cut | Resolved: method parameters of `08-extract-1` | Source: best practice (shorter units are mostly list fragments); reversible by a new method version | Reversible: yes
+- A-14 | How acceptance is recorded | Resolved: the report's `Accepted:` line, written by the owner after delivery | Source: spec 09 Notes → Prerequisites and Guard ("08's report accepted"); previous §9 | Reversible: yes
+- A-15 | Per-occurrence classification of validator lines | Resolved: not done here; counts only (REQ-21); classification into `path_changes`/`contract_changes` is spec 09's delivery | Source: spec 09 REQ-51, REQ-52, DM-9; spec 09 Notes → Ownership | Reversible: yes
+- A-16 | Which audit-time decision owners exist | Resolved: specs 11, 09, 12–15 and `owner`; 19, 21, 23 receive no findings from this audit | Source: previous REQ-02; spec 09 Out of Scope | Reversible: yes
+- A-17 | ADR | Resolved: none required; amendments that alter ADR-0009 Decision 3 carry `requires_adr` for spec 09's `/spec-sync` | Source: `.ai/principles/coding.md` → Changing a contract (formats, stops, mode overrides); previous §6 step 8 | Reversible: yes
+- A-18 | Boundary with spec 09 for pre-existing reference defects | Resolved: 08 records them as findings with owner 09; spec 09 fixes them | Source: spec 09 DM-16 last paragraph; previous REQ-04 | Reversible: yes
+- A-19 | Where unmarked headings, `resolved-prefix` and bare names stand | Resolved: unmarked headings are defects (coding syntax); `resolved-prefix` and bare names are counted but never defects (A-27) | Source: `.ai/principles/coding.md:45-51`; spec 09 DM-17 stale-name forms | Reversible: yes
+- A-20 | Duplicate consolidation owner | Resolved: 09 when a map rename, split or move performs it, otherwise 11; contradictions go to the owner | Source: spec 09 REQ-46; spec 11 Scope item 6; previous §3 (owner accepts changes of agreed behaviour) | Reversible: yes
+- A-21 | How deviation from spec 09 is decided | Resolved: computed by `verify` from the auditor's `spec09_default`, derived by the DM-7 table; the reviewer re-derives defaults | Source: spec 09 DM-10, DM-11 (including "Unchanged names"), DM-12, REQ-23, REQ-35, REQ-55; spec 09 Notes → Ownership | Reversible: yes
+- A-22 | What a "normative statement" is for REQ-21 coverage | Resolved: DM-5 statement units (list items, table rows, fenced blocks, paragraphs) | Source: spec 09 REQ-21 ("proves … covers them completely"); best practice: the smallest unit `verify` can enumerate | Reversible: yes
 - A-23 | What counts as a workflow call and a repeated load | Resolved: resolved command edges from invocable workflows whose clause holds a call verb without a preceding negation and no earlier stop marker; candidates per caller-callee pair only. This narrows ADR-0014 Decision 1, which speaks of reuse "within its owning session": repeats more than one call level apart in one session are found by reading and recorded as `load-repeat` findings without an `RL` id. A transitive version merged most workflows into one component on the current tree | Source: ADR-0014 Decision 1; `workflows/pd-finalize.md:113`, `workflows/pd-decompose.md:14`, `workflows/phase-pipeline.md:105`, `workflows/pav-close.md:64`; `workflows/PIPELINE.md` names every command without calling it (no `Invocation:` line; `tests/workflow-instructions.py:11-12` skips it too); best practice | Reversible: yes
 - A-24 | How capability assumptions are examined | Resolved: `HN` candidate lines naming a harness, each dispositioned | Source: previous REQ-04 ("names and capability assumptions"); ADR-0009 Decision 2 (branch on capabilities, never on harness name) | Reversible: yes
 - A-25 | Cross-specification references (previous REQ-04) | Resolved: narrowed to edges from specifications (`planning` readers) into audited files; references between specifications are not audited | Source: previous §3 (specifications read only "if they contain references to this set"); `.ai/specs/README.md` owns spec-to-spec ownership | Reversible: yes
-- A-26 | When a finding blocks spec 13 | Resolved: DM-7 → Blocking predicate | Source: spec 13 Notes → Prerequisites and Guard; previous REQ-14 ("blocking influence on 13 known") | Reversible: yes
-- A-27 | `resolved-prefix` | Resolved: counted, not a defect | Source: spec 13 DM-16 form 2 accepts the ` — ` prefix | Reversible: yes
+- A-26 | When a finding blocks spec 09 | Resolved: DM-7 → Blocking predicate | Source: spec 09 Notes → Prerequisites and Guard; previous REQ-14 ("blocking influence on 09 known") | Reversible: yes
+- A-27 | `resolved-prefix` | Resolved: counted, not a defect | Source: spec 09 DM-16 form 2 accepts the ` — ` prefix | Reversible: yes
 - A-28 | Where `verify` must pass | Resolved: in the delivery repository at the delivery commit; later trees may legitimately fail staleness or commit checks | Source: the audit is a snapshot (previous §1 "one pinned snapshot"); `.ai/memory/state.md` records merge-commit integration, but squash merges cannot be excluded | Reversible: yes
 
 ## Decisions
@@ -1069,37 +1069,37 @@ resolved as A-01–A-28; open items are Q-01 and Q-02.
 - Q-01 | non-blocker | Can the historical reports `docs/audits/2026-10-28-workflow-clarity-and-size.md`
   and `docs/audits/2026-11-06-test-suite-review.md` be restored? Impact: claims about earlier
   reviews stay unverifiable; the new audit of the available snapshot is not blocked (previous §10).
-- Q-02 | non-blocker | Should `scripts/audit-instructions.py` stay after spec 13 lands, or be
-  retired once spec 13's checker exists? Impact: maintenance of a second reference parser.
+- Q-02 | non-blocker | Should `scripts/audit-instructions.py` stay after spec 09 lands, or be
+  retired once spec 09's checker exists? Impact: maintenance of a second reference parser.
 
 ## Notes
 
-### Ownership between 13 and 13a
+### Ownership between 09 and 08
 
-13a owns the audit: tool, inventory, link graph, duplicate clusters, mixed-kind detection,
-measurements, findings, proposals and proposed amendments. Spec 13 owns every contract and change
-in its Scope, including its maps (DM-10–DM-12), which 13a amends only through the owner's
-`/spec-sync` of spec 13. 13a counts words with spec 13's word count (DM-19), classifies with spec
-13 DM-2's rule kinds, and reports files missing from DM-10/DM-11 (spec13_default null). Places
-where 13a chose the narrower reading are A-08, A-15, A-18 and A-25.
+08 owns the audit: tool, inventory, link graph, duplicate clusters, mixed-kind detection,
+measurements, findings, proposals and proposed amendments. Spec 09 owns every contract and change
+in its Scope, including its maps (DM-10–DM-12), which 08 amends only through the owner's
+`/spec-sync` of spec 09. 08 counts words with spec 09's word count (DM-19), classifies with spec
+09 DM-2's rule kinds, and reports files missing from DM-10/DM-11 (spec09_default null). Places
+where 08 chose the narrower reading are A-08, A-15, A-18 and A-25.
 
 ### How proposed moves interact with the frozen validator
 
-The audit moves, renames, merges and deletes nothing. Each non-`keep` map entry, when spec 13
-executes it, touches frozen validator expressions and tests that name the source; spec 13 records
+The audit moves, renames, merges and deletes nothing. Each non-`keep` map entry, when spec 09
+executes it, touches frozen validator expressions and tests that name the source; spec 09 records
 name-only changes as schema-2 `path_changes` and superseded contracts as `contract_changes`
 (REQ-51, REQ-52), keeps check descriptions as frozen labels, and re-points tests and hooks
 (REQ-53; for example `tests/workflow-instructions.py:38-54` and `hooks/git_rails.py:30`). The
-report's Validator and test impact table gives the counts per entry so spec 13's Discovery can size
+report's Validator and test impact table gives the counts per entry so spec 09's Discovery can size
 that work; its own frozen `tests/fixtures/validator-runtime/**` occurrences are listed separately.
 
 ### Handoff
 
-The report path, `source_revision`, migration map, amendments, findings with `blocks_13` and open
-questions go to spec 13. The owner accepts the report (`Accepted:` line) and runs `/spec-sync` on
-spec 13 with the accepted amendments; disputed behaviour changes are never accepted
-automatically (previous §9). Proposals owned by 08 are handled by spec 08 Scope item 9; those of
-14–17 by their specs.
+The report path, `source_revision`, migration map, amendments, findings with `blocks_09` and open
+questions go to spec 09. The owner accepts the report (`Accepted:` line) and runs `/spec-sync` on
+spec 09 with the accepted amendments; disputed behaviour changes are never accepted
+automatically (previous §9). Proposals owned by 11 are handled by spec 11 Scope item 9; those of
+12–15 by their specs.
 
 ### Prerequisites and Guard for the implementing task
 
@@ -1114,7 +1114,7 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
 2. RED: suite cases for `verify` and `render` (AC-04, AC-07, AC-08, AC-10, AC-18–AC-21, AC-25,
    AC-27–AC-29); then both subcommands.
 3. Extract at a clean commit; read and assess by file group (rules, workflows, adapters), each
-   leaf's RED being the `verify` diagnostics located in its files; then map, spec 13 inputs,
+   leaf's RED being the `verify` diagnostics located in its files; then map, spec 09 inputs,
    findings and amendments; render; hand-written sections.
 4. Index and knowledge updates; full validator; independent review; review line.
 
@@ -1123,8 +1123,8 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
 - A Markdown-only report with hand-made tables (not reproducible; no binary completeness check).
 - New checks in `scripts/validate-contracts.sh` or a suite under `tests/` (frozen inventory and
   source guard, ADR-0019 Decision 3).
-- Waiting for spec 13's checker (it is delivered after this audit).
-- Classifying every validator occurrence here (spec 13's DM-9 work; A-15).
+- Waiting for spec 09's checker (it is delivered after this audit).
+- Classifying every validator occurrence here (spec 09's DM-9 work; A-15).
 
 ### Identifier history
 
@@ -1135,8 +1135,8 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
   monetary or token statement at all (A-09); previous REQ-04's "active references between
   specifications, names and capability assumptions" is covered by planning-reader edges (A-25)
   and `HN` candidates (A-24). REQ-15–REQ-29 and AC-11–AC-29 are new.
-- Spec 13's withdrawn REQ-01 (inventory of files, kinds, sizes, references, legacy integrations)
-  is covered by 13a REQ-01, REQ-05, REQ-17, REQ-18 and REQ-20; its REQ-02 (mixed kinds with section
+- Spec 09's withdrawn REQ-01 (inventory of files, kinds, sizes, references, legacy integrations)
+  is covered by 08 REQ-01, REQ-05, REQ-17, REQ-18 and REQ-20; its REQ-02 (mixed kinds with section
   boundaries) by REQ-06; its REQ-03 (ambiguous names, missing target sections) by REQ-07; its
   REQ-04 (verbatim and semantic duplication) by REQ-08; its AC-01 (the full report accepted as an
   input) by AC-10 and the `Accepted:` line.
@@ -1145,10 +1145,10 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
 
 ### Follow-ups for other specs and shared files (not edited here)
 
-- Spec 13: name the report's `Accepted:` line as the acceptance its Guard checks; consider adding
+- Spec 09: name the report's `Accepted:` line as the acceptance its Guard checks; consider adding
   root `README.md` to scan set R; adopt or replace the kind definitions of A-04 in `domain.md`
   (REQ-34).
-- Spec 08: Scope item 9 consumes findings of proposal types with owner `08` by `AUD-13A-NNN` id.
+- Spec 11: Scope item 9 consumes findings of proposal types with owner `11` by `AUD-08-NNN` id.
 - `docs/README.md:13-20` links five absent audit files (Context fact 6); an owner decision.
 - The identity ledger row `.ai/tasks/completed/task-01-git-source-of-truth/state.md:214`
   expects the former name once on line 23 of this file; this revision keeps that line.
@@ -1159,14 +1159,14 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
 - 2026-11-14 — English refinement: request translated under Source; REQ-01–REQ-14 and
   AC-01–AC-10 restated in EARS and binary form; tool, data model, verifier codes, report layout,
   edge cases, REQ-15–REQ-29 and AC-11–AC-29 added; the absent test-suite review link removed.
-- 2026-11-14 — independent final review: optional overflow targets carry `sections: null` and stay out of the exactly-once cover; `in_spec13_grammar` narrowed to spec 13 DM-16 form 2 heads; README and spec citations by heading or id; line 23 untouched.
+- 2026-11-14 — independent final review: optional overflow targets carry `sections: null` and stay out of the exactly-once cover; `in_spec09_grammar` narrowed to spec 09 DM-16 form 2 heads; README and spec citations by heading or id; line 23 untouched.
 
 ## Readiness Checklist
 
 | # | Check | Result |
 |---|---|---|
-| 1 | Goal is one domain-language paragraph describing the outcome | PASS — one paragraph: pinned reproducible audit, verified assessment, outputs for 13 and 08/14–17, no instruction change |
-| 2 | Out of Scope names concrete exclusions | PASS — audited trees, spec 13 contracts, spec 08/10/09 work, economics, installed copies, validator registration, historical report restoration |
+| 1 | Goal is one domain-language paragraph describing the outcome | PASS — one paragraph: pinned reproducible audit, verified assessment, outputs for 09 and 11/12–15, no instruction change |
+| 2 | Out of Scope names concrete exclusions | PASS — audited trees, spec 09 contracts, spec 11/19/10 work, economics, installed copies, validator registration, historical report restoration |
 | 3 | Each REQ has a stable id and one EARS behaviour | PASS — REQ-01–REQ-29; preserved ids keep their meaning (Notes → Identifier history) |
 | 4 | Every REQ maps to ≥1 AC; every AC names ≥1 REQ | PASS — Traceability table covers REQ-01–REQ-29 and AC-01–AC-29 |
 | 5 | Every AC is binary, observable and can guide a test before implementation | PASS — fixture cases with named inputs and expected codes; delivery checks with exact commands |
@@ -1176,7 +1176,7 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
 | 9 | Every ambiguity recorded as resolved or open | PASS — A-01–A-28; Q-01, Q-02 |
 | 10 | No blocker question remains | PASS — both open questions are non-blocking |
 | 11 | Every existing-code claim has a verified path:line citation | PASS — citations re-verified by the reviewer in every round |
-| 12 | Terminology matches project domain definitions | PASS — Terminology table; kinds from ADR-0009 Decision 3 with operational definitions (A-04); word count from spec 13 |
+| 12 | Terminology matches project domain definitions | PASS — Terminology table; kinds from ADR-0009 Decision 3 with operational definitions (A-04); word count from spec 09 |
 | 13 | Scope is feature-sized (1–8 subtasks) | PASS — four implementation steps (Notes), reading split by file group |
 | 14 | Devil's Advocate review passed | PASS — Review: 4 rounds, score 99/100, critic: sub-agent, open: F-33 (minor; applied after the final round) |
 

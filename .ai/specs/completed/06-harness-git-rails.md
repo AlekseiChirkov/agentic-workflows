@@ -24,7 +24,7 @@ completed_at: 2026-11-05
 | Revision | 2026-11-05 reconciliation with the delivered behaviour (see `## Change Log`); no requirement or criterion was removed or renumbered. The 2026-11-03 revision replaced the 2026-10-28 revision; requirement and criterion IDs were renumbered then (no other document cites them). |
 | Baseline | Owner text was reviewed at `8c2fa08c18115ffcf38a1798742c41e53a2c7461` against the [git-flow contract](https://github.com/AlekseiChirkov/agentic-workflows/blob/8c2fa08c18115ffcf38a1798742c41e53a2c7461/rules/git-flow.md) and the [restack workflow](https://github.com/AlekseiChirkov/agentic-workflows/blob/8c2fa08c18115ffcf38a1798742c41e53a2c7461/workflows/restack.md). Implement against the current local `rules/git-flow.md` and `workflows/restack.md`, not the pinned copies. |
 | Authority | ADR-0008 (enforcement moves to the harness); ADR-0009 Decision 5 (git-rails scope); owner decisions of 2026-11-03 recorded in §3; owner decisions and orchestrator decisions under owner delegation (2026-11-03 to 2026-11-05) during the task, recorded in the task state and cited in `## Change Log`. |
-| Roadmap prerequisites | 13 and 05 (see §2.3 for what is actually consumed). |
+| Roadmap prerequisites | 09 and 05 (see §2.3 for what is actually consumed). |
 | Normative words | **MUST**, **MUST NOT**, **SHOULD** and **MAY** are binding as in RFC 2119. Everything not marked as an example is normative. |
 
 ## 1. Goal and threat model
@@ -80,18 +80,18 @@ hook as a sandbox or as protection against arbitrary shell code.
 - Tools other than `Bash` (for example, `Edit`/`Write` touching `.git/`).
 - Harnesses without a verified blocking pre-tool hook (Codex today): textual rules only.
 - Network access of any kind from the hook.
-- The temporary-child-branch deletion exception (owned by spec 12, see §8.7).
+- The temporary-child-branch deletion exception (owned by spec 23, see §8.7).
 
 ### 2.3 Prerequisites and consumers
 
 | Spec | Relationship | What exactly |
 |---|---|---|
 | 05 (done) | Prerequisite | Installer engine and receipt model (`scripts/install-hooks.py`); coexistence with the Stop/SubagentStop logging hook. |
-| 13 | Prerequisite (roadmap order) | Final `harness/<name>/` layout and sync mechanism. 06 MUST place its files where 13 puts adapter files. The project registry it reads already exists (delivered by 03). If 13 is not done when 06 starts, **stop and ask the owner** whether to implement against the current layout. |
+| 09 | Prerequisite (roadmap order) | Final `harness/<name>/` layout and sync mechanism. 06 MUST place its files where 09 puts adapter files. The project registry it reads already exists (delivered by 03). If 09 is not done when 06 starts, **stop and ask the owner** whether to implement against the current layout. |
 | 03 (done) | Consumed | Project registry `${XDG_CONFIG_HOME:-$HOME/.config}/orchestrail/projects` and its most-specific-root semantics in `hooks/log-step-hook.sh → project_for`. |
-| 12 | Consumer | Adds the child-branch deletion exception through the extension point of §8.7. |
-| 17 | Consumer | Any output-bounding wrapper MUST be added to the supported wrapper list (§7.3) with tests, or the wrapped git command is denied. |
-| 15, 19, 09 | Consumers | Orchestrator helpers, repairs, escalation and regression runs gain no bypass. |
+| 23 | Consumer | Adds the child-branch deletion exception through the extension point of §8.7. |
+| 14 | Consumer | Any output-bounding wrapper MUST be added to the supported wrapper list (§7.3) with tests, or the wrapped git command is denied. |
+| 13, 17, 10 | Consumers | Orchestrator helpers, repairs, escalation and regression runs gain no bypass. |
 | 07 | Not related | The hook writes no task state. |
 
 ## 3. Resolved decisions
@@ -524,11 +524,11 @@ stays local unless the owner approves. This repository does not ignore `.ai/` (A
 so its knowledge files can be staged. The hook does not inspect staged contents and keeps
 no cache (D3).
 
-### 8.7 Branch deletion and the spec 12 extension point
+### 8.7 Branch deletion and the spec 23 extension point
 
-Until spec 12 is implemented, every branch deletion (R22, R23) is `ask`. The core MUST
+Until spec 23 is implemented, every branch deletion (R22, R23) is `ask`. The core MUST
 dispatch R22/R23 through a named exception-verifier interface. For 06 the interface has
-one implementation that always returns "no exception". Spec 12 adds a verifier that turns a
+one implementation that always returns "no exception". Spec 23 adds a verifier that turns a
 proven temporary child-branch deletion into `allow`, preferably through
 `git update-ref -d refs/heads/<b> <expected-sha>` (compare-and-swap). 06 MUST NOT
 implement that verifier.
@@ -625,7 +625,7 @@ defense in depth; the hook stays authoritative.
 
 | File | Change |
 |---|---|
-| `rules/git-flow.md → ## Safety rails` | Add an `Enforcement` column to every row: `hook: deny`, `hook: ask`, `hook: allow with restack journal`, or `text only`. Replace "Branch deletion: Forbidden" with "owner approval required; spec 12 child exception pending". Add the owner-approval protocol of §6.3 and the agent rule "never wrap or rephrase a denied command to evade the check". |
+| `rules/git-flow.md → ## Safety rails` | Add an `Enforcement` column to every row: `hook: deny`, `hook: ask`, `hook: allow with restack journal`, or `text only`. Replace "Branch deletion: Forbidden" with "owner approval required; spec 23 child exception pending". Add the owner-approval protocol of §6.3 and the agent rule "never wrap or rephrase a denied command to evade the check". |
 | `workflows/restack.md` | Document the journal schema of §8.5, including `publication_authorized`, `"absent"` and the exact rebase/push command forms. |
 | `harness/claude/capabilities.md` | Add a `git-rails` section: event, tool, pinned version, exit/JSON protocol, ask-capable permission modes, deny-pattern semantics, failure-mode behavior, source URL and date. |
 | `harness/codex/capabilities.md` | Add `git-rails: none (textual rules only)`. |
@@ -646,7 +646,7 @@ defense in depth; the hook stays authoritative.
 | Remote HEAD unknown | `deny default-branch-unknown`. |
 | Restack journal missing, stale or ambiguous | `ask` with the failed check named. |
 | Concurrent settings edit during install | The installer keeps the user's version and reports status `unavailable` with reason `settings-changed-during-transaction` and exits 0, as every installer refusal does, so installation failure does not block other deployment targets (§10.2). Nothing is partially written. |
-| Output capture truncates the diagnostic | The decision is unchanged. Spec 17 MUST keep the reason line and the exit status. |
+| Output capture truncates the diagnostic | The decision is unchanged. Spec 14 MUST keep the reason line and the exit status. |
 | A retry after `deny` | Evaluated from scratch. A previous decision is never reused. |
 
 ## 12. Acceptance criteria

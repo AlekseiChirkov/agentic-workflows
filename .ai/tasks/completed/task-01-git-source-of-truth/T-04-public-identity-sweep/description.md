@@ -11,7 +11,7 @@ Off-limits: do not rewrite completed implementation history, delete historical r
 ## Scope
 - **In scope:** remaining current references in scripts, instructions, templates, rules, workflows, principles, context, roadmap, setup documentation, and task memory, plus exact matches listed in task state.
 - **Out of scope:** rewriting historical analysis, audit, ADR, and completed-task records; renaming the public GitHub repository; rewriting Git history; changing the active source specification.
-- **Target files:** CLAUDE.md, README.md, docs/README.md, docs/USAGE.md, link-skills.sh, setup-all-repos.sh, setup-new-project.sh, setup-umbrella.sh, sync.sh, validate-contracts.sh, templates/.ai/principles/architecture.md, templates/codex-global-AGENTS.md, workflows/pv-create-fixes.md, .ai/README.md, .ai/adr/index.md, .ai/context/runbook.md, .ai/memory/architecture.md, .ai/memory/state.md, .ai/principles/architecture.md, .ai/specs/README.md, .ai/specs/13-model-only-harnesses-and-rule-naming.md.
+- **Target files:** CLAUDE.md, README.md, docs/README.md, docs/USAGE.md, link-skills.sh, setup-all-repos.sh, setup-new-project.sh, setup-umbrella.sh, sync.sh, validate-contracts.sh, templates/.ai/principles/architecture.md, templates/codex-global-AGENTS.md, workflows/pv-create-fixes.md, .ai/README.md, .ai/adr/index.md, .ai/context/runbook.md, .ai/memory/architecture.md, .ai/memory/state.md, .ai/principles/architecture.md, .ai/specs/README.md, .ai/specs/09-model-only-harnesses-and-rule-naming.md.
 
 ## Steps
 1. Add a smoke check for the no-former-name criterion using a constructed search term so the validator does not contain the prohibited literal itself.

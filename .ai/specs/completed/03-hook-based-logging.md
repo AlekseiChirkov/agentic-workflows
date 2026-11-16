@@ -59,7 +59,7 @@ workflows retain approximate prompt logging at boundaries the hooks cannot demon
 
 - Decisions: ADR-0009 Decision 2 (capabilities, registry) and 5 (user-level hooks,
   `SubagentStop` + `Stop`, run-start/run-end prompt-driven, Codex approximate).
-- Depends on spec 02 (vocabulary) and spec 13 (`harness/` layout, capabilities).
+- Depends on spec 02 (vocabulary) and spec 09 (`harness/` layout, capabilities).
 - The hook must be fast and must never fail the tool call it observes.
 
 ## Review integration — 2026-10-21
@@ -97,7 +97,7 @@ workflows retain approximate prompt logging at boundaries the hooks cannot demon
   denominators and never present overlapping worker time as run wall time.
 
 These additions refine correlation and timing, not paid-run authorization. Update the
-canonical log rule/adapter contract together. Depends on 02 and 13; 05 consumes the
+canonical log rule/adapter contract together. Depends on 02 and 09; 05 consumes the
 measurements. Remove step prompts only for boundaries demonstrably observed by hooks.
 
 ## Resolved interface contract

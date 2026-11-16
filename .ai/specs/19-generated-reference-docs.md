@@ -1,21 +1,21 @@
-# 10. Reproducible generation of reference documents and always-on instructions
+# 19. Reproducible generation of reference documents and always-on instructions
 
 ## Source
 
 - **Origin:** owner decision, ADR-0009 Decision 6 (2026-09-17),
   `.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:233-235`: "Generated docs
-  (spec 10): separate files under `docs/reference/`, linked from `USAGE.md`; always-on
+  (spec 19): separate files under `docs/reference/`, linked from `USAGE.md`; always-on
   files generated from a core body plus per-harness header template; generator in Python."
   The same decision allows Python 3 for optional tools such as generators (`:243-244`).
 - **Previous revision:** 2026-10-28, written in Russian. Its goal statement, translated
-  from Russian (spec 10, revision 2026-10-28, §1): "The goal is to obtain the references of
+  from Russian (spec 19, revision 2026-10-28, §1): "The goal is to obtain the references of
   commands, rules and states, and the always-on instructions of both supported harnesses,
   from single canonical sources. Identical input bytes must yield identical output bytes;
   a stale generation must be detected before installation." The Russian text, including
   REQ-01–REQ-15 and AC-01–AC-12, is retrievable from git history of this file at
   `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`. Every identifier is preserved below; the
   requirements are restated in English and refined.
-- **Roadmap position:** `.ai/specs/README.md` → "Dependency order" — order 15, prerequisites 13 and 08,
+- **Roadmap position:** `.ai/specs/README.md` → "Dependency order" — order 15, prerequisites 09 and 11,
   disposition "Render metadata without inlining optional context".
 - **This revision:** 2026-11-13, refined in place under `/spec-draft --auto-mode` with the
   owner's authorization to replace the file. No human questions were asked; every
@@ -54,13 +54,13 @@ Verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
   (`harness/claude/capabilities.md:1-90`); Codex declares `hooks: no` and
   `git-rails: none (textual rules only)` (`harness/codex/capabilities.md:3,12`).
 - Sizes today: `rules/global-claude.md` has 985 words and `harness/claude/capabilities.md`
-  1,607 words (`wc -w`). Spec 13 REQ-54 limits the always-on body — the always-on file
+  1,607 words (`wc -w`). Spec 09 REQ-54 limits the always-on body — the always-on file
   without an embedded capability declaration and without the installation record — to
   1,200 words (counted per its DM-19).
 - Workflow metadata is only `description:` (every `workflows/*.md` front matter);
   `workflows/pd-archive.md:2-3` spans two lines. Rules still use `trigger:`
-  (`rules/tdd.md:2`). Spec 13 REQ-12/REQ-13 introduce `phase`, `step` and `load`; spec 08
-  DM-1 introduces `loads`; spec 13 DM-3 registers `reads`, `writes`, `called_by` as this
+  (`rules/tdd.md:2`). Spec 09 REQ-12/REQ-13 introduce `phase`, `step` and `load`; spec 11
+  DM-1 introduces `loads`; spec 09 DM-3 registers `reads`, `writes`, `called_by` as this
   spec's extension keys.
 - Each of the 41 executable workflows has exactly one line `` Invocation: `/<command> …` ``
   (line 5, `workflows/pd-archive.md:6`). 25 workflows have a prose `Called by:` line, for
@@ -77,7 +77,7 @@ Verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
   vocabulary line omits `pinned` (`:851`, versus `rules/workflow-globals.md:197`); the
   `reviewed` meaning differs (`docs/USAGE.md:829` versus `rules/workflow-globals.md:275`).
   `.ai/principles/coding.md:94-97` records that the derived documents are fixed by hand
-  "until `specs/10-generated-reference-docs.md` makes them generated".
+  "until `specs/19-generated-reference-docs.md` makes them generated".
 - The contract validator's check inventory is frozen. ADR-0019 Decision 3
   (`.ai/adr/0019-task-unknown-spec-draft-devils-advocate-review.md:68-80`) therefore placed a
   new contract test outside it, as the standalone `scripts/check-spec-draft.sh`. The
@@ -114,7 +114,7 @@ hand-made copies.
    for every harness directory, and the provenance manifest `docs/reference/manifest.json`.
 4. New always-on sources: `templates/always-on-core.md` (shared body) and
    `harness/<name>/always-on-header.md` (harness-specific part), created by splitting
-   spec 13's hand-written `harness/<name>/always-on.md` without losing a line.
+   spec 09's hand-written `harness/<name>/always-on.md` without losing a line.
 5. Two new anchored vocabulary lines in the canonical status-formats section (phase
    statuses and `plan.md` statuses) so that every task-state vocabulary is machine-readable.
 6. Safe publication: validation before writing, a write lock, atomic per-file replacement,
@@ -134,28 +134,28 @@ hand-made copies.
     update, `.ai/memory/architecture.md`, and one ADR recording the decisions marked
     "ADR at delivery" under Assumptions.
 11. In the same change that embeds the capability declaration in `always-on.md` (added
-    2026-11-14): spec 08's meter (`scripts/measure-context.sh`) counts
+    2026-11-14): spec 11's meter (`scripts/measure-context.sh`) counts
     `harness/<h>/always-on.md` alone as the harness part of its always-on set and no longer
-    adds `harness/<h>/capabilities.md`; the "Always-on set" definition that spec 08 places
+    adds `harness/<h>/capabilities.md`; the "Always-on set" definition that spec 11 places
     in `.ai/principles/domain.md` (its REQ-21) is updated to match, with a meter fixture
-    (REQ-50). Spec 08 agrees with this allocation: its A-11 and the always-on composition
+    (REQ-50). Spec 11 agrees with this allocation: its A-11 and the always-on composition
     paragraph in its Contracts → Graph resolution state that the meter counts the generated
-    `always-on.md` alone "from spec 10's delivery", a change spec 10 makes (10 REQ-50); the
-    meter is changed by this delivery, not by spec 08.
-12. Registration of `reads`, `writes` and `called_by` as spec 10's extension keys in spec
-    13's checker (`scripts/lint-instructions.py`), as spec 13 DM-2/DM-3 require before an
+    `always-on.md` alone "from spec 19's delivery", a change spec 19 makes (19 REQ-50); the
+    meter is changed by this delivery, not by spec 11.
+12. Registration of `reads`, `writes` and `called_by` as spec 19's extension keys in spec
+    09's checker (`scripts/lint-instructions.py`), as spec 09 DM-2/DM-3 require before an
     extension key stops being `metadata-unknown-field` (REQ-51; added 2026-11-14).
 
 ## Out of Scope
 
 - Renaming rules and workflows, rule metadata (`description`, `load`), workflow `phase` and
   `step`, the capability declaration format, `harness/<name>/deploy.env`, moving
-  `workflows/PIPELINE.md` to `docs/PIPELINE.md`: owned by spec 13.
+  `workflows/PIPELINE.md` to `docs/PIPELINE.md`: owned by spec 09.
 - The `loads` schema, its condition language, the context-load meter
   `scripts/measure-context.sh` (except the composition change of Scope item 11), the 300/700/6,000-word limits and `ref-<name>` deployment:
-  owned by spec 08 (and 13 for the 300-word bootstrap limit).
+  owned by spec 11 (and 09 for the 300-word bootstrap limit).
 - Profile files, the managed-fragment markers in project `CLAUDE.md`/`AGENTS.md`, merging
-  with user content, `.ai/profile`, the public installer: owned by spec 11a.
+  with user content, `.ai/profile`, the public installer: owned by spec 20.
 - Rendering status transitions or a transition engine; the run-log vocabulary
   (`rules/run-log.md`, `scripts/log-step.sh`) and reviewer verdicts in `statuses.md`.
 - Deduplicating `docs/PIPELINE.md` and the `principles/` and `templates/` role tables in
@@ -170,12 +170,12 @@ hand-made copies.
 
 ### Preconditions (checked at Discovery)
 
-Spec 13 is delivered: rules carry DM-2 front matter and kind prefixes, workflows carry
+Spec 09 is delivered: rules carry DM-2 front matter and kind prefixes, workflows carry
 DM-3 `description`/`phase`/`step`, `workflows/PIPELINE.md` has moved to `docs/PIPELINE.md`
-(13 REQ-23), every harness directory has `deploy.env` (DM-5) and the DM-4 capability records,
+(09 REQ-23), every harness directory has `deploy.env` (DM-5) and the DM-4 capability records,
 the DM-4 behaviour table exists in `rules/contract-phases.md → ## Capabilities`, and
-`harness/<name>/always-on.md` exists for each harness. Spec 08 is delivered: every workflow
-carries `loads` (08 DM-1). If any is missing, Discovery stops; the generator itself reports the
+`harness/<name>/always-on.md` exists for each harness. Spec 11 is delivered: every workflow
+carries `loads` (11 DM-1). If any is missing, Discovery stops; the generator itself reports the
 missing metadata with exit 2.
 
 ## Actors & Roles
@@ -185,7 +185,7 @@ missing metadata with exit 2.
 | Maintainer | Edits canonical sources; runs `--write` (and `--write --force` after reviewing a conflict); commits sources and outputs together |
 | Sync (`scripts/sync.sh`) | Runs the validator (existing step `scripts/sync.sh:41-45`), then `--check`; deploys generated always-on bytes plus one installation record; never runs `--write` |
 | Acceptance suite (`scripts/check-gen-docs.py`) | Run directly by maintainers and implementers; builds disposable fixture roots |
-| Project installer (spec 11a, `scripts/setup-new-project.sh`) | Calls `--profile <name>` and owns what it does with the bytes |
+| Project installer (spec 20, `scripts/setup-new-project.sh`) | Calls `--profile <name>` and owns what it does with the bytes |
 | Generator (`scripts/gen-docs.py`) | Reads inputs; writes only managed outputs, the manifest and its auxiliary files under `--write` |
 | Implementer / reviewer | Builds and validates this spec; populates workflow metadata |
 
@@ -203,20 +203,20 @@ missing metadata with exit 2.
 | Owned file | A managed output path whose current bytes equal a digest the generator itself recorded (manifest or journal) | This spec |
 | Edited output | A managed output whose bytes differ from both its expected bytes and its recorded digest | This spec |
 | Orphaned output | A path listed in the current manifest's outputs that the current inputs no longer produce | This spec |
-| Capability declaration | `harness/<name>/capabilities.md`; its facts and record syntax are defined by spec 13 DM-4, which adopted this spec's record form (A-32, A-45). Replaces the earlier phrase "capability table" | Spec 13; this spec |
+| Capability declaration | `harness/<name>/capabilities.md`; its facts and record syntax are defined by spec 09 DM-4, which adopted this spec's record form (A-32, A-45). Replaces the earlier phrase "capability table" | Spec 09; this spec |
 | Capability record | A `name:`-started block of lines in a capability declaration (Data Model) | This spec |
 | Leading caller list | The backticked commands at the start of a `Called by:` line (Data Model) | This spec |
-| Retired harness | A former harness directory whose `deploy.env`, `capabilities.md` and header were deleted (spec 13 DM-5) | Spec 13 DM-5; this spec |
-| Call cycle | A strongly connected component of the `called_by` graph with more than one workflow or a self-edge; distinct from a load cycle | This spec; spec 08 REQ-11 for load cycles |
+| Retired harness | A former harness directory whose `deploy.env`, `capabilities.md` and header were deleted (spec 09 DM-5) | Spec 09 DM-5; this spec |
+| Call cycle | A strongly connected component of the `called_by` graph with more than one workflow or a self-edge; distinct from a load cycle | This spec; spec 11 REQ-11 for load cycles |
 | Installation record | The `## Current hook installation` section with `installation-result: <json>` appended by sync at deploy time | `scripts/sync.sh:66` |
-| Always-on file | `harness/<name>/always-on.md`, deployed to the harness's `always_on_path` (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`) | Spec 13 REQ-35, DM-5; ADR-0009 Decision 2 |
-| Always-on body | The always-on file without its embedded capability declaration: provenance line, header and shared core | Spec 13 REQ-54 and Terminology |
+| Always-on file | `harness/<name>/always-on.md`, deployed to the harness's `always_on_path` (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`) | Spec 09 REQ-35, DM-5; ADR-0009 Decision 2 |
+| Always-on body | The always-on file without its embedded capability declaration: provenance line, header and shared core | Spec 09 REQ-54 and Terminology |
 | Shared core | `templates/always-on-core.md` | This spec; ADR-0009 Decision 6 |
 | Harness header | `harness/<name>/always-on-header.md` | This spec; ADR-0009 Decision 6 |
-| Profile fragment | `profiles/<name>/always-on-fragment.md` | Spec 11a |
+| Profile fragment | `profiles/<name>/always-on-fragment.md` | Spec 20 |
 | Anchored vocabulary line | A line `Status values for <subject>: `v1` \| `v2` …` defining one vocabulary | `.ai/principles/coding.md:39-41` |
 | Vocabulary namespace | The subject of one anchored line, with backticks removed | This spec |
-| Word | Maximal non-empty run of non-whitespace Unicode characters in the whole UTF-8 text (Python `str.split()` with no argument) | Spec 13 DM-19; spec 08 A-09 |
+| Word | Maximal non-empty run of non-whitespace Unicode characters in the whole UTF-8 text (Python `str.split()` with no argument) | Spec 09 DM-19; spec 11 A-09 |
 | Workflow, Rule, Spec | As defined in `.ai/principles/domain.md:12-15` | Domain |
 
 "Template" in this spec means a plain text file concatenated verbatim; it never has
@@ -282,7 +282,7 @@ parentheses. "The generator" is `scripts/gen-docs.py`.
 - **REQ-17 Size limit (split from REQ-01; aligned 2026-11-14).** IF the always-on body of a
   rendered always-on file — its provenance line, header and shared core joined as in the
   layout, without the embedded capability declaration — exceeds 1,200 words, THEN THE
-  generator SHALL report `size-limit` with the word count and exit 1 (spec 13 REQ-54).
+  generator SHALL report `size-limit` with the word count and exit 1 (spec 09 REQ-54).
 - **REQ-18 Single declaration on deployment (split from REQ-02).** WHEN sync deploys an
   always-on file, THE component that writes the harness's `always_on_path` (Contracts →
   Deployment contract) SHALL write the generated bytes of `harness/<name>/always-on.md`
@@ -300,17 +300,17 @@ parentheses. "The generator" is `scripts/gen-docs.py`.
   runs, THE sync script SHALL run `python3 -I "$ROOT/scripts/gen-docs.py" --check --root "$ROOT"`
   after contract validation and before its first step that writes outside the source root,
   and SHALL exit non-zero without writing outside the source root if that command exits
-  non-zero. After spec 11a, the gate's position is spec 11a's (its REQ-64, REQ-40; A-48). Spec 11a
-  keeps spec 08's meter gate (08 REQ-08) next to this one, and the deployment SHALL keep both
+  non-zero. After spec 20, the gate's position is spec 20's (its REQ-64, REQ-40; A-48). Spec 20
+  keeps spec 11's meter gate (11 REQ-08) next to this one, and the deployment SHALL keep both
   gates, so that load cycles stay checked at deployment.
 - **REQ-23 Missing targets (split from REQ-11; narrowed 2026-11-14).** IF a `called_by` name
   does not name an existing workflow, THEN THE generator SHALL report `missing-target` and
-  exit 2. Existence of `loads` paths and sections is checked by spec 08's meter only
-  (08 REQ-18, REQ-20; A-46).
+  exit 2. Existence of `loads` paths and sections is checked by spec 11's meter only
+  (11 REQ-18, REQ-20; A-46).
 - **REQ-24 Load cycles (split from REQ-11; restated 2026-11-14).** THE generator SHALL NOT
   traverse the `loads` graph; load-cycle detection over the whole load graph (workflows and
-  top-level rules) is owned by spec 08's meter (08 REQ-11), which sync runs as its own gate
-  step next to this one (08 REQ-08). The code `load-cycle` is withdrawn from this spec (A-46).
+  top-level rules) is owned by spec 11's meter (11 REQ-11), which sync runs as its own gate
+  step next to this one (11 REQ-08). The code `load-cycle` is withdrawn from this spec (A-46).
 - **REQ-25 Call cycles (split from REQ-11).** WHEN the `called_by` relation contains a
   cycle, including a workflow naming itself, THE generator SHALL accept it and list it
   under `## Call cycles` in `commands.md` (Contracts → Output layouts), separately from
@@ -365,7 +365,7 @@ parentheses. "The generator" is `scripts/gen-docs.py`.
   recorded digest and equals its expected bytes, THE generator SHALL treat it as owned.
 - **REQ-41 Incomplete publication on check.** IF `--check` finds a journal, THEN THE
   generator SHALL report `publication-incomplete` and exit 3.
-- **REQ-42 Line-preserving split.** WHEN the delivery splits spec 13's hand-written
+- **REQ-42 Line-preserving split.** WHEN the delivery splits spec 09's hand-written
   `harness/<name>/always-on.md` into header and shared core, THE delivery SHALL make the
   multiset of non-empty lines of header plus core equal the multiset of non-empty lines of
   that file at the parent commit, for every harness.
@@ -380,9 +380,9 @@ parentheses. "The generator" is `scripts/gen-docs.py`.
   printing the diagnostic for versions below `(3, 11)` and `None` otherwise; the entry point
   calls it with `sys.version_info`.
 - **REQ-45 Content checks keep passing (restated).** THE generated
-  `harness/<name>/always-on.md` SHALL keep the path and the complete text that spec 13's
-  hand-written file has, so that the validator's always-on content checks, which spec 13
-  points at that path (spec 13 DM-10 maps `rules/global-claude.md` and
+  `harness/<name>/always-on.md` SHALL keep the path and the complete text that spec 09's
+  hand-written file has, so that the validator's always-on content checks, which spec 09
+  points at that path (spec 09 DM-10 maps `rules/global-claude.md` and
   `templates/codex-global-AGENTS.md` to it), pass without a change to
   `scripts/validate-contracts.sh`.
 - **REQ-46 Location grammar.** IF a `reads` or `writes` entry does not match Data Model →
@@ -393,21 +393,21 @@ parentheses. "The generator" is `scripts/gen-docs.py`.
   line, and exit 2.
 - **REQ-48 Behaviour availability (added 2026-11-14).** WHEN `--write` runs on valid inputs,
   THE generator SHALL render in `docs/harness-matrix.md` a `## Behaviours` section with one
-  row per row of the spec 13 DM-4 behaviour table, marking a harness `available` only if
+  row per row of the spec 09 DM-4 behaviour table, marking a harness `available` only if
   every key in the row's `Requires` cell (a canonical key or an extension record name,
-  spec 13 REQ-67) has a record with `state: yes` in that harness's declaration; a record
+  spec 09 REQ-67) has a record with `state: yes` in that harness's declaration; a record
   with `state: no` or `state: unknown`, and an absent record, give `unavailable` (for
-  example spec 18's `sub-agent-effort` record while its state is `unknown`).
+  example spec 16's `sub-agent-effort` record while its state is `unknown`).
 - **REQ-49 Loads on rules (added 2026-11-14).** WHEN a top-level rule's front matter holds a
-  `loads` block, THE generator SHALL parse it with the same grammar as a workflow's (spec 08
-  DM-1, REQ-22; spec 13 DM-2 registered extension key) and SHALL NOT render it.
-- **REQ-50 Declaration counted once (added 2026-11-14).** WHEN spec 08's meter computes a
+  `loads` block, THE generator SHALL parse it with the same grammar as a workflow's (spec 11
+  DM-1, REQ-22; spec 09 DM-2 registered extension key) and SHALL NOT render it.
+- **REQ-50 Declaration counted once (added 2026-11-14).** WHEN spec 11's meter computes a
   harness's always-on set after this delivery, THE meter SHALL count
   `harness/<h>/always-on.md` and SHALL NOT also count `harness/<h>/capabilities.md`, so the
   embedded capability declaration is counted exactly once.
 - **REQ-51 Extension keys registered (added 2026-11-14).** THE delivery SHALL register
-  `reads`, `writes` and `called_by` in spec 13's checker under its extension-key registry
-  (spec 13 DM-2, DM-3), so that the checker reports no `metadata-unknown-field` for them.
+  `reads`, `writes` and `called_by` in spec 09's checker under its extension-key registry
+  (spec 09 DM-2, DM-3), so that the checker reports no `metadata-unknown-field` for them.
 
 ## Data Model
 
@@ -416,9 +416,9 @@ parentheses. "The generator" is `scripts/gen-docs.py`.
 | Input | Consumed content | Hash scope in manifest |
 |---|---|---|
 | `workflows/*.md` (top level, regular files) | Front matter, the `Invocation:` line, the `Called by:` line if present | `extract` |
-| `rules/*.md` (top level) | Front matter; anchored vocabulary lines; in the canonical file, the whole `## Canonical Status Formats` section; in `rules/contract-phases.md`, the rows of the DM-4 behaviour table under `## Capabilities` (spec 13) | `extract` |
-| `rules/reference/*.md` (spec 08) | File name only (not opened) | `extract` |
-| `harness/<name>/deploy.env` | Existence only (selects harness directories, spec 13 DM-5); not parsed, not listed in the manifest | — |
+| `rules/*.md` (top level) | Front matter; anchored vocabulary lines; in the canonical file, the whole `## Canonical Status Formats` section; in `rules/contract-phases.md`, the rows of the DM-4 behaviour table under `## Capabilities` (spec 09) | `extract` |
+| `rules/reference/*.md` (spec 11) | File name only (not opened) | `extract` |
+| `harness/<name>/deploy.env` | Existence only (selects harness directories, spec 09 DM-5); not parsed, not listed in the manifest | — |
 | `harness/<name>/always-on-header.md` | Whole file | `file` |
 | `templates/always-on-core.md` | Whole file | `file` |
 | `harness/<name>/capabilities.md` | Whole file | `file` |
@@ -426,21 +426,21 @@ parentheses. "The generator" is `scripts/gen-docs.py`.
 | `profiles/<name>/always-on-fragment.md` | Whole file; `--profile` only; never in the manifest | — |
 | `docs/USAGE.md` | Read by `--check` only for REQ-16; never in the manifest | — |
 
-A harness directory is defined by spec 13 DM-5 (aligned 2026-11-14): a directory directly
+A harness directory is defined by spec 09 DM-5 (aligned 2026-11-14): a directory directly
 under `harness/` whose name matches `^[a-z0-9]+(-[a-z0-9]+)*$` and that contains `deploy.env`.
 Each harness directory must also contain `capabilities.md` (otherwise `adapter-incomplete`)
 and `always-on-header.md` (otherwise `input-missing`); other files there are ignored. A
 directory matching the name pattern that holds `capabilities.md` but no `deploy.env` is
-`adapter-incomplete` (exit 2), the code spec 13 uses for the same condition. Hidden
+`adapter-incomplete` (exit 2), the code spec 09 uses for the same condition. Hidden
 directories, and a directory holding only an orphaned `always-on.md`, are not harnesses
 and are not reported; such an `always-on.md` is still an orphan of this generator when the
 manifest lists it (REQ-39). At least one harness directory must exist; otherwise
 `input-missing` with location `harness/`. Retiring a harness means deleting its
-`deploy.env`, `capabilities.md` and `always-on-header.md` (spec 13 DM-5); the next
+`deploy.env`, `capabilities.md` and `always-on-header.md` (spec 09 DM-5); the next
 `--write` deletes its owned `always-on.md`.
 
 Every input whose content is consumed must be valid UTF-8 without a byte-order mark, a
-carriage return or any of U+001C–U+001F (as spec 13 DM-19 and spec 08 A-09 require);
+carriage return or any of U+001C–U+001F (as spec 09 DM-19 and spec 11 A-09 require);
 otherwise `input-encoding` (exit 2). Inputs are never normalized silently.
 
 `extract` digest: SHA-256 of the UTF-8 bytes of
@@ -454,16 +454,16 @@ leaves the digest unchanged. `file` digest: SHA-256 of the file bytes.
 
 | Field | Type | Owner | Rule |
 |---|---|---|---|
-| `description` | string | Spec 13 REQ-12/13 | Non-empty, single line |
-| `phase` | token | Spec 13 REQ-13, DM-3 | One of DM-3's phases: `discovery`, `execution`, `validation`, `atomic-execution`, `atomic-validation`, `orchestrated`, `entry`, `utility` |
-| `step` | string | Spec 13 REQ-13, DM-3 | Plain value matching `^[1-9][0-9]*(\.[1-9][0-9]*|[a-z])?$` (for example `1`, `2.5`, `4a`) or the JSON string `"-"` |
-| `loads` | mapping | Spec 08 DM-1 | `schema_version` the generator supports: `1` |
+| `description` | string | Spec 09 REQ-12/13 | Non-empty, single line |
+| `phase` | token | Spec 09 REQ-13, DM-3 | One of DM-3's phases: `discovery`, `execution`, `validation`, `atomic-execution`, `atomic-validation`, `orchestrated`, `entry`, `utility` |
+| `step` | string | Spec 09 REQ-13, DM-3 | Plain value matching `^[1-9][0-9]*(\.[1-9][0-9]*|[a-z])?$` (for example `1`, `2.5`, `4a`) or the JSON string `"-"` |
+| `loads` | mapping | Spec 11 DM-1 | `schema_version` the generator supports: `1` |
 | `reads` | list of strings | This spec | Required; `[]` means the workflow reads no canonical file; every entry matches Location grammar; possible reads of conditional branches included |
 | `writes` | list of strings | This spec | Same as `reads`, for writes |
 | `called_by` | list of strings | This spec | Required; each item is a workflow name (file stem in `workflows/`, no slash) or the literal `user` (direct invocation); no duplicates |
 
-The front matter is delimited by a first line `---` and the next line `---`. Spec 13
-DM-2/DM-3 define the top-level scalar grammar (stated compatible with this one) and spec 08
+The front matter is delimited by a first line `---` and the next line `---`. Spec 09
+DM-2/DM-3 define the top-level scalar grammar (stated compatible with this one) and spec 11
 DM-1 the `loads` block grammar; the generator accepts exactly the following line grammar,
 which reproduces both.
 Every non-empty line inside the delimiters must match one rule; anything else is
@@ -474,10 +474,10 @@ multi-line scalars are `metadata-syntax`.
   starting with `"` is a JSON string parsed with `json.loads` (it must be the whole rest of
   the line). Otherwise the value is plain: the rest of the line with trailing spaces
   removed, non-empty, not starting with `'`, `[`, `{`, `|`, `>`, `&`, `*`, `!`, `%`, `@`
-  or `` ` `` (spec 13 DM-2). `step` must match the DM-3 pattern above as a plain value, or be
+  or `` ` `` (spec 09 DM-2). `step` must match the DM-3 pattern above as a plain value, or be
   the JSON string `"-"`; any other `step` value is `metadata-invalid-value`.
   Colons inside a plain value are allowed (`description: Step 1 — check: verdict`).
-- **`loads` block** (spec 08 DM-1), two-space indentation steps:
+- **`loads` block** (spec 11 DM-1), two-space indentation steps:
 
   ```yaml
   loads:
@@ -493,7 +493,7 @@ multi-line scalars are `metadata-syntax`.
         on_unknown: load
   ```
 
-  The block grammar and field table are spec 08 DM-1's (aligned 2026-11-14): `loads:`
+  The block grammar and field table are spec 11 DM-1's (aligned 2026-11-14): `loads:`
   alone on its line; at indent 2 only `schema_version` (required, only `1`), `mandatory`
   (required, may be `[]`) and `conditional` (optional, absent equals `[]`); a list is `[]`
   on the key's line or items at indent 4 starting `- <key>: <value>` with further keys of
@@ -501,8 +501,8 @@ multi-line scalars are `metadata-syntax`.
   (narrower than top-level scalars, as DM-1 requires); a value starting with `"` is a JSON
   string that is the whole rest of the line; `sections`, when present, is a one-line non-empty
   JSON array of strings, rendered verbatim; the generator checks only that form, and
-  whether each string is a valid heading path (`["## Safety rails"]`) is spec 08's check
-  (08 REQ-18). Item keys, field
+  whether each string is a valid heading path (`["## Safety rails"]`) is spec 11's check
+  (11 REQ-18). Item keys, field
   rules other than heading-path validity (`path` grammar, `condition_id` pattern,
   `on_unknown` only `load`) and the
   merging of duplicate paths are DM-1's. The generator maps DM-1 violations to its own
@@ -510,9 +510,9 @@ multi-line scalars are `metadata-syntax`.
   repeated key → `metadata-duplicate-key`, absent required key →
   `metadata-missing-field`, field-rule violation → `metadata-invalid-value`,
   `schema_version` other than `1` → `unsupported-schema-version`, all exit 2. The meter
-  reports the same defects as findings with exit 1 (08 A-13); the difference is
+  reports the same defects as findings with exit 1 (11 A-13); the difference is
   intentional, because the generator refuses to render while the meter measures. The
-  generator does not resolve paths or sections, evaluate conditions against the 08 DM-2
+  generator does not resolve paths or sections, evaluate conditions against the 11 DM-2
   registry, or detect cycles (REQ-23, REQ-24).
 - **List fields** `reads`, `writes`, `called_by` use exactly one of two forms:
 
@@ -532,7 +532,7 @@ empty (for example `reads: "x"` or `reads: x`) has the wrong type and is
 wrong indentation) is `metadata-syntax`. Any key outside the table is
 `metadata-unknown-field`; a repeated key is `metadata-duplicate-key`; a wrong type is
 `metadata-invalid-value`. Missing keys are `metadata-missing-field`, one diagnostic per key,
-so a workflow carrying only 13's fields receives an exact migration list.
+so a workflow carrying only 09's fields receives an exact migration list.
 
 ### Location grammar (new)
 
@@ -566,14 +566,14 @@ At `060ce6d` every one of the 25 `Called by:` lines has a one-name leading list
 (`workflows/pae-tests.md:6`, `workflows/pd-archive.md:7`,
 `workflows/suggest-commit-message.md:6`, `workflows/pd-select-model.md:6` included).
 
-### Rule metadata (existing contract, spec 13)
+### Rule metadata (existing contract, spec 09)
 
-Top-level `rules/*.md` carry the fields of spec 13 REQ-12 and DM-2 (`description`, `load`)
-and may carry the registered extension key `loads` (spec 08 DM-1 and REQ-22; REQ-49), parsed
+Top-level `rules/*.md` carry the fields of spec 09 REQ-12 and DM-2 (`description`, `load`)
+and may carry the registered extension key `loads` (spec 11 DM-1 and REQ-22; REQ-49), parsed
 but not rendered; any other key is `metadata-unknown-field`. The kind is the file-stem prefix before the first `-` and must be one of `bootstrap`,
-`contract`, `protocol`, `procedure` (spec 13 REQ-24); otherwise `metadata-invalid-value`.
+`contract`, `protocol`, `procedure` (spec 09 REQ-24); otherwise `metadata-invalid-value`.
 The deployed skill name is `rule-<stem>`. Reference documents are `rules/reference/*.md`
-(spec 08 DM-3, deployed by 08 REQ-02) with skill name `ref-<stem>`; their content is not rendered.
+(spec 11 DM-3, deployed by 11 REQ-02) with skill name `ref-<stem>`; their content is not rendered.
 
 ### Anchored vocabulary lines (existing convention; two lines added)
 
@@ -601,9 +601,9 @@ A meaning table belongs to an anchored line when, after at most one blank line, 
 line is `| Status | Meaning |`. Its first-column values (backticks removed), in order,
 must equal the anchored values; otherwise `vocabulary-conflict`.
 
-### Capability declaration (existing; format owned by spec 13 DM-4)
+### Capability declaration (existing; format owned by spec 09 DM-4)
 
-Spec 13 DM-4 adopted the record form below for every canonical key, in a trailing
+Spec 09 DM-4 adopted the record form below for every canonical key, in a trailing
 `## Capability records` section of each declaration (aligned 2026-11-14). The generator
 reads only **capability records**, the line form the git-rails section already uses
 (`harness/claude/capabilities.md:31-37`):
@@ -627,23 +627,23 @@ lines such as `hooks: yes` at `harness/claude/capabilities.md:3` — is ignored 
 Limitations stay prose in the declaration (DM-4's `Limitations:` paragraph after a record
 lies outside the record) and are not rendered. An `evidence` value must be
 non-empty and contain no whitespace; it is rendered verbatim and never fetched or resolved.
-`always-on-path` is not a record: spec 13 DM-4 declares it as a plain location line
+`always-on-path` is not a record: spec 09 DM-4 declares it as a plain location line
 (`always-on-path: <path>`), which falls outside records and is ignored like other lines; a
 record named `always-on-path` is `capability-schema`.
 
-Canonical keys, in spec 13 DM-4's order: `sub-agents`, `concurrent-sub-agents`,
+Canonical keys, in spec 09 DM-4's order: `sub-agents`, `concurrent-sub-agents`,
 `agent-messaging`, `hooks`, `worktrees`, `git`. Every other record name is an extension
-record (for example `git-rails`, or spec 18's `sub-agent-effort`) and is rendered like a
+record (for example `git-rails`, or spec 16's `sub-agent-effort`) and is rendered like a
 canonical record (REQ-03, REQ-48); the generator needs no list of extension names.
-Completeness of canonical records is spec 13's checker finding (`capability-key-missing`);
+Completeness of canonical records is spec 09's checker finding (`capability-key-missing`);
 the generator only renders an absent key as `unknown`.
 
-**Behaviour table (spec 13 DM-4, REQ-67).** In `rules/contract-phases.md`, the first table
+**Behaviour table (spec 09 DM-4, REQ-67).** In `rules/contract-phases.md`, the first table
 after the heading `## Capabilities` (outside fenced code) whose header row is
 `| Behaviour | Workflow | Requires | Without it |`. Each data row's `Requires` cell is one or
 more backticked keys joined by `, `. A missing file, heading or table is `input-missing`;
 a `Requires` cell not of that form is `capability-schema`. Whether a key is a canonical key
-or an extension record declared by every harness is spec 13's check
+or an extension record declared by every harness is spec 09's check
 (`capability-behaviour-table-invalid`); the generator treats a key a harness does not
 declare as unavailable on that harness.
 
@@ -705,7 +705,7 @@ No consumer-project data changes. In this repository the delivery (1) adds the t
 fields to every workflow, (2) splits each harness's always-on file into header and shared
 core under REQ-42, (3) adds the two anchored lines, (4) runs `--write` and commits sources
 and outputs together. Rollback is a revert of the delivery commits, which restores spec
-13's hand-written always-on files and the previous sync assembly; a single output file is
+09's hand-written always-on files and the previous sync assembly; a single output file is
 never rolled back alone.
 
 ## Contracts & Interfaces
@@ -773,8 +773,8 @@ observed value.
 | `metadata-invalid-value` | 2 | Wrong type, empty or multi-line description, bad phase or step, bad kind prefix, REQ-46 |
 | `unsupported-schema-version` | 2 | `loads.schema_version` not `1` |
 | `missing-target` | 2 | REQ-23 |
-| `load-cycle` | — | Withdrawn 2026-11-14 (REQ-24; load cycles are spec 08's `cycle` finding) |
-| `adapter-incomplete` | 2 | A harness directory without `capabilities.md`, or a `capabilities.md` directory without `deploy.env` (spec 13 DM-5) |
+| `load-cycle` | — | Withdrawn 2026-11-14 (REQ-24; load cycles are spec 11's `cycle` finding) |
+| `adapter-incomplete` | 2 | A harness directory without `capabilities.md`, or a `capabilities.md` directory without `deploy.env` (spec 09 DM-5) |
 | `invocation-missing` | 2 | REQ-36 |
 | `metadata-conflict` | 2 | REQ-35 |
 | `status-source-missing` | 2 | Zero or several canonical sections |
@@ -857,9 +857,9 @@ Loads rules for `commands.md` below override this list rule for those two column
 none
 ```
 
-One `## <phase>` section per phase that has workflows, in spec 13's phase order
+One `## <phase>` section per phase that has workflows, in spec 09's phase order
 (`discovery`, `execution`, `validation`, `atomic-execution`, `atomic-validation`,
-`orchestrated`, `entry`, `utility`); rows sorted by step in spec 13 DM-3's order (`"-"`
+`orchestrated`, `entry`, `utility`); rows sorted by step in spec 09 DM-3's order (`"-"`
 first, then the integer part, then the decimal part with absent read as 0, then the
 letter with absent first: `-`, `1`, `2`, `2.5`, `4`, `4a`, `4b`, `5`), then name. The Step
 cell shows the parsed value (`-` for `"-"`). Called by (override): workflow names sorted, each as `` `/<name>` ``, then the
@@ -949,7 +949,7 @@ After the harness sections comes `## Behaviours`: a table with header
 table order, the Behaviour cell verbatim, Requires as backticked keys joined by `, `, and
 each harness cell `available` or `unavailable` (REQ-48).
 
-Rows: canonical keys in spec 13 DM-4's order, then extensions sorted by name; harness columns
+Rows: canonical keys in spec 09 DM-4's order, then extensions sorted by name; harness columns
 and `## <harness>` sections sorted by name. The summary table has a row for every canonical
 key and every extension declared by any harness; a key a harness does not declare shows
 `unknown`. A harness section lists only the records that harness declares; an empty
@@ -960,9 +960,9 @@ runtime, verified or evidence cell (state `unknown`) renders `none`.
 header, the shared core and the capability declaration, each with trailing `\n`
 characters removed, joined by `\n\n`, followed by one `\n`. The file therefore contains
 the capability declaration exactly once, and nothing else besides the body. Its always-on
-body (spec 13 REQ-54) is the provenance line, header and core joined the same way; the
+body (spec 09 REQ-54) is the provenance line, header and core joined the same way; the
 provenance line counts 11 words toward the 1,200-word limit (REQ-17). A word counter over
-the file (spec 08's meter) must count this file alone and must not add
+the file (spec 11's meter) must count this file alone and must not add
 `harness/<name>/capabilities.md` again, or the declaration is counted twice.
 
 ### Manual duplication rule (`docs/USAGE.md`)
@@ -981,12 +981,12 @@ belong to one namespace. Table delimiter rows are ignored. At `060ce6d`, rows
 
 ### Deployment contract (`scripts/sync.sh`)
 
-Gate location (aligned 2026-11-14): in spec 13's `scripts/sync.sh` step list, after the
+Gate location (aligned 2026-11-14): in spec 09's `scripts/sync.sh` step list, after the
 contract validator (step 2) and before hook installation (step 4), the first step that
-writes outside the source root; the runtime guard (step 3) precedes it, and spec 08's
-`measure-context.sh check` gate follows it (08 Contracts → Deployment). Legacy reporting
-precedes it only in spec 11a's step list. Once spec 11a is delivered, the gate's position in
-`scripts/sync.sh` is owned by spec 11a (its REQ-64), which also runs the same command inside
+writes outside the source root; the runtime guard (step 3) precedes it, and spec 11's
+`measure-context.sh check` gate follows it (11 Contracts → Deployment). Legacy reporting
+precedes it only in spec 20's step list. Once spec 20 is delivered, the gate's position in
+`scripts/sync.sh` is owned by spec 20 (its REQ-64), which also runs the same command inside
 its installer engine (its REQ-40); this spec then owns only the command and its exit
 semantics. Sync runs
 `python3 -I "$ROOT/scripts/gen-docs.py" --check --root "$ROOT"`. On exit 1 it prints
@@ -997,27 +997,27 @@ diagnostics above`; in both cases it exits 1 (REQ-22).
 Always-on bytes and handover (aligned 2026-11-14): for each harness, the bytes written to
 its `always_on_path` are exactly
 `<bytes of harness/<name>/always-on.md>` + `"\n## Current hook installation\n\ninstallation-result: " + <result> + "\n"`,
-where `<result>` follows spec 13 REQ-65: the hook installer's JSON for a harness whose
+where `<result>` follows spec 09 REQ-65: the hook installer's JSON for a harness whose
 directory has `hooks.json`, else `{"reason":"no-native-adapter","status":"unavailable"}`.
-This replaces spec 13's DM-14 assembly (13 REQ-36: "Spec 10 later replaces the assembly with
+This replaces spec 09's DM-14 assembly (09 REQ-36: "Spec 19 later replaces the assembly with
 its generated file without a second append"): the component that writes `always_on_path`
-— spec 13's `scripts/deploy-skills.py deploy` until spec 11a, then spec 11a's engine (its
+— spec 09's `scripts/deploy-skills.py deploy` until spec 20, then spec 20's engine (its
 REQ-39, which already states these bytes) — drops DM-14's marker line and appended
 declaration. `harness/<name>/always-on.md` keeps its path and becomes a generated output in
-the delivery that splits it (REQ-42); spec 13's checks keep applying to it (13 REQ-36,
-REQ-54). Paths come from `deploy.env` (13 DM-5) and are not changed by this spec.
+the delivery that splits it (REQ-42); spec 09's checks keep applying to it (09 REQ-36,
+REQ-54). Paths come from `deploy.env` (09 DM-5) and are not changed by this spec.
 
-Fixture consequences, all in the same change (line numbers are those at `060ce6d`; spec 13
+Fixture consequences, all in the same change (line numbers are those at `060ce6d`; spec 09
 re-points these fixtures first, so the implementer applies the same changes to their
-post-13 form): (1) `copy_source` in `tests/hook-install.sh:70-73` also copies `docs/`, so
+post-09 form): (1) `copy_source` in `tests/hook-install.sh:70-73` also copies `docs/`, so
 the private copy holds the current generation, the manifest and `docs/USAGE.md` and the
-gate passes; the same holds for any fixture of spec 13's `scripts/check-deploy-skills.py`
+gate passes; the same holds for any fixture of spec 09's `scripts/check-deploy-skills.py`
 that runs sync on a private copy; (2) the sync assertions (`tests/hook-install.sh:790-795`
-today) and every spec 13 deploy case asserting the DM-14 assembly expect the generated
+today) and every spec 09 deploy case asserting the DM-14 assembly expect the generated
 `harness/<name>/always-on.md` plus the installation record; (3) because
 `tests/hook-install.sh` is an approved path of the frozen inventory, its resource entry in
 `tests/fixtures/validator-runtime/inventory-amendment.json` is re-amended in the amendment
-schema then in force (spec 13 DM-9 schema 2 once 13 is delivered), and `AMENDMENT_SHA256` in
+schema then in force (spec 09 DM-9 schema 2 once 09 is delivered), and `AMENDMENT_SHA256` in
 `tests/validator-runtime-oracle.py` is updated; (4) the source-guard records that pin
 `scripts/sync.sh`, `tests/hook-install.sh` and the oracle are refreshed under
 `tests/fixtures/validator-runtime/README.md:9-28` (ADR-0020 Decision 2 precedent).
@@ -1028,7 +1028,7 @@ A standard-library Python 3.11+ `unittest` program, run as
 `python3 scripts/check-gen-docs.py`; exit 0 when every case passes, 1 otherwise. It builds
 each fixture source root in a temporary directory with an isolated `HOME` (here and in the
 acceptance criteria: `HOME`, `XDG_CONFIG_HOME` and `XDG_STATE_HOME` set to temporary paths,
-13 REQ-47), copies
+09 REQ-47), copies
 `scripts/gen-docs.py` into it, and runs the generator as a subprocess with `--root`. It
 never runs `scripts/validate-contracts.sh`; the sync case (AC-12, AC-15) replaces the
 validator in its private copy with `#!/bin/bash\nexit 0\n`, as `tests/hook-install.sh:135-138`
@@ -1043,7 +1043,7 @@ lists it as standalone.
 | Offline | Zero network connections, model calls and subprocesses in every mode | AC-02 (socket and subprocess creation patched to raise) |
 | Portability | Python 3.11+, standard library only; writes on Linux and macOS local filesystems (`fcntl`) | AC-19; static import check in `scripts/check-gen-docs.py` |
 | Safety | Zero modified or deleted files outside the managed set and auxiliary files; zero lost hand edits without `--force` | AC-09, AC-10 |
-| Size | Each always-on body (provenance line, header and core; spec 13 REQ-54) ≤ 1,200 words, counted per spec 13 DM-19 | AC-14 |
+| Size | Each always-on body (provenance line, header and core; spec 09 REQ-54) ≤ 1,200 words, counted per spec 09 DM-19 | AC-14 |
 | Performance | N/A — the generator and its suite are outside `scripts/validate-contracts.sh` (A-33), so the validator budgets of ADR-0018 do not apply to them, and no owner-approved target exists for sync or the generator. The delivery records the measured wall time of `--check` on this repository and of the suite, with machine and Python version, as evidence only | Delivery record |
 
 ## Edge Cases & Failure Modes
@@ -1063,12 +1063,12 @@ lists it as standalone.
 | No harness directory at all; hidden directory under `harness/` | `input-missing` (location `harness/`); hidden directory ignored | Data Model |
 | Workflow body edit only | Outputs and manifest unchanged; `--check` exit 0 | REQ-02 |
 | Empty `reads`/`writes`/`called_by` | Valid; rendered `none` | REQ-05 |
-| Missing field in a workflow with only spec-13 fields | One `metadata-missing-field` per missing field | REQ-05 |
+| Missing field in a workflow with only spec-09 fields | One `metadata-missing-field` per missing field | REQ-05 |
 | Two `Invocation:` lines, or one only inside a code fence | `invocation-missing` | REQ-36 |
 | `\|` inside an invocation or description | Escaped `\|` in the table | Contracts |
 | `Called by:` prose naming a non-caller after the leading list | Not compared | REQ-35 |
 | Self-call or mutual callers | Accepted; listed under `## Call cycles` | REQ-25 |
-| `loads` cycle, missing `loads` target or section | Not checked by the generator; spec 08's meter reports it in its own sync gate step (08 REQ-08) | REQ-23, REQ-24 |
+| `loads` cycle, missing `loads` target or section | Not checked by the generator; spec 11's meter reports it in its own sync gate step (11 REQ-08) | REQ-23, REQ-24 |
 | Step values `2.5`, `4a`, `4b`, `-` | Sorted `-`, `2.5` after `2`, `4a`, `4b` after `4` | Contracts |
 | `Requires` key not declared by a harness | That harness `unavailable` for the behaviour | REQ-48 |
 | Top-level rule with a `loads` block | Parsed, not rendered | REQ-49 |
@@ -1187,9 +1187,9 @@ creation of an empty `docs/reference/` directory.
   another names a missing section, two rules load each other, workflow `a` lists itself and
   workflows `b` and `c` list each other in `called_by`, an input is modified while
   `--write` waits on the resume seam, and directory enumeration is reversed, Then the runs
-  give `unsafe-input-path`, `metadata-invalid-value` (08 DM-1 path rule),
+  give `unsafe-input-path`, `metadata-invalid-value` (11 DM-1 path rule),
   `missing-target`, exit 0 for each of the missing-file, missing-section and mutual-load
-  fixtures (no generator diagnostic; those are spec 08's findings), exit 0 with
+  fixtures (no generator diagnostic; those are spec 11's findings), exit 0 with
   `## Call cycles` holding exactly the lines `` `/a` `` and `` `/b`, `/c` ``,
   `input-changed` exit 3 with the tree unchanged, and output identical to the unreversed
   run.
@@ -1271,15 +1271,15 @@ creation of an empty `docs/reference/` directory.
   with the Step cells showing the parsed values (`-` for `"-"`), the rule's row in `rules.md` is unchanged by its `loads`
   block, and the run exits 0; a step `2.0` or `4ab` gives `metadata-invalid-value`; a rule
   `loads` block with `sections: ["Safety rails"]` passes the generator (heading-path rules
-  are 08 REQ-18's) and one with `sections: []` gives `metadata-invalid-value`.
+  are 11 REQ-18's) and one with `sections: []` gives `metadata-invalid-value`.
 - **AC-26** (REQ-50) — Given a fixture harness whose `always-on.md` embeds a 500-word
-  capability declaration that its `capabilities.md` also holds, When spec 08's
-  `measure-context.sh measure --workflow <id>` runs (08 REQ-04), Then the measurement
+  capability declaration that its `capabilities.md` also holds, When spec 11's
+  `measure-context.sh measure --workflow <id>` runs (11 REQ-04), Then the measurement
   record's `always_on_words` for that harness
   equals the word count of `always-on.md` plus the `load: always` rules and their closure,
   with the 500 declaration words counted once; on the delivery commit the domain
   "Always-on set" row names `always-on.md` and not `capabilities.md`.
-- **AC-27** (REQ-51) — Given the delivery commit, When spec 13's checker
+- **AC-27** (REQ-51) — Given the delivery commit, When spec 09's checker
   (`python3 -I scripts/lint-instructions.py`) runs, Then it reports no
   `metadata-unknown-field` for `reads`, `writes` or `called_by` in any workflow, and a
   fixture workflow with an unregistered key `foo` still gets `metadata-unknown-field`.
@@ -1346,8 +1346,8 @@ Every AC-01–AC-27 names at least one REQ above.
 
 | Risk | Impact | Likelihood | Mitigation |
 |---|---|---|---|
-| Specs 13 or 08 not delivered, or their formats differ from the sections cited here | Generator built against the wrong schema | Medium | Discovery confirms both are delivered and re-reads 13 DM-2–DM-5 and 08 DM-1 before design; fixtures follow them |
-| The Claude always-on body (985 words today, plus 11 provenance words and any lines 08 REQ-31 adds) approaches the 1,200-word limit | `--write` refuses to publish | Low | `size-limit` names the count; the declaration no longer counts (13 REQ-54); content belongs to 13/08 |
+| Specs 09 or 11 not delivered, or their formats differ from the sections cited here | Generator built against the wrong schema | Medium | Discovery confirms both are delivered and re-reads 09 DM-2–DM-5 and 11 DM-1 before design; fixtures follow them |
+| The Claude always-on body (985 words today, plus 11 provenance words and any lines 11 REQ-31 adds) approaches the 1,200-word limit | `--write` refuses to publish | Low | `size-limit` names the count; the declaration no longer counts (09 REQ-54); content belongs to 09/11 |
 | Validator inventory is frozen | The stale-output gate cannot live in the validator; a deploy without sync (manual copying) bypasses it | Medium | Gate in sync, the only deploy path (P1); standalone suite (A-33); Q-05 tracks moving the gate into the validator |
 | Editing `scripts/sync.sh` and `tests/hook-install.sh` invalidates source-guard digests and the frozen-inventory amendment for `tests/hook-install.sh` | Validator fails (oracle and guard) until re-amended | High | Apply the four fixture consequences under Contracts → Deployment contract in the same change; if the amendment schema cannot express a needed change, stop and escalate as an ADR-0018 inventory change |
 | `tests/hook-install.sh` private copies omit `docs/` | Every sync fixture fails at the gate | High (certain without the fix) | `copy_source` copies `docs/` (fixture consequence 1) |
@@ -1362,9 +1362,9 @@ Every AC-01–AC-27 names at least one REQ above.
 - A-03 | Runtime | Resolved: Python 3.11+, standard library only | Source: ADR-0009 Decision 6 (`:243-244`); existing helpers (`scripts/README.md` run-log timing) | Reversible: yes
 - A-04 | Source root | Resolved: `--root` or the script's own checkout; `ORCHESTRAIL_HOME` not consulted | Source: best practice, smallest choice (a maintainer tool must not write into another checkout implicitly) | Reversible: yes
 - A-05 | Machine-readable status format (open decision in old §4.2/§8) | Resolved: existing anchored vocabulary lines plus two added lines; meanings from an adjacent table | Source: `.ai/principles/coding.md:39-41`; spec 07 C-4 rename-following; ADR at delivery | Reversible: yes
-- A-06 | Canonical status file after 13's renames | Resolved: located by the `## Canonical Status Formats` heading, not by file name | Source: spec 13 DM-10 moves `workflow-globals` (which holds the section) → `contract-phases`, while the old text of this spec named `contract-state-files`; heading lookup is independent of that outcome | Reversible: yes
+- A-06 | Canonical status file after 09's renames | Resolved: located by the `## Canonical Status Formats` heading, not by file name | Source: spec 09 DM-10 moves `workflow-globals` (which holds the section) → `contract-phases`, while the old text of this spec named `contract-state-files`; heading lookup is independent of that outcome | Reversible: yes
 - A-07 | Transitions in `statuses.md` | Resolved: not rendered; the reference links to the canonical section | Source: old §4.2 ("not a new transition engine"); spec 07 D-05 (no transition table) | Reversible: yes
-- A-08 | Duplicated anchored lines in other rules | Resolved: tolerated only when identical, as a guard against divergence; invariant 11 (`.ai/principles/domain.md:65`) still calls for one definition, and spec 13 keeps the duplicate `rules/workflow-reference.md:226-227` (13 REQ-64, AC-42; it lands in `rules/contract-state-files.md` under 13 DM-12), so REQ-34 tolerates it while identical and its removal is a follow-up outside this spec | Source: current repository state; best practice (fail on divergence rather than on an existing duplicate the generator does not own) | Reversible: yes
+- A-08 | Duplicated anchored lines in other rules | Resolved: tolerated only when identical, as a guard against divergence; invariant 11 (`.ai/principles/domain.md:65`) still calls for one definition, and spec 09 keeps the duplicate `rules/workflow-reference.md:226-227` (09 REQ-64, AC-42; it lands in `rules/contract-state-files.md` under 09 DM-12), so REQ-34 tolerates it while identical and its removal is a follow-up outside this spec | Source: current repository state; best practice (fail on divergence rather than on an existing duplicate the generator does not own) | Reversible: yes
 - A-09 | Input hashing | Resolved: extract-scoped digests for workflows and rules, whole-file digests for always-on parts | Source: best practice — whole-file digests would stale the manifest on every body edit and conflict across stacked branches (`rules/git-flow.md` stack model); ADR at delivery | Reversible: yes
 - A-10 | `generator_version` in the manifest | Resolved: omitted; `generator.sha256` identifies the generator | Source: best practice (a version without a bump rule adds nothing) | Reversible: yes
 - A-11 | Lock policy | Resolved: `fcntl.flock`, non-blocking, no stale takeover | Source: ADR-0021 Decision 2 | Reversible: yes
@@ -1373,44 +1373,44 @@ Every AC-01–AC-27 names at least one REQ above.
 - A-14 | `reads`/`writes` semantics and grammar | Resolved: Location grammar with four area tokens and five placeholders, no conditions | Source: old §4.1 ("relative paths or named area patterns"); `docs/USAGE.md:510-565` shows the kinds of entries in use | Reversible: yes
 - A-15 | External entry point in `called_by` | Resolved: literal `user` | Source: old §4.1 ("external entry point distinguishable from an internal name"); best practice | Reversible: yes
 - A-16 | Consistency with prose `Called by:` lines | Resolved: name sets must match when the line exists | Source: `.ai/principles/architecture.md` P6 ("a statement in two places is a defect"); `.ai/principles/coding.md:22` keeps the line | Reversible: yes
-- A-17 | Size limits enforced by the generator | Resolved: only 1,200 words per always-on body (A-42); 300/700/6,000 remain with their owners | Source: spec 13 REQ-32 (300) and REQ-54 (1,200); spec 08 REQ-01 (700, 6,000); `.ai/principles/architecture.md` P6 (one owner per statement) | Reversible: yes
-- A-18 | Installation record and the 1,200-word limit (superseded by A-42) | Resolved: the limit applies to the generated file; the appended installation record is not counted by the generator | Source: best practice; deployed-file limits belong to 13 | Reversible: yes
+- A-17 | Size limits enforced by the generator | Resolved: only 1,200 words per always-on body (A-42); 300/700/6,000 remain with their owners | Source: spec 09 REQ-32 (300) and REQ-54 (1,200); spec 11 REQ-01 (700, 6,000); `.ai/principles/architecture.md` P6 (one owner per statement) | Reversible: yes
+- A-18 | Installation record and the 1,200-word limit (superseded by A-42) | Resolved: the limit applies to the generated file; the appended installation record is not counted by the generator | Source: best practice; deployed-file limits belong to 09 | Reversible: yes
 - A-19 | Templating | Resolved: plain concatenation, no placeholders | Source: old REQ-11 (template is not code) | Reversible: yes
 - A-20 | Where agents find the installation result after the change | Resolved: sync keeps appending the existing record to the deployed file | Source: `rules/run-log.md:117-121`; `scripts/sync.sh:66` | Reversible: yes
-- A-21 | Capability declaration in the always-on file | Resolved: embedded verbatim; the matrix is a separate rendered view | Source: old §2 ("exactly one capability table"), `scripts/sync.sh:62` behaviour; old spec 08 text ("without a second interpretation") | Reversible: yes
+- A-21 | Capability declaration in the always-on file | Resolved: embedded verbatim; the matrix is a separate rendered view | Source: old §2 ("exactly one capability table"), `scripts/sync.sh:62` behaviour; old spec 11 text ("without a second interpretation") | Reversible: yes
 - A-22 | Harness discovery (superseded by A-43) | Resolved: every non-hidden directory under `harness/` that contains `capabilities.md` (refined by A-40) | Source: ADR-0009 Decision 2 ("`sync.sh` iterates the directory") | Reversible: yes
-- A-23 | Reference documents in `rules.md` | Resolved: names and skill names only | Source: spec 08 owns their schema; smallest choice | Reversible: yes
+- A-23 | Reference documents in `rules.md` | Resolved: names and skill names only | Source: spec 11 owns their schema; smallest choice | Reversible: yes
 - A-24 | Manual deduplication scope | Resolved: `docs/USAGE.md` command, rule and workflow tables and status vocabulary lines; `docs/PIPELINE.md` excluded | Source: old REQ-06 names `docs/USAGE.md` only | Reversible: yes
 - A-25 | Plan mode, JSON report, diff output | Resolved: not delivered | Source: old §5 marks them optional ("may") | Reversible: yes
 - A-26 | `--check` and the lock | Resolved: no lock; journal check plus full comparison | Source: best practice (read-only mode creates no file) | Reversible: yes
 - A-27 | Input normalization | Resolved: reject invalid UTF-8, BOM and CR | Source: old REQ-05 ("silent filling is forbidden"), best practice | Reversible: yes
 - A-28 | Test seams | Resolved: two environment variables, inert unless set | Source: spec 07 precedent (`STATE_TOOL_TEST_RESUME`) | Reversible: yes
 - A-29 | Validator registration | Superseded by A-33 (the amendment format cannot add checks) | Source: `tests/validator-runtime-oracle.py:46-57` | Reversible: yes
-- A-30 | Content checks after the split | Superseded by A-36 | Source: spec 13 DM-10 already maps both pre-split files to `harness/<name>/always-on.md` | Reversible: yes
-- A-31 | Step ordering (superseded by A-44) | Resolved: integers ascending then `-`; follows whatever 13 permits | Source: spec 13 REQ-13 | Reversible: yes
-- A-32 | Capability declaration syntax (the previous 13 text listed facts only) | Resolved: `name:`-started capability records as in `harness/claude/capabilities.md:31-37`; other lines ignored; limitations not rendered | Source: existing record form in the repository; best practice, smallest choice; adoption requested from 13 (Q-04) | Reversible: yes
+- A-30 | Content checks after the split | Superseded by A-36 | Source: spec 09 DM-10 already maps both pre-split files to `harness/<name>/always-on.md` | Reversible: yes
+- A-31 | Step ordering (superseded by A-44) | Resolved: integers ascending then `-`; follows whatever 09 permits | Source: spec 09 REQ-13 | Reversible: yes
+- A-32 | Capability declaration syntax (the previous 09 text listed facts only) | Resolved: `name:`-started capability records as in `harness/claude/capabilities.md:31-37`; other lines ignored; limitations not rendered | Source: existing record form in the repository; best practice, smallest choice; adoption requested from 09 (Q-04) | Reversible: yes
 - A-33 | Where the stale-output gate and the suite run (old REQ-09 named `validate-contracts.sh`) | Resolved: `scripts/sync.sh` runs `--check` before deploying; the suite is standalone `scripts/check-gen-docs.py`; the validator is unchanged | Source: ADR-0019 Decision 3 (accepted ADR outranks the old spec text: inventory frozen, standalone checker precedent); `tests/validator-runtime-oracle.py:46-57`; `.ai/principles/architecture.md` P1 (sync is the only deploy path) | Reversible: yes
 - A-34 | Bounded call repetition (old REQ-11 and AC-11: "preserved stop condition, checked separately") | Resolved: call cycles are accepted and listed separately under `## Call cycles`; their stop conditions are prose and are not verified by the generator | Source: REQ-20 (no prose parsing); old REQ-11 (metadata is data); narrowing recorded here | Reversible: yes
 - A-35 | Which names in a `Called by:` line are callers | Resolved: only the leading caller list | Source: current lines name non-callers after the first name (`workflows/pae-tests.md:6`, `workflows/suggest-commit-message.md:6`); best practice | Reversible: yes
-- A-36 | Validator content checks on always-on text | Resolved: no validator change; the generated file keeps spec 13's path and full text | Source: spec 13 DM-10 (`rules/global-claude.md`, `templates/codex-global-AGENTS.md` → `harness/<name>/always-on.md`); ADR-0019 Decision 3 (frozen inventory) | Reversible: yes
-- A-37 | Front matter grammar (the previous 13 and 08 texts gave examples only; now 13 DM-2/DM-3 and 08 DM-1, A-51) | Resolved: the line grammar under Data Model → Workflow metadata, covering both examples | Source: best practice (standard-library parser, strict rejection per old REQ-11) | Reversible: yes
-- A-38 | Provenance line and the size limit | Resolved: one 11-word provenance line, counted toward 1,200 | Source: best practice (short line); counted as part of the body per spec 13 REQ-54 (A-42) | Reversible: yes
+- A-36 | Validator content checks on always-on text | Resolved: no validator change; the generated file keeps spec 09's path and full text | Source: spec 09 DM-10 (`rules/global-claude.md`, `templates/codex-global-AGENTS.md` → `harness/<name>/always-on.md`); ADR-0019 Decision 3 (frozen inventory) | Reversible: yes
+- A-37 | Front matter grammar (the previous 09 and 11 texts gave examples only; now 09 DM-2/DM-3 and 11 DM-1, A-51) | Resolved: the line grammar under Data Model → Workflow metadata, covering both examples | Source: best practice (standard-library parser, strict rejection per old REQ-11) | Reversible: yes
+- A-38 | Provenance line and the size limit | Resolved: one 11-word provenance line, counted toward 1,200 | Source: best practice (short line); counted as part of the body per spec 09 REQ-54 (A-42) | Reversible: yes
 - A-39 | Way out of a stuck journal | Resolved: `--write --force` resolves mismatches and unreadable journals | Source: old REQ-13 (explicit regeneration after review) | Reversible: yes
 - A-40 | Retiring a harness (superseded by A-43) | Resolved: delete `capabilities.md` and the header; the owned `always-on.md` becomes an orphan | Source: best practice; makes REQ-39 reachable | Reversible: yes
 - A-41 | Python at deploy time (ADR-0009 Decision 6 calls generators optional tools) | Resolved: the sync gate requires Python 3.11+; deployment already depends on Python because sync runs the validator, which runs Python suites by default (`scripts/validate-contracts.sh:5154`) | Source: current deploy dependency; ADR-0009 Decision 6 keeps the generator optional for workflow execution, which this does not change | Reversible: yes
-- A-42 | What the 1,200-word limit counts (2026-11-14) | Resolved: the always-on body — provenance line, header and core — without the embedded declaration and without the installation record | Source: spec 13 REQ-54, Terminology (Always-on body) and Notes → Spec 10 alignment | Reversible: yes
-- A-43 | Harness definition and retirement (2026-11-14) | Resolved: spec 13 DM-5 — non-hidden pattern-named directory with `deploy.env`; `capabilities.md` without `deploy.env` is `adapter-incomplete`; an orphaned `always-on.md` alone is ignored as a harness; retiring deletes `deploy.env`, `capabilities.md` and the header | Source: spec 13 DM-5 ("the only harness definition") | Reversible: yes
-- A-44 | Step grammar and order (2026-11-14) | Resolved: spec 13 DM-3 pattern and sort order (`"-"`, integer, decimal, letter) | Source: spec 13 DM-3 ("binding for every listing of workflows, spec 10's command reference included") | Reversible: yes
-- A-45 | Capability records adopted (2026-11-14) | Resolved: the A-32 grammar is now spec 13 DM-4's; extension records render like canonical ones | Source: spec 13 DM-4, A-04, REQ-67 | Reversible: yes
-- A-46 | Owner of `loads` graph checks (2026-11-14) | Resolved: spec 08's meter owns target, section and cycle checks over the whole load graph; the generator parses `loads` for rendering only | Source: spec 08 REQ-11, REQ-18, REQ-20, A-04 (workflows are never load targets); single-owner rule, `.ai/principles/architecture.md` P6 | Reversible: yes
-- A-47 | Behaviour availability in the matrix (2026-11-14) | Resolved: `## Behaviours` section computed from the DM-4 behaviour table and records; validity of `Requires` keys stays spec 13's check | Source: spec 13 DM-4, REQ-67 and Notes → Spec 10 alignment | Reversible: yes
-- A-48 | Gate location after spec 11a (2026-11-14) | Resolved: spec 11a owns the position (its REQ-64) and also gates its engine (its REQ-40); this spec owns the command and exit semantics | Source: spec 11a REQ-39, REQ-40, REQ-64 | Reversible: yes
-- A-49 | Rules and workflows added by later specs (14–20) (2026-11-14) | Resolved: no per-spec knowledge — the generator enumerates `workflows/*.md` and top-level `rules/*.md`, takes kinds from the DM-2 prefix and phases/steps from DM-3, so files named under spec 13's Notes → Files and sections created after this spec (for example `atomic-execution-repair`, step `4`) render without change | Source: spec 13 Notes → Files and sections created after this spec; DM-2, DM-3 | Reversible: yes
-- A-50 | `loads` on rules (2026-11-14) | Resolved: accepted and parsed, not rendered | Source: spec 08 DM-1, REQ-22; spec 13 DM-2 registered extension key | Reversible: yes
-- A-51 | Plain-value grammar (2026-11-14) | Resolved: inside `loads`, 08 DM-1's `[A-Za-z0-9_./-]+`; top-level scalars keep spec 13 DM-2's broader grammar, because 13 owns those fields and descriptions contain spaces and colons | Source: spec 08 DM-1; spec 13 DM-2 | Reversible: yes
-- A-52 | Who changes the meter's always-on composition (2026-11-14) | Resolved: this delivery (Scope item 11, REQ-50), in the change that embeds the declaration | Source: spec 08 A-11 and its always-on composition paragraph (Contracts → Graph resolution), which name 10 REQ-50 as the change; spec 08 Notes → "Ownership statements for spec 10"; spec 08 is delivered first (Preconditions). No conflict between the specs | Reversible: yes
-- A-53 | Registration of spec 10's front-matter keys in spec 13's checker (2026-11-14) | Resolved: part of this delivery (Scope item 12, REQ-51) | Source: spec 13 DM-2 ("Until the owning spec registers its validator in the checker, an extension key is `metadata-unknown-field`") and DM-3 | Reversible: yes
-- A-54 | Metadata of files added by specs 14–19, and the parts of 13, 08, 18 and 11a this spec depends on (2026-11-14) | Resolved: the rule parser (REQ-49) accepts every key those specs prescribe for rules — `description`, `load: on-demand` and an optional `loads` (14 REQ-46, 16 REQ-38, 17 REQ-47, 19 REQ-63; 15 A-02 for `contract-checkpoints` and `contract-delta-operations`); the workflow parser (REQ-23, REQ-51) accepts `description`, `phase` and `step` for the workflow 19 adds (`atomic-execution-repair`, `phase: atomic-execution`, `step: 4`, matching 13 DM-3) and `loads` where 15, 16, 17 and 19 add entries. No prescribed key is rejected. One consequence: those specs do not prescribe `reads`, `writes` or `called_by` for that workflow, which this spec requires of every workflow, so its front matter gets `metadata-missing-field` until the delivery that adds the file also adds the three keys (`called_by` naming `spec-run`, with its `Called by:` line starting with the backticked command, REQ-35); the generator needs no change. Nothing in this design depends on the 13 items under revision in parallel (the stop wording of 13 REQ-37, the rule for extending its closed `requirement` set in 13 REQ-69, a decision on split targets that 13 cites from spec 08); 13 is cited only by the ids already used. Spec 13 itself holds no Q-07 (verified). Spec 18's `sub-agent-effort` record is accepted with `state: unknown` and renders `unavailable` in `## Behaviours` (REQ-48, AC-24). Spec 08 agrees with A-52. Spec 11a keeps both gates (REQ-22) | Source: specs 14, 15, 16, 17, 19 front-matter sections; 13 DM-2, DM-3; 18 DM-1; 08 A-11; 11a REQ-64 | Reversible: yes
+- A-42 | What the 1,200-word limit counts (2026-11-14) | Resolved: the always-on body — provenance line, header and core — without the embedded declaration and without the installation record | Source: spec 09 REQ-54, Terminology (Always-on body) and Notes → Spec 19 alignment | Reversible: yes
+- A-43 | Harness definition and retirement (2026-11-14) | Resolved: spec 09 DM-5 — non-hidden pattern-named directory with `deploy.env`; `capabilities.md` without `deploy.env` is `adapter-incomplete`; an orphaned `always-on.md` alone is ignored as a harness; retiring deletes `deploy.env`, `capabilities.md` and the header | Source: spec 09 DM-5 ("the only harness definition") | Reversible: yes
+- A-44 | Step grammar and order (2026-11-14) | Resolved: spec 09 DM-3 pattern and sort order (`"-"`, integer, decimal, letter) | Source: spec 09 DM-3 ("binding for every listing of workflows, spec 19's command reference included") | Reversible: yes
+- A-45 | Capability records adopted (2026-11-14) | Resolved: the A-32 grammar is now spec 09 DM-4's; extension records render like canonical ones | Source: spec 09 DM-4, A-04, REQ-67 | Reversible: yes
+- A-46 | Owner of `loads` graph checks (2026-11-14) | Resolved: spec 11's meter owns target, section and cycle checks over the whole load graph; the generator parses `loads` for rendering only | Source: spec 11 REQ-11, REQ-18, REQ-20, A-04 (workflows are never load targets); single-owner rule, `.ai/principles/architecture.md` P6 | Reversible: yes
+- A-47 | Behaviour availability in the matrix (2026-11-14) | Resolved: `## Behaviours` section computed from the DM-4 behaviour table and records; validity of `Requires` keys stays spec 09's check | Source: spec 09 DM-4, REQ-67 and Notes → Spec 19 alignment | Reversible: yes
+- A-48 | Gate location after spec 20 (2026-11-14) | Resolved: spec 20 owns the position (its REQ-64) and also gates its engine (its REQ-40); this spec owns the command and exit semantics | Source: spec 20 REQ-39, REQ-40, REQ-64 | Reversible: yes
+- A-49 | Rules and workflows added by later specs (12–18) (2026-11-14) | Resolved: no per-spec knowledge — the generator enumerates `workflows/*.md` and top-level `rules/*.md`, takes kinds from the DM-2 prefix and phases/steps from DM-3, so files named under spec 09's Notes → Files and sections created after this spec (for example `atomic-execution-repair`, step `4`) render without change | Source: spec 09 Notes → Files and sections created after this spec; DM-2, DM-3 | Reversible: yes
+- A-50 | `loads` on rules (2026-11-14) | Resolved: accepted and parsed, not rendered | Source: spec 11 DM-1, REQ-22; spec 09 DM-2 registered extension key | Reversible: yes
+- A-51 | Plain-value grammar (2026-11-14) | Resolved: inside `loads`, 11 DM-1's `[A-Za-z0-9_./-]+`; top-level scalars keep spec 09 DM-2's broader grammar, because 09 owns those fields and descriptions contain spaces and colons | Source: spec 11 DM-1; spec 09 DM-2 | Reversible: yes
+- A-52 | Who changes the meter's always-on composition (2026-11-14) | Resolved: this delivery (Scope item 11, REQ-50), in the change that embeds the declaration | Source: spec 11 A-11 and its always-on composition paragraph (Contracts → Graph resolution), which name 19 REQ-50 as the change; spec 11 Notes → "Ownership statements for spec 19"; spec 11 is delivered first (Preconditions). No conflict between the specs | Reversible: yes
+- A-53 | Registration of spec 19's front-matter keys in spec 09's checker (2026-11-14) | Resolved: part of this delivery (Scope item 12, REQ-51) | Source: spec 09 DM-2 ("Until the owning spec registers its validator in the checker, an extension key is `metadata-unknown-field`") and DM-3 | Reversible: yes
+- A-54 | Metadata of files added by specs 12–17, and the parts of 09, 11, 16 and 20 this spec depends on (2026-11-14) | Resolved: the rule parser (REQ-49) accepts every key those specs prescribe for rules — `description`, `load: on-demand` and an optional `loads` (12 REQ-46, 15 REQ-38, 14 REQ-47, 17 REQ-63; 13 A-02 for `contract-checkpoints` and `contract-delta-operations`); the workflow parser (REQ-23, REQ-51) accepts `description`, `phase` and `step` for the workflow 17 adds (`atomic-execution-repair`, `phase: atomic-execution`, `step: 4`, matching 09 DM-3) and `loads` where 13, 15, 14 and 17 add entries. No prescribed key is rejected. One consequence: those specs do not prescribe `reads`, `writes` or `called_by` for that workflow, which this spec requires of every workflow, so its front matter gets `metadata-missing-field` until the delivery that adds the file also adds the three keys (`called_by` naming `spec-run`, with its `Called by:` line starting with the backticked command, REQ-35); the generator needs no change. Nothing in this design depends on the 13 items under revision in parallel (the stop wording of 09 REQ-37, the rule for extending its closed `requirement` set in 09 REQ-69, a decision on split targets that 09 cites from spec 11); 09 is cited only by the ids already used. Spec 09 itself holds no Q-07 (verified). Spec 16's `sub-agent-effort` record is accepted with `state: unknown` and renders `unavailable` in `## Behaviours` (REQ-48, AC-24). Spec 11 agrees with A-52. Spec 20 keeps both gates (REQ-22) | Source: specs 12, 13, 15, 14, 17 front-matter sections; 09 DM-2, DM-3; 16 DM-1; 11 A-11; 20 REQ-64 | Reversible: yes
 
 ## Decisions
 
@@ -1427,25 +1427,25 @@ resolved as A-01–A-41; unresolved items are Q-01–Q-05.
 
 ### Session 2026-11-14
 
-No questions were asked. A reconciliation pass aligned this spec with the final specs 13,
-08 and 11 (A-42–A-54); Q-01, Q-02 and Q-04 were resolved by those specs.
+No questions were asked. A reconciliation pass aligned this spec with the final specs 09,
+11 and 21 (A-42–A-54); Q-01, Q-02 and Q-04 were resolved by those specs.
 
 ## Open Questions
 
-- Q-01 | resolved 2026-11-14 (A-44: spec 13 DM-3 admits these steps and fixes their order) | Spec 13 REQ-13 allowed `step` to be a positive integer or `"-"`,
+- Q-01 | resolved 2026-11-14 (A-44: spec 09 DM-3 admits these steps and fixes their order) | Spec 09 REQ-13 allowed `step` to be a positive integer or `"-"`,
   but current steps include `2.5` (`workflows/pd-select-model.md:2`), `4a`
   (`workflows/pv-classify-fixes.md:2`) and `4b` (`workflows/pd-archive.md:2`). Impact: the
-  sort order of `commands.md` follows whatever 13 finally allows; 13 owns the answer.
-- Q-02 | resolved 2026-11-14 (A-42: spec 13 REQ-54 limits only the body; the risk remains in Risks) | The Claude always-on content (985 + 1,607 words today) exceeds the
-  1,200-word limit that the previous spec 13 text imposed on that file, and this spec adds an
-  11-word provenance line. Impact: if 13 delivers a file within 11 words of the limit,
-  `--write` stops with `size-limit` until 13/08 trim it; 13/08 own the content.
+  sort order of `commands.md` follows whatever 09 finally allows; 09 owns the answer.
+- Q-02 | resolved 2026-11-14 (A-42: spec 09 REQ-54 limits only the body; the risk remains in Risks) | The Claude always-on content (985 + 1,607 words today) exceeds the
+  1,200-word limit that the previous spec 09 text imposed on that file, and this spec adds an
+  11-word provenance line. Impact: if 09 delivers a file within 11 words of the limit,
+  `--write` stops with `size-limit` until 09/11 trim it; 09/11 own the content.
 - Q-03 | non-blocker | Should `docs/PIPELINE.md` (command index and status glossary,
   `workflows/PIPELINE.md:108-145`) also be replaced by links? Impact: drift there remains
   possible; candidate follow-up spec.
-- Q-04 | resolved 2026-11-14 (A-45: adopted as spec 13 DM-4) | Will spec 13 adopt the capability record form (A-32) for its
-  canonical keys? Impact: if 13 delivers another syntax, this spec's Data Model →
-  Capability declaration is reconciled before Discovery; until 13's declarations contain
+- Q-04 | resolved 2026-11-14 (A-45: adopted as spec 09 DM-4) | Will spec 09 adopt the capability record form (A-32) for its
+  canonical keys? Impact: if 09 delivers another syntax, this spec's Data Model →
+  Capability declaration is reconciled before Discovery; until 09's declarations contain
   records, every canonical key renders `unknown` (today only `git-rails` is a record).
   `always-on-path` stays a plain line outside records.
 - Q-05 | non-blocker | When the validator inventory accepts added checks (an ADR-0018
@@ -1454,8 +1454,8 @@ No questions were asked. A reconciliation pass aligned this spec with the final 
 
 ## Notes
 
-- Dependencies: 13 (names, metadata, capability format, `harness/<name>/always-on.md`,
-  PIPELINE move) and 08 (`loads`, reference documents). The generator is a maintainer
+- Dependencies: 09 (names, metadata, capability format, `harness/<name>/always-on.md`,
+  PIPELINE move) and 11 (`loads`, reference documents). The generator is a maintainer
   tool; no workflow requires it at run time (old §1; ADR-0009 Decision 6).
 - Shared acceptance gates G1–G8 apply (`.ai/specs/README.md` → "Shared acceptance gates"); G6 is met by the
   fixture suite; no paid run is needed.
@@ -1468,14 +1468,14 @@ No questions were asked. A reconciliation pass aligned this spec with the final 
 - Rejected: a dedicated data block for statuses (a second vocabulary definition beside the
   anchored lines); whole-file input digests (churn); deleting edited outputs without
   `--force`; rendering the installation result into the generated file (it is dynamic).
-- Follow-up for other specs: 13 has adopted the record form (DM-4) and the handover (REQ-36,
-  Notes → Spec 10 alignment); 11 consumes `--profile`, `docs/harness-matrix.md` and the
-  always-on bytes (its REQ-39). Spec 08 already cites spec 13 DM-5 for "Harness" and records the
-  composition change as carried out by this delivery (its A-11; 10 REQ-50, Scope item 11);
-  nothing further is required of 08. Spec 11a keeps spec 08's meter gate step (08 REQ-08)
-  next to the `gen-docs.py --check` step (11a REQ-64 and its `sync.sh` step list). The
+- Follow-up for other specs: 09 has adopted the record form (DM-4) and the handover (REQ-36,
+  Notes → Spec 19 alignment); 21 consumes `--profile`, `docs/harness-matrix.md` and the
+  always-on bytes (its REQ-39). Spec 11 already cites spec 09 DM-5 for "Harness" and records the
+  composition change as carried out by this delivery (its A-11; 19 REQ-50, Scope item 11);
+  nothing further is required of 11. Spec 20 keeps spec 11's meter gate step (11 REQ-08)
+  next to the `gen-docs.py --check` step (20 REQ-64 and its `sync.sh` step list). The
   deployment must keep both gates, so that load cycles stay checked at deployment.
-- **Identity ledger (follow-up outside this spec):** the ledger row(s) at `.ai/tasks/completed/task-01-git-source-of-truth/state.md` line 208 pins a former-name occurrence at this spec's line 19, which the refined text no longer holds; the change that commits this revision removes them, as spec 11 A-41 does for its own row.
+- **Identity ledger (follow-up outside this spec):** the ledger row(s) at `.ai/tasks/completed/task-01-git-source-of-truth/state.md` line 208 pins a former-name occurrence at this spec's line 19, which the refined text no longer holds; the change that commits this revision removes them, as spec 21 A-41 does for its own row.
 
 ### Change log
 
@@ -1487,34 +1487,34 @@ No questions were asked. A reconciliation pass aligned this spec with the final 
 - 2026-11-13 — English refinement: REQ-01–REQ-15 and AC-01–AC-12 restated; REQ-16–REQ-47
   and AC-13–AC-23 added; status source, generator path, manifest and publication contracts
   fixed.
-- 2026-11-14 — reconciliation with final specs 13, 08 and 11: peer citations by REQ/DM id;
-  size limit counts the always-on body (13 REQ-54); step grammar and order (13 DM-3);
-  harness definition and retirement (13 DM-5, `adapter-incomplete`); records adopted (13
-  DM-4) with extension records and a `## Behaviours` matrix section (REQ-48, 13 REQ-67);
-  `loads` grammar, heading-path sections and plain values per 08 DM-1; `loads` accepted on
-  rules (REQ-49); `loads` target, section and cycle checks left to 08 (REQ-23 narrowed,
+- 2026-11-14 — reconciliation with final specs 09, 11 and 21: peer citations by REQ/DM id;
+  size limit counts the always-on body (09 REQ-54); step grammar and order (09 DM-3);
+  harness definition and retirement (09 DM-5, `adapter-incomplete`); records adopted (09
+  DM-4) with extension records and a `## Behaviours` matrix section (REQ-48, 09 REQ-67);
+  `loads` grammar, heading-path sections and plain values per 11 DM-1; `loads` accepted on
+  rules (REQ-49); `loads` target, section and cycle checks left to 11 (REQ-23 narrowed,
   REQ-24 restated, `load-cycle` withdrawn); deployment handover and gate ownership after
-  11 stated; AC-24–AC-27, REQ-48–REQ-51 and A-42–A-53 added; Scope items 11 (meter counts the
+  21 stated; AC-24–AC-27, REQ-48–REQ-51 and A-42–A-53 added; Scope items 11 (meter counts the
   embedded declaration once) and 12 (extension-key registration) added; Q-01, Q-02, Q-04
   resolved.
-- 2026-11-14 — second reconciliation pass: A-52 and Scope item 11 cite spec 08's A-11 and its
-  always-on composition paragraph (08 agrees that this delivery changes the meter, REQ-50),
-  not the withdrawn "08 Q-03 point 1"; REQ-22 and Notes state that the deployment keeps both
-  the generator gate and spec 08's meter gate (11 REQ-64 owns their position); REQ-48 and
+- 2026-11-14 — second reconciliation pass: A-52 and Scope item 11 cite spec 11's A-11 and its
+  always-on composition paragraph (11 agrees that this delivery changes the meter, REQ-50),
+  not the withdrawn "11 Q-03 point 1"; REQ-22 and Notes state that the deployment keeps both
+  the generator gate and spec 11's meter gate (21 REQ-64 owns their position); REQ-48 and
   AC-24 settle `state: unknown` records (`unavailable`, accepted without runtime, verified or
-  evidence); metadata of files added by specs 14–19 checked against REQ-23, REQ-49 and REQ-51,
+  evidence); metadata of files added by specs 12–17 checked against REQ-23, REQ-49 and REQ-51,
   no key rejected, missing `reads`/`writes`/`called_by` on `atomic-execution-repair` recorded
-  (A-54); spec 13's open decisions do not affect this design; spec 08's `loads` citation
-  changed from REQ-03 to DM-1; no line-number citations of specs 09 and 15–20 exist in
+  (A-54); spec 09's open decisions do not affect this design; spec 11's `loads` citation
+  changed from REQ-03 to DM-1; no line-number citations of specs 10 and 13–18 exist in
   this spec.
-- 2026-11-14 — independent final review: A-08 states that spec 13 keeps the duplicate status line; citations of 08 DM-3 and 13 DM-3 corrected; gate order and environment isolation aligned with 08 and 13; examples use delivered names; identity-ledger follow-up; stale citations corrected.
+- 2026-11-14 — independent final review: A-08 states that spec 09 keeps the duplicate status line; citations of 11 DM-3 and 09 DM-3 corrected; gate order and environment isolation aligned with 11 and 09; examples use delivered names; identity-ledger follow-up; stale citations corrected.
 
 ## Readiness Checklist
 
 | # | Check | Result |
 |---|---|---|
 | 1 | Goal is one domain-language paragraph | PASS — single paragraph stating the outcome |
-| 2 | Out of Scope names concrete exclusions | PASS — owners named per exclusion (13, 08, 11) and preconditions listed |
+| 2 | Out of Scope names concrete exclusions | PASS — owners named per exclusion (09, 11, 21) and preconditions listed |
 | 3 | Each REQ has a stable id and one EARS behaviour | PASS — REQ-01–REQ-51; split items reference their origin |
 | 4 | REQ ↔ AC both ways | PASS — Traceability covers REQ-01–REQ-51 and AC-01–AC-27 |
 | 5 | ACs binary, observable, testable first | PASS — fixture cases in `scripts/check-gen-docs.py`; AC-10 delivery part and AC-21 verified once on the delivery commit |
@@ -1528,10 +1528,10 @@ No questions were asked. A reconciliation pass aligned this spec with the final 
 | 13 | Feature-sized (1–8 subtasks) | PASS — about five subtasks (Notes) |
 | 14 | Devil's Advocate review | PASS — Review: 3 rounds, score 99/100, critic: sub-agent, open: F-28 (minor, applied after the final round) |
 
-Reconciliation pass 2026-11-14: targeted alignment with final specs 13, 08 and 11; changed
+Reconciliation pass 2026-11-14: targeted alignment with final specs 09, 11 and 21; changed
 passages checked by one independent critic; verdict unchanged. Second pass 2026-11-14:
-points raised by specs 08, 11, 13, 14–19 settled (A-52, A-54); changed passages checked
+points raised by specs 11, 21, 09, 12–17 settled (A-52, A-54); changed passages checked
 by one independent critic; verdict unchanged.
 
 Verdict: **READY FOR DEVELOPMENT** — implementation starts only after the preconditions
-(specs 13 and 08 delivered) hold. Automated readiness is not sign-off.
+(specs 09 and 11 delivered) hold. Automated readiness is not sign-off.

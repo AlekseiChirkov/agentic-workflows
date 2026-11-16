@@ -14,7 +14,7 @@ flow: full
 ### Assumptions
 - Tracked knowledge files are permitted and the blanket prohibition must be removed (source: user, 2026-10-22).
 - Keep explicit staging and repository-owned tracking policy; preserve ignored state for consumer repositories that choose it (source: user; ADR-0012).
-- Implement only the hook-focused harness/capability/registry scaffold needed here; preserve existing deployment targets and leave the larger harness migration outstanding. Selecting this specification is a narrow roadmap-order exception (source: user invocation; ADR-0009 Decisions 2, 5 and 7; spec 13 REQ-35/36/38; Arbiter).
+- Implement only the hook-focused harness/capability/registry scaffold needed here; preserve existing deployment targets and leave the larger harness migration outstanding. Selecting this specification is a narrow roadmap-order exception (source: user invocation; ADR-0009 Decisions 2, 5 and 7; spec 09 REQ-35/36/38; Arbiter).
 - Hook availability is distinct from boundary coverage. Batched sub-agent skills and single-session internal transitions retain prompt logging unless explicitly observable (source: specification REQ-04; workflows/spec-run.md dispatch shape; Arbiter).
 - Extend the existing producer additively; never replace its validated vocabularies, optional-jq legacy path or read-only lint guarantees (source: ADR-0011).
 - Correlation state is private active metadata outside historical logs; explicit run/session/agent/checkpoint identity and an accepted-write receipt govern attribution and retries (source: specification REQ-01/03; Arbiter).

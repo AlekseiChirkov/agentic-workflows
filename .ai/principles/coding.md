@@ -81,7 +81,7 @@ Every document that is *about* the project rather than *part of* the pipeline go
 | Worked examples of finished tasks | `docs/examples/<slug>/` | — |
 
 The repository root holds only `CLAUDE.md` (the harness reads it there), `README.md`
-(once spec 11 creates it), `LICENSE`, the scripts, and the source directories
+(once spec 21 creates it), `LICENSE`, the scripts, and the source directories
 (`workflows/`, `rules/`, `principles/`, `templates/`, `.ai/`, `docs/`, `logs/`).
 
 An agent asked to "analyse", "audit", "compare", "review", "summarise", or "write up"
@@ -94,7 +94,7 @@ the analysis that motivated it stays in `docs/`.
 ### Documentation
 - `docs/USAGE.md` is the operating manual; `PIPELINE.md` the reference; a workflow's own header
   is the authority on its invocation. When they disagree, fix the two derived ones to
-  match the workflow (until `specs/10-generated-reference-docs.md` makes them generated).
+  match the workflow (until `specs/19-generated-reference-docs.md` makes them generated).
 - Numbers quoted in docs (check counts, file counts) are updated in the same change that
   changes them.
 - The identity ledger in `.ai/tasks/completed/task-01-git-source-of-truth/state.md` pins

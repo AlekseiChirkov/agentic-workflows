@@ -1,4 +1,4 @@
-# 16. Scoped verification: review evidence, reuse for unchanged inputs and finding-led recheck
+# 15. Scoped verification: review evidence, reuse for unchanged inputs and finding-led recheck
 
 ## Source
 
@@ -10,7 +10,7 @@
   with its meaning restated in EARS form under `## Requirements` and `## Acceptance Criteria`;
   new identifiers are appended. Two narrowings are deliberate: original REQ-03's three tiers
   become one delivered tier (`standard`), the others needing a later owner decision (A-07); and
-  original REQ-08's "later-found defects" are tracked by spec 09 (late defects, spec 09 DM-11
+  original REQ-08's "later-found defects" are tracked by spec 10 (late defects, spec 10 DM-11
   `late-defect` records), not here.
 - **Refinement.** Rewritten in English on 2026-11-14 in an autonomous refinement under the
   owner's standing authorization for in-place replacement, against worktree revision
@@ -31,7 +31,7 @@
 
 ### Original text (translated from Russian; historical, non-normative)
 
-**Title.** 16. Risk-based verification and finding-led recheck of repairs.
+**Title.** 15. Risk-based verification and finding-led recheck of repairs.
 
 **1. Status and grounds.** Status: a future capability of direction 5 of the request of
 2026-10-21. Source snapshot: `8c2fa08c18115ffcf38a1798742c41e53a2c7461`, 2026-10-28. The current
@@ -41,7 +41,7 @@ separate audit report mentioned by the source documents is absent from the snaps
 used as evidence of implementation. Receipts of reproducible checks, qualified cheaper modes
 and rechecking only the affected area are not yet declared implemented. This specification
 changes evidence preparation and the scope of review. Automatic repair and exemption from the
-stop are defined exclusively by [19](19-local-repair-and-escalation.md).
+stop are defined exclusively by [17](17-local-repair-and-escalation.md).
 
 **2. Goal and boundaries.** Repeat only those checks whose inputs or scope have justifiably
 changed, while keeping an independent assessment of all criteria and of the behaviour of the
@@ -57,7 +57,7 @@ selection outside the catalog, and a new status vocabulary.
 | Orchestrator | Collect facts, check freshness, choose the permitted mode by policy, keep stops and evidence |
 | Deterministic tools | Execute real commands and keep results; do not decide architectural correctness beyond their checks |
 | Independent reviewer | Assess the exact contract, behaviour, interfaces, invariants and findings without the executor's reasoning |
-| Independent evaluation 09 | Check which defects the whole strategy misses, including a strong reviewer |
+| Independent evaluation 10 | Check which defects the whole strategy misses, including a strong reviewer |
 
 **3. Fixed conditions.** (1) Every criterion and material invariant has a verification owner
 or an explicitly open gap. (2) A required failed, missing or unknown check never becomes
@@ -85,7 +85,7 @@ template.
   into `DONE`.
 - REQ-03. Keep three available tiers: deterministic checks, a qualified cheaper semantic review
   and a strong review of complex/critical/uncertain changes. The current conservative policy
-  stays the default until a new one passes independent evaluation 09. A positive result of a
+  stays the default until a new one passes independent evaluation 10. A positive result of a
   lower tier does not by itself permit dropping the required semantic review.
 - REQ-04. The reviewer packet contains the exact AC, invariants and constraints, the base and
   reviewed revisions, the complete change list, the diff and the needed surrounding behaviour,
@@ -103,7 +103,7 @@ template.
   reviewed scope, receipts, all material findings, open obligations and expansion reasons.
   Shortening a report does not remove anything important. The specification itself does not
   start repair and does not close a defect.
-- REQ-08. Pass to 05/09 information about commands, verification levels, reused inputs,
+- REQ-08. Pass to 05/10 information about commands, verification levels, reused inputs,
   rechecks, context expansion and later-found defects. Compare execution and verification on
   the same tasks; do not assume verification is always cheaper. Apply G1–G8.
 
@@ -119,7 +119,7 @@ to the test-level decision; the reviewer does not create it for convenience. Cho
 (1) determine required commands and semantic obligations first, cost second; (2) for critical
 risk, uncertain impact, architecture/shared-contract change or missing qualification use the
 current conservative/strong review; (3) a cheaper semantic review is admissible only for a
-pre-qualified task class, an available configuration and a permitted 09/18 policy — a low
+pre-qualified task class, an available configuration and a permitted 10/16 policy — a low
 price or a model name is not qualification; (4) deterministic checks run before semantic ones
 when admissible, and their failure stands even after a positive reviewer text; (5) both
 semantic tiers need not run on every task: the sufficient permitted mode is chosen, and the
@@ -139,7 +139,7 @@ platform and safe configuration identifiers; secrets and raw credentials are not
 external state, the current date, network, randomness or secret-dependent configuration
 materially affects the result and cannot be captured, the receipt is marked unusable for reuse
 and the check is run again; a random set of known fields must not be hashed and declared the
-full environment. Artifacts per 17 hold complete results and hashes; `capture_status !=
+full environment. Artifacts per 14 hold complete results and hashes; `capture_status !=
 complete`, a lost artifact or a byte mismatch excludes its use as evidence of a successful
 check; the creation time helps diagnosis but does not prove freshness. Reuse is permitted only
 when all hold: schema and command supported; contract and checked obligation match; the full
@@ -159,7 +159,7 @@ evidence where applicable, frozen test hashes, actual commands and results. (6) 
 plan, open findings, the previously reviewed area and the reasons for the requested mode.
 Excluded: the executor's reasoning, its conversation about producing the solution and its
 self-assessment; facts from its result are re-verified and moved into neutral form. A reviewer
-that finds a missing basis requests expansion through 14/17 and does not accept the result
+that finds a missing basis requests expansion through 12/14 and does not accept the result
 before receiving the needed context.
 
 **8. Recheck of a repair.** The comparison base is the last independently reviewed tree, not an
@@ -174,7 +174,7 @@ is fixed. (4) Repeat changed deterministic checks; use unchanged results only pe
 (6) On a public/shared interface, architecture, invariant or criteria change, or unknown impact,
 widen to the whole affected task; when it cannot be localized, to the whole change.
 (7) Produce an independent verdict and a complete scope record; fixing all old findings is not
-acceptance when a new important violation appeared. After merging children per 12 the actual
+acceptance when a new important violation appeared. After merging children per 23 the actual
 resulting tree is checked; two successful checks of isolated branches do not prove their
 compatibility; a recheck may use individual matching receipts but does not carry a common green
 verdict over to the merge without analysis.
@@ -208,7 +208,7 @@ narrow result. AC-05 (REQ-06, REQ-07): a local repair checks old findings, regre
 remaining AC; an interface/invariant change widens the scope; important findings survive report
 shortening; a wrong result is not closed automatically; a merge is checked on the resulting
 tree. AC-06 (REQ-08): the scenarios "tests green, behaviour wrong" and a violation the reviewer
-missed are detected by the independent checks of 09; reports separate execution, review and
+missed are detected by the independent checks of 10; reports separate execution, review and
 repair, include the full recheck and disabling of the optimization, without unconfirmed promises
 of savings. Traceability: REQ-01–02 → AC-01; REQ-03 → AC-02; REQ-04 → AC-03; REQ-05 → AC-04;
 REQ-06–07 → AC-05; REQ-08 → AC-06.
@@ -217,10 +217,10 @@ REQ-06–07 → AC-05; REQ-08 → AC-06.
 not redefine the state vocabulary. (2) Introduce the obligation map and synthetic defects before
 optimizing repeats. (3) Implement receipts with a complete input manifest and conservative
 invalidation; then the independent review packet. (4) Add repair impact analysis and the
-explanation of retained coverage. (5) Connect 14/15/17 and 05 reporting; check the complete
+explanation of retained coverage. (5) Connect 12/13/14 and 05 reporting; check the complete
 fallback path with the optimization disabled. (6) Keep the cheaper mode off by default until a
-separate qualification under 09 with quality tolerances chosen in advance by the owner.
-Dependencies: 09, 14, 15, 17. Gates G1–G8 are mandatory. Matching receipts confirm the
+separate qualification under 10 with quality tolerances chosen in advance by the owner.
+Dependencies: 10, 12, 13, 14. Gates G1–G8 are mandatory. Matching receipts confirm the
 repeatability of known inputs, not complete understanding of the system. Checks with unknown or
 unstable inputs may be run again — saving is not more important than sufficient evidence.
 
@@ -255,26 +255,26 @@ Facts verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
    (`workflows/spec-run.md:297-299`).
 5. **The composite integration check reads the union of children's files.**
    (`workflows/phase-composite-validation.md:55-64`); exactly one workflow, `/pav-close`, may
-   invoke it (`scripts/validate-contracts.sh:1451-1455`). Spec 12a later moves the invocation to
+   invoke it (`scripts/validate-contracts.sh:1451-1455`). Spec 22 later moves the invocation to
    `/spec-run` and runs it on a merged composite tip
-   (spec 12a REQ-12, REQ-40).
-6. **Spec 14 supplies the Validator's context but leaves sufficiency here.** The validator
+   (spec 22 REQ-12, REQ-40).
+6. **Spec 12 supplies the Validator's context but leaves sufficiency here.** The validator
    packet carries the Task Contract, `base_commit`, the reviewed revision and the
-   `--no-renames` name-status list of changed paths; "16 decides sufficiency and may add sources
-   by expansion" (spec 14 C-8 row 16, REQ-19, DM-6 item 7).
+   `--no-renames` name-status list of changed paths; "15 decides sufficiency and may add sources
+   by expansion" (spec 12 C-8 row 15, REQ-19, DM-6 item 7).
    Packets are content-addressed and `task_contract_hash` is `sha256:` + the contract part
-   digest (14 C-8 row 15); a contract change mid-leaf yields a successor packet and the Validator
-   judges against the current contract (14 A-10).
-7. **Spec 15 exposes checkpoint facts but keeps Validators away from Implementer reports.**
+   digest (12 C-8 row 13); a contract change mid-leaf yields a successor packet and the Validator
+   judges against the current contract (12 A-10).
+7. **Spec 13 exposes checkpoint facts but keeps Validators away from Implementer reports.**
    Its REQ-30 forbids the Orchestrator to pass "an Implementer report, checkpoint message,
    proposal, receipt or journal path to a Validator"
-   (`.ai/specs/15-orchestrator-overhead.md`, REQ-30 and the Validator row of its Actors & Roles table);
-   its C-10 row for spec 16 records that this spec does not consume `green` messages or
+   (`.ai/specs/13-orchestrator-overhead.md`, REQ-30 and the Validator row of its Actors & Roles table);
+   its C-10 row for spec 15 records that this spec does not consume `green` messages or
    `red`/`pinned` receipts, because REQ-30 forbids passing them to a Validator, and keeps
    Validator inputs at `workflows/spec-run.md:284-292` plus the reviewer inputs owned here.
-8. **Report forms exist for the Check boundary.** Spec 08's Check form has `Scope`, `Inputs`,
+8. **Report forms exist for the Check boundary.** Spec 11's Check form has `Scope`, `Inputs`,
    `Verified obligations`, `Unverified obligations`, `Findings` (every critical and important
-   finding) and `Verdict` (`.ai/specs/08-context-tiering.md`, DM-8 Report forms).
+   finding) and `Verdict` (`.ai/specs/11-context-tiering.md`, DM-8 Report forms).
 9. **The validator inventory is frozen.** New checks go into standalone scripts outside
    `scripts/validate-contracts.sh` and outside `tests/` (ADR-0019 Decision 3,
    `.ai/adr/0019-task-unknown-spec-draft-devils-advocate-review.md:68-80`). Several frozen
@@ -294,7 +294,7 @@ Facts verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
 re-review after a repair repeats the whole review without a defined link to the earlier
 findings, and nothing records why a narrower re-review would still cover all obligations. The
 roadmap states that no saving has been measured (`.ai/specs/README.md` → "Nine token optimization workstreams"); this spec creates
-the evidence and the safe scoping, and leaves any claim of saving to spec 09.
+the evidence and the safe scoping, and leaves any claim of saving to spec 10.
 
 ## Goal
 
@@ -324,20 +324,20 @@ with the single change that defined checks are classified the same way on both p
    orchestration rule (C-5).
 8. The standalone acceptance suite `scripts/check-scoped-verification.py` (C-7), an ignore rule,
    documentation, knowledge-base updates and an ADR.
-9. The contracts exposed to specs 05, 09, 12, 15, 17, 18, 19 and 20 (C-6).
+9. The contracts exposed to specs 05, 10, 23, 13, 14, 16, 17 and 18 (C-6).
 
 ## Out of Scope
 
 - Repair: classification of findings for repair, repair contracts, attempt limits, episodes,
-  escalation to a stronger model and any change to the NEEDS WORK stop (spec 19).
+  escalation to a stronger model and any change to the NEEDS WORK stop (spec 17).
 - A cheaper or differently configured reviewer, model or effort selection for reviewers
-  (specs 04, 18); qualification of any verification strategy and every claim that scoped review
-  preserves quality or saves cost (spec 09, strategy E of
+  (specs 04, 16); qualification of any verification strategy and every claim that scoped review
+  preserves quality or saves cost (spec 10, strategy E of
   its original §7, REQ-06). The only tier delivered is `standard`.
-- Context packets, their freshness and expansion recording (spec 14); checkpoint messages and
-  journals (spec 15); output capture, bounded previews, range retrieval and artifact integrity of
-  command output (spec 17, used through this spec's DM-4a); usage
-  telemetry objects (spec 05); parallel children, worktrees and merges (spec 12).
+- Context packets, their freshness and expansion recording (spec 12); checkpoint messages and
+  journals (spec 13); output capture, bounded previews, range retrieval and artifact integrity of
+  command output (spec 14, used through this spec's DM-4a); usage
+  telemetry objects (spec 05); parallel children, worktrees and merges (spec 23).
 - Reusing receipts produced outside review workflows, receipts across different worktree roots,
   and any per-check dependency model narrower than the whole non-ignored repository tree.
 - Running `build:` commands, timeouts on checks, cleanup of stores, and locks against two
@@ -358,7 +358,7 @@ with the single change that defined checks are classified the same way on both p
 | Reviewer (Validator in `/pav-check`; task reviewer in `/pv-contract`, `/pv-review`; composite reviewer in `/phase-composite-validation`) | Runs `prepare`, `run` and `record` (at N = 1; in the cases of REQ-62 the reviewer returns a draft and the root runs `record`); reads sources and git directly; writes drafts under `<task>/verification/drafts/` (at N = 1; in the cases of REQ-62 it returns the draft and the root saves it); appends DM-8 notes entries only where its workflow already writes; never reads the Implementer's reasoning, report or self-assessment |
 | Orchestrator (`/spec-run`) | Spawns the Validator as today; applies composite deltas carrying DM-8 entries; never runs the helper for a review it does not perform |
 | Implementer | Unchanged; never runs `run` or `record` |
-| `scripts/scoped-verification.py` | Reads the task directory, the knowledge root and the repository; runs read-only git subcommands; executes exactly the runbook command of the requested check (through spec 17's helper when available, which also runs its `verify`); writes only the receipt store (`run`) and `<task>/verification/reviews/` (`record`); starts no model, opens no network connection itself |
+| `scripts/scoped-verification.py` | Reads the task directory, the knowledge root and the repository; runs read-only git subcommands; executes exactly the runbook command of the requested check (through spec 14's helper when available, which also runs its `verify`); writes only the receipt store (`run`) and `<task>/verification/reviews/` (`record`); starts no model, opens no network connection itself |
 | `scripts/check-scoped-verification.py` | Acceptance suite; builds and removes disposable fixtures under a temporary directory only |
 | Project owner | Declares reusable checks in the runbook; disables the helper with `ORCHESTRAIL_SCOPED_VERIFICATION=off`; decides owner-decision findings and deferrals through existing stops |
 
@@ -368,7 +368,7 @@ with the single change that defined checks are classified the same way on both p
 |---|---|---|
 | Review | One run of `/pav-check` (step `check`), `/pv-contract` (step `contract`), `/pv-review` (step `review`) or `/phase-composite-validation` (step `integration`) | `workflows/pav-check.md:2`, `workflows/pv-contract.md:2`, `workflows/pv-review.md:2`, `workflows/phase-composite-validation.md:2`; this spec |
 | Level | `leaf`, `task` or `composite` — what a review covers | This spec |
-| Scope key | The leaf or composite id (15's `leaf_id` form) for leaf and composite reviews; `task` for task-level reviews | `.ai/specs/15-orchestrator-overhead.md`, Data Model → Identifiers (`leaf_id`) |
+| Scope key | The leaf or composite id (13's `leaf_id` form) for leaf and composite reviews; `task` for task-level reviews | `.ai/specs/13-orchestrator-overhead.md`, Data Model → Identifiers (`leaf_id`) |
 | Obligation | One item a review must judge: `AC-<n>`, `INV-<n>` or `OFF-<n>` (DM-2) | Original §5 "obligation" |
 | Coverage plan | The obligations, contract digest and check definitions of one review (DM-2) | Original §5 |
 | Change manifest | The changed paths the review must read, with content digests (DM-3) | Original §7 item 2 |
@@ -383,25 +383,25 @@ with the single change that defined checks are classified the same way on both p
 | Finding-led recheck | A review whose scope is `finding-led`: every open prior finding gets an outcome, every changed path and affected obligation is re-reviewed, unaffected obligations are carried | Original §8 |
 | Fix diff | The paths changed since the prior record's reviewed head (DM-5) | Original §8 step 2 "repair diff" |
 | Carried | An obligation state meaning "verified by a prior record whose evidence paths are unchanged" | Original invariant 4 |
-| Finding | One defect in a review record with a stable id `<scope key>/F<n>` (DM-7) | This spec (DM-7); consumed by spec 19 |
+| Finding | One defect in a review record with a stable id `<scope key>/F<n>` (DM-7) | This spec (DM-7); consumed by spec 17 |
 | Outcome | `resolved`, `remains`, `withdrawn`, `owner-decision` or `owner-accepted` for a prior open finding | Original §8 step 3 |
 | Tier | Verification configuration class; only `standard` exists | Original REQ-03 |
 | Helper | `scripts/scoped-verification.py` | This spec |
 | Receipt store | `<git common dir>/orchestrail-verification/` (DM-1) | This spec |
 | `WORK_DIR`, `AI_DIR`, task directory | As resolved by the calling workflow | `workflows/pav-check.md:28-32`; `rules/phase-atomic-validation.md:16-20` |
-| Canonical JSON, self-digest | As spec 15 defines them | `.ai/specs/15-orchestrator-overhead.md`, Data Model preamble |
+| Canonical JSON, self-digest | As spec 13 defines them | `.ai/specs/13-orchestrator-overhead.md`, Data Model preamble |
 | Verdict, severity | `DONE`/`NEEDS WORK`; `critical`/`important`/`optional` — unchanged | `workflows/pav-check.md:97-101` |
 
 Rejected synonyms: "cache" or "cache hit" for reuse (no provider cache is involved); "tier" for a
 scope; "incremental review" for finding-led recheck; "fixed" for the outcome `resolved`;
-"receipt" for a review record or for spec 14's and 15's receipts (those keep their own names in
+"receipt" for a review record or for spec 12's and 13's receipts (those keep their own names in
 their specs).
 
 ## Requirements
 
-Names follow today's files; once spec 13 is delivered (it precedes this spec,
-`.ai/specs/README.md` → "Dependency order"), every workflow and rule path follows 13's maps (`## Notes → Name
-mapping`). Spec 08's `loads:` declarations and 700-word limit for rules apply to every file this
+Names follow today's files; once spec 09 is delivered (it precedes this spec,
+`.ai/specs/README.md` → "Dependency order"), every workflow and rule path follows 09's maps (`## Notes → Name
+mapping`). Spec 11's `loads:` declarations and 700-word limit for rules apply to every file this
 spec adds or edits. "THE helper" is `scripts/scoped-verification.py`; a requirement that names a
 workflow or rule binds that file.
 
@@ -462,7 +462,7 @@ workflow or rule binds that file.
 
 - **REQ-17 Execution.** WHEN `run` executes a check, THE helper SHALL run the argument vector
   `["bash", "-c", <runbook value>]` exactly once in `WORK_DIR` with the helper's own environment,
-  capture standard output and standard error as DM-4a states (through spec 17's helper when it is
+  capture standard output and standard error as DM-4a states (through spec 14's helper when it is
   available and does not refuse, otherwise to separate files of its own; REQ-58), and publish one
   DM-4 receipt.
 - **REQ-18 Non-reusable receipts.** WHEN `run` publishes a receipt, THE helper SHALL set
@@ -482,7 +482,7 @@ workflow or rule binds that file.
   exit 3 with error `store-unwritable` before executing the command.
 - **REQ-23 Interruption.** IF the helper receives SIGINT or SIGTERM during `run`, THEN THE helper
   SHALL forward the signal to the process group of the child it started (the command in mode
-  `direct`, spec 17's helper in mode `capture-output`, which forwards it on by its own REQ-15),
+  `direct`, spec 14's helper in mode `capture-output`, which forwards it on by its own REQ-15),
   wait for that child to exit, publish no receipt, and exit 4 with error `interrupted`.
 
 ### Records
@@ -525,7 +525,7 @@ workflow or rule binds that file.
 ### Helper boundaries
 
 - **REQ-34 Disable switch.** WHILE `ORCHESTRAIL_SCOPED_VERIFICATION` is set to a value other than the
-  empty string or `on` (documented value `off`; the rule of spec 14 REQ-32), THE helper SHALL
+  empty string or `on` (documented value `off`; the rule of spec 12 REQ-32), THE helper SHALL
   exit 4 with error `disabled` for every subcommand except `version`, executing and writing
   nothing.
 - **REQ-35 Runtime and repository.** IF the Python runtime is older than 3.11, or `--work` is not
@@ -534,7 +534,7 @@ workflow or rule binds that file.
 - **REQ-36 Isolation.** WHILE any subcommand runs, THE helper SHALL write only inside the receipt
   store (`run`) and `<task>/verification/reviews/` (`record`), start no model, and open no network
   connection itself; the only other processes it starts are read-only git subcommands, the check
-  command, and spec 17's `capture-output.sh run` (which writes its own store) and `verify`.
+  command, and spec 14's `capture-output.sh run` (which writes its own store) and `verify`.
 - **REQ-37 Result line.** WHEN a subcommand ends, THE helper SHALL print exactly one DM-10 JSON line
   on standard output and nothing else there.
 
@@ -564,7 +564,7 @@ workflow or rule binds that file.
   record attempts of C-4 `Record:` without publication, or the review's files lie in more than one
   git work tree, THE review workflows SHALL perform the full review without the helper (REQ-55 still
   applying) and append the DM-8 `none` entry with the reason DM-8 maps to that cause.
-- **REQ-46 Check report.** WHERE spec 08's Check report form is in force, THE `/pav-check` report
+- **REQ-46 Check report.** WHERE spec 11's Check report form is in force, THE `/pav-check` report
   SHALL fill `Scope`, `Verified obligations`, `Unverified obligations` and `Evidence` from the
   published record per C-5.
 - **REQ-47 Runbook declaration.** THE runbook template `templates/.ai/context/runbook.md` SHALL
@@ -581,57 +581,57 @@ workflow or rule binds that file.
   running checks; and IF a task-level step section starts with a `blocked: verification check `
   line, THEN `/phase-validation` SHALL resume that step's writer and `/pv-review` SHALL stop
   (C-5).
-- **REQ-57 Capture delegation.** WHERE spec 17's capture helper is available (this spec's DM-4a), WHEN `run`
+- **REQ-57 Capture delegation.** WHERE spec 14's capture helper is available (this spec's DM-4a), WHEN `run`
   executes a check, THE helper SHALL run it through that helper and SHALL record in the receipt
   the DM-4a `output` object of mode `capture-output`, never storing output files of its own,
   except as REQ-58 states.
-- **REQ-58 Capture refusal.** IF spec 17's helper refuses before starting the command (DM-4a
+- **REQ-58 Capture refusal.** IF spec 14's helper refuses before starting the command (DM-4a
   case A), THEN `run` SHALL execute the check directly with its own capture and record the refusal
   code in `output.fallback`, so that the refusal changes no review outcome.
-- **REQ-59 Capture loss after start.** IF spec 17's helper may have started the command but
+- **REQ-59 Capture loss after start.** IF spec 14's helper may have started the command but
   published no complete, verifiable artifact (DM-4a case B with a non-`complete` status, and case
   C), THEN `run` SHALL NOT execute the command again and SHALL publish a receipt whose evidence is
   `unusable`, so that `record` refuses it (`check-incomplete`) and REQ-55's blocker applies.
-- **REQ-60 Single step-5 text.** WHERE specs 17 and 16 are both delivered, THE `/pav-check` step 5
+- **REQ-60 Single step-5 text.** WHERE specs 14 and 15 are both delivered, THE `/pav-check` step 5
   sentences and the `/phase-composite-validation` check sentence SHALL read exactly as the C-5
-  replaced-sentence rows state, superseding spec 17's C-5 rows 3a and 5.
-- **REQ-61 Spec 17 suite alignment.** THE delivered change SHALL update the text cases of spec
-  17's acceptance suite `scripts/check-capture-output.py` that assert its C-5 rows 3a and 5 so that
+  replaced-sentence rows state, superseding spec 14's C-5 rows 3a and 5.
+- **REQ-61 Spec 14 suite alignment.** THE delivered change SHALL update the text cases of spec
+  14's acceptance suite `scripts/check-capture-output.py` that assert its C-5 rows 3a and 5 so that
   they assert the C-5 resulting sentences of this spec instead, and that suite SHALL pass.
-- **REQ-62 Record in parallel mode.** WHERE spec 12's REQ-55 applies (it names the exact cases:
+- **REQ-62 Record in parallel mode.** WHERE spec 23's REQ-55 applies (it names the exact cases:
   while N > 1, the child `/pav-check` agent, the Validator of a serialized composite's child and
-  the composite validation agent of 12a REQ-12; 12 REQ-01 makes the root orchestrator the only
+  the composite validation agent of 22 REQ-12; 23 REQ-01 makes the root orchestrator the only
   writer under `.ai/`), THE reviewing agent SHALL run `prepare` and `run` but never `record`, and
   SHALL return its review draft to the root; THE root orchestrator SHALL save that draft under
   `<task>/verification/drafts/` (DM-1) of the root worktree and run `record --draft` on it with
   the options the agent passed to `prepare`, so that the record is written under the root
   worktree's `<task>/verification/reviews/<scope key>/`. IF the returned draft is unusable
-  (missing or not JSON, which `record` reports as `draft-invalid`; 12 REQ-56 also counts a draft naming a different `--work`, `--task` or `--ai-dir` as unusable) or `record` refuses it (exit 1,
+  (missing or not JSON, which `record` reports as `draft-invalid`; 23 REQ-56 also counts a draft naming a different `--work`, `--task` or `--ai-dir` as unusable) or `record` refuses it (exit 1,
   including `check-incomplete`), THEN the root SHALL write no record and apply the `Record:` rule
   of C-4: one correction by a fresh reviewing agent given the refusal reasons, and after a second
   unusable or refused draft, or `record` exiting 2, 3 or 4, a full review without the helper
   (A-33); what the root does when that review also fails (the `record-failed` block) is owned by
-  spec 12 (12 REQ-56). WHEN the reviewing agent runs `record` itself (N = 1, the Validator
+  spec 23 (23 REQ-56). WHEN the reviewing agent runs `record` itself (N = 1, the Validator
   running `record` as C-4 states), this requirement does not apply. Dispatch, the verdict and
-  notes deltas, the DM-8 entry and the correction reply in parallel mode are owned by spec 12
-  (12 REQ-55, REQ-56, C-6 rows 11 and 12).
+  notes deltas, the DM-8 entry and the correction reply in parallel mode are owned by spec 23
+  (23 REQ-55, REQ-56, C-6 rows 11 and 12).
 
 ### Delivery
 
 - **REQ-49 Frozen checks.** THE delivered change SHALL pass the unchanged
-  `scripts/validate-contracts.sh`, spec 08's `measure-context.sh check` and spec 13's
+  `scripts/validate-contracts.sh`, spec 11's `measure-context.sh check` and spec 09's
   `scripts/lint-instructions.py`, with no change to `scripts/validate-contracts.sh`, to any file
   under `tests/`, or to `tests/fixtures/validator-runtime/inventory-amendment.json`.
-- **REQ-50 Golden regression.** THE delivered change SHALL pass spec 09's offline suite
+- **REQ-50 Golden regression.** THE delivered change SHALL pass spec 10's offline suite
   (`python3 -I tests/golden-runs.py`) with no change to its expected results.
 - **REQ-51 Rule deployment.** THE delivered change SHALL register `rules/contract-verification.md`
   in the rule deployment mechanism current at delivery (today the rule lists of
   `scripts/setup-new-project.sh:89`, `:124` and `scripts/sync.sh:208`, `:218`).
 - **REQ-52 Knowledge and decision.** THE delivered change SHALL update the files listed in C-8 and
   add an Accepted ADR indexed in `.ai/adr/index.md` recording the content named in C-8.
-- **REQ-53 Audit proposals.** WHERE the spec 13a audit assessment exists at delivery, THE ADR of
-  REQ-52 SHALL list every proposal it assigns to owner 16 (`review-repeat` by default,
-  spec 13a DM-7 default owners, A-07) as implemented — only when the change falls
+- **REQ-53 Audit proposals.** WHERE the spec 08 audit assessment exists at delivery, THE ADR of
+  REQ-52 SHALL list every proposal it assigns to owner 15 (`review-repeat` by default,
+  spec 08 DM-7 default owners, A-07) as implemented — only when the change falls
   within the C-8 files and this spec's requirements — or declined with a reason; WHERE it does not
   exist, THE ADR SHALL state that no audit proposal was available.
 - **REQ-54 Standalone suite.** THE acceptance suite SHALL be `scripts/check-scoped-verification.py`,
@@ -639,7 +639,7 @@ workflow or rule binds that file.
 
 ## Data Model
 
-All entities are **new**. JSON is canonical JSON as in spec 15 (UTF-8, sorted keys,
+All entities are **new**. JSON is canonical JSON as in spec 13 (UTF-8, sorted keys,
 `ensure_ascii=False`, separators `,` and `:`, one trailing LF). A digest is `sha256:` + 64
 lowercase hex. Paths inside records are POSIX paths relative to the repository top-level
 directory (`git rev-parse --show-toplevel` of `--work`), without `..` or a leading `/`.
@@ -663,7 +663,7 @@ reuse and forces full scope. Migration: none; a task without records is reviewed
 **Excluded prefix.** When the task directory lies inside a work tree whose git common directory
 equals that of `--work`, the excluded prefix is the task directory's path relative to *its own*
 work tree top-level; the prefix is then excluded from `--work`'s tree in DM-3, DM-4 and DM-5 (so a
-spec-12 child worktree excludes its copy of the root task directory). Otherwise nothing is
+spec-23 child worktree excludes its copy of the root task directory). Otherwise nothing is
 excluded.
 
 ### DM-2 Coverage plan (part of the `prepare` result)
@@ -722,10 +722,10 @@ string. For a `D` entry, "read in full" (REQ-04) means reading its base content
 | `schema_version`, `kind` | `1`, `"check_receipt"` | |
 | `check` | `test`, `lint`, `typecheck` | |
 | `command` | object | `argv` (list of strings), `argv0_path` (real path of `argv[0]` resolved through the helper's `PATH`, or `null`), `argv0_sha256` (digest of that file's bytes, or `null`), `cwd` (`--work` relative to the top-level directory, `.` for the top). When `argv[0]` does not resolve, the command is not started and `command_status` is `start-error` |
-| `inputs` | object | `tree_digest`, `worktree_id` (spec 15's Data Model → Identifiers definition), `environment_digest`, `platform` (`system`, `release`, `machine` from Python's `platform` module), `inputs_digest` |
+| `inputs` | object | `tree_digest`, `worktree_id` (spec 13's Data Model → Identifiers definition), `environment_digest`, `platform` (`system`, `release`, `machine` from Python's `platform` module), `inputs_digest` |
 | `inputs_after` | object | `tree_digest` recomputed after the command ended |
-| `command_status` | object | `{"kind": "exit", "code": <int>}`, `{"kind": "signal", "signal": <int>}`, `{"kind": "start-error", "detail": <string>}`, or — mode `capture-output` only — `{"kind": "aborted", "label": <spec 17 outcome label, or "unknown">}` (DM-4a mapping) |
-| `output` | object | DM-4a. Mode `direct`: `{"mode": "direct", "capture_status": "complete"\|"failed", "stdout": S, "stderr": S, "fallback": <string or null>}` with `S` = `{"sha256", "bytes"}` or `null` when capture failed. Mode `capture-output`: `{"mode": "capture-output", "reference": <spec 17 DM-6 OUTPUT line or null>, "artifact_id": <32 hex or null>, "manifest_sha256": <hex or null>, "manifest": <object or null>}` where `manifest` copies exactly the spec 17 DM-2 keys `capture_status`, `command_status`, `purpose`, `argv_sha256`, `cwd`, `worktree`, `head`, `started_at`, `ended_at` |
+| `command_status` | object | `{"kind": "exit", "code": <int>}`, `{"kind": "signal", "signal": <int>}`, `{"kind": "start-error", "detail": <string>}`, or — mode `capture-output` only — `{"kind": "aborted", "label": <spec 14 outcome label, or "unknown">}` (DM-4a mapping) |
+| `output` | object | DM-4a. Mode `direct`: `{"mode": "direct", "capture_status": "complete"\|"failed", "stdout": S, "stderr": S, "fallback": <string or null>}` with `S` = `{"sha256", "bytes"}` or `null` when capture failed. Mode `capture-output`: `{"mode": "capture-output", "reference": <spec 14 DM-6 OUTPUT line or null>, "artifact_id": <32 hex or null>, "manifest_sha256": <hex or null>, "manifest": <object or null>}` where `manifest` copies exactly the spec 14 DM-2 keys `capture_status`, `command_status`, `purpose`, `argv_sha256`, `cwd`, `worktree`, `head`, `started_at`, `ended_at` |
 | `reusable` | boolean | |
 | `not_reusable_reasons` | sorted list | Subset of `not-declared`, `capture-failed`, `abnormal-exit`, `inputs-changed-during-run`, `unknown-input:submodule`, `unknown-input:unreadable`, `unknown-input:unmerged`, `unknown-input:path-encoding`, `unknown-input:nested-repository` |
 | `created_at` | string | UTC, `YYYY-MM-DDTHH:MM:SSZ`; diagnostic only |
@@ -748,50 +748,50 @@ digest is stored.
 `command_status.kind` is `exit`, both output files exist and their bytes match `sha256` and
 `bytes`; mode `capture-output` — `usable` when `manifest.capture_status` is `complete`,
 `command_status.kind` is `exit`, `manifest.argv_sha256` equals the SHA-256 of the canonical JSON
-of `command.argv` (spec 17's DM-2 definition), `manifest.cwd` equals the real path of `--work`,
+of `command.argv` (spec 14's DM-2 definition), `manifest.cwd` equals the real path of `--work`,
 and `bash <capture helper> verify --reference "<reference>" --work <WORK_DIR>` exits 0 when the
 evidence is evaluated (at reuse and at `record`); otherwise `unusable`.
 
-### DM-4a Capture delegation (spec 17)
+### DM-4a Capture delegation (spec 14)
 
-**Availability.** Spec 17's helper is available when `$ORCHESTRAIL_HOME/scripts/capture-output.sh`
-is a readable regular file and `ORCHESTRAIL_OUTPUT_CAPTURE` is unset, empty or `on` (spec 17's
+**Availability.** Spec 14's helper is available when `$ORCHESTRAIL_HOME/scripts/capture-output.sh`
+is a readable regular file and `ORCHESTRAIL_OUTPUT_CAPTURE` is unset, empty or `on` (spec 14's
 switch). Otherwise `run` uses mode `direct` with `fallback: "unavailable"` (file missing or
 unreadable) or `"disabled"` (any other switch value).
 
 **Invocation.** The executed child is `["bash", <absolute path of capture-output.sh>, "run",
 "--purpose", <test for test, lint for lint and typecheck>, "--", "bash", "-c", <runbook value>]`
 in `WORK_DIR` with the helper's environment and no `--timeout-seconds` or `--limit-bytes`
-(spec 17's Capture line and defaults). `command` in the receipt stays the check's own vector
+(spec 14's Capture line and defaults). `command` in the receipt stays the check's own vector
 `["bash", "-c", <runbook value>]`, so the inputs digest is the same in both modes when the environment is identical; `ORCHESTRAIL_HOME` and `ORCHESTRAIL_OUTPUT_CAPTURE` are part of the environment digest (DM-4), so changing either changes the digest. The capture
 helper's standard output and standard error are held in memory only to classify the case; they
 are not stored.
 
 **Time limit.** `run` passes no `--timeout-seconds`: the helper cannot know the limit of the shell
-call that runs it, and this spec invents no number (A-20, A-35). Spec 17's Capture-line timeout
-rule governs a worker's own shell call and does not bind this helper (spec 17 C-7 row 16); the
+call that runs it, and this spec invents no number (A-20, A-35). Spec 14's Capture-line timeout
+rule governs a worker's own shell call and does not bind this helper (spec 14 C-7 row 15); the
 limit of the worker's outer call applies to the whole `run`. Consequence: when that call is killed,
-this spec's `run` process dies with spec 17's helper, so no receipt is published and nothing
+this spec's `run` process dies with spec 14's helper, so no receipt is published and nothing
 classifies case C; the worker sees no `run` result, the check's outcome is unknown, and the
 reviewer treats it as a check that lost its output under C-4 `Checks:` (blocker, no rerun in this
 review, REQ-59's rule applied by the reviewer). A worker may run the helper's `run` in a background shell call without a
-limit, as spec 17's Capture line allows for long commands; no change to the helper is needed.
+limit, as spec 14's Capture line allows for long commands; no change to the helper is needed.
 
-**Case lettering.** The letters are spec 17's C-7 row 16 mapping, unchanged: a published artifact
+**Case lettering.** The letters are spec 14's C-7 row 15 mapping, unchanged: a published artifact
 is case B whatever the exit status; a non-`complete` published artifact is case B with unusable
 evidence; no artifact, or a failing `verify`, is case C; a refusal is case A.
 
 | Case | Recognized by | Receipt |
 |---|---|---|
 | A — refused before start | Checked after case B. Exit 125, empty standard output, and a standard-error line matching `^capture-output: ([a-z-]+): started=no: `; or exit 126/127 with empty standard output and no `capture-output:` line on standard error (bash could not open the helper) | No receipt for this attempt; `run` executes the check in mode `direct` and records `fallback: <code>` (`unavailable` for the bash case). Codes include `git-command-refused`, `log-step-refused`, `disabled`, `store-unsafe`, `store-unavailable`, `not-a-git-repository`, `platform-unsupported`, `python-unavailable`, `usage`, `limit-too-small` |
-| B — artifact published | Checked first, whatever the exit status (spec 17 C-2 passes the child's status through, so a command not found inside `bash -c` exits 127 here and is case B). First line `capture: v1 <id>` and last line a spec 17 DM-6 OUTPUT line for that id | Mode `capture-output` with `reference`, `artifact_id`, `manifest_sha256` and the `manifest` copy read from `<git common dir>/orchestrail-output/<id>/manifest.json`; `command_status` mapped from the manifest: kind `exit` → `exit` with `exit_code`; `signal` → `signal`; `launch-error` → `start-error` with the label as `detail`; `timeout`, `interrupted` → `aborted` with the label. Reasons: `capture-failed` when `capture_status` is not `complete`; `abnormal-exit` when the kind is not `exit` |
-| C — anything else | Any other combination (for example `capture: v1 unpublished`, `OUTPUT none — <code>`, no `capture: v1` line, or a `verify` failure right after publication) | Mode `capture-output` with `reference`, `artifact_id`, `manifest_sha256` and `manifest` `null` (or the values read, when only `verify` failed), `command_status` `{"kind": "aborted", "label": "unknown"}`, reasons `capture-failed` and `abnormal-exit`; the command is not run again in this review (spec 17's `Not started:` rule) |
+| B — artifact published | Checked first, whatever the exit status (spec 14 C-2 passes the child's status through, so a command not found inside `bash -c` exits 127 here and is case B). First line `capture: v1 <id>` and last line a spec 14 DM-6 OUTPUT line for that id | Mode `capture-output` with `reference`, `artifact_id`, `manifest_sha256` and the `manifest` copy read from `<git common dir>/orchestrail-output/<id>/manifest.json`; `command_status` mapped from the manifest: kind `exit` → `exit` with `exit_code`; `signal` → `signal`; `launch-error` → `start-error` with the label as `detail`; `timeout`, `interrupted` → `aborted` with the label. Reasons: `capture-failed` when `capture_status` is not `complete`; `abnormal-exit` when the kind is not `exit` |
+| C — anything else | Any other combination (for example `capture: v1 unpublished`, `OUTPUT none — <code>`, no `capture: v1` line, or a `verify` failure right after publication) | Mode `capture-output` with `reference`, `artifact_id`, `manifest_sha256` and `manifest` `null` (or the values read, when only `verify` failed), `command_status` `{"kind": "aborted", "label": "unknown"}`, reasons `capture-failed` and `abnormal-exit`; the command is not run again in this review (spec 14's `Not started:` rule) |
 
-A review never reads spec 17's preview as evidence through this helper; the reviewer reads and
-cites the captured output by the `reference` line under spec 17's `## Reading output` and
-`## Evidence` rules. Spec 16 keeps the inputs digest, the reuse decision (DM-6) and the review
-record. Spec 17's helper refuses every argument holding a git or gh word; case A turns that into
-a direct run, exactly as spec 17's rule tells a worker to run such a command directly.
+A review never reads spec 14's preview as evidence through this helper; the reviewer reads and
+cites the captured output by the `reference` line under spec 14's `## Reading output` and
+`## Evidence` rules. Spec 15 keeps the inputs digest, the reuse decision (DM-6) and the review
+record. Spec 14's helper refuses every argument holding a git or gh word; case A turns that into
+a direct run, exactly as spec 14's rule tells a worker to run such a command directly.
 
 ### DM-5 Recheck plan (`recheck` in the `prepare` result)
 
@@ -842,7 +842,7 @@ with the lexicographically smallest `receipt_id` is reused. A receipt failing (2
 check or `verify` of (5) is reported `receipt-damaged`; failing (7) reports `conflicting-receipts`; failing
 (6) reports `not-declared`; failing (8) reports `not-referenced`; a mode `capture-output` receipt
 whose evidence cannot be evaluated because `$ORCHESTRAIL_HOME/scripts/capture-output.sh` is not a
-readable regular file (whatever `ORCHESTRAIL_OUTPUT_CAPTURE` says: spec 17 keeps `verify` working
+readable regular file (whatever `ORCHESTRAIL_OUTPUT_CAPTURE` says: spec 14 keeps `verify` working
 when capture is off) reports `capture-unverifiable` and is not reused; one whose `verify` fails
 reports `receipt-damaged`. A reused failing result stays failing.
 
@@ -926,10 +926,10 @@ where `<file hex>` is the SHA-256 of the record file's bytes; `verification: rev
 
 Location and order: leaf → appended as the last entry of the leaf block's notes, after every
 verdict note of the same review, to the end of the last line of the last `notes` field group with
-spec 14's append rule (14 DM-11); task → the last line of
+spec 12's append rule (12 DM-11); task → the last line of
 `## Contract Check` (step `contract`) or `## Code Review` (step `review`); composite → the
-composite block's notes in the same way (a delta under `/spec-run`). Reading uses spec 15's note
-entry parsing rule (`.ai/specs/15-orchestrator-overhead.md`, Data Model → Note entries): every `notes` field group and
+composite block's notes in the same way (a delta under `/spec-run`). Reading uses spec 13's note
+entry parsing rule (`.ai/specs/13-orchestrator-overhead.md`, Data Model → Note entries): every `notes` field group and
 its continuation lines, split on `; `; the *last DM-8 entry* is the last entry, in file order,
 that starts with `verification: review <scope key> <step> `. Pattern:
 `^verification: review (T-[0-9]{2,}[a-z]?(-fix-[a-z0-9]+(-[a-z0-9]+)*)?|task) (check|contract|review|integration) (#[1-9][0-9]* (finding-led|full-leaf|full-task|full-integration) sha256:[0-9a-f]{64}|none — (unavailable|disabled|helper-error|multi-repository|blocked))$`.
@@ -959,7 +959,7 @@ One line of canonical JSON without trailing spaces: `{"ok": true|false, "subcomm
 `not-referenced`, `receipt-damaged:<file>`, `capture-unverifiable`, `conflicting-receipts`, `disabled-by-flag` when
 `--reuse` was absent; `[]` when reused),
 `stdout_path`, `stderr_path` (mode `direct`; `null` in mode `capture-output`), `output_reference`
-(the spec 17 OUTPUT line in mode `capture-output`, else `null`). `record` adds `record_path`, `file_sha256`, `seq`, or on refusal
+(the spec 14 OUTPUT line in mode `capture-output`, else `null`). `record` adds `record_path`, `file_sha256`, `seq`, or on refusal
 `reasons`. Failure lines carry `error` (code) and `detail`.
 
 ## Contracts & Interfaces
@@ -978,7 +978,7 @@ python3 -I … record --draft <path> <the same options as prepare>
 
 `--ai-dir` defaults to `<work>/.ai`. `--step` is required for `task` and forbidden otherwise (leaf →
 `check`, composite → `integration`). `--description` is required for `leaf` and `composite`.
-`--scope-key` must be `task` for level `task` and match 15's `leaf_id` pattern otherwise. Argument
+`--scope-key` must be `task` for level `task` and match 13's `leaf_id` pattern otherwise. Argument
 errors exit 2 `usage`. `version` prints `{"ok": true, "subcommand": "version", "schema_version": 1}`.
 
 ### C-2 Exit codes and error codes
@@ -1007,8 +1007,8 @@ errors exit 2 `usage`. `version` prints `{"ok": true, "subcommand": "version", "
   or `[composite] <id> | ` and includes the following lines that start with two spaces; fields
   are read by name (`atomic-tests:` from the header line, `target_files:` and `notes:` from the
   indented lines). `target_files:` is split on `,` and trimmed; entries resolve as DM-5 (7) states.
-- **Notes entries:** read and appended as DM-8 defines (spec 15's note-entry parsing rule and
-  spec 14's append rule).
+- **Notes entries:** read and appended as DM-8 defines (spec 13's note-entry parsing rule and
+  spec 12's append rule).
 
 ### C-4 `rules/contract-verification.md`
 
@@ -1019,7 +1019,7 @@ Front matter: `description: Scoped verification — coverage, checks, reuse, rec
 
 ```text
 Availability: use the scoped-verification helper only when ORCHESTRAIL_HOME is set, the helper is readable and its version subcommand exits 0, and only when every file of the review lies in the git work tree of --work; otherwise, or when any subcommand exits 2, 3 or 4, review the full scope without it, run the defined checks directly, and append the verification none entry with its reason.
-Order: run every defined check with run --reuse, then prepare, then review, then record, then write the verdict to state, and append the verification entry last; never run build. In the cases of REQ-62 the reviewer stops after review and returns the draft; record and the state writes belong to the root (12 REQ-55).
+Order: run every defined check with run --reuse, then prepare, then review, then record, then write the verdict to state, and append the verification entry last; never run build. In the cases of REQ-62 the reviewer stops after review and returns the draft; record and the state writes belong to the root (23 REQ-55).
 Obligations: every obligation prepare lists ends verified, carried, unverified or failed; only verified or carried counts as met.
 Checks: with or without the helper, a defined test, lint or typecheck check that exits non-zero is a finding of at least important severity naming that check; a defined check that cannot start, is ended by a signal or loses its captured output is a blocker: set blocker:, write no verdict, append the none entry with reason blocked, and stop.
 Mutation: when run reports inputs-changed-during-run, run that check once more; if it reports it again, finish without the helper.
@@ -1052,24 +1052,24 @@ Merged results: review a composite in full on its current combined tree; a child
 
 | File | Edit |
 |---|---|
-| `workflows/pav-check.md` | One paragraph after `## Context Bootstrap` citing `` `contract-verification → ## Review procedure` `` with the leaf `prepare` arguments (`--scope-key <T-XX>`, `--description`, `--base <base_commit>` when recorded, `--listed` for each `target_files:` entry, `--task-contract-hash`/`--packet-digest` when a spec-14 packet was used); step 5 runs the defined `test`, `lint` and `typecheck` checks "through `run --reuse` when the helper is available" and applies the C-4 `Checks:` line in both cases; before the verdict paragraph, "publish the record"; after the verdict writes, "append the DM-8 entry as the last entry of this leaf's notes", and the NEEDS WORK notes of `workflows/pav-check.md:106` are appended with spec 14's append rule rather than replacing `notes:`; the Check report fills `Scope: <scope> (minimum <minimum_scope>; <reasons>)`, `Verified obligations` (ids `verified` or `carried`), `Unverified obligations` (ids `unverified` or `failed`) and an `Evidence` line for the record file in spec 08's DM-7 form with scope `file` and format `text@1` |
+| `workflows/pav-check.md` | One paragraph after `## Context Bootstrap` citing `` `contract-verification → ## Review procedure` `` with the leaf `prepare` arguments (`--scope-key <T-XX>`, `--description`, `--base <base_commit>` when recorded, `--listed` for each `target_files:` entry, `--task-contract-hash`/`--packet-digest` when a spec-12 packet was used); step 5 runs the defined `test`, `lint` and `typecheck` checks "through `run --reuse` when the helper is available" and applies the C-4 `Checks:` line in both cases; before the verdict paragraph, "publish the record"; after the verdict writes, "append the DM-8 entry as the last entry of this leaf's notes", and the NEEDS WORK notes of `workflows/pav-check.md:106` are appended with spec 12's append rule rather than replacing `notes:`; the Check report fills `Scope: <scope> (minimum <minimum_scope>; <reasons>)`, `Verified obligations` (ids `verified` or `carried`), `Unverified obligations` (ids `unverified` or `failed`) and an `Evidence` line for the record file in spec 11's DM-7 form with scope `file` and format `text@1` |
 | `workflows/pv-contract.md`, `workflows/pv-review.md` | The same at level `task`, steps `contract`/`review`, `--listed` from the file set each already uses; the DM-8 entry is the last line of the upserted section |
 | `/pav-check`, `/pv-contract`, `/pv-review`, `/phase-composite-validation` | Each also contains, verbatim: "Without the helper, or when it exits 2, 3 or 4, perform this review in full, run the defined checks directly, and append the `none` verification entry with its reason." |
-| `workflows/pav-check.md:47-49` (replaced) | The first sentence "Run the applicable `test:` and `lint:` commands from the resolved runbook in `WORK_DIR`." becomes "Run the applicable `test:`, `lint:` and `typecheck:` commands from the resolved runbook in `WORK_DIR`." (the three check kinds of Terminology → Check). The sentence "Missing commands, unavailable dependencies, or incomplete runs are reported as evidence gaps; do not claim a passing verification that did not run." — together with spec 17's C-5 row 3a addition to it, when 17 was delivered first (roadmap order 17 then 16, so this edit comes second) — becomes "Run each defined check through the scoped-verification helper's `run --reuse` when it is available (it captures through `contract-output → ## Capture` itself); otherwise run it through `contract-output → ## Capture`, or directly when that helper is absent too. Read results per `contract-output → ## Reading output` and cite them per `contract-output → ## Evidence`, or by the receipt's output files for a direct run. An undefined command is reported as an evidence gap; a defined check is classified by `contract-verification → ## Review procedure` (`Checks:`), so a dependency missing inside the command, which exits non-zero, is a finding; do not claim a passing verification that did not run." Spec 17 is a delivery prerequisite of this spec (roadmap order), so no variant without it is specified |
-| `workflows/phase-composite-validation.md:21-22` (replaced) | "Run relevant tests and lint from the corresponding service runbooks; report unavailable checks." — with spec 17's C-5 row 5 addition when present — becomes "Run the defined checks from the corresponding service runbooks through the scoped-verification helper's `run --reuse` when it is available, otherwise through `contract-output → ## Capture`; report undefined checks as evidence gaps and classify defined checks by `contract-verification → ## Review procedure` (`Checks:`)." Spec 17 is a delivery prerequisite, so no variant without it is specified |
+| `workflows/pav-check.md:47-49` (replaced) | The first sentence "Run the applicable `test:` and `lint:` commands from the resolved runbook in `WORK_DIR`." becomes "Run the applicable `test:`, `lint:` and `typecheck:` commands from the resolved runbook in `WORK_DIR`." (the three check kinds of Terminology → Check). The sentence "Missing commands, unavailable dependencies, or incomplete runs are reported as evidence gaps; do not claim a passing verification that did not run." — together with spec 14's C-5 row 3a addition to it, when 14 was delivered first (roadmap order 14 then 15, so this edit comes second) — becomes "Run each defined check through the scoped-verification helper's `run --reuse` when it is available (it captures through `contract-output → ## Capture` itself); otherwise run it through `contract-output → ## Capture`, or directly when that helper is absent too. Read results per `contract-output → ## Reading output` and cite them per `contract-output → ## Evidence`, or by the receipt's output files for a direct run. An undefined command is reported as an evidence gap; a defined check is classified by `contract-verification → ## Review procedure` (`Checks:`), so a dependency missing inside the command, which exits non-zero, is a finding; do not claim a passing verification that did not run." Spec 14 is a delivery prerequisite of this spec (roadmap order), so no variant without it is specified |
+| `workflows/phase-composite-validation.md:21-22` (replaced) | "Run relevant tests and lint from the corresponding service runbooks; report unavailable checks." — with spec 14's C-5 row 5 addition when present — becomes "Run the defined checks from the corresponding service runbooks through the scoped-verification helper's `run --reuse` when it is available, otherwise through `contract-output → ## Capture`; report undefined checks as evidence gaps and classify defined checks by `contract-verification → ## Review procedure` (`Checks:`)." Spec 14 is a delivery prerequisite, so no variant without it is specified |
 | Blocker writes (REQ-55) | `/pav-check`: set the leaf block's `blocker: verification check <name> could not complete — <detail>`, leave `atomic-validation:` unchanged (`in-progress`), write no verdict, append `none — blocked`, and **stop** with that message. `/phase-composite-validation`: the same `blocker:` text in the composite block, `integration-validation:` left `in-progress` (deltas under `/spec-run`), then **stop**. `/pv-contract`, `/pv-review`: upsert the step's section (`## Contract Check` or `## Code Review`) holding only the line `blocked: verification check <name> could not complete — <detail>` followed by the `none — blocked` entry, then **stop**; `/phase-validation` propagates the stop (`workflows/phase-validation.md:101`) |
 | Blocker reset and resume (REQ-56) | `/pav-check` and `/phase-composite-validation`: before running checks, when the block's `blocker:` value starts with `verification check `, set it to `none` (a delta under `/spec-run` for the composite). `/phase-validation` resume paragraph (`workflows/phase-validation.md:69-77`): a `## Contract Check` or `## Code Review` section whose first non-blank body line starts with `blocked: verification check ` is partial output and resumes its writer. `/pv-review` Guard: **stop** with "Step 1 (`/pv-contract`) is blocked by a verification check; resolve it and re-run `/pv-contract`." when `## Contract Check` holds such a line |
 | `workflows/pv-issues.md` | Item template gains `Findings: <ids>` after `Priority:` when records exist |
 | `workflows/pv-execute-fixes.md` step 4, `workflows/phase-validation.md` quick paragraph | One sentence citing `` `contract-verification → ## Recheck` `` |
 | `workflows/phase-composite-validation.md` | One paragraph citing the review procedure at level `composite` (`--scope-key` composite id, `--description` composite description, `--listed` the integration surface it already computes); the DM-8 entry goes into the composite block notes, as a delta under `/spec-run` |
-| `workflows/spec-run.md` step 4.3; `rules/orchestration.md` `### Validator` | Each gains exactly the sentence "The Validator's inputs follow `contract-verification → ## Reviewer inputs`." (no load or read verb, so spec 08's textual-load detector, `.ai/specs/08-context-tiering.md`, Contracts & Interfaces → Textual load command detection, raises nothing and no `loads:` entry is added to these two files) |
+| `workflows/spec-run.md` step 4.3; `rules/orchestration.md` `### Validator` | Each gains exactly the sentence "The Validator's inputs follow `contract-verification → ## Reviewer inputs`." (no load or read verb, so spec 11's textual-load detector, `.ai/specs/11-context-tiering.md`, Contracts & Interfaces → Textual load command detection, raises nothing and no `loads:` entry is added to these two files) |
 | `rules/orchestration.md` `## Shared-file discipline` | Exactly the sentence "Review records and check receipts are write-once files that the reviewing role creates through the scoped-verification helper; they are not shared files." |
-| `loads:` declarations (spec 08) | In spec 08's DM-1 grammar: one entry `- path: rules/contract-verification.md` (no `sections`) appended to the `mandatory` list of each of `/pav-check`, `/pv-contract`, `/pv-review`, `/phase-composite-validation`, `/pv-execute-fixes` and `/phase-validation`; the rule's front matter is `load: on-demand`; the whole file, front matter included, stays within 08 REQ-01's 700 words (this spec's NFR-05). The `contract-output` entries that the replaced sentences' citations need are added by spec 17's delivery (17 REQ-54), not here |
+| `loads:` declarations (spec 11) | In spec 11's DM-1 grammar: one entry `- path: rules/contract-verification.md` (no `sections`) appended to the `mandatory` list of each of `/pav-check`, `/pv-contract`, `/pv-review`, `/phase-composite-validation`, `/pv-execute-fixes` and `/phase-validation`; the rule's front matter is `load: on-demand`; the whole file, front matter included, stays within 11 REQ-01's 700 words (this spec's NFR-05). The `contract-output` entries that the replaced sentences' citations need are added by spec 14's delivery (14 REQ-54), not here |
 
 The three replaced sentences (both `workflows/pav-check.md` step 5 sentences and the
 `workflows/phase-composite-validation.md` check sentence) are read by no frozen check (checked at
 this revision: none matches a pattern in `scripts/validate-contracts.sh`). Every edit above is a section, a quoted sentence, an
-anchored line or a `loads:` entry, so it survives spec 13's renames; the `file:line` coordinates are
+anchored line or a `loads:` entry, so it survives spec 09's renames; the `file:line` coordinates are
 today's and only locate the text.
 
 Constraints from frozen checks: keep every phrase those checks read (Context fact 9); add no line
@@ -1082,14 +1082,14 @@ line in which a write verb precedes `plan.md`, `architecture.md`, `.ai/memory/st
 | Spec | Relationship |
 |---|---|
 | 05 | Exposed: review records (DM-7) as facts — scope, expansion reasons, check actions, receipt ids. No 05 object is emitted; any 05 mapping is 05's adapter |
-| 09 | Exposed: records inside captured task directories; the switch `ORCHESTRAIL_SCOPED_VERIFICATION=off` gives the full-review arm for strategy comparison. Consumed: the offline suite (REQ-50). Every claim of equal quality or saving belongs to 09 |
-| 12 | Exposed: receipts bound to content and worktree, never to branch names or commits. 12a REQ-03 post-merge commands always run and never consult a receipt; this spec does not govern them. A receipt made in a child worktree never stands for the merged tree, because `worktree_id` is an input (A-05, DM-4); only the checks of the 12a REQ-12 composite review, run in the root worktree, may reuse a receipt, and only when REQ-05's conditions hold. That review is always `full-integration` (REQ-15); its DM-1 records are written under `<task>/verification/reviews/<scope key>/` as resolved in the root worktree, where 12a REQ-12 runs that review (the record location is owned here, not by spec 12). Receipt reuse matches 12 A-28. In spec 12's parallel mode (N > 1) the root is the only writer under `.ai/` (12 REQ-01), so the root runs `record` on the draft the reviewing agent returns (the cases are those of 12 REQ-55, stated by REQ-62), which resolves 12 Q-03 (owner decision D-02, REQ-62, A-36); the root's handling is 12 REQ-55 and REQ-56, with the report in 12 C-6 row 11 and the correction reply in 12 C-6 row 12; an unusable or refused draft follows the `Record:` rule (one correction, then a full review without the helper), so no new error code is needed |
-| 14 | Consumed: the validator packet as the reviewer's context; `task_contract_hash` and `packet_digest` passed to `prepare` and recorded. Exposed: sufficiency — the reviewer additionally reads the diff content, untracked files, the runbook, evidence paths, tdd notes and the prior record (C-4 `## Reviewer inputs`). Receipts are not bound to packet digests: a check result depends on repository content, not on rendered context |
-| 15 | Consumed: the note-entry parsing rule, canonical JSON and `worktree_id` definitions. Not consumed: the `green` messages and `red`/`pinned` receipts 15 C-10 offers — passing any Implementer report, checkpoint message, proposal, receipt or journal path to a Validator would contradict 15 REQ-30, and the reviewer re-derives the same facts (test paths and digests, commits) from git and its own leaf block, which is the more independent source. Validator inputs therefore stay those of `workflows/spec-run.md:284-292` plus C-4 `## Reviewer inputs`; 15 needs no amendment |
-| 17 | Consumed: the capture helper `run` and `verify`, the DM-2 manifest keys `capture_status`, `command_status`, `purpose`, `argv_sha256`, `cwd`, `worktree`, `head`, `started_at`, `ended_at`, the DM-6 OUTPUT reference, the C-1 `run`/`verify` command lines, the C-2 refusal form, the DM-1 `manifest.json` location and the DM-4.1 first and last preview lines (DM-4a); 17's C-7 row 16 offers the manifest keys and `verify`, and the rest is cited from those sections. 16 owns the inputs digest, reuse and records; 17 owns capture, previews, retrieval and integrity. 16's C-5 replaced sentences supersede 17's C-5 rows 3a and 5 (REQ-60); 17's row 3b (the `green` TDD check) is unaffected. Settles 17 Q-05 and this spec's former Q-04 |
-| 18 | Offered, not consumed: `tier` (only `standard`), per-obligation `risks`, `scope` and `expansion_reasons`; spec 18's policy version 1 reads none of them (18 C-6 row 16), and nothing here depends on 18 using them |
-| 19 | Exposed, under these names: the leaf record `reviews/<leaf>/<seq>.json` (DM-1, DM-7) with `schema_version`, `kind`, `level`, `step`, `scope_key`, `seq`, `record_digest`, `verdict`, `contract.contract_digest`, `subject.head`, `scope`, `minimum_scope`, `findings[]` (`id`, `severity`, `title`, `evidence`, `status`, `obligations`, `locations`, `check`, `same_as`, `decision`), `obligations[]` (`id`, `kind`, `state`, `risks`), `outcomes[]` (`finding`, `outcome`), `checks[]` (`check`, `receipt_id`) and, in each referenced DM-4 receipt, the `output` object — `output.stdout`/`output.stderr` `{sha256, bytes}` in mode `direct`, `output.reference`, `output.artifact_id` and `output.manifest_sha256` in mode `capture-output` (no stream digests exist in that mode), the DM-8 entries (including `none — blocked`), the REQ-56 `verification check ` blocker prefix, the DM-7a decision sections and the C-3 parsing rules. Spec 19 overrides its Validator's draft classes from these fields and requires a published record before any repair. While 19's bounded loop defers the NEEDS WORK stop, every recheck is an ordinary leaf review under this spec by a fresh Validator: its prior is the record the attempt answered, finding-led eligibility and outcomes follow DM-5 and R-05, and 16 itself neither ends nor removes that stop. Not owned here: classification for repair, repair contracts, attempts, episodes, progress judgement, escalation and every change to the NEEDS WORK stop |
-| 20 | Exposed: per-leaf and per-composite records at `<task>/verification/reviews/<id>/<n>.json` (DM-1 record names, DM-7) — record count, `scope` values (`finding-led`, `full-leaf`, `full-task`, `full-integration`) and `checks[].action` (`executed`, `reused`) — plus the C-3 parsing rules and DM-2 `INV-<n>` numbering |
+| 10 | Exposed: records inside captured task directories; the switch `ORCHESTRAIL_SCOPED_VERIFICATION=off` gives the full-review arm for strategy comparison. Consumed: the offline suite (REQ-50). Every claim of equal quality or saving belongs to 10 |
+| 23 | Exposed: receipts bound to content and worktree, never to branch names or commits. 22 REQ-03 post-merge commands always run and never consult a receipt; this spec does not govern them. A receipt made in a child worktree never stands for the merged tree, because `worktree_id` is an input (A-05, DM-4); only the checks of the 22 REQ-12 composite review, run in the root worktree, may reuse a receipt, and only when REQ-05's conditions hold. That review is always `full-integration` (REQ-15); its DM-1 records are written under `<task>/verification/reviews/<scope key>/` as resolved in the root worktree, where 22 REQ-12 runs that review (the record location is owned here, not by spec 23). Receipt reuse matches 23 A-28. In spec 23's parallel mode (N > 1) the root is the only writer under `.ai/` (23 REQ-01), so the root runs `record` on the draft the reviewing agent returns (the cases are those of 23 REQ-55, stated by REQ-62), which resolves 23 Q-03 (owner decision D-02, REQ-62, A-36); the root's handling is 23 REQ-55 and REQ-56, with the report in 23 C-6 row 11 and the correction reply in 23 C-6 row 12; an unusable or refused draft follows the `Record:` rule (one correction, then a full review without the helper), so no new error code is needed |
+| 12 | Consumed: the validator packet as the reviewer's context; `task_contract_hash` and `packet_digest` passed to `prepare` and recorded. Exposed: sufficiency — the reviewer additionally reads the diff content, untracked files, the runbook, evidence paths, tdd notes and the prior record (C-4 `## Reviewer inputs`). Receipts are not bound to packet digests: a check result depends on repository content, not on rendered context |
+| 13 | Consumed: the note-entry parsing rule, canonical JSON and `worktree_id` definitions. Not consumed: the `green` messages and `red`/`pinned` receipts 13 C-10 offers — passing any Implementer report, checkpoint message, proposal, receipt or journal path to a Validator would contradict 13 REQ-30, and the reviewer re-derives the same facts (test paths and digests, commits) from git and its own leaf block, which is the more independent source. Validator inputs therefore stay those of `workflows/spec-run.md:284-292` plus C-4 `## Reviewer inputs`; 13 needs no amendment |
+| 14 | Consumed: the capture helper `run` and `verify`, the DM-2 manifest keys `capture_status`, `command_status`, `purpose`, `argv_sha256`, `cwd`, `worktree`, `head`, `started_at`, `ended_at`, the DM-6 OUTPUT reference, the C-1 `run`/`verify` command lines, the C-2 refusal form, the DM-1 `manifest.json` location and the DM-4.1 first and last preview lines (DM-4a); 14's C-7 row 15 offers the manifest keys and `verify`, and the rest is cited from those sections. 15 owns the inputs digest, reuse and records; 14 owns capture, previews, retrieval and integrity. 15's C-5 replaced sentences supersede 14's C-5 rows 3a and 5 (REQ-60); 14's row 3b (the `green` TDD check) is unaffected. Settles 14 Q-05 and this spec's former Q-04 |
+| 16 | Offered, not consumed: `tier` (only `standard`), per-obligation `risks`, `scope` and `expansion_reasons`; spec 16's policy version 1 reads none of them (16 C-6 row 15), and nothing here depends on 16 using them |
+| 17 | Exposed, under these names: the leaf record `reviews/<leaf>/<seq>.json` (DM-1, DM-7) with `schema_version`, `kind`, `level`, `step`, `scope_key`, `seq`, `record_digest`, `verdict`, `contract.contract_digest`, `subject.head`, `scope`, `minimum_scope`, `findings[]` (`id`, `severity`, `title`, `evidence`, `status`, `obligations`, `locations`, `check`, `same_as`, `decision`), `obligations[]` (`id`, `kind`, `state`, `risks`), `outcomes[]` (`finding`, `outcome`), `checks[]` (`check`, `receipt_id`) and, in each referenced DM-4 receipt, the `output` object — `output.stdout`/`output.stderr` `{sha256, bytes}` in mode `direct`, `output.reference`, `output.artifact_id` and `output.manifest_sha256` in mode `capture-output` (no stream digests exist in that mode), the DM-8 entries (including `none — blocked`), the REQ-56 `verification check ` blocker prefix, the DM-7a decision sections and the C-3 parsing rules. Spec 17 overrides its Validator's draft classes from these fields and requires a published record before any repair. While 17's bounded loop defers the NEEDS WORK stop, every recheck is an ordinary leaf review under this spec by a fresh Validator: its prior is the record the attempt answered, finding-led eligibility and outcomes follow DM-5 and R-05, and 15 itself neither ends nor removes that stop. Not owned here: classification for repair, repair contracts, attempts, episodes, progress judgement, escalation and every change to the NEEDS WORK stop |
+| 18 | Exposed: per-leaf and per-composite records at `<task>/verification/reviews/<id>/<n>.json` (DM-1 record names, DM-7) — record count, `scope` values (`finding-led`, `full-leaf`, `full-task`, `full-integration`) and `checks[].action` (`executed`, `reused`) — plus the C-3 parsing rules and DM-2 `INV-<n>` numbering |
 | 07 | None |
 
 ### C-7 Acceptance suite
@@ -1161,15 +1161,15 @@ satisfies R-01–R-12. Variants named in an AC derive from V1.
 New: `scripts/scoped-verification.py`, `scripts/check-scoped-verification.py`,
 `rules/contract-verification.md`, `.ai/adr/<NNNN>-*.md`.
 Changed: the files of C-5, `scripts/check-capture-output.py` (REQ-61), `templates/.ai/context/runbook.md`, `.gitignore`,
-`scripts/setup-new-project.sh` and `scripts/sync.sh` (or 13's replacement, REQ-51),
+`scripts/setup-new-project.sh` and `scripts/sync.sh` (or 09's replacement, REQ-51),
 `scripts/README.md`, `docs/USAGE.md`, the pipeline reference (`workflows/PIPELINE.md`, or
-`docs/PIPELINE.md` after spec 13), `.ai/principles/domain.md` (terms: Review record, Check receipt,
+`docs/PIPELINE.md` after spec 09), `.ai/principles/domain.md` (terms: Review record, Check receipt,
 Coverage plan, Obligation, Finding-led recheck, Fix diff, Scope), `.ai/memory/architecture.md`
 (scripts table, inventory counts), `.ai/context/runbook.md` (suite command, disable switch, store
 removal), `.ai/adr/index.md`. The ADR records: content-bound receipts with project opt-in reuse;
 review-side receipts only; whole-tree inputs including the worktree root; finding-led recheck
 rules and expansion triggers; composite always full; the single `standard` tier; write-once
-records outside shared files; the ignore rule; the disable switch; the 13a proposal dispositions.
+records outside shared files; the ignore rule; the disable switch; the 08 proposal dispositions.
 
 ## Non-Functional Requirements
 
@@ -1179,9 +1179,9 @@ records outside shared files; the ignore rule; the disable switch; the 13a propo
 | NFR-02 No model, no network | The helper imports no network module and starts no harness CLI (REQ-36) | AC-23 (static import scan) |
 | NFR-03 Portability | Python 3.11+ standard library; `git` and `bash` on `PATH`; Linux and macOS file semantics | AC-24; review of imports |
 | NFR-04 Privacy | Environment values never stored, only one digest; receipts and outputs mode 0600 under the git directory, never committed; records ignored by REQ-48 in this repository and under the untracked `.ai/` of consumer projects | AC-15, AC-22 |
-| NFR-05 Rule size | `rules/contract-verification.md` ≤ 700 words (spec 08 REQ-01) | AC-19 |
+| NFR-05 Rule size | `rules/contract-verification.md` ≤ 700 words (spec 11 REQ-01) | AC-19 |
 | NFR-06 Compatibility (G4) | Tasks without records, legacy leaf blocks and disabled helpers follow today's full review plus REQ-55 | AC-20, AC-21, AC-28 |
-| NFR-07 Performance | No time target (spec 09 measures review cost with and without the helper; no saving is claimed). Work bound: each `run` reads every non-ignored file outside the excluded prefix twice (before and after the command); `prepare` reads the contract sources, the manifest and evidence paths once and the tree not at all; `record` repeats `prepare` and computes one tree digest per defined check; no step is superlinear in the number of files | Review of the implementation against this bound |
+| NFR-07 Performance | No time target (spec 10 measures review cost with and without the helper; no saving is claimed). Work bound: each `run` reads every non-ignored file outside the excluded prefix twice (before and after the command); `prepare` reads the contract sources, the manifest and evidence paths once and the tree not at all; `record` repeats `prepare` and computes one tree digest per defined check; no step is superlinear in the number of files | Review of the implementation against this bound |
 
 ## Edge Cases & Failure Modes
 
@@ -1226,7 +1226,7 @@ records outside shared files; the ignore rule; the disable switch; the 13a propo
 | Two reviewers publish the same `n` | Second gets exit 3 `record-conflict` | REQ-24 |
 | Leaf `atomic-tests: n-a`, `pinned` or absent | No RED evidence demanded; `tdd_audit.atomic_tests` mirrors the block; existing `/pav-check` findings apply | REQ-33 |
 | Quick tier | Task level reads `## Contract (quick)`; inline fixes rechecked under `## Recheck` | DM-2, REQ-42 |
-| Composite after a child merge (spec 12a) | `full-integration`; a child-worktree receipt never matches (`worktree_id`), a root-worktree receipt is reused only for identical inputs; 12a REQ-03 post-merge commands are outside this spec and never use receipts | REQ-15, REQ-05 |
+| Composite after a child merge (spec 22) | `full-integration`; a child-worktree receipt never matches (`worktree_id`), a root-worktree receipt is reused only for identical inputs; 22 REQ-03 post-merge commands are outside this spec and never use receipts | REQ-15, REQ-05 |
 | Description without `## Acceptance Criteria` | Warning `no-acceptance-criteria`; the existing Guard stop applies first | REQ-01 |
 | Duplicate `### Invariants` under `## Solution Design` | Exit 2 `contract-ambiguous`; full review without the helper, `none — helper-error` | C-3, REQ-45 |
 | Review files in more than one git work tree (multi-repository task or composite) | Helper not used; full review, `none — multi-repository` | REQ-45 |
@@ -1235,10 +1235,10 @@ records outside shared files; the ignore rule; the disable switch; the 13a propo
 | Blocked check repaired; review re-run | The `verification check …` blocker is reset to `none` first; a blocked task-level section resumes its writer | REQ-56 |
 | Receipt never referenced by a published record (for example made outside a review) | Not reused (`not-referenced`) | DM-6 |
 | Nested untracked repository | `unknown-input:nested-repository`; not reusable | REQ-18 |
-| Spec 17's helper refuses (git or gh word in the runbook value, `store-unavailable`, `store-unsafe`, `disabled`, …) | Command not started by it; run directly with own capture, `fallback: <code>`; review unaffected | REQ-58 |
-| Spec 17's helper started the command but published nothing complete or verifiable | Not run again; evidence `unusable`; `check-incomplete`; REQ-55 blocker | REQ-59 |
-| Root-run record (cases of REQ-62): the returned draft is unusable or `record` refuses it | No record; one correction by a fresh reviewing agent given the refusal reasons, then a full review without the helper (`none — helper-error`); no new error code; the `record-failed` block if that review also fails is spec 12's | REQ-62, A-33, 12 REQ-56 |
-| Spec 17 artifact deleted after a receipt referenced it | Not reused (`receipt-damaged`); executed again | REQ-20, DM-6 |
+| Spec 14's helper refuses (git or gh word in the runbook value, `store-unavailable`, `store-unsafe`, `disabled`, …) | Command not started by it; run directly with own capture, `fallback: <code>`; review unaffected | REQ-58 |
+| Spec 14's helper started the command but published nothing complete or verifiable | Not run again; evidence `unusable`; `check-incomplete`; REQ-55 blocker | REQ-59 |
+| Root-run record (cases of REQ-62): the returned draft is unusable or `record` refuses it | No record; one correction by a fresh reviewing agent given the refusal reasons, then a full review without the helper (`none — helper-error`); no new error code; the `record-failed` block if that review also fails is spec 23's | REQ-62, A-33, 23 REQ-56 |
+| Spec 14 artifact deleted after a receipt referenced it | Not reused (`receipt-damaged`); executed again | REQ-20, DM-6 |
 | Implementer report reachable by the Validator | Not supplied (unchanged `/spec-run` 4.3); rule forbids reading it | REQ-44 |
 
 ## Acceptance Criteria
@@ -1343,7 +1343,7 @@ Fixture cases run in `scripts/check-scoped-verification.py`; text cases read the
   `reusable:` inside `## Commands`; each of those six workflows lists `rules/contract-verification.md`
   under `loads:` → `mandatory`; and no workflow gains a line matching
   `call ./phase-composite-validation`.
-- **AC-19** (REQ-38, NFR-05) — Given the delivered rule, spec 08's `measure-context.sh check`
+- **AC-19** (REQ-38, NFR-05) — Given the delivered rule, spec 11's `measure-context.sh check`
   reports no `rule-size-exceeded` and no `textual-load-undeclared` finding for any edited file.
 - **AC-20** (REQ-45) — Given the delivered tree, `rules/contract-verification.md` contains the
   `Availability:`, `Mutation:` and `Record:` lines of C-4 verbatim, and each of `/pav-check`,
@@ -1375,7 +1375,7 @@ Fixture cases run in `scripts/check-scoped-verification.py`; text cases read the
   `scripts/validate-contracts.sh` nor `scripts/sync.sh` names `check-scoped-verification`.
 - **AC-26** (REQ-52, REQ-53) — Given the delivered tree, every file of C-8 is changed as listed,
   `.ai/adr/index.md` has an Accepted row for the new ADR, and the ADR names each item of C-8's ADR
-  content and either each 13a proposal assigned to owner 16 with its disposition or the statement
+  content and either each 08 proposal assigned to owner 15 with its disposition or the statement
   that no audit proposal was available.
 - **AC-27** (REQ-21, REQ-37) — Given V1, `run --check build` exits 2 `check-undefined`, the
   `build:` command is not executed and no receipt is created; every failure line carries `error`
@@ -1435,18 +1435,18 @@ Fixture cases run in `scripts/check-scoped-verification.py`; text cases read the
   names a section starting with `blocked: verification check ` as partial output that resumes its
   writer; and `/pv-review` contains the C-5 stop message verbatim.
 - **AC-38** (REQ-57, REQ-17) — Given V1 with `ORCHESTRAIL_OUTPUT_CAPTURE` unset and
-  `ORCHESTRAIL_HOME` pointing at a copy of the delivered checkout (spec 17's helper present),
+  `ORCHESTRAIL_HOME` pointing at a copy of the delivered checkout (spec 14's helper present),
   `run --check test` publishes a receipt with `output.mode: capture-output`, an `artifact_id` that
   names a directory under `<git common dir>/orchestrail-output/`, a `manifest` with exactly the
   nine DM-4 keys, `purpose: test` and `argv_sha256` equal to the SHA-256 of
-  `["bash","-c",<test value>]` in spec 17's DM-2 canonical form; nothing is created under the receipt store's `outputs/`; the result
-  line's `output_reference` matches spec 17's DM-6 grammar. After an accepted record references
+  `["bash","-c",<test value>]` in spec 14's DM-2 canonical form; nothing is created under the receipt store's `outputs/`; the result
+  line's `output_reference` matches spec 14's DM-6 grammar. After an accepted record references
   it: deleting the artifact directory makes the next `run --reuse` report `receipt-damaged:<file>`
   and execute; renaming `scripts/capture-output.sh` inside the same `ORCHESTRAIL_HOME` copy (switch
   still unset, so the environment digest is unchanged) makes it report `capture-unverifiable`,
   execute in mode `direct`, record `fallback: unavailable`, and publish a receipt whose
   `inputs_digest` equals the capture-mode receipt's.
-- **AC-39** (REQ-58) — Given V1 with `ORCHESTRAIL_OUTPUT_CAPTURE` unset, spec 17's helper present and the runbook `test:` value
+- **AC-39** (REQ-58) — Given V1 with `ORCHESTRAIL_OUTPUT_CAPTURE` unset, spec 14's helper present and the runbook `test:` value
   `touch m; echo git`, `run --check test` publishes a mode-`direct` receipt with
   `fallback: git-command-refused` and the file `m` is created exactly once; with
   `ORCHESTRAIL_OUTPUT_CAPTURE=off` the receipt records `fallback: disabled`; with a regular file at
@@ -1459,14 +1459,14 @@ Fixture cases run in `scripts/check-scoped-verification.py`; text cases read the
   draft referencing it is refused `check-incomplete`; with the switch still unset and a stub that publishes a manifest whose
   `capture_status` is `partial` and whose `verify` exits 0, the receipt lists `capture-failed` and
   evidence `unusable`.
-- **AC-41** (REQ-60) — Given the delivered tree after specs 17 and 16, step 5 of
+- **AC-41** (REQ-60) — Given the delivered tree after specs 14 and 15, step 5 of
   `workflows/pav-check.md` contains the C-5 resulting first sentence (naming `test:`, `lint:` and
   `typecheck:`) and the C-5 resulting sentence verbatim (with the two
   `contract-output` sentences) and, after joining lines and collapsing whitespace, no longer
   contains "Run them through `contract-output → ## Capture`, read results per"; and
   `workflows/phase-composite-validation.md` contains its C-5 resulting sentence verbatim.
 - **AC-42** (REQ-61) — Given the delivered tree, `python3 -I scripts/check-capture-output.py` passes
-  and its cases for spec 17's C-5 rows 3a and 5 contain this spec's C-5 resulting sentences.
+  and its cases for spec 14's C-5 rows 3a and 5 contain this spec's C-5 resulting sentences.
 - **AC-43** (REQ-62) — Given V1, a valid draft produced after `prepare` in one process and saved
   under `.ai/tasks/todo/task-01-demo/verification/drafts/` is published as `reviews/T-01/1.json`
   by `record --draft` run in a separate process with the same options; a file in that directory
@@ -1541,107 +1541,107 @@ Fixture cases run in `scripts/check-scoped-verification.py`; text cases read the
 | REQ-61 | AC-42 |
 | REQ-62 | AC-43 |
 
-Shared gates: G1 — REQ-08, C-6 (05 attribution facts, no invented counts); G2 — C-6 (09 owns
+Shared gates: G1 — REQ-08, C-6 (05 attribution facts, no invented counts); G2 — C-6 (10 owns
 comparable measurement; switch gives the comparison arm); G3 — REQ-02, REQ-04, REQ-07, REQ-28,
 REQ-30, REQ-44 (independent reviewer, frozen RED untouched, integration always full); G4 —
 REQ-45, NFR-06; G5 — REQ-36, Actors table (helper writes no shared state, spawns no model, is
 optional); G6 — C-7, AC-01–AC-42 (failing fixtures first), REQ-50, no paid run; G7 — REQ-34,
-REQ-45, DM-1 deletion safety, ADR; G8 — out of scope here, owned by spec 09 (no saving claimed,
+REQ-45, DM-1 deletion safety, ADR; G8 — out of scope here, owned by spec 10 (no saving claimed,
 no cost or time cap introduced).
 
 ## Risks
 
 | Risk | Impact | Likelihood | Mitigation |
 |---|---|---|---|
-| A reviewer lists too few `evidence_paths`, so an obligation is carried although code it relied on changed | Missed regression | Medium | Carrying needs non-empty evidence paths (`no-evidence-paths`); all defined checks re-run on current inputs; any interface/invariant/unknown classification forces full; spec 09 measures misses |
+| A reviewer lists too few `evidence_paths`, so an obligation is carried although code it relied on changed | Missed regression | Medium | Carrying needs non-empty evidence paths (`no-evidence-paths`); all defined checks re-run on current inputs; any interface/invariant/unknown classification forces full; spec 10 measures misses |
 | A project declares a check reusable that depends on ignored files, time or network | Stale pass reused | Low–medium | Opt-in only; Declaration line states the condition; conflicting results disable reuse; switch off restores full runs |
-| Environment digest makes reuse rare across agents | No saving | High | Acceptable by design (correctness first); spec 09 decides whether to relax with evidence |
+| Environment digest makes reuse rare across agents | No saving | High | Acceptable by design (correctness first); spec 10 decides whether to relax with evidence |
 | Pre-existing failing checks block `DONE` where today they were evidence gaps | More NEEDS WORK stops | Medium | Owner approved the rule on 2026-11-14 (D-01); the `owner-accepted` outcome (DM-7a) is the only tolerance route |
 | Running checks through the helper hides the runbook text from the git-rails hook | A git command in a runbook line is not seen | Low | Same class as residual X1 (scripts run by Bash are unseen); runbook edits are part of reviewed diffs |
-| Edits to always-on orchestration rule exceed spec 08 limits | Delivery fails 08's check | Low | One sentence each; detail lives in the on-demand rule |
-| Spec 17's helper is absent in one environment and present in another | Receipts of two modes | Low | Same inputs digest in both modes only when the environment, including `ORCHESTRAIL_HOME` and `ORCHESTRAIL_OUTPUT_CAPTURE`, is identical; otherwise the check runs again (correct, no saving); `fallback` records why a run was direct |
-| A reviewing agent writes an allowlisted DM-7a decision line itself (decision sections are also written by `/pd-analyze` and, under `/spec-run`, by automatic deferral) | A finding accepted without the owner | Low | The allowlist excludes every section a reviewer is told to write; `rules/orchestration.md:148-153` reserves intent decisions for the human; spec 09 measures missed defects |
+| Edits to always-on orchestration rule exceed spec 11 limits | Delivery fails 11's check | Low | One sentence each; detail lives in the on-demand rule |
+| Spec 14's helper is absent in one environment and present in another | Receipts of two modes | Low | Same inputs digest in both modes only when the environment, including `ORCHESTRAIL_HOME` and `ORCHESTRAIL_OUTPUT_CAPTURE`, is identical; otherwise the check runs again (correct, no saving); `fallback` records why a run was direct |
+| A reviewing agent writes an allowlisted DM-7a decision line itself (decision sections are also written by `/pd-analyze` and, under `/spec-run`, by automatic deferral) | A finding accepted without the owner | Low | The allowlist excludes every section a reviewer is told to write; `rules/orchestration.md:148-153` reserves intent decisions for the human; spec 10 measures missed defects |
 
 ## Assumptions
 
-- A-01 | File names | Resolved: today's names in text; spec 13's maps at implementation | Source: `.ai/specs/README.md` → "Dependency order" (13 before 16); spec 15 A-02 precedent | Reversible: yes
-- A-02 | Where the new tooling lives | Resolved: helper and suite under `scripts/`, outside the validator inventory and `tests/`; the helper is run with `python3 -I` without a Bash launcher, so the entry file as a whole uses only syntax older Python 3 interpreters parse and loads 3.11-only code after the check, for REQ-35's version check to decide (spec 20 A-26: entry module plus path-loaded engine) | Source: ADR-0019 Decision 3 (`.ai/adr/0019-…:68-80`); spec 14 C-9 | Reversible: yes
+- A-01 | File names | Resolved: today's names in text; spec 09's maps at implementation | Source: `.ai/specs/README.md` → "Dependency order" (09 before 15); spec 13 A-02 precedent | Reversible: yes
+- A-02 | Where the new tooling lives | Resolved: helper and suite under `scripts/`, outside the validator inventory and `tests/`; the helper is run with `python3 -I` without a Bash launcher, so the entry file as a whole uses only syntax older Python 3 interpreters parse and loads 3.11-only code after the check, for REQ-35's version check to decide (spec 18 A-26: entry module plus path-loaded engine) | Source: ADR-0019 Decision 3 (`.ai/adr/0019-…:68-80`); spec 12 C-9 | Reversible: yes
 - A-03 | Whose receipts may be reused | Resolved: only receipts made by review workflows through the helper; Implementers never run it | Source: G3; `rules/orchestration.md:80-92` | Reversible: yes
 - A-04 | Which checks are reusable | Resolved: none unless the project lists them in `reusable:` | Source: original §6 ("unknown → run again"); best practice, smallest reversible choice | Reversible: yes
-- A-05 | Effective inputs | Resolved: whole non-ignored repository tree outside the task directory, argv and resolved `argv[0]`, cwd, worktree root, full environment minus four volatile names, platform | Source: original §6; spec 12 cross-worktree correctness (12 A-28: a child-worktree receipt never stands for the merged tree; 12a REQ-03 commands never use receipts); best practice | Reversible: yes
+- A-05 | Effective inputs | Resolved: whole non-ignored repository tree outside the task directory, argv and resolved `argv[0]`, cwd, worktree root, full environment minus four volatile names, platform | Source: original §6; spec 23 cross-worktree correctness (23 A-28: a child-worktree receipt never stands for the merged tree; 22 REQ-03 commands never use receipts); best practice | Reversible: yes
 - A-06 | `build:` | Resolved: never run by reviews | Source: `.ai/context/runbook.md:11` (build deploys) | Reversible: yes
 - A-07 | Tiers | Resolved: only `standard`; cheaper tiers need an owner decision after comparison | Source: original REQ-03, §11 item 6; `.ai/specs/README.md` → "Review record and remaining decisions" | Reversible: yes
-- A-08 | Where finding-led applies | Resolved: leaf after NEEDS WORK and task-level re-runs; composite always full (`full-integration`, REQ-15), run in the root worktree | Source: original §8 last paragraph; spec 12a REQ-12 and A-28 | Reversible: yes
+- A-08 | Where finding-led applies | Resolved: leaf after NEEDS WORK and task-level re-runs; composite always full (`full-integration`, REQ-15), run in the root worktree | Source: original §8 last paragraph; spec 22 REQ-12 and A-28 | Reversible: yes
 - A-09 | Required-check failures | Resolved: non-zero exit → finding ≥ important → NEEDS WORK; cannot complete → blocker; applied with and without the helper (REQ-55) so the disabled arm stays comparable; approved by the owner on 2026-11-14 (D-01) | Source: original REQ-02; D-01; `rules/tdd.md:208-210` blocker pattern; G2 comparability | Reversible: yes
-- A-10 | Storage | Resolved: receipts in the git common directory; records in `<task>/verification/`, ignored here | Source: spec 14 DM-10; spec 15 REQ-37 | Reversible: yes
-- A-11 | Obligation ids | Resolved: ordinal per kind, whole-section fallback | Source: `workflows/pae-tests.md:225` (`AC-1 →` digest convention); spec 15 note that descriptions carry no AC ids | Reversible: yes
-- A-12 | Relation to spec 14 digests | Resolved: own `contract_digest` always; 14's `task_contract_hash` compared only when both present; receipts independent of packet digests | Source: spec 14 C-8 rows 15 and 16, A-10; coordinator note | Reversible: yes
-- A-13 | Reviewer inputs beyond the validator packet | Resolved: diff content, untracked files, runbook, evidence paths, tdd notes, prior record | Source: 14 C-8 ("16 decides sufficiency"); original §7 | Reversible: yes
-- A-14 | Spec 15 facts | Resolved: not consumed; reviewer re-derives them | Source: `.ai/specs/15-orchestrator-overhead.md` REQ-30 and C-10 row for spec 16 (both say 16 declines the `green` messages and `red`/`pinned` receipts because REQ-30 forbids passing any Implementer report, checkpoint message, receipt or journal path to a Validator) | Reversible: yes
-- A-15 | Output capture | Resolved: through spec 17's helper when available (DM-4a), own capture of complete streams otherwise; no preview | Source: coordinator ruling of the 2026-11-14 reconciliation; spec 17 C-7 row 16 and Q-05; roadmap order 17 before 16 (`.ai/specs/README.md` → "Dependency order") | Reversible: yes
-- A-16 | Notes entry | Resolved: `verification:` entry with spec 14's append rule, not protected; `none` marker on fallback | Source: spec 14 DM-11 append rule | Reversible: yes
-- A-17 | Finding ids | Resolved: `<scope key>/F<n>`, never reused, `same_as` for recurrences | Source: this spec (DM-7); spec 19 Context item 8 consumes it | Reversible: yes
+- A-10 | Storage | Resolved: receipts in the git common directory; records in `<task>/verification/`, ignored here | Source: spec 12 DM-10; spec 13 REQ-37 | Reversible: yes
+- A-11 | Obligation ids | Resolved: ordinal per kind, whole-section fallback | Source: `workflows/pae-tests.md:225` (`AC-1 →` digest convention); spec 13 note that descriptions carry no AC ids | Reversible: yes
+- A-12 | Relation to spec 12 digests | Resolved: own `contract_digest` always; 12's `task_contract_hash` compared only when both present; receipts independent of packet digests | Source: spec 12 C-8 rows 13 and 15, A-10; coordinator note | Reversible: yes
+- A-13 | Reviewer inputs beyond the validator packet | Resolved: diff content, untracked files, runbook, evidence paths, tdd notes, prior record | Source: 12 C-8 ("15 decides sufficiency"); original §7 | Reversible: yes
+- A-14 | Spec 13 facts | Resolved: not consumed; reviewer re-derives them | Source: `.ai/specs/13-orchestrator-overhead.md` REQ-30 and C-10 row for spec 15 (both say 15 declines the `green` messages and `red`/`pinned` receipts because REQ-30 forbids passing any Implementer report, checkpoint message, receipt or journal path to a Validator) | Reversible: yes
+- A-15 | Output capture | Resolved: through spec 14's helper when available (DM-4a), own capture of complete streams otherwise; no preview | Source: coordinator ruling of the 2026-11-14 reconciliation; spec 14 C-7 row 15 and Q-05; roadmap order 14 before 15 (`.ai/specs/README.md` → "Dependency order") | Reversible: yes
+- A-16 | Notes entry | Resolved: `verification:` entry with spec 12's append rule, not protected; `none` marker on fallback | Source: spec 12 DM-11 append rule | Reversible: yes
+- A-17 | Finding ids | Resolved: `<scope key>/F<n>`, never reused, `same_as` for recurrences | Source: this spec (DM-7); spec 17 Context item 8 consumes it | Reversible: yes
 - A-18 | Prior subject | Resolved: must be clean with an existing head | Source: original invariant 3 | Reversible: yes
-- A-19 | Disable switch | Resolved: `ORCHESTRAIL_SCOPED_VERIFICATION=off`; any value other than unset, empty or `on` disables | Source: spec 14 REQ-32 (same rule); spec 15 REQ-33 | Reversible: yes
+- A-19 | Disable switch | Resolved: `ORCHESTRAIL_SCOPED_VERIFICATION=off`; any value other than unset, empty or `on` disables | Source: spec 12 REQ-32 (same rule); spec 13 REQ-33 | Reversible: yes
 - A-20 | Timeouts | Resolved: none added | Source: ADR-0020 (timeouts are watchdogs, not budgets); no invented numbers | Reversible: yes
-- A-21 | Exit codes | Resolved: 0–4 as C-2; the meaning of each number is this helper's own (spec 14 C-2 assigns 3 and 4 differently) | Source: spec 14 C-2 (range only) | Reversible: yes
+- A-21 | Exit codes | Resolved: 0–4 as C-2; the meaning of each number is this helper's own (spec 12 C-2 assigns 3 and 4 differently) | Source: spec 12 C-2 (range only) | Reversible: yes
 - A-22 | Task-level records | Resolved: one per step, verdict `null` | Source: `workflows/pv-contract.md:43-61`, `workflows/pv-review.md:60-70`; decisions belong to `/pv-issues` | Reversible: yes
 - A-23 | Path base | Resolved: repository top-level relative | Source: best practice (git output form) | Reversible: yes
-- A-24 | Risk classification | Resolved: optional reviewer-set field, decides nothing here; read by spec 19's overrides, offered to (not used by) spec 18 | Source: original §5 `risk_reason`; spec 19 DM-7 overrides; spec 18 C-6 row 16 | Reversible: yes
-- A-25 | Check report | Resolved: fields filled from the record | Source: `.ai/specs/08-context-tiering.md`, DM-8 Report forms (`## Check report`) | Reversible: yes
+- A-24 | Risk classification | Resolved: optional reviewer-set field, decides nothing here; read by spec 17's overrides, offered to (not used by) spec 16 | Source: original §5 `risk_reason`; spec 17 DM-7 overrides; spec 16 C-6 row 15 | Reversible: yes
+- A-25 | Check report | Resolved: fields filled from the record | Source: `.ai/specs/11-context-tiering.md`, DM-8 Report forms (`## Check report`) | Reversible: yes
 - A-26 | Cross-leaf detection | Resolved: other leaves' `target_files:` resolved against their own `working_dir:` and counted when inside `--work`'s work tree | Source: `workflows/pv-contract.md:35-36` (per-subtask `working_dir:`); best practice | Reversible: yes
-- A-27 | Rule name and load | Resolved: `rules/contract-verification.md`, `load: on-demand` | Source: spec 13 kind prefixes (`.ai/specs/13-model-only-harnesses-and-rule-naming.md`, Notes → Files and sections created after this spec); specs 14 and 15 precedent | Reversible: yes
+- A-27 | Rule name and load | Resolved: `rules/contract-verification.md`, `load: on-demand` | Source: spec 09 kind prefixes (`.ai/specs/09-model-only-harnesses-and-rule-naming.md`, Notes → Files and sections created after this spec); specs 12 and 13 precedent | Reversible: yes
 - A-28 | Check ordering | Resolved: checks before `prepare`, record before verdict writes, DM-8 entry last | Source: original REQ-02 (deterministic before semantic); `workflows/pav-check.md:103-108` | Reversible: yes
 - A-29 | Pre-existing failing checks | Resolved: no baseline exemption; the owner accepts (`owner-accepted`) or defers through existing routes | Source: conservative reading of G3; former Q-03; owner approval of 2026-11-14 (D-01) | Reversible: yes
 - A-30 | Owner decisions on findings | Resolved: outcome/status `owner-accepted` with a decision reference, not blocking `DONE` | Source: `rules/orchestration.md:148-153` (class B is the human's); original §8 step 3 | Reversible: yes
 - A-31 | Receipt provenance | Resolved: reuse only receipts already referenced by a published review record of the same task | Source: G3; A-03 enforcement | Reversible: yes
 - A-32 | Multi-repository reviews | Resolved: helper not used; `none — multi-repository` | Source: `workflows/phase-composite-validation.md:18-22` (per-child `working_dir:`); best practice | Reversible: yes
 - A-33 | Retry bound | Resolved: one re-run after mutation, one re-record after refusal, then full review without the helper | Source: P5 (every stop declared); best practice | Reversible: yes
-- A-34 | Task directory exclusion across worktrees | Resolved: excluded prefix relative to the task directory's own work tree | Source: DM-1 excluded-prefix rule; spec 12a REQ-12 and A-28 (the composite review runs in the root worktree) | Reversible: yes
-- A-35 | Time limit of a delegated check | Resolved: `run` passes no `--timeout-seconds`; the outer call's limit applies and a killed call leaves no receipt, which the reviewer treats as lost output and does not rerun in that review (DM-4a); no limit source and no number | Source: spec 17 C-7 row 16 and follow-up for 16; A-20; ADR-0020 | Reversible: yes
-- A-36 | Who runs `record` in parallel mode | Resolved: the root orchestrator runs `record` on the draft the reviewing agent returns, in the cases of 12 REQ-55 as REQ-62 states them (not only N > 1 children's `/pav-check`: also the Validator of a serialized composite's child at N > 1 and the composite validation agent of 12a REQ-12); at N = 1 the Validator runs `record`; an unusable or refused draft follows the `Record:` rule (REQ-62, A-33; orchestration in 12 REQ-56) | Source: owner decision D-02; 12 D-05, 12 REQ-55, 12 REQ-01 (the root is the only writer under `.ai/`); 12 Q-03 | Reversible: yes
+- A-34 | Task directory exclusion across worktrees | Resolved: excluded prefix relative to the task directory's own work tree | Source: DM-1 excluded-prefix rule; spec 22 REQ-12 and A-28 (the composite review runs in the root worktree) | Reversible: yes
+- A-35 | Time limit of a delegated check | Resolved: `run` passes no `--timeout-seconds`; the outer call's limit applies and a killed call leaves no receipt, which the reviewer treats as lost output and does not rerun in that review (DM-4a); no limit source and no number | Source: spec 14 C-7 row 15 and follow-up for 15; A-20; ADR-0020 | Reversible: yes
+- A-36 | Who runs `record` in parallel mode | Resolved: the root orchestrator runs `record` on the draft the reviewing agent returns, in the cases of 23 REQ-55 as REQ-62 states them (not only N > 1 children's `/pav-check`: also the Validator of a serialized composite's child at N > 1 and the composite validation agent of 22 REQ-12); at N = 1 the Validator runs `record`; an unusable or refused draft follows the `Record:` rule (REQ-62, A-33; orchestration in 23 REQ-56) | Source: owner decision D-02; 23 D-05, 23 REQ-55, 23 REQ-01 (the root is the only writer under `.ai/`); 23 Q-03 | Reversible: yes
 
 ## Decisions
 
 Auto-mode resolutions are recorded under Assumptions. Owner decisions of 2026-11-14:
 
 - D-01 | Accept the strict classification of REQ-55: a defined `test`, `lint` or `typecheck` check exiting non-zero is a finding of at least `important` severity, and a check that cannot start, is killed or loses its captured output is a blocker; no exemption for failures that predate the change; the same rule with and without the helper | Overrides: today's `/pav-check` and composite-validation wording that treats a missing or failing check as an evidence gap | Rationale: an evidence gap lets a validator pass broken code, which undermines gate G3 (independent quality); one rule on both paths keeps the disabled-helper comparison arm comparable | Follow-up: none beyond the delivery already specified (C-5 replaced sentences, AC-28, AC-35); the only tolerance route stays the `owner-accepted` outcome of a finding (DM-7a)
-- D-02 | The root orchestrator runs `record` in parallel mode, on the review draft the reviewing agent returns | Overrides: none (resolves 12 Q-03) | Rationale: 12 REQ-01 makes the root the only writer in parallel mode, so records are written by the root from a returned draft, which needs no new mechanism | Follow-up: spec 12 records the same rule and its dispatch; this spec states REQ-62, A-36 and C-6 row 12
+- D-02 | The root orchestrator runs `record` in parallel mode, on the review draft the reviewing agent returns | Overrides: none (resolves 23 Q-03) | Rationale: 23 REQ-01 makes the root the only writer in parallel mode, so records are written by the root from a returned draft, which needs no new mechanism | Follow-up: spec 23 records the same rule and its dispatch; this spec states REQ-62, A-36 and C-6 row 23
 
 ## Clarifications
 
 ### Session 2026-11-14 (owner decisions)
 
 - Q: Should a defined check that exits non-zero be a finding of at least `important` severity (not an evidence gap), with no exemption for earlier failures, with and without the helper? → A: Yes, accepted (D-01).
-- Q: In spec 12's parallel mode (cases per REQ-62), who runs `record` (12 Q-03)? → A: The root orchestrator, on the draft the reviewing agent returns (D-02).
+- Q: In spec 23's parallel mode (cases per REQ-62), who runs `record` (23 Q-03)? → A: The root orchestrator, on the draft the reviewing agent returns (D-02).
 
 ### Session 2026-11-14 (auto mode)
 
 - No question was put to the owner (auto mode under standing authorization). A coordinator note
-  confirmed G1–G8 as the gate set and asked that spec 14's final contract be settled here; it is
+  confirmed G1–G8 as the gate set and asked that spec 12's final contract be settled here; it is
   folded into A-12, A-13 and C-6.
 - Coordinator ruling (reconciliation pass, 2026-11-14): an implementer must not find two capture
-  mechanisms; where spec 17's helper is available, checks run through it and the receipt
-  references its artifact and manifest, otherwise the existing behaviour applies; spec 16 keeps
+  mechanisms; where spec 14's helper is available, checks run through it and the receipt
+  references its artifact and manifest, otherwise the existing behaviour applies; spec 15 keeps
   the inputs digest, the reuse decision and the review record. Folded into DM-4a, REQ-57–REQ-61,
   A-15 and C-5.
 
 ## Open Questions
 
 - Q-01 | non-blocker | Should location-independent checks be reusable across worktrees? Impact:
-  reuse in spec 12's parallel mode. Recommended: no until spec 09 shows misses do not rise.
+  reuse in spec 23's parallel mode. Recommended: no until spec 10 shows misses do not rise.
 - Q-02 | non-blocker | Should this repository track review records as knowledge (ADR-0012) instead
-  of ignoring them (REQ-48)? Recommended: ignore, matching spec 15 Q-01.
+  of ignoring them (REQ-48)? Recommended: ignore, matching spec 13 Q-01.
 - Q-03 | resolved | Former question on exempting checks that also fail on the base revision —
   resolved by A-29 (no exemption), approved by the owner on 2026-11-14 (D-01).
-- Q-04 | resolved | Former question on referencing spec 17 artifacts — resolved by DM-4a and
+- Q-04 | resolved | Former question on referencing spec 14 artifacts — resolved by DM-4a and
   REQ-57–REQ-60 (2026-11-14 reconciliation).
 
 ## Notes
 
-### Name mapping (spec 13)
+### Name mapping (spec 09)
 
-| Today | After 13 |
+| Today | After 09 |
 |---|---|
 | `workflows/pav-check.md` | `workflows/atomic-validation-check.md` |
 | `workflows/pv-contract.md`, `pv-review.md`, `pv-issues.md`, `pv-execute-fixes.md` | `validation-contract`, `validation-review`, `validation-issues`, `validation-execute-fixes` |
@@ -1651,7 +1651,7 @@ Auto-mode resolutions are recorded under Assumptions. Owner decisions of 2026-11
 
 ### Implementation hints (nonbinding)
 
-- Spec 13 (Notes → Files and sections created after this spec, 13 REQ-68): `rules/contract-verification.md`
+- Spec 09 (Notes → Files and sections created after this spec, 09 REQ-68): `rules/contract-verification.md`
   holds only new text. The delivery moves no text out of a rule that has a `rule` row, so it adds no
   name-map row, no `new` entry and no amendment entry; the three replaced sentences live in workflows.
 
@@ -1665,25 +1665,25 @@ Auto-mode resolutions are recorded under Assumptions. Owner decisions of 2026-11
 
 ### Change log
 
-- 2026-11-14 — reconciliation with finished peer specs: capture delegated to spec 17's helper
+- 2026-11-14 — reconciliation with finished peer specs: capture delegated to spec 14's helper
   when available (DM-4a, REQ-57–REQ-60, REQ-17 wording, DM-4 `output`/`command_status`, DM-6
-  `capture-unverifiable`, DM-10 `output_reference`, C-5 replaced sentences, C-6 row 17, A-15,
-  Q-04 resolved, AC-38–AC-42, REQ-61 for spec 17's suite, REQ-23/REQ-36 for the capture child); C-6 rows 19 and 20 name the exact fields and paths those specs
-  read and state how rechecks behave while spec 19 defers the NEEDS WORK stop; C-6 row 18 and
-  A-24 no longer imply spec 18 consumes anything. Readiness verdict unchanged.
-- 2026-11-14 — second reconciliation pass: spec 15, 08 and 12 citations by id instead of line
-  number (Terminology, DM-4, DM-8, C-3, C-6 row 15, A-14); A-14 and C-6 row 15 state that 15 REQ-30
+  `capture-unverifiable`, DM-10 `output_reference`, C-5 replaced sentences, C-6 row 14, A-15,
+  Q-04 resolved, AC-38–AC-42, REQ-61 for spec 14's suite, REQ-23/REQ-36 for the capture child); C-6 rows 17 and 18 name the exact fields and paths those specs
+  read and state how rechecks behave while spec 17 defers the NEEDS WORK stop; C-6 row 16 and
+  A-24 no longer imply spec 16 consumes anything. Readiness verdict unchanged.
+- 2026-11-14 — second reconciliation pass: spec 13, 11 and 23 citations by id instead of line
+  number (Terminology, DM-4, DM-8, C-3, C-6 row 13, A-14); A-14 and C-6 row 13 state that 13 REQ-30
   forbids passing any Implementer report, checkpoint message, receipt or journal path to a
   Validator; DM-4a states that `run` passes no `--timeout-seconds` and spells out the case lettering
-  (new A-35); C-6 row 12, the Edge Cases composite row, A-05, A-08 and A-34 state 12 A-28 (post-merge
+  (new A-35); C-6 row 23, the Edge Cases composite row, A-05, A-08 and A-34 state 23 A-28 (post-merge
   commands never use receipts, a child-worktree receipt never stands for the merged tree, only the
   root-worktree composite review may reuse one, at `full-integration`); C-5 `loads:` row stated in
-  08's grammar and the frozen-check note for the replaced sentences; Notes record that no text moves
-  out of a mapped rule (13 REQ-68). Confirmed unchanged: C-6 rows 18, 19, 20, A-19 and A-24 against
-  specs 18, 19, 20 and 09 REQ-52. No requirement, acceptance criterion or verdict changed.
-- 2026-11-14 — independent final review: C-5 replaces both step 5 sentences of `/pav-check` (`test:`, `lint:`, `typecheck:`), REQ-60 and AC-41 follow; C-6 row 12 states the record location and points to 12 Q-03 (since resolved, see the next entry); disable switch follows spec 14 REQ-32; A-02/A-21 clarified; own ids qualified; Finding source corrected; neutral provenance wording; citations by id.
-- 2026-11-14 — owner decisions recorded: D-01 (the REQ-55 classification of failing checks is approved; A-09, A-29, Risks, Scope text and Q-03 now say so) and D-02 (the root orchestrator runs `record` in parallel mode: REQ-62, AC-43, A-36, an Edge Cases row, C-6 row 12 no longer open). Counts updated; verdict unchanged.
-- 2026-11-14 — aligned with spec 12 record handling: REQ-62 names the cases by citing 12 REQ-55 (child `/pav-check` agent at N > 1, the Validator of a serialized composite's child at N > 1, the composite validation agent of 12 REQ-12) and cites 12 C-6 rows 11 and 12 and 12 REQ-56 instead of one row; the C-4 `Record:` line, Actors & Roles, C-6 row 12, the Edge Cases row and A-36 state the exception; no id added or renumbered, verdict unchanged.
+  11's grammar and the frozen-check note for the replaced sentences; Notes record that no text moves
+  out of a mapped rule (09 REQ-68). Confirmed unchanged: C-6 rows 16, 17, 18, A-19 and A-24 against
+  specs 16, 17, 18 and 10 REQ-52. No requirement, acceptance criterion or verdict changed.
+- 2026-11-14 — independent final review: C-5 replaces both step 5 sentences of `/pav-check` (`test:`, `lint:`, `typecheck:`), REQ-60 and AC-41 follow; C-6 row 23 states the record location and points to 23 Q-03 (since resolved, see the next entry); disable switch follows spec 12 REQ-32; A-02/A-21 clarified; own ids qualified; Finding source corrected; neutral provenance wording; citations by id.
+- 2026-11-14 — owner decisions recorded: D-01 (the REQ-55 classification of failing checks is approved; A-09, A-29, Risks, Scope text and Q-03 now say so) and D-02 (the root orchestrator runs `record` in parallel mode: REQ-62, AC-43, A-36, an Edge Cases row, C-6 row 23 no longer open). Counts updated; verdict unchanged.
+- 2026-11-14 — aligned with spec 23 record handling: REQ-62 names the cases by citing 23 REQ-55 (child `/pav-check` agent at N > 1, the Validator of a serialized composite's child at N > 1, the composite validation agent of 23 REQ-12) and cites 23 C-6 rows 11 and 12 and 23 REQ-56 instead of one row; the C-4 `Record:` line, Actors & Roles, C-6 row 23, the Edge Cases row and A-36 state the exception; no id added or renumbered, verdict unchanged.
 
 ### Rejected alternatives
 
@@ -1698,16 +1698,16 @@ Auto-mode resolutions are recorded under Assumptions. Owner decisions of 2026-11
 | # | Check | Result |
 |---|---|---|
 | 1 | Goal is one domain-language paragraph | PASS — one paragraph on recorded coverage, content-bound reuse and finding-led recheck |
-| 2 | Out of Scope names concrete exclusions | PASS — repair (19), tiers/models (04, 18, 09), packets (14), journals (15), previews (17), merges (12), build, timeouts, validator inventory |
+| 2 | Out of Scope names concrete exclusions | PASS — repair (17), tiers/models (04, 16, 10), packets (12), journals (13), previews (14), merges (23), build, timeouts, validator inventory |
 | 3 | Each REQ has a stable id and one EARS behaviour | PASS — REQ-01–REQ-62; original REQ-01–REQ-08 restated |
 | 4 | REQ ↔ AC both ways | PASS — Traceability table covers REQ-01–REQ-62 and AC-01–AC-43 |
 | 5 | Every AC binary and test-first | PASS — fixture V1 fully specified; text ACs quote exact lines |
-| 6 | Non-functional targets measurable or N/A | PASS — NFR-01–NFR-06 verifiable; NFR-07 states a work bound and no time target, measurement owned by 09 |
+| 6 | Non-functional targets measurable or N/A | PASS — NFR-01–NFR-06 verifiable; NFR-07 states a work bound and no time target, measurement owned by 10 |
 | 7 | Data model and contracts specified | PASS — DM-1–DM-10, DM-4a, DM-7a, C-1–C-8 |
 | 8 | Error, empty, boundary and concurrency cases | PASS — Edge Cases table; concurrent runs (nonce), record races (`record-conflict`), interruption |
 | 9 | Every Step 3 ambiguity recorded | PASS — A-01–A-36, D-01–D-02; Q-01, Q-02 open non-blockers; Q-03, Q-04 resolved |
 | 10 | No blocker question | PASS — none |
-| 11 | Existing-code claims cited and verified | PASS — path:line citations checked at `060ce6d`; spec 15 cited after its final revision |
+| 11 | Existing-code claims cited and verified | PASS — path:line citations checked at `060ce6d`; spec 13 cited after its final revision |
 | 12 | Terminology matches project definitions | PASS — domain terms reused; new terms defined; rejected synonyms listed |
 | 13 | Feature-sized (1–8 subtasks) | PASS — about six: preparation, receipts, records/recheck, rule and workflow text, docs/ADR |
 | 14 | Devil's Advocate review | PASS — Review: 4 rounds, score 97/100, critic: sub-agent, open: none critical or major; minor F-48–F-50 were applied after round 4 and not re-scored |
@@ -1718,5 +1718,5 @@ review and were checked by one independent critic only; the verdict is unchanged
 Second pass 2026-11-14: only peer-citation and delegation wording changed (change log); the verdict
 below is unchanged.
 
-Verdict: **READY FOR DEVELOPMENT**, after its roadmap prerequisites (09, 14, 15, 17; 13 and 08 for
+Verdict: **READY FOR DEVELOPMENT**, after its roadmap prerequisites (10, 12, 13, 14; 09 and 11 for
 names and `loads:`) are delivered. Automated readiness is not owner sign-off.

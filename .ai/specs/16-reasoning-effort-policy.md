@@ -1,11 +1,11 @@
-# 18. Reasoning effort policy by role, stage, complexity and harness capability
+# 16. Reasoning effort policy by role, stage, complexity and harness capability
 
 ## Source
 
 - **Origin:** workstream 7 ("reasoning effort") of the owner's token-optimization request of
   2026-10-21. Roadmap row 7 of `.ai/specs/README.md` → "Nine token optimization workstreams" — "Role/stage/complexity-based effort,
   capability checks, conservative fallback, measured quality" — and dependency row
-  `.ai/specs/README.md` → "Dependency order" (order 12, prerequisites 04, 05, 09, 15, 16, disposition "New
+  `.ai/specs/README.md` → "Dependency order" (order 12, prerequisites 04, 05, 10, 13, 15, disposition "New
   workstream 7"). The shared acceptance gates G1–G8 (`.ai/specs/README.md` → "Shared acceptance gates") are part of
   this specification's acceptance contract.
 - **Previous revision:** 2026-10-28 (reconciled 2026-11-06), written in Russian. The full
@@ -33,10 +33,10 @@
     observed. Mechanical work is performed by a deterministic tool when that suffices. Complex
     and critical work keeps a conservative configuration until alternatives are
     independently qualified."
-  - Ownership (§2): "18 owns the resolution of a supported setting. The model catalog and
-    availability belong to 04, harness capabilities to 13, measurement to 05, qualification to
-    09, verification to 16, the escalation decision to 19. 19 is a later consumer of setting
-    resolution, not a prerequisite of 18. Until 19's repair policy is enabled, the existing
+  - Ownership (§2): "16 owns the resolution of a supported setting. The model catalog and
+    availability belong to 04, harness capabilities to 09, measurement to 05, qualification to
+    10, verification to 15, the escalation decision to 17. 17 is a later consumer of setting
+    resolution, not a prerequisite of 16. Until 17's repair policy is enabled, the existing
     stops and owner-authorized assignments apply; no autonomous escalation arises from this
     specification."
   - Out of scope (§2): "invented parameters, transferring level names between providers, a
@@ -55,14 +55,14 @@
     alone the actual amount of reasoning. 3. Unknown measures are not recorded as zero. 4. An
     unsupported parameter is not sent at random. The model is not silently substituted. 5. A
     cheaper setting does not become the default without qualification of the full result under
-    09. 6. A stage switch resolves the setting anew; a cheap mechanical action does not lower
+    10. 6. A stage switch resolves the setting anew; a cheap mechanical action does not lower
     the next complex check."
   - REQ-01: "Define an optional versioned policy by role (`orchestrator`, `Arbiter`,
     `Implementer`, `Validator`), stage, complexity, risk, ambiguity and task kind. For
     sufficient mechanical actions prefer deterministic tools. Planning, uncertain
     architecture, critical invariants and complex verification keep conservative minimum
     floors."
-  - REQ-02: "Supported model/harness settings are described in a single 04/13 registry: exact
+  - REQ-02: "Supported model/harness settings are described in a single 04/09 registry: exact
     syntax, allowed values, scope, date/version of confirmation and states of
     unknown/unsupported. Cross-provider equating of names and invented token budgets are
     forbidden."
@@ -76,10 +76,10 @@
     model for the sake of a setting without permission is forbidden."
   - REQ-05: "On stage change, recovery and retry keep the policy's provenance and determine
     suitability anew. Inheriting the cheap effort of a mechanical stage into a complex fix or
-    review is not allowed. The decision to escalate belongs to 19; here only the supported
+    review is not allowed. The decision to escalate belongs to 17; here only the supported
     setting is checked."
   - REQ-06: "Until an independent evaluation of the quality and full cost of the accepted
-    result under 09, keep the previous defaults. An offline check of setting resolution proves
+    result under 10, keep the previous defaults. An offline check of setting resolution proves
     the correctness of the parameter choice, not the quality of the model."
   - REQ-07: "Account under 05 for full input/output, the available part of reasoning, cache,
     time, failures, retries, verification and escalation. Reasoning tokens already included in
@@ -94,7 +94,7 @@
   - AC-02 (REQ-02, REQ-04): "Supported values are passed exactly. An unknown model/version and
     an unsupported value produce no invented argument or model change. Requested, resolved,
     confirmed and observed are distinguished."
-  - AC-03 (REQ-05): "Stage change, recovery and 19's escalation use one registry and recheck
+  - AC-03 (REQ-05): "Stage change, recovery and 17's escalation use one registry and recheck
     the floors. A mechanical stage's setting is not inappropriately inherited; the
     session-scope limitation is respected."
   - AC-04 (REQ-06, REQ-07): "An unqualified economical entry does not become the default. A
@@ -107,14 +107,14 @@
   - Summarized: §5 sketched a capability registry keyed by exact harness/model version and a
     declarative policy record with `require_exact`; §6 an eight-step deterministic resolution
     algorithm; §7 stage change and recovery (no claimed switch inside a live worker; RED and
-    GREEN stay in one Implementer); §8 qualification only through a separate 09 plan; §9 an
+    GREEN stay in one Implementer); §8 qualification only through a separate 10 plan; §9 an
     error/fallback table; §11 an implementation order (verify capabilities, schema, offline
-    scenarios, wiring to 15/05, rollback documentation).
+    scenarios, wiring to 13/05, rollback documentation).
 
 ## Context & Problem
 
 Verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`. File names in this section are the
-current (pre-spec-13) names; see Notes → Name mapping for the names the implementation edits.
+current (pre-spec-09) names; see Notes → Name mapping for the names the implementation edits.
 
 1. **An effort contract already exists, but only for leaf Implementers and only as prose.**
    `/pd-select-model` recommends a reasoning effort per leaf from demand and risk scores
@@ -147,7 +147,7 @@ current (pre-spec-13) names; see Notes → Name mapping for the names the implem
    `git-rails: none (textual rules only)` (`:12`). `rg -i effort harness/` returns nothing.
    The only effort values observed in the repository concern the separate CLI process
    (`claude --effort`, values `low`, `medium`, `high`, `xhigh`, `max`, observed with
-   `claude --help` on 2026-11-13, spec 09 Context & Problem, installed-CLI observation), not a sub-agent
+   `claude --help` on 2026-11-13, spec 10 Context & Problem, installed-CLI observation), not a sub-agent
    spawn.
 4. **Nothing records what was actually requested per spawn.** The recommendation lives in
    `## Model Selection`; the dispatch-time request, its source and the reason it was or was
@@ -159,14 +159,14 @@ current (pre-spec-13) names; see Notes → Name mapping for the names the implem
    effort (`resolution.parameters` admits only `model`, `service_tier`, `region`, `modality`,
    `scripts/usage_telemetry_contract.py:500-502`).
 5. **A cheaper default needs approved comparative evidence.** The roadmap requires an
-   explicitly approved spec-09 comparison before promoting a cheaper default
+   explicitly approved spec-10 comparison before promoting a cheaper default
    (`.ai/specs/README.md` → "Shared acceptance gates", introductory paragraph); ADR-0015 repeats it ("Cheaper-default promotion requires
-   separately approved independent comparison"). Spec 09 emits an advisory per-comparison
+   separately approved independent comparison"). Spec 10 emits an advisory per-comparison
    `verdict` (`promote`, `do-not-promote`, `insufficient-data`) in `report.json`
-   (spec 09 DM-12 Report and `Promotion rule (REQ-12)`); its manifest variants carry
+   (spec 10 DM-12 Report and `Promotion rule (REQ-12)`); its manifest variants carry
    `roles: {<role>: {model, effort}}` with `effort` one of `low`, `medium`, `high`, `xhigh`,
-   `max`, `session-default` (spec 09 DM-6 Manifest); it leaves "changing … effort policy" and adoption of a
-   promoted variant to a separate owner decision (spec 09 Out of Scope).
+   `max`, `session-default` (spec 10 DM-6 Manifest); it leaves "changing … effort policy" and adoption of a
+   promoted variant to a separate owner decision (spec 10 Out of Scope).
 6. **Constraints on delivery.** The validator's check inventory is frozen; new checks are
    standalone scripts outside `scripts/validate-contracts.sh`, and a new shell or Python file
    under `tests/` invalidates the nested source guard (ADR-0019 Decision 3,
@@ -177,14 +177,14 @@ current (pre-spec-13) names; see Notes → Name mapping for the names the implem
    suite reads `rules/workflow-reference.md` from `### Model columns and resolution` to the end
    of its `##` section and requires `reasoning.*(?:recommendation|level)` and
    `reasoning.*(?:actual|observed)` there (`tests/model-workflow.py:89-96`, `:161-169`). Spec
-   13's inventory amendment admits `contract_changes` only for a closed set of 13's own
-   requirement ids (spec 13 DM-9 `contract_changes`, extended only by 13 REQ-69).
-7. **Spec 13 lands first.** The dependency order puts 13 (order 2) before 09 (order 6) and 09
-   before 18 (order 12) (`.ai/specs/README.md` → "Dependency order"). 13 renames the workflows and rules this
+   09's inventory amendment admits `contract_changes` only for a closed set of 09's own
+   requirement ids (spec 09 DM-9 `contract_changes`, extended only by 09 REQ-69).
+7. **Spec 09 lands first.** The dependency order puts 09 (order 2) before 10 (order 6) and 10
+   before 16 (order 12) (`.ai/specs/README.md` → "Dependency order"). 09 renames the workflows and rules this
    spec edits and splits `rules/workflow-reference.md`, sending `### Model columns and
    resolution` and `## Protected Sections Contract` to `rules/contract-state-files.md`
-   (spec 13 DM-10 row `rules/workflow-reference.md` and DM-12), and
-   appends a `## Capability records` section at the end of each capability file (spec 13 DM-4).
+   (spec 09 DM-10 row `rules/workflow-reference.md` and DM-12), and
+   appends a `## Capability records` section at the end of each capability file (spec 09 DM-4).
 
 Consequence: effort is chosen for one role by a prose heuristic, judged supported from the
 session's own perception, never declared per harness, and not persisted per spawn. The other
@@ -199,17 +199,17 @@ role, stage and recorded complexity to an exact harness-specific value; a policy
 is sent only when the harness declares the setting with evidence and the session exposes it,
 while today's session-observed Implementer recommendation keeps working until a declaration
 exists; otherwise the spawn uses the harness default visibly. No rule may lower effort below
-today's behaviour without an approved spec-09 comparison, every decision is persisted with its
+today's behaviour without an approved spec-10 comparison, every decision is persisted with its
 model, requested, resolved and actual (unknown) values, and with no policy and no escalation
 the request sent equals today's, also when the resolver itself is unusable (REQ-39).
 
 ## Scope
 
 1. A per-harness capability section `## sub-agent-effort` (DM-1) in the record form of spec
-   13 DM-4, with anchored value, order, default and parameter lines; shipped as `unknown`
+   09 DM-4, with anchored value, order, default and parameter lines; shipped as `unknown`
    unless evidence is collected at implementation.
 2. An optional owner policy file (DM-2) with `target` and `minimum` rules matched on role,
-   stage, quality floor, hard constraints and leaf kind, an optional spec-09 qualification
+   stage, quality floor, hard constraints and leaf kind, an optional spec-10 qualification
    reference (DM-3) and a bounded owner raise.
 3. A standard-library helper `scripts/effort-policy.py` with `resolve` and `check-policy`
    commands (C-1–C-3): pure, offline, deterministic.
@@ -221,7 +221,7 @@ the request sent equals today's, also when the resolver itself is unusable (REQ-
    leaf worker spawn of the single-session executors; harness rejection; resolver
    unavailability; the disable switch (C-4).
 7. The effort dimension source string offered to spec 05 (C-5) and the contracts exposed to or
-   consumed from specs 04, 05, 09, 12, 13, 15, 16, 19 and 20 (C-6); G1–G8 conformance (C-8).
+   consumed from specs 04, 05, 10, 23, 09, 13, 15, 17 and 18 (C-6); G1–G8 conformance (C-8).
 8. A companion guide `docs/EFFORT-POLICY.md`, domain vocabulary entries, an ADR and a
    standalone acceptance suite `scripts/check-effort-policy.py` (C-7).
 
@@ -232,37 +232,37 @@ the request sent equals today's, also when the resolver itself is unusable (REQ-
 - The Orchestrator's own session effort, inline execution (it cannot switch its own setting,
   `rules/workflow-reference.md:152`), Discovery children run inline, the quick tier, the
   `/spec-draft` Devil's Advocate critic and `/bugfix`.
-- Spec 12's parallel-mode spawns (leaf coordinators, phase agents and per-workflow agents):
+- Spec 23's parallel-mode spawns (leaf coordinators, phase agents and per-workflow agents):
   they are outside policy version 1 and keep today's dispatch behaviour until a later change to
-  this spec brings them in (C-6 row 12, A-29).
+  this spec brings them in (C-6 row 23, A-29).
 - Changing the existing model-selection heuristic that maps scores to a recommended level
   (`workflows/pd-select-model.md:216-221`), including its low recommendations for low-demand
   leaves.
 - Any shipped policy file, shipped default level, numeric target, token budget or claimed
   saving; any cross-harness equivalence of level names.
-- Running, scheduling or approving a spec-09 experiment; paid model runs of any kind.
-- Deciding when a failed attempt escalates (spec 19) and producing new complexity evidence
-  (spec 20).
+- Running, scheduling or approving a spec-10 experiment; paid model runs of any kind.
+- Deciding when a failed attempt escalates (spec 17) and producing new complexity evidence
+  (spec 18).
 - Writing spec-05 telemetry records or extending 05's schema, including the previous REQ-07
   accounting of reasoning, cache, retries and escalation and the previous AC-04 synthetic
   report: 05 already owns that accounting; this spec only supplies the C-5 label.
 - A harness acknowledgement ("confirmation of application", previous §3): no documented
   acknowledgement mechanism exists; only an explicit spawn rejection is recorded (REQ-10).
-- A dispatch-record field in spec 15's `checkpoint_attempt` (C-6 explains why none is needed).
+- A dispatch-record field in spec 13's `checkpoint_attempt` (C-6 explains why none is needed).
 - Changing effort inside a live worker; per-message effort.
 - Preferring deterministic tools for mechanical actions (previous REQ-01 sentence): that is a
-  property of decomposition and tool design (specs 17 and 20), not of a spawn parameter.
+  property of decomposition and tool design (specs 14 and 18), not of a spawn parameter.
 
 ## Actors & Roles
 
 | Actor | Allowed actions | Forbidden |
 |---|---|---|
-| Owner | Writes, versions, disables or removes the policy file; adds qualification references after adopting a spec-09 `promote` verdict; sets `owner_raise`; collects capability evidence | — |
+| Owner | Writes, versions, disables or removes the policy file; adds qualification references after adopting a spec-10 `promote` verdict; sets `owner_raise`; collects capability evidence | — |
 | Dispatcher — the `/spec-run` Orchestrator, or the single-session executor (`execution-execute`, `atomic-execution`) when it spawns a leaf worker | Builds the request, runs the resolver, appends `## Effort Decisions` lines, passes the effort parameter only on `outcome: requested`, stops on `outcome: stop` | Editing or deleting decision lines; choosing a value the decision did not resolve; retrying another value after a rejection |
 | Resolver `scripts/effort-policy.py` | Reads the capability file, the policy file, the qualification files the policy names and the request; prints one decision | Writing any file; network access; starting processes; reading other paths |
 | Model-selection workflow | Writes `effort-input:` lines into `## Model Selection` during bulk selection | Running the resolver |
 | Worker (Arbiter, Implementer, Validator) | Runs at the effort it was spawned with | Writing `## Effort Decisions` |
-| Spec 19 policy (future) | Supplies an `escalation` value in the request | Bypassing the capability gate |
+| Spec 17 policy (future) | Supplies an `escalation` value in the request | Bypassing the capability gate |
 
 ## Terminology
 
@@ -280,7 +280,7 @@ the request sent equals today's, also when the resolver itself is unusable (REQ-
 | Target rule / minimum rule | A policy rule that sets the requested effort when no recommendation applies / that raises a lower requested effort. | New |
 | Owner raise | `owner_raise: true` on a target rule whose value is the highest declared value: the owner's explicit acceptance that the top value is not a lowering (C-3 step 3). | Previous REQ-03 "explicit approved owner override" |
 | Provably at least / provably lower | The C-3 comparisons on a declared ascending order. | New |
-| Qualification | A DM-3 reference to a spec-09 comparison whose verdict is `promote` and whose variants differ in exactly the rule's effort. | spec 09 DM-6 Manifest, `Promotion rule (REQ-12)` |
+| Qualification | A DM-3 reference to a spec-10 comparison whose verdict is `promote` and whose variants differ in exactly the rule's effort. | spec 10 DM-6 Manifest, `Promotion rule (REQ-12)` |
 | Spawn (dispatch) | One start of a worker, including recreation after interruption or rejection. A message to a live worker is not a spawn. Not the run-log `dispatch` marker (`rules/run-log.md:383`). | `rules/orchestration.md:40-41`, `:63-67` |
 | Decision | The resolver's output DM-7 for one spawn. | New |
 | Quality floor | The ordinal 1–5 demand floor computed by `quality_floor` (`scripts/model_selection.py:106`). Used here as the complexity signal. | Spec 04 |
@@ -394,7 +394,7 @@ effort.
   REQ-11, REQ-12 or REQ-13 applies).
 - **REQ-21 Disable switch.** WHERE the environment variable `ORCHESTRAIL_EFFORT_POLICY`
   is set to a value other than the empty string or `on` (documented value `off`; the rule of
-  spec 14 REQ-32), THE dispatcher SHALL invoke the resolver with `--no-policy` for every spawn of
+  spec 12 REQ-32), THE dispatcher SHALL invoke the resolver with `--no-policy` for every spawn of
   the run.
 
 ### Inputs
@@ -450,7 +450,7 @@ effort.
   `### Reasoning effort resolution` of the state-files contract (Notes → Name mapping),
   placed in the same `##` section directly after `### Model columns and resolution`; SHALL
   replace that section's existing effort paragraph (the one beginning "For each leaf, read its
-  reasoning effort recommendation", `rules/workflow-reference.md:144-154` before spec 13) by
+  reasoning effort recommendation", `rules/workflow-reference.md:144-154` before spec 09) by
   one sentence citing the new subsection; and SHALL cite the new subsection from
   `workflows/spec-run.md` (Arbiter spawn in Step 1, 4.2 and 4.3) and from the two
   single-session executors' model-resolution steps.
@@ -458,8 +458,8 @@ effort.
   `state.md` in the state-files contract's `## Protected Sections Contract`.
 - **REQ-24 Capability record and behaviour row.** THE delivery SHALL declare the
   `## sub-agent-effort` record (DM-1) in each harness's `capabilities.md`, with `state: unknown`
-  where no evidence exists. WHERE the phases contract has `## Capabilities` (spec 13
-  delivered), THE delivery SHALL also add the behaviour row of C-4 → Capability row; spec 13
+  where no evidence exists. WHERE the phases contract has `## Capabilities` (spec 09
+  delivered), THE delivery SHALL also add the behaviour row of C-4 → Capability row; spec 09
   REQ-67 admits in a `Requires` cell the `name:` of a capability record that every harness's
   `capabilities.md` declares.
 - **REQ-25 Guide.** THE delivery SHALL add `docs/EFFORT-POLICY.md` with the DM-1, DM-2, DM-3
@@ -489,7 +489,7 @@ rejected; duplicate object keys, `NaN`/`Infinity` and unknown keys are invalid e
 
 ### DM-1 Capability section `## sub-agent-effort` (extends `harness/<id>/capabilities.md`)
 
-Position: immediately before the line `## Capability records` when the file has one (spec 13
+Position: immediately before the line `## Capability records` when the file has one (spec 09
 DM-4 keeps that section last), otherwise after the file's last line. Either way the section
 starts after the `## git-rails` section, so the frozen `git_rails_section` reader stops at its
 heading (`scripts/validate-contracts.sh:5257-5259`).
@@ -514,7 +514,7 @@ sub-agent-effort parameter: <token>
 | Line | Rule (validated by the resolver unless marked) |
 |---|---|
 | Heading | Exactly one line `## sub-agent-effort` in the file; the section runs to the next line starting `## ` or the end of file |
-| Record (`name:` … first empty line) | Spec 13 DM-4 grammar: keys `name`, `state` (`yes`/`no`/`unknown`), `runtime`, `verified` (valid `YYYY-MM-DD`), `evidence` (repeatable, no whitespace); `runtime`, `verified` and ≥1 `evidence` required unless `state: unknown`. Extension record name `sub-agent-effort` |
+| Record (`name:` … first empty line) | Spec 09 DM-4 grammar: keys `name`, `state` (`yes`/`no`/`unknown`), `runtime`, `verified` (valid `YYYY-MM-DD`), `evidence` (repeatable, no whitespace); `runtime`, `verified` and ≥1 `evidence` required unless `state: unknown`. Extension record name `sub-agent-effort` |
 | `Limitations:` paragraph | A line starting `Limitations: ` must follow the record. Its content is not validated by the resolver; AC-16 checks that it says resolved is not actual |
 | `sub-agent-effort values:` | Exactly once in the section. `none` iff `state` is not `yes`; otherwise ≥1 unique tokens joined by `, ` |
 | `sub-agent-effort order:` | Exactly once. `ascending` (values listed lowest to highest, with evidence) requires `state: yes` and ≥2 values; otherwise `unknown` |
@@ -587,7 +587,7 @@ empty list (a `null` list matches only `any`); `leaf_kinds` is `null` or contain
 ```
 
 Paths are absolute; digests 64 lowercase hex; variant ids match `^[A-F][a-z0-9-]{0,15}$`
-(spec 09 DM-6). The 1,048,576-byte limit of check 1 is this spec's own: spec 09 sets no size
+(spec 10 DM-6). The 1,048,576-byte limit of check 1 is this spec's own: spec 10 sets no size
 limit on `report.json`. A report or manifest above it is rejected as unreadable evidence
 (`qualification-invalid`) and the rule applies no lowering; this is a documented limit, not a
 defect, and the conservative reading. For a rule with value `v` evaluated for request harness `h`, the reference
@@ -597,25 +597,25 @@ verifies when all hold:
    digest, and both parse as JSON with `schema_version` `1`.
 2. The report has `kind` `"observed"`, its `experiment_id` equals the manifest's, and its
    `comparisons` contains an element with equal `candidate` and `baseline` and `verdict`
-   `"promote"` (spec 09 DM-12 and Promotion rule).
+   `"promote"` (spec 10 DM-12 and Promotion rule).
 3. The manifest's `variants` contains the candidate and the baseline, both with `adapter`
    equal to `h`; for every role `r` in the rule's `match.roles`, the candidate's
    `roles[r].effort` equals `v` and the baseline's `roles[r].effort` equals
-   `"session-default"` (spec 09's value for a run whose CLI invocation omits `--effort`, 09 DM-8;
+   `"session-default"` (spec 10's value for a run whose CLI invocation omits `--effort`, 10 DM-8;
    the counterpart of this spec's `harness-default`), and both variants have the same `roles[r].model`.
 
 Any other result is `qualification-invalid`. The reference records the owner's adoption of a
-promoted variant; it relies on spec 09 REQ-53 and its manifest definition, whose `roles` has
+promoted variant; it relies on spec 10 REQ-53 and its manifest definition, whose `roles` has
 exactly the keys `orchestrator`, `arbiter`, `implementer` and `validator`, each with `model`
 and `effort`, and whose `adapter` is `claude` or `null` (C-6). This check reads only the keys
 named in the rule's `match.roles` (a subset of `arbiter`, `implementer`, `validator`); the
-`orchestrator` key is required by spec 09 but ignored here, and its effort is never compared.
-**Uniform-effort limitation.** Spec 09 gives an `executable` variant one effort for every role
+`orchestrator` key is required by spec 10 but ignored here, and its effort is never compared.
+**Uniform-effort limitation.** Spec 10 gives an `executable` variant one effort for every role
 (the orchestrator included), so an executable candidate changes the roles outside the rule's
 `match.roles` as well. A rule that matches only some roles is therefore qualified with a
-`recorded` variant (a `manual` variant is never measured, so it never reaches `promote`; 09
+`recorded` variant (a `manual` variant is never measured, so it never reaches `promote`; 10
 REQ-06), or with an executable candidate whose uniform effort is the
-rule's value `v`; check 3 still compares only the matched roles. Since 09's `adapter` admits
+rule's value `v`; check 3 still compares only the matched roles. Since 10's `adapter` admits
 only `claude` or `null`, a `codex` rule has no verifying reference of any availability, and a
 recorded or manual variant verifies only when its manifest sets `adapter` to the request
 harness.
@@ -737,7 +737,7 @@ python3 -I scripts/effort-policy.py check-policy --policy FILE [--capabilities F
 - The helper checks `sys.version_info >= (3, 11)` before any other work and exits 3 otherwise;
   so that this check, not a syntax error, decides on an older interpreter, the entry file as a
   whole uses only syntax older Python 3 interpreters parse and loads any 3.11-only code after the
-  check (spec 20 A-26: entry module plus path-loaded engine).
+  check (spec 18 A-26: entry module plus path-loaded engine).
 
 ### C-2 Exit codes, sources and reason codes
 
@@ -841,7 +841,7 @@ otherwise, and always empty on `policy-invalid`.
    Validator spawns; without it, and for the Arbiter, `null` (REQ-16). Recommendation
    (Implementer only, `null` otherwise): from the DM-4 line — `recommended none` gives `null`,
    otherwise `{"value": <recommended>, "for": <for>}`; without a DM-4 line, `null` (REQ-36).
-   Session: REQ-35. Escalation: `null` unless supplied by spec 19.
+   Session: REQ-35. Escalation: `null` unless supplied by spec 17.
 3. **Run.** With the verified `SOURCE_ROOT` of `### Model columns and resolution`:
    `python3 -I "$SOURCE_ROOT/scripts/effort-policy.py" resolve --capabilities
    "$SOURCE_ROOT/harness/<harness>/capabilities.md" --policy <DM-2 path> --request <file>`
@@ -870,13 +870,13 @@ The subsection also states that adding effort to Arbiter and Validator spawns le
 session-default *model* roles: ADR-0015 Decision 3 concerns model identity, and effort is
 recommended separately from model identity (`docs/MODEL-CATALOG.md:84`).
 
-**Capability row** (REQ-24), in the header of spec 13 DM-4's behaviour table:
+**Capability row** (REQ-24), in the header of spec 09 DM-4's behaviour table:
 
 ```text
 | Policy- or escalation-chosen reasoning effort for a spawned worker | `spec-run`, `atomic-execution`, `execution-execute` | `sub-agent-effort` | While the record is `unknown` or absent, send only a session-observed leaf recommendation; otherwise, including `state: no`, spawn without an effort parameter and record outcome not-requested |
 ```
 
-The narrowed Behaviour cell keeps 13 REQ-16 (a `no`, `unknown` or undeclared capability takes the
+The narrowed Behaviour cell keeps 09 REQ-16 (a `no`, `unknown` or undeclared capability takes the
 "Without it" path) consistent with REQ-37, under which a session-observed recommendation is still
 sent while the record is `unknown` (C-3 step 6a refuses it for `state: no`).
 
@@ -895,18 +895,18 @@ values must be `sha256:` identifiers, `scripts/usage_telemetry_contract.py:350-3
 |---|---|
 | 04 (completed) | Consumed: `quality_floor`, `HARD_CONSTRAINTS`, the reasoning recommendation and model resolution, unchanged. Extended additively: DM-4 lines in the model-selection workflow |
 | 05 (completed) | Consumed: none required. Exposed: C-5. Needed for actual effort (not required here): a source-profile parameter for observed effort in a new schema version of 05's contract; until then actual stays `unknown` |
-| 09 | Consumed: DM-12 `report.json` fields `kind`, `experiment_id` and `comparisons[].candidate`, `baseline`, `verdict`, and DM-6 manifest `variants[].roles[].effort`/`model`/`adapter` (DM-3). Aligned with 09 REQ-53: `roles` has exactly `orchestrator`, `arbiter`, `implementer`, `validator`; 18 reads the last three and ignores `orchestrator`. The uniform-effort limitation of executable variants is stated in DM-3. 09 sets no `report.json` size limit; DM-3's limit is 18's own |
-| 12 | Exposed: DM-6 and C-3. Parallel-mode spawns (leaf coordinators, phase agents, per-workflow agents with 12's stages `tests`, `implement`, `finalize`, `check`, `propose`, `close`) are outside policy version 1 (12 A-27 says the same): they keep today's dispatch behaviour, with no effort parameter and no `## Effort Decisions` line, and policy version 1 and its DM-2/DM-6 enums stay as written. The amendment 12 requires (the three roles and the stages added to DM-2/DM-6, the root named as the only writer of `## Effort Decisions` in C-4) is a later change to this spec, made by a revision of 18 triggered by 12's delivery; see A-29 for who makes it |
-| 13 | Consumed: DM-4 record grammar and extension-record convention; file and section names (Notes → Name mapping and Files and sections created after this spec); the behaviour table; REQ-67, which admits a declared capability record name such as `sub-agent-effort` in a `Requires` cell (Q-01 resolved) |
-| 15 | Consumed: none. DM-2 `checkpoint_attempt` is not amended: it exists only on the helper route and for Implementer and Validator, is written once before the spawn, and cannot carry a later rejection; DM-5 covers every route and role. 15's C-10 row 18 records that DM-2 is not used |
-| 16 | Consumed: none in policy version 1. 16's C-6 row for 18 offers `tier`, `risks`, `scope` and `expansion_reasons`; policy version 1 reads none of them, and a later policy version may add a match key |
-| 19 | Exposed: the DM-6 `escalation` input, C-3 steps 5–7 and the codes `escalation-raised` and `escalation-unverifiable`, and outcome `not-requested`; agreed with 19 C-8 step 3 and C-10 row 18. 19 owns when to escalate and what to do with an `escalation-unverifiable` or `not-requested` result (no substitution of another model or effort); a spec 18 `stop` stays 18's own. Without 19 the request's `escalation` is `null` (C-4 step 2) |
-| 20 | Exposed: nothing new. 20 REQ-29 produces no complexity value; the complexity input `{quality_floor, hard_constraints}` stays produced by `/pd-select-model` through DM-4's `effort-input:` line |
+| 10 | Consumed: DM-12 `report.json` fields `kind`, `experiment_id` and `comparisons[].candidate`, `baseline`, `verdict`, and DM-6 manifest `variants[].roles[].effort`/`model`/`adapter` (DM-3). Aligned with 10 REQ-53: `roles` has exactly `orchestrator`, `arbiter`, `implementer`, `validator`; 16 reads the last three and ignores `orchestrator`. The uniform-effort limitation of executable variants is stated in DM-3. 10 sets no `report.json` size limit; DM-3's limit is 16's own |
+| 23 | Exposed: DM-6 and C-3. Parallel-mode spawns (leaf coordinators, phase agents, per-workflow agents with 23's stages `tests`, `implement`, `finalize`, `check`, `propose`, `close`) are outside policy version 1 (23 A-27 says the same): they keep today's dispatch behaviour, with no effort parameter and no `## Effort Decisions` line, and policy version 1 and its DM-2/DM-6 enums stay as written. The amendment 23 requires (the three roles and the stages added to DM-2/DM-6, the root named as the only writer of `## Effort Decisions` in C-4) is a later change to this spec, made by a revision of 16 triggered by 23's delivery; see A-29 for who makes it |
+| 09 | Consumed: DM-4 record grammar and extension-record convention; file and section names (Notes → Name mapping and Files and sections created after this spec); the behaviour table; REQ-67, which admits a declared capability record name such as `sub-agent-effort` in a `Requires` cell (Q-01 resolved) |
+| 13 | Consumed: none. DM-2 `checkpoint_attempt` is not amended: it exists only on the helper route and for Implementer and Validator, is written once before the spawn, and cannot carry a later rejection; DM-5 covers every route and role. 13's C-10 row 16 records that DM-2 is not used |
+| 15 | Consumed: none in policy version 1. 15's C-6 row for 16 offers `tier`, `risks`, `scope` and `expansion_reasons`; policy version 1 reads none of them, and a later policy version may add a match key |
+| 17 | Exposed: the DM-6 `escalation` input, C-3 steps 5–7 and the codes `escalation-raised` and `escalation-unverifiable`, and outcome `not-requested`; agreed with 17 C-8 step 3 and C-10 row 16. 17 owns when to escalate and what to do with an `escalation-unverifiable` or `not-requested` result (no substitution of another model or effort); a spec 16 `stop` stays 16's own. Without 17 the request's `escalation` is `null` (C-4 step 2) |
+| 18 | Exposed: nothing new. 18 REQ-29 produces no complexity value; the complexity input `{quality_floor, hard_constraints}` stays produced by `/pd-select-model` through DM-4's `effort-input:` line |
 
 ### C-7 Acceptance suite
 
 `python3 -I scripts/check-effort-policy.py` builds a temporary directory with fixture
-capability files, policy files, spec-09-shaped reports and manifests and requests; runs
+capability files, policy files, spec-10-shaped reports and manifests and requests; runs
 `scripts/effort-policy.py` as a subprocess (`python3 -I`) and, for AC-05 and AC-15, also
 in-process with `runpy.run_path` and patched standard-library functions; reads, never edits,
 the repository's workflows, rules, harness files, guide, `scripts/README.md` and ADR index for
@@ -919,7 +919,7 @@ implements the DM-5 mapping and regexes itself. It is not referenced by
 | Gate | How this spec meets it |
 |---|---|
 | G1 Attribution | DM-5 records harness, model identity, role/stage and a per-scope spawn number; C-5 labels usage for 05; actual stays `unknown` |
-| G2 Comparable measurement | No measurement claim is made; comparisons belong to 09 (DM-3) |
+| G2 Comparable measurement | No measurement claim is made; comparisons belong to 10 (DM-3) |
 | G3 Independent quality | No change to test-first order, RED/GREEN in one Implementer, Validator independence, git rails or owner stops (C-4 step 1) |
 | G4 Compatibility | Legacy plans and checkpoints readable (REQ-16, REQ-36); unknown capability uses the harness default or the session-only recommendation (REQ-37); invalid policy stops before mutation (REQ-11); no model substitution (Out of Scope; REQ-04) |
 | G5 Ownership | The resolver writes nothing and spawns nothing; only the dispatcher writes `## Effort Decisions` |
@@ -1198,29 +1198,29 @@ Every AC names at least one REQ; AC-01–AC-18 are all covered above.
 | Both capability sections ship `unknown` | Policy- and escalation-chosen values are never sent | High until evidence is collected | Today's recommendation path stays (REQ-37); reasons are visible; Q-02 |
 | The session observation is the dispatcher's own reading of its tool schema | A wrong reading sends or withholds a value | Medium | Declared and session values must agree when declared; `values: null` is `session-unknown` |
 | Harness accepts a value but the model ignores or remaps it | Resolved ≠ actual | Unknown | `actual: unknown`; `Limitations:` paragraph; no claim of application |
-| Existing heuristic already recommends low effort for low-demand leaves | Lower effort without a spec-09 comparison continues | Existing | Out of scope to change; owners can add minimum rules |
+| Existing heuristic already recommends low effort for low-demand leaves | Lower effort without a spec-10 comparison continues | Existing | Out of scope to change; owners can add minimum rules |
 | Minimum rules and target raises are inert while `default:` is unknown | Floors over the harness default cannot be proved | High | `minimum-unverifiable` visible; `enforce: true` stops; owner raise for the top value |
 | Owner raise when the real default lies outside the declared values | Requesting the top value could still be lower | Low | Only the top declared value; the owner explicitly accepts it; recorded as `owner-raise` |
-| Spec-09 experiments run through the CLI flag, not a spawned worker | Qualification measures a proxy | Medium | Owner adoption is explicit; DM-3 pins model, role and effort correspondence |
+| Spec-10 experiments run through the CLI flag, not a spawned worker | Qualification measures a proxy | Medium | Owner adoption is explicit; DM-3 pins model, role and effort correspondence |
 | Frozen checks read edited files | A frozen check fails | Low (edits are additive) | REQ-28; stop and report rather than change a check |
-| Delivery omits a harness's `sub-agent-effort` record | Spec 13's checker rejects the REQ-24 row (`capability-behaviour-table-invalid`) | Low | REQ-24 requires both records, `unknown` allowed; Q-01 resolved by 13 REQ-67 |
+| Delivery omits a harness's `sub-agent-effort` record | Spec 09's checker rejects the REQ-24 row (`capability-behaviour-table-invalid`) | Low | REQ-24 requires both records, `unknown` allowed; Q-01 resolved by 09 REQ-67 |
 
 ## Assumptions
 
-- A-01 | Where effort support is declared | Resolved: an extension record `sub-agent-effort` in the spec-13 DM-4 form, in its own `## ` section placed before 13's `## Capability records`, plus four anchored lines modelled on `git-rails ask-capable modes:` | Source: spec 13 DM-4; `harness/claude/capabilities.md:31-46`; `scripts/validate-contracts.sh:5257-5259` | Reversible: yes
-- A-02 | Values asserted for Claude Code and Codex | Resolved: none; both ship `unknown` unless the implementing task cites evidence for the installed runtime | Source: 13 DM-4 "This spec asserts no value"; `.ai/memory/architecture.md:175-176` | Reversible: yes
+- A-01 | Where effort support is declared | Resolved: an extension record `sub-agent-effort` in the spec-09 DM-4 form, in its own `## ` section placed before 09's `## Capability records`, plus four anchored lines modelled on `git-rails ask-capable modes:` | Source: spec 09 DM-4; `harness/claude/capabilities.md:31-46`; `scripts/validate-contracts.sh:5257-5259` | Reversible: yes
+- A-02 | Values asserted for Claude Code and Codex | Resolved: none; both ship `unknown` unless the implementing task cites evidence for the installed runtime | Source: 09 DM-4 "This spec asserts no value"; `.ai/memory/architecture.md:175-176` | Reversible: yes
 - A-03 | Policy location and ownership | Resolved: optional owner file under the XDG configuration directory; never created by workflows | Source: `workflows/pd-select-model.md:89-101` pattern; ADR-0015 Decision 1 | Reversible: yes
 - A-04 | Default when no evidence establishes one | Resolved: today's behaviour (baseline, including the session-observed recommendation) | Source: owner standing decision; G4, G7; previous REQ-06 | Reversible: yes
 - A-05 | What counts as lowering | Resolved: any target value not provably at least the baseline; unknown order or default makes values incomparable | Source: previous invariants 1, 5; `.ai/specs/README.md` → "Shared acceptance gates" | Reversible: yes
-- A-06 | Qualification evidence | Resolved: hash-pinned spec-09 report and manifest; verdict `promote`; variants equal in model and differing only in the rule's role effort from `session-default` | Source: 09 DM-6 Manifest, DM-12 Report, `Promotion rule (REQ-12)`; 09 Out of Scope | Reversible: yes
+- A-06 | Qualification evidence | Resolved: hash-pinned spec-10 report and manifest; verdict `promote`; variants equal in model and differing only in the rule's role effort from `session-default` | Source: 10 DM-6 Manifest, DM-12 Report, `Promotion rule (REQ-12)`; 10 Out of Scope | Reversible: yes
 - A-07 | Precedence between a leaf recommendation and a target rule | Resolved: recommendation wins; target rules only fill spawns without one; minimum rules apply to both | Source: ADR-0015 Decision 3; previous REQ-03 order (task override before role policy) | Reversible: yes
 - A-08 | Behaviour on unsupported value | Resolved: do not send, do not substitute another value, continue at harness default unless an enforced minimum stops | Source: `rules/workflow-reference.md:148-150` | Reversible: yes
 - A-09 | Floors stopping the run | Resolved: only when the owner sets `enforce: true` | Source: P5; previous §9 row "override conflicts with floor → owner" | Reversible: yes
 - A-10 | Invalid or conflicting policy | Resolved: stop before the spawn | Source: G4 ("unsafe or ambiguous state stops before mutation"); previous §9 | Reversible: yes
 - A-11 | Complexity signal | Resolved: spec 04's quality floor and hard constraints, persisted by DM-4 | Source: `scripts/model_selection.py:29`, `:106`, `:366`; `workflows/pd-select-model.md:117-121` | Reversible: yes
 - A-12 | Ambiguity and risk dimensions of the previous REQ-01 | Resolved: covered through the quality floor, which weights ambiguity A and risk R and forces floor 5 for hard constraints | Source: `workflows/pd-select-model.md:117-119` | Reversible: yes
-- A-13 | Where per-spawn facts are recorded | Resolved: protected append-only `## Effort Decisions` in task `state.md`, not 15's DM-2 | Source: P2, P4; 15 DM-1/DM-2; C-6 | Reversible: yes
-- A-14 | Roles in scope | Resolved: Arbiter, Implementer, Validator of the sequential paths; not the Orchestrator itself, the critic, inline work or spec 12's parallel spawns | Source: `rules/orchestration.md:18-27`; `rules/workflow-reference.md:152` | Reversible: yes
+- A-13 | Where per-spawn facts are recorded | Resolved: protected append-only `## Effort Decisions` in task `state.md`, not 13's DM-2 | Source: P2, P4; 13 DM-1/DM-2; C-6 | Reversible: yes
+- A-14 | Roles in scope | Resolved: Arbiter, Implementer, Validator of the sequential paths; not the Orchestrator itself, the critic, inline work or spec 23's parallel spawns | Source: `rules/orchestration.md:18-27`; `rules/workflow-reference.md:152` | Reversible: yes
 - A-15 | Stage vocabulary | Resolved: `context` (Arbiter, the "context holder"), `execution` (one Implementer for the whole atomic execution cycle), `validation` (Validator) | Source: `rules/orchestration.md:38`, `:56-67`, `:80-83` | Reversible: yes
 - A-16 | Effort inside a live worker | Resolved: never changed; set only at spawn | Source: previous §7; `rules/orchestration.md:63-67` | Reversible: no (harness limitation unknown)
 - A-17 | Recording actual effort | Resolved: always `unknown`; no source in 05's profile parameters | Source: `scripts/usage_telemetry_contract.py:500-502`; `rules/workflow-reference.md:153-154` | Reversible: yes
@@ -1228,14 +1228,14 @@ Every AC names at least one REQ; AC-01–AC-18 are all covered above.
 - A-19 | Test placement | Resolved: `scripts/check-effort-policy.py`, standalone | Source: ADR-0019 Decision 3; precedent `scripts/check-spec-draft.sh` (`scripts/README.md:20`) | Reversible: yes
 - A-20 | Helper form | Resolved: one stdlib CLI, `-I`, exit codes 0–3 | Source: `.ai/principles/coding.md`; `scripts/model-catalog.py` precedent | Reversible: yes
 - A-21 | Resolver unusable | Resolved: stop only when an enabled policy exists; otherwise today's rule (REQ-39) with an UNAVAILABLE line (amended 2026-11-14 by D-01; formerly a spawn without parameter) | Source: G4; `workflows/spec-run.md:147-153` analogue; owner decision D-01 | Reversible: yes
-- A-22 | Disable switch | Resolved: `ORCHESTRAIL_EFFORT_POLICY=off`; any value other than unset, empty or `on` disables (spec 14 REQ-32 rule) | Source: the `ORCHESTRAIL_*` variable convention (`.ai/memory/architecture.md:179`); smallest reversible choice | Reversible: yes
+- A-22 | Disable switch | Resolved: `ORCHESTRAIL_EFFORT_POLICY=off`; any value other than unset, empty or `on` disables (spec 12 REQ-32 rule) | Source: the `ORCHESTRAIL_*` variable convention (`.ai/memory/architecture.md:179`); smallest reversible choice | Reversible: yes
 - A-23 | Legacy checkpoints without DM-4 lines | Resolved: complexity and recommendation `null`; rerunning bulk selection restores them | Source: P3; free text is not parseable deterministically | Reversible: yes
 - A-24 | Previous REQ-01 "prefer deterministic tools for mechanical actions" | Resolved: out of scope here | Source: roadmap ownership `.ai/specs/README.md` → "Nine token optimization workstreams" | Reversible: yes
 - A-25 | Previous "explicit owner/run override" | Resolved: expressed through the owner's policy file, including `owner_raise` for the top declared value; no new command flag | Source: previous REQ-03; P5/P6 | Reversible: yes
-- A-26 | Today's session-observed recommendation while no declaration exists | Resolved: kept (REQ-37); policy-chosen values still need `state: yes` | Source: owner standing decision (default is today's behaviour); `rules/workflow-reference.md:144-147`; 13 REQ-16 governs new capability-dependent behaviour | Reversible: yes
+- A-26 | Today's session-observed recommendation while no declaration exists | Resolved: kept (REQ-37); policy-chosen values still need `state: yes` | Source: owner standing decision (default is today's behaviour); `rules/workflow-reference.md:144-147`; 09 REQ-16 governs new capability-dependent behaviour | Reversible: yes
 - A-27 | Arbiter and Validator as "session-default roles" | Resolved: the phrase concerns model identity; effort is a separate setting | Source: ADR-0015 Decision 3; `docs/MODEL-CATALOG.md:84` | Reversible: yes
-- A-28 | Target tree | Resolved: the tree after spec 13; pre-13 names apply only if 13 is not delivered | Source: `.ai/specs/README.md` → "Dependency order" | Reversible: yes
-- A-29 | Spec 12's parallel-mode spawns (added 2026-11-14) | Resolved: outside policy version 1; behaviour stays exactly as today (no effort parameter, no resolver call, no `## Effort Decisions` line for them) and DM-2/DM-6 enums and C-4 stay as written. 12's A-27 states the same. To bring them under the policy, 12's implementer, or the owner after 12's delivery, makes a revision of this spec that adds the roles leaf coordinator, phase agent and workflow agent and the stages `tests`, `implement`, `finalize`, `check`, `propose`, `close` to DM-2/DM-6 (with DM-2 `match` and DM-5 grammar updates and acceptance rows), names the root as the only writer of `## Effort Decisions` in C-4, and re-checks the additive resolver; 12's delivery adds no effort handling itself | The `repair` stage of 12 (REQ-54) is not in the amendment list: it stays with spec 19's own route (19 C-5 step 5 and C-8 step 3) | Source: spec 12 A-27 and its follow-up list; this spec's A-14 | Reversible: yes
+- A-28 | Target tree | Resolved: the tree after spec 09; pre-09 names apply only if 09 is not delivered | Source: `.ai/specs/README.md` → "Dependency order" | Reversible: yes
+- A-29 | Spec 23's parallel-mode spawns (added 2026-11-14) | Resolved: outside policy version 1; behaviour stays exactly as today (no effort parameter, no resolver call, no `## Effort Decisions` line for them) and DM-2/DM-6 enums and C-4 stay as written. 23's A-27 states the same. To bring them under the policy, 23's implementer, or the owner after 23's delivery, makes a revision of this spec that adds the roles leaf coordinator, phase agent and workflow agent and the stages `tests`, `implement`, `finalize`, `check`, `propose`, `close` to DM-2/DM-6 (with DM-2 `match` and DM-5 grammar updates and acceptance rows), names the root as the only writer of `## Effort Decisions` in C-4, and re-checks the additive resolver; 23's delivery adds no effort handling itself | The `repair` stage of 23 (REQ-54) is not in the amendment list: it stays with spec 17's own route (17 C-5 step 5 and C-8 step 3) | Source: spec 23 A-27 and its follow-up list; this spec's A-14 | Reversible: yes
 
 ## Decisions
 
@@ -1262,8 +1262,8 @@ and REQ-27. One owner decision is recorded:
 
 ## Open Questions
 
-- Q-01 | resolved | Spec 13 admits registered extension keys in the `Requires` cell: resolved
-  by spec 13 REQ-67 (a canonical key or the `name:` of a capability record that every harness's
+- Q-01 | resolved | Spec 09 admits registered extension keys in the `Requires` cell: resolved
+  by spec 09 REQ-67 (a canonical key or the `name:` of a capability record that every harness's
   `capabilities.md` declares). REQ-24 is unconditional; the delivery declares the record for
   each harness (REQ-24). Kept for its id.
 - Q-02 | non-blocker | Can the Claude Code worker-spawn mechanism's effort setting be evidenced
@@ -1280,19 +1280,19 @@ and REQ-27. One owner decision is recorded:
 
 ## Notes
 
-### Name mapping (spec 13)
+### Name mapping (spec 09)
 
-The implementation edits the tree after spec 13. Names below are post-13, with the current
-name in parentheses for use only if 13 is not delivered (`docs/name-map.json` absent):
+The implementation edits the tree after spec 09. Names below are post-09, with the current
+name in parentheses for use only if 09 is not delivered (`docs/name-map.json` absent):
 state-files contract `rules/contract-state-files.md` (`rules/workflow-reference.md`); phases
-contract `rules/contract-phases.md` (none before 13; the behaviour-row half of REQ-24 then does not apply, A-28);
+contract `rules/contract-phases.md` (none before 09; the behaviour-row half of REQ-24 then does not apply, A-28);
 orchestration contract `rules/contract-orchestration.md` (`rules/orchestration.md`);
 model-selection workflow `workflows/discovery-select-model.md` (`workflows/pd-select-model.md`);
 single-session executors `workflows/execution-execute.md` (`workflows/pe-execute.md`) and
 `workflows/atomic-execution.md` (`workflows/phase-atomic-execution.md`); `workflows/spec-run.md`
 unchanged. Anchors are headings, never line numbers.
 This spec creates no top-level rule file (its new files are two scripts, a guide and an ADR), so
-13's rule `rules/<kind>-<subject>.md` naming for later files and spec 08's 700-word limit
+09's rule `rules/<kind>-<subject>.md` naming for later files and spec 11's 700-word limit
 (REQ-01) apply only if a later change adds one; it would be `load: on-demand` with no name-map
 row.
 
@@ -1302,7 +1302,7 @@ row.
    AC-01, AC-02, AC-04–AC-07, AC-09–AC-11, AC-14, AC-15 fixtures); DM-4 in the model-selection
    workflow; dispatcher text, protected section and vocabulary; ADR and capability row.
 2. Evidence for DM-1 can come from the runtime's official documentation of its sub-agent or
-   task tool and the installed version string. The CLI flag observed by spec 09 concerns
+   task tool and the installed version string. The CLI flag observed by spec 10 concerns
    `claude -p`, not a spawned sub-agent, and is not evidence for this section.
 
 ### Rollback
@@ -1313,7 +1313,7 @@ working with the baseline. Full rollback: revert the delivery; `## Effort Decisi
 
 ### Rejected alternatives
 
-- Embedding effort in spec 15's `checkpoint_attempt`: covers one route and two roles, and is
+- Embedding effort in spec 13's `checkpoint_attempt`: covers one route and two roles, and is
   written before the outcome is known (C-6).
 - A per-model capability registry keyed by model version (previous §5): no evidence source
   exists per model; the session and harness declaration are the only checkable facts.
@@ -1336,26 +1336,26 @@ because no acknowledgement mechanism exists. REQ-09–REQ-41 and AC-06–AC-18 a
 - 13: none — REQ-67 admits the `sub-agent-effort` record name in `Requires` (Q-01 resolved).
 - 09: none — REQ-53 and the manifest definition already carry the role keys (C-6).
 - 05: a later schema version may add an observed-effort source-profile parameter (C-6).
-- 12: no change to 12 now; parallel-mode spawns stay outside the policy (A-29). Bringing them
-  in is the revision of 18 triggered by 12's delivery, as 12's follow-up list also states.
-- 15: none — its C-10 row for 18 already says its attempt record is not used by 18.
-- 19: none — C-8 step 3 and C-10 row 18 agree with REQ-29 and C-3 step 5.
+- 12: no change to 23 now; parallel-mode spawns stay outside the policy (A-29). Bringing them
+  in is the revision of 16 triggered by 23's delivery, as 23's follow-up list also states.
+- 15: none — its C-10 row for 18 already says its attempt record is not used by 16.
+- 19: none — C-8 step 3 and C-10 row 16 agree with REQ-29 and C-3 step 5.
 - 20: none — REQ-29 produces no complexity value; DM-4 stays the producer.
 
 ### Change log
 
 - 2026-11-14 — reconciliation with refined peer specs: parallel-mode spawns kept outside policy
-  version 1 with the later amendment stated (C-6 row 12, A-29; agrees with spec 12 A-27);
-  qualification attachment aligned with spec 09 REQ-53 and DM-12 (ignored `orchestrator` key,
-  uniform-effort limitation, size limit of DM-3 documented as 18's own, rejected as
-  `qualification-invalid`); spec 16 row lists all four offered fields; spec 19, 15, 20 rows
-  confirmed; Q-01 resolved by spec 13 REQ-67 and REQ-24 made unconditional with the record
-  declaration required in each harness; spec 10's `## Behaviours` rendering confirmed (while both
+  version 1 with the later amendment stated (C-6 row 23, A-29; agrees with spec 23 A-27);
+  qualification attachment aligned with spec 10 REQ-53 and DM-12 (ignored `orchestrator` key,
+  uniform-effort limitation, size limit of DM-3 documented as 16's own, rejected as
+  `qualification-invalid`); spec 15 row lists all four offered fields; spec 17, 13, 18 rows
+  confirmed; Q-01 resolved by spec 09 REQ-67 and REQ-24 made unconditional with the record
+  declaration required in each harness; spec 19's `## Behaviours` rendering confirmed (while both
   records are `state: unknown` the row shows `unavailable` for both harnesses). Ids preserved; A-29 added.
 - 2026-11-14 — Refined in English: capability section, owner policy, offline resolver,
   decision persistence and integration; identifiers preserved.
 - 2026-11-06 — Implementation/state reconciliation (previous revision; preserved under Source).
-- 2026-11-14 — independent final review: capability row narrowed so 13 REQ-16 agrees with REQ-37; new non-blocker Q-03 (unusable resolver without a policy versus the Goal); disable switch follows spec 14 REQ-32; version check needs a parseable top level; 09 `session-default` mapped to `harness-default`; AC-16 made checkable in the suite; citations by id or heading.
+- 2026-11-14 — independent final review: capability row narrowed so 09 REQ-16 agrees with REQ-37; new non-blocker Q-03 (unusable resolver without a policy versus the Goal); disable switch follows spec 12 REQ-32; version check needs a parseable top level; 10 `session-default` mapped to `harness-default`; AC-16 made checkable in the suite; citations by id or heading.
 - 2026-11-14 — owner decision recorded: D-01 resolves Q-03; with no policy file (or the disable
   switch) and an unusable resolver the dispatcher applies today's rule (REQ-39–REQ-41, AC-18);
   DM-5 UNAVAILABLE widened backward-compatibly (outcome `requested`, `requested`/`resolved`
@@ -1368,7 +1368,7 @@ because no acknowledgement mechanism exists. REQ-09–REQ-41 and AC-06–AC-18 a
 | # | Check | Result |
 |---|---|---|
 | 1 | Goal is one domain-language paragraph | PASS — one paragraph stating the problem and the outcome |
-| 2 | Out of Scope names concrete exclusions | PASS — model choice, inline/Orchestrator effort, spec 12 parallel spawns, heuristic change, shipped defaults, paid runs, 05/15 schema changes, live-worker changes |
+| 2 | Out of Scope names concrete exclusions | PASS — model choice, inline/Orchestrator effort, spec 23 parallel spawns, heuristic change, shipped defaults, paid runs, 05/13 schema changes, live-worker changes |
 | 3 | Each REQ has a stable id and one EARS behaviour | PASS — REQ-01–REQ-41; previous REQ-01–REQ-08 preserved and restated |
 | 4 | Every REQ maps to an AC and back | PASS — Traceability covers 41 REQs and 18 ACs |
 | 5 | Every AC is binary and can guide a test first | PASS — fixture tables and text checks in `scripts/check-effort-policy.py` |

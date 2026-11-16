@@ -81,7 +81,7 @@ See Alternatives.
 ## Implications for Future Work
 
 Parallel execution requires a state format with one file per subtask or a locking tool
-(`specs/completed/07-state-tool.md`, `specs/10` ordering in `specs/README.md`).
+(`specs/completed/07-state-tool.md`, `specs/19` ordering in `specs/README.md`).
 
 ## Verification
 
