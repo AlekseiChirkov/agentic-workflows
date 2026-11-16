@@ -1,0 +1,19 @@
+.ai/tasks/completed/task-01-git-source-of-truth/state.md
+  s_4dbb71826fe213::t_41446e0afec065 322-331
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e07a3df569485480211374d4b84ff1899c3deea5",
+  "prompts": {},
+  "sessions": {
+    "s_4dbb71826fe213": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7e4e2a2-da3b-4c48-a988-917d7b073a98",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
