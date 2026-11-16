@@ -2,7 +2,7 @@
 
 ## Status
 
-Provisional
+Accepted
 
 ## Date
 
@@ -11,7 +11,7 @@ Provisional
 ## Related Task
 
 - Task: `.ai/tasks/todo/task-07-state-tool/` (spec `.ai/specs/07-state-tool.md`)
-- Related pull request: not yet created
+- Related pull request: #80–#92 (stacked; ten changes and three fixes)
 - Related files: `scripts/state-tool.py`, `tests/state-tool.py`,
   `rules/workflow-globals.md`, `rules/workflow-reference.md`, `scripts/validate-task.sh`,
   `scripts/validate-contracts.sh`
@@ -133,6 +133,32 @@ extension, and its amendment digest changes whenever the suite changes afterward
 - `tests/state-tool.py`, `scripts/validate-contracts.sh`
 - `tests/fixtures/validator-runtime/`, `tests/validator-runtime-oracle.py`
 
+### Decision 5: `set` never deletes continuation lines
+
+**What was decided (owner ruling, 2026-11-14):** `set` on `last_action` or `blocker` whose
+existing value has continuation lines is refused with exit 6 and changes nothing, also
+when the current first-line value is named.
+
+**Why:** The line-preserving model replaces the field line only; the specification did not
+say what happens to the continuation lines, and leaving them under a new value silently
+changes the meaning of the block.
+
+**Alternatives:** Replacing the whole field group — rejected by the owner: it deletes text
+the caller did not name. Keeping the earlier behaviour as a documented limitation —
+rejected: the write was reported as applied while the block read wrongly.
+
+**Consequences:** Such a block is edited by the manual procedure or by appending a note.
+The rule is a requirement of the reconciled specification.
+
+**Related files:**
+- `scripts/state-tool.py`, `docs/USAGE.md`
+
 ## Verification
 
-Not yet verified — decision recorded before implementation completed.
+Verified 2026-11-16 on the stack tip `fc63efb`: the acceptance suite `tests/state-tool.py`
+(232 tests) passes; `bash scripts/validate-contracts.sh --state-tool-only` passes; the
+complete contract validator reports 721 passed, 0 failed, 2 skipped (hygiene checks that
+need a local pattern file). Every change and fix on the stack was validated by an
+independent reviewer; the task-level contract check and code review are recorded in the
+task state. Limitation: the tool is not wired into any workflow, so no workflow run has
+exercised it.

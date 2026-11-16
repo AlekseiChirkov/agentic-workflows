@@ -282,7 +282,7 @@ cleanup at 900 seconds; repeated benchmark gates are superseded where they confl
 No unverified speedup is claimed. Deleted branch names do not imply delivery; detached
 worktrees preserve unintegrated candidate data. W6/W7 remain outside scope.
 
-## State tool — delivered, task validation pending
+## State tool
 
 `scripts/state-tool.py` provides the read commands `get` (fence-aware
 parser of `## Subtask Progress`, read-only, one JSON object on stdout) and `validate`
@@ -293,7 +293,9 @@ the block malformed. `set` changes the named header
 statuses and `last_action` / `blocker` of one block under the per-task lock
 (`.state-tool.lock`, owner metadata) and the expected-revision check, inserts a missing
 field or the `atomic-tests` segment at its canonical position, appends a `state_receipts:`
-entry, re-parses the result and replaces `state.md` by renaming its own temporary file.
+entry, re-parses the result and replaces `state.md` by renaming its own temporary file;
+it refuses a field whose value has continuation lines (it never deletes existing text),
+and text that is not valid UTF-8 is refused by the content rules.
 `append-note` and `set --note` append notes (on an empty sole `notes:` line, as a new
 `notes:` line at its canonical position, or as 9-space continuation lines after the last
 `notes` group, never after an in-block fence) and `add-file` adds lexically checked target
@@ -332,5 +334,4 @@ This repository's `.gitignore` and the entries `scripts/setup-new-project.sh` ap
 State Tool` documents the commands, exit codes, the write protocol, the manual fallback,
 limits and the step for consumers that track `.ai/` (setup also appends the `.ai/` entry
 there, so the manual recommends adding the two lines by hand); `scripts/README.md` lists
-the tool. No workflow is wired to the tool. Decisions: ADR-0021 (Accepted) and ADR-0022
-(Provisional until task validation).
+the tool. No workflow is wired to the tool. Decisions: ADR-0021 and ADR-0022 (both Accepted).

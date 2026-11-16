@@ -1,3 +1,9 @@
+---
+status: done
+completed_task: task-07-state-tool
+completed_at: 2026-11-16
+---
+
 # 07. State tool for safe subtask-progress edits
 
 ## Source
@@ -21,6 +27,14 @@
 - **Outstanding scope and limits:** The get/set/append-note/add-file/init-block/validate writer, expected-revision protocol, and transactional task-state serializer are not delivered. This review does not schedule implementation.
 - **Sources:** [`scripts/validate-task.sh`](../../scripts/validate-task.sh), [`rules/workflow-globals.md`](../../rules/workflow-globals.md).
 - Existing requirement and acceptance identifiers remain binding (annotation 2026-11-13: except REQ-14 and AC-12, withdrawn by D-01). Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
+
+### Delivery record — 2026-11-16
+
+- **Disposition:** Delivered by task `task-07-state-tool`; the 2026-11-06 review above is historical.
+- **Verified source scope:** stack tip `fc63efb` over base `060ce6d` (ten changes and three fixes on stacked branches, pull requests #80–#92, not yet merged at the time of this record).
+- **Delivered evidence:** `scripts/state-tool.py` with the six commands; acceptance suite `tests/state-tool.py` (232 tests) registered in the contract validator as `--state-tool-only` and `test_state_tool_acceptance`; the `state_receipts:` definition, protection and validator checks; ignore rules; the operating manual section. The complete contract validator on that tip: 721 passed, 0 failed, 2 skipped (hygiene checks that need a local pattern file).
+- **Outstanding scope and limits:** none of the requirements is deferred. The tool is optional and no workflow calls it (D-07). Improvement proposals recorded by the reviews are pending with the owner and are not requirements of this specification.
+- **Sources:** `.ai/tasks/todo/task-07-state-tool/state.md` (contract check, code review, issue list, execution report), `.ai/adr/0021-task-07-schedule-state-tool.md`, `.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md`.
 
 ### Original text (translated from Russian)
 
@@ -360,6 +374,12 @@ tool on 2026-11-13 (D-09); it stays optional and unwired.
   `docs/USAGE.md`, whose "State tool" section names the rerun-or-by-hand step for an existing
   consumer project that tracks `.ai/`, without ignoring any task `state.md`.
 
+- **REQ-27 Continued field values (added 2026-11-16, owner ruling).** WHEN `set` names
+  `last_action` or `blocker` and the existing field group of that field has continuation
+  lines, THE SYSTEM SHALL refuse with exit 6 (`invalid-value`) and leave `state.md` unchanged
+  and create no temporary file, also when the current first-line value is named; `set` never
+  deletes existing continuation lines.
+
 ## Data Model
 
 ### Section and block grammar (existing format; parsing rules new)
@@ -671,6 +691,12 @@ Any other value is ignored.
   fixture maintenance procedure
   (`.ai/adr/0020-task-unknown-source-guard-watchdog-timeouts.md:56-66`).
 - `docs/USAGE.md`: a "State tool" section (commands, exit codes, manual fallback).
+- Added 2026-11-16 (delivered, owner decision of 2026-11-13): `scripts/validate-contracts.sh`
+  also registers the acceptance suite — a focused `--state-tool-only` mode and the check
+  `test_state_tool_acceptance` in the default run — through one exact, named extension of
+  the frozen validator inventory (`tests/fixtures/validator-runtime/`,
+  `tests/validator-runtime-oracle.py`); the validator's pinned startup-prefix digests are
+  re-pinned for the focused dispatch.
 - File names follow constraint C-4.
 
 ## Non-Functional Requirements
@@ -699,6 +725,7 @@ Any other value is ignored.
 | Leaf missing `notes:` or `target_files:` | Reads and unrelated writes warn `required-field-missing`; `append-note` / `add-file` insert the line | REQ-17, REQ-18 |
 | Hand-edited `state_receipts:` line (over 20 entries, bad entry, repeated id) | Writes to that block exit 3 `malformed-receipts`; `validate` exit 3; `get` warns | REQ-02 |
 | `set` naming a read-only field with its current value | Exit 6 `read-only-field` (checked before the `unchanged` shortcut) | REQ-04 |
+| `set` on `last_action` or `blocker` whose value has continuation lines | Exit 6 `invalid-value`, nothing changed; decided with the field rules, after the receipt and revision checks and before the `unchanged` shortcut | REQ-27 |
 | Leaf without `atomic-tests` at `atomic-execution: not-started` moved to `in-progress` without `atomic-tests` | Exit 6 `pre-tdd-not-applicable` | REQ-04 |
 | `atomic-tests` `n-a`, `failed` or `not-started` set to `green` | Exit 6 `invalid-transition` | REQ-04 |
 | Existing `target_files:` entries containing spaces or prose | Compared as whole entries split on `, ` | REQ-18 |
@@ -901,6 +928,12 @@ file remains after a refusal.
   `docs/USAGE.md` names both patterns and its "State tool" section tells an existing consumer
   project that tracks `.ai/` to rerun `scripts/setup-new-project.sh` or add the two lines by
   hand.
+- **AC-24** (REQ-27; added 2026-11-16): Given a leaf whose `blocker: waiting for review`
+  line is followed by a continuation line, when `set --field blocker=none` runs, then exit 6
+  `invalid-value` and the fixture is unchanged; the same holds for `last_action`, for a
+  blank line followed by a continuation line, and when the current first-line value is
+  named; given `set --field last_action=x` on a block where only `blocker` continues, then
+  `applied`.
 
 ## Traceability
 
@@ -932,6 +965,7 @@ file remains after a refusal.
 | REQ-24 | AC-19 |
 | REQ-25 | AC-06, AC-08 |
 | REQ-26 | AC-23 |
+| REQ-27 | AC-24 |
 
 ## Risks
 
@@ -1078,6 +1112,23 @@ None. Q-01 (ignore rules for the lock and temporary files) was resolved by D-10 
   existing consumers, and corrected citations (A-24–A-29). Scores: 80, then 98; the two
   minor findings of the last round were fixed without a further round.
 
+#### 2026-11-16 — reconciliation after delivery (task-07-state-tool)
+
+- Delta 1, implemented-beyond (approved): `set` refuses a field whose value has
+  continuation lines. Edit: REQ-27, AC-24, one edge-case row and one traceability row added.
+  Source: owner ruling of 2026-11-14 in the task assumptions; fix reviewed on the stack.
+- Delta 2, implemented-beyond (approved): the acceptance suite is registered in the contract
+  validator through one exact extension of the frozen validator inventory. Edit: one bullet
+  under `### Contract-file changes`. Source: owner decision of 2026-11-13 in the task
+  assumptions; ADR-0022 Decision 4.
+- No requirement was weakened, withdrawn or renumbered. Points the specification already
+  determined and the task resolved by citation changed no text: an empty note is refused;
+  block-name content is a value rule; block creation in a section that ends inside an
+  unclosed fence ends with exit 1; block creation on an existing id is judged by receipts,
+  then the revision, then the existing-id refusal; text that is not valid UTF-8 is refused
+  by the content rules.
+- Delivery record added under `## Source`; completion metadata added to the front matter.
+
 ## Readiness Checklist
 
 Result of 2026-11-13:
@@ -1086,8 +1137,8 @@ Result of 2026-11-13:
 |---|---|---|
 | 1 | Goal is one domain-language paragraph | PASS — one paragraph: problem, outcome, scheduled status |
 | 2 | Out of Scope names concrete exclusions | PASS — ten named exclusions |
-| 3 | Each REQ has a stable id and one EARS behaviour | PASS — REQ-01–REQ-26, REQ-14 withdrawn with reason |
-| 4 | Every REQ maps to ≥1 AC and every AC to ≥1 REQ | PASS — Traceability table; AC-12 withdrawn with REQ-14 |
+| 3 | Each REQ has a stable id and one EARS behaviour | PASS — REQ-01–REQ-27, REQ-14 withdrawn with reason (REQ-27 added at reconciliation, 2026-11-16) |
+| 4 | Every REQ maps to ≥1 AC and every AC to ≥1 REQ | PASS — Traceability table; AC-12 withdrawn with REQ-14; AC-24 covers REQ-27 |
 | 5 | Every AC is binary and observable | PASS — exit codes, error codes and exact layouts named |
 | 6 | Non-functional targets measurable or N/A | PASS — performance N/A with reason; others verified by AC-02, AC-06, AC-08, AC-14, AC-19 |
 | 7 | Data model and contracts specified | PASS — grammar, writability, receipts, files, commands, outputs, exit codes |
@@ -1100,4 +1151,5 @@ Result of 2026-11-13:
 | 14 | Devil's Advocate review passed | PASS — Review: 2 rounds, score 98/100, critic: sub-agent, open: none |
 
 Verdict: **READY FOR DEVELOPMENT**. The owner scheduled the work on 2026-11-13 (D-09);
-automated readiness is not sign-off.
+automated readiness is not sign-off. Delivered and reconciled on 2026-11-16 (see the
+delivery record under `## Source`).

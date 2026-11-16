@@ -5,7 +5,7 @@ flow: full
 ## Phases
 - discovery: complete
 - execution: complete
-- validation: in-progress
+- validation: complete
 
 ## Task Analysis
 
@@ -499,7 +499,7 @@ Implementation shape (binding for all subtasks):
   (`bash scripts/validate-contracts.sh --state-tool-only` from T-09 on); the complete
   validator run happens at task-level validation.
 
-adr: `.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md` (provisional)
+adr: `.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md` (Accepted 2026-11-16; provisional during the run)
 
 ### Autonomous Decision
 | Variant | Simplicity | Reversibility | Codebase fit | Testability | Blast radius | Total |
@@ -755,6 +755,9 @@ are additive and exact. The fixes needed before promotion are the ledger alignme
 passing complete validator run, exit 6 for arguments that are not valid UTF-8, and the
 refusal of `set` on a field with continuation lines.
 
+### Re-check after fixes (2026-11-16)
+On the final stack tip `fc63efb` the complete contract validator reports 721 passed, 0 failed, 2 skipped (the two hygiene checks that need a local pattern file). The invariant that the contract validator passes on the stack tip holds, and the acceptance criterion on validator checks for the receipts grammar passes in full. The three fixes were each validated independently; the acceptance suite has 232 tests.
+
 ## Issue List
 
 Split recorded automatically under the orchestrated-run override: critical and important approved, optional deferred (2026-11-14).
@@ -813,10 +816,10 @@ Split recorded automatically under the orchestrated-run override: critical and i
      Priority: optional
 
 ### Approved
-- [1] Identity ledger alignment — critical
-- [2] Arguments that are not valid UTF-8 — important
-- [3] `set` on a field with continuation lines — important
-- [4] Complete validator not run before the stack tip — important; process remedy applied by the orchestrator (complete validator re-run after the fixes, knowledge note), no fix-task
+- [1] Identity ledger alignment — critical — resolved by T-11-fix-identity-ledger-line (reviewed)
+- [2] Arguments that are not valid UTF-8 — important — resolved by T-12-fix-non-utf8-arguments (reviewed)
+- [3] `set` on a field with continuation lines — important — resolved by T-13-fix-set-continuation-refusal (reviewed)
+- [4] Complete validator not run before the stack tip — important — resolved: complete validator re-run after the fixes (721 passed, 0 failed); lesson recorded in the progress log; no fix-task
 
 ### Deferred
 - [5]–[13] — deferred: optional; kept with the pending improvement proposals for review after delivery
@@ -834,6 +837,24 @@ Created: T-11-fix-identity-ledger-line, T-12-fix-non-utf8-arguments, T-13-fix-se
 | #3 `set` on a field with continuation lines | important | fail | fail | pass | pass | dedicated | T-13-fix-set-continuation-refusal |
 
 Gate notes: #1 is dedicated because it is critical. #2 and #3 each touch the tool, the suite and four pinned fixture files (more than three files); #3 also adds a refusal rule. Issue #4 is a process remedy applied by the orchestrator and has no fix-task.
+
+## Deferred
+- [source: issues] [5] `validate` refusal sentence — optional
+- [source: issues] [6] Quadratic parse time on long blank runs — optional
+- [source: issues] [7] Read-only state file is replaced — optional
+- [source: issues] [8] Dead fields in the document model — optional
+- [source: issues] [9] Blocking open on a swapped-in named pipe; binary mode on Windows reads — optional
+- [source: issues] [10] Approved names listed twice in the inventory oracle suite — optional
+- [source: issues] [11] Static scan misses some process-spawning calls — optional
+- [source: issues] [12] Suite depends on every completed task directory — optional
+- [source: issues] [13] Long lines in the tool — optional
+- [source: subtasks] (none)
+
+## Spec Sync
+sync: complete
+synced_at: 2026-11-16T06:59:24+06:00
+deltas: 2 (implemented-differently: 0, not-implemented: 0, implemented-beyond: 2)
+spec: .ai/specs/07-state-tool.md
 
 ## Model Selection
 selection: complete
