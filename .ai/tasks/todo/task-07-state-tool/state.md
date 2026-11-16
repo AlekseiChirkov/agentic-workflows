@@ -447,7 +447,7 @@ T-13-fix-set-continuation-refusal | Refusal of set on a field with continuation 
   commits: b9253c1 test(state-tool): require set to refuse a field whose value continues, a394cae fix(state-tool): refuse set on a field whose value continues
   pr: #92 ready
 
-T-14-fix-guard-cases | Guard cases for delivered behaviour | atomic-tests: n-a | atomic-execution: complete | atomic-validation: not-started
+T-14-fix-guard-cases | Guard cases for delivered behaviour | atomic-tests: n-a | atomic-execution: complete | atomic-validation: complete
   last_action: implementation done 2026-11-16 — 43 guard cases added, suite 232 → 275 tests, all passing against the unchanged tool
   target_files: tests/state-tool.py, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
   blocker: none
@@ -455,13 +455,14 @@ T-14-fix-guard-cases | Guard cases for delivered behaviour | atomic-tests: n-a |
          the surviving mutant: a receipt digest that escapes invalid text with backslashes shares no digest with valid text (JSON doubles the backslash), so the analyst's expectation that it would fail a case was wrong; the cases stand as decided.
          two existing test bodies gained cases or an assertion as their decisions direct (invalid paths: CR and LF cases; the tracking-consumer manual test: a rerun sentence); nothing existing was removed. The static scan moved into a helper that keeps every earlier finding.
          verification: suite 275 passed; focused validator mode passed; inventory oracle suite 23 passed; source-guard suites passed.
+         pav-check 2026-11-16 (independent Validator): PASS, no critical or important finding; all cases pass at their commit, nothing earlier removed, renamed or skipped. Optional: one stray spacing edit in an existing assignment line of the suite.
   branch: test/state-tool-guard-cases
   base_branch: fix/state-tool-set-continuation-refusal
   base_commit: d7bccc273e08d71b715f6b63d759fdb8d5c81229
   commits: a56f227 test(state-tool): pin delivered behaviour that no case covered
   pr: none
 
-T-15-fix-fences-and-file-shape | In-block fences, file shape and read-path cleanup | atomic-tests: green | atomic-execution: complete | atomic-validation: not-started
+T-15-fix-fences-and-file-shape | In-block fences, file shape and read-path cleanup | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: implementation done 2026-11-16 — suite 275 → 293 tests, all passing; test file identical to the failing snapshot
   target_files: scripts/state-tool.py, tests/state-tool.py, docs/USAGE.md, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
   blocker: none
@@ -470,13 +471,14 @@ T-15-fix-fences-and-file-shape | In-block fences, file shape and read-path clean
          tdd: green — suite 293 passed with the test file byte-identical to the failing snapshot; refactoring (parse once, one version helper, dead fields removed, shared block selection) done with the suite green before and after.
          deviation: the swapped-in named-pipe run is not a suite case (a test must never wait on a real pipe); the flag-recording case covers the change, and a one-off in-process run returned exit 7 with the unsafe-state-file code.
          verification: focused validator mode passed (293); inventory oracle suite 23 passed; source-guard suites passed; the manual changed only below line 990.
+         pav-check 2026-11-16 (independent Validator): PASS, no critical or important finding; the failing-first counts were reproduced at the test commit, the suite is identical between the two commits, a differential fuzz of 5,000 state files against the earlier tool found only decided differences. Optional: the manual's fence bullet says block creation exits 1 in both unclosed-fence cases, while creation naming the damaged block exits 3; the sentence is pinned by a test, so it is left for a later manual change.
   branch: fix/state-tool-fences-and-file-shape
   base_branch: test/state-tool-guard-cases
   base_commit: 3fd84a3d69ce6e17941b702908bff040703c1f2a
   commits: 9fa4564 test(state-tool): require one rule for in-block fences and file shape, 94a909d fix(state-tool): treat in-block fences and file shape by one rule
   pr: none
 
-T-16-fix-write-rules | Write-rule refusals and message hygiene | atomic-tests: green | atomic-execution: complete | atomic-validation: not-started
+T-16-fix-write-rules | Write-rule refusals and message hygiene | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: implementation done 2026-11-16 — suite 293 → 326 tests, all passing; test file identical to the failing snapshot
   target_files: scripts/state-tool.py, tests/state-tool.py, docs/USAGE.md, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
   blocker: none
@@ -486,13 +488,14 @@ T-16-fix-write-rules | Write-rule refusals and message hygiene | atomic-tests: g
          orchestrator ruling 2026-11-16: the writability probe opens the state file with the non-blocking and binary flags as well, because the earlier decision that every open of the state file is non-blocking is pinned by a test; the outcome for the caller is as decided (exit 7, nothing written, no temporary file).
          deviations: messages for invalid values echo no argument text, so the escaped-byte assertion covers the path, block-id, option and field-name messages and the invalid-value message gets the strict-encoding check as a guard; the completed-leaf refusal message wording was chosen by the implementer; the tool's module description gained one clause on continued target files.
          verification: focused validator mode passed (326); inventory oracle suite 23 passed; source-guard suites passed; the manual changed only below line 900.
+         pav-check 2026-11-16 (independent Validator): PASS, no critical or important finding; every refusal, its order and its bytes were probed. Optional: messages that echo a field name, operation id or option holding a line break still span lines (only the path message was decided), so the fix commit's phrase about one-line messages claims more than was delivered.
   branch: fix/state-tool-write-rules
   base_branch: fix/state-tool-fences-and-file-shape
   base_commit: f531dfb829eb84497ee53e743216c9d8c5759a28
   commits: e83c7c6 test(state-tool): require write refusals for unsafe or empty input, 9166dfe fix(state-tool): refuse writes that would store unsafe or empty input
   pr: none
 
-T-17-fix-lock-owner-and-signals | Lock owner report and termination signals | atomic-tests: green | atomic-execution: complete | atomic-validation: not-started
+T-17-fix-lock-owner-and-signals | Lock owner report and termination signals | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: implementation done 2026-11-16 — suite 326 → 335 tests, all passing in three consecutive runs; test file identical to the failing snapshot
   target_files: scripts/state-tool.py, tests/state-tool.py, docs/USAGE.md, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
   blocker: none
@@ -501,13 +504,14 @@ T-17-fix-lock-owner-and-signals | Lock owner report and termination signals | at
          tdd: green — suite 335 passed three times with the test file byte-identical to the failing snapshot; the signal tests passed 15 further runs.
          the interrupt is handled only where the entry point is called (default action restored, signal re-sent), so no disposition changes at start-up and in-process test runs are unaffected.
          verification: focused validator mode passed (335); inventory oracle suite 23 passed; source-guard suites passed; the manual changed only below line 940.
+         pav-check 2026-11-16 (independent Validator): PASS, no critical or important finding; 38 metadata shapes and four signals in both phases probed. Optional: an interrupt in the first tens of milliseconds, while the interpreter is still importing, prints a traceback; the handling is where the decision put it, and the manual sentence is slightly too strong for that window.
   branch: fix/state-tool-lock-owner-and-signals
   base_branch: fix/state-tool-write-rules
   base_commit: 2025b97ca7fd1c4c10ef2ec215c0adfced22e761
   commits: 036903c test(state-tool): require a strict lock owner report and silent interrupts, ec190ad fix(state-tool): report a lock owner only when the whole file is one
   pr: none
 
-T-18-fix-contract-surface | Setup ignore lines, contract checks and manual corrections | atomic-tests: green | atomic-execution: complete | atomic-validation: not-started
+T-18-fix-contract-surface | Setup ignore lines, contract checks and manual corrections | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: implementation done 2026-11-16 — state tool suite 335 → 347 tests and the characterization suite 17 → 18, all passing; test files identical to the failing snapshots
   target_files: scripts/setup-new-project.sh, scripts/validate-contracts.sh, scripts/validate-task.sh, rules/workflow-globals.md, docs/USAGE.md, tests/state-tool.py, tests/validator-runtime-characterization.py, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
   blocker: none
@@ -517,6 +521,7 @@ T-18-fix-contract-surface | Setup ignore lines, contract checks and manual corre
          the startup prefix of the contract validator (first 583 lines) is byte-identical, no validator statement was added, removed or reworded; the manual is unchanged above line 310.
          pinned values refreshed once: the suite's amendment row and its digest, the inventory fingerprint on all 137 records, the dependency digests of the task validator and the setup script, the manifest digest; two reason texts of the manifest reworded as decided.
          verification: focused validator mode passed (347); all 23 validator-runtime suites passed; the task validator passes on the nine task directories. The complete validator run is the orchestrator's step.
+         pav-check 2026-11-16 (independent Validator): PASS, no critical or important finding; 26 disposable projects, 18 receipts fixtures under two awk implementations, all rebinding forms and both identity-message shapes probed; frozen surfaces byte-identical. Optional: an ignore file whose last byte is NUL is not terminated before the first append.
   branch: fix/setup-ignore-lines-and-contract-checks
   base_branch: fix/state-tool-lock-owner-and-signals
   base_commit: 799f3780d04dd99962759b598e9239aa0155d241
