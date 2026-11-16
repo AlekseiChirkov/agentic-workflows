@@ -1,0 +1,47 @@
+.ai/memory/progress.md
+  s_4dbb71826fe213::t_7226eea680b701 145
+.ai/memory/state.md
+  s_4dbb71826fe213::t_8c9f231bdba8ed 9-10
+.ai/tasks/todo/task-08-rules-workflows-audit/T-01-inventory-extractor/description.md
+  s_4dbb71826fe213::t_ab5274fc1e25b0 1-49
+.ai/tasks/todo/task-08-rules-workflows-audit/T-02-reference-edges/description.md
+  s_4dbb71826fe213::t_4d8019be707af2 1-47
+.ai/tasks/todo/task-08-rules-workflows-audit/T-03-candidates-and-duplicates/description.md
+  s_4dbb71826fe213::t_8dbf38cf7c9700 1-44
+.ai/tasks/todo/task-08-rules-workflows-audit/T-04-verify-assessment/description.md
+  s_4dbb71826fe213::t_66dc03b79b09f5 1-57
+.ai/tasks/todo/task-08-rules-workflows-audit/T-05-verify-map-and-amendments/description.md
+  s_4dbb71826fe213::t_3187775049e8d8 1-46
+.ai/tasks/todo/task-08-rules-workflows-audit/T-06-render-and-report-checks/description.md
+  s_4dbb71826fe213::t_cc02fb68864e24 1-50
+.ai/tasks/todo/task-08-rules-workflows-audit/T-07-extract-and-assess-rules-and-adapters/description.md
+  s_4dbb71826fe213::t_3c8ed359c8de5b 1-44
+.ai/tasks/todo/task-08-rules-workflows-audit/T-08-assess-workflows/description.md
+  s_4dbb71826fe213::t_e39489b744db71 1-44
+.ai/tasks/todo/task-08-rules-workflows-audit/T-09-map-findings-and-report/description.md
+  s_4dbb71826fe213::t_51936477d087a4 1-46
+.ai/tasks/todo/task-08-rules-workflows-audit/T-10-index-knowledge-and-review-line/description.md
+  s_4dbb71826fe213::t_30eb88ccd88773 1-45
+.ai/tasks/todo/task-08-rules-workflows-audit/plan.md
+  s_4dbb71826fe213::t_298c061b575ace 1-44
+.ai/tasks/todo/task-08-rules-workflows-audit/state-archive.md
+  s_4dbb71826fe213::t_ee6ff422776cbc 1-38
+.ai/tasks/todo/task-08-rules-workflows-audit/state.md
+  s_4dbb71826fe213::t_706cf75247fede 1-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b8617a1d90a7c2ccee8c0bca5311bddf47b88eae",
+  "prompts": {},
+  "sessions": {
+    "s_4dbb71826fe213": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7e4e2a2-da3b-4c48-a988-917d7b073a98",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
