@@ -461,6 +461,21 @@ T-14-fix-guard-cases | Guard cases for delivered behaviour | atomic-tests: n-a |
   commits: a56f227 test(state-tool): pin delivered behaviour that no case covered
   pr: none
 
+T-15-fix-fences-and-file-shape | In-block fences, file shape and read-path cleanup | atomic-tests: green | atomic-execution: complete | atomic-validation: not-started
+  last_action: implementation done 2026-11-16 — suite 275 → 293 tests, all passing; test file identical to the failing snapshot
+  target_files: scripts/state-tool.py, tests/state-tool.py, docs/USAGE.md, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
+  blocker: none
+  notes: tdd: integration — 18 new tests (15 failing first, 3 guards) for blank runs before an in-block fence, the blank-run time bound, an unclosed in-block fence, NUL bytes, the open flags of the state file, the state-missing message and three manual sentences.
+         observed RED 2026-11-16: 293 tests, the 275 earlier pass, 15 new fail for the stated reasons (fields after the fence missing; read not finished in 10 s on 40,000 blank lines; exit 0 where exit 3 is decided; non-blocking flag absent; absolute path in the message; manual sentences absent); guards named with mutation evidence.
+         tdd: green — suite 293 passed with the test file byte-identical to the failing snapshot; refactoring (parse once, one version helper, dead fields removed, shared block selection) done with the suite green before and after.
+         deviation: the swapped-in named-pipe run is not a suite case (a test must never wait on a real pipe); the flag-recording case covers the change, and a one-off in-process run returned exit 7 with the unsafe-state-file code.
+         verification: focused validator mode passed (293); inventory oracle suite 23 passed; source-guard suites passed; the manual changed only below line 990.
+  branch: fix/state-tool-fences-and-file-shape
+  base_branch: test/state-tool-guard-cases
+  base_commit: 3fd84a3d69ce6e17941b702908bff040703c1f2a
+  commits: 9fa4564 test(state-tool): require one rule for in-block fences and file shape, 94a909d fix(state-tool): treat in-block fences and file shape by one rule
+  pr: none
+
 ## Execution Report
 - T-01: reviewed — structural parser and `get`; 43 tests at closing; one registration test deferred to T-09 by owner decision
 - T-02: reviewed — `validate` and two grammar corrections; re-validated after one correction (specification labels removed from docstrings)
