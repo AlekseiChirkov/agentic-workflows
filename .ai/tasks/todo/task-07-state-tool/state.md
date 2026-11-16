@@ -460,7 +460,7 @@ T-14-fix-guard-cases | Guard cases for delivered behaviour | atomic-tests: n-a |
   base_branch: fix/state-tool-set-continuation-refusal
   base_commit: d7bccc273e08d71b715f6b63d759fdb8d5c81229
   commits: a56f227 test(state-tool): pin delivered behaviour that no case covered
-  pr: none
+  pr: #93 ready
 
 T-15-fix-fences-and-file-shape | In-block fences, file shape and read-path cleanup | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: implementation done 2026-11-16 — suite 275 → 293 tests, all passing; test file identical to the failing snapshot
@@ -476,7 +476,7 @@ T-15-fix-fences-and-file-shape | In-block fences, file shape and read-path clean
   base_branch: test/state-tool-guard-cases
   base_commit: 3fd84a3d69ce6e17941b702908bff040703c1f2a
   commits: 9fa4564 test(state-tool): require one rule for in-block fences and file shape, 94a909d fix(state-tool): treat in-block fences and file shape by one rule
-  pr: none
+  pr: #94 ready
 
 T-16-fix-write-rules | Write-rule refusals and message hygiene | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: implementation done 2026-11-16 — suite 293 → 326 tests, all passing; test file identical to the failing snapshot
@@ -493,7 +493,7 @@ T-16-fix-write-rules | Write-rule refusals and message hygiene | atomic-tests: g
   base_branch: fix/state-tool-fences-and-file-shape
   base_commit: f531dfb829eb84497ee53e743216c9d8c5759a28
   commits: e83c7c6 test(state-tool): require write refusals for unsafe or empty input, 9166dfe fix(state-tool): refuse writes that would store unsafe or empty input
-  pr: none
+  pr: #95 ready
 
 T-17-fix-lock-owner-and-signals | Lock owner report and termination signals | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: implementation done 2026-11-16 — suite 326 → 335 tests, all passing in three consecutive runs; test file identical to the failing snapshot
@@ -509,7 +509,7 @@ T-17-fix-lock-owner-and-signals | Lock owner report and termination signals | at
   base_branch: fix/state-tool-write-rules
   base_commit: 2025b97ca7fd1c4c10ef2ec215c0adfced22e761
   commits: 036903c test(state-tool): require a strict lock owner report and silent interrupts, ec190ad fix(state-tool): report a lock owner only when the whole file is one
-  pr: none
+  pr: #96 ready
 
 T-18-fix-contract-surface | Setup ignore lines, contract checks and manual corrections | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: implementation done 2026-11-16 — state tool suite 335 → 347 tests and the characterization suite 17 → 18, all passing; test files identical to the failing snapshots
@@ -526,7 +526,7 @@ T-18-fix-contract-surface | Setup ignore lines, contract checks and manual corre
   base_branch: fix/state-tool-lock-owner-and-signals
   base_commit: 799f3780d04dd99962759b598e9239aa0155d241
   commits: e4be555 test: require exact ignore lines and stricter contract checks, 75c54b7 fix: keep ignore files intact in setup and close contract check gaps
-  pr: none
+  pr: #97 ready
 
 ## Execution Report
 - T-01: reviewed — structural parser and `get`; 43 tests at closing; one registration test deferred to T-09 by owner decision
