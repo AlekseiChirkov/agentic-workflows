@@ -1,0 +1,33 @@
+.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md
+  s_75218c90170bfa::t_f6c06b99f2f42e 5,14,136-155,158-164
+.ai/adr/index.md
+  s_75218c90170bfa::t_56b74a2a88b567 34
+.ai/memory/architecture.md
+  s_75218c90170bfa::t_11100d8aec8df5 285,296-298,337
+.ai/memory/progress.md
+  s_75218c90170bfa::t_0e6f515838ef89 133-134
+.ai/memory/state.md
+  s_75218c90170bfa::t_7e0ea2a6276933 17
+.ai/specs/07-state-tool.md
+  s_75218c90170bfa::t_8026be6d699a9c 1-6,31-38,377-382,694-699,728,931-936,968,1115-1131,1140-1141,1154-1155
+.ai/specs/README.md
+  s_75218c90170bfa::t_a5903602930fce 25,116
+.ai/tasks/todo/task-07-state-tool/state.md
+  s_75218c90170bfa::t_92beb3ef0b4aaa 8,502,758-760,819-822,841-858
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "64c67efd79a12c4594ae5ce3b19b91380b687fa1",
+  "prompts": {},
+  "sessions": {
+    "s_75218c90170bfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d90e062-887f-4faa-b97c-24c39cc0d6f4",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
