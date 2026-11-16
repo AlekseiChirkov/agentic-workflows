@@ -1621,7 +1621,7 @@ rewritten. Resume by unsetting the variable; the next `/context-pack` rebuilds t
 
 - 05: an adapter mapping DM-8 records and receipts to `context.loaded_bytes` (C-8).
 - 12: pass `--ai-dir` of the root worktree and the child's base commit when building child
-  packets — adopted (12 REQ-53, A-18).
+  packets — adopted (12a REQ-53, A-18).
 - 15: carry `packet_digest` and `task_contract_hash` (C-8) in its checkpoint message (15 DM-2, DM-3).
 - 16: define reviewer-packet sufficiency on top of the validator packet.
 - 20: cite C-8's shared architectural contract and per-part byte evidence.

@@ -147,7 +147,7 @@ migration that the frozen validator inventory accepts through an explicit amendm
 3. A standard-library Python 3.11+ deployment engine `scripts/deploy-skills.py`, driven by
    `scripts/sync.sh`: deploy manifest, journal, lock, recovery, registry-based project pass,
    active-consumer freeze and `--force`. Its global write path is the state between this
-   delivery and spec 11's; spec 11 then supersedes it (Notes → Relationship to spec 11).
+   delivery and spec 11a's; spec 11a then supersedes it (Notes → Relationship to spec 11a).
 4. Rule metadata (`description`, `load`) and workflow metadata (`description`, `phase`,
    `step`); one rule-reference resolution rule; the three-column bootstrap table.
 5. The capability contract in `rules/contract-phases.md → ## Capabilities` and the
@@ -172,7 +172,7 @@ migration that the frozen validator inventory accepts through an explicit amendm
 - The generator, generated always-on files, `reads`/`writes`/`called_by` metadata and
   `docs/reference/`: spec 10. `loads` metadata, `rules/reference/`, `ref-<name>` deployment,
   the 700/6,000-word limits and the always-on lines naming `load: always` rules: spec 08.
-  The public installer, profiles and backups: spec 11. Golden runs and `tests/golden/`:
+  The public installer, profiles and backups: spec 11a. Golden runs and `tests/golden/`:
   spec 09. Parallel children and the `--parallel` flag: spec 12. Telemetry (05), git rails
   (06), the state tool (07), specs 14–20.
 - Deleting or moving any legacy directory (`~/.codeium/…`, `.windsurf/`, `.devin/`) or any
@@ -195,8 +195,8 @@ migration that the frozen validator inventory accepts through an explicit amendm
 | Owner | Accepts changes of agreed behaviour; runs `scripts/sync.sh` (with `--force` only by decision); removes legacy directories and leftover skills by hand |
 | Implementer | Moves and edits sources, tests and checks under the TDD contract; never runs sync against the real home |
 | Independent validator | Reviews the migration semantics record and the inventory amendment entries |
-| `scripts/sync.sh` | Validates, installs hooks, runs the legacy reporter and the engine; the only deploy entry point until spec 11's installer replaces its global-write step (Notes → Relationship to spec 11) |
-| `scripts/deploy-skills.py` | Reads adapters, sources, registry, manifests; writes only owned global targets, its manifests, journal and lock, and owned project links and the `.ai/` ignore line; after spec 11 its `deploy` command is removed and it writes only project links and the ignore line |
+| `scripts/sync.sh` | Validates, installs hooks, runs the legacy reporter and the engine; the only deploy entry point until spec 11a's installer replaces its global-write step (Notes → Relationship to spec 11a) |
+| `scripts/deploy-skills.py` | Reads adapters, sources, registry, manifests; writes only owned global targets, its manifests, journal and lock, and owned project links and the `.ai/` ignore line; after spec 11a its `deploy` command is removed and it writes only project links and the ignore line |
 | `scripts/setup-new-project.sh` | Sole writer of the registry; creates project files; links skills through the engine |
 | `scripts/report-legacy-artifacts.sh` | Reads only; prints legacy objects |
 | `scripts/lint-instructions.py` | Reads the repository; prints findings |
@@ -218,7 +218,7 @@ migration that the frozen validator inventory accepts through an explicit amendm
 | Registry | `${XDG_CONFIG_HOME:-$HOME/.config}/orchestrail/projects` | Context fact 4 |
 | Active project | A registered root with at least one task phase `in-progress` or an unreadable task state (DM-8) | REQ-59 |
 | Active consumer | An active project, counted when a global change is planned; the source checkout counts when it is registered and active, because it uses the same global skills | REQ-43 |
-| Deploy manifest | Per-harness ownership record `orchestrail/deploy/<harness>.json` (DM-6). Not spec 10's generator manifest and not spec 11's installer manifest | This spec |
+| Deploy manifest | Per-harness ownership record `orchestrail/deploy/<harness>.json` (DM-6). Not spec 10's generator manifest and not spec 11a's installer manifest | This spec |
 | Owned object | An installed path whose current bytes equal a digest the deploy manifest or journal records | REQ-10, REQ-42 |
 | Plan | The complete list of create/replace/remove actions computed before the first write | REQ-45 |
 | Legacy object | One of the paths of DM-13 | REQ-07 |
@@ -503,8 +503,9 @@ records and prose); "receipt" for the deploy manifest (reserved for the hook ins
   set of `requirement` values accepted in `contract_changes` (DM-9) only in its own delivery,
   together with the change of the oracle test that hard-codes the set and, for each entry that
   names a new value, a verdict row in DM-20 → Superseded checks; no other change extends it.
-  A value added by a later spec carries that spec's number as a prefix, `spec-<NN> REQ-<MM>`
-  (for example `spec-11 REQ-72`), so it never collides with this spec's bare ids.
+  A value added by a later spec carries that spec's number, with its letter suffix when the
+  spec file name has one, as a prefix, `spec-<NN>[<a-z>] REQ-<MM>` (for example
+  `spec-11 REQ-72`, `spec-11a REQ-04`), so it never collides with this spec's bare ids.
 
 REQ-60 is not used.
 
@@ -1069,7 +1070,7 @@ python3 -I scripts/deploy-skills.py link-project --from <root> --project <dir>
   bytes: nothing (recorded as owned if not yet); different bytes and owned: `replace`;
   different bytes while the harness has **no** manifest file, path not a symbolic link:
   `adopt` (replace and record; this keeps today's overwrite of Orchestrail-managed paths on
-  the first run only, P1; interim behaviour, see Notes → Relationship to spec 11); different bytes while a manifest exists and the path is either
+  the first run only, P1; interim behaviour, see Notes → Relationship to spec 11a); different bytes while a manifest exists and the path is either
   unrecorded or recorded with another digest: `ownership-conflict`, printed as
   `ERROR ownership-conflict <path>: changed since the last deployment; save your changes elsewhere, then delete the file or restore its deployed bytes, and rerun`.
   Each manifest entry no longer planned: current bytes equal the
@@ -1114,7 +1115,7 @@ harness `skills_dir` or `skills_dir_resolved` followed by `/` (owned links); add
 as `link-project` does; then apply the current `.ai/` ignore step unchanged
 (`scripts/sync.sh:267-276`); print `project updated <root> (linked <n>, unlinked <n>)`. Nested
 roots are processed independently. No other project file is written; in particular the
-pass never creates, refreshes or removes profile files (spec 11 owns profiles).
+pass never creates, refreshes or removes profile files (spec 11a owns profiles).
 
 ### Legacy reporter `scripts/report-legacy-artifacts.sh`
 
@@ -1213,8 +1214,8 @@ procedure: run `scripts/sync.sh --from <copy>` with those variables redirected.
 | Task `state.md` unreadable | Root is active | REQ-59 |
 | Plan empty, active project exists | Project pass runs; the active project is skipped and reported | REQ-09, REQ-43 |
 | Plan non-empty, active consumer, no `--force` | Exit 3, nothing written, consumers listed | REQ-43 |
-| Same with `--force` | Proceeds; each forced consumer printed as `forced <root>` (interim output, Notes → Relationship to spec 11) | REQ-43 |
-| No manifest (first run) | Existing managed paths adopted (interim, Notes → Relationship to spec 11); nothing removed; leftovers reported | REQ-10, REQ-57 |
+| Same with `--force` | Proceeds; each forced consumer printed as `forced <root>` (interim output, Notes → Relationship to spec 11a) | REQ-43 |
+| No manifest (first run) | Existing managed paths adopted (interim, Notes → Relationship to spec 11a); nothing removed; leftovers reported | REQ-10, REQ-57 |
 | Manifest exists and a new source skill's path already holds other bytes | `ownership-conflict`, nothing written | REQ-42 |
 | Owned skill edited by the user | `ownership-conflict` when still planned; `release-modified` when obsolete; never overwritten or removed | REQ-42 |
 | User edited the deployed always-on file (as `rules/language.md:20-21` advises today) | `ownership-conflict` with the resolution text; the delivery rewrites both advisories so they no longer direct edits to the managed file (Q-06) | REQ-42 |
@@ -1557,7 +1558,7 @@ procedure: run `scripts/sync.sh --from <copy>` with those variables redirected.
 |---|---|---|---|
 | Changing many frozen expressions breaks the oracle and source guard (at least 225 of the 465 column-0 check expressions name a migrated path, name, trigger or legacy token at the parent snapshot, plus helper bodies and non-standard lines) | Validator red until re-amended; the amendment is a large share of the work | High | DM-9 entries written with each rename; guard refresh procedure; AC-31–AC-33 |
 | A name-only mask hides a semantic edit (a renamed token swapped back) | Weakened check passes | Low | Class-indexed mask rejects cross-class swaps and rule/workflow path swaps; every entry reviewed by the independent validator |
-| The first deployment adopts a path the user had edited | User text overwritten once, as sync does today | Medium | Documented in the runbook; the leftover and adopt lines name every path; spec 11 adds backups |
+| The first deployment adopts a path the user had edited | User text overwritten once, as sync does today | Medium | Documented in the runbook; the leftover and adopt lines name every path; spec 11a adds backups |
 | A task starts during deployment | Instructions change under a running task | Low | Freeze evaluated under the lock; residual note printed; owner runs sync between runs |
 | Bootstrap rules exceed 300 words after the move (certain for atomic execution and atomic validation, DM-10) | Obligations could be dropped to fit | High | Named overflow rules (DM-10), recorded in DM-20; nothing deleted |
 | Capability evidence for Codex unavailable | Codex records `unknown`; `/spec-run` refuses there | High | Intended conservative path (G4); records updated when evidence exists |
@@ -1576,7 +1577,7 @@ procedure: run `scripts/sync.sh --from <copy>` with those variables redirected.
 - A-07 | Manifest revision field name | Resolved: `source_revision`, same derivation as spec 08 | Source: spec 08 DM-4 | Reversible: yes
 - A-08 | Implementation language of the engine | Resolved: standard-library Python 3.11+ called from bash `sync.sh` | Source: ADR-0009 D6 (bash for sync, Python for tools); precedent `scripts/install-hooks.sh`/`.py`; the validator that sync already runs needs Python (`scripts/validate-contracts.sh:5846`) | Reversible: yes
 - A-09 | Location of manifests, journal, lock | Resolved: under `<config>/orchestrail/` beside the registry and hook receipt | Source: `scripts/install-hooks.py:658-659`; Context fact 4 | Reversible: yes
-- A-10 | First run without manifest | Resolved for this engine, which is the interim state until spec 11 takes over the write path (A-31): adopt planned managed paths (today's overwrite), remove nothing, report leftovers | Source: REQ-10; P1 (`.ai/principles/architecture.md:11-16`); ADR-0009 D2 (old directories never deleted by scripts) | Reversible: yes
+- A-10 | First run without manifest | Resolved for this engine, which is the interim state until spec 11a takes over the write path (A-31): adopt planned managed paths (today's overwrite), remove nothing, report leftovers | Source: REQ-10; P1 (`.ai/principles/architecture.md:11-16`); ADR-0009 D2 (old directories never deleted by scripts) | Reversible: yes
 - A-11 | Old-name skills left installed vs "no hidden aliases" | Resolved: never created or kept by the engine; existing ones reported every run for manual removal | Source: REQ-10, REQ-40; ADR-0009 D2 | Reversible: yes
 - A-12 | "Maintenance mode" of old REQ-43 | Resolved: an owner-invoked sync is the maintenance action; no unattended global replacement exists; the residual race is printed | Source: previous REQ-43 text; no workflow takes a lock shared with deployment (no `deploy.lock` or registry lock appears in `workflows/`) | Reversible: yes
 - A-13 | Deferral exit status | Resolved: 3, distinct from errors | Source: best practice; old §7.4 (non-zero for a deferred mandatory scope) | Reversible: yes
@@ -1597,12 +1598,12 @@ procedure: run `scripts/sync.sh --from <copy>` with those variables redirected.
 - A-28 | Installation record for a future harness with `hooks.json` | Resolved: receives the single hook installer result | Source: `scripts/install-hooks.py` is the only hook installer | Reversible: yes
 - A-29 | Source checkout as an active consumer | Resolved: counted when registered and active | Source: REQ-43 intent (shared skills change under any running task); this repository runs its own pipeline (`CLAUDE.md:3-5`) | Reversible: yes
 - A-30 | Edited global always-on file | Resolved: protected like every owned object; the advice to edit it is removed (REQ-66); placement of personal preferences left open (Q-06) | Source: REQ-42; current advice at `rules/language.md:20-21` would otherwise lose user text on every sync | Reversible: yes
-- A-31 | Who owns global writes after spec 11 | Resolved: spec 11's installer supersedes the `deploy` write path and migrates DM-6 manifests; this spec's engine is the interim state and its preserved contracts are listed in Notes → Relationship to spec 11 | Source: ADR-0009 Decision 1 Consequences and Decision 6 (installer belongs to spec 11); former Q-05; spec 11 REQ-42, REQ-43, REQ-71 | Reversible: yes
+- A-31 | Who owns global writes after spec 11a | Resolved: spec 11a's installer supersedes the `deploy` write path and migrates DM-6 manifests; this spec's engine is the interim state and its preserved contracts are listed in Notes → Relationship to spec 11a | Source: ADR-0009 Decision 1 Consequences and Decision 6 (installer belongs to spec 11a); former Q-05; spec 11a REQ-42, REQ-43, REQ-71 | Reversible: yes
 - A-32 | Names and placement of files and sections created by later specs | Resolved: Notes → Files and sections created after this spec | Source: DM-2, DM-11 naming patterns; DM-12 default target; P6 | Reversible: yes
 - A-33 | Extension keys in `Requires` cells | Resolved: admitted when every harness declares the record (REQ-67) | Source: spec 18 REQ-24 and its DM-1; DM-4 extension-record convention | Reversible: yes
 - A-34 | 13a acceptance line, root `README.md`, kind definitions | Resolved: Guard checks the `Accepted: owner <date>` line; `README.md` joins scan set R; kinds defined as in spec 13a A-04 | Source: spec 13a DM-8 report layout, A-06 (active class = R plus `README.md`), A-04 | Reversible: yes
 - A-35 | Split targets of mapped rules (spec 08 Q-07) | Resolved: option (a) of spec 08's Q-07, as REQ-68: the later spec appends the split target to the `new` list of the existing `rule` row in its own delivery. Grounds: DM-10 (Overflow rules) already adds created split targets to the source row's `new` list, so one mechanism covers both; the DM-9 token classes include every `new` of the row, so the move is path-only and passes the mask unchanged; the row's checks and `name_map_sha256` are the only things that change. Option (b) is rejected: a `contract_changes` entry needs an `after` that is a superseding contract, a split target supersedes none, and extending the closed set by a requirement of this spec would make a name-only move a semantic change reviewed as one (REQ-52). Limit: text asserted by checks of two different rows cannot move into one new file, because a `new` value joins one row only (DM-1); spec 08 stops there, as its own text says | Source: DM-1, DM-9 (token classes, mask), DM-10 (Overflow rules); spec 08 Q-07, A-37, A-39, REQ-22; `tests/validator-runtime-oracle.py:46-100` (current schema-1 oracle, the schema-2 oracle is delivered by this spec); ADR-0018 (inventory frozen, amendments exact) | Reversible: yes
-- A-36 | Who may extend the closed `requirement` set | Resolved: only a later spec's own delivery, with the oracle change and a DM-20 row per new entry (REQ-69) | Source: DM-9 (set hard-coded in the oracle test), DM-20 (Superseded checks); spec 11 Part A needs it | Reversible: yes
+- A-36 | Who may extend the closed `requirement` set | Resolved: only a later spec's own delivery, with the oracle change and a DM-20 row per new entry (REQ-69) | Source: DM-9 (set hard-coded in the oracle test), DM-20 (Superseded checks); spec 11a Part A needs it | Reversible: yes
 - A-37 | Stop message for parallel-only capability keys | Resolved: the next step depends on the failing key (REQ-37) | Source: spec 12 REQ-25 (delegates the stop message and its next step to REQ-37); `/pipeline` has no parallel mode | Reversible: yes
 
 ## Decisions
@@ -1644,11 +1645,11 @@ resolved as A-01–A-37; unresolved items are Q-02–Q-04 and Q-06 (Q-05 and Q-0
   Impact: without it no Codex collision can be established (DM-18).
 - Q-04 | non-blocker | When an inventory decision accepts added checks, should the checker run
   inside `scripts/validate-contracts.sh`? Impact: until then it runs only directly.
-- Q-05 | resolved 2026-11-14 | Spec 11 owns the installer and migrates the deploy manifests
-  of DM-6 (spec 11 REQ-43, REQ-71); see Notes → Relationship to spec 11 and A-31.
+- Q-05 | resolved 2026-11-14 | Spec 11a owns the installer and migrates the deploy manifests
+  of DM-6 (spec 11a REQ-43, REQ-71); see Notes → Relationship to spec 11a and A-31.
 - Q-06 | non-blocker | Where should personal, cross-project preferences live once the global
   always-on file is ownership-protected (REQ-66)? Merging user text into that file is out of
-  scope for spec 11 too. Impact: until decided, users keep such preferences in project files;
+  scope for spec 11a too. Impact: until decided, users keep such preferences in project files;
   an edit to the global file stops sync with a resolution message.
 
 ## Notes
@@ -1777,7 +1778,7 @@ only the five colliding rules, moving command renames to spec 11, per-provider w
   Its Q-07 is settled (A-35): a split target that receives frozen-checked text from a mapped
   rule is appended to that rule's `new` list in 08's own delivery (REQ-68), with the
   `docs/USAGE.md` row, the `path_changes` entries and the refreshed `name_map_sha256`.
-- 11: preserve the contracts listed in Notes → Relationship to spec 11, including leftover
+- 11a: preserve the contracts listed in Notes → Relationship to spec 11a, including leftover
   reporting (REQ-57) in a command that remains after `deploy` is removed, and refresh its
   quotation of the former Q-05.
 - 12: wire `--parallel` into the "Parallel children" row of DM-4 (key names agree, Notes →
@@ -1787,39 +1788,39 @@ only the five colliding rules, moving command renames to spec 11, per-provider w
   needs no change.
 - 13a: report in DM-19 counts and DM-2 kinds; propose map amendments through `/spec-sync`.
 
-### Relationship to spec 11 (installer)
+### Relationship to spec 11a (installer)
 
-Ruling of 2026-11-14 (A-31): spec 11 owns the public installer and becomes the only writer of
+Ruling of 2026-11-14 (A-31): spec 11a owns the public installer and becomes the only writer of
 global files. This spec is delivered first, so its engine, deploy manifests (DM-6), journal and
 lock (DM-7), `--force` and `sync.sh` exit code 3 are correct and complete as the state between
-the two deliveries. Spec 11 then removes the `deploy` command (its REQ-71), adds
+the two deliveries. Spec 11a then removes the `deploy` command (its REQ-71), adds
 `deployment-set` and `project-pass` on this engine, keeps `list-projects` and `link-project`,
 migrates every DM-6 manifest into its own manifest and deletes them (its REQ-43). From that
-point REQ-10, REQ-42 and REQ-45 for global targets are met by spec 11's engine, and the
-`deploy` cases of `scripts/check-deploy-skills.py` move as spec 11 states.
+point REQ-10, REQ-42 and REQ-45 for global targets are met by spec 11a's engine, and the
+`deploy` cases of `scripts/check-deploy-skills.py` move as spec 11a states.
 
-Contracts of this spec that spec 11 must preserve: an owned file the user changed is never
-overwritten or removed and a conflict writes nothing (REQ-42, REQ-63), except under spec 11's
-explicit `--adopt`, which stores a verified backup before replacing a target (spec 11 REQ-03,
-REQ-06) — spec 11 replaces this spec's implicit first-run adoption with that explicit option;
+Contracts of this spec that spec 11a must preserve: an owned file the user changed is never
+overwritten or removed and a conflict writes nothing (REQ-42, REQ-63), except under spec 11a's
+explicit `--adopt`, which stores a verified backup before replacing a target (spec 11a REQ-03,
+REQ-06) — spec 11a replaces this spec's implicit first-run adoption with that explicit option;
 deferral
 that writes nothing while an active consumer exists, the source checkout included (REQ-43,
 DM-8), with `--force` overriding only that freeze; leftover skills reported, never removed
 (REQ-57); the registry read-only (REQ-08); the lock never taken over (DM-7); the project pass
-as defined here. The exit code and wording of a deferral become spec 11's (its REQ-42 uses
+as defined here. The exit code and wording of a deferral become spec 11a's (its REQ-42 uses
 exit 1 `active-task`); the deferral itself does not change.
 
-Properties of this engine that exist only until spec 11 takes over the write path, and are
+Properties of this engine that exist only until spec 11a takes over the write path, and are
 not permanent claims of this spec: the implicit first-run adoption (A-10, the `adopt`
 action of Contracts → `scripts/deploy-skills.py`), the `forced <root>` output lines under
-`--force`, and the other behaviours that spec 11 changes on purpose. Spec 11's
+`--force`, and the other behaviours that spec 11a changes on purpose. Spec 11a's
 `deployment-set` reads the same engine without writing: its per-harness
 `leftover_candidates` is carried by the same name-map logic as the REQ-57 leftover
 definition (Terminology → Leftover skill), listing existing `<skills_dir>/<name>` directories
 for `<old>` of a workflow row, `rule-<old>` of a rule row, `PIPELINE` and `rule-global-claude`
 of the file rows, none of them a current installed name (DM-1); the ownership filter is the
 consumer's. Only `old` names enter that list, so appending split targets to a `new` list
-(REQ-68) never creates a leftover. Spec 11's Part A extends the closed `requirement` set of
+(REQ-68) never creates a leftover. Spec 11a extends the closed `requirement` set of
 `contract_changes` as REQ-69 states, with a DM-20 row per new entry.
 
 ### Files and sections created after this spec

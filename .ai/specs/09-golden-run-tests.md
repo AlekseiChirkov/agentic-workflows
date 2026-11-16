@@ -397,8 +397,8 @@ order`):
 | Case workflow | A key of `case.json → workflows` naming one pipeline entry invocation for the case (initially `spec-run`, `phase-pipeline`, `bugfix`). | DM-1 |
 | Catalog pair | One (case, case workflow) pair; the initial catalog has five (DM-1). | DM-1 |
 | Seed project | The case's initial project tree copied into a workspace and committed as the seed commit. | DM-1 |
-| Branch model | `per-leaf` or `per-composite`, spec 12 DM-1; decides which SA-10/SA-11 rules apply. | Spec 12 DM-1 |
-| Stack entry | Under `per-composite`, a top-level leaf or a composite (its children excluded) in plan order. | Spec 12 Notes |
+| Branch model | `per-leaf` or `per-composite`, spec 12a DM-1; decides which SA-10/SA-11 rules apply. | Spec 12a DM-1 |
+| Stack entry | Under `per-composite`, a top-level leaf or a composite (its children excluded) in plan order. | Spec 12a Notes |
 | Variant switch | A spec's opt-in setting a variant applies through `switches` (prompt arguments, environment values, overlay files). | REQ-52 |
 | Evaluator-only material | A case's `hidden/` and `reference/`, every artifact root, every `cases_root`, and `blinding.json`; never copied into a workspace or helper home. | REQ-20 |
 | Workspace | A fresh temporary git repository holding one attempt's executor-visible project. | REQ-47 |
@@ -751,7 +751,7 @@ facts and their sources:
 | Issue List entries | `### Approved`, `### Deferred`; an entry is a line matching `^\s*(?:[-*]\s*)?\[?(\d+)\]?[.):]?\s`; `None` means empty | error when a subsection has other non-empty content |
 | Quick contract and TDD record | `## Contract (quick)`, `## TDD (quick)` (`tests:` names, `level:`, `red-observed:`, `green-observed:`) | error for `quick` flow |
 | Commits, refs | `git.json` | error |
-| Branch model | Task `state.md` `branch_model:` resolved by spec 12 DM-1's reader rule: the value when present; absent with any block recording `branch:` → `per-leaf`; otherwise none | error for a value other than `per-leaf` or `per-composite` |
+| Branch model | Task `state.md` `branch_model:` resolved by spec 12a DM-1's reader rule: the value when present; absent with any block recording `branch:` → `per-leaf`; otherwise none | error for a value other than `per-leaf` or `per-composite` |
 | Changed paths | Final workspace tree versus the baseline (seed project plus the variant's switch overlay, `Variant switches`) by per-file content hash, excluding `.git/` | error |
 | Run-log events | JSONL files under the captured log root, ordered by run and `seq` | absent store → empty list |
 | Open-test result | `test_command` exit code | error when it cannot start |
@@ -769,7 +769,7 @@ Semantic assertions:
 | SA-07 | No Acceptance Criteria row is `FAIL`; the number of rows is at least the number of `acceptance_ids`; every `acceptance_ids` entry found as a row id is `PASS` | never |
 | SA-08 | Number of Contract Check `FAIL` rows ≤ number of Issue List entries (approved + deferred) | never |
 | SA-09 | Every changed path matches `allowed_paths` and none matches `forbidden_paths`; changed paths outside `.ai/` ≤ `max_changed_files` when set | never |
-| SA-10 | Rules by branch model (DM-3 fact). **`per-leaf` or field absent:** each leaf has `branch:`, `base_branch:`, `base_commit:`, `commits:`; `base_commit` and every listed commit resolve; the first leaf's `base_branch` is the seed branch and each later leaf's `base_branch` is the previous leaf's `branch` in plan order. **`per-composite`** (spec 12 DM-1, DM-2): the stack entries are the top-level leaves and composites in plan order, children excluded; every entry and every child has `branch:`, `base_branch:`, `base_commit:`, `commits:`; `base_commit`, every listed commit and every child `merge_commit` resolve, while a child's `branch:` need not exist; the first entry's `base_branch` is the seed branch, and each later entry's `base_branch` is the previous entry's `branch` with `base_commit` equal to the previous entry's last listed commit; each child's `base_branch` is its composite's `branch`; the composite's start tip is its last listed commit that precedes its first `merge` entry (a promoted leaf's own commits, spec 12 REQ-37) or its `base_commit` when there is none; at N = 1 exactly one child of a composite has the start tip as `base_commit` and every other child's `base_commit` equals another child's `merge_commit` in that composite; at N > 1 each child's `base_commit` equals or descends from the `merge_commit` of each prerequisite child (plan `Depends On`) in the same composite; each child's `merge_commit` has a first parent equal to (N = 1) or descending from (N > 1) the child's `base_commit`, a second parent equal to the child's last listed commit, is an ancestor of the composite's last listed commit, and has a subject matching `^Merge branch '[^']+' into \S+$`. N is the case workflow's `parallel`. **Both models:** no commit subject matches `\bT-\d` | workflow `commits: false` |
+| SA-10 | Rules by branch model (DM-3 fact). **`per-leaf` or field absent:** each leaf has `branch:`, `base_branch:`, `base_commit:`, `commits:`; `base_commit` and every listed commit resolve; the first leaf's `base_branch` is the seed branch and each later leaf's `base_branch` is the previous leaf's `branch` in plan order. **`per-composite`** (spec 12a DM-1, DM-2): the stack entries are the top-level leaves and composites in plan order, children excluded; every entry and every child has `branch:`, `base_branch:`, `base_commit:`, `commits:`; `base_commit`, every listed commit and every child `merge_commit` resolve, while a child's `branch:` need not exist; the first entry's `base_branch` is the seed branch, and each later entry's `base_branch` is the previous entry's `branch` with `base_commit` equal to the previous entry's last listed commit; each child's `base_branch` is its composite's `branch`; the composite's start tip is its last listed commit that precedes its first `merge` entry (a promoted leaf's own commits, spec 12a REQ-37) or its `base_commit` when there is none; at N = 1 exactly one child of a composite has the start tip as `base_commit` and every other child's `base_commit` equals another child's `merge_commit` in that composite; at N > 1 each child's `base_commit` equals or descends from the `merge_commit` of each prerequisite child (plan `Depends On`) in the same composite; each child's `merge_commit` has a first parent equal to (N = 1) or descending from (N > 1) the child's `base_commit`, a second parent equal to the child's last listed commit, is an ancestor of the composite's last listed commit, and has a subject matching `^Merge branch '[^']+' into \S+$`. N is the case workflow's `parallel`. **Both models:** no commit subject matches `\bT-\d` | workflow `commits: false` |
 | SA-11 | For consecutive modules in `dependency_chain`, take the owning leaf of each (the one leaf listing the module in `target_files:`); zero or two owning leaves → failed `chain-leaf-missing`. With commits and `per-leaf` (or field absent): the later owning leaf's `base_commit` equals the earlier owning leaf's last listed commit. With commits and `per-composite`: when both owning leaves are children of one composite, the later child's `base_commit` equals or descends from the earlier child's `merge_commit`; otherwise the stack entry containing the later leaf (the leaf itself or its composite) has a `base_commit` equal to or descending from the last listed commit of the entry containing the earlier leaf. Without commits, completion order only: the later leaf's `pe-execute` step event has a higher `seq` than the earlier leaf's `pe-execute` event with outcome `ok` in the same run, and when either event is absent the result is `not-applicable` with reason `not-observed` | no `dependency_chain` |
 | SA-12 | Open-test command exits 0 | never |
 | SA-13 | `## Contract (quick)` has `### Off-limits`, `### Invariants`, `### Acceptance Criteria`; `## TDD (quick)` has `level:` and `red-observed:`; no `T-` subtask directories and no `## Subtask Progress` blocks | flow `full` |
@@ -1743,20 +1743,20 @@ A-01–A-30 and Q-01–Q-06.
   the DM-1 `entry` value `phase-pipeline` is `pipeline`, SA-11's step `pe-execute` is
   `execution-execute`, and `case.json` prompts use the renamed commands; spec 13's reference
   scan includes `tests/golden/cases/*/case.json`.
-- **Spec 12:** before spec 12 is delivered, `/spec-run` writes no `branch_model:`, so the
-  `composite`/`spec-run` pair exercises the `per-leaf` rules of SA-10 and SA-11. After spec 12's
-  composite branch model is delivered, new `/spec-run` tasks record `per-composite` (spec 12
-  REQ-16), so the same pair exercises the `per-composite` rules at N = 1; its reference and
-  expected projection must be rebuilt in the change that delivers spec 12's composite branch
-  model, and a `composite` workflow entry with `entry: "spec-run"` and `parallel: 2` must be added
-  for spec 12 REQ-15 in the change that delivers its parallel children. Spec 12 lists both: its
-  C-5 rows for `tests/golden/cases/composite/reference/spec-run/` with
-  `tests/expected/composite/spec-run/projection.json` (delivery stage 12A) and for
-  `tests/golden/cases/composite/case.json` (delivery stage 12B, entry `spec-run`, `parallel: 2`),
-  and its delivery stages 12A and 12B repeat them; the paths and the `entry` and `parallel`
-  fields match DM-1 (the case-workflow key may differ from `entry`, as DM-1 allows). Spec 12's
-  Notes also describe the first child's `base_commit` as the composite's start tip (the
-  composite's own `base_commit`, or the promoted leaf's tip after a promotion, spec 12 REQ-37),
+- **Specs 12a and 12:** before spec 12a is delivered, `/spec-run` writes no `branch_model:`, so
+  the `composite`/`spec-run` pair exercises the `per-leaf` rules of SA-10 and SA-11. After spec
+  12a's composite branch model is delivered, new `/spec-run` tasks record `per-composite` (spec
+  12a REQ-16), so the same pair exercises the `per-composite` rules at N = 1; its reference and
+  expected projection must be rebuilt in the change that delivers spec 12a, and a `composite`
+  workflow entry with `entry: "spec-run"` and `parallel: 2` must be added for spec 12 REQ-15 in
+  the change that delivers spec 12's parallel children. Spec 12a's C-5 row lists
+  `tests/golden/cases/composite/reference/spec-run/` with
+  `tests/expected/composite/spec-run/projection.json`, and spec 12's C-5 row lists
+  `tests/golden/cases/composite/case.json` (entry `spec-run`, `parallel: 2`); the paths and the
+  `entry` and `parallel` fields match DM-1 (the case-workflow key may differ from `entry`, as
+  DM-1 allows). Spec 12a's Notes also describe the first child's `base_commit` as the
+  composite's start tip (the composite's own `base_commit`, or the promoted leaf's tip after a
+  promotion, spec 12a REQ-37),
   which agrees with the start-tip rule of SA-10 and SA-11. Old tasks stay `per-leaf` and keep
   today's rules.
 - **Spec 17:** its `tdd: red output` and `tdd: green output` notes lines do not affect results:

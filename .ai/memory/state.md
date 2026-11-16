@@ -7,7 +7,7 @@ of every session. Updated after every phase transition.
 ## Active Tasks
 
 
-Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17; ADR-0017 moves 06 before 13a/13): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11 → 12; 07 is scheduled outside this order (ADR-0021). The roadmap is in `specs/README.md`; each spec becomes a task via
+Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17; ADR-0017 moves 06 before 13a/13): **00 (scrub) first** → 01 → 13a → 13 → 04 → 02 → 03 → 05 → 06 → 09 → 08 → 10 → 11a → 11 → 12a → 12 (11 and 12 split on 2026-11-16); 07 is scheduled outside this order (ADR-0021). The roadmap is in `specs/README.md`; each spec becomes a task via
 `/phase-discovery .ai/specs/<NN>-<slug>.md`.
 
 - [State tool](../specs/07-state-tool.md) | phase: not started | status: scheduled 2026-11-13 by owner decision (ADR-0021) | note: next step `/spec-run .ai/specs/07-state-tool.md`; no task directory yet.
@@ -15,6 +15,7 @@ Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17; ADR-0017 moves
 Runtime work was closed by owner decision; remaining roadmap scope is not automatically scheduled.
 
 ## Done
+- [Split of specifications 11 and 12](../specs/README.md) | completed: 2026-11-16 | note: 11 split into 11a (installer and profiles) and 11 (public materials and release); 12 split into 12a (composite branch model, sequential children) and 12 (parallel children); original paths kept because the frozen identity check requires them; each half refined by `/spec-draft --auto-mode` with an independent critic (11a 99/100 in 3 rounds, 11 99/100 in 4, 12a 99/100 in 5, 12 98/100 in 3; all four READY FOR DEVELOPMENT); peer specs 08, 09, 10, 13, 14, 15, 16, 19, the roadmap and spec 13 REQ-69's `spec-<NN>[<a-z>]` grammar updated.
 - [Roadmap specifications 08–20 refinement](../specs/README.md) | completed: 2026-11-14 | note: fourteen specs (08–13a, 14–20) rewritten in English as implementation-ready contracts, each reviewed by an independent read-only critic, reconciled twice against its peers, then independently re-verified in a final cross-spec review; 13a, 13, 08–11 and 14–20 are ready for development, 11 with a split into two parts, 12 is ready with reservations (split into two parts; parallelism only within one composite, owner decision recorded); all owner questions are answered and recorded in the specs; work is uncommitted on branch `docs/spec-refinement` in a separate worktree; no implementation was started
 - [State tool specification](../specs/07-state-tool.md) | completed: 2026-11-13 | note: backlog spec refined in English; design ready (4 review rounds, 100/100; amended spec re-reviewed in 2 rounds, 98/100); scheduled the same day (ADR-0021 records the schedule, lock and executable-path amendments); Q-01 resolved by adding ignore rules to the scope (REQ-26, AC-23).
 - [Contract suite repair](../adr/0020-task-unknown-source-guard-watchdog-timeouts.md) | completed: 2026-11-13 | note: six failures fixed — identity ledger re-lined after the owner's audit deletions and spec edits (token totals unchanged); guard watchdog timeouts raised and exceptions re-pinned by the fixture procedure; mise shim failures resolved per run with `MISE_PYTHON_VERSION`.

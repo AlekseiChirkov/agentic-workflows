@@ -155,7 +155,7 @@ hand-made copies.
   `scripts/measure-context.sh` (except the composition change of Scope item 11), the 300/700/6,000-word limits and `ref-<name>` deployment:
   owned by spec 08 (and 13 for the 300-word bootstrap limit).
 - Profile files, the managed-fragment markers in project `CLAUDE.md`/`AGENTS.md`, merging
-  with user content, `.ai/profile`, the public installer: owned by spec 11.
+  with user content, `.ai/profile`, the public installer: owned by spec 11a.
 - Rendering status transitions or a transition engine; the run-log vocabulary
   (`rules/run-log.md`, `scripts/log-step.sh`) and reviewer verdicts in `statuses.md`.
 - Deduplicating `docs/PIPELINE.md` and the `principles/` and `templates/` role tables in
@@ -185,7 +185,7 @@ missing metadata with exit 2.
 | Maintainer | Edits canonical sources; runs `--write` (and `--write --force` after reviewing a conflict); commits sources and outputs together |
 | Sync (`scripts/sync.sh`) | Runs the validator (existing step `scripts/sync.sh:41-45`), then `--check`; deploys generated always-on bytes plus one installation record; never runs `--write` |
 | Acceptance suite (`scripts/check-gen-docs.py`) | Run directly by maintainers and implementers; builds disposable fixture roots |
-| Project installer (spec 11, `scripts/setup-new-project.sh`) | Calls `--profile <name>` and owns what it does with the bytes |
+| Project installer (spec 11a, `scripts/setup-new-project.sh`) | Calls `--profile <name>` and owns what it does with the bytes |
 | Generator (`scripts/gen-docs.py`) | Reads inputs; writes only managed outputs, the manifest and its auxiliary files under `--write` |
 | Implementer / reviewer | Builds and validates this spec; populates workflow metadata |
 
@@ -213,7 +213,7 @@ missing metadata with exit 2.
 | Always-on body | The always-on file without its embedded capability declaration: provenance line, header and shared core | Spec 13 REQ-54 and Terminology |
 | Shared core | `templates/always-on-core.md` | This spec; ADR-0009 Decision 6 |
 | Harness header | `harness/<name>/always-on-header.md` | This spec; ADR-0009 Decision 6 |
-| Profile fragment | `profiles/<name>/always-on-fragment.md` | Spec 11 |
+| Profile fragment | `profiles/<name>/always-on-fragment.md` | Spec 11a |
 | Anchored vocabulary line | A line `Status values for <subject>: `v1` \| `v2` …` defining one vocabulary | `.ai/principles/coding.md:39-41` |
 | Vocabulary namespace | The subject of one anchored line, with backticks removed | This spec |
 | Word | Maximal non-empty run of non-whitespace Unicode characters in the whole UTF-8 text (Python `str.split()` with no argument) | Spec 13 DM-19; spec 08 A-09 |
@@ -300,7 +300,7 @@ parentheses. "The generator" is `scripts/gen-docs.py`.
   runs, THE sync script SHALL run `python3 -I "$ROOT/scripts/gen-docs.py" --check --root "$ROOT"`
   after contract validation and before its first step that writes outside the source root,
   and SHALL exit non-zero without writing outside the source root if that command exits
-  non-zero. After spec 11, the gate's position is spec 11's (its REQ-64, REQ-40; A-48). Spec 11
+  non-zero. After spec 11a, the gate's position is spec 11a's (its REQ-64, REQ-40; A-48). Spec 11a
   keeps spec 08's meter gate (08 REQ-08) next to this one, and the deployment SHALL keep both
   gates, so that load cycles stay checked at deployment.
 - **REQ-23 Missing targets (split from REQ-11; narrowed 2026-11-14).** IF a `called_by` name
@@ -985,8 +985,8 @@ Gate location (aligned 2026-11-14): in spec 13's `scripts/sync.sh` step list, af
 contract validator (step 2) and before hook installation (step 4), the first step that
 writes outside the source root; the runtime guard (step 3) precedes it, and spec 08's
 `measure-context.sh check` gate follows it (08 Contracts → Deployment). Legacy reporting
-precedes it only in spec 11's step list. Once spec 11 is delivered, the gate's position in
-`scripts/sync.sh` is owned by spec 11 (its REQ-64), which also runs the same command inside
+precedes it only in spec 11a's step list. Once spec 11a is delivered, the gate's position in
+`scripts/sync.sh` is owned by spec 11a (its REQ-64), which also runs the same command inside
 its installer engine (its REQ-40); this spec then owns only the command and its exit
 semantics. Sync runs
 `python3 -I "$ROOT/scripts/gen-docs.py" --check --root "$ROOT"`. On exit 1 it prints
@@ -1001,7 +1001,7 @@ where `<result>` follows spec 13 REQ-65: the hook installer's JSON for a harness
 directory has `hooks.json`, else `{"reason":"no-native-adapter","status":"unavailable"}`.
 This replaces spec 13's DM-14 assembly (13 REQ-36: "Spec 10 later replaces the assembly with
 its generated file without a second append"): the component that writes `always_on_path`
-— spec 13's `scripts/deploy-skills.py deploy` until spec 11, then spec 11's engine (its
+— spec 13's `scripts/deploy-skills.py deploy` until spec 11a, then spec 11a's engine (its
 REQ-39, which already states these bytes) — drops DM-14's marker line and appended
 declaration. `harness/<name>/always-on.md` keeps its path and becomes a generated output in
 the delivery that splits it (REQ-42); spec 13's checks keep applying to it (13 REQ-36,
@@ -1404,13 +1404,13 @@ Every AC-01–AC-27 names at least one REQ above.
 - A-45 | Capability records adopted (2026-11-14) | Resolved: the A-32 grammar is now spec 13 DM-4's; extension records render like canonical ones | Source: spec 13 DM-4, A-04, REQ-67 | Reversible: yes
 - A-46 | Owner of `loads` graph checks (2026-11-14) | Resolved: spec 08's meter owns target, section and cycle checks over the whole load graph; the generator parses `loads` for rendering only | Source: spec 08 REQ-11, REQ-18, REQ-20, A-04 (workflows are never load targets); single-owner rule, `.ai/principles/architecture.md` P6 | Reversible: yes
 - A-47 | Behaviour availability in the matrix (2026-11-14) | Resolved: `## Behaviours` section computed from the DM-4 behaviour table and records; validity of `Requires` keys stays spec 13's check | Source: spec 13 DM-4, REQ-67 and Notes → Spec 10 alignment | Reversible: yes
-- A-48 | Gate location after spec 11 (2026-11-14) | Resolved: spec 11 owns the position (its REQ-64) and also gates its engine (its REQ-40); this spec owns the command and exit semantics | Source: spec 11 REQ-39, REQ-40, REQ-64 | Reversible: yes
+- A-48 | Gate location after spec 11a (2026-11-14) | Resolved: spec 11a owns the position (its REQ-64) and also gates its engine (its REQ-40); this spec owns the command and exit semantics | Source: spec 11a REQ-39, REQ-40, REQ-64 | Reversible: yes
 - A-49 | Rules and workflows added by later specs (14–20) (2026-11-14) | Resolved: no per-spec knowledge — the generator enumerates `workflows/*.md` and top-level `rules/*.md`, takes kinds from the DM-2 prefix and phases/steps from DM-3, so files named under spec 13's Notes → Files and sections created after this spec (for example `atomic-execution-repair`, step `4`) render without change | Source: spec 13 Notes → Files and sections created after this spec; DM-2, DM-3 | Reversible: yes
 - A-50 | `loads` on rules (2026-11-14) | Resolved: accepted and parsed, not rendered | Source: spec 08 DM-1, REQ-22; spec 13 DM-2 registered extension key | Reversible: yes
 - A-51 | Plain-value grammar (2026-11-14) | Resolved: inside `loads`, 08 DM-1's `[A-Za-z0-9_./-]+`; top-level scalars keep spec 13 DM-2's broader grammar, because 13 owns those fields and descriptions contain spaces and colons | Source: spec 08 DM-1; spec 13 DM-2 | Reversible: yes
 - A-52 | Who changes the meter's always-on composition (2026-11-14) | Resolved: this delivery (Scope item 11, REQ-50), in the change that embeds the declaration | Source: spec 08 A-11 and its always-on composition paragraph (Contracts → Graph resolution), which name 10 REQ-50 as the change; spec 08 Notes → "Ownership statements for spec 10"; spec 08 is delivered first (Preconditions). No conflict between the specs | Reversible: yes
 - A-53 | Registration of spec 10's front-matter keys in spec 13's checker (2026-11-14) | Resolved: part of this delivery (Scope item 12, REQ-51) | Source: spec 13 DM-2 ("Until the owning spec registers its validator in the checker, an extension key is `metadata-unknown-field`") and DM-3 | Reversible: yes
-- A-54 | Metadata of files added by specs 14–19, and the parts of 13, 08, 18 and 11 this spec depends on (2026-11-14) | Resolved: the rule parser (REQ-49) accepts every key those specs prescribe for rules — `description`, `load: on-demand` and an optional `loads` (14 REQ-46, 16 REQ-38, 17 REQ-47, 19 REQ-63; 15 A-02 for `contract-checkpoints` and `contract-delta-operations`); the workflow parser (REQ-23, REQ-51) accepts `description`, `phase` and `step` for the workflow 19 adds (`atomic-execution-repair`, `phase: atomic-execution`, `step: 4`, matching 13 DM-3) and `loads` where 15, 16, 17 and 19 add entries. No prescribed key is rejected. One consequence: those specs do not prescribe `reads`, `writes` or `called_by` for that workflow, which this spec requires of every workflow, so its front matter gets `metadata-missing-field` until the delivery that adds the file also adds the three keys (`called_by` naming `spec-run`, with its `Called by:` line starting with the backticked command, REQ-35); the generator needs no change. Nothing in this design depends on the 13 items under revision in parallel (the stop wording of 13 REQ-37, the rule for extending its closed `requirement` set in 13 REQ-69, a decision on split targets that 13 cites from spec 08); 13 is cited only by the ids already used. Spec 13 itself holds no Q-07 (verified). Spec 18's `sub-agent-effort` record is accepted with `state: unknown` and renders `unavailable` in `## Behaviours` (REQ-48, AC-24). Spec 08 agrees with A-52. Spec 11 keeps both gates (REQ-22) | Source: specs 14, 15, 16, 17, 19 front-matter sections; 13 DM-2, DM-3; 18 DM-1; 08 A-11; 11 REQ-64 | Reversible: yes
+- A-54 | Metadata of files added by specs 14–19, and the parts of 13, 08, 18 and 11a this spec depends on (2026-11-14) | Resolved: the rule parser (REQ-49) accepts every key those specs prescribe for rules — `description`, `load: on-demand` and an optional `loads` (14 REQ-46, 16 REQ-38, 17 REQ-47, 19 REQ-63; 15 A-02 for `contract-checkpoints` and `contract-delta-operations`); the workflow parser (REQ-23, REQ-51) accepts `description`, `phase` and `step` for the workflow 19 adds (`atomic-execution-repair`, `phase: atomic-execution`, `step: 4`, matching 13 DM-3) and `loads` where 15, 16, 17 and 19 add entries. No prescribed key is rejected. One consequence: those specs do not prescribe `reads`, `writes` or `called_by` for that workflow, which this spec requires of every workflow, so its front matter gets `metadata-missing-field` until the delivery that adds the file also adds the three keys (`called_by` naming `spec-run`, with its `Called by:` line starting with the backticked command, REQ-35); the generator needs no change. Nothing in this design depends on the 13 items under revision in parallel (the stop wording of 13 REQ-37, the rule for extending its closed `requirement` set in 13 REQ-69, a decision on split targets that 13 cites from spec 08); 13 is cited only by the ids already used. Spec 13 itself holds no Q-07 (verified). Spec 18's `sub-agent-effort` record is accepted with `state: unknown` and renders `unavailable` in `## Behaviours` (REQ-48, AC-24). Spec 08 agrees with A-52. Spec 11a keeps both gates (REQ-22) | Source: specs 14, 15, 16, 17, 19 front-matter sections; 13 DM-2, DM-3; 18 DM-1; 08 A-11; 11a REQ-64 | Reversible: yes
 
 ## Decisions
 
@@ -1472,8 +1472,8 @@ No questions were asked. A reconciliation pass aligned this spec with the final 
   Notes → Spec 10 alignment); 11 consumes `--profile`, `docs/harness-matrix.md` and the
   always-on bytes (its REQ-39). Spec 08 already cites spec 13 DM-5 for "Harness" and records the
   composition change as carried out by this delivery (its A-11; 10 REQ-50, Scope item 11);
-  nothing further is required of 08. Spec 11 keeps spec 08's meter gate step (08 REQ-08)
-  next to the `gen-docs.py --check` step (11 REQ-64 and its `sync.sh` step list). The
+  nothing further is required of 08. Spec 11a keeps spec 08's meter gate step (08 REQ-08)
+  next to the `gen-docs.py --check` step (11a REQ-64 and its `sync.sh` step list). The
   deployment must keep both gates, so that load cycles stay checked at deployment.
 - **Identity ledger (follow-up outside this spec):** the ledger row(s) at `.ai/tasks/completed/task-01-git-source-of-truth/state.md` line 208 pins a former-name occurrence at this spec's line 19, which the refined text no longer holds; the change that commits this revision removes them, as spec 11 A-41 does for its own row.
 

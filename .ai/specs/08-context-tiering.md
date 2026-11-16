@@ -222,7 +222,7 @@ Rule and workflow names follow spec 13's target names (13 DM-10, DM-11):
 - **REQ-02.** WHEN deployment runs, THE SYSTEM SHALL install each reference file
   `rules/reference/<stem>.md` byte-for-byte as `<skills_dir>/ref-<stem>/SKILL.md` for every
   supported harness and record each as an owned object in the deploy manifest in force
-  (13 DM-6; after spec 11, the manifest of its installer, 13 Notes "Relationship to spec 11").
+  (13 DM-6; after spec 11a, the manifest of its installer, 13 Notes "Relationship to spec 11a").
 - **REQ-03.** WHEN `check` runs, THE SYSTEM SHALL report `loads-missing` for every workflow
   without a `loads:` declaration and `loads-not-cited` for every workflow whose body does
   not contain the citation `` `contract-loads → ## Runtime resolution` ``.
@@ -463,8 +463,8 @@ workflow (as `ref-<stem>`, by path, or in a `loads:` entry). Deployed name: `ref
 | `workflow_id` | string | Stem of `workflows/<id>.md` |
 | `source_revision` | string\|null | `git rev-parse --verify HEAD` of the root; null when not a git work tree or git is unavailable |
 | `source_dirty` | bool\|null | True when `git status --porcelain --untracked-files=all -- rules workflows principles harness` is non-empty; null when revision is null |
-| `deployed_manifest_digest` | string\|null | SHA-256 (lowercase hex) of the bytes of the file passed with `--deployed-manifest` (any one harness's deploy manifest of 13 DM-6, or spec 11's ownership manifest after it, from the same isolated deployment; it only binds the revision); null when not passed |
-| `deployed_manifest_revision` | string\|null | The manifest's top-level `source_revision` (13 REQ-58, DM-6) or, for spec 11's ownership manifest, its `source.commit` (11 `### Ownership manifest`); null when not passed, not a JSON object, or the field is absent |
+| `deployed_manifest_digest` | string\|null | SHA-256 (lowercase hex) of the bytes of the file passed with `--deployed-manifest` (any one harness's deploy manifest of 13 DM-6, or spec 11a's ownership manifest after it, from the same isolated deployment; it only binds the revision); null when not passed |
+| `deployed_manifest_revision` | string\|null | The manifest's top-level `source_revision` (13 REQ-58, DM-6) or, for spec 11a's ownership manifest, its `source.commit` (11a `### Ownership manifest`); null when not passed, not a JSON object, or the field is absent |
 | `inputs_digest` | string | SHA-256 of the UTF-8 lines `<path>\t<sha256 of bytes>\n`, sorted by path, for every file this run read |
 | `features` | object | Feature assignments supplied with `--feature`, by name |
 | `complete` | bool | False when any finding concerns this workflow's graph or the always-on set |
