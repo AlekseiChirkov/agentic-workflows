@@ -308,7 +308,7 @@ The script (idempotent — safe to re-run):
 | 3    | Notes about `.windsurf/workflows/` — uses global workflows unless local override exists     |
 | 4    | `.claude/skills/<name>` symlinks pointing at `~/.claude/skills/<name>` (Claude Code workaround) |
 | 5    | `.ai/` knowledge base seeded from `templates/.ai/` (never overwrites existing files), then `AGENTS.md` for Codex from `templates/AGENTS.md` |
-| 6    | `.gitignore` entries, each appended only when no existing line contains it: `.ai/` (default for new consumer projects; the script appends it even where the repository tracks `.ai/`, so such a project removes that line again — section 11; `scripts/sync.sh`, unlike this script, respects an existing tracking policy), `.claude/skills/`, `.env`, `*.pyc`, `__pycache__/`, `.state-tool.lock`, `.state.md.*.tmp` (state tool lock and temporary files, section 11) |
+| 6    | `.gitignore` entries, each appended on its own line only when no existing line equals it: `.ai/` (default for new consumer projects; skipped with a message when `git ls-files .ai` lists a tracked file, so a repository that tracks its knowledge base keeps it tracked — section 11), `.claude/skills/`, `!.claude/skills/.gitkeep`, `.env`, `*.pyc`, `__pycache__/`, `.state-tool.lock`, `.state.md.*.tmp` (state tool lock and temporary files, section 11) |
 
 ### Manual steps required after the script runs
 
@@ -850,7 +850,7 @@ T-XX | <name> | atomic-tests: <status> | atomic-execution: <status> | atomic-val
 Atomic statuses (`atomic-execution` / `atomic-validation`):
 `not-started` | `in-progress` | `complete` | `blocked` | `skipped` | `failed`.
 
-`atomic-tests` statuses: `not-started` | `red` | `green` | `n-a` | `failed`.
+`atomic-tests` statuses: `not-started` | `red` | `pinned` | `green` | `n-a` | `failed`.
 A block written before the TDD step existed has no `atomic-tests:` line; read it as
 `not-started` and do not error.
 
@@ -915,10 +915,14 @@ python3 scripts/state-tool.py init-block  --root R --task T --block ID --kind le
 | `add-file` | Add paths to `target_files:`; listed paths are kept and a call that adds nothing is `unchanged`. A path that is empty, only whitespace, or has leading or trailing whitespace is refused. |
 | `init-block` | Insert a new leaf or composite block with its canonical initial lines at the end of the section; an existing block is never changed. |
 
-stdout carries exactly one JSON object (`schema_version` 1) with `result` (`read`, `valid`,
-`invalid`, `applied`, `already_applied`, `unchanged` or `rejected`), `errors`, `warnings`,
-`source_revision` and `stale_temp_files`; write commands add `operation_id`, `block_id`,
-`result_revision` and `changed_fields`. Diagnostics go to stderr only. The acceptance suite
+For `init-block`, `--kind composite` requires `--children` and `--note` and refuses
+`--target-file`; `--kind leaf` refuses `--children` (exit 2, `invalid-arguments`).
+
+stdout carries exactly one JSON object (`schema_version` 1) with `command`, `task`, `result`
+(`read`, `valid`, `invalid`, `applied`, `already_applied`, `unchanged` or `rejected`), `errors`,
+`warnings`, `source_revision` and `stale_temp_files`; `get` adds `contract_version` and, when it
+reads, `blocks`; write commands add `operation_id`, `block_id`, `block_kind`, `result_revision`
+and `changed_fields`. Diagnostics go to stderr only. The acceptance suite
 runs with `bash scripts/validate-contracts.sh --state-tool-only`.
 
 ### Write protocol
@@ -997,8 +1001,8 @@ When the tool is absent or cannot run, edit the block by hand in this order:
   before the rename refuses a write whose file changed meanwhile (exit 4,
   `state-file-changed`), but an edit outside that window is not prevented; stop other
   writers while the tool runs as well.
-- Local filesystems only: the lock is an advisory `fcntl` lock, which network filesystems
-  may not honour. Locking across hosts is not supported.
+- Local filesystems only: the lock is an advisory `flock` lock (taken through Python's
+  `fcntl` module), which network filesystems may not honour. Locking across hosts is not supported.
 - Without `fcntl` (for example on Windows) only `get` and `validate` work; write commands
   exit 7 `locking-unavailable`. Read commands on such a platform are not covered by the
   acceptance suite.
@@ -1036,9 +1040,8 @@ When the tool is absent or cannot run, edit the block by hand in this order:
 The lock file and the temporary files sit next to the task `state.md`. This repository and
 new consumer projects ignore `.state-tool.lock` and `.state.md.*.tmp` through `.gitignore`
 (`scripts/setup-new-project.sh` adds both entries; `scripts/sync.sh` does not). An existing
-consumer project that tracks `.ai/` should add the two lines by hand. Rerunning
-`scripts/setup-new-project.sh` there adds them too, but it also appends the `.ai/` entry
-whenever no `.gitignore` line contains it, which ignores every new file under `.ai/`,
-including a new task `state.md`; remove that `.ai/` line again right after the rerun so the
-knowledge base stays tracked. No ignore rule may match a task `state.md`. A project that
-ignores `.ai/` already ignores both files.
+consumer project that tracks `.ai/` adds the two lines by hand or reruns
+`scripts/setup-new-project.sh`, which appends both and leaves the knowledge base tracked: when
+`git ls-files .ai` lists a tracked file, the script skips its `.ai/` entry and says so. No
+ignore rule may match a task `state.md`. A project that ignores `.ai/` already ignores both
+files.

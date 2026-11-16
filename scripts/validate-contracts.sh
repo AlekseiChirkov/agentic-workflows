@@ -2035,6 +2035,36 @@ for name, anchor in anchors:
         actual = None
     if actual != expected:
         problems.append(f"{name} is {actual!r}; its anchored line lists {expected!r}")
+# A constant is bound once: by the plain module-level assignment compared above. Any other
+# static binding of its name would let the tool run with values the comparison never saw.
+names = [name for name, _ in anchors]
+sole = {}
+for node in tool.body:
+    if (isinstance(node, ast.Assign) and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name) and node.targets[0].id in names):
+        sole.setdefault(node.targets[0].id, node.targets[0])
+outside = []
+for node in ast.walk(tool):
+    if isinstance(node, ast.Name):
+        if isinstance(node.ctx, (ast.Store, ast.Del)) and sole.get(node.id, node) is not node:
+            outside.append((node.id, node.lineno))
+        continue
+    if isinstance(node, (ast.Global, ast.Nonlocal)):
+        bound = node.names
+    elif isinstance(node, (ast.Import, ast.ImportFrom)):
+        bound = [alias.asname or alias.name.split(".")[0] for alias in node.names]
+    elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+                           ast.ExceptHandler, ast.MatchAs, ast.MatchStar)):
+        bound = [node.name]
+    elif isinstance(node, ast.MatchMapping):
+        bound = [node.rest]
+    elif isinstance(node, ast.arg):
+        bound = [node.arg]
+    else:
+        continue
+    outside.extend((name, node.lineno) for name in bound if name in names)
+for name, line in sorted(set(outside), key=lambda item: (names.index(item[0]), item[1])):
+    problems.append(f"{name}: bound outside its one module-level assignment (line {line})")
 for problem in problems:
     print(problem, file=sys.stderr)
 sys.exit(1 if problems else 0)
@@ -4752,10 +4782,13 @@ test_public_identity_matches_exact_ledger_and_preserves_knowledge() (
     if [ -f "$root/$candidate" ] && grep -Fq "$ledger_heading" "$root/$candidate"; then
       ledger_file="$candidate"
       candidate_count=$((candidate_count + 1))
+      printf '  %s\n' "$candidate" >> "$scratch/ledger-candidates" || return 1
     fi
   done < "$scratch/all-files"
   [ "$candidate_count" -eq 1 ] || {
-    echo 'Expected exactly one identity match ledger'; return 1;
+    echo "Expected exactly one identity match ledger; found $candidate_count"
+    [ "$candidate_count" -eq 0 ] || cat "$scratch/ledger-candidates"
+    return 1;
   }
 
   # Scan all repository files. Mask only the markdown table rows beneath the

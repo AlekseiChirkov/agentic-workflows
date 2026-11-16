@@ -249,7 +249,10 @@ Each entry is `<operation_id>#<digest>`: the operation id matches `^[A-Za-z0-9][
 digest is 16 lowercase hexadecimal characters, entries are separated by `, `, and an operation id
 appears at most once on the line. The line is the block's last known field: after the git fields
 (`branch:` … `pr:`) when they are present, otherwise after the last `notes:` group; unknown fields
-keep their places, and an existing line is replaced in place. The receipts let the tool recognise
+keep their places, and an existing line is replaced in place. That position is fixed when the line
+is created: fields written to the block afterwards, such as git fields added after the tool's first
+write, do not move it and may stand on either side of it, so a reader finds the line by its field
+name, never by its position. The receipts let the tool recognise
 a repeated write and apply it only once.
 **Backward compatibility (required of every reader):** a block without a `state_receipts:` line is valid.
 The tool creates the line with the first write it applies to a block; existing blocks are never

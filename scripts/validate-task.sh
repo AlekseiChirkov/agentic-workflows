@@ -155,11 +155,15 @@ if grep -q '^## Subtask Progress' "$STATE"; then
 
   # Tool-managed receipts, per workflow-globals: only field lines (exactly two spaces of
   # indentation) inside the progress section and outside fences are read, so prose that
-  # mentions the field never counts. A block without the line is valid.
-  BAD_RECEIPTS="$(LC_ALL=C awk '
-    inside && /^ ? ? ?(```|~~~)/ { fenced = !fenced; next }
-    inside && fenced { next }
-    /^(#|##) / { inside = ($0 ~ /^## Subtask Progress[[:space:]]*$/); fenced = 0; next }
+  # mentions the field never counts. A block without the line is valid. Fences follow the
+  # state tool's grammar: tracked from the first line of the file, opened by ``` or ~~~ after
+  # at most three spaces and closed only by a later line starting with the same marker; a
+  # fence still open at the end of the file fails, because the lines after it cannot be read.
+  RECEIPT_FINDINGS="$(LC_ALL=C awk '
+    marker == "~~~" { if ($0 ~ /^ ? ? ?~~~/) marker = ""; next }
+    marker == "```" { if ($0 ~ /^ ? ? ?```/) marker = ""; next }
+    /^ ? ? ?(```|~~~)/ { marker = ($0 ~ /^ ? ? ?~~~/) ? "~~~" : "```"; opened = NR; next }
+    /^(#|##) / { inside = ($0 ~ /^## Subtask Progress[[:space:]]*$/); next }
     !inside || !/^  state_receipts:/ { next }
     {
       value = substr($0, length("  state_receipts:") + 1)
@@ -175,9 +179,15 @@ if grep -q '^## Subtask Progress' "$STATE"; then
         seen[piece[1]] = 1
       }
       if (bad) print NR
-    }' "$STATE" | tr '\n' ' ')"
+    }
+    END { if (marker != "") print "open " opened }' "$STATE")"
+  BAD_RECEIPTS="$(printf '%s\n' "$RECEIPT_FINDINGS" | grep -E '^[0-9]+$' | tr '\n' ' ' || true)"
+  OPEN_FENCE="$(printf '%s\n' "$RECEIPT_FINDINGS" | sed -n 's/^open //p')"
+  RECEIPT_PROBLEMS=""
+  [ -z "$BAD_RECEIPTS" ] || RECEIPT_PROBLEMS="malformed state_receipts: line(s) at line ${BAD_RECEIPTS% } — each holds 1 to 20 entries <operation_id>#<16 lowercase hex> separated by ', ' with unique operation ids; the line is tool-managed (workflow-globals → ## Canonical Status Formats)"
+  [ -z "$OPEN_FENCE" ] || RECEIPT_PROBLEMS="${RECEIPT_PROBLEMS:+$RECEIPT_PROBLEMS; }the fence opened at line $OPEN_FENCE is never closed, so the lines after it cannot be read — close the fence"
   check "every state_receipts: line has 1 to 20 well-formed entries with unique operation ids" \
-    "$([ -z "$BAD_RECEIPTS" ] && echo pass || echo "malformed state_receipts: line(s) at line ${BAD_RECEIPTS% } — each holds 1 to 20 entries <operation_id>#<16 lowercase hex> separated by ', ' with unique operation ids; the line is tool-managed (workflow-globals → ## Canonical Status Formats)")"
+    "$([ -z "$RECEIPT_PROBLEMS" ] && echo pass || echo "$RECEIPT_PROBLEMS")"
 
   # Composite blocks must declare children and blocker.
   COMPOSITES="$(grep -cE '^\[composite\] T-' "$STATE" || true)"
