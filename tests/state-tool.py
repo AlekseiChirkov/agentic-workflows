@@ -1885,6 +1885,33 @@ class SetInvocationTests(SetCase):
                                          extra=("--lock-wait-seconds", seconds))
 
                 self.applied(result, "last_action", "state_receipts")
+    def test_lock_wait_that_is_not_one_to_three_digits_exits_2_and_reads_nothing(self) -> None:
+        cases = {"four digits with a leading zero": "0600", "four zeros": "0000",
+                 "five thousand digits": "9" * 5000}
+        for label, seconds in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(leaf("T-01")))
+                before = snapshot(self.task)
+
+                result = self.set_fields("last_action=x", extra=("--lock-wait-seconds", seconds))
+
+                document = self.write_refused(result, 2, "invalid-arguments")
+                self.assertEqual([item["code"] for item in document["errors"]],
+                                 ["invalid-arguments"])
+                self.assertIsNone(document["source_revision"])
+                self.assertIsNone(document["result_revision"])
+                self.assertEqual(snapshot(self.task), before)
+
+    def test_lock_wait_of_one_to_three_digits_with_leading_zeros_is_accepted(self) -> None:
+        self.write_state(state_text(leaf("T-01")))
+
+        for seconds in ("5", "005"):
+            with self.subTest(seconds=seconds):
+                result = self.set_fields(f"last_action=wait {seconds}", operation_id=f"op-{seconds}",
+                                         extra=("--lock-wait-seconds", seconds))
+
+                self.applied(result, "last_action", "state_receipts")
+
 
 
 class SetFileSafetyTests(SetCase):
@@ -3295,6 +3322,9 @@ class InitBlockRefusalTests(InitBlockCase):
                  "vertical bar in the name": ("leaf", "a | b", ()),
                  "line feed in the name": ("leaf", "a\nb", ()),
                  "carriage return in the name": ("leaf", "a\rb", ()),
+                 "name of one space": ("leaf", " ", ()),
+                 "name of several spaces": ("leaf", "   ", ()),
+                 "name of one tab": ("leaf", "\t", ()),
                  "empty name of a composite": ("composite", "",
                                                ("--children", "T-05a", "--note", "n"))}
         for label, (kind, name, options) in cases.items():
@@ -3475,6 +3505,25 @@ class ReceiptRepeatTests(ReceiptCase):
 
                     self.conflict(result, command)
                     self.assert_untouched(task, before)
+
+    def test_operation_conflict_reports_the_line_of_the_receipts_line(self) -> None:
+        for command, (block_id, first, other) in REPEATABLE_WRITES.items():
+            with self.subTest(command=command):
+                task = self.task_copy(f"task-{command}", RECEIPT_STATE)
+                self.applied_once(self.write(command, *first, block=block_id, task=task))
+                numbers = [number for number, line in enumerate(self.state(task).splitlines(), 1)
+                           if line.startswith("  state_receipts:")]
+                self.assertEqual(len(numbers), 1, self.state(task))
+
+                result = self.write(command, *other, block=block_id, task=task)
+
+                document = self.conflict(result, command)
+                self.assertEqual(document["errors"], [{
+                    "code": "operation-conflict",
+                    "message": f"operation {OPERATION_ID} was already applied to block "
+                               f"{block_id} with other inputs",
+                    "line": numbers[0]}])
+                self.assertIn(f"(line {numbers[0]})", result.stderr)
 
     def test_operation_id_is_matched_within_its_block_and_across_commands(self) -> None:
         self.write_state(RECEIPT_STATE)
@@ -5479,6 +5528,18 @@ FALLBACK_STEPS = (r"(?i)\bstop\b.*\bconcurrent writers\b", r"(?i)\bread the whol
 COMMANDS = ("get", "validate", "set", "append-note", "add-file", "init-block")
 
 
+UNCHANGED_RESULT_SENTENCE = (
+    "An `unchanged` result writes nothing and records no receipt, so its operation id is not "
+    "reserved: the same id may later be applied to that block with any inputs, and the receipts "
+    "line lists only applied operations.")
+COMMAND_ROW_SENTENCES = {
+    "set": ("A tests status cannot be changed to a value other than `green` or `n-a` while "
+            "execution is `complete`."),
+    "append-note": "A note that is empty or only whitespace is refused.",
+    "add-file": ("A path that is empty, only whitespace, or has leading or trailing whitespace "
+                 "is refused.")}
+
+
 def tool_exit_codes() -> dict[int, list[str]]:
     """Return the error codes the tool's own description lists for each exit code."""
     description = " ".join(ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8"))).split())
@@ -5594,6 +5655,22 @@ class ManualTests(unittest.TestCase):
         matching = [item for item in items
                     if all(re.search(pattern, item) for pattern in statements)]
         self.assertEqual(len(matching), 1, "limit on fields with continuation lines missing")
+
+    def test_write_protocol_states_that_an_unchanged_result_reserves_no_operation_id(self) -> None:
+        section = " ".join(self.section(STATE_TOOL_HEADING).split())
+        self.assertIn(UNCHANGED_RESULT_SENTENCE, section)
+        position = section.index(UNCHANGED_RESULT_SENTENCE)
+        self.assertGreater(position, section.index("Every applied write records its operation id"))
+        self.assertLess(position, section.index("A lock still held at the end of the wait"))
+
+    def test_command_table_states_what_each_write_command_refuses(self) -> None:
+        section = self.section(STATE_TOOL_HEADING)
+        for command, sentence in COMMAND_ROW_SENTENCES.items():
+            with self.subTest(command=command):
+                rows = [line for line in section.splitlines()
+                        if line.startswith(f"| `{command}` |")]
+                self.assertEqual(len(rows), 1, f"command table row missing or repeated: {command}")
+                self.assertIn(sentence, rows[0])
 
     def test_manual_reference_sections_name_the_tool_its_mode_and_its_receipts_field(self) -> None:
         tree = self.section(re.compile(r"^## 2\. Directory Structure$", re.M))
@@ -6007,6 +6084,633 @@ class ManualLimitTests(unittest.TestCase):
         matching = [item for item in self.limits() if UNCOVERED_READS_SENTENCE in item]
         self.assertEqual(len(matching), 1, "sentence on uncovered read commands missing")
         self.assertTrue(matching[0].startswith("Without `fcntl`"), matching[0])
+
+
+class HeaderSeparatorTests(SetCase):
+    def test_status_with_an_empty_value_is_written_with_canonical_separators(self) -> None:
+        started = "atomic-tests: red | atomic-execution: in-progress | atomic-validation: "
+        cases = {
+            "empty first segment": (
+                "atomic-tests: | atomic-execution: in-progress | atomic-validation: not-started",
+                "atomic-tests=red",
+                started + "not-started"),
+            "empty first segment with further spaces": (
+                "atomic-tests:    | atomic-execution: in-progress | atomic-validation: not-started",
+                "atomic-tests=red",
+                started + "not-started"),
+            "empty middle segment": (
+                "atomic-tests: red | atomic-execution: | atomic-validation: not-started",
+                "atomic-execution=in-progress",
+                started + "not-started"),
+            "empty last segment": (
+                "atomic-tests: red | atomic-execution: in-progress | atomic-validation:   ",
+                "atomic-validation=in-progress",
+                started + "in-progress")}
+        for label, (statuses, pair, written_statuses) in cases.items():
+            with self.subTest(case=label):
+                original = state_text(leaf("T-01", header=statuses), leaf("T-02"))
+                self.write_state(original)
+
+                self.applied(self.set_fields(pair), pair.partition("=")[0], "state_receipts")
+
+                written = self.state()
+                self.assertEqual(written.replace(self.receipt_line(written), "", 1),
+                                 original.replace(f"T-01 | Leaf | {statuses}\n",
+                                                  f"T-01 | Leaf | {written_statuses}\n", 1))
+
+
+ADD_FILE_CONTINUATION_MESSAGE = (
+    "block T-01: target_files has continuation lines, which add-file does not read; edit the "
+    "block by the manual procedure")
+TARGET_FILES_FENCE = "   ```text\n   fenced\n   ```\n"
+
+
+class AddFileContinuationTests(ReceiptCase):
+    """add-file on a target_files value that continues on following lines: the write is refused
+    whole, because entries are read from the field line only."""
+
+    def continuation_refusal(self, result: ToolResult, before: Snapshot) -> None:
+        document = self.refused_by(result, "add-file", 6, "invalid-value")
+        self.assertEqual(document["errors"], [{"code": "invalid-value",
+                                               "message": ADD_FILE_CONTINUATION_MESSAGE}])
+        self.assertEqual(document["warnings"], [])
+        self.assertIn(REFUSAL_SENTENCE, result.stderr)
+        self.assert_unchanged_after_refusal(before)
+
+    def test_add_file_on_a_continued_target_files_value_is_refused_and_changes_nothing(
+            self) -> None:
+        for value in ("a.sh,", ""):
+            for label, lines in CONTINUATION_SHAPES.items():
+                with self.subTest(value=value, shape=label):
+                    self.write_state(state_text(
+                        continued_leaf("target_files", lines, value=value), leaf("T-02")))
+                    before = self.files_without_lock()
+
+                    self.continuation_refusal(self.add_files("b.sh"), before)
+
+    def test_paths_listed_on_the_field_line_are_refused_not_reported_unchanged(self) -> None:
+        self.write_state(state_text(
+            continued_leaf("target_files", "     b.sh\n", value="a.sh, c.sh"), leaf("T-02")))
+        before = self.files_without_lock()
+
+        for paths in (("a.sh",), ("c.sh", "a.sh")):
+            with self.subTest(paths=paths):
+                self.continuation_refusal(self.add_files(*paths), before)
+
+    def test_receipt_revision_and_path_rules_precede_the_refusal(self) -> None:
+        path = self.write_state(state_text(continued_leaf(None), leaf("T-02")))
+        stale = file_revision(path)
+        self.applied_once(self.add_files("a.sh"))
+        self.write_state(self.state().replace("  target_files: a.sh\n",
+                                              "  target_files: a.sh\n     b.sh\n"))
+        current = file_revision(path)
+        before = self.files_without_lock()
+
+        for label, revision in {"stale": stale, "current": current}.items():
+            with self.subTest(case="repeat of the applied operation", revision=label):
+                self.already_applied(self.add_files("a.sh", revision=revision),
+                                     "add-file", "T-01", "leaf")
+                self.assert_unchanged_after_refusal(before)
+            with self.subTest(case="applied operation id with other inputs", revision=label):
+                self.conflict(self.add_files("c.sh", revision=revision), "add-file")
+                self.assert_unchanged_after_refusal(before)
+        with self.subTest(case="new operation at a stale revision"):
+            result = self.add_files("c.sh", revision=stale, operation_id="op-2")
+            self.refused_by(result, "add-file", 4, "revision-conflict")
+            self.assert_unchanged_after_refusal(before)
+        with self.subTest(case="new operation with an invalid path"):
+            result = self.add_files("c.sh", "/abs", operation_id="op-3")
+            document = self.refused_by(result, "add-file", 6, "invalid-path")
+            self.assertEqual([item["code"] for item in document["errors"]], ["invalid-path"])
+            self.assert_unchanged_after_refusal(before)
+        for label, name in {"new path": "c.sh", "listed path": "a.sh"}.items():
+            with self.subTest(case="new operation at the current revision", path=label):
+                self.continuation_refusal(self.add_files(name, operation_id=f"op-{label[:3]}"),
+                                          before)
+
+    def test_fenced_lines_under_the_target_files_line_are_not_continuation_lines(self) -> None:
+        original = state_text(continued_leaf("target_files", TARGET_FILES_FENCE, value="a.sh"),
+                              leaf("T-02"))
+        self.write_state(original)
+
+        self.write_applied(self.add_files("b.sh"), "add-file", "target_files", "state_receipts")
+
+        written = self.state()
+        self.assertEqual(written.replace(self.receipt_line(written), "", 1),
+                         original.replace("  target_files: a.sh\n", "  target_files: a.sh, b.sh\n",
+                                          1))
+
+    def test_other_commands_still_apply_to_a_block_whose_target_files_value_continues(
+            self) -> None:
+        original = state_text(continued_leaf("target_files", "     b.sh\n", value="a.sh,"),
+                              leaf("T-02"))
+        cases = {"append-note": (("--note", "second note"), "notes",
+                                 ("  notes: first note\n",
+                                  "  notes: first note\n" + CONTINUATION + "second note\n")),
+                 "set": (("--field", "last_action=x"), "last_action",
+                         ("  last_action: tests pass\n", "  last_action: x\n"))}
+        for command, (options, changed, (old, new)) in cases.items():
+            with self.subTest(command=command):
+                self.write_state(original)
+
+                self.write_applied(self.write(command, *options), command, changed,
+                                   "state_receipts")
+
+                written = self.state()
+                self.assertEqual(written.replace(self.receipt_line(written), "", 1),
+                                 original.replace(old, new, 1))
+
+
+EMPTY_PATH_REASON = "must not be empty or only whitespace"
+EDGE_WHITESPACE_REASON = "must not start or end with whitespace"
+SINGLE_LINE_REASON = "must be a single line without CR, LF or NUL"
+WHITESPACE_PATHS = {"empty path": ("", EMPTY_PATH_REASON),
+                    "path of spaces": ("   ", EMPTY_PATH_REASON),
+                    "path of one tab": ("\t", EMPTY_PATH_REASON),
+                    "leading space": (" d.sh", EDGE_WHITESPACE_REASON),
+                    "trailing space": ("c.sh ", EDGE_WHITESPACE_REASON),
+                    "leading tab": ("\td.sh", EDGE_WHITESPACE_REASON)}
+ONE_PATH_BODY = "  last_action:\n  target_files: a.sh\n  blocker: none\n  notes:\n"
+
+
+class PathWhitespaceTests(InitBlockCase):
+    def path_refusal(self, result: ToolResult, command: str, block_id: str, path: str,
+                     reason: str, before: Snapshot) -> None:
+        document = self.refused_by(result, command, 6, "invalid-path")
+        self.assertEqual(document["errors"], [{
+            "code": "invalid-path", "message": f"block {block_id}: path {path!r} {reason}"}])
+        self.assertIn(REFUSAL_SENTENCE, result.stderr)
+        self.assert_unchanged_after_refusal(before)
+
+    def test_add_file_refuses_a_whitespace_only_path_and_whitespace_at_a_path_edge(self) -> None:
+        for label, (path, reason) in WHITESPACE_PATHS.items():
+            for position, paths in {"alone": (path,),
+                                    "after a valid path": ("ok.sh", path)}.items():
+                with self.subTest(case=label, position=position):
+                    self.write_state(state_text(leaf("T-01", body=ONE_PATH_BODY)))
+                    before = self.files_without_lock()
+
+                    self.path_refusal(self.add_files(*paths), "add-file", "T-01", path, reason,
+                                      before)
+
+    def test_init_block_refuses_a_whitespace_only_path_and_whitespace_at_a_path_edge(self) -> None:
+        for label, (path, reason) in WHITESPACE_PATHS.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(LAST_BLOCK_T04))
+                before = self.files_without_lock()
+
+                result = self.init_block("T-05", "leaf", "Demo", "--target-file", path)
+
+                self.path_refusal(result, "init-block", "T-05", path, reason, before)
+
+    def test_line_rule_is_reported_before_the_whitespace_rules(self) -> None:
+        self.write_state(state_text(leaf("T-01", body=ONE_PATH_BODY)))
+        before = self.files_without_lock()
+        for path in ("\n", " a\nb.sh", "\r "):
+            with self.subTest(path=path):
+                self.path_refusal(self.add_files(path), "add-file", "T-01", path,
+                                  SINGLE_LINE_REASON, before)
+
+    def test_whitespace_only_target_files_value_has_no_entries(self) -> None:
+        for label, line in {"one space": "  target_files:  \n",
+                            "several spaces": "  target_files:     \n"}.items():
+            with self.subTest(value=label):
+                original = state_text(leaf("T-01", body="  last_action:\n" + line
+                                           + "  blocker: none\n  notes:\n"))
+                self.write_state(original)
+
+                self.write_applied(self.add_files("c.sh", "d.sh"), "add-file", "target_files",
+                                   "state_receipts")
+
+                written = self.state()
+                self.assertEqual(written.replace(self.receipt_line(written), "", 1),
+                                 original.replace(line, "  target_files: c.sh, d.sh\n", 1))
+
+    def test_path_with_inner_whitespace_is_written_as_given(self) -> None:
+        path = "docs/my guide\tv2.md"
+        self.write_state(state_text(leaf("T-01", body=ONE_PATH_BODY), LAST_BLOCK_T04))
+
+        self.write_applied(self.add_files(path), "add-file", "target_files", "state_receipts")
+        self.write_applied(self.init_block("T-05", "leaf", "Demo", "--target-file", path,
+                                           operation_id="op-2"), "init-block", *LEAF_INIT_CHANGES)
+
+        self.assertIn(f"  target_files: a.sh, {path}\n", self.state())
+        self.assertIn(f"  last_action:\n  target_files: {path}\n", self.state())
+
+
+EMPTY_NOTE_REASON = "note must not be empty or only whitespace"
+EMPTY_NAME_REASON = "name must not be empty or only whitespace"
+WHITESPACE_TEXTS = {"empty": "", "one space": " ", "several spaces": "   ", "one tab": "\t",
+                    "spaces and a tab": " \t "}
+
+
+class NoteWhitespaceTests(InitBlockCase):
+    def test_whitespace_only_note_is_refused_by_every_command_that_takes_notes(self) -> None:
+        for label, text in WHITESPACE_TEXTS.items():
+            cases = {"append-note": ("T-01", ("--note", text)),
+                     "append-note after a valid note": ("T-01", ("--note", "a", "--note", text)),
+                     "set": ("T-01", ("--field", "last_action=x", "--note", text)),
+                     "init-block": ("T-05", ("--kind", "leaf", "--name", "Demo", "--note", text))}
+            for case, (block_id, options) in cases.items():
+                with self.subTest(note=label, case=case):
+                    command = case.split(" ")[0]
+                    self.write_state(RECEIPT_STATE)
+                    before = self.files_without_lock()
+
+                    result = self.write(command, *options, block=block_id)
+
+                    document = self.refused_by(result, command, 6, "invalid-value")
+                    self.assertEqual(document["errors"], [{
+                        "code": "invalid-value",
+                        "message": f"block {block_id}: {EMPTY_NOTE_REASON}"}])
+                    self.assertIn(REFUSAL_SENTENCE, result.stderr)
+                    self.assert_unchanged_after_refusal(before)
+
+    def test_note_with_whitespace_around_visible_text_is_stored_as_given(self) -> None:
+        note = "  padded\t note "
+        original = state_text(leaf("T-01"))
+        self.write_state(original)
+
+        self.write_applied(self.append_notes(note, note), "append-note", "notes", "state_receipts")
+
+        written = self.state()
+        self.assertEqual(written.replace(self.receipt_line(written), "", 1), original.replace(
+            "  notes:\n", f"  notes: {note}\n{CONTINUATION}{note}\n", 1))
+        self.assertEqual([(item["value"], item["continuation"]) for item in self.notes_fields()],
+                         [(note, [CONTINUATION + note])])
+
+
+class NameWhitespaceTests(InitBlockCase):
+    def test_whitespace_only_name_is_refused_with_a_message_naming_the_rule(self) -> None:
+        for label, name in WHITESPACE_TEXTS.items():
+            with self.subTest(name=label):
+                self.write_state(state_text(LAST_BLOCK_T04))
+                before = self.files_without_lock()
+
+                result = self.init_block("T-05", "leaf", name)
+
+                document = self.init_refused(result, 6, "invalid-value")
+                self.assertEqual(document["errors"], [{
+                    "code": "invalid-value", "message": f"block T-05: {EMPTY_NAME_REASON}"}])
+                self.assert_unchanged_after_refusal(before)
+
+    def test_name_with_spaces_around_visible_text_is_written_and_read_back_as_given(self) -> None:
+        self.write_state(state_text(LAST_BLOCK_T04))
+
+        self.initialized(self.init_block("T-05", "leaf", " Demo "), "T-05", "leaf")
+
+        self.assertIn("\nT-05 |  Demo  | atomic-tests: not-started | ", self.state())
+        self.assertEqual(self.block(self.read_ok(self.get("--block", "T-05")), "T-05")["name"],
+                         " Demo ")
+
+
+INVALID_BYTE_SPELLING = "\\udcff"
+
+
+class MessageTextTests(InitBlockCase):
+    def test_invalid_path_message_quotes_the_path_on_one_line(self) -> None:
+        self.write_state(RECEIPT_STATE)
+
+        result = self.add_files("a\nb.sh")
+
+        document = self.refused_by(result, "add-file", 6, "invalid-path")
+        message = document["errors"][0]["message"]
+        self.assertIn("a\\nb.sh", message)
+        self.assertNotIn("\n", message)
+        self.assertEqual(result.stderr.splitlines(), [f"state-tool: invalid-path: {message}",
+                                                      f"state-tool: {REFUSAL_SENTENCE}"])
+
+    def test_messages_spell_argument_bytes_that_are_not_utf8_in_ascii(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        before = self.files_without_lock()
+        invalid = argument_with(b"\xff")
+        cases: dict[str, tuple[str, str, tuple[str, ...], int, str]] = {
+            "target path": ("add-file", "T-01", ("--path", f"src/{invalid}.py"), 6,
+                            "invalid-path"),
+            "target file of a new block": (
+                "init-block", "T-05", ("--kind", "leaf", "--name", "Demo",
+                                       "--target-file", f"src/{invalid}.py"), 6, "invalid-path"),
+            "field name": ("set", "T-01", ("--field", f"pr{invalid}=1"), 6, "read-only-field"),
+            "block id": ("append-note", f"T-01{invalid}", ("--note", "a"), 2,
+                         "invalid-arguments"),
+            "field without a value": ("set", "T-01", ("--field", f"last_action{invalid}"), 2,
+                                      "invalid-arguments")}
+        for label, (command, block_id, options, code, error) in cases.items():
+            with self.subTest(case=label):
+                result = self.write(command, *options, block=block_id)
+
+                document = self.refused_by(result, command, code, error)
+                self.assertEqual([item["code"] for item in document["errors"]], [error])
+                message = document["errors"][0]["message"]
+                self.assertEqual(message.encode("utf-8", "backslashreplace").decode("utf-8"),
+                                 message, "the message holds a lone surrogate")
+                self.assertIn(INVALID_BYTE_SPELLING, message)
+                self.assertIn(INVALID_BYTE_SPELLING, result.stderr)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_invalid_value_message_for_text_that_is_not_utf8_is_valid_unicode(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        invalid = argument_with(b"\xff")
+        cases = {"note": ("append-note", ("--note", f"note {invalid}")),
+                 "field value": ("set", ("--field", f"last_action=done {invalid}"))}
+        for label, (command, options) in cases.items():
+            with self.subTest(case=label):
+                result = self.write(command, *options)
+
+                document = self.refused_by(result, command, 6, "invalid-value")
+                message = document["errors"][0]["message"]
+                self.assertEqual(message.encode("utf-8", "backslashreplace").decode("utf-8"),
+                                 message, "the message holds a lone surrogate")
+
+
+class CompletedLeafTestsStatusTests(LifecycleCase):
+    """A tests-status change on a leaf whose execution stays complete."""
+
+    def test_change_to_a_value_that_breaks_completion_is_refused(self) -> None:
+        justified = status_leaf("n-a", "complete", EM_DASH_JUSTIFICATION)
+        pre_tdd = status_leaf(None, "complete", PRE_TDD_NOTE)
+        cases: dict[str, tuple[str, tuple[str, ...], tuple[str, ...]]] = {
+            "justified n-a to red": (justified, ("atomic-tests=red",), ()),
+            "justified n-a to failed": (justified, ("atomic-tests=failed",), ()),
+            "not-started inserted on a pre-TDD block": (pre_tdd, ("atomic-tests=not-started",),
+                                                        ()),
+            "red inserted on a pre-TDD block": (pre_tdd, ("atomic-tests=red",), ()),
+            "pinned inserted on a pre-TDD block": (pre_tdd, ("atomic-tests=pinned",), ()),
+            "failed inserted on a pre-TDD block": (pre_tdd, ("atomic-tests=failed",), ()),
+            "red to failed on a block that already breaks the rule": (
+                status_leaf("red", "complete"), ("atomic-tests=failed",), ()),
+            "execution named with its current value": (
+                justified, ("atomic-tests=red", "atomic-execution=complete"), ()),
+            "among another field and a note": (justified, ("last_action=x", "atomic-tests=red"),
+                                               ("a note",))}
+        for label, (block_text, fields, notes) in cases.items():
+            with self.subTest(case=label):
+                document = self.check_set(block_text, fields, notes, "completion-without-tests")
+
+                header_line = next(number for number, line
+                                   in enumerate(self.state().splitlines(), 1)
+                                   if line.startswith("T-01 | "))
+                self.assertEqual([(item["code"], item.get("line")) for item in document["errors"]],
+                                 [("completion-without-tests", header_line)])
+                self.assertEqual(document["warnings"], [])
+
+    def test_transition_rules_are_reported_before_the_completion_rule(self) -> None:
+        cases: dict[str, tuple[str, str, str]] = {
+            "justified n-a to not-started": (
+                status_leaf("n-a", "complete", EM_DASH_JUSTIFICATION), "atomic-tests=not-started",
+                "downgrade"),
+            "green to red": (status_leaf("green", "complete"), "atomic-tests=red", "downgrade"),
+            "pinned to red": (status_leaf("pinned", "complete"), "atomic-tests=red",
+                              "pinned-transition"),
+            "failed to green": (status_leaf("failed", "complete"), "atomic-tests=green",
+                                "invalid-transition"),
+            "red to an unjustified n-a": (status_leaf("red", "complete"), "atomic-tests=n-a",
+                                          "n-a-unjustified")}
+        for label, (block_text, pair, error) in cases.items():
+            with self.subTest(case=label):
+                document = self.check_set(block_text, (pair,), (), error)
+
+                self.assertEqual([item["code"] for item in document["errors"]], [error])
+
+    def test_changes_that_keep_or_leave_completion_are_applied(self) -> None:
+        justified = status_leaf("n-a", "complete", EM_DASH_JUSTIFICATION)
+        tests_changed = ("atomic-tests", "state_receipts")
+        cases: dict[str, tuple[str, tuple[str, ...], tuple[str, ...], tuple[str, ...]]] = {
+            "execution moved in the same call": (
+                justified, ("atomic-tests=red", "atomic-execution=in-progress"), (),
+                ("atomic-tests", "atomic-execution", "state_receipts")),
+            "red to green": (status_leaf("red", "complete"), ("atomic-tests=green",), (),
+                             tests_changed),
+            "pinned to green": (status_leaf("pinned", "complete"), ("atomic-tests=green",), (),
+                                tests_changed),
+            "red to a justified n-a": (status_leaf("red", "complete"), ("atomic-tests=n-a",),
+                                       (EM_DASH_JUSTIFICATION,),
+                                       ("atomic-tests", "notes", "state_receipts")),
+            "justified n-a inserted on a pre-TDD block": (
+                status_leaf(None, "complete", PRE_TDD_NOTE), ("atomic-tests=n-a",),
+                (EM_DASH_JUSTIFICATION,), ("atomic-tests", "notes", "state_receipts"))}
+        for label, (block_text, fields, notes, changed) in cases.items():
+            with self.subTest(case=label):
+                document = self.check_set(block_text, fields, notes, changed)
+
+                self.assertEqual(document["warnings"], [])
+                self.assertEqual(self.validate_codes(), (0, []))
+
+
+class StatusNamedFieldLineTests(LifecycleCase):
+    """A field line whose name is a header status name is an unknown field: set changes the
+    header segment and leaves the line, and its continuation lines, as they are."""
+
+    def test_header_status_is_set_and_the_field_line_of_that_name_is_kept(self) -> None:
+        after = "atomic-tests: green | atomic-execution: complete | atomic-validation: not-started"
+        cases: dict[str, tuple[str | None, str, tuple[str, ...], tuple[str, ...], str]] = {
+            "field line named like a status": (
+                "red", "  atomic-execution: weird\n",
+                ("atomic-execution=complete", "atomic-tests=green"),
+                ("atomic-tests", "atomic-execution"), after),
+            "field line with continuation lines": (
+                "red", "  atomic-execution: weird\n     more\n         and more\n",
+                ("atomic-execution=complete", "atomic-tests=green"),
+                ("atomic-tests", "atomic-execution"), after),
+            "header segment absent": (
+                None, "  atomic-tests: weird\n", ("atomic-tests=red",), ("atomic-tests",),
+                "atomic-tests: red | atomic-execution: in-progress | atomic-validation: "
+                "not-started")}
+        for label, (tests, extra, fields, changed, written_statuses) in cases.items():
+            with self.subTest(case=label):
+                statuses = leaf_statuses(tests, "in-progress")
+                original = state_text(leaf("T-01", header=statuses, body=leaf_body(extra=extra)),
+                                      leaf("T-02"))
+                self.write_state(original)
+
+                self.applied(self.set_fields(*fields), *changed, "state_receipts")
+
+                written = self.state()
+                self.assertEqual(written.replace(self.receipt_line(written), "", 1),
+                                 original.replace(f"T-01 | Leaf | {statuses}\n",
+                                                  f"T-01 | Leaf | {written_statuses}\n", 1))
+                name = extra.split(":")[0].strip()
+                block = self.block(self.read_ok(self.get("--block", "T-01")), "T-01")
+                self.assertEqual([(item["value"], item["known"]) for item in block["fields"]
+                                  if item["name"] == name], [("weird", False)])
+
+    def test_current_status_named_over_a_continued_field_line_of_that_name_is_unchanged(
+            self) -> None:
+        extra = "  atomic-execution: weird\n     more\n"
+        path = self.write_state(state_text(
+            leaf("T-01", header=leaf_statuses("red", "in-progress"), body=leaf_body(extra=extra)),
+            leaf("T-02")))
+        source = file_revision(path)
+        before = self.files_without_lock()
+
+        result = self.set_fields("atomic-execution=in-progress")
+
+        document = self.output(result)
+        self.assertEqual(result.code, 0, result.stdout + result.stderr)
+        self.assertEqual(document["result"], "unchanged")
+        self.assertEqual(document["changed_fields"], [])
+        self.assertEqual(document["result_revision"], source)
+        self.assert_unchanged_after_refusal(before)
+
+
+WRITE_COMMAND_OPTIONS = {"set": ("T-01", ("--field", "last_action=x")),
+                         "append-note": ("T-01", ("--note", "a")),
+                         "add-file": ("T-01", ("--path", "a.sh")),
+                         "init-block": ("T-05", ("--kind", "leaf", "--name", "Demo"))}
+
+
+@unittest.skipIf(os.geteuid() == 0, "permission bits do not restrict the superuser")
+class UnwritableStateFileTests(RecoveryCase):
+    """A state file the caller may read but not open for writing."""
+
+    def read_only_state(self, mode: int = 0o444) -> Path:
+        path = self.task / "state.md"
+        if path.exists():
+            path.chmod(0o644)
+        else:
+            self.addCleanup(os.chmod, path, 0o644)
+        self.write_state(RECEIPT_STATE)
+        path.chmod(mode)
+        return path
+
+    def test_state_file_the_caller_cannot_write_is_never_replaced(self) -> None:
+        cases = [(command, 0o444) for command in WRITE_COMMAND_OPTIONS] + [("set", 0o400)]
+        for command, mode in cases:
+            with self.subTest(command=command, mode=oct(mode)):
+                path = self.read_only_state(mode)
+                revision = file_revision(path)
+                inode = os.lstat(path).st_ino
+                before = self.files_without_lock()
+                block_id, options = WRITE_COMMAND_OPTIONS[command]
+
+                result = self.write(command, *options, block=block_id)
+
+                document = self.refused_by(result, command, 7, "io-error")
+                self.assertEqual([item["code"] for item in document["errors"]], ["io-error"])
+                message = document["errors"][0]["message"]
+                self.assertTrue(message.startswith("state.md is not writable: "), message)
+                self.assertGreater(len(message), len("state.md is not writable: "))
+                self.assertEqual(document["source_revision"], revision)
+                self.assertEqual(document["result_revision"], revision)
+                self.assertEqual(self.files_without_lock(), before)
+                self.assertEqual(os.lstat(path).st_ino, inode)
+                self.assertEqual(self.temporary_files(), [])
+
+    def test_results_decided_before_the_replace_are_kept_on_a_read_only_state_file(self) -> None:
+        path = self.task / "state.md"
+        self.write_state(RECEIPT_STATE)
+        self.addCleanup(os.chmod, path, 0o644)
+        stale = file_revision(path)
+        self.write_applied(self.write("set", "--field", "last_action=x"), "set", "last_action",
+                           "state_receipts")
+        path.chmod(0o444)
+        before = self.files_without_lock()
+        cases: dict[str, tuple[tuple[str, ...], dict[str, Any], int, str]] = {
+            "repeat of the applied operation": (("--field", "last_action=x"), {}, 0,
+                                                "already_applied"),
+            "applied operation id with other inputs": (("--field", "last_action=y"), {}, 8,
+                                                       "operation-conflict"),
+            "write that would change nothing": (("--field", "blocker=none"),
+                                                {"operation_id": "op-2"}, 0, "unchanged"),
+            "stale revision": (("--field", "last_action=y"),
+                               {"operation_id": "op-3", "revision": stale}, 4,
+                               "revision-conflict"),
+            "refused value": (("--field", "atomic-execution=done"), {"operation_id": "op-4"}, 6,
+                              "invalid-value"),
+            "missing block": (("--field", "last_action=y"),
+                              {"operation_id": "op-5", "block": "T-09"}, 3, "block-missing")}
+        for label, (options, keywords, code, outcome) in cases.items():
+            with self.subTest(case=label):
+                result = self.write("set", *options, **keywords)
+
+                document = self.output(result)
+                self.assertEqual(result.code, code, result.stdout + result.stderr)
+                if code == 0:
+                    self.assertEqual(document["result"], outcome)
+                else:
+                    self.assertEqual([item["code"] for item in document["errors"]], [outcome])
+                self.assertEqual(self.files_without_lock(), before)
+                self.assertEqual(self.temporary_files(), [])
+
+
+OUTSIDE_LINES_MESSAGE = "candidate check failed: lines outside the new block changed"
+
+
+class NewBlockCandidateCheckTests(unittest.TestCase):
+    """The check of an init-block candidate, called in this process: a candidate that differs
+    from the source outside the inserted lines cannot be built through the command line."""
+
+    def setUp(self) -> None:
+        self.assertTrue(TOOL.is_file(), f"state tool unavailable: expected {TOOL}")
+        self.tool = runpy.run_path(str(TOOL), run_name="state_tool")
+
+    def candidate(self) -> tuple[Any, Any, list[str], int, int]:
+        """A source document, the new block and the lines, start and length of its candidate."""
+        source = state_text(leaf("T-01"), "Foreign line of the section\n",
+                            after="## Later\n\nLater text.\n")
+        document = self.tool["parse_document"](source)
+        new = self.tool["NewBlock"]("T-05", "leaf", "Demo", [], [], [])
+        lines, _ = self.tool["new_block_lines"](new, "op-1#" + "0" * 16)
+        anchor, separator = self.tool["block_insertion"](document)
+        contents = source.split("\n")[:-1]
+        self.assertEqual(contents[anchor], "Foreign line of the section")
+        output = contents[:anchor + 1] + separator + lines + contents[anchor + 1:]
+        return document, new, output, anchor + 1 + len(separator), len(lines)
+
+    def test_candidate_that_differs_outside_the_inserted_block_is_an_internal_error(self) -> None:
+        document, new, output, start, count = self.candidate()
+        verify = self.tool["verify_new_block"]
+        self.assertIsNone(verify(document, "\n".join(output) + "\n", new, start, count))
+        foreign = output.index("Foreign line of the section")
+        later = output.index("Later text.")
+        self.assertLess(foreign, start)
+        self.assertGreater(later, start + count)
+        altered = {"foreign line of the section": output[:foreign] + ["Another foreign line"]
+                                                  + output[foreign + 1:],
+                   "line of a later section": output[:later] + ["Other text."]
+                                              + output[later + 1:],
+                   "blank line removed after the block": output[:later - 1] + output[later:],
+                   "line added at the end": output + ["Added text."]}
+        for label, lines in altered.items():
+            with self.subTest(changed=label):
+                with self.assertRaises(self.tool["ToolError"]) as caught:
+                    verify(document, "\n".join(lines) + "\n", new, start, count)
+
+                error = caught.exception
+                self.assertEqual((error.exit_code, error.code, error.message),
+                                 (1, "internal-error", OUTSIDE_LINES_MESSAGE))
+
+
+ADD_FILE_LIMIT_SENTENCE = (
+    "`add-file` likewise refuses a `target_files:` value that continues on following lines "
+    "(exit 6, `invalid-value`), because it reads entries from the field line only.")
+TESTS_VALUE_LIMIT = (
+    "A hand-edited `atomic-tests` value outside the vocabulary counts as `not-started`: `set` "
+    "replaces it with any vocabulary value except `green`.")
+UNWRITABLE_LIMIT = (
+    "A `state.md` the caller cannot open for writing is never replaced (exit 7, `io-error`). An "
+    "applied write replaces the file by rename, so the new file belongs to the user who ran the "
+    "tool; its permission bits are kept, its owner and group are not.")
+
+
+class ManualWriteRuleLimitTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.manual = MANUAL.read_text(encoding="utf-8")
+
+    def test_limit_on_continued_values_states_the_add_file_refusal(self) -> None:
+        limits = ManualLimitTests.limits(self)  # type: ignore[arg-type]
+        matching = [item for item in limits if FENCED_TEXT_SENTENCE in item]
+        self.assertEqual(len(matching), 1, "limit on continued values missing or repeated")
+        self.assertIn(ADD_FILE_LIMIT_SENTENCE, matching[0])
+        self.assertEqual(sum(item.count(ADD_FILE_LIMIT_SENTENCE) for item in limits), 1)
+
+    def test_limits_hold_the_tests_value_and_the_unwritable_file_as_items_of_their_own(
+            self) -> None:
+        limits = ManualLimitTests.limits(self)  # type: ignore[arg-type]
+        for label, text in {"hand-edited tests value": TESTS_VALUE_LIMIT,
+                            "state file that is not writable": UNWRITABLE_LIMIT}.items():
+            with self.subTest(limit=label):
+                self.assertEqual(limits.count(text), 1, f"limit missing or repeated: {label}")
 
 
 if __name__ == "__main__":
