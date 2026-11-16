@@ -881,6 +881,120 @@ actual model and actual reasoning: unknown until separately observed execution e
 | T-09 | 3/1/4/3/4/3/3 | 3 | claude-opus-5-5 | verified | high | ae19f8108c81d29af4a114900c988ffeb3f3ebe4813d1d23e5dbb813e7b4fb14 | a14f65ee21e84747c2d4087199bdda67a6ad9d6e0687d7cebee726e546fca747 |
 | T-10 | 2/1/3/2/4/2/2 | 2 | claude-opus-5-5 | verified | high | 5c316822e2f2ad429c7905a9e5e2d241b9dac1727242e78027e8069a4e61b2ea | c3402c2761b09b1d9d036b2c08f3fa52c48c0a79d1e82f7ec54d9ae25dad655a |
 
+## Proposal Resolution
+
+Owner request of 2026-11-16: every pending improvement proposal and deferred optional finding is decided and closed, with the decisions delegated to independent analysts (four, one per area: parser and reads; write rules; lock and signals; validators, setup script and documents). Each item was verified against the code at the stack tip before its verdict. Item ids: proposal section and ordinal (N = Do Now, L = Do Later, O = Optional); I<n> = issue list entry. Applied items are implemented by five further subtasks stacked on the delivered series; their exact decisions are in the named subtask description. Rulings that the proposals left to the owner were made by the analysts under this delegation and are recorded in ADR-0022. Tally: 78 apply, 19 reject, 11 already done (108 verdicts for 107 items: issue 9 was decided by two analysts with the same result).
+
+| Item | Verdict | Decision | Applied by / reason |
+|---|---|---|---|
+| T-01 N1 | APPLY | guard tests: malformed tool VERSION and unreadable state.md | T-14-fix-guard-cases |
+| T-01 L1 | ALREADY-DONE | fence opened at 1–3 spaces inside a block | resolved by the description amendment of 2026-11-13; only the wording was left |
+| T-01 L2 | ALREADY-DONE | repeated header status segment | resolved by the same amendment |
+| T-01 L3 | APPLY | ruling: a line of one or two spaces is not a blank line (no behaviour change) | T-14-fix-guard-cases |
+| T-01 L4 | APPLY | NUL bytes in state.md are refused as unsupported encoding | T-15-fix-fences-and-file-shape |
+| T-01 O1 | APPLY | parse the lines once (merged with T-02 O2; one change) | T-15-fix-fences-and-file-shape |
+| T-01 O2 | APPLY | section comment above the line helpers | T-15-fix-fences-and-file-shape |
+| T-01 O3 | APPLY | state-missing message uses the root-relative path | T-15-fix-fences-and-file-shape |
+| T-02 N1 | APPLY | four guard tests for validate | T-14-fix-guard-cases |
+| T-02 L1 | APPLY | blank lines before an in-block fence do not end the block | T-15-fix-fences-and-file-shape |
+| T-02 L2 | APPLY | an in-block fence that is never closed makes its block malformed | T-15-fix-fences-and-file-shape |
+| T-02 L3 | ALREADY-DONE | an in-block fence does not travel with the preceding field group | decided and pinned by the write subtasks |
+| T-02 L4 | APPLY | confirm the reading and write the in-block fence grammar down | T-14-fix-guard-cases |
+| T-02 O1 | APPLY | one block-selection helper for get and validate | T-15-fix-fences-and-file-shape |
+| T-02 O2 | APPLY | split and fence-scan the text once per command (carries T-01 O1) | T-15-fix-fences-and-file-shape |
+| T-02 O3 | APPLY | wording test: add the two missing label families, nothing else | T-14-fix-guard-cases |
+| T-03 N1 | APPLY (reduced) | guard tests for write-path refusals | T-14-fix-guard-cases |
+| T-03 N2 | APPLY | bound --lock-wait-seconds to one to three digits | T-16-fix-write-rules |
+| T-03 L1 | ALREADY-DONE | receipt cap and operation conflict no longer end in internal-error | delivered by the receipts subtask |
+| T-03 L2 + T-08 L1 | APPLY | a signal that ends the process is treated as a kill: no handler, no JSON, no table exit code, silent stderr | T-17-fix-lock-owner-and-signals |
+| T-03 L3 | ALREADY-DONE | result_revision is null when state.md cannot be read at the recheck | delivered |
+| T-03 O1 | APPLY | keep the separator space when a header status with an empty value is set | T-16-fix-write-rules |
+| T-03 O2 | REJECT | replace the pre-lock read with an inspection | the cost is one extra read of a file of a few hundred lines (performance is N/A in the spec), and the full read also refuses an unreadable `state.md` before a lock file is created, which an `lstat`-only check would lose |
+| T-03 O3 | APPLY | one helper for the task contract version and its support check | T-15-fix-fences-and-file-shape |
+| T-04 N1 | APPLY (reduced) | guard test for a path with CR or LF | T-14-fix-guard-cases |
+| T-04 N2 | ALREADY-DONE | over-long docstring line | re-wrapped by later changes |
+| T-04 L1 | APPLY | add-file refuses a target_files value that continues | T-16-fix-write-rules |
+| T-04 L2 | APPLY | whitespace rules for target paths | T-16-fix-write-rules |
+| T-04 L3 | APPLY | a whitespace-only note is refused like the empty note | T-16-fix-write-rules |
+| T-04 L4 | ALREADY-DONE | append-note and add-file at the receipt limit | delivered by the receipts subtask |
+| T-04 O1 | REJECT | restructure NotePlacement | pure restructuring of the candidate builder, the most heavily guarded code of the tool, with no behaviour gain; the three placement cases map one to one onto REQ-17 as written |
+| T-04 O2 | ALREADY-DONE | target_paths / paths near-collision | resolved by a later change |
+| T-04 O3 | APPLY | quote an invalid path unambiguously in the message | T-16-fix-write-rules |
+| T-05 N1 | APPLY | guard tests for lifecycle refusals | T-14-fix-guard-cases |
+| T-05 N2 | REJECT | pin the current result of a tests-status change after completion | pinning a result and amending the pin in the next change is wasted work |
+| T-05 L1 | APPLY | a tests-status change may not break completion on a completed leaf | T-16-fix-write-rules |
+| T-05 L2 | REJECT | require the n-a justification at completion | unlike L1 the write does not create the violation, the warning is accurate, and refusing would contradict the stated rule and the invariant-only design of ADR-0022 Decision 2 |
+| T-05 L3 | REJECT | report standing violations on unchanged and rejected results | the normative write order returns `unchanged` before the remaining invariants are evaluated, and a refusal reports its one cause; `validate --block` is the command that reports a block's standing violations |
+| T-05 L4 | APPLY | state how a tests status outside the vocabulary is treated | T-14-fix-guard-cases |
+| T-05 O1 | APPLY | one condition for the pre-existing-violation warning | T-16-fix-write-rules |
+| T-05 O2 | APPLY | drop the redundant value parameter of execution_transition_error | T-16-fix-write-rules |
+| T-05 O3 | APPLY | rename the local unchanged in check_write_invariants | T-16-fix-write-rules |
+| T-05 O4 | APPLY | comment the rule order of tests_transition_error | T-16-fix-write-rules |
+| T-06 N1 | APPLY | guard tests for init-block layout and refusals | T-14-fix-guard-cases |
+| T-06 N2 | ALREADY-DONE | pin an existing id with a stale revision | pinned with the corrected order |
+| T-06 L1 | ALREADY-DONE | order of the existing-id refusal and the revision check | the order follows the normative write algorithm steps 5–8; only the wording is open |
+| T-06 L2 | REJECT | dedicated code for a section that ends inside an unclosed fence | a new code opens the closed table and requires amending a frozen test; the write already fails closed with nothing written |
+| T-06 L3 | APPLY | a block name must hold a non-whitespace character | T-16-fix-write-rules |
+| T-06 L4 | APPLY | document that a spaces-only line is the last non-blank line for block insertion | T-14-fix-guard-cases |
+| T-06 O1 | APPLY | docstrings for check_revision and new_block_input | T-16-fix-write-rules |
+| T-06 O2 | REJECT | report block id and kind when the option scan fails | when the option list itself cannot be parsed, null is the contract's value for "cannot be computed"; extracting identity from a malformed command line is guessing, and the reports are already uniform across the write commands |
+| T-06 O3 | APPLY | verify_new_block compares the lines outside the inserted block | T-16-fix-write-rules |
+| T-07 N1 | APPLY | guard tests around receipts | T-14-fix-guard-cases |
+| T-07 L1 | APPLY | state the init-block lookup order in the specification | orchestrator (specification and knowledge base) |
+| T-07 L2 | APPLY | state that an unchanged result reserves no operation id | T-16-fix-write-rules |
+| T-07 L3 | APPLY | operation-conflict reports the line of the receipts line | T-16-fix-write-rules |
+| T-07 O1 | APPLY | one separator constant for receipts | T-16-fix-write-rules |
+| T-07 O2 | REJECT | remove the repeated block scan | a second pass over a few dozen blocks costs nothing, and the first scan exists to report `block_kind` before `write_target` may refuse; merging them couples reporting to refusal |
+| T-07 O3 | REJECT | named constants for WriteOutcome.result | the result strings are contract values asserted on every path of the suite, so a typing error fails immediately; constants for three of the seven result values add indirection without coverage |
+| T-08 N1 | APPLY | pin the existing lock-metadata and kill-fault behaviour, adjusted to RULE-OWNER | T-14-fix-guard-cases |
+| T-08 N2 | APPLY | state RULE-OWNER in the tool's module description | T-17-fix-lock-owner-and-signals |
+| T-08 L2 | APPLY | a start time in the future gives `lock_age_seconds: null | T-17-fix-lock-owner-and-signals |
+| T-08 L3 | APPLY | a lock file longer than 64 KiB is always a null owner | T-17-fix-lock-owner-and-signals |
+| T-08 L4 | APPLY | metadata with a lone surrogate is a null owner | T-17-fix-lock-owner-and-signals |
+| T-08 L5 | REJECT | duplicate keys stay "last value reported" | Options — null through a pair hook that refuses repeats: extra parsing code for a file shape only a hand edit produces, and no decision depends on the owner (metadata never blocks or unblocks a write); keep last value [winner]: it is what the spec's "parsed metadata" means for every standard parser, the output is a valid strict object, and it stays consistent with RULE-OWNER, whose null cases are exactly "the file is not one object the tool can report again", which this file is |
+| T-08 O1 | APPLY | guard test for the catch-all in `lock_owner_details`; keep the clause | T-14-fix-guard-cases |
+| T-08 O2 | REJECT | keep the re-serialization pass in `read_lock_owner | Conflicts with L4; the hook would add a second mechanism while the serialization would still be needed |
+| T-08 O3 | APPLY | description line for `owner_details | T-17-fix-lock-owner-and-signals |
+| T-09 N1 | APPLY | Guard fixtures for the scoping and fence skip of the task validator's receipts rule | T-14-fix-guard-cases |
+| T-09 N2 | APPLY | Vocabulary check fails when a constant is bound anywhere but its one plain assignment | T-18-fix-contract-surface |
+| T-09 L1 | APPLY (narrowed) | Marker-aware fence tracking for the receipts rule only; an open fence at end of file fails | T-18-fix-contract-surface |
+| T-09 L2 | REJECT | Do not repeat the tool's block-structure rules in awk | Options — (A) reject: simplicity 5, reversibility 5, fit 5 (domain invariant "a rule is defined in exactly one place"), blast 5; (B) repeat in awk: needs block boundaries in awk, a second grammar definition that can drift, one more pinned digest, benefit limited to hand edits that the rules already forbid; wiring is excluded |
+| T-09 L3 | REJECT | No change to the frozen inventory oracle's dispatch pattern | A new dispatch form can land only together with a reviewed prefix-digest refresh; a partial heuristic in the frozen oracle adds risk to a fixture that must stay exact and enumerated, for a path the existing pin already closes |
+| T-09 L4 | APPLY | State that the receipts line is not moved when fields are added later | T-18-fix-contract-surface |
+| T-09 O1 | REJECT | Keep the protected receipts entry where it is | Cosmetic regrouping of a deployed rule that costs two dependency digests and endangers an anchored check |
+| T-09 O2 | APPLY | Reword the `run_bash` reason to its three call sites | T-18-fix-contract-surface |
+| T-09 O3 | REJECT | Do not tighten the receipts-position rule test | The proposal makes it conditional on the position sentence changing again; it does not, and tightening would pin rule prose |
+| T-09 O4 | REJECT | No blank line after the anchored definition line | Cosmetic edit of a deployed rule against the file's own convention |
+| T-10 N1 | APPLY | The consumer-step test requires a sentence that names a rerun of the setup script | T-14-fix-guard-cases |
+| T-10 N2 | APPLY | Manual names the lock as `flock` taken through `fcntl | T-18-fix-contract-surface |
+| T-10 N3 | APPLY | Manual states the `init-block` option rules per kind | T-18-fix-contract-surface |
+| T-10 L1 | APPLY | Setup skips its `.ai/` entry where the knowledge base is tracked | T-18-fix-contract-surface |
+| T-10 L2 | APPLY | Setup compares whole lines and ends an unterminated last line before appending | T-18-fix-contract-surface |
+| T-10 L3 | APPLY | Section 10 lists `pinned` among the tests statuses | T-18-fix-contract-surface |
+| T-10 L4 | ALREADY-DONE | Knowledge-base counts and seeded ignore entries | Handled at finalization |
+| T-10 O1 | APPLY | Reword the `run_isolated` reason to include the check in the disposable project | T-18-fix-contract-surface |
+| T-10 O2 | APPLY | Result-key sentence lists every key | T-18-fix-contract-surface |
+| T-10 O3 | APPLY | Row 6 names the negation entry | T-18-fix-contract-surface |
+| T-10 O4 | REJECT | No handling for a directory named like a tool pattern | Implausible shape |
+| T-11 L1 | APPLY | The identity check names the candidate files when it does not find exactly one ledger | T-18-fix-contract-surface |
+| T-11 L2 | APPLY | Record the ledger rule in the coding principles | orchestrator (specification and knowledge base) |
+| T-11 O1 | APPLY | State that the ledger table is authoritative over the prose list | orchestrator (specification and knowledge base) |
+| T-12 L1 | APPLY | guard test that invalid text never shares a digest with valid text | T-14-fix-guard-cases |
+| T-12 L2 | APPLY | error messages never carry lone surrogates | T-16-fix-write-rules |
+| T-12 O1 | APPLY | blank line after the summary of the input_digest docstring | T-16-fix-write-rules |
+| T-13 L1 | APPLY | a field line named like a header status is an ordinary unknown field | T-16-fix-write-rules |
+| T-13 O1 | APPLY | manual: fenced text under a field is not covered by the set refusal (ruling: not refused) | T-15-fix-fences-and-file-shape |
+| T-13 O2 | APPLY | refusal message names both ways out | T-16-fix-write-rules |
+| I5 | APPLY | align the specification: the no-bypass sentence belongs to refused writes | T-14-fix-guard-cases |
+| I6 | APPLY | scan a blank run once | T-15-fix-fences-and-file-shape |
+| I7 | APPLY | a state file the caller cannot write is not replaced | T-16-fix-write-rules |
+| I8 | APPLY | remove the two stored fields that are never read | T-15-fix-fences-and-file-shape |
+| I9 | APPLY | non-blocking, binary open of state.md | T-15-fix-fences-and-file-shape |
+| I10 | REJECT | Keep both lists of approved names in the oracle suite | The second list is the test's independent expectation: widening the mechanism's list alone fails the test |
+| I11 | APPLY | Static scan covers further spawning, import and code-execution forms | T-14-fix-guard-cases |
+| I12 | REJECT | Keep running the task validator over every completed task directory | Pinning the set narrows a frozen test; copying fixtures duplicates real records |
+| I13 | APPLY | re-wrap the seven lines over 100 characters, inside the refactoring change only | T-15-fix-fences-and-file-shape |
+
 ## Improvement Proposals (T-01)
 
 ### Do Now
