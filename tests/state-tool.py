@@ -5215,6 +5215,29 @@ class ContractValidatorTests(ContractValidatorCase):
         with self.subTest(mutation="anchored line gained a value"):
             self.edit(RULES, anchor, anchor[:-1] + " | `paused`.")
             self.fails(VOCABULARY_CHECK)
+        self.restore(RULES)
+        for name in VOCABULARY_CONSTANTS:
+            line = re.findall(rf"^{name} = \(.*\)$", tool_text, re.M)[0] + "\n"
+            rebindings = {
+                "augmented assignment": f'{name} += ("paused",)\n',
+                "annotated rebinding": f"{name}: tuple = {name}\n",
+                "rebinding inside if": f"if True:\n    {name} = {name}\n",
+                "global rebinding inside a function": (f"def _rebind():\n    global {name}\n"
+                                                       f"    {name} = ()\n"),
+                "tuple target": f"{name}, _other = {name}, None\n",
+                "for target": f"for {name} in ({name},):\n    pass\n",
+                "walrus": f"({name} := {name})\n",
+                "import alias": f"from os import sep as {name}\n",
+                "del": f"del {name}\n"}
+            for label, inserted in rebindings.items():
+                with self.subTest(constant=name, rebinding=label):
+                    self.restore(TOOL)
+                    self.edit(TOOL, line, line + inserted)
+                    self.fails(VOCABULARY_CHECK)
+            with self.subTest(constant=name, control="value copied to another name"):
+                self.restore(TOOL)
+                self.edit(TOOL, line, line + f"_copy = {name}\n")
+                self.passes(VOCABULARY_CHECK)
 
 
 class ValidatorRegistrationTests(unittest.TestCase):
@@ -5332,6 +5355,49 @@ class TaskValidatorReceiptsTests(StateToolCase):
             with self.subTest(case=label):
                 self.rejected(section + following)
 
+    def test_other_fence_marker_inside_a_fence_does_not_close_it(self) -> None:
+        malformed = "  state_receipts: not an entry\n"
+        section = task_state(receipts_leaf("T-01", None))
+        self.rejected(section + "```\n~~~\n```\n" + malformed)
+
+    def test_fenced_heading_copy_in_an_earlier_section_does_not_hide_the_progress_section(
+            self) -> None:
+        preamble = "## Task Analysis\n```\n## Subtask Progress\n```\n\n"
+        self.rejected(task_state(receipts_leaf("T-01", "not an entry"), preamble=preamble))
+
+    def test_field_shaped_line_inside_a_fenced_heading_copy_is_not_read(self) -> None:
+        preamble = ("## Task Analysis\n```\n## Subtask Progress\n"
+                    "  state_receipts: not an entry\n```\n\n")
+        self.accepted(task_state(receipts_leaf("T-01", receipts(2)), preamble=preamble))
+
+    def test_fence_open_at_end_of_file_fails_and_names_its_opening_line(self) -> None:
+        fence = ("the fence opened at line {line} is never closed, so the lines after it cannot "
+                 "be read — close the fence")
+        section = task_state(receipts_leaf("T-01", receipts(2)))
+        opener = section.count("\n") + 1
+        cases = {"backtick fence": "```\nexample\n", "tilde fence closed by backticks only":
+                 "~~~\nexample\n```\n"}
+        for label, following in cases.items():
+            with self.subTest(case=label):
+                result = self.validate_task(section + following)
+                self.assertEqual(result.code, 1, result.stdout)
+                self.assertIn(f"[FAIL] {RECEIPTS_TASK_CHECK}: {fence.format(line=opener)}\n",
+                              result.stdout)
+        with self.subTest(case="malformed line before the open fence"):
+            malformed = task_state(receipts_leaf("T-01", "not an entry"))
+            bad_line = next(number for number, line in enumerate(malformed.splitlines(), 1)
+                            if line.startswith("  state_receipts:"))
+            opener = malformed.count("\n") + 1
+            result = self.validate_task(malformed + "```\nexample\n")
+            self.assertEqual(result.code, 1, result.stdout)
+            lines = [line for line in result.stdout.splitlines()
+                     if line.startswith(f"[FAIL] {RECEIPTS_TASK_CHECK}: ")]
+            self.assertEqual(len(lines), 1, result.stdout)
+            self.assertTrue(lines[0].startswith(
+                f"[FAIL] {RECEIPTS_TASK_CHECK}: malformed state_receipts: line(s) at line "
+                f"{bad_line} — "), lines[0])
+            self.assertTrue(lines[0].endswith("; " + fence.format(line=opener)), lines[0])
+
     def test_atomic_tests_vocabulary_message_names_all_six_values(self) -> None:
         text = task_state(receipts_leaf("T-01", None)).replace("atomic-tests: not-started",
                                                                "atomic-tests: bogus")
@@ -5386,6 +5452,11 @@ STATE_TOOL_PATTERNS = (".state-tool.lock", ".state.md.*.tmp")
 SETUP_SCRIPT = ROOT / "scripts" / "setup-new-project.sh"
 MANUAL = ROOT / "docs" / "USAGE.md"
 SCRIPT_INVENTORY = ROOT / "scripts" / "README.md"
+SETUP_ENTRIES = (".ai/", ".claude/skills/", "!.claude/skills/.gitkeep", ".env", "*.pyc",
+                 "__pycache__/", *STATE_TOOL_PATTERNS)
+TERMINATED_MESSAGE = "  ok: ended the unterminated last line of .gitignore"
+SKIPPED_MESSAGE = ("  skipped: .ai/ — files under .ai/ are tracked in this repository; preserving its "
+                   "tracking policy")
 ISOLATED_VARIABLES = frozenset({
     "HOME", "XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "ORCHESTRAIL_HOME",
     "ORCHESTRAIL_LOG_ROOT", "BASH_ENV", "ENV", "CDPATH", "PYTHONPATH", "PYTHONSTARTUP",
@@ -5487,6 +5558,128 @@ class ConsumerSetupIgnoreTests(DisposableHomeCase):
                 self.assertEqual(lines[0], present)
                 for pattern in STATE_TOOL_PATTERNS:
                     self.assertEqual(lines.count(pattern), 1, lines)
+
+    def run_setup(self, project: Path) -> ToolResult:
+        """Run the setup script once in the project and return its result."""
+        result = run_isolated(["bash", str(SETUP_SCRIPT)], project, self.home, stdin="2\n")
+        self.assertEqual(result.code, 0, result.stdout + result.stderr)
+        return result
+
+    def ignore_bytes(self, project: Path) -> bytes:
+        return (project / ".gitignore").read_bytes()
+
+    def tracking_project(self, name: str, ignore_text: str) -> Path:
+        """Create a disposable git project with one staged knowledge-base file, then its .gitignore."""
+        project = self.new_project(name)
+        tracked = project / ".ai" / "tasks" / "todo" / "task-01-a" / "state.md"
+        tracked.parent.mkdir(parents=True)
+        tracked.write_text("tracked task state\n", encoding="utf-8")
+        added = run_isolated(["git", "add", "--", ".ai/tasks/todo/task-01-a/state.md"], project,
+                             self.home)
+        self.assertEqual(added.code, 0, added.stderr)
+        (project / ".gitignore").write_text(ignore_text, encoding="utf-8")
+        return project
+
+    def test_setup_ends_an_unterminated_last_line_before_its_first_append(self) -> None:
+        project = self.new_project("unterminated consumer", "node_modules")
+
+        first = self.run_setup(project)
+
+        self.assertEqual(self.ignore_bytes(project).decode("utf-8"),
+                         "".join(entry + "\n" for entry in ("node_modules", *SETUP_ENTRIES)))
+        self.assertIn(TERMINATED_MESSAGE + "\n", first.stdout)
+        self.assertLess(first.stdout.index(TERMINATED_MESSAGE),
+                        first.stdout.index("  appended to .gitignore: .ai/"))
+        self.assertNotIn(TERMINATED_MESSAGE, self.run_setup(project).stdout)
+
+    def test_setup_adds_the_tool_patterns_after_an_unterminated_older_entry(self) -> None:
+        older = SETUP_ENTRIES[:6]
+        project = self.new_project("older consumer", "\n".join(older))
+
+        self.run_setup(project)
+        after_first = self.ignore_bytes(project)
+        second = self.run_setup(project)
+
+        self.assertEqual(after_first.decode("utf-8"),
+                         "".join(entry + "\n" for entry in SETUP_ENTRIES))
+        self.assertEqual(self.ignore_bytes(project), after_first)
+        for pattern in STATE_TOOL_PATTERNS:
+            with self.subTest(pattern=pattern):
+                self.assertIn(f"  ok: {pattern} already in .gitignore\n", second.stdout)
+
+    def test_setup_counts_only_a_whole_line_as_an_existing_entry(self) -> None:
+        existing = ("# we do not ignore .ai/ here", ".env.local", "!.state-tool.lock")
+        project = self.new_project("partial match consumer",
+                                   "".join(line + "\n" for line in existing))
+
+        lines = self.set_up_twice(project)
+
+        self.assertEqual(lines, [*existing, *SETUP_ENTRIES])
+
+    def test_setup_reads_a_bare_knowledge_base_line_as_its_knowledge_base_entry(self) -> None:
+        project = self.new_project("bare entry consumer", ".ai\n")
+
+        lines = self.set_up_twice(project)
+
+        self.assertEqual(lines, [".ai", *SETUP_ENTRIES[1:]])
+
+    def test_setup_leaves_a_complete_ignore_file_byte_identical(self) -> None:
+        complete = "\n".join(SETUP_ENTRIES)
+        for label, text in (("terminated last line", complete + "\n"),
+                            ("unterminated last line", complete)):
+            with self.subTest(file=label):
+                project = self.new_project(f"complete consumer, {label}", text)
+
+                result = self.run_setup(project)
+
+                self.assertEqual(self.ignore_bytes(project), text.encode("utf-8"))
+                self.assertNotIn(TERMINATED_MESSAGE, result.stdout)
+                self.assertNotIn("appended to .gitignore", result.stdout)
+
+    def test_setup_skips_its_knowledge_base_entry_where_the_knowledge_base_is_tracked(self) -> None:
+        project = self.tracking_project("tracking consumer, no entry", "node_modules/\n")
+
+        outputs = [self.run_setup(project).stdout for _ in range(2)]
+        lines = self.ignore_bytes(project).decode("utf-8").splitlines()
+        probe = run_isolated(["git", "check-ignore", "-q", "--", ".ai/tasks/todo/task-02-b/state.md"],
+                             project, self.home)
+
+        self.assertNotIn(".ai/", lines)
+        self.assertNotIn(".ai", lines)
+        for pattern in STATE_TOOL_PATTERNS:
+            with self.subTest(pattern=pattern):
+                self.assertEqual(lines.count(pattern), 1, lines)
+        for number, output in enumerate(outputs, 1):
+            with self.subTest(run=number):
+                self.assertIn(SKIPPED_MESSAGE + "\n", output)
+                self.assertNotIn("appended to .gitignore: .ai/", output)
+        self.assertEqual(probe.code, 1, probe.stderr)
+
+    def test_setup_keeps_an_existing_knowledge_base_entry_of_a_tracking_project(self) -> None:
+        project = self.tracking_project("tracking consumer, entry present", "node_modules/\n.ai/\n")
+
+        outputs = [self.run_setup(project).stdout for _ in range(2)]
+        lines = self.ignore_bytes(project).decode("utf-8").splitlines()
+
+        self.assertEqual(lines.count(".ai/"), 1, lines)
+        self.assertEqual(lines[:2], ["node_modules/", ".ai/"])
+        for number, output in enumerate(outputs, 1):
+            with self.subTest(run=number):
+                self.assertIn("  ok: .ai/ already in .gitignore\n", output)
+                self.assertNotIn(SKIPPED_MESSAGE, output)
+
+    def test_setup_appends_its_knowledge_base_entry_outside_a_git_repository(self) -> None:
+        project = self.base / "plain directory"
+        project.mkdir()
+
+        outputs = [self.run_setup(project).stdout for _ in range(2)]
+        lines = self.ignore_bytes(project).decode("utf-8").splitlines()
+
+        self.assertEqual(lines, list(SETUP_ENTRIES))
+        self.assertIn("  appended to .gitignore: .ai/\n", outputs[0])
+        self.assertIn("  ok: .ai/ already in .gitignore\n", outputs[1])
+        for output in outputs:
+            self.assertNotIn(SKIPPED_MESSAGE, output)
 
     def test_tracking_consumer_step_states_what_rerunning_setup_does_to_the_knowledge_base(self) -> None:
         project = self.new_project("tracking consumer", "node_modules/\n")
