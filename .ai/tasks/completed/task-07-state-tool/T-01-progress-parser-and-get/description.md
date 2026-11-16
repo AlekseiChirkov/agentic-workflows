@@ -7,7 +7,7 @@ without creating, modifying or deleting any file.
 - Dependencies: none — first subtask; it creates the tool file and its acceptance suite.
 - Constraints: Python 3.11+, standard library only, one file `scripts/state-tool.py`; no
   `subprocess`, `os.system`, `os.exec*`, `eval`, `exec` in the tool. The exact contract is
-  the task spec (`.ai/specs/07-state-tool.md`): `## Data Model`, `### Commands`,
+  the task spec (`.ai/specs/completed/07-state-tool.md`): `## Data Model`, `### Commands`,
   `### Read outcomes`, `### Output`, `### Exit codes and error codes`,
   `### Contract version check`. English only; no planning identifiers in code, tests,
   comments or documentation.

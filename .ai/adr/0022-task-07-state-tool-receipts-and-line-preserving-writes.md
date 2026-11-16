@@ -10,7 +10,7 @@ Accepted
 
 ## Related Task
 
-- Task: `.ai/tasks/todo/task-07-state-tool/` (spec `.ai/specs/07-state-tool.md`)
+- Task: `.ai/tasks/completed/task-07-state-tool/` (spec `.ai/specs/completed/07-state-tool.md`)
 - Related pull request: #80–#92 and the follow-up series (stacked; ten changes and three
   fixes, then five follow-up changes)
 - Related files: `scripts/state-tool.py`, `tests/state-tool.py`,
@@ -184,7 +184,7 @@ nothing written. Bytes written change only for blocks with blank lines before an
 fence. A run of blank lines is scanned once, which removes a quadratic read time.
 
 **Related files:**
-- `scripts/state-tool.py`, `docs/USAGE.md`, `.ai/specs/07-state-tool.md`
+- `scripts/state-tool.py`, `docs/USAGE.md`, `.ai/specs/completed/07-state-tool.md`
 
 ### Decision 7: Refusals for continued target files and whitespace-only text, and the read-only state file
 
@@ -225,7 +225,7 @@ file. An applied write still replaces the file by rename, so the new file belong
 user who ran the tool. No exit code or error code is added.
 
 **Related files:**
-- `scripts/state-tool.py`, `docs/USAGE.md`, `.ai/specs/07-state-tool.md`
+- `scripts/state-tool.py`, `docs/USAGE.md`, `.ai/specs/completed/07-state-tool.md`
 
 ### Decision 8: A tests-status change may not break a completed leaf
 
@@ -254,7 +254,7 @@ vocabulary value except `green`. The invariant-only design of Decision 2 is othe
 unchanged.
 
 **Related files:**
-- `scripts/state-tool.py`, `docs/USAGE.md`, `.ai/specs/07-state-tool.md`
+- `scripts/state-tool.py`, `docs/USAGE.md`, `.ai/specs/completed/07-state-tool.md`
 
 ### Decision 9: Lock owner report rule; a signal is treated as a kill
 
@@ -294,7 +294,7 @@ catch-all around the owner details stays, so an unforeseen failure never replace
 refusal.
 
 **Related files:**
-- `scripts/state-tool.py`, `docs/USAGE.md`, `.ai/specs/07-state-tool.md`
+- `scripts/state-tool.py`, `docs/USAGE.md`, `.ai/specs/completed/07-state-tool.md`
 
 ### Decision 10: Project setup preserves a tracked knowledge base and compares whole ignore lines
 

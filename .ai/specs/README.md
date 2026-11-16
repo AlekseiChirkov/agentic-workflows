@@ -115,7 +115,7 @@ script names in historical context identify their earlier locations.
 | 17 | [11 — public readiness](11-open-source-readiness.md) | 01, 09, 10, 11a | Accurate docs; license/release remain explicit owner actions |
 | 18 | [12a — composite branch model](12a-composite-branch-model.md) | 13, 09, 02, 03, 05, 16 (14, 19 when delivered) | Split from 12 on 2026-11-16: one branch per composite, sequential children on temporary branches |
 | 19 | [12 — composite children](12-composite-branch-model-and-parallel-children.md) | 12a, 13, 09, 02, 03, 05, 14, 15, 16, 19, 20 | Parallel children of one composite; integrate isolation, context, review and attribution before parallel rollout |
-| Delivered | [07 — state tool](07-state-tool.md) | — | Scheduled by the owner on 2026-11-13 (ADR-0021); delivered 2026-11-16 on stacked pull requests #80–#92 (ADR-0022); optional and unwired, not a prerequisite of the nine tasks |
+| Delivered | [07 — state tool](completed/07-state-tool.md) | — | Scheduled by the owner on 2026-11-13 (ADR-0021); delivered 2026-11-16 on stacked pull requests #80–#98, merged into main the same day (ADR-0022); specification archived; optional and unwired, not a prerequisite of the nine tasks |
 
 ## Review record and remaining decisions
 
