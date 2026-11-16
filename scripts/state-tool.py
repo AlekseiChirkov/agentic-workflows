@@ -28,7 +28,8 @@ section holds nothing else, otherwise after one blank line) and never changes an
 block. Notes are only appended and target files only added; existing note
 text and existing target_files entries are never changed. set replaces a field line only and
 never deletes text, so it refuses a field whose value has continuation lines (invalid-value)
-instead of leaving the old lines under a new value. Lifecycle rules are checked
+instead of leaving the old lines under a new value; add-file reads entries from the
+target_files line only and refuses a value that continues the same way. Lifecycle rules are checked
 against the header fields a write changes; a rule already broken in a field the write does
 not change is reported as a warning (pre-existing-violation, required-field-missing) and
 never blocks the write. Each applied write records its operation id and input digest on the
@@ -113,7 +114,7 @@ MAX_RECEIPTS = 20
 RECEIPT_SEPARATOR = ", "
 REVISION = re.compile(r"sha256:[0-9a-f]{64}")
 OPERATION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
-LOCK_WAIT = re.compile(r"[0-9]+")
+LOCK_WAIT = re.compile(r"[0-9]{1,3}")
 MAX_LOCK_WAIT_SECONDS = 600
 DEFAULT_LOCK_WAIT_SECONDS = 5
 LOCK_RETRY_SECONDS = 0.025
@@ -360,6 +361,7 @@ def field_pairs(options: dict[str, list[str]]) -> list[tuple[str, str]]:
 
 
 def lock_wait_seconds(options: dict[str, list[str]]) -> int:
+    """The lock wait bound in seconds: one to three digits with a value up to the maximum."""
     text = options.get("--lock-wait-seconds", [str(DEFAULT_LOCK_WAIT_SECONDS)])[0]
     if not LOCK_WAIT.fullmatch(text) or int(text) > MAX_LOCK_WAIT_SECONDS:
         raise ToolError(2, "invalid-arguments",
@@ -693,7 +695,7 @@ def receipts_problem(block: Block) -> int | None:
     """Return the 1-based line of the first state_receipts line that breaks the 1-20 unique
     well-formed entry rule, or None when every such line is well formed."""
     for item in (group for group in block.groups if group.name == "state_receipts"):
-        entries = item.value.split(", ") if item.value else []
+        entries = item.value.split(RECEIPT_SEPARATOR) if item.value else []
         matches = [RECEIPT_ENTRY.fullmatch(entry) for entry in entries]
         identifiers = [match.group(1) for match in matches if match is not None]
         if (item.continuation or not 1 <= len(entries) <= MAX_RECEIPTS
@@ -803,6 +805,7 @@ def tests_transition_error(previous: str | None, value: str, notes: str) -> tupl
     rank never decreases, pinned moves only to green, green comes only from red or pinned, and
     n-a needs the test-level justification in the notes text of the result."""
     previous_rank = ATOMIC_TESTS_RANK.get(previous, 0) if previous is not None else 0
+    # The first broken rule in this order is the one reported.
     if ATOMIC_TESTS_RANK[value] < previous_rank:
         return "downgrade", f"atomic-tests may not move down from {previous} to {value}"
     if previous == "pinned" and value != "green":
@@ -817,13 +820,13 @@ def tests_transition_error(previous: str | None, value: str, notes: str) -> tupl
     return None
 
 
-def execution_transition_error(header: dict[str, str], result: dict[str, str], value: str,
+def execution_transition_error(header: dict[str, str], result: dict[str, str],
                                notes: str) -> tuple[str, str] | None:
-    """Return (error code, reason) when atomic-execution may not change to value: a leaf
-    without atomic-tests leaves not-started only with atomic-tests in the same write, and
-    complete needs green or n-a tests, or no tests segment, a previous in-progress status and
-    the pre-TDD note in the notes text of the result."""
-    previous = header.get("atomic-execution")
+    """Return (error code, reason) when atomic-execution may not change to its value in the
+    result: a leaf without atomic-tests leaves not-started only with atomic-tests in the same
+    write, and complete needs green or n-a tests, or no tests segment, a previous in-progress
+    status and the pre-TDD note in the notes text of the result."""
+    previous, value = header.get("atomic-execution"), result["atomic-execution"]
     if "atomic-tests" not in result and previous == "not-started":
         return ("pre-tdd-not-applicable", "a leaf without atomic-tests leaves not-started only "
                 "with atomic-tests in the same set")
@@ -839,10 +842,24 @@ def execution_transition_error(header: dict[str, str], result: dict[str, str], v
             "without atomic-tests that was in progress")
 
 
+def kept_completion_error(header: dict[str, str],
+                          changes: dict[str, str]) -> tuple[str, str] | None:
+    """Return (error code, reason) when a write changes atomic-tests to a value other than
+    green or n-a on a leaf whose atomic-execution is complete and stays unchanged."""
+    value = changes["atomic-tests"]
+    if ("atomic-execution" in changes or header.get("atomic-execution") != "complete"
+            or value in COMPLETION_TEST_VALUES):
+        return None
+    return ("completion-without-tests",
+            f"atomic-tests may not change to {value} while atomic-execution stays complete, "
+            "which needs green or n-a tests")
+
+
 def check_write_invariants(block: Block, changes: dict[str, str], notes: list[str]) -> list[str]:
     """Refuse a write whose changed header fields break a lifecycle rule (exit 6), judged on the
     resulting block with the notes of the same write; return the warnings for rule violations
-    that remain in fields the write does not change."""
+    that remain in fields the write does not change. A changed tests status is judged by the
+    transition rules first, then against a completion the write keeps."""
     known_header = KNOWN_HEADER_FIELDS[block.kind]
     header = dict(block.header_fields)
     result = header | {name: value for name, value in changes.items() if name in known_header}
@@ -850,30 +867,28 @@ def check_write_invariants(block: Block, changes: dict[str, str], notes: list[st
     if block.kind == "leaf":
         problem = None
         if "atomic-tests" in changes:
-            problem = tests_transition_error(header.get("atomic-tests"), changes["atomic-tests"],
-                                             notes_after)
+            problem = (tests_transition_error(header.get("atomic-tests"),
+                                              changes["atomic-tests"], notes_after)
+                       or kept_completion_error(header, changes))
         if problem is None and "atomic-execution" in changes:
-            problem = execution_transition_error(header, result, changes["atomic-execution"],
-                                                 notes_after)
+            problem = execution_transition_error(header, result, notes_after)
         if problem is not None:
             code, reason = problem
             raise ToolError(6, code, f"block {block.block_id}: {reason}", block.start + 1)
     warnings: list[str] = []
-    unchanged = {name: value for name, value in result.items() if name not in changes}
-    if any(name in known_header and not value_in_vocabulary(name, value)
-           for name, value in unchanged.items()):
-        warnings.append("pre-existing-violation")
-    if unchanged.get("atomic-tests") == "n-a" and not n_a_justified(notes_after):
-        warnings.append("pre-existing-violation")
-    if (unchanged.get("atomic-execution") == "complete"
-            and not completion_allowed(result.get("atomic-tests"), notes_after)):
+    kept = {name: value for name, value in result.items() if name not in changes}
+    if (any(name in known_header and not value_in_vocabulary(name, value)
+            for name, value in kept.items())
+            or (kept.get("atomic-tests") == "n-a" and not n_a_justified(notes_after))
+            or (kept.get("atomic-execution") == "complete"
+                and not completion_allowed(result.get("atomic-tests"), notes_after))):
         warnings.append("pre-existing-violation")
     names = {group.name for group in block.groups} | set(changes)
     if notes:
         names.add("notes")
     if any(name not in names for name in REQUIRED_FIELDS[block.kind]):
         warnings.append("required-field-missing")
-    return unique(warnings)
+    return warnings
 
 
 def pre_tdd_exception(block: Block) -> str | None:
@@ -988,7 +1003,8 @@ def check_field_changes(block: Block, pairs: list[tuple[str, str]]) -> None:
     if name is not None:
         raise ToolError(6, "invalid-value",
                         f"block {block.block_id}: {name} has continuation lines, which set "
-                        "does not replace; append a note instead")
+                        "does not replace; edit the block by the manual procedure or append "
+                        "a note")
 
 
 def text_problem(text: str) -> str | None:
@@ -1003,17 +1019,19 @@ def text_problem(text: str) -> str | None:
 
 
 def note_problem(note: str) -> str | None:
-    """Return why a note breaks the text rules, or None; an empty note carries no text."""
-    if not note:
-        return "must not be empty"
+    """Return why a note breaks the text rules, or None; a note made only of whitespace
+    carries no text and counts as empty."""
+    if not note.strip():
+        return "must not be empty or only whitespace"
     return text_problem(note)
 
 
 def name_problem(name: str) -> str | None:
-    """Return why a block name breaks the text rules, or None: a name is non-empty single-line
-    text without '|', which separates the header segments."""
-    if not name:
-        return "must not be empty"
+    """Return why a block name breaks the text rules, or None: a name is single-line text
+    with at least one non-whitespace character and without '|', which separates the header
+    segments."""
+    if not name.strip():
+        return "must not be empty or only whitespace"
     if "|" in name:
         return "must not contain |"
     return text_problem(name)
@@ -1021,12 +1039,15 @@ def name_problem(name: str) -> str | None:
 
 def path_problem(path: str) -> str | None:
     """Return why a target path breaks the lexical rules, or None. Paths are never resolved
-    on disk: non-empty, relative, no '..' segment, no leading './', no ',' and no trailing '/'."""
+    on disk: single-line text with a non-whitespace character and no whitespace at either end,
+    relative, no '..' segment, no leading './', no ',' and no trailing '/'."""
     reason = text_problem(path)
     if reason is not None:
         return reason
-    if not path:
-        return "must not be empty"
+    if not path.strip():
+        return "must not be empty or only whitespace"
+    if path != path.strip():
+        return "must not start or end with whitespace"
     if path.startswith("/"):
         return "must be relative"
     if path.startswith("./"):
@@ -1042,11 +1063,18 @@ def path_problem(path: str) -> str | None:
 
 def check_additions(block: Block, notes: list[str], paths: list[str]) -> None:
     """Check that target files apply to the block kind, then the content of every note and
-    path, so that one invalid input refuses the whole call."""
+    path, so that one invalid input refuses the whole call, then that the target_files value
+    paths are added to has no continuation lines: entries are read from the field line only,
+    so paths listed below it would be added again. Paths already listed are refused as well."""
     if paths and block.kind != "leaf":
         raise ToolError(6, "field-not-applicable",
                         f"field target_files does not apply to {block.kind} block {block.block_id}")
     check_note_and_path_content(block.block_id, notes, paths)
+    if paths and any(group.continuation for group in block.groups
+                     if group.name == "target_files"):
+        raise ToolError(6, "invalid-value",
+                        f"block {block.block_id}: target_files has continuation lines, which "
+                        "add-file does not read; edit the block by the manual procedure")
 
 
 def check_note_and_path_content(block_id: str, notes: list[str], paths: list[str]) -> None:
@@ -1059,15 +1087,16 @@ def check_note_and_path_content(block_id: str, notes: list[str], paths: list[str
     for path in paths:
         reason = path_problem(path)
         if reason is not None:
-            raise ToolError(6, "invalid-path", f"block {block_id}: path '{path}' {reason}")
+            raise ToolError(6, "invalid-path", f"block {block_id}: path {path!r} {reason}")
 
 
 def target_files_change(block: Block, paths: list[str]) -> str | None:
     """The new target_files value with every path not yet listed appended once, in argument
     order; None when every path is already listed. Existing entries are the value split on
-    ', ' and compared by exact string equality; an empty value has no entries."""
+    ', ' and compared by exact string equality; an empty or whitespace-only value has no
+    entries and is replaced by the new paths."""
     groups = [group for group in block.groups if group.name == "target_files"]
-    current = groups[0].value if groups else ""
+    current = groups[0].value if groups and groups[0].value.strip() else ""
     entries = current.split(TARGET_FILES_SEPARATOR) if current else []
     new = [path for path in dict.fromkeys(paths) if path not in entries]
     if not new:
@@ -1089,8 +1118,9 @@ def changed_pairs(block: Block, pairs: list[tuple[str, str]]) -> dict[str, str]:
 
 def edit_header(text: str, kind: str, changes: dict[str, str]) -> tuple[str, list[str]]:
     """Replace the values of changed status segments in place and insert absent ones before the
-    first present segment that follows them in canonical order; return the new header text and
-    the changed names in header order."""
+    first present segment that follows them in canonical order; a segment whose value is empty
+    is rewritten with the canonical single spaces. Return the new header text and the changed
+    names in header order."""
     parts = text.split("|")
     names = [""] * 2 + [part.partition(":")[0].strip() for part in parts[2:]]
     order = KNOWN_HEADER_FIELDS[kind]
@@ -1103,7 +1133,10 @@ def edit_header(text: str, kind: str, changes: dict[str, str]) -> tuple[str, lis
             label, _, raw = parts[index].partition(":")
             stripped = raw.strip()
             lead = len(raw) - len(raw.lstrip())
-            parts[index] = label + ":" + raw[:lead] + value + raw[lead + len(stripped):]
+            if stripped:
+                parts[index] = label + ":" + raw[:lead] + value + raw[lead + len(stripped):]
+            else:
+                parts[index] = f" {name}: {value}" + (" " if index < len(parts) - 1 else "")
             continue
         later = order[order.index(name) + 1:]
         index = next((position for position in range(2, len(parts)) if names[position] in later),
@@ -1233,7 +1266,8 @@ def verify_candidate(document: Document, block: Block, candidate: Candidate,
                      changes: dict[str, str]) -> None:
     """Re-parse the candidate and confirm that lines outside the block and every unchanged
     line of the block are identical, that the block reads back the written values and that
-    its notes text ends with the appended notes."""
+    its notes text ends with the appended notes. Header statuses are read back from the header
+    and field lines from the field groups: a field line may share the name of a status."""
     original = [content(line) for line in document.lines]
     lines = split_lines(candidate.text)
     new = [content(line) for line in lines]
@@ -1255,8 +1289,10 @@ def verify_candidate(document: Document, block: Block, candidate: Candidate,
         problems.append("an unchanged block line changed")
     if not problems:
         target = matches[0]
-        values = dict(target.header_fields) | {group.name: group.value for group in target.groups}
-        if any(values.get(name) != value for name, value in changes.items()):
+        statuses = dict(target.header_fields)
+        fields = {group.name: group.value for group in target.groups}
+        if any((statuses if name in KNOWN_HEADER_FIELDS[block.kind] else fields).get(name) != value
+               for name, value in changes.items()):
             problems.append("a written value does not read back")
         appended = candidate.note_entries
         if appended and notes_parts(target)[-len(appended):] != appended:
@@ -1280,6 +1316,7 @@ class NewBlock:
 
 
 def new_block_input(options: dict[str, list[str]]) -> NewBlock:
+    """Collect the init-block inputs from the options, in argument order."""
     return NewBlock(options["--block"][0], options["--kind"][0], options["--name"][0],
                     list(options.get("--target-file", [])), children_list(options),
                     list(options.get("--note", [])))
@@ -1329,8 +1366,9 @@ def block_shape(block: Block) -> tuple[dict[str, Any], list[str]]:
 def verify_new_block(document: Document, text: str, new: NewBlock, start: int,
                      count: int) -> None:
     """Re-parse the candidate and confirm that it reads back the new block, exactly on its
-    inserted lines and well formed, and that every other block reads as before. A block that
-    does not read back, for example because it landed inside an unclosed fence, is refused."""
+    inserted lines and well formed, that every other block reads as before and that the lines
+    outside the inserted separator and block lines are those of the source. A block that does
+    not read back, for example because it landed inside an unclosed fence, is refused."""
     try:
         reparsed = parse_document(text)
     except ToolError as error:
@@ -1344,6 +1382,10 @@ def verify_new_block(document: Document, text: str, new: NewBlock, start: int,
     others = [block_shape(block) for block in reparsed.blocks if block.block_id != new.block_id]
     if others != [block_shape(block) for block in document.blocks]:
         problems.append("another block reads differently")
+    lines = [content(line) for line in split_lines(text)]
+    anchor = block_insertion(document)[0]
+    if lines[:anchor + 1] + lines[start + count:] != [content(line) for line in document.lines]:
+        problems.append("lines outside the new block changed")
     if problems:
         raise ToolError(1, "internal-error", "candidate check failed: " + "; ".join(problems))
 
@@ -1390,20 +1432,24 @@ def receipt_entries(block: Block) -> list[str]:
 def receipt_matches(block: Block, operation_id: str, digest: str) -> bool:
     """Look an operation up in the receipts of its target block, which must be well formed:
     True when the id is recorded with the same input digest, False when it is not recorded;
-    the id recorded with another digest is refused with exit 8."""
+    the id recorded with another digest is refused with exit 8 and the line of the receipts
+    line."""
     for entry in receipt_entries(block):
         recorded_id, _, recorded_digest = entry.partition("#")
         if recorded_id == operation_id:
             if recorded_digest == digest:
                 return True
+            line = next(group.start + 1 for group in block.groups
+                        if group.name == "state_receipts")
             raise ToolError(8, "operation-conflict",
                             f"operation {operation_id} was already applied to block "
-                            f"{block.block_id} with other inputs")
+                            f"{block.block_id} with other inputs", line)
     return False
 
 
 def input_digest(command: str, block_id: str, inputs: dict[str, Any]) -> str:
     """First 16 hex characters of SHA-256 over the canonical UTF-8 JSON of an operation.
+
     Text that is not valid UTF-8 is digested too, so that the receipt lookup and the revision
     check run before the content rules refuse it: its surrogate code points are encoded as
     they stand, which yields bytes no valid input produces, so such an operation never matches
@@ -1570,8 +1616,16 @@ def apply_test_fault(fault: str | None, point: str) -> None:
 def replace_state(paths: TaskPaths, data: bytes, owner_token: str, source: str,
                   identity: tuple[int, int], mode: int, report: dict[str, Any],
                   fault: str | None) -> list[str]:
-    """Write the candidate to this process's own temporary file, re-check that state.md is the
-    file that was read, rename over it and sync the directory; return write warnings."""
+    """Open state.md for writing without truncation and close it at once, so that a file the
+    caller may not write is refused before any temporary file exists; then write the candidate
+    to this process's own temporary file, re-check that state.md is the file that was read,
+    rename over it and sync the directory; return write warnings."""
+    probe = (os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+             | getattr(os, "O_BINARY", 0))
+    try:
+        os.close(os.open(paths.state, probe))
+    except OSError as error:
+        raise ToolError(7, "io-error", f"state.md is not writable: {error.strerror}") from None
     temporary = os.path.join(paths.task, f".state.md.{owner_token}.tmp")
     flags = (os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
              | getattr(os, "O_CLOEXEC", 0))
@@ -1719,6 +1773,8 @@ def command_validate(options: dict[str, list[str]], report: dict[str, Any]) -> i
 
 
 def check_revision(options: dict[str, list[str]], source: str) -> None:
+    """Refuse a write whose expected revision is not the revision of the file read under the
+    lock."""
     if options["--expected-revision"][0] != source:
         raise ToolError(4, "revision-conflict",
                         "state.md changed since the expected revision was read")
@@ -1839,6 +1895,9 @@ def main(argv: list[str]) -> int:
         report["errors"] = [{"code": "internal-error",
                              "message": f"{type(error).__name__}: {error}"}]
         exit_code = 1
+    for error in report["errors"]:
+        # An argument byte that is not UTF-8 arrives as a lone surrogate; spell it in ASCII.
+        error["message"] = error["message"].encode("utf-8", "backslashreplace").decode("utf-8")
     if exit_code != 0:
         report["result"] = REFUSED_RESULT.get(report["command"], "rejected")
         report.pop("blocks", None)

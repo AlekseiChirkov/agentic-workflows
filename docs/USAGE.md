@@ -910,9 +910,9 @@ python3 scripts/state-tool.py init-block  --root R --task T --block ID --kind le
 |---|---|
 | `get` | Report the blocks (or one block, or one field) with header statuses, fields and continuation lines. Creates, changes and deletes nothing. |
 | `validate` | Check structure, status vocabularies, the static lifecycle rules and `state_receipts:` lines without writing; exits 3 before 6 when both kinds of error exist and lists every error. |
-| `set` | Change header statuses (`atomic-tests`, `atomic-execution`, `atomic-validation`; `rollup`, `integration-validation` on a composite) and `last_action` / `blocker`, optionally appending notes in the same write. Lifecycle rules (no tests-status downgrade, `pinned` only to `green`, completion needs `green` tests, a justified `n-a`, or the pre-TDD note on a block without `atomic-tests:`) are checked on the fields the write changes. |
-| `append-note` | Append notes; existing note text is never changed. An empty note is refused. |
-| `add-file` | Add paths to `target_files:`; listed paths are kept and a call that adds nothing is `unchanged`. |
+| `set` | Change header statuses (`atomic-tests`, `atomic-execution`, `atomic-validation`; `rollup`, `integration-validation` on a composite) and `last_action` / `blocker`, optionally appending notes in the same write. Lifecycle rules (no tests-status downgrade, `pinned` only to `green`, completion needs `green` tests, a justified `n-a`, or the pre-TDD note on a block without `atomic-tests:`) are checked on the fields the write changes. A tests status cannot be changed to a value other than `green` or `n-a` while execution is `complete`. |
+| `append-note` | Append notes; existing note text is never changed. A note that is empty or only whitespace is refused. |
+| `add-file` | Add paths to `target_files:`; listed paths are kept and a call that adds nothing is `unchanged`. A path that is empty, only whitespace, or has leading or trailing whitespace is refused. |
 | `init-block` | Insert a new leaf or composite block with its canonical initial lines at the end of the section; an existing block is never changed. |
 
 stdout carries exactly one JSON object (`schema_version` 1) with `result` (`read`, `valid`,
@@ -941,6 +941,10 @@ expected revision; the same id with other inputs is exit 8. After a timeout, a c
 lost result, repeat the identical command: a write killed before the rename leaves
 `state.md` unchanged (its temporary file stays and is listed in `stale_temp_files`) and the
 repeat applies once; a write killed after the rename is answered `already_applied`.
+
+An `unchanged` result writes nothing and records no receipt, so its operation id is not
+reserved: the same id may later be applied to that block with any inputs, and the receipts
+line lists only applied operations.
 
 A lock still held at the end of the wait is exit 5 with `lock_owner` (the recorded owner
 metadata, or null when it cannot be read), `lock_age_seconds` and `stale_suspected` (an age
@@ -1000,7 +1004,14 @@ When the tool is absent or cannot run, edit the block by hand in this order:
   lines (exit 6, `invalid-value`), because it replaces the field line only and never deletes
   text; edit such a block by the manual procedure above, or append a note. Fenced text
   placed under a field line is not a continuation line: `set` replaces the field line and
-  leaves the fenced lines, and blank lines directly before them, where they are.
+  leaves the fenced lines, and blank lines directly before them, where they are. `add-file`
+  likewise refuses a `target_files:` value that continues on following lines (exit 6,
+  `invalid-value`), because it reads entries from the field line only.
+- A hand-edited `atomic-tests` value outside the vocabulary counts as `not-started`: `set`
+  replaces it with any vocabulary value except `green`.
+- A `state.md` the caller cannot open for writing is never replaced (exit 7, `io-error`). An
+  applied write replaces the file by rename, so the new file belongs to the user who ran the
+  tool; its permission bits are kept, its owner and group are not.
 - File shape: `state.md` must be UTF-8 without a byte order mark, carriage returns or NUL
   bytes (exit 3, `unsupported-encoding`). A blank line is an empty line. Inside a block a
   line holding only one or two spaces makes the block malformed (exit 3, `malformed-block`)
