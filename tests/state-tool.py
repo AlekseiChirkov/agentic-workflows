@@ -438,6 +438,14 @@ class WarningTests(StateToolCase):
 
         self.assertIn("unsupported-contract-version", document["warnings"])
 
+    def test_tool_version_that_is_not_three_numbers_warns(self) -> None:
+        self.write_state(state_text(leaf("T-01"), contract_version="0.9.0"))
+
+        document = self.read_ok(self.get(tool=self.isolated_tool("1.0")))
+
+        self.assertEqual(document["contract_version"], "0.9.0")
+        self.assertIn("unsupported-contract-version", document["warnings"])
+
     def test_supported_or_absent_contract_version_does_not_warn(self) -> None:
         tool = self.isolated_tool("1.0.0")
         cases = (("0.9.0", "0.9.0"), ("1.0.0", "1.0.0"), (None, None), ("1.0", None))
@@ -646,41 +654,104 @@ class InProcessTests(StateToolCase):
         self.assertEqual(snapshot(self.task), before)
 
 
+# Names of the os module that start a process or replace the current one, and modules and
+# built-in names that import or run code chosen at run time.
+PROCESS_NAMES = frozenset({"system", "popen", "fork", "forkpty", "startfile"})
+PROCESS_NAME_PREFIXES = ("exec", "spawn", "posix_spawn")
+EXECUTION_MODULES = frozenset({"subprocess", "importlib", "runpy", "pty", "multiprocessing",
+                               "ctypes", "code", "codeop"})
+EXECUTION_NAMES = frozenset({"eval", "exec", "subprocess", "__import__", "compile"})
+
+
+def starts_a_process(name: str) -> bool:
+    return name in PROCESS_NAMES or name.startswith(PROCESS_NAME_PREFIXES)
+
+
+def execution_findings(tree: ast.AST) -> list[str]:
+    """List what the tool must not hold: imports outside the standard library, relative
+    imports, modules and names that import, spawn or run code, the process-starting names of
+    the os module reached as an attribute, by a from-import or through getattr, and any shell
+    keyword. A getattr on os whose name is not a literal cannot be judged, so it is listed."""
+    findings = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                findings.append(f"relative import at line {node.lineno}")
+            modules = [node.module or ""]
+            if node.module == "os":
+                findings.extend(f"os.{alias.name} at line {node.lineno}" for alias in node.names
+                                if starts_a_process(alias.name))
+        else:
+            modules = []
+        for module in modules:
+            top = module.split(".")[0]
+            if top not in sys.stdlib_module_names:
+                findings.append(f"non-standard import {module} at line {node.lineno}")
+            if top in EXECUTION_MODULES:
+                findings.append(f"{top} import at line {node.lineno}")
+        if (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+                and node.value.id == "os" and starts_a_process(node.attr)):
+            findings.append(f"os.{node.attr} at line {node.lineno}")
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "getattr" and len(node.args) >= 2
+                and isinstance(node.args[0], ast.Name) and node.args[0].id == "os"):
+            name = node.args[1]
+            if not (isinstance(name, ast.Constant) and isinstance(name.value, str)):
+                findings.append(f"getattr on os with a computed name at line {node.lineno}")
+            elif starts_a_process(name.value):
+                findings.append(f"os.{name.value} at line {node.lineno}")
+        if isinstance(node, ast.Name) and node.id in EXECUTION_NAMES:
+            findings.append(f"{node.id} at line {node.lineno}")
+        if isinstance(node, ast.keyword) and node.arg == "shell":
+            findings.append(f"shell keyword at line {node.value.lineno}")
+    return findings
+
+
 class SourceContractTests(unittest.TestCase):
     def tree(self) -> ast.Module:
         self.assertTrue(TOOL.is_file(), f"state tool unavailable: expected {TOOL}")
         return ast.parse(TOOL.read_text(encoding="utf-8"), filename=str(TOOL))
 
     def test_imports_are_standard_library_only_and_no_dynamic_execution(self) -> None:
-        tree = self.tree()
-        findings = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                modules = [alias.name for alias in node.names]
-            elif isinstance(node, ast.ImportFrom):
-                if node.level:
-                    findings.append(f"relative import at line {node.lineno}")
-                modules = [node.module or ""]
-                if node.module == "os":
-                    findings.extend(f"os.{alias.name} at line {node.lineno}" for alias in node.names
-                                    if alias.name == "system" or alias.name.startswith("exec"))
-            else:
-                modules = []
-            for module in modules:
-                top = module.split(".")[0]
-                if top not in sys.stdlib_module_names:
-                    findings.append(f"non-standard import {module} at line {node.lineno}")
-                if top == "subprocess":
-                    findings.append(f"subprocess import at line {node.lineno}")
-            if (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
-                    and node.value.id == "os"
-                    and (node.attr == "system" or node.attr.startswith("exec"))):
-                findings.append(f"os.{node.attr} at line {node.lineno}")
-            if isinstance(node, ast.Name) and node.id in {"eval", "exec", "subprocess"}:
-                findings.append(f"{node.id} at line {node.lineno}")
-            if isinstance(node, ast.keyword) and node.arg == "shell":
-                findings.append(f"shell keyword at line {node.value.lineno}")
-        self.assertEqual(findings, [])
+        self.assertEqual(execution_findings(self.tree()), [])
+
+    def test_execution_scan_lists_every_forbidden_form_and_no_permitted_one(self) -> None:
+        forbidden = {"subprocess import": "import subprocess",
+                     "name from subprocess": "from subprocess import run",
+                     "import outside the standard library": "import requests",
+                     "relative import": "from . import sibling",
+                     "eval": "eval('1')",
+                     "exec": "exec('pass')",
+                     "shell keyword": "run(['true'], shell=True)",
+                     "getattr on os with a computed name": "getattr(os, name)",
+                     "getattr on os with a built name": "getattr(os, 'sys' + 'tem')",
+                     "submodule of importlib": "import importlib.util",
+                     "name from runpy": "from runpy import run_path",
+                     "name from multiprocessing": "from multiprocessing import Process",
+                     "built-in import": "__import__('os')",
+                     "built-in compile": "compile('1', 'text', 'eval')"}
+        for name in ("system", "execv", "execvpe", "popen", "fork", "forkpty", "startfile",
+                     "spawnv", "spawnlp", "posix_spawn", "posix_spawnp"):
+            forbidden[f"os.{name}"] = f"os.{name}"
+            forbidden[f"{name} from os"] = f"from os import {name}"
+            forbidden[f"getattr on os for {name}"] = f"getattr(os, '{name}', None)"
+        for module in ("importlib", "runpy", "pty", "multiprocessing", "ctypes", "code",
+                       "codeop"):
+            forbidden[f"{module} import"] = f"import {module}"
+        permitted = {"signal to a process": "os.kill(1, 0)",
+                     "open flag read through getattr": "getattr(os, 'O_NOFOLLOW', 0)",
+                     "pattern compilation": "re.compile('x')",
+                     "standard-library import": "import socket",
+                     "file calls of os": "os.replace('a', 'b')\nos.fsync(3)",
+                     "getattr on another object": "getattr(options, name)"}
+        for label, snippet in forbidden.items():
+            with self.subTest(forbidden=label):
+                self.assertNotEqual(execution_findings(ast.parse(snippet)), [])
+        for label, snippet in permitted.items():
+            with self.subTest(permitted=label):
+                self.assertEqual(execution_findings(ast.parse(snippet)), [])
 
     def test_version_guard_precedes_every_import_other_than_sys(self) -> None:
         body = self.tree().body
@@ -1001,6 +1072,79 @@ class ValidateStructureTests(ValidateCase):
 
                 self.invalid(self.validate(), 3, *errors)
 
+    def test_receipts_line_that_is_empty_or_continues_exits_3(self) -> None:
+        entry = "op-01#0123456789abcdef"
+        cases = {"empty value": "  state_receipts:\n",
+                 "continuation line": f"  state_receipts: {entry}\n     op-02#fedcba9876543210\n"}
+        for label, lines in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(leaf("T-01", body=leaf_body(extra=lines))))
+
+                self.invalid(self.validate(), 3, "malformed-receipts")
+                self.invalid(self.validate("--block", "T-01"), 3, "malformed-receipts")
+                self.assertIn("malformed-receipts",
+                              self.read_ok(self.get("--block", "T-01"))["warnings"])
+
+    def test_state_file_that_is_a_directory_or_a_named_pipe_exits_7(self) -> None:
+        path = self.task / "state.md"
+        for label, make in {"directory": path.mkdir,
+                            "named pipe": lambda: os.mkfifo(path, 0o600)}.items():
+            with self.subTest(case=label):
+                make()
+                before = snapshot(self.task)
+
+                document = self.invalid(self.validate(), 7, "unsafe-state-file")
+
+                self.assertIsNone(document["source_revision"])
+                self.assertEqual(snapshot(self.task), before)
+                if path.is_dir():
+                    path.rmdir()
+                else:
+                    path.unlink()
+
+    def test_every_structure_error_is_listed_before_every_invariant_error(self) -> None:
+        unjustified = leaf("T-01", header=leaf_statuses("n-a"), body=leaf_body(HYPHEN_JUSTIFICATION))
+        cases = {"duplicate after the invalid value": (
+                     state_text(leaf("T-01", header=leaf_statuses("red", execution="done")),
+                                leaf("T-02"), leaf("T-02")),
+                     ["block-duplicate", "invalid-value"]),
+                 "malformed receipts after the unjustified status": (
+                     state_text(unjustified, leaf("T-02", body=leaf_body(
+                         extra=f"  state_receipts: {receipts(21)}\n"))),
+                     ["malformed-receipts", "n-a-unjustified"]),
+                 "invariant errors of the first and the last block": (
+                     state_text(unjustified, leaf("T-02", body="  last_action: x\n\tstray\n"
+                                                               "  target_files:\n  notes:\n"),
+                                leaf("T-03", header=leaf_statuses("red", execution="complete"))),
+                     ["malformed-block", "n-a-unjustified", "completion-without-tests"])}
+        for label, (text, expected) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(text)
+
+                document = self.invalid(self.validate(), 3)
+
+                self.assertEqual([item["code"] for item in document["errors"]], expected)
+
+    @unittest.skipIf(os.geteuid() == 0, "permission bits do not restrict the superuser")
+    def test_unreadable_state_file_exits_7_io_error_for_get_and_validate(self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        before = snapshot(self.task)
+        self.addCleanup(path.chmod, stat.S_IMODE(os.lstat(path).st_mode))
+        path.chmod(0)
+        unreadable = os.lstat(path)
+
+        read = self.refused(self.get(), 7, "io-error")
+        checked = self.invalid(self.validate(), 7, "io-error")
+
+        self.assertIsNone(read["source_revision"])
+        self.assertIsNone(checked["source_revision"])
+        self.assertEqual(os.listdir(self.task), ["state.md"])
+        current = os.lstat(path)
+        self.assertEqual((current.st_mode, current.st_mtime_ns, current.st_ino),
+                         (unreadable.st_mode, unreadable.st_mtime_ns, unreadable.st_ino))
+        path.chmod(stat.S_IMODE(before["state.md"][0]))
+        self.assertEqual(snapshot(self.task), before)
+
     def test_path_and_file_refusals_keep_exits_2_and_7(self) -> None:
         outside = self.base / "outside"
         outside.mkdir()
@@ -1119,8 +1263,43 @@ class BlockGrammarTests(ValidateCase):
                 self.invalid(self.validate(), 3, "malformed-block")
                 self.valid(self.validate("--block", "T-01"))
 
+    def test_line_that_holds_only_spaces_is_not_a_blank_line(self) -> None:
+        malformed = {"one space": "  notes: a\n \n  target_files:\n",
+                     "two spaces": "  notes: a\n  \n  target_files:\n"}
+        for label, body in malformed.items():
+            with self.subTest(line=label):
+                self.write_state(state_text(leaf("T-01", body=body), leaf("T-02")))
 
-SPECIFICATION_LABEL = re.compile(r"\b(?:REQ|AC|I|D|A)-[0-9]+\b")
+                self.refused(self.get("--block", "T-01"), 3, "malformed-block")
+
+        with self.subTest(line="three spaces"):
+            self.write_state(state_text(leaf("T-01", body="  notes: a\n   \n  target_files:\n"),
+                                        leaf("T-02")))
+
+            block = self.block(self.read_ok(self.get("--block", "T-01")), "T-01")
+
+            notes = [field for field in block["fields"] if field["name"] == "notes"]
+            self.assertEqual([(field["value"], field["continuation"]) for field in notes],
+                             [("a", ["   "])])
+            self.assertEqual([field["name"] for field in block["fields"]],
+                             ["notes", "target_files"])
+
+    def test_continuation_after_a_fence_directly_under_the_header_is_malformed(self) -> None:
+        block = (f"T-01 | Leaf | {leaf_statuses('not-started')}\n"
+                 "   ```\n   inner\n   ```\n     continued\n"
+                 "  last_action: x\n  target_files:\n  blocker: none\n  notes:\n")
+        self.write_state(state_text(block, leaf("T-02")))
+
+        document = self.refused(self.get("--block", "T-01"), 3, "malformed-block")
+
+        self.assertEqual([item["message"] for item in document["errors"]],
+                         ["block T-01: continuation line without a field line"])
+        self.invalid(self.validate("--block", "T-01"), 3, "malformed-block")
+        self.invalid(self.validate(), 3, "malformed-block")
+        self.valid(self.validate("--block", "T-02"))
+
+
+SPECIFICATION_LABEL = re.compile(r"\b(?:REQ|AC|I|D|A|C|Q)-[0-9]+\b")
 
 
 class SourceWordingTests(unittest.TestCase):
@@ -1620,6 +1799,37 @@ class SetRefusalTests(SetCase):
         self.assertIn(REFUSAL_SENTENCE, conflict.stderr)
         self.assertIn(REFUSAL_SENTENCE, read_only.stderr)
 
+    def test_validate_refuses_nothing_so_it_never_prints_the_no_bypass_sentence(self) -> None:
+        cases = {"invariant error": (state_text(leaf("T-01", header=leaf_statuses(
+                     "red", execution="complete"))), 6),
+                 "structure error": (state_text(leaf("T-01"), leaf("T-01")), 3)}
+        for label, (text, code) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(text)
+
+                result = self.run_tool("validate", "--root", str(self.root), "--task",
+                                       str(self.task))
+
+                self.assertEqual(result.code, code, result.stdout)
+                self.assertEqual(self.output(result)["result"], "invalid")
+                self.assertTrue(result.stderr.strip())
+                self.assertNotIn(REFUSAL_SENTENCE, result.stderr)
+
+    def test_state_file_in_an_unsupported_encoding_refuses_set_without_any_change(self) -> None:
+        text = state_text(leaf("T-01")).encode("utf-8")
+        cases = {"byte order mark": b"\xef\xbb\xbf" + text,
+                 "carriage return": text.replace(b"\n", b"\r\n"),
+                 "invalid utf-8": text.replace(b"Leaf", b"Le\xffaf")}
+        for label, content in cases.items():
+            with self.subTest(case=label):
+                path = self.write_state(content)
+                before = self.files_without_lock()
+
+                self.write_refused(self.set_fields("last_action=x"), 3, "unsupported-encoding")
+
+                self.assertEqual(path.read_bytes(), content)
+                self.assert_unchanged_after_refusal(before)
+
 
 class SetInvocationTests(SetCase):
     def test_invalid_write_invocations_exit_2_with_one_json_object(self) -> None:
@@ -2063,7 +2273,8 @@ class AddFileTests(NoteAndFileCase):
         cases = {"absolute": ("/abs",), "parent segment": ("../x",), "comma": ("a,b",),
                  "empty": ("",), "leading dot slash": ("./a.sh",), "trailing slash": ("a/",),
                  "inner parent segment": ("a/../b.sh",), "final parent segment": ("a/..",),
-                 "valid path before an invalid one": ("ok.sh", "/abs")}
+                 "valid path before an invalid one": ("ok.sh", "/abs"),
+                 "line feed": ("a\nb.sh",), "carriage return": ("a\rb.sh",)}
         for label, paths in cases.items():
             with self.subTest(case=label):
                 self.write_state(state_text(leaf("T-01")))
@@ -2310,6 +2521,43 @@ class TestsStatusTransitionTests(LifecycleCase):
                 if not isinstance(expected, str):
                     self.assertEqual(self.header_after()["atomic-tests"], "n-a")
 
+    def test_n_a_justification_counts_only_in_the_notes_of_the_block_with_its_space(self) -> None:
+        plain = status_leaf("not-started")
+        in_last_action = leaf("T-01", body=("  last_action: " + EM_DASH_JUSTIFICATION + "\n"
+                                            "  target_files:\n  blocker: none\n  notes:\n"))
+        justified_other = leaf("T-02", body=leaf_body(EM_DASH_JUSTIFICATION))
+        cases: dict[str, tuple[str, str, tuple[str, ...]]] = {
+            "only in last_action": (in_last_action, leaf("T-02"), ()),
+            "only in another block": (plain, justified_other, ()),
+            "recorded note ending at the dash": (
+                status_leaf("not-started", "not-started", "tdd: none —"), leaf("T-02"), ()),
+            "note of the same call without the space": (plain, leaf("T-02"),
+                                                        ("tdd: none —smoke considered",))}
+        for label, (block_text, other, notes) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(state_text(block_text, other))
+                before = self.files_without_lock()
+
+                result = self.set_with("atomic-tests=n-a", notes=notes)
+
+                self.write_refused(result, 6, "n-a-unjustified")
+                self.assertIn(REFUSAL_SENTENCE, result.stderr)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_previous_value_outside_the_vocabulary_counts_as_not_started(self) -> None:
+        tests_changed = ("atomic-tests", "state_receipts")
+        cases: dict[str, Outcome] = {"not-started": tests_changed, "red": tests_changed,
+                                     "pinned": tests_changed, "failed": tests_changed,
+                                     "green": "invalid-transition", "n-a": "n-a-unjustified"}
+        for value, expected in cases.items():
+            with self.subTest(value=value):
+                document = self.check_set(status_leaf("passing"), (f"atomic-tests={value}",), (),
+                                          expected)
+
+                if not isinstance(expected, str):
+                    self.assertEqual(document["warnings"], [])
+                    self.assertEqual(self.header_after()["atomic-tests"], value)
+
 
 class CompletionAndStartTests(LifecycleCase):
     def test_completion_needs_green_or_justified_tests_or_the_pre_tdd_note(self) -> None:
@@ -2371,6 +2619,22 @@ class CompletionAndStartTests(LifecycleCase):
         self.assertIn("T-01 | Leaf | atomic-tests: red | atomic-execution: in-progress | "
                       "atomic-validation: not-started\n", self.state())
 
+    def test_pre_tdd_note_completes_only_a_leaf_that_was_in_progress(self) -> None:
+        for previous in ("failed", "skipped"):
+            with self.subTest(previous=previous):
+                self.check_set(status_leaf(None, previous, PRE_TDD_NOTE),
+                               ("atomic-execution=complete",), (), "completion-without-tests")
+
+    def test_absent_tests_segment_takes_a_starting_value_before_the_execution_segment(
+            self) -> None:
+        for value in ("not-started", "red", "pinned", "failed"):
+            with self.subTest(value=value):
+                self.check_set(status_leaf(None, "in-progress"), (f"atomic-tests={value}",), (),
+                               ("atomic-tests", "state_receipts"))
+
+                self.assertIn(f"T-01 | Leaf | atomic-tests: {value} | atomic-execution: "
+                              "in-progress | atomic-validation: not-started\n", self.state())
+
 
 class FieldGroupAtomicityTests(LifecycleCase):
     def test_one_refused_input_among_valid_fields_and_notes_changes_nothing(self) -> None:
@@ -2431,6 +2695,16 @@ class FieldGroupAtomicityTests(LifecycleCase):
                                           ("last_action", "state_receipts"))
                 self.assertEqual(document["warnings"], warnings)
 
+    def test_field_that_set_may_not_change_is_reported_before_a_refused_transition(self) -> None:
+        cases = {"read-only field": ("pr=1", "read-only-field"),
+                 "field of the other block kind": ("rollup=done", "field-not-applicable")}
+        for label, (pair, error) in cases.items():
+            with self.subTest(case=label):
+                document = self.check_set(status_leaf("green"), ("atomic-tests=red", pair), (),
+                                          error)
+
+                self.assertEqual([item["code"] for item in document["errors"]], [error])
+
 
 class PreExistingViolationTests(LifecycleCase):
     def test_violation_in_an_unchanged_field_is_applied_with_a_warning(self) -> None:
@@ -2468,6 +2742,41 @@ class PreExistingViolationTests(LifecycleCase):
         code, errors = self.validate_codes()
         self.assertEqual(code, 6)
         self.assertIn("n-a-unjustified", errors)
+
+    def test_completion_on_an_unjustified_n_a_is_applied_with_a_warning_and_stays_invalid(
+            self) -> None:
+        self.write_state(state_text(status_leaf("n-a", "in-progress", HYPHEN_JUSTIFICATION)))
+
+        document = self.applied(self.set_fields("atomic-execution=complete"),
+                                "atomic-execution", "state_receipts")
+
+        self.assertEqual(document["warnings"], ["pre-existing-violation"])
+        self.assertEqual(self.header_after()["atomic-execution"], "complete")
+        code, errors = self.validate_codes()
+        self.assertEqual(code, 6)
+        self.assertEqual(errors, ["n-a-unjustified"])
+
+    def test_naming_the_current_tests_value_of_a_violating_block_is_unchanged_without_warnings(
+            self) -> None:
+        cases = {"unjustified n-a": (status_leaf("n-a", "not-started", HYPHEN_JUSTIFICATION),
+                                     "atomic-tests=n-a"),
+                 "completion with red tests": (status_leaf("red", "complete"),
+                                               "atomic-tests=red")}
+        for label, (block_text, pair) in cases.items():
+            with self.subTest(case=label):
+                path = self.write_state(state_text(block_text, leaf("T-02")))
+                source = file_revision(path)
+                before = self.files_without_lock()
+
+                result = self.set_fields(pair)
+
+                document = self.output(result)
+                self.assertEqual(result.code, 0, result.stdout + result.stderr)
+                self.assertEqual(document["result"], "unchanged")
+                self.assertEqual(document["warnings"], [])
+                self.assertEqual(document["changed_fields"], [])
+                self.assertEqual(document["result_revision"], source)
+                self.assert_unchanged_after_refusal(before)
 
     def test_missing_required_field_is_reported_by_writes_unless_the_write_supplies_it(
             self) -> None:
@@ -2691,6 +3000,87 @@ class InitBlockLayoutTests(InitBlockCase):
                            "T-04-fix-some-slug")
         self.assertEqual(block["block_kind"], "leaf")
         self.assertEqual(block["name"], "Fix")
+        self.assert_valid_state()
+
+    def test_heading_directly_after_the_insertion_point_follows_the_new_block_directly(
+            self) -> None:
+        receipt = expected_receipt("init-block", init_inputs("leaf", "Demo"), block_id="T-05")
+        block = new_leaf("T-05", "Demo", receipt)
+        cases = {"section heading directly followed by the next heading": (
+                     state_text(after="").removesuffix("\n") + "## Next\n",
+                     "## Subtask Progress\n## Next\n", "## Subtask Progress\n" + block + "## Next\n"),
+                 "last block directly followed by a heading": (
+                     state_text(LAST_BLOCK_T04, after="").removesuffix("\n") + "## Next\n",
+                     "  pr: none\n## Next\n", "  pr: none\n\n" + block + "## Next\n")}
+        for label, (original, before, after) in cases.items():
+            with self.subTest(case=label):
+                self.write_state(original)
+                self.assertTrue(original.endswith(before), original)
+
+                self.initialized(self.init_block("T-05", "leaf", "Demo"), "T-05", "leaf")
+
+                self.assertEqual(self.state(), original.removesuffix(before) + after)
+                self.assert_valid_state()
+
+    def test_line_of_spaces_is_the_last_non_blank_line_of_the_section(self) -> None:
+        original = state_text(LAST_BLOCK_T04, after="   \n\n## Next\n")
+        self.write_state(original)
+        ending = "  pr: none\n\n   \n\n## Next\n"
+        self.assertTrue(original.endswith(ending), original)
+        receipt = expected_receipt("init-block", init_inputs("leaf", "Demo"), block_id="T-05")
+
+        self.initialized(self.init_block("T-05", "leaf", "Demo"), "T-05", "leaf")
+
+        self.assertEqual(self.state(), original.removesuffix(ending) + "  pr: none\n\n   \n\n"
+                         + new_leaf("T-05", "Demo", receipt) + "\n## Next\n")
+
+    def test_damage_in_another_block_does_not_block_creation_and_stays_as_it_is(self) -> None:
+        receipt = expected_receipt("init-block", init_inputs("leaf", "Demo"), block_id="T-05")
+        block = new_leaf("T-05", "Demo", receipt)
+        tab_line = leaf("T-04", body="  last_action: x\n\tstray\n  target_files:\n  notes:\n")
+        cases = {"malformed block": state_text(leaf("T-03"), tab_line, after="## Next\n"),
+                 "duplicated block": state_text(leaf("T-04"), leaf("T-04"), after="## Next\n"),
+                 "unrecognized prefix": state_text("[x] " + leaf("T-04"), leaf("T-03"),
+                                                   after="## Next\n")}
+        for label, original in cases.items():
+            with self.subTest(case=label):
+                self.write_state(original)
+                self.assertEqual(original.count("\n\n## Next\n"), 1)
+
+                self.initialized(self.init_block("T-05", "leaf", "Demo"), "T-05", "leaf")
+
+                self.assertEqual(self.state(), original.replace(
+                    "\n\n## Next\n", "\n\n" + block + "\n## Next\n", 1))
+
+    def test_original_permission_bits_are_kept(self) -> None:
+        path = self.write_state(state_text(LAST_BLOCK_T04))
+        path.chmod(0o640)
+
+        self.initialized(self.init_block("T-05", "leaf", "Demo"), "T-05", "leaf")
+
+        self.assertEqual(stat.S_IMODE(os.lstat(path).st_mode), 0o640)
+
+    def test_created_block_accepts_a_following_set(self) -> None:
+        self.write_state(state_text(LAST_BLOCK_T04))
+        created = expected_receipt("init-block", init_inputs("leaf", "Demo"), block_id="T-05")
+        self.initialized(self.init_block("T-05", "leaf", "Demo"), "T-05", "leaf")
+        before = self.state()
+        fields = [["atomic-execution", "in-progress"], ["atomic-tests", "red"],
+                  ["last_action", "started"]]
+        started = expected_receipt("set", {"fields": fields, "notes": []}, block_id="T-05",
+                                   operation_id="op-2")
+
+        document = self.applied(self.set_fields(*("=".join(pair) for pair in fields),
+                                                block="T-05", operation_id="op-2"),
+                                "atomic-tests", "atomic-execution", "last_action",
+                                "state_receipts")
+
+        self.assertEqual(document["warnings"], [])
+        self.assertEqual(self.state(), before.replace(new_leaf("T-05", "Demo", created), (
+            "T-05 | Demo | atomic-tests: red | atomic-execution: in-progress | "
+            "atomic-validation: not-started\n"
+            "  last_action: started\n  target_files:\n  blocker: none\n  notes:\n"
+            f"  state_receipts: {created}, {started}\n"), 1))
         self.assert_valid_state()
 
 
@@ -2956,6 +3346,46 @@ class InitBlockRefusalTests(InitBlockCase):
                 self.assertEqual(self.state(), original)
                 self.assert_unchanged_after_refusal(before)
 
+    def test_unclosed_tilde_fence_at_the_end_of_the_section_exits_1_and_writes_nothing(
+            self) -> None:
+        cases = {"column-zero fence after the last block": state_text(
+                     leaf("T-04"), "~~~text\nunclosed example\n", after="## Next\n"),
+                 "indented fence inside the last block": state_text(
+                     leaf("T-04", body=leaf_body(extra="   ~~~\n  pr: hidden\n")), after="")}
+        for label, original in cases.items():
+            with self.subTest(case=label):
+                self.write_state(original)
+                before = self.files_without_lock()
+
+                self.init_refused(self.init_block("T-05", "leaf", "Demo"), 1, "internal-error")
+
+                self.assertEqual(self.state(), original)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_state_file_that_no_write_accepts_exits_3_and_nothing_changes(self) -> None:
+        self.require_tool()
+        tool = copy_tool(self.base / "tool", "1.0.0")
+        text = state_text(LAST_BLOCK_T04)
+        cases = {"duplicated section": (text + "\n## Subtask Progress\n\n" + leaf("T-02"),
+                                        "section-duplicate"),
+                 "carriage returns": (text.replace("\n", "\r\n"), "unsupported-encoding"),
+                 "newer contract version": (state_text(LAST_BLOCK_T04, contract_version="99.0.0"),
+                                            "unsupported-contract-version")}
+        for label, (original, error) in cases.items():
+            with self.subTest(case=label):
+                path = self.write_state(original)
+                before = self.files_without_lock()
+
+                result = self.run_tool(
+                    "init-block", "--root", str(self.root), "--task", str(self.task),
+                    "--block", "T-05", "--kind", "leaf", "--name", "Demo",
+                    "--expected-revision", file_revision(path), "--operation-id", OPERATION_ID,
+                    tool=tool)
+
+                self.init_refused(result, 3, error)
+                self.assertEqual(path.read_bytes(), original.encode("utf-8"))
+                self.assert_unchanged_after_refusal(before)
+
     def test_malformed_revision_or_operation_id_exits_2(self) -> None:
         self.write_state(state_text(LAST_BLOCK_T04))
         before = snapshot(self.task)
@@ -3143,6 +3573,58 @@ class ReceiptRepeatTests(ReceiptCase):
         self.already_applied(result, "set", "T-01", "leaf", operation_id=LONGEST_OPERATION_ID)
         self.assert_unchanged_after_refusal(before)
 
+    def test_reused_operation_id_is_a_conflict_before_the_content_rules_judge_its_inputs(
+            self) -> None:
+        self.write_state(RECEIPT_STATE)
+        self.applied_once(self.write("set", "--field", "last_action=first"))
+        before = self.files_without_lock()
+        cases = {"read-only field": ("set", ("--field", "pr=1"), "read-only-field"),
+                 "value outside the vocabulary": ("set", ("--field", "atomic-execution=done"),
+                                                  "invalid-value"),
+                 "absolute path": ("add-file", ("--path", "/abs"), "invalid-path")}
+        for label, (command, options, error) in cases.items():
+            with self.subTest(case=label, operation_id="recorded"):
+                self.conflict(self.write(command, *options), command)
+                self.assert_unchanged_after_refusal(before)
+            with self.subTest(case=label, operation_id="new"):
+                result = self.write(command, *options, operation_id="op-new")
+
+                self.refused_by(result, command, 6, error)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_call_that_would_change_nothing_is_refused_at_a_stale_revision(self) -> None:
+        self.write_state(state_text(leaf("T-01", body=(
+            "  last_action:\n  target_files: a.sh\n  blocker: none\n  notes:\n"))))
+        before = self.files_without_lock()
+        cases = {"set": ("--field", "blocker=none"), "add-file": ("--path", "a.sh")}
+        for command, options in cases.items():
+            with self.subTest(command=command, revision="stale"):
+                result = self.write(command, *options, revision=ZERO_REVISION)
+
+                self.refused_by(result, command, 4, "revision-conflict")
+                self.assertIn(REFUSAL_SENTENCE, result.stderr)
+                self.assert_unchanged_after_refusal(before)
+            with self.subTest(command=command, revision="current"):
+                result = self.write(command, *options)
+
+                self.assertEqual(result.code, 0, result.stdout + result.stderr)
+                self.assertEqual(self.output(result)["result"], "unchanged")
+                self.assert_unchanged_after_refusal(before)
+
+    def test_lock_wait_bound_is_not_an_input_of_the_operation(self) -> None:
+        for command, (block_id, first, _) in REPEATABLE_WRITES.items():
+            task = self.task_copy(f"task-{command}", RECEIPT_STATE)
+            initial = file_revision(task / "state.md")
+            self.applied_once(self.write(command, *first, block=block_id, task=task))
+            before = self.files_without_lock(task)
+            for seconds in ("0", "7"):
+                with self.subTest(command=command, seconds=seconds):
+                    result = self.write(command, *first, "--lock-wait-seconds", seconds,
+                                        block=block_id, revision=initial, task=task)
+
+                    self.already_applied(result, command, block_id, "leaf", task)
+                    self.assert_untouched(task, before)
+
 
 class InitBlockReceiptTests(ReceiptCase):
     def test_existing_id_is_judged_by_its_receipts_then_the_revision_then_block_exists(
@@ -3198,6 +3680,43 @@ class InitBlockReceiptTests(ReceiptCase):
 
                 self.assert_unchanged_after_refusal(before)
 
+    def test_existing_id_that_no_write_may_target_is_refused_with_exit_3_at_any_revision(
+            self) -> None:
+        unknown_header = ("atomic-tests: red | atomic-foo: x | atomic-execution: in-progress | "
+                          "atomic-validation: not-started")
+        cases = {"tab-indented line": (leaf("T-05", body="  last_action: x\n\tstray\n"
+                                                         "  target_files:\n  notes:\n"),
+                                       "malformed-block"),
+                 "unrecognized prefix": ("[x] " + leaf("T-05"), "unrecognized-prefix"),
+                 "unknown header field": (leaf("T-05", header=unknown_header),
+                                          "unknown-header-field")}
+        for label, (block, error) in cases.items():
+            path = self.write_state(state_text(leaf("T-04"), block))
+            before = self.files_without_lock()
+            for revision_label, revision in {"stale": ZERO_REVISION,
+                                             "current": file_revision(path)}.items():
+                with self.subTest(case=label, revision=revision_label):
+                    result = self.init_block("T-05", "leaf", "Demo", revision=revision)
+
+                    self.init_refused(result, 3, error)
+                    self.assert_unchanged_after_refusal(before)
+
+    def test_children_in_another_order_under_a_recorded_id_are_an_operation_conflict(
+            self) -> None:
+        self.write_state(state_text(LAST_BLOCK_T04))
+        stale = file_revision(self.task / "state.md")
+        self.applied_once(self.init_block("T-06", "composite", "Parent", "--children",
+                                          "T-06a,T-06b", "--note", "n"))
+        before = self.files_without_lock()
+        for label, revision in {"stale": stale,
+                                "current": file_revision(self.task / "state.md")}.items():
+            with self.subTest(revision=label):
+                result = self.init_block("T-06", "composite", "Parent", "--children",
+                                         "T-06b,T-06a", "--note", "n", revision=revision)
+
+                self.conflict(result, "init-block")
+                self.assert_unchanged_after_refusal(before)
+
 
 class ReceiptCapTests(ReceiptCase):
     def test_twenty_one_operations_keep_the_twenty_newest_receipts_and_a_dropped_one_is_new(
@@ -3231,6 +3750,40 @@ class ReceiptCapTests(ReceiptCase):
             self.already_applied(result, "set", "T-01", "leaf", operation_id=operations[1][0])
             self.assert_unchanged_after_refusal(before)
 
+    def test_dropped_operation_repeated_at_the_current_revision_is_applied_as_new(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        operations = [(f"step-{index:02d}", f"last_action=value {index}") for index in range(21)]
+        for operation_id, pair in operations:
+            self.applied_once(self.write("set", "--field", pair, operation_id=operation_id))
+        entries = [expected_receipt("set", {"fields": [pair.split("=", 1)], "notes": []},
+                                    operation_id=operation_id)
+                   for operation_id, pair in operations]
+
+        result = self.write("set", "--field", operations[0][1], operation_id=operations[0][0])
+
+        self.applied(result, "last_action", "state_receipts")
+        self.assertIn("  last_action: value 0\n", self.state())
+        self.assertEqual(self.receipt_line(self.state(), operation_id="step-00"),
+                         "  state_receipts: " + ", ".join(entries[2:] + entries[:1]) + "\n")
+
+    def test_write_on_a_line_of_twenty_receipts_drops_the_oldest_entry(self) -> None:
+        recorded = receipts(20)
+        original = state_text(leaf("T-01", body=leaf_body(
+            extra=f"  state_receipts: {recorded}\n")))
+        inputs = {"set": {"fields": [["last_action", "first"]], "notes": []},
+                  "append-note": {"notes": ["first"]},
+                  "add-file": {"paths": ["a.sh"]}}
+        for command, digested in inputs.items():
+            with self.subTest(command=command):
+                task = self.task_copy(f"task-{command}", original)
+
+                self.applied_once(self.write(command, *REPEATABLE_WRITES[command][1], task=task))
+
+                kept = recorded.split(", ")[1:]
+                self.assertEqual(len(kept), 19)
+                self.assertEqual(self.receipt_line(self.state(task)), "  state_receipts: "
+                                 + ", ".join(kept + [expected_receipt(command, digested)]) + "\n")
+
 
 class MalformedReceiptsWriteTests(ReceiptCase):
     def test_malformed_receipts_line_refuses_writes_to_its_block_only(self) -> None:
@@ -3260,6 +3813,22 @@ class MalformedReceiptsWriteTests(ReceiptCase):
 
             self.already_applied(result, "set", "T-02", "leaf")
             self.assert_unchanged_after_refusal(after)
+
+    def test_receipts_line_with_a_bad_entry_or_a_repeated_id_refuses_writes(self) -> None:
+        lines = {"bad entry": "op-01#0123456789ABCDEF",
+                 "repeated id": "op-01#0123456789abcdef, op-01#fedcba9876543210"}
+        writes = {"set": ("--field", "last_action=x"), "append-note": ("--note", "x"),
+                  "add-file": ("--path", "x.sh")}
+        for label, value in lines.items():
+            self.write_state(state_text(leaf("T-01", body=leaf_body(
+                extra=f"  state_receipts: {value}\n"))))
+            before = self.files_without_lock()
+            for command, options in writes.items():
+                with self.subTest(line=label, command=command):
+                    result = self.write(command, *options)
+
+                    self.refused_by(result, command, 3, "malformed-receipts")
+                    self.assert_unchanged_after_refusal(before)
 
 
 # Byte sequences that are not valid UTF-8. The operating system hands argument bytes to the
@@ -3425,6 +3994,27 @@ class InvalidUtf8ArgumentTests(ReceiptCase):
                     self.conflict(result, command)
                     self.assertNotIn("Traceback", result.stderr)
                     self.assert_untouched(task, before)
+
+    def test_invalid_text_never_shares_a_digest_with_valid_text_it_could_be_mistaken_for(
+            self) -> None:
+        invalid = argument_with(b"a\xff")
+        valid = {"question mark": "a?",
+                 "replacement character": "a\ufffd",
+                 "text without the byte": "a",
+                 "surrogate escape spelled in ASCII": "a\\udcff",
+                 "byte escape spelled in ASCII": "a\\xff"}
+        self.assertEqual([len(valid[label]) for label in valid if "ASCII" in label], [7, 5])
+        for label, note in valid.items():
+            with self.subTest(recorded=label):
+                task = self.task_copy("task-" + label.replace(" ", "-"), RECEIPT_STATE)
+                self.applied_once(self.append_notes(note, task=task))
+                before = self.files_without_lock(task)
+
+                result = self.append_notes(invalid, task=task)
+
+                self.conflict(result, "append-note")
+                self.assertNotIn("Traceback", result.stderr)
+                self.assert_untouched(task, before)
 
     def test_existing_id_with_an_invalid_name_is_judged_like_any_existing_id(self) -> None:
         self.write_state(RECEIPT_STATE)
@@ -3801,6 +4391,29 @@ class RecoveryCase(NoteAndFileCase):
             self.assertIn(key, document, result.stdout)
         return document
 
+    def busy_in_standard_json(self, result: ToolResult) -> dict[str, Any]:
+        """An exit-5 refusal whose stdout is one standard JSON object with lock-busy as its only
+        error; stderr carries the no-bypass sentence and no traceback."""
+        try:
+            document = strict_json(result.stdout)
+        except (ValueError, RecursionError) as error:
+            self.fail(f"stdout is not one standard JSON object ({error}); exit {result.code}; "
+                      f"stderr: {result.stderr[-300:]!r}")
+        self.assertIsInstance(document, dict)
+        self.assertEqual(result.code, 5, result.stdout[:300])
+        self.assertEqual(document["result"], "rejected")
+        self.assertEqual([item["code"] for item in document["errors"]], ["lock-busy"])
+        for key in ("lock_owner", "lock_age_seconds", "stale_suspected"):
+            self.assertIn(key, document, result.stdout[:300])
+        self.assertIn(REFUSAL_SENTENCE, result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        return document
+
+    def tool_arguments(self, command: str, block_id: str, options: tuple[str, ...], task: Path,
+                       revision: str) -> tuple[str, ...]:
+        return (command, "--root", str(self.root), "--task", str(task), "--block", block_id,
+                "--expected-revision", revision, "--operation-id", OPERATION_ID, *options)
+
 
 class LockContentionTests(RecoveryCase):
     def test_held_lock_with_old_metadata_is_refused_with_owner_details_until_the_holder_dies(
@@ -3828,6 +4441,23 @@ class LockContentionTests(RecoveryCase):
         with self.subTest(phase="holder killed"):
             self.applied(self.run_tool(*arguments, "--lock-wait-seconds", "1"),
                          "last_action", "state_receipts")
+
+    def test_busy_refusal_keeps_the_lock_file_itself(self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        arguments = self.set_arguments("last_action=x", file_revision(path))
+        holder = self.hold_lock()
+        owner = self.owner(holder.pid)
+        self.lock.write_text(json.dumps(owner) + "\n", encoding="utf-8")
+        held = os.lstat(self.lock)
+        before = snapshot(self.task)
+
+        document = self.busy_in_standard_json(self.run_tool(*arguments,
+                                                            "--lock-wait-seconds", "0"))
+
+        self.assertEqual(document["lock_owner"], owner)
+        current = os.lstat(self.lock)
+        self.assertEqual((current.st_dev, current.st_ino), (held.st_dev, held.st_ino))
+        self.assertEqual(snapshot(self.task), before)
 
     def test_owner_details_follow_the_recorded_start_time_with_a_zero_wait(self) -> None:
         path = self.write_state(state_text(leaf("T-01")))
@@ -3900,6 +4530,15 @@ class LockContentionTests(RecoveryCase):
         self.assertRegex(metadata["owner_token"], r"^[0-9a-f]{32}$")
         self.assertNotEqual(metadata["owner_token"], HOLDER_TOKEN)
         self.assertEqual(stat.S_IMODE(os.lstat(self.lock).st_mode), 0o600)
+
+
+# Each further write command: its target block, its options and the text only it writes.
+INTERRUPTED_WRITES = {
+    "set": ("T-01", ("--field", "last_action=recorded around an interruption"),
+            "recorded around an interruption"),
+    "add-file": ("T-01", ("--path", "src/interrupted.py"), "src/interrupted.py"),
+    "init-block": ("T-05", ("--kind", "leaf", "--name", "Interrupted block"),
+                   "Interrupted block")}
 
 
 class InterruptionRecoveryTests(RecoveryCase):
@@ -3988,6 +4627,114 @@ class InterruptionRecoveryTests(RecoveryCase):
         self.assertIn("  last_action: synced\n", self.state())
         self.assertEqual(document["result_revision"], file_revision(path))
         self.assertEqual(self.temporary_files(), [])
+
+    def uninterrupted_bytes(self, command: str, block_id: str, options: tuple[str, ...]) -> bytes:
+        """Bytes of the same write, uninterrupted, on a copy of the task."""
+        copy = self.task_copy(f"reference-{command}", RECEIPT_STATE)
+        result = self.write(command, *options, block=block_id, task=copy)
+        self.assertEqual(result.code, 0, result.stdout + result.stderr)
+        self.assertEqual(self.output(result)["result"], "applied", result.stdout)
+        return (copy / "state.md").read_bytes()
+
+    def test_kill_before_replace_keeps_the_old_file_for_every_other_write_command(self) -> None:
+        for command, (block_id, options, marker) in INTERRUPTED_WRITES.items():
+            with self.subTest(command=command):
+                task = self.task_copy(f"task-{command}", RECEIPT_STATE)
+                path = task / "state.md"
+                initial = file_revision(path)
+                expected = self.uninterrupted_bytes(command, block_id, options)
+
+                result = self.finish(self.start_tool("kill-before-replace", *self.tool_arguments(
+                    command, block_id, options, task, initial)))
+
+                self.assertEqual(result.code, -signal.SIGKILL, result.stdout + result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual(path.read_bytes(), RECEIPT_STATE.encode("utf-8"))
+                leftovers = self.temporary_files(task)
+                self.assertEqual(len(leftovers), 1, leftovers)
+                leftover_bytes = (task / leftovers[0]).read_bytes()
+
+                validation = self.output(self.run_tool("validate", "--root", str(self.root),
+                                                       "--task", str(task)))
+                self.assertEqual(validation["stale_temp_files"], leftovers)
+                self.assertEqual(self.temporary_files(task), leftovers)
+
+                retry = self.write(command, *options, block=block_id, revision=initial, task=task)
+                document = self.output(retry)
+                self.assertEqual(retry.code, 0, retry.stdout + retry.stderr)
+                self.assertEqual(document["result"], "applied", retry.stdout)
+                self.assertEqual(document["stale_temp_files"], leftovers)
+                self.assertEqual(path.read_bytes(), expected)
+                self.assertEqual(self.state(task).count(marker), 1)
+                self.assertEqual(self.temporary_files(task), leftovers)
+                self.assertEqual((task / leftovers[0]).read_bytes(), leftover_bytes)
+
+    def test_kill_after_replace_leaves_the_new_file_for_every_other_write_command(self) -> None:
+        for command, (block_id, options, marker) in INTERRUPTED_WRITES.items():
+            with self.subTest(command=command):
+                task = self.task_copy(f"task-{command}", RECEIPT_STATE)
+                path = task / "state.md"
+                initial = file_revision(path)
+                expected = self.uninterrupted_bytes(command, block_id, options)
+
+                result = self.finish(self.start_tool("kill-after-replace", *self.tool_arguments(
+                    command, block_id, options, task, initial)))
+
+                self.assertEqual(result.code, -signal.SIGKILL, result.stdout + result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual(path.read_bytes(), expected)
+                self.assertEqual(self.temporary_files(task), [])
+                after = self.files_without_lock(task)
+
+                retry = self.write(command, *options, block=block_id, revision=initial, task=task)
+
+                document = self.output(retry)
+                self.assertEqual(retry.code, 0, retry.stdout + retry.stderr)
+                self.assertEqual(document["result"], "already_applied", retry.stdout)
+                self.assertEqual(self.state(task).count(marker), 1)
+                self.assertEqual(self.files_without_lock(task), after)
+
+    def test_failed_candidate_write_sync_or_rename_exits_7_and_leaves_no_temporary_file(
+            self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        original = path.read_bytes()
+        arguments = self.set_arguments("last_action=x", file_revision(path))
+        real_write, real_sync = os.write, os.fsync
+
+        def is_temporary_file(descriptor: int) -> bool:
+            opened = os.fstat(descriptor)
+            candidates = [os.lstat(self.task / name) for name in self.temporary_files()]
+            return any((item.st_dev, item.st_ino) == (opened.st_dev, opened.st_ino)
+                       for item in candidates)
+
+        def failing_write(descriptor: int, data: Any) -> int:
+            if is_temporary_file(descriptor):
+                raise OSError(errno.ENOSPC, "injected write failure")
+            return real_write(descriptor, data)
+
+        def failing_sync(descriptor: int) -> None:
+            if is_temporary_file(descriptor):
+                raise OSError(errno.EIO, "injected sync failure")
+            real_sync(descriptor)
+
+        def failing_rename(source: Any, destination: Any) -> None:
+            raise OSError(errno.EIO, "injected rename failure")
+
+        faults = {"write": failing_write, "fsync": failing_sync, "replace": failing_rename}
+        for name, replacement in faults.items():
+            with self.subTest(failing=name):
+                before = self.files_without_lock()
+
+                with patch.dict(os.environ), patch.object(os, name, replacement):
+                    for key in [key for key in os.environ if key.startswith("STATE_TOOL_TEST_")]:
+                        del os.environ[key]
+                    result = InProcessTests.run_in_process(self, *arguments)
+
+                document = self.write_refused(result, 7, "io-error")
+                self.assertEqual(document["result_revision"], file_revision(path))
+                self.assertEqual(path.read_bytes(), original)
+                self.assertEqual(self.temporary_files(), [])
+                self.assert_unchanged_after_refusal(before)
 
 
 class RecheckTests(RecoveryCase):
@@ -4162,6 +4909,14 @@ def strict_json(text: str) -> Any:
     return json.loads(text, parse_constant=refuse)
 
 
+def nested_object(levels: int, innermost: Any = 1) -> dict[str, Any]:
+    """An object nested to the given number of levels around the innermost value."""
+    value = innermost
+    for _ in range(levels):
+        value = {"a": value}
+    return value
+
+
 class LockMetadataRobustnessTests(RecoveryCase):
     def test_metadata_that_cannot_be_reported_as_standard_json_reports_no_owner(self) -> None:
         path = self.write_state(state_text(leaf("T-01")))
@@ -4196,8 +4951,78 @@ class LockMetadataRobustnessTests(RecoveryCase):
                 self.assertNotIn("Traceback", result.stderr)
                 self.assertEqual(snapshot(self.task), before)
 
+    def refused_with_metadata(self, content: bytes, reported: Any) -> None:
+        """Run a write against the held lock whose file holds the content and check the busy
+        refusal: the owner is the given object, or unknown when the object is None."""
+        path = self.task / "state.md"
+        self.lock.write_bytes(content)
+        before = snapshot(self.task)
 
-CONTRACT_VALIDATOR = ROOT / "scripts" / "validate-contracts.sh"
+        document = self.busy_in_standard_json(self.run_tool(
+            *self.set_arguments("last_action=x", file_revision(path)), "--lock-wait-seconds", "0"))
+
+        self.assertEqual(document["lock_owner"], reported)
+        self.assertIsNone(document["lock_age_seconds"])
+        self.assertIs(document["stale_suspected"], False)
+        self.assertEqual(snapshot(self.task), before)
+
+    def test_metadata_is_reported_up_to_sixteen_levels_of_nesting(self) -> None:
+        self.write_state(state_text(leaf("T-01")))
+        self.hold_lock()
+        cases: dict[str, tuple[Any, bool]] = {
+            "sixteen levels": (nested_object(16), True),
+            "seventeen levels": (nested_object(17), False),
+            "empty object at level seventeen": (nested_object(16, {}), False),
+            "empty list at level seventeen": (nested_object(16, []), False),
+            "empty object at level sixteen": (nested_object(15, {}), True),
+            "empty list at level sixteen": (nested_object(15, []), True)}
+        for label, (metadata, reported) in cases.items():
+            with self.subTest(case=label):
+                self.refused_with_metadata(json.dumps(metadata).encode("utf-8"),
+                                           metadata if reported else None)
+
+    def test_metadata_is_reported_up_to_the_size_limit_of_the_bounded_read(self) -> None:
+        self.write_state(state_text(leaf("T-01")))
+        self.hold_lock()
+        frame = len(b'{"pad":""}')
+        for label, (size, reported) in {"exactly the limit": (65536, True),
+                                        "one byte over the limit": (65537, False)}.items():
+            with self.subTest(case=label):
+                padding = "x" * (size - frame)
+                content = b'{"pad":"' + padding.encode("ascii") + b'"}'
+                self.assertEqual(len(content), size)
+
+                self.refused_with_metadata(content, {"pad": padding} if reported else None)
+
+    def test_repeated_metadata_key_reports_its_last_value(self) -> None:
+        self.write_state(state_text(leaf("T-01")))
+        self.hold_lock()
+
+        self.refused_with_metadata(b'{"pid":1,"pid":2}', {"pid": 2})
+
+    def test_unexpected_failure_while_reading_metadata_keeps_the_busy_refusal(self) -> None:
+        path = self.write_state(state_text(leaf("T-01")))
+        arguments = self.set_arguments("last_action=x", file_revision(path))
+        holder = self.hold_lock()
+        self.lock.write_text(json.dumps(self.owner(holder.pid)) + "\n", encoding="utf-8")
+        before = snapshot(self.task)
+
+        def failing_read(descriptor: int, length: int, offset: int) -> bytes:
+            raise RuntimeError("injected metadata read failure")
+
+        with patch.dict(os.environ), patch.object(os, "pread", failing_read):
+            for key in [key for key in os.environ if key.startswith("STATE_TOOL_TEST_")]:
+                del os.environ[key]
+            result = InProcessTests.run_in_process(self, *arguments, "--lock-wait-seconds", "0")
+
+        document = self.busy_in_standard_json(result)
+        self.assertIsNone(document["lock_owner"])
+        self.assertIsNone(document["lock_age_seconds"])
+        self.assertIs(document["stale_suspected"], False)
+        self.assertEqual(snapshot(self.task), before)
+
+
+CONTRACT_VALIDATOR =ROOT / "scripts" / "validate-contracts.sh"
 TASK_VALIDATOR = ROOT / "scripts" / "validate-task.sh"
 REFERENCE_RULES = ROOT / "rules" / "workflow-reference.md"
 COMPLETED_TASKS = ROOT / ".ai" / "tasks" / "completed"
@@ -4435,6 +5260,28 @@ class TaskValidatorReceiptsTests(StateToolCase):
         result = self.validate_task(task_state(progress=False, preamble=preamble))
         self.assertEqual(result.code, 0, result.stdout)
         self.assertNotIn("state_receipts", result.stdout)
+
+    def test_receipts_text_outside_the_progress_section_or_inside_a_fence_is_not_read(
+            self) -> None:
+        malformed = "  state_receipts: not an entry\n"
+        section = task_state(receipts_leaf("T-01", None))
+        cases = {"under a later level-two heading": "\n## Notes\n" + malformed,
+                 "under a level-one heading": "\n# Appendix\n" + malformed,
+                 "inside a backtick fence": "```\n" + malformed + "```\n",
+                 "inside a tilde fence indented by three spaces": ("   ~~~\n" + malformed
+                                                                   + "   ~~~\n")}
+        for label, following in cases.items():
+            with self.subTest(case=label):
+                self.accepted(section + following)
+
+    def test_receipts_line_after_a_closed_fence_or_a_fenced_heading_is_read(self) -> None:
+        malformed = "  state_receipts: not an entry\n"
+        section = task_state(receipts_leaf("T-01", None))
+        cases = {"after a closed fence": "```\nexample\n```\n" + malformed,
+                 "after a fenced heading": "```\n## Example\n```\n" + malformed}
+        for label, following in cases.items():
+            with self.subTest(case=label):
+                self.rejected(section + following)
 
     def test_atomic_tests_vocabulary_message_names_all_six_values(self) -> None:
         text = task_state(receipts_leaf("T-01", None)).replace("atomic-tests: not-started",
@@ -4696,6 +5543,11 @@ class ManualTests(unittest.TestCase):
                     and re.search(r"(?i)\bby hand\b", paragraph)
                     and all(f"`{pattern}`" in paragraph for pattern in STATE_TOOL_PATTERNS)]
         self.assertEqual(len(matching), 1, "consumer step for projects that track .ai/ missing")
+        sentences = re.split(r"(?<=\.)\s+", " ".join(matching[0].split()))
+        self.assertTrue(any(re.search(r"(?i)\bre-?run", sentence)
+                            and "scripts/setup-new-project.sh" in sentence
+                            for sentence in sentences),
+                        "consumer step must name a rerun of the setup script")
 
     def test_state_tool_section_lists_the_six_commands_and_every_exit_code(self) -> None:
         section = self.section(STATE_TOOL_HEADING)
