@@ -1,4 +1,4 @@
-# 11. Public materials and first stable release readiness
+# 21. Public materials and first stable release readiness
 
 ## Source
 
@@ -7,12 +7,12 @@
   owner's request of 2026-11-16 (translated from Russian: "they are very large and must be
   split in two if this can be done logically; then run each resulting spec through
   `/spec-draft`") Part A, installer and profiles, moved to
-  `.ai/specs/11a-public-installer-and-profiles.md`; Part B, public materials and release
+  `.ai/specs/20-public-installer-and-profiles.md`; Part B, public materials and release
   readiness, stays here. Identifiers keep their numbers and each is defined in exactly one of
   the two files. The Source history below, including the translation of the original request,
-  covers both parts and is the canonical copy that spec 11a cites.
+  covers both parts and is the canonical copy that spec 20 cites.
 - **Origin:** owner decisions in ADR-0009 Decision 1 and Decision 6
-  (`.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:47-75`, `:215-253`): spec 11 keeps
+  (`.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:47-75`, `:215-253`): spec 21 keeps
   the installer, profiles, examples and the re-verification of the scrub; "`sync.sh` replaced
   for external users by an installer with `--dry-run`, `CLAUDE.md` backup, and `--uninstall`"
   (`:240-242`); "Technology-neutral core … `setup-new-project.sh --profile <name>` … the
@@ -20,16 +20,16 @@
   originals kept with English translations alongside" (`:240-241`).
 - **Previous revision:** 2026-10-28, written in Russian, verified against
   `8c2fa08c18115ffcf38a1798742c41e53a2c7461`. The complete Russian text is retrievable with
-  `git show 060ce6dbc7116002ac5e6cd47981cfd3c13d60ff:.ai/specs/11-open-source-readiness.md`.
+  `git show 060ce6dbc7116002ac5e6cd47981cfd3c13d60ff:.ai/specs/21-open-source-readiness.md`.
   Its pinned source links pointed at `scripts/sync.sh`, `scripts/install-hooks.py` and
   `scripts/setup-new-project.sh` at that commit; they are cited below as repository paths.
-- **Roadmap position:** `.ai/specs/README.md` → "Dependency order" — order 17 after the split (16 before it), prerequisites 01, 09, 10, 11a,
+- **Roadmap position:** `.ai/specs/README.md` → "Dependency order" — order 17 after the split (16 before it), prerequisites 01, 10, 19, 20,
   disposition "Accurate docs; license/release remain explicit owner actions".
 - **This revision:** 2026-11-13, refined in place in autonomous specification-authoring mode
   with the owner's authorization to replace the file. No human questions were asked; every
   resolved gap is recorded under Assumptions with its source.
 
-### Translation of the 2026-10-28 request (translated from Russian, spec 11 §1–§3 and §7)
+### Translation of the 2026-10-28 request (translated from Russian, spec 21 §1–§3 and §7)
 
 §1 Goal and status: "Revision: 2026-10-28. The goal is to give a new user a reproducible
 installation, a technology-neutral core, an explicit choice of profile, safe update and
@@ -41,7 +41,7 @@ provides ownership and recovery of individual hook settings but is not a general
 `scripts/sync.sh` still copies the global instructions directly. Profiles, the full
 installer, generated references and the full release process remain planned. Actual user
 installations were not checked. Branch protection state is a mutable service setting and is
-re-checked before release. Dependencies: completed 01, then 09, 10 and 13. Basis of the
+re-checked before release. Dependencies: completed 01, then 10, 19 and 09. Basis of the
 decisions: ADR-0009, decisions 1 and 6; public-history constraints are refined by ADR-0010.
 The completed cleanup and project rename are not repeated."
 
@@ -51,7 +51,7 @@ contribution guide, issue and change templates, a public hygiene check and relea
 readiness. Existing consumers keep their tasks, local content and their decisions about
 which `.ai/` files are tracked. Out of scope: a documentation site, a third runtime
 environment, renaming the project again, changing publication history and migrating
-commands again. Renaming commands belongs to 13. Preparing a release does not mean
+commands again. Renaming commands belongs to 09. Preparing a release does not mean
 permission to bump the version, create a tag, publish a release or change remote
 repository settings."
 
@@ -60,7 +60,7 @@ repository settings."
 - REQ-01 Capability documentation. Describe installed optional tools, ways of working
   without them, actual capability declarations, disabling and resuming. Do not present a
   plan as a delivered function. Examples with model calls are subject to separate
-  authorization under 09.
+  authorization under 10.
 - REQ-02 Economics and privacy of examples. Distinguish subscription payment, the notional
   cost of an equivalent API, unknown counters and measured or hypothetical savings. Publish
   only synthetic anonymized examples; do not carry over real sessions, client context,
@@ -99,12 +99,12 @@ repository settings."
   `docs/SPEC-RUN-QUICKSTART.md`, `docs/reference/` and `.ai/specs/README.md`.
 - REQ-11 Example of a completed task. `docs/examples/flat-task/` contains a synthetic
   specification, discovery results, the state after execution, a proposed merge
-  description and a log summary from the verified `flat` example of spec 09. Provenance
+  description and a log summary from the verified `flat` example of spec 10. Provenance
   and version of the example are mandatory. A manually composed example is not called an
   actual model run.
 - REQ-12 Contribution and harness matrix. Create `CONTRIBUTING.md` with the change
   procedure, file shapes, commit rules, offline checks, audit method and deployment
-  boundary. The matrix `docs/harness-matrix.md` is generated by 10 from actual
+  boundary. The matrix `docs/harness-matrix.md` is generated by 19 from actual
   declarations, distinguishing support, installation and coverage.
 - REQ-13 Procedure preview. For task discovery and bug fixing, define `--dry-run`: reading
   inputs and producing a plan without changing the project, state, branches, commits,
@@ -119,7 +119,7 @@ repository settings."
   originals and place English translations alongside with an unambiguous version
   correspondence. Translation does not change normative decisions.
 - REQ-16 Remote repository readiness. Before release, verify mandatory review of changes,
-  the prohibition of direct pushes to the protected branch and the offline checks of 09. If
+  the prohibition of direct pushes to the protected branch and the offline checks of 10. If
   a setting cannot be read or changed, it is an incomplete release item, not an assumed
   success. It may be changed only within permission the owner has already given.
 - REQ-17 Release. The checklist contains all criteria, the exact source version, the
@@ -147,7 +147,7 @@ user edits and reveals conflicts (REQ-09). AC-09 `README.md` ≤120 lines, all l
 resolve; the getting-started procedure is performed with time and constraints recorded
 (REQ-10). AC-10 the example has all five artifact kinds, verifiable provenance and an
 authorized source; no real client data (REQ-11). AC-11 `CONTRIBUTING.md` allows
-reproducing the offline checks; the harness matrix matches generator 10 and claims no
+reproducing the offline checks; the harness matrix matches generator 19 and claims no
 planned capability (REQ-12). AC-12 the preview of discovery and bug fixing preserves a
 snapshot of all mutable areas, starts no side execution and marks uncertainties (REQ-13).
 AC-13 the local hygiene check is performed and its source is not published; missing
@@ -181,7 +181,7 @@ Verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
   `docs/examples/`, no optional-feature or release-checklist document, and no git tag
   (`git tag -l` is empty). `VERSION` contains `0.9.0`.
 - There is no public installer, no uninstall, no dry run and no profile mechanism;
-  spec 11a delivers them, and this spec documents them (11a → Context & Problem).
+  spec 20 delivers them, and this spec documents them (20 → Context & Problem).
 - The Russian analysis records were replaced in place by English translations that keep the
   `.ru.md` names (`docs/README.md:26`, `:28`); the Russian originals exist only in history:
   `docs/analysis/2026-09-16-comparative-analysis.ru.md` as blob
@@ -219,8 +219,8 @@ Verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
   by `test_sync_preserves_repository_knowledge_policy` (`:1174-1179`); every `rules/*.md`
   name in both scripts (`:1293-1305`); literal `cp "$file" ~/.claude/skills/…` and
   `~/.codex/skills/…` loops in sync's sections 3c and 4d (`:1308-1316`); literal
-  `mkdir -p ~/.<root>/skills/$skill_name` (`:1317-1320`). Spec 13 (data-driven sync, no project rule copies)
-  and spec 11a REQ-04 contradict these expressions, which the current inventory cannot amend; spec 13 introduces a schema-2 inventory amendment (its DM-9) for
+  `mkdir -p ~/.<root>/skills/$skill_name` (`:1317-1320`). Spec 09 (data-driven sync, no project rule copies)
+  and spec 20 REQ-04 contradict these expressions, which the current inventory cannot amend; spec 09 introduces a schema-2 inventory amendment (its DM-9) for
   changing existing expressions. REQ-61's new rule file meets the per-rule runtime checks of
   `:1293-1305` by joining the per-rule deployment lists those checks guard, when they still
   exist (REQ-86, Q-07).
@@ -243,7 +243,7 @@ candidate to authorize.
 
 ## Goal
 
-On top of the installer and profiles of spec 11a, the repository offers the getting-started,
+On top of the installer and profiles of spec 20, the repository offers the getting-started,
 optional-feature, contribution, worked-example and preview (dry-run) materials, an offline CI
 workflow and a release checklist with an offline release check, so that the owner can
 authorize a first stable release from a fully verified candidate, without this work bumping
@@ -252,13 +252,13 @@ the version, tagging, publishing or changing remote settings.
 ## Scope
 
 Requirements carry the tag **[B]** of the earlier combined specification; every requirement
-of this file is a [B] requirement. Scope items 1–7 moved to spec 11a; the numbering of the
+of this file is a [B] requirement. Scope items 1–7 moved to spec 20; the numbering of the
 remaining items is kept.
 
 8. `README.md` rewrite, `docs/USAGE.md` sections 1, 2, 4, 5, 8 and 9, `docs/OPTIONAL-FEATURES.md`,
    `docs/CONTRIBUTING.md`, `.github/` issue and pull-request templates, translation
    provenance lines in the two `.ru.md` analysis records.
-9. `docs/examples/flat-task/` built from spec 09's `flat` reference workspace.
+9. `docs/examples/flat-task/` built from spec 10's `flat` reference workspace.
 10. The dry-run contract as the new on-demand rule `rules/contract-dry-run.md`, applied by the
     Discovery orchestrator and `/bugfix` and cited by `/spec-run`.
 11. `docs/RELEASE-CHECKLIST.md`, `scripts/release-check.sh`, the onboarding measurement record
@@ -272,9 +272,9 @@ remaining items is kept.
 
 **Delivery records:** the generated references regenerated with
 `python3 -I scripts/gen-docs.py --write --root .` after the REQ-61 and REQ-62 edits and
-committed with them (spec 10 REQ-06; the implementer runs it, this spec's scripts never do);
+committed with them (spec 19 REQ-06; the implementer runs it, this spec's scripts never do);
 the root-listing amendment of
-`.ai/principles/coding.md → Document placement` (`:83-85`) adding `.github/` (spec 11a adds
+`.ai/principles/coding.md → Document placement` (`:83-85`) adding `.github/` (spec 20 adds
 `profiles/`), naming its `workflows/` and `ISSUE_TEMPLATE/` subdirectories and the pull-request template, `scripts/README.md` and `docs/README.md` rows,
 `.ai/memory/architecture.md`, `.ai/context/environment.md`, `.ai/context/runbook.md`, the
 re-pinned source-guard records, the identity-ledger rows of every edited file that holds a
@@ -293,15 +293,15 @@ recorded there and the ADR cites it. The record also states that the optional CI
   no further workflow, no job that holds a secret, no manual-dispatch paid run. Enabling the
   workflow's job as a required status check in the remote repository is an owner action
   (RC-13).
-- Paid or live model runs of any kind, including spec 09 release golden runs.
-- A documentation site, a third harness, renaming the project or commands (spec 13),
+- Paid or live model runs of any kind, including spec 10 release golden runs.
+- A documentation site, a third harness, renaming the project or commands (spec 09),
   rewriting history (ADR-0010), packaging (pip, Homebrew, npm), a `curl | sh` bootstrap,
   Windows support.
 - The installer, ownership manifest, uninstall, `sync.sh` delegation, neutral core and
-  profiles: owned by spec 11a. This spec documents and tests them only through their public
+  profiles: owned by spec 20. This spec documents and tests them only through their public
   commands.
 - The generator, the always-on composition bytes and `docs/harness-matrix.md`: owned by spec
-  10. This spec consumes `--check` and the generated references.
+  19. This spec consumes `--check` and the generated references.
 - Registering checks in `scripts/validate-contracts.sh` (frozen inventory).
 - Re-creating the Russian originals in the working tree (A-27; owner-confirmed, D-02).
 
@@ -309,23 +309,23 @@ recorded there and the ADR cites it. The record also states that the optional CI
 
 | Actor | Allowed actions |
 |---|---|
-| External user | Reads `README.md`, `docs/USAGE.md` and `docs/OPTIONAL-FEATURES.md`; runs the commands of spec 11a they describe |
+| External user | Reads `README.md`, `docs/USAGE.md` and `docs/OPTIONAL-FEATURES.md`; runs the commands of spec 20 they describe |
 | Maintainer | Runs `scripts/check-public-readiness.py` and `scripts/release-check.sh`; prepares release-candidate reports |
 | Owner | Supplies the copyright-holder wording, authorizes a specific version, tag, publication, golden runs and any remote-setting change |
 | Contributor | Follows `docs/CONTRIBUTING.md`; opens issues and pull requests with the `.github/` templates |
-| Generator (`scripts/gen-docs.py`, spec 10) | Answers `--check`; never invoked with `--write` by this spec's scripts |
+| Generator (`scripts/gen-docs.py`, spec 19) | Answers `--check`; never invoked with `--write` by this spec's scripts |
 | Implementer / reviewer | Builds and validates this spec in disposable directories; never deploys into a real home during tests |
 
 ## Terminology
 
 | Term | Definition | Source |
 |---|---|---|
-| Harness | A directory `harness/<name>/` holding spec 13's `deploy.env`; `skills_dir` and `always_on_path` are its deploy paths | Spec 13 REQ-35 |
+| Harness | A directory `harness/<name>/` holding spec 09's `deploy.env`; `skills_dir` and `always_on_path` are its deploy paths | Spec 09 REQ-35 |
 | Profile | A directory `profiles/<name>/` with `profile.json`, its files and `always-on-fragment.md` | ADR-0009 Decision 6 |
 | Optional feature | A capability that works only with an extra prerequisite or explicit enablement (rows of `docs/OPTIONAL-FEATURES.md`) | Original REQ-01 |
 | Delivery state | `delivered`, `partial` or `planned` for an optional feature | This spec |
 | Cost basis label | `subscription billing`, `API-equivalent`, `unknown`, `measured`, `hypothetical` | Original REQ-02; `.ai/specs/README.md` → "Shared acceptance gates" (G8) |
-| Reference workspace | Spec 09's hand-authored correct result of a golden case and its run-log store, built by `golden-eval.py build-reference` from `reference/<workflow>/overlay/` and `history.json` | Spec 09 DM-1 |
+| Reference workspace | Spec 10's hand-authored correct result of a golden case and its run-log store, built by `golden-eval.py build-reference` from `reference/<workflow>/overlay/` and `history.json` | Spec 10 DM-1 |
 | Dry-run contract | The canonical `## Dry-run contract` section defined by REQ-61 | This spec |
 | Release candidate | One source commit proposed for release, with its candidate report | This spec |
 | Release item | One row `RC-NN` of `docs/RELEASE-CHECKLIST.md` | This spec |
@@ -333,25 +333,25 @@ recorded there and the ADR cites it. The record also states that the optional CI
 | Onboarding measurement | `docs/audits/<date>-onboarding-measurement.md` | Original §6 |
 
 Installer and profile terms (engine, ownership manifest, installed state, managed fragment and
-others) are defined in spec 11a → Terminology.
+others) are defined in spec 20 → Terminology.
 
 Rejected synonyms: "stack overlay" for a profile; "golden test" for the example (it is a copy
-of a reference workspace, not a test). Spec 11a lists the installer synonyms it rejects.
+of a reference workspace, not a test). Spec 20 lists the installer synonyms it rejects.
 
 ## Requirements
 
 Identifiers REQ-01–REQ-17 keep their 2026-10-28 subjects; behaviours the earlier text bundled
-into one item are split into REQ-18 onward, noted in parentheses. "The engine" is spec 11a's
-`scripts/install.py` reached through `scripts/install.sh`; "suite A" is spec 11a's
+into one item are split into REQ-18 onward, noted in parentheses. "The engine" is spec 20's
+`scripts/install.py` reached through `scripts/install.sh`; "suite A" is spec 20's
 `scripts/check-install.py` and "suite B" is `scripts/check-public-readiness.py`. Identifiers
-are unique across this file and spec 11a: a new identifier takes the next number unused in
+are unique across this file and spec 20: a new identifier takes the next number unused in
 either file.
 
-### Identifiers defined in spec 11a
+### Identifiers defined in spec 20
 
 REQ-03–REQ-09, REQ-18, REQ-20–REQ-53, REQ-64–REQ-71 and REQ-73–REQ-80; AC-02–AC-08, AC-17,
 AC-19–AC-33 and AC-38–AC-42; A-02–A-23, A-38–A-40 and A-42; Q-04 and Q-06. A citation of one
-of them in this file names spec 11a. A-01, A-30 and A-31 apply to both files and are repeated
+of them in this file names spec 20. A-01, A-30 and A-31 apply to both files and are repeated
 in each.
 
 ### Original requirements, restated
@@ -370,7 +370,7 @@ in each.
   `docs/reference/commands.md`, `.ai/specs/README.md`, `docs/OPTIONAL-FEATURES.md`,
   `docs/CONTRIBUTING.md` and `docs/harness-matrix.md`.
 - **REQ-11 [B] Worked example.** THE SYSTEM SHALL provide `docs/examples/flat-task/` with the
-  files listed under Data Model → Example layout, built from spec 09's `flat` reference
+  files listed under Data Model → Example layout, built from spec 10's `flat` reference
   workspace for the `spec-run` workflow, whose `README.md` states that the content is a
   hand-authored reference result and not a model run.
 - **REQ-12 [B] Contribution guide.** THE SYSTEM SHALL provide `docs/CONTRIBUTING.md` with the
@@ -391,7 +391,7 @@ in each.
 - **REQ-16 [B] Remote-setting items.** THE SYSTEM SHALL list in `docs/RELEASE-CHECKLIST.md`
   release items RC-11 (required review), RC-12 (no direct push to the protected branch) and
   RC-13 (required status checks), each with a read-only verification command and the rule
-  that an unreadable setting is `not-verified` and a missing one is `blocked`; spec 09's
+  that an unreadable setting is `not-verified` and a missing one is `blocked`; spec 10's
   offline checks are verified locally as RC-07 (`python3 -I tests/golden-runs.py`). RC-13 is
   satisfiable by REQ-81: it is `pass` when the default branch requires the status check
   `offline-checks` (the job of the workflow REQ-81 creates), `blocked` while that setting is
@@ -424,7 +424,7 @@ in each.
   `docs/examples/flat-task/provenance.json` (Data Model → Example provenance) every example
   file, and every copied file's bytes SHALL equal the bytes at its `built_path` in a fresh
   `build-reference` output made with the recorded `date_base` from the current tree. The
-  comparison covers workspace files only; spec 09 REQ-49 makes those byte-identical, whereas the
+  comparison covers workspace files only; spec 10 REQ-49 makes those byte-identical, whereas the
   run-log store of the build is not (Data Model → Example layout).
 - **REQ-56 [B] Example privacy.** THE SYSTEM SHALL keep `docs/examples/**` free of the
   patterns under Data Model → Example privacy patterns.
@@ -450,7 +450,7 @@ in each.
 - **REQ-63 [B] Operating manual.** THE SYSTEM SHALL describe in `docs/USAGE.md` section 4 the
   preview, install, adopt and uninstall commands of `scripts/install.sh` and where `--adopt`
   keeps backups (`install-backups` and `adopted-backups` under the user's state directory, spec
-  11a → Data Model → Locations) and how `--uninstall` restores them, in section 5 the
+  20 → Data Model → Locations) and how `--uninstall` restores them, in section 5 the
   `--profile` option, and in section 8 upgrading by re-running the installer; SHALL state in
   sections 1, 2, 8 and 9 (today `docs/USAGE.md:20-21`, `:111-113`, `:658`, `:759-761`) that the core
   principles are `code-quality.md` and `testing-standards.md` and that Python and
@@ -460,11 +460,11 @@ in each.
 
 - **REQ-72 [B] Release sequence.** WHEN the owner authorizes a specific version and supplies
   the copyright-holder line of `LICENSE` (D-01), THE SYSTEM SHALL prepare one release-preparation commit that sets `VERSION`, adds `LICENSE`, updates
-  the post-release tag text of `docs/USAGE.md` section 4 and updates, through spec 13's
+  the post-release tag text of `docs/USAGE.md` section 4 and updates, through spec 09's
   schema-2 inventory amendment where an expression changes, the checks that pin the previous
   state (`scripts/validate-contracts.sh:4469-4471` and `:4604-4605` for `VERSION`, `:4615-4633`
   for `LICENSE` and the task-01 deferral lines, `:4649-4667` for the tag text; each
-  `contract_changes` entry names the value `spec-11 REQ-72`, which this commit adds under spec 13
+  `contract_changes` entry names the value `spec-21 REQ-72`, which this commit adds under spec 09
   REQ-69 with its DM-20 rows), and SHALL
   treat that commit as a new release candidate verified by a fresh `release-check.sh` and
   candidate report before any tag. The holder is whoever legally owns the code; by default
@@ -482,7 +482,7 @@ in each.
   refresh of `scripts/sync.sh`, `scripts/validate-contracts.sh:1293-1305`), THE SYSTEM SHALL add
   the new file to that list so that it is deployed exactly like every other rule, and re-pin
   those scripts' digests; a comment or string that only satisfies the check is not allowed;
-  where spec 13 retired that deployment and its check, no edit is made. THE SYSTEM SHALL NOT
+  where spec 09 retired that deployment and its check, no edit is made. THE SYSTEM SHALL NOT
   change any check expression for it (Q-07).
 - **REQ-81 [B] Offline CI workflow (new 2026-11-14, D-03).** THE SYSTEM SHALL provide
   `.github/workflows/offline-checks.yml` whose `on:` block lists `pull_request`, `push` with
@@ -500,19 +500,19 @@ in each.
   engines need 3.11 or newer and the runbook names `MISE_PYTHON_VERSION=3.12.16` as the
   explicit version for isolated-PATH fixtures (the job exports that variable so a mise shim,
   if ever present, resolves instead of failing with `No version is set for shim: python3`);
-  and `pytest` (spec 09 REQ-35: without it the golden-run suite exits 3). `offline-checks` SHALL then run,
+  and `pytest` (spec 10 REQ-35: without it the golden-run suite exits 3). `offline-checks` SHALL then run,
   in this order and failing the job on any non-zero exit, the commands of RC-03–RC-06 (not RC-02,
   which only `full-validator` and the release checklist run) and,
   as the last step, `python3 -I tests/golden-runs.py` (RC-07) only when `tests/golden-runs.py`
   exists: a shell test `[ -f tests/golden-runs.py ]` guards the step, and when the file is
   absent the step prints a notice that the suite is absent and exits 0, so the workflow does
-  not fail before spec 09 is delivered; an absent suite is not a pass of RC-07, which stays
+  not fail before spec 10 is delivered; an absent suite is not a pass of RC-07, which stays
   `not-verified`. When the file exists, every non-zero exit, exit 3 included, fails the job.
 
 ## Data Model
 
 All JSON files below are UTF-8, written with sorted keys, two-space indentation and a final
-`\n`; readers key on field names and reject unknown keys (the rule of spec 11a REQ-41). Hashes are lowercase hex
+`\n`; readers key on field names and reject unknown keys (the rule of spec 20 REQ-41). Hashes are lowercase hex
 SHA-256 of exact bytes. All files and directories below are new unless marked existing.
 
 ### Optional-feature table (`docs/OPTIONAL-FEATURES.md`)
@@ -527,7 +527,7 @@ when no implementing file exists. `Evidence` names the owning specification firs
 `.ai/specs/completed/` that exists; an implementing file is any other Evidence path. Owning
 specifications: `Native logging hooks` and `Exact run timing` — 03 (hook-based logging);
 `Git rails hook` — 06; `Model catalog and selection` — 04; `Usage telemetry` — 05; `Stack
-profiles` — 11a; `Generated references` — 10; `Golden runs` — 09; `State tool` — 07. A change
+profiles` — 20; `Generated references` — 19; `Golden runs` — 10; `State tool` — 07. A change
 that archives an owning specification to `.ai/specs/completed/` updates the row's `State` and
 Evidence path in the same change; suite B failing on a stale row is the intended signal. `Evidence` lists backticked
 repository paths; for `delivered` and `partial` every path exists. For `planned`, `Enable`
@@ -535,7 +535,7 @@ is exactly `not available`. The document also has `## Cost and usage figures` de
 five cost basis labels and `## Capability declarations` linking `harness-matrix.md` and
 stating that declared support, installation result and checkpoint coverage are distinct, and
 `## Platform support` stating that Linux local filesystems are verified and that macOS is a
-design target this release does not verify (spec 11a → Non-Functional Requirements,
+design target this release does not verify (spec 20 → Non-Functional Requirements,
 Portability).
 
 ### Money figure
@@ -555,17 +555,17 @@ code spans are removed from it.
 | `run-log-summary.md` | authored | Table `| Step | Subtask | Outcome | Tests | Duration | Tokens | Cost |`, one row per run-log step event in the built store's order; `Step`, `Subtask`, `Outcome` and `Tests` are the events' `step`, `subtask`, `outcome` and `tests` values (the `gate` value, when present, is not shown); `Duration`, `Tokens`, `Cost` are `unknown` |
 | `provenance.json` | authored | Example provenance |
 
-The example is produced by spec 09's
+The example is produced by spec 10's
 `python3 -I scripts/golden-eval.py build-reference --case flat --workflow spec-run --out <dir> --date-base <timestamp>`.
-Copied files are the built bytes (after spec 09's `finalize` has replaced the `{C<n>}`/`{c<n>}`
+Copied files are the built bytes (after spec 10's `finalize` has replaced the `{C<n>}`/`{c<n>}`
 placeholders), never the raw overlay; `run-log-summary.md` is derived from the run-log store
-the command builds, taking only the deterministic event fields of spec 09 → Reference build
+the command builds, taking only the deterministic event fields of spec 10 → Reference build
 determinism (`step`, `subtask`, `outcome`, `tests`, `gate` and their order); the store's bytes,
 times and run ids are never copied, because `scripts/log-step.sh` stamps them anew on every build.
-Spec 09 marks `flat` as `tuning` with `published: true` in its `case.json` (its case field table; REQ-50 rejects a holdout task on it), so the
+Spec 10 marks `flat` as `tuning` with `published: true` in its `case.json` (its case field table; REQ-50 rejects a holdout task on it), so the
 example's source case can never be a holdout task. The built workspace must hold exactly one
 file under `.ai/specs/`; with none or more than one, Discovery stops and reports it, because
-spec 09 owns the case content.
+spec 10 owns the case content.
 
 ### Example provenance (`provenance.json`, `schema_version` 1)
 
@@ -588,9 +588,9 @@ private patterns.
 Sections, in order: `## Change procedure` (spec → Discovery → test-first execution →
 validation; link `.ai/README.md`), `## File shapes` (link `.ai/principles/coding.md`),
 `## Commits` (format, no attribution trailers, no planning identifiers; link the git-flow
-rule file under the name spec 13 gives it, `rules/git-flow.md` today), `## Offline checks` (each command in backticks: the contract validator,
+rule file under the name spec 09 gives it, `rules/git-flow.md` today), `## Offline checks` (each command in backticks: the contract validator,
 `--hygiene-only` with a local pattern file, `gen-docs.py --check`, `check-spec-draft.sh`,
-`check-gen-docs.py`, `check-install.py`, `check-public-readiness.py`, and spec 09's offline
+`check-gen-docs.py`, `check-install.py`, `check-public-readiness.py`, and spec 10's offline
 suite `python3 -I tests/golden-runs.py`, which `scripts/validate-contracts.sh` does not run),
 `## Audit method` (in its own words: an audit is run by a reviewer independent of the change,
 its report is `docs/audits/YYYY-MM-DD-<slug>.md` indexed in `docs/README.md`, and actionable
@@ -653,10 +653,10 @@ REQ-72).
 | RC-04 | `python3 -I scripts/check-install.py` exits 0 | automated |
 | RC-05 | `python3 -I scripts/check-public-readiness.py` exits 0 | automated |
 | RC-06 | `bash scripts/check-spec-draft.sh` and `python3 -I scripts/check-gen-docs.py` exit 0 | automated |
-| RC-07 | Spec 09 offline suite `python3 -I tests/golden-runs.py` exits 0 (`not-verified` when `tests/golden-runs.py` is absent or the suite exits 3 because `pytest` is unavailable, 09 REQ-35) | automated |
+| RC-07 | Spec 10 offline suite `python3 -I tests/golden-runs.py` exits 0 (`not-verified` when `tests/golden-runs.py` is absent or the suite exits 3 because `pytest` is unavailable, 10 REQ-35) | automated |
 | RC-08 | Public hygiene (REQ-14) | automated |
 | RC-09 | Onboarding measurement for this candidate | manual |
-| RC-10 | Release golden runs under an owner-approved manifest (spec 09) | owner |
+| RC-10 | Release golden runs under an owner-approved manifest (spec 10) | owner |
 | RC-11 | Required pull-request review on the default branch | manual |
 | RC-12 | No direct push to the default branch | manual |
 | RC-13 | Required status check `offline-checks` (REQ-81, REQ-16) | manual |
@@ -681,7 +681,7 @@ pass on the candidate commit itself.
 
 ### Command lines
 
-The installer and setup command lines are in spec 11a → Contracts & Interfaces → Command lines.
+The installer and setup command lines are in spec 20 → Contracts & Interfaces → Command lines.
 
 ```text
 bash scripts/release-check.sh [--denylist <file>]
@@ -690,12 +690,12 @@ python3 scripts/check-public-readiness.py
 
 ### Dry-run contract
 
-`rules/contract-dry-run.md` is a new rule that follows spec 13's Notes → Files and sections
+`rules/contract-dry-run.md` is a new rule that follows spec 09's Notes → Files and sections
 created after this spec: stem `<kind>-<subject>` with kind `contract` (it states obligations
-that hold across workflows, spec 13 DM-2), front matter of exactly `description:` and
+that hold across workflows, spec 09 DM-2), front matter of exactly `description:` and
 `load: on-demand` (no `loads:` of its own), and no `docs/name-map.json` row, because it never
-had an old name. It is deployed like every rule. Spec 08 applies to it in full: the whole file
-stays within the 700-word limit of every top-level rule (spec 08 REQ-01), so the seven clauses
+had an old name. It is deployed like every rule. Spec 11 applies to it in full: the whole file
+stays within the 700-word limit of every top-level rule (spec 11 REQ-01), so the seven clauses
 are kept short. Its section
 `## Dry-run contract` holds exactly these numbered clauses:
 
@@ -724,13 +724,13 @@ writing). `/bugfix`: `Task directory` (matching or new); `Quick-gate verdict` (w
 determinable, else under `Uncertain`); `Reproduction test` (path and assertion it would
 write); `Reproduction result` (always under `Uncertain`).
 Both Invocation lines gain `[--dry-run]`. `/spec-run`'s `--dry-run` bullet keeps its own
-items and adds the citation. Where spec 08's `loads` metadata exists, the three workflows
-declare the rule in it using spec 08's grammar (DM-1), because spec 08's check reports a
+items and adds the citation. Where spec 11's `loads` metadata exists, the three workflows
+declare the rule in it using spec 11's grammar (DM-1), because spec 11's check reports a
 textual load command with an undeclared target (`textual-load-undeclared`, REQ-12) and an on-demand rule that
 no workflow's loads reach (`rule-unreachable`, REQ-19) and its deployment gate then stops
-sync. Spec 08's condition registry has no `--dry-run` feature, so the declaration is a
+sync. Spec 11's condition registry has no `--dry-run` feature, so the declaration is a
 `mandatory` entry with `sections: ["## Dry-run contract"]`; adding a conditional feature is
-spec 08's additive change, not made here.
+spec 11's additive change, not made here.
 
 ### Release check (`scripts/release-check.sh`)
 
@@ -756,7 +756,7 @@ only under `mktemp -d`, removed by an exit trap).
   URL (identity ledger); it links `docs/USAGE.md#4-initial-setup-new-machine--standalone-project`
   for cloning.
 - Except in REQ-72's release-preparation commit (which changes check expressions only through
-  spec 13's schema-2 inventory amendment, followed by re-pinning), edits to
+  spec 09's schema-2 inventory amendment, followed by re-pinning), edits to
   `scripts/validate-contracts.sh` are allowed only inside function bodies outside the
   pinned-body region, never in a `check` line or failure message, and never add or
   remove a line matching `\bcheck\b`; any edit is followed by the source-guard re-pinning
@@ -785,7 +785,7 @@ only under `mktemp -d`, removed by an exit trap).
 | `ORCHESTRAIL_HYGIENE_DENYLIST` set but empty | RC-08 `not-verified` (explicitly unset, as the validator's resolver returns 1), exit 1 | REQ-14 |
 | `ORCHESTRAIL_HYGIENE_DENYLIST` names a missing file | RC-08 `not-verified` with evidence `pattern file unreadable: <path>` (the scan is not started), exit 1 | REQ-14 |
 | Squash or rebase merge of the candidate's pull request | The default-branch commit that results is the candidate; RC-01 and the report are made on it | REQ-59 |
-| `tests/golden-runs.py` absent (spec 09 not delivered), or the suite exits 3 (09 REQ-35) | RC-07 `not-verified` | REQ-60 |
+| `tests/golden-runs.py` absent (spec 10 not delivered), or the suite exits 3 (10 REQ-35) | RC-07 `not-verified` | REQ-60 |
 | Remote setting unreadable (token lacks permission) | Candidate report item `not-verified`; verdict `not ready` | REQ-16, REQ-59 |
 | Concurrency of Discovery dry-run with a real run | Dry run reads only; no lock and no state change | REQ-61 |
 
@@ -838,7 +838,7 @@ acceptance and stay open until the owner acts.
   criterion is a contract check; agent behaviour under a real dry run is not verified
   offline. And on the delivering commit `bash scripts/validate-contracts.sh` exits 0 (REQ-86). And, in a disposable
   fixture project, the surviving setup and sync deployment place `contract-dry-run.md` wherever
-  they place `tdd.md` (skipped, with the reason recorded, when spec 13 retired that deployment).
+  they place `tdd.md` (skipped, with the reason recorded, when spec 09 retired that deployment).
 - **AC-13** (REQ-14) — Given fixture checkouts (git repositories with the release-check script)
   where (a) a pattern file is resolved and no tracked file matches, (b) a tracked file matches,
   (c) no pattern file is resolvable, When `release-check.sh` runs with the other suites stubbed
@@ -964,9 +964,9 @@ Every AC names at least one REQ; AC-34 and AC-37 are release gates outside imple
 |---|---|---|---|
 | Frozen validator and source guard | Implementation blocked by fingerprint failures | High | Standalone suites; re-pinning procedure; no new `check` lines |
 | Identity ledger line pins | Validator fails after USAGE or analysis edits | High | Append-only provenance lines; ledger rows updated in the same change |
-| Publishing the `flat` reference result | Later experiments on `flat` may be contaminated | Low | Spec 09 treats `flat` as `tuning` (`published: true`; a holdout task on it is rejected, its REQ-50) |
+| Publishing the `flat` reference result | Later experiments on `flat` may be contaminated | Low | Spec 10 treats `flat` as `tuning` (`published: true`; a holdout task on it is rejected, its REQ-50) |
 | Full validator takes 34–52 minutes (`.ai/context/runbook.md:26`) | Slow release check | High | Accepted; release check runs once per candidate |
-| Dry-run behaviour of agents is untestable offline | A workflow could still write | Medium | Contract check (AC-12); a golden case can cover it later (spec 09) |
+| Dry-run behaviour of agents is untestable offline | A workflow could still write | Medium | Contract check (AC-12); a golden case can cover it later (spec 10) |
 
 ## Assumptions
 
@@ -975,19 +975,19 @@ Every AC names at least one REQ; AC-34 and AC-37 are release gates outside imple
 - A-25 | Clone URL in README | Resolved: not in README; link to USAGE section 4 | Source: identity ledger (`.ai/tasks/completed/task-01-git-source-of-truth/state.md:184-208`) | Reversible: yes
 - A-26 | `CONTRIBUTING.md` location | Resolved: `docs/CONTRIBUTING.md` | Source: `.ai/principles/coding.md:80` (guides in `docs/`), `:83-85` (root holds only listed files) | Reversible: yes
 - A-27 | Russian originals (ADR-0009 Decision 6 "kept alongside" vs `rules/language.md`) | Resolved: originals stay byte-exact in history at pinned blobs; each translation names its blob; no Russian text is written to the tree; names keep `.ru.md` | Source: `rules/language.md` and `.ai/principles/coding.md:11` (principles precede ADRs); delivered state `docs/README.md:26`, `:28`; ledger and legend checks pin the names | Reversible: yes (Q-02 resolved 2026-11-14: owner accepted, D-02; ADR at delivery)
-- A-28 | CI for required status checks | Resolved 2026-11-14 (supersedes the earlier "not created"): this spec creates one offline workflow, REQ-81; RC-13 is `blocked` only while the workflow or the required-check setting is missing | Source: owner decision D-03 (Q-03); spec 09 Out of Scope and A-24 (that spec creates none); G6 | Reversible: yes
-- A-29 | Example source | Resolved: spec 09 `flat` reference workspace for `spec-run`, labelled as not a model run | Source: original REQ-11; spec 09 DM-1; `.ai/specs/README.md` → "Shared acceptance gates" (G6, no paid runs) | Reversible: yes
-- A-30 | Test location | Resolved: standalone `scripts/check-install.py` and `scripts/check-public-readiness.py`, not registered in the validator | Source: ADR-0019 Decision 3; spec 10 Scope item 8 | Reversible: yes
+- A-28 | CI for required status checks | Resolved 2026-11-14 (supersedes the earlier "not created"): this spec creates one offline workflow, REQ-81; RC-13 is `blocked` only while the workflow or the required-check setting is missing | Source: owner decision D-03 (Q-03); spec 10 Out of Scope and A-24 (that spec creates none); G6 | Reversible: yes
+- A-29 | Example source | Resolved: spec 10 `flat` reference workspace for `spec-run`, labelled as not a model run | Source: original REQ-11; spec 10 DM-1; `.ai/specs/README.md` → "Shared acceptance gates" (G6, no paid runs) | Reversible: yes
+- A-30 | Test location | Resolved: standalone `scripts/check-install.py` and `scripts/check-public-readiness.py`, not registered in the validator | Source: ADR-0019 Decision 3; spec 19 Scope item 8 | Reversible: yes
 - A-31 | Validator edits | Resolved: bodies only, outside the pinned region, expressions untouched, then re-pin | Source: `tests/fixtures/validator-runtime/oracle.py:160-252`; ADR-0020 Decision 2 | Reversible: yes
 - A-32 | Remote-setting verification | Resolved: manual items with read-only commands; `release-check.sh` stays offline | Source: original REQ-03, REQ-16; G6 | Reversible: yes
 - A-33 | 15-minute onboarding target | Resolved: measured and recorded as `met`/`not met`; not a pass/fail gate of this spec | Source: original §1 ("target") and §6 (record blocking dependencies) | Reversible: yes
 - A-34 | Optional-feature document | Resolved: `docs/OPTIONAL-FEATURES.md` with nine required rows | Source: `.ai/principles/coding.md:80`; original §6 paragraph 3 | Reversible: yes
 - A-35 | Cost vocabulary | Resolved: five labels | Source: original REQ-02; `.ai/specs/README.md` → "Shared acceptance gates" (G8) | Reversible: yes
-- A-36 | Where the dry-run contract lives | Resolved: a new on-demand rule `rules/contract-dry-run.md`, not an always-on rule; telemetry exception as in `/spec-run` | Source: P6 (`.ai/principles/architecture.md`, one canonical statement; finite always-on budget); spec 13 rule kinds (ADR-0009 Decision 3); `workflows/spec-run.md:10-11`, `:50-51` | Reversible: yes
-- A-37 | Feature size | Resolved: two parts with an explicit boundary; superseded 2026-11-16 by the split into spec 11a and this spec | Source: readiness check 13; original §8 order | Reversible: yes
+- A-36 | Where the dry-run contract lives | Resolved: a new on-demand rule `rules/contract-dry-run.md`, not an always-on rule; telemetry exception as in `/spec-run` | Source: P6 (`.ai/principles/architecture.md`, one canonical statement; finite always-on budget); spec 09 rule kinds (ADR-0009 Decision 3); `workflows/spec-run.md:10-11`, `:50-51` | Reversible: yes
+- A-37 | Feature size | Resolved: two parts with an explicit boundary; superseded 2026-11-16 by the split into spec 20 and this spec | Source: readiness check 13; original §8 order | Reversible: yes
 - A-41 | Old repository URLs in this spec | Resolved: replaced by repository paths and the pinned commit; the identity-ledger row for this file was removed at `e3ba41a` (done) | Source: precedent of the 2026-11-13 state-tool refinement (`.ai/memory/progress.md:128`) | Reversible: yes
 - A-43 | Copyright holder and third-party rights (2026-11-14) | Resolved: the implementer never chooses a holder; the holder line is supplied by the owner at the REQ-72 gate, after the owner confirms no third party holds rights (D-01) | Source: owner decision D-01 (Q-01); ADR-0009 Decision 1 | Reversible: no once published under a licence
-- A-44 | What the CI workflow must set up (2026-11-14) | Resolved: REQ-81 lists it from the repository's runbook and spec 09 REQ-35 (the validator is run with bash); no matrix, cache or numeric time limit is specified, and the full validator's long runtime (runbook → Commands) is handled by D-04: it runs in a scheduled job, not in the required check | Source: `.ai/context/runbook.md → Commands`; `scripts/validate-contracts.sh` (run with bash); spec 09 REQ-35 | Reversible: yes
+- A-44 | What the CI workflow must set up (2026-11-14) | Resolved: REQ-81 lists it from the repository's runbook and spec 10 REQ-35 (the validator is run with bash); no matrix, cache or numeric time limit is specified, and the full validator's long runtime (runbook → Commands) is handled by D-04: it runs in a scheduled job, not in the required check | Source: `.ai/context/runbook.md → Commands`; `scripts/validate-contracts.sh` (run with bash); spec 10 REQ-35 | Reversible: yes
 
 ## Decisions
 
@@ -995,7 +995,7 @@ Owner decisions of 2026-11-14 (the refinement itself ran in autonomous mode; the
 
 - D-01 | The copyright holder is whoever legally owns the code, by default the owner personally under the name in the repository's git authorship; the owner first confirms that no employer or other third party holds rights; the holder line is supplied by the owner at the REQ-72 release gate, never invented by the implementer | Overrides: none | Rationale: a legal question, not a technical one; rights cannot be repaired after publication under a licence | Follow-up: REQ-72, AC-37, A-43; RC-14 stays owner-gated
 - D-02 | The Russian originals stay only in git history; each English translation ends with a line naming the original's pinned commit and blob; Russian text does not return to the tree | Overrides: ADR-0009 Decision 6, literal wording ("Russian originals kept with English translations alongside") | Rationale: the language rule forbids non-English text in project files, and a pinned reference keeps the original recoverable | Follow-up: an ADR, or a note appended through the ADR process, records the departure from ADR-0009 Decision 6 (delivery record, Notes); REQ-58 and A-27 unchanged
-- D-03 | Spec 11, Part B, creates the CI that required status checks need, as an explicit requirement and not a separate spec; minimum: one offline workflow running the validator and the standalone offline suites, no paid run, no secrets | Overrides: A-28 as first written, and the earlier Out of Scope entry that no spec owns CI (spec 09 keeps its own exclusion) | Rationale: a required status check needs a workflow that produces it, and gate G6 forbids paid runs in default CI | Follow-up: REQ-81, AC-43, RC-13 and REQ-16 updated (the Part B of that date is this spec); spec 09's Out of Scope and A-24 wording should cite REQ-81 (Notes)
+- D-03 | Spec 21, Part B, creates the CI that required status checks need, as an explicit requirement and not a separate spec; minimum: one offline workflow running the validator and the standalone offline suites, no paid run, no secrets | Overrides: A-28 as first written, and the earlier Out of Scope entry that no spec owns CI (spec 10 keeps its own exclusion) | Rationale: a required status check needs a workflow that produces it, and gate G6 forbids paid runs in default CI | Follow-up: REQ-81, AC-43, RC-13 and REQ-16 updated (the Part B of that date is this spec); spec 10's Out of Scope and A-24 wording should cite REQ-81 (Notes)
 - D-04 | The required check `offline-checks` runs the fast offline subset (RC-03–RC-06 and the guarded golden-run suite); the full validator (RC-02) runs in the scheduled job `full-validator` of the same workflow and in the release checklist | Overrides: REQ-81 and A-44 as first written (full validator inside the required check) | Rationale: the full validator takes 34–52 minutes, too slow for every pull request; a weekly full run plus the release gate keeps it enforced | Follow-up: REQ-81, AC-43, A-44 updated; RC-02 stays a release-candidate item
 
 ## Clarifications
@@ -1031,15 +1031,15 @@ Autonomous refinement: no questions were asked before 2026-11-14.
   Impact: RC-13 is `blocked` until one exists. Resolved 2026-11-14: this spec, Part B, REQ-81
   (D-03); RC-13 becomes satisfiable once the owner requires the `offline-checks` status check.
 - Q-05 | resolved 2026-11-16 | Should the roadmap index list Part A and Part B as separate entries
-  (11 and 11b)? Impact: Discovery runs two tasks either way. Resolved: the owner split the
-  specification; the roadmap lists spec 11a and this spec as separate entries.
+  (21 and 21b)? Impact: Discovery runs two tasks either way. Resolved: the owner split the
+  specification; the roadmap lists spec 20 and this spec as separate entries.
 - Q-07 | non-blocker (resolved by a Discovery procedure) | REQ-61 adds
   `rules/contract-dry-run.md`. At `e3ba41a` the validator's per-rule loop
   (`scripts/validate-contracts.sh:1293-1305`) runs, for every `rules/*.md` file, runtime checks
   that the file name appears in `scripts/sync.sh` and `scripts/setup-new-project.sh`; a new
   rule file adds no registered check (the oracle pins source text, not names generated at run
-  time), but those runtime checks fail unless both scripts name it. Spec 13, a precondition,
-  replaces those checks (13 REQ-52). Procedure (REQ-86): Discovery runs the validator on the
+  time), but those runtime checks fail unless both scripts name it. Spec 09, a precondition,
+  replaces those checks (09 REQ-52). Procedure (REQ-86): Discovery runs the validator on the
   delivered default branch with the new rule file added; when a check fails only because a
   script does not name the new file, the delivery adds it to the deployment list that
   check guards, so it is deployed like every other rule, and re-pins the script's digest; no check expression is changed and no inventory entry is added, because
@@ -1048,9 +1048,9 @@ Autonomous refinement: no questions were asked before 2026-11-14.
 
 ## Notes
 
-- **Preconditions (checked at Discovery):** spec 11a delivered, that is merged into the default
-  branch (the installer, profiles and suite A that this spec documents and runs); spec 13's schema-2 inventory mechanism, needed
-  only for REQ-72's release-preparation commit; spec 10 (`docs/reference/`, `docs/harness-matrix.md`); spec 09 (`flat` reference
+- **Preconditions (checked at Discovery):** spec 20 delivered, that is merged into the default
+  branch (the installer, profiles and suite A that this spec documents and runs); spec 09's schema-2 inventory mechanism, needed
+  only for REQ-72's release-preparation commit; spec 19 (`docs/reference/`, `docs/harness-matrix.md`); spec 10 (`flat` reference
   workspace, offline suite, `docs/GOLDEN-RUNS.md`). Missing → Discovery stops.
 - Hint (nonbinding): subtasks — (1) README, USAGE, OPTIONAL-FEATURES, CONTRIBUTING, templates,
   translations; (2) example; (3) dry-run contract; (4) release checklist, release check,
@@ -1062,8 +1062,8 @@ Autonomous refinement: no questions were asked before 2026-11-14.
 - **ADR for D-02.** Delivery adds an ADR (or a note appended through the ADR process)
   recording that ADR-0009 Decision 6's "originals kept alongside" is replaced by originals kept
   only in history at pinned blobs; it is listed with the other delivery records in Scope.
-- **Follow-up for other specs (not changed here):** spec 09's offline command
-  `python3 -I tests/golden-runs.py` is consumed by REQ-81 only when the file exists; spec 09 marks `flat` as `tuning` with `published: true` (its
+- **Follow-up for other specs (not changed here):** spec 10's offline command
+  `python3 -I tests/golden-runs.py` is consumed by REQ-81 only when the file exists; spec 10 marks `flat` as `tuning` with `published: true` (its
   `published` case field, REQ-50, AC-38) because its reference result becomes public.
 
 ## Change Log
@@ -1080,34 +1080,34 @@ Autonomous refinement: no questions were asked before 2026-11-14.
   markers). README limit aligned with the existing 60-line check; `CONTRIBUTING.md` placed
   under `docs/`; old repository URLs replaced by repository paths.
 - Same day, review loop: an independent Devil's Advocate review (4 rounds: 54, 83, 92,
-  99/100) added REQ-65–REQ-78 and AC-38–AC-40, defined the relationship to spec 13's
+  99/100) added REQ-65–REQ-78 and AC-38–AC-40, defined the relationship to spec 09's
   `deploy-skills.py`, the release sequence, retired targets, adopted-edit backups and
-  uninstall roll-forward; spec 09's offline suite is referenced as
+  uninstall roll-forward; spec 10's offline suite is referenced as
   `python3 -I tests/golden-runs.py`.
 
 ### 2026-11-14 — reconciliation with refined peer specs
 
-- Spec 13: Q-05 recorded as resolved; the relationship section now states 13's engine as the
-  interim state, maps each preserved contract of 13's Notes → Relationship to spec 11 to a
+- Spec 09: Q-05 recorded as resolved; the relationship section now states 09's engine as the
+  interim state, maps each preserved contract of 09's Notes → Relationship to spec 21 to a
   requirement, and lists the explicit changes with reasons. Added REQ-79 (leftover skills,
   reported by the installer through `deployment-set`'s `leftover_candidates`; A-42) and REQ-80
   (registry, lock and project-pass boundaries), AC-41, AC-42 and the plan field `leftover`.
-  Q-06 now cites 13's DM-9, REQ-51, REQ-52 and A-02 and records that the precondition is met
-  by 13's text for the mechanism only; the closed `requirement` set must be extended by Part A.
+  Q-06 now cites 09's DM-9, REQ-51, REQ-52 and A-02 and records that the precondition is met
+  by 09's text for the mechanism only; the closed `requirement` set must be extended by Part A.
   The dry-run rule's name, kind, load value, absence of a name-map row and the 700-word limit
-  of spec 08 REQ-01 are stated; its declaration in the workflows' `loads` is a `mandatory`
-  section entry. Spec 13's REQ-57 is the leftover requirement; this spec's REQ-57 is the
+  of spec 11 REQ-01 are stated; its declaration in the workflows' `loads` is a `mandatory`
+  section entry. Spec 09's REQ-57 is the leftover requirement; this spec's REQ-57 is the
   onboarding measurement and is unchanged.
-- Spec 09: the example's run-log summary takes only the deterministic event fields; REQ-55's
+- Spec 10: the example's run-log summary takes only the deterministic event fields; REQ-55's
   comparison covers workspace files only; `flat` is `tuning` with `published: true`
-  (09 REQ-49, REQ-50). The offline check stays `python3 -I tests/golden-runs.py` (REQ-16, RC-07).
-- Spec 10: the gate command and `--profile` output are 10's; the gate's position in `sync.sh`
-  after this spec is this spec's (REQ-64; 10 REQ-22, A-48). Spec 08's meter gate is kept next
+  (10 REQ-49, REQ-50). The offline check stays `python3 -I tests/golden-runs.py` (REQ-16, RC-07).
+- Spec 19: the gate command and `--profile` output are 19's; the gate's position in `sync.sh`
+  after this spec is this spec's (REQ-64; 19 REQ-22, A-48). Spec 11's meter gate is kept next
   to it.
-- Spec 08: citations updated to REQ-02, DM-1, DM-3, REQ-12, REQ-19. No tiering interaction with
+- Spec 11: citations updated to REQ-02, DM-1, DM-3, REQ-12, REQ-19. No tiering interaction with
   the 60-line `README.md` limit (the meter covers rules, workflows and always-on bodies).
 - Open questions Q-01, Q-02 and Q-03 are unchanged.
-- 2026-11-14 — independent final review: `--adopt` of a `user-modified` target uses the adopted-edit backup (REQ-23); closed-set values `spec-11 REQ-NN` under 13 REQ-69 (Q-06, REQ-72); RC-07 maps a missing-pytest exit 3 to `not-verified`; README and repository citations corrected.
+- 2026-11-14 — independent final review: `--adopt` of a `user-modified` target uses the adopted-edit backup (REQ-23); closed-set values `spec-21 REQ-NN` under 09 REQ-69 (Q-06, REQ-72); RC-07 maps a missing-pytest exit 3 to `not-verified`; README and repository citations corrected.
 
 ### 2026-11-14 — owner decisions recorded
 
@@ -1118,12 +1118,12 @@ Autonomous refinement: no questions were asked before 2026-11-14.
   Traceability row, Scope item 13, split-boundary membership; REQ-16, RC-13, Out of Scope and
   Notes updated; the Part B ADR also records the departure from ADR-0009 Decision 6.
 
-### 2026-11-16 — split into spec 11a and this spec
+### 2026-11-16 — split into spec 20 and this spec
 
 - Part A (installer and profiles: REQ-03–REQ-09, REQ-18, REQ-20–REQ-53, REQ-64–REQ-71,
   REQ-73–REQ-80; AC-02–AC-08, AC-17, AC-19–AC-33, AC-38–AC-42; A-02–A-23, A-38–A-40, A-42;
   Q-04, Q-06; their Context, Data Model, Contracts, Edge Cases and Risks) moved to
-  `.ai/specs/11a-public-installer-and-profiles.md` without renumbering. This file keeps
+  `.ai/specs/20-public-installer-and-profiles.md` without renumbering. This file keeps
   Part B, the Source history and this Change Log. Q-05 resolved by the split; Q-07 added for
   the inventory entry REQ-61 needs; A-37 marked superseded.
 - Same day, `/spec-draft --auto-mode` review loop with an independent critic (4 rounds: 68, 90,
@@ -1140,8 +1140,8 @@ Result of 2026-11-16 (first review after the split).
 
 | # | Check | Result |
 |---|---|---|
-| 1 | Goal is one domain-language paragraph | PASS — public materials, preview, CI and release readiness on top of spec 11a |
-| 2 | Out of Scope names concrete exclusions | PASS — owner actions, further CI, paid runs, spec 11a, 13 and 10 ownership named |
+| 1 | Goal is one domain-language paragraph | PASS — public materials, preview, CI and release readiness on top of spec 20 |
+| 2 | Out of Scope names concrete exclusions | PASS — owner actions, further CI, paid runs, spec 20, 09 and 19 ownership named |
 | 3 | Each REQ has a stable id and one EARS behaviour | PASS — 24 requirements; new REQ-86 |
 | 4 | Every REQ maps to an AC and every AC names a REQ | PASS — Traceability complete both ways |
 | 5 | Every AC is binary and testable before implementation | PASS — fixtures, literals and regexes; AC-34 and AC-37 and the first real candidate report are release gates |
@@ -1151,7 +1151,7 @@ Result of 2026-11-16 (first review after the split).
 | 9 | Every ambiguity recorded | PASS — A-01, A-24–A-37, A-41, A-43, A-44; Q-01–Q-03, Q-05 and Q-07 resolved |
 | 10 | No blocker question remains | PASS — none open |
 | 11 | Every existing-code claim cited and verified | PASS — citations checked by the critic against `e3ba41a` |
-| 12 | Terminology matches domain definitions | PASS — installer terms referenced from spec 11a |
+| 12 | Terminology matches domain definitions | PASS — installer terms referenced from spec 20 |
 | 13 | Scope is feature-sized (1–8 subtasks) | PASS — about five subtasks (Notes hint) |
 | 14 | Devil's Advocate review passed | PASS — Review: 4 rounds, score 99/100, critic: sub-agent, open: none (minor F-33 applied after the final round) |
 

@@ -63,7 +63,7 @@ Those are the rules that must hold even when the model does not invoke a skill.
   test-first exists.
 
 **Consequences:**
-Two summaries to keep in sync with the full rules (`specs/10-generated-reference-docs.md`
+Two summaries to keep in sync with the full rules (`specs/19-generated-reference-docs.md`
 proposes generating them).
 
 **Related files:**

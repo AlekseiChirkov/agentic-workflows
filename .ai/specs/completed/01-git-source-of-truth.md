@@ -11,7 +11,7 @@ completed_at: 2026-10-20
 - **Disposition:** Delivered with owner deferrals.
 - **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
 - **Delivered evidence:** Versioned source, portable setup paths, public documentation, and the tracked knowledge base are present.
-- **Outstanding scope and limits:** The license and release-tag deferrals recorded in the Change Log remain unresolved owner decisions; publication readiness is separately owned by spec 11.
+- **Outstanding scope and limits:** The license and release-tag deferrals recorded in the Change Log remain unresolved owner decisions; publication readiness is separately owned by spec 21.
 - **Sources:** [`VERSION`](../../../VERSION), [`README.md`](../../../README.md), [`scripts/sync.sh`](../../../scripts/sync.sh), [`.ai/tasks/completed/task-01-git-source-of-truth/state.md`](../../../.ai/tasks/completed/task-01-git-source-of-truth/state.md).
 - Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
 
@@ -57,9 +57,9 @@ read the repository.
 ## Out of Scope
 
 - Installer, `--dry-run`, `--uninstall`, profiles, examples, scrubbing of client project
-  names (spec 11). Until spec 11, the README states that `sync.sh` overwrites
+  names (spec 21). Until spec 21, the README states that `sync.sh` overwrites
   `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`.
-- Branch protection (enabled at the public release, spec 11)
+- Branch protection (enabled at the public release, spec 21)
 - Rewriting or deleting existing history
 
 ## Notes

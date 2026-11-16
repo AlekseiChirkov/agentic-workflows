@@ -1,4 +1,4 @@
-# 12. Parallel children of one composite subtask in isolated worktrees
+# 23. Parallel children of one composite subtask in isolated worktrees
 
 ## Source
 
@@ -6,19 +6,19 @@
   both delivery stages of one specification and failed readiness check 13 (56 requirements
   exceed one feature). On the owner's request of 2026-11-16 (translated from Russian: "they are
   very large and must be split in two if this can be done logically; then run each resulting
-  spec through `/spec-draft`") stage 12A, the composite branch model at N = 1, moved to
-  `.ai/specs/12a-composite-branch-model.md`; stage 12B, parallel children of one composite,
-  stays here and starts after spec 12a is delivered (merged). Identifiers keep their numbers and each is
+  spec through `/spec-draft`") stage 23A, the composite branch model at N = 1, moved to
+  `.ai/specs/22-composite-branch-model.md`; stage 23B, parallel children of one composite,
+  stays here and starts after spec 22 is delivered (merged). Identifiers keep their numbers and each is
   defined in exactly one of the two files. The Source history below, including the translated
-  original text, covers both stages and is the canonical copy that spec 12a cites.
+  original text, covers both stages and is the canonical copy that spec 22 cites.
 
-- **Request:** `/spec-draft .ai/specs/12-composite-branch-model-and-parallel-children.md --auto-mode`
+- **Request:** `/spec-draft .ai/specs/23-composite-branch-model-and-parallel-children.md --auto-mode`
   (refinement in place, 2026-11-13). The owner authorized in-place replacement of this file
   and declared that no questions are answered during this run.
 - **Input:** the existing specification at commit `c4372f881dd544ffbf8d2374dc66a8e468d61a86`,
-  file `.ai/specs/12-composite-branch-model-and-parallel-children.md`; sections 1–16 were
+  file `.ai/specs/23-composite-branch-model-and-parallel-children.md`; sections 1–16 were
   written in Russian, section 17 in English. Its full original text stays in git history
-  (`git show c4372f8:.ai/specs/12-composite-branch-model-and-parallel-children.md`). The
+  (`git show c4372f8:.ai/specs/23-composite-branch-model-and-parallel-children.md`). The
   English text below is a faithful translation of sections 1–16; section 17, the
   Implementation review and the Change Log are reproduced unchanged. Links that pointed to
   the old public repository location at pinned commit
@@ -40,7 +40,7 @@
 
 ### Original text, sections 1–16 (translated from Russian)
 
-**Title.** 12. One branch for a composite task and isolated execution of its children.
+**Title.** 23. One branch for a composite task and isolated execution of its children.
 
 **1. Status and verified initial state.** *Status:* planned contract for isolated parallel
 subtask execution. Updated 2026-11-06. This specification does not itself enable parallel
@@ -104,22 +104,22 @@ multiple repositories; parallel ordinary single-session execution; a separate in
 branch; state tool 07; and automatic merging of owner pull requests. Parallel atomic
 descendants within one large task are in scope, including across composite boundaries.
 
-**3. Dependencies and single owners of contracts.** Prerequisites per the current index: 13,
-09, completed 02 and 03, 05, 14, 15, 16, 19, 20. Applicable constraints of 06 are used through
-the common safety contract; effort and model availability are resolved by 18 and catalog 04,
+**3. Dependencies and single owners of contracts.** Prerequisites per the current index: 09,
+10, completed 02 and 03, 05, 12, 13, 15, 17, 18. Applicable constraints of 06 are used through
+the common safety contract; effort and model availability are resolved by 16 and catalog 04,
 not anew in this document.
 
-| Document | What 12 receives |
+| Document | What 23 receives |
 |---|---|
-| 13 | Verifiable environment capabilities, process names and the registry |
-| 09 | Offline scenarios and a separately authorized comparative evaluation |
+| 09 | Verifiable environment capabilities, process names and the registry |
+| 10 | Offline scenarios and a separately authorized comparative evaluation |
 | 05 | Identity of requests, attempts, roles and intervals; no double counting |
 | 06 | Operation constraints and the narrow exception for deleting a provably included child branch |
-| 14 | The child's immutable packet, current dependencies and context hashes |
-| 15 | Evidence envelopes, the source-revision check, idempotent application by the orchestrator |
-| 16 | Verification scope and validity of confirmations by actual inputs |
-| 19 | Bounded repair attempts only for an eligible isolated defect |
-| 20 | Full criteria coverage, dependencies, file ownership and independence evidence |
+| 12 | The child's immutable packet, current dependencies and context hashes |
+| 13 | Evidence envelopes, the source-revision check, idempotent application by the orchestrator |
+| 15 | Verification scope and validity of confirmations by actual inputs |
+| 17 | Bounded repair attempts only for an eligible isolated defect |
+| 18 | Full criteria coverage, dependencies, file ownership and independence evidence |
 
 **4. Terms and invariants.** *Composite task* — the existing permitted task type with children
 and separate integration criteria. *Wave* — a bounded set of independent children launched
@@ -154,9 +154,9 @@ Mandatory invariants:
 **5. Normative requirements.** REQ-01–REQ-05 are kept from the original additions; the other
 identifiers formalize previously unnumbered criteria.
 
-- **REQ-01. Context and writes.** Each child receives the immutable packet of 14 and a fresh
+- **REQ-01. Context and writes.** Each child receives the immutable packet of 12 and a fresh
   bounded projection without its neighbours' conversations. The orchestrator verifies and
-  applies sequentially all state-change proposals from the envelopes of 15; workers do not
+  applies sequentially all state-change proposals from the envelopes of 13; workers do not
   publish stale confirmations.
 - **REQ-02. Accounting.** Children's requests, retries, checks and cache writes are counted
   once per 05. Total waiting time is shown separately from the sum of worker time. A speedup
@@ -165,11 +165,11 @@ identifiers formalize previously unnumbered criteria.
   kept. Before the merge, overlaps and the child's evidence are checked; the required
   integration checks run on the actual combined tree. A failed merge or check does not create
   a verified composite task.
-- **REQ-04. Risk and repairs.** 16 applies to the child and to the shared area; confirmations
-  are invalidated after significant changes. Policy 19 is allowed only for an isolated
+- **REQ-04. Risk and repairs.** 15 applies to the child and to the shared area; confirmations
+  are invalidated after significant changes. Policy 17 is allowed only for an isolated
   eligible defect. A dangerous shared contract or a critical finding stops new dispatch of
   work, preserves results and moves to the existing decision procedure.
-- **REQ-05. Independence and capabilities.** Evidence comes from 20 and the applicable
+- **REQ-05. Independence and capabilities.** Evidence comes from 18 and the applicable
   classifier. Required: no file overlap, no shared mutable contract or schema, no dependency
   edge and no ordering constraint. Role and model permissions are not weakened. An
   unsupported explicit parallel request is rejected; the ordinary mode stays sequential.
@@ -206,7 +206,7 @@ identifiers formalize previously unnumbered criteria.
   unconfirmed result is not mixed in automatically.
 - **REQ-15. Regression and equivalence.** Offline scenarios confirm identical criteria,
   constraints and final behaviour at N = 1 and N = 2; permitted live goldens are compared
-  separately per 09. Normalization allows different service identifiers but does not hide
+  separately per 10. Normalization allows different service identifiers but does not hide
   missing evidence.
 - **REQ-16. Migration.** Rules, processes, state, constraints and documentation change
   consistently; an accepted decision record fixes the replaced provisions. Active tasks of
@@ -249,7 +249,7 @@ current policy; creating a worktree gives no right to delete them for cleanlines
 | `independence_evidence` | Grounds for all four conditions, hash of the plan and sources |
 | `integration_order` | Deterministic permitted inclusion order |
 | `integration_checks` | Shared criteria, checks and owner |
-| `packet_digest` | Reference to the packet of 14; the final packet is formed for the actual base |
+| `packet_digest` | Reference to the packet of 12; the final packet is formed for the actual base |
 
 Different source files are not enough: two children can change one schema through a generator
 and a consumer, one library dependency through different modules, global configuration, or one
@@ -295,10 +295,10 @@ dependency graph.
 *9.2 Dispatching a child.* (1) Recheck dependency readiness and the currency of the
 independence grounds. (2) Create a run-owned temporary branch and worktree from the recorded
 current shared base; children of one wave usually share a base, and the concrete base is
-recorded for each. (3) Form the packet of 14 with the exact base, criteria, prohibitions, test
+recorded for each. (3) Form the packet of 12 with the exact base, criteria, prohibitions, test
 commands, integration risks and reporting rules. (4) Reserve a leaf slot within N and a task
 coordinator identity; dispatch each applicable atomic workflow to a distinct workflow agent
-under section 17. (5) Receive only significant envelopes of 15; do not reread the whole state
+under section 17. (5) Receive only significant envelopes of 13; do not reread the whole state
 whenever no new event arrives. (6) Determine the applicable test mode. For a new testable
 function or fix, verify RED and make the test commit before implementation is allowed. For a
 permitted change without behaviour change, verify `pinned`, commit the passing tests before
@@ -317,13 +317,13 @@ entire wave; shared writes and merges remain serialized. (1) Verify the identity
 worktree, branch, initial base, the child's current tip, the envelope and the independent
 confirmation. (2) Compare the actual changes with the plan, the wave's children and the
 already included changes; also check shared interfaces and invariants. (3) Check the currency
-of the packet and of the confirmation per 14/16; changed inputs require widening the check;
+of the packet and of the confirmation per 12/15; changed inputs require widening the check;
 the same branch name or one commit hash is not enough. (4) Record the merge intent with the
 expected old tip of the shared branch and the exact tip of the child. (5) Prepare the merge
 without flattening history; an intermediate tree used before the commit is a separate actual
 input set, not an accepted result. (6) On a conflict, preserve the state and evidence; do not
 apply a forced reset, an "always ours/theirs" choice or an automatic retry. (7) On the resulting
-combined tree, run the affected deterministic and independent checks per 16; the child's
+combined tree, run the affected deterministic and independent checks per 15; the child's
 checks do not replace this step. (8) Commit the merge with `--no-ff`; verify that the commit's
 tree equals the checked tree; if content changed, repeat the affected check. (9) Save the
 merge hash, its parents, the actual tree, the confirmations and the operation state; only then
@@ -375,7 +375,7 @@ packet, criteria, tests and significant interfaces); parallelism (requested and 
 number, reason for sequential continuation); validation (identifiers of envelopes, independent
 confirmations and open findings); inclusion (operation identifier, expected parent tips, merge
 hash, actual tree, check result); cleanup (evidence of ownership and inclusion, worktree
-release and absence of new work); repairs (reference to the episode and counters of 19; a
+release and absence of new work); repairs (reference to the episode and counters of 17; a
 restart creates no new limit). For one merge the journal distinguishes at least the intent,
 the started operation, the created commit, the verified acceptance and the completed cleanup.
 These are logical journal stages, not a new task status vocabulary. A state change and a ref
@@ -410,7 +410,7 @@ check its existence and worktree; do not launch a replacement over live work.
 | A required environment capability is missing | The explicit parallel request is refused; the sequential path stays available separately |
 | Independence is not proven | The child runs sequentially |
 | Writes outside the target files or a change to a shared contract | Stop dispatch and inclusion, preserve the evidence, review the scope |
-| The child's independent check fails | Keep the default stop; apply 19 only when the permitted policy is explicitly enabled |
+| The child's independent check fails | Keep the default stop; apply 17 only when the permitted policy is explicitly enabled |
 | Merge conflict | Keep the branches and the conflict; do not resolve automatically or declare the inclusion successful |
 | The combined result violates a criterion | The composite stays unverified; use the existing integration-issue process and fixing children |
 | A critical violation of an invariant, security or the agreed architecture | Stop new dispatches and move to the provided decision; do not multiply autonomous attempts |
@@ -422,7 +422,7 @@ Integration fixing children are created under the current decision protocol: in 
 mode by the user's decision; in an already authorized autonomous mode with the provided
 automatic `critical`/`important`/`optional` classification. This does not cancel the special
 hard stops for violated intent, architecture or invariants. Creating a fixing child does not
-mean silently launching it in the remaining parallel wave. Policy 19 keeps at most one local
+mean silently launching it in the remaining parallel wave. Policy 17 keeps at most one local
 and one explicitly authorized stronger attempt per episode; the attempt slot is reserved
 before launch. An undetermined, already dispatched launch is not a free retry. Serialization,
 a worktree change and a new executor do not reset the history.
@@ -452,7 +452,7 @@ parallelism. Telemetry 05 links each attempt and check to the child without dupl
 the composite's sum. The report shows the total elapsed time, the sum of worker durations,
 orchestrator and integration time, the number of rechecks, context volumes and observed cache
 reads and writes; the sum of durations is never added to the total time as another expense of
-the user's time. The parallel mode can be faster and more expensive. Comparison per 09 uses the
+the user's time. The parallel mode can be faster and more expensive. Comparison per 10 uses the
 same source tasks and independent criteria, including integration defects. Normalized
 artifacts at N = 1 and N = 2 must match in semantic obligations, not necessarily in every hash
 or write moment.
@@ -492,7 +492,7 @@ or write moment.
   `pinned → green` passes without an artificial RED; an already started old block without
   `atomic-tests:` keeps the provided note and requires no retroactive RED. For a new testable
   function or fix the mandatory order holds; a false `pinned` and removing the field to bypass
-  it are rejected. A repair does not change frozen tests and does not exceed the limits of 19.
+  it are rejected. A repair does not change frozen tests and does not exceed the limits of 17.
 
 All listed scenarios have offline reproducible variants. A live `composite` golden at N = 1 and
 N = 2 is needed for claims about real model behaviour, but its absence does not prevent
@@ -508,7 +508,7 @@ of test history, legitimate `pinned`/`n-a`, the narrow compatibility of the old 
 block, publication and composite closing. (5) Add independence evidence and parallel dispatch
 with limit N; check mutual isolation and serialization of shared effects. (6) Add overlaps, wave
 stop, fresh executors and recovery after interruption; the happy path is not sufficient. (7)
-Connect telemetry and reports; update the offline projects of 09 and shared documentation. (8)
+Connect telemetry and reports; update the offline projects of 10 and shared documentation. (8)
 Roll out for new or explicitly migrated tasks. When parallelism is disabled, keep the new
 branching guarantees and the history of an already started composite; do not return it
 automatically to the old chain of separate requests. Readiness means fulfilled offline criteria
@@ -626,9 +626,9 @@ required for deterministic acceptance.
 
 Verified at worktree revision `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff` (2026-11-13).
 
-**Branch model.** Spec 12a replaces the per-leaf stack for composite children with one
+**Branch model.** Spec 22 replaces the per-leaf stack for composite children with one
 composite branch, temporary child branches merged with `--no-ff`, a composite journal and a
-verified deletion; this spec builds on it (12a → Context & Problem for the shipped behaviour
+verified deletion; this spec builds on it (22 → Context & Problem for the shipped behaviour
 it replaces).
 
 **Current execution model.** Execution is strictly sequential: "Never start N+1 before N is
@@ -649,8 +649,8 @@ unsupported parallel execution" (`workflows/pd-decompose.md:124-129`) and its
 
 **Capabilities.** Neither capability record declares `sub-agents`, `agent-messaging`, `git`,
 `worktrees` or `concurrent-sub-agents` today (`harness/claude/capabilities.md`,
-`harness/codex/capabilities.md`); spec 13 owns those keys (13 DM-4) and the `/spec-run`
-capability preflight (13 REQ-37).
+`harness/codex/capabilities.md`); spec 09 owns those keys (09 DM-4) and the `/spec-run`
+capability preflight (09 REQ-37).
 
 **Decided but not built.** ADR-0009 Decision 4 decided one branch and one PR per composite in
 sequential and parallel mode alike, `--no-ff` merge-back of temporary child branches,
@@ -664,13 +664,13 @@ that conflict on 2026-11-14 in favour of the decision (D-04, Q-01).
 **Consequence.** A composite's children are reviewed as separate stacked pull requests although
 their integration criteria apply only to their union; every independent child waits for its
 predecessor; and the git rails still ask the owner to delete any temporary branch the pipeline
-creates; spec 12a removes those three problems for sequential runs. Large tasks still pay
+creates; spec 22 removes those three problems for sequential runs. Large tasks still pay
 serial wall-clock time (ADR-0004 records 21–26 h per run,
 `.ai/adr/0004-task-unknown-sequential-orchestration-context-roles.md:90`).
 
 ## Goal
 
-On spec 12a's composite branch model, let an explicitly requested parallel
+On spec 22's composite branch model, let an explicitly requested parallel
 run (`--parallel [N]`) execute up to N proven-independent children of the same composite
 concurrently in isolated worktrees, each through dedicated coordinator and workflow agents,
 while the orchestrator stays the single writer of shared state and the only git operator,
@@ -682,9 +682,9 @@ not promised.
 
 Items 1–4 and 10 of the combined specification (the branch model at N = 1, task and block
 fields, the composite journal, branch cleanup and the deletion verifier, `/restack`) are spec
-12a; the numbering of the remaining items is kept. Item 4 keeps one part here:
+22; the numbering of the remaining items is kept. Item 4 keeps one part here:
 
-4. Removal of temporary worktrees before spec 12a's branch deletion.
+4. Removal of temporary worktrees before spec 22's branch deletion.
 5. The `--parallel [N]` flag, its parsing, dry-run reporting and capability/helper preflight.
 6. The `### Parallel Safety` plan record written by `/pd-decompose`.
 7. Admission, write reservations, refill, overlap detection and serialization among the
@@ -692,15 +692,15 @@ fields, the composite journal, branch cleanup and the deletion verifier, `/resta
 8. Leaf coordinators, distinct workflow agents per atomic workflow and verified handoffs in
    parallel mode.
 9. The subcommands `write-set`, `admit`, `check-merge`, `check-handoff`, `next-attempt` and
-   `measure` of spec 12a's helper `scripts/composite_run.py`.
+   `measure` of spec 22's helper `scripts/composite_run.py`.
 11. Rule, workflow, principle, vocabulary and documentation updates, the superseding ADR, and
     deterministic contract and fixture checks.
 
 **Scheduling.** This spec starts only when the owner schedules it. Hard prerequisites, checked
-at Discovery: spec 12a delivered (merged); spec 13 delivered (the capability keys and the
-`/spec-run` preflight of 13 DM-4 and REQ-37, REQ-25); spec 20 delivered (the DM-8 object REQ-09
-and REQ-52 render); spec 09 delivered (the `composite` case C-10 extends); specs 02, 03 and 05
-are completed. Specs 14, 15, 16 and 19 are optional: A-35 states the behaviour before each is
+at Discovery: spec 22 delivered (merged); spec 09 delivered (the capability keys and the
+`/spec-run` preflight of 09 DM-4 and REQ-37, REQ-25); spec 18 delivered (the DM-8 object REQ-09
+and REQ-52 render); spec 10 delivered (the `composite` case C-10 extends); specs 02, 03 and 05
+are completed. Specs 12, 13, 15 and 17 are optional: A-35 states the behaviour before each is
 delivered.
 
 ## Out of Scope
@@ -718,13 +718,13 @@ delivered.
 - Merging any pull request, locally or through `gh` (unchanged rail, `rules/git-flow.md:180`).
 - The state tool of spec 07 (ADR-0021); the root may use it as its writer when available, but
   nothing here depends on it.
-- Defining the capability keys or their declaration format (spec 13), the context packet
-  (spec 14), checkpoint envelopes and derived proposals (spec 15), verification scope (spec 16),
-  repair attempts (spec 19), independence evidence content (spec 20), telemetry attribution
-  (spec 05), effort (spec 18) and golden evaluation (spec 09).
+- Defining the capability keys or their declaration format (spec 09), the context packet
+  (spec 12), checkpoint envelopes and derived proposals (spec 13), verification scope (spec 15),
+  repair attempts (spec 17), independence evidence content (spec 18), telemetry attribution
+  (spec 05), effort (spec 16) and golden evaluation (spec 10).
 - Changing the run-log vocabulary or adding run-log fields (`rules/run-log.md`, spec 02).
 - Migrating a task that already recorded per-leaf branches to the new model.
-- Preserving merge commits through `/restack` (spec 12a Q-02); the exact verified replay form stays.
+- Preserving merge commits through `/restack` (spec 22 Q-02); the exact verified replay form stays.
 - Any speedup, token or cost target, and any paid comparison run.
 - Changing existing tasks, branches or history in this repository.
 
@@ -737,7 +737,7 @@ delivered.
 | Arbiter | Answers class-A questions with citations (unchanged, `rules/orchestration.md:38-54`) | Writing anything |
 | Leaf coordinator (parallel mode) | For one child attempt: requests workflow agents from the root, passes and verifies handoffs, reports stage results and stop acknowledgements to the root | Writing `.ai/`, the journal or code; git operations; coordinating a second child |
 | Workflow agent (parallel mode) | Runs exactly one workflow invocation (`/phase-atomic-execution`, `/pae-tests`, `/pae-implement`, `/pae-finalize`, `/phase-atomic-validation`, `/pav-check`, `/pav-propose`, `/pav-close`); edits code and tests only inside its child's worktree and only within its reservation (execution workflows); returns results and deltas | Writing `.ai/` (root or worktree copy), the journal, or files outside the reservation; git write operations |
-| Implementer / Validator (serialized composite in a parallel run) | Spec 12a roles in the root worktree on the checked-out child branch | Git operations; any write under `.ai/` (REQ-01: the own-block carve-out does not apply in a parallel run) |
+| Implementer / Validator (serialized composite in a parallel run) | Spec 22 roles in the root worktree on the checked-out child branch | Git operations; any write under `.ai/` (REQ-01: the own-block carve-out does not apply in a parallel run) |
 
 ## Terminology
 
@@ -753,11 +753,11 @@ delivered.
 | **Leaf coordinator** | The per-attempt sub-agent of REQ-20. | Original §17 |
 | **Workflow agent** | A fresh sub-agent dedicated to exactly one workflow invocation (REQ-21). | Original §17 |
 | **Handoff** | The immutable JSON record passed from one workflow stage to the next (DM-6). | REQ-22 |
-| **Slot** | In this spec always a concurrency slot of the effective limit (REQ-10, REQ-23). It is unrelated to spec 19's `local` and `escalated` repair slots (19 DM-8 `slots`), which this spec never names, except in the preserved original text of the Source section, where "attempt slot" is spec 19's sense. | REQ-10; 19 C-10 row 12, A-34 |
+| **Slot** | In this spec always a concurrency slot of the effective limit (REQ-10, REQ-23). It is unrelated to spec 17's `local` and `escalated` repair slots (17 DM-8 `slots`), which this spec never names, except in the preserved original text of the Source section, where "attempt slot" is spec 17's sense. | REQ-10; 17 C-10 row 23, A-34 |
 
 Rejected synonyms: "integration branch", "wave branch", "task branch" (no such branches exist);
 "sub-PR" (children get no PR); "lock" for a reservation (no file lock is used); "retry" or
-"attempt" for a spec 19 repair (a repair is not an attempt).
+"attempt" for a spec 17 repair (a repair is not an attempt).
 
 ## Requirements
 
@@ -766,13 +766,13 @@ applies only to `/spec-run` tasks with `branch_model: per-composite`. Original i
 their subject; their original text is under Source. REQ-17, REQ-18, REQ-24 and REQ-26 are
 restricted to the children of one composite (D-04). "Parallel run" or "N > 1" is a run whose
 resolved N is above 1; "effective limit" is N, or 1 while the composite is serialized. In a
-parallel run the attempts of a serialized composite use spec 12a's one-at-a-time agent model
+parallel run the attempts of a serialized composite use spec 22's one-at-a-time agent model
 (REQ-14), while REQ-01 (single writer, which overrides the Implementer's own-block carve-out),
-REQ-11 (overlap), spec 12a REQ-41's commit sequence, spec 12a REQ-43's record points and REQ-24
-(failure isolation) apply to them. Stage names are those of spec 12a DM-3. Identifiers are unique
-across this file and spec 12a: a new identifier takes the next number unused in either file.
+REQ-11 (overlap), spec 22 REQ-41's commit sequence, spec 22 REQ-43's record points and REQ-24
+(failure isolation) apply to them. Stage names are those of spec 22 DM-3. Identifiers are unique
+across this file and spec 22: a new identifier takes the next number unused in either file.
 
-### Identifiers defined in spec 12a
+### Identifiers defined in spec 22
 
 REQ-03, REQ-06–REQ-08, REQ-12, REQ-13, REQ-16, REQ-30–REQ-37, REQ-39–REQ-47, REQ-50, REQ-51,
 REQ-53 and REQ-54; AC-02, AC-04, AC-05, AC-08, AC-09, AC-11, AC-12, AC-19, AC-23–AC-30, AC-32,
@@ -780,13 +780,13 @@ AC-34, AC-36, AC-37 and AC-47–AC-50; REQ-64–REQ-67; DM-1–DM-3, C-1–C-5 (
 the N > 1 rows to C-1, C-2, C-3 and C-5, and its DM-7 extends DM-3); NFR-01–NFR-03, NFR-05–NFR-07; A-03–A-05,
 A-07–A-09, A-11–A-14, A-18–A-21, A-24, A-25, A-28, A-30–A-34; E-05, E-11, E-17–E-19, E-22,
 E-23, E-25–E-31, E-35, E-39, E-43, E-46, E-48–E-52, E-54; R-2–R-6, R-8; D-02 and Q-02. A citation of
-one of them in this file names spec 12a.
+one of them in this file names spec 22.
 
-**Clause split.** The clauses of spec 12a REQ-30, spec 12a REQ-31, spec 12a REQ-35, spec 12a REQ-36, spec 12a REQ-47, spec 12a REQ-50 and
-spec 12a REQ-54 and spec 12a AC-02, spec 12a AC-12, spec 12a AC-28, spec 12a AC-32 and spec 12a AC-37 that apply only with an effective limit above 1
-are this file's REQ-57–REQ-63 and AC-39–AC-43 (each marked "split from 12a …"); AC-44–AC-46
-cover REQ-58, REQ-61 and REQ-60. Spec 12a REQ-43 and REQ-53 with AC-34 and AC-36 gave
-REQ-68 and REQ-69 with AC-52 and AC-53. The N = 1 behaviour stays in spec 12a under the original
+**Clause split.** The clauses of spec 22 REQ-30, spec 22 REQ-31, spec 22 REQ-35, spec 22 REQ-36, spec 22 REQ-47, spec 22 REQ-50 and
+spec 22 REQ-54 and spec 22 AC-02, spec 22 AC-12, spec 22 AC-28, spec 22 AC-32 and spec 22 AC-37 that apply only with an effective limit above 1
+are this file's REQ-57–REQ-63 and AC-39–AC-43 (each marked "split from 22 …"); AC-44–AC-46
+cover REQ-58, REQ-61 and REQ-60. Spec 22 REQ-43 and REQ-53 with AC-34 and AC-36 gave
+REQ-68 and REQ-69 with AC-52 and AC-53. The N = 1 behaviour stays in spec 22 under the original
 identifier.
 
 ### Shared state and accounting
@@ -794,7 +794,7 @@ identifier.
 - **REQ-01 Single writer.** WHILE a parallel run (N > 1) is executing, THE SYSTEM [root] SHALL
   be the only writer of every file under `.ai/` and of the composite journal, applying each
   delta returned by a coordinator or workflow agent sequentially, after re-reading the target
-  section; workers' own progress blocks are included. Spec 16 review records
+  section; workers' own progress blocks are included. Spec 15 review records
   (`<task>/verification/reviews/`) are files under `.ai/` and follow this rule: REQ-55 and REQ-56 state
   how the root writes them from a returned draft (D-05).
 - **REQ-02 Attribution.** WHEN a child attempt reaches an end stage (`accepted`, `failed`,
@@ -802,48 +802,48 @@ identifier.
   SHALL write exactly one synthetic per-subtask run-log aggregate for that attempt through the
   existing helper path (`workflows/spec-run.md:45-47`), so concurrent attempts never share or
   duplicate an aggregate.
-- **REQ-68 Record commits in a parallel run (split from 12a REQ-43).** WHERE the repository
+- **REQ-68 Record commits in a parallel run (split from 22 REQ-43).** WHERE the repository
   tracks `.ai/` paths, WHILE N > 1 and the composite is not serialized, THE SYSTEM [root] SHALL
   keep the root worktree on the composite branch and commit pending tracked `.ai/` changes there as `chore: update task
   records` before each child merge, before dispatching composite validation, after applying its
-  deltas, and before the run stops with a `blocker:`, using spec 12a DM-3 `pending_commits` for
-  the record commits' SHAs. A serialized composite follows spec 12a REQ-43.
-- **REQ-69 Packet location (split from 12a REQ-53).** WHERE spec 14's `packet` command is
+  deltas, and before the run stops with a `blocker:`, using spec 22 DM-3 `pending_commits` for
+  the record commits' SHAs. A serialized composite follows spec 22 REQ-43.
+- **REQ-69 Packet location (split from 22 REQ-53).** WHERE spec 12's `packet` command is
   delivered, WHEN the root builds a packet for an agent of an attempt that has a worktree, THE
   SYSTEM [root] SHALL set `--work` to that worktree instead of the root worktree.
 - **REQ-28 Worker context.** WHEN the root dispatches any agent for a child, THE SYSTEM [root]
   SHALL give it only that child's description path, its handoff, its worktree path (parallel
   mode), the absolute path of the root worktree's `.ai/` directory as read-only context and,
-  under spec 12a REQ-53, its context packet, and never another child's transcript, report or handoff.
+  under spec 22 REQ-53, its context packet, and never another child's transcript, report or handoff.
 
 ### Branches and integration
 
-- **REQ-57 Child worktree (split from 12a REQ-30).** WHILE the effective limit is above 1, WHEN
+- **REQ-57 Child worktree (split from 22 REQ-30).** WHILE the effective limit is above 1, WHEN
   the root starts a child attempt, THE SYSTEM [root] SHALL create the attempt's child branch as
-  spec 12a REQ-30 states and, in the same step, a new worktree for it at the DM-4 path, using the
+  spec 22 REQ-30 states and, in the same step, a new worktree for it at the DM-4 path, using the
   C-8 worktree form, instead of checking the branch out in the root worktree.
-- **REQ-59 Post-merge failure with active siblings (split from 12a REQ-35).** WHILE the
+- **REQ-59 Post-merge failure with active siblings (split from 22 REQ-35).** WHILE the
   effective limit is above 1, IF a post-merge check fails, THEN THE SYSTEM [root] SHALL, in
-  addition to spec 12a REQ-35, admit no further child of that composite (C-9 `admit` rule 0) and stop the run only
+  addition to spec 22 REQ-35, admit no further child of that composite (C-9 `admit` rule 0) and stop the run only
   after the active children of that composite acknowledge a stop (REQ-04 procedure).
-- **REQ-60 Merge conflict disproves independence (split from 12a REQ-36).** WHILE the effective
+- **REQ-60 Merge conflict disproves independence (split from 22 REQ-36).** WHILE the effective
   limit is above 1, IF `git merge` reports a conflict, THEN THE SYSTEM [root] SHALL run the abort
-  and journal record of spec 12a REQ-36, keep the child's worktree, and treat the conflict as
-  disproved independence (REQ-14) instead of spec 12a REQ-36's `blocker:` write and stop.
+  and journal record of spec 22 REQ-36, keep the child's worktree, and treat the conflict as
+  disproved independence (REQ-14) instead of spec 22 REQ-36's `blocker:` write and stop.
 
 ### Publication and cleanup
 
-- **REQ-58 Worktree removal (split from 12a REQ-31).** WHEN an `accepted` attempt with a
+- **REQ-58 Worktree removal (split from 22 REQ-31).** WHEN an `accepted` attempt with a
   worktree and a null `cleanup.failure` is cleaned up, THE SYSTEM [root] SHALL run `git worktree
-  remove <path>` (never `--force`) as its own Bash call before spec 12a REQ-31's branch deletion,
+  remove <path>` (never `--force`) as its own Bash call before spec 22 REQ-31's branch deletion,
   and on any failure, hook ask or hook deny keep the worktree and the branch, record the reason
   in `cleanup.failure`, never retry or rephrase it in this or a later run, and continue.
 - **REQ-70 Superseded attempts.** WHEN a composite completes, THE SYSTEM [root] SHALL, for each
   `superseded` attempt, run `git worktree remove <path>` (never `--force`) when the attempt has
   a worktree with no tracked change and no untracked, non-ignored path, keep its branch, and
-  report the branch and any kept worktree in Step 8; spec 12a REQ-47 deletes the journal only
+  report the branch and any kept worktree in Step 8; spec 22 REQ-47 deletes the journal only
   when no superseded attempt still has a worktree.
-- **REQ-61 Handoff retention (split from 12a REQ-47).** WHEN spec 12a REQ-47 deletes a task's
+- **REQ-61 Handoff retention (split from 22 REQ-47).** WHEN spec 22 REQ-47 deletes a task's
   composite journal, THE SYSTEM [root] SHALL delete the task's handoff directory (DM-6) in the
   same step; otherwise it keeps it.
 
@@ -856,7 +856,7 @@ identifier.
   `**stop**: "Invalid --parallel value '<v>': use a positive integer."` before preflight writes
   anything for any other value.
 - **REQ-48 Per-leaf tasks.** IF N > 1 and the task's `branch_model` is or resolves to
-  `per-leaf` (spec 12a DM-1), THEN THE SYSTEM [root] SHALL stop before any write with
+  `per-leaf` (spec 22 DM-1), THEN THE SYSTEM [root] SHALL stop before any write with
   `**stop**: "Parallel execution requires the per-composite branch model; this task records
   per-leaf branches. Re-run without --parallel."`.
 - **REQ-10 Parallel limit.** WHILE a composite is executing, THE SYSTEM [root] SHALL admit no
@@ -865,9 +865,9 @@ identifier.
 - **REQ-25 Capability preflight.** WHEN N > 1, or on a resume while any attempt has a worktree,
   THE SYSTEM [root] SHALL, before Discovery or any
   branch, require the capability records `sub-agents`, `agent-messaging`, `git`, `worktrees`
-  and `concurrent-sub-agents` with `state: yes` through spec 13's `/spec-run` preflight, which
+  and `concurrent-sub-agents` with `state: yes` through spec 09's `/spec-run` preflight, which
   alone defines the stop for a missing or unknown capability, its message and the next step it
-  names (13 REQ-37; key names and record form follow 13's capability contract, 13 DM-4),
+  names (09 REQ-37; key names and record form follow 09's capability contract, 09 DM-4),
   and then verify that `ORCHESTRAIL_HOME` is set, that `python3 "$ORCHESTRAIL_HOME/scripts/composite_run.py" --version`
   prints `{"version": "1"}` under Python ≥ 3.11, and that `.ai/context/runbook.md → ## Commands`
   has a non-placeholder `test:` entry (`templates/.ai/context/runbook.md:10-15`), and otherwise
@@ -886,16 +886,16 @@ identifier.
   without creating any branch, worktree, journal or state write.
 - **REQ-09 Independence record.** WHEN `/pd-decompose` writes a plan containing a composite,
   THE SYSTEM [`/pd-decompose`] SHALL render one `### Parallel Safety` row per child (DM-5) from
-  that child's spec 20 DM-8 object, with `Parallel-safe: no` whenever DM-8 `disqualifiers` is
+  that child's spec 18 DM-8 object, with `Parallel-safe: no` whenever DM-8 `disqualifiers` is
   non-empty, the write set is not a complete explicit file list, the child needs an exclusive
-  resource, an `## Execution Strategy` ordering constraint names it (under spec 20 REQ-13 and
+  resource, an `## Execution Strategy` ordering constraint names it (under spec 18 REQ-13 and
   REQ-35 such ordering is a `Depends On` edge, so this clause matters only for older plans), or
   any independence condition is unproven.
 - **REQ-52 Design reconciliation.** WHEN `/pd-design` finishes on a plan containing a composite,
   THE SYSTEM [`/pd-design`] SHALL re-render every `### Parallel Safety` row from the child's
-  current spec 20 DM-8 object (whose interface contracts `/pd-design` has just resolved) and
+  current spec 18 DM-8 object (whose interface contracts `/pd-design` has just resolved) and
   apply REQ-09's `Parallel-safe` rule again, changing no row of a child that has started in
-  the sense of spec 20 REQ-24.
+  the sense of spec 18 REQ-24.
 - **REQ-05 Independence predicate.** THE SYSTEM [helper and root] SHALL treat two children of
   one composite as independent only when both rows say `Parallel-safe: yes`, both planned
   write sets are complete and disjoint, neither produces an interface the other produces or
@@ -924,81 +924,81 @@ identifier.
 - **REQ-14 Serialization.** WHEN independence is disproved in a composite, THE SYSTEM [root]
   SHALL record `serialized` with the reason and paths in the journal, admit no new child of that
   composite, send every active coordinator a stop and wait until each acknowledges or is
-  confirmed gone, for at most one further status round (REQ-27), then let an attempt in `merge-intent` or `merged` finish spec 12a REQ-07/REQ-03 (it becomes
+  confirmed gone, for at most one further status round (REQ-27), then let an attempt in `merge-intent` or `merged` finish spec 22 REQ-07/REQ-03 (it becomes
   `accepted` or `check-failed`, REQ-59), integrate in row order each `validated` attempt whose
   `check-merge` verdict is `ok`, set `superseded` every other attempt in `branched`,
   `dispatched`, `validated`, `conflict`, `failed` or `blocked` (`accepted` and `cleaned` stay), and run each remaining child as a new attempt from the current composite tip in
-  the root worktree with fresh agents of the effective-limit-1 model (spec 12a C-1 Step 4: one
+  the root worktree with fresh agents of the effective-limit-1 model (spec 22 C-1 Step 4: one
   Implementer, one Validator), one at a time, until the composite completes.
 - **REQ-04 Broad stop.** IF a critical finding, an Invariant or Off-limits violation, a
   class-B question, a composite-promotion tripwire or any other condition of
   `rules/orchestration.md:180-187` occurs during a parallel run — except `atomic-tests: failed`
-  and a worker blocker of one child, which REQ-24 isolates (spec 12a DM-3 `tests-failed`, `blocker`) —
+  and a worker blocker of one child, which REQ-24 isolates (spec 22 DM-3 `tests-failed`, `blocker`) —
   THEN THE SYSTEM [root] SHALL
   admit no new child anywhere, send every active coordinator a stop, record each
   acknowledgement with the last verified checkpoint, preserve all branches and worktrees, and
-  stop the run. A worker already dispatched, a spec 12a REQ-54 repair worker included, is not
+  stop the run. A worker already dispatched, a spec 22 REQ-54 repair worker included, is not
   interrupted: its running agent finishes (C-6 row 8), no further attempt, repair attempt or
-  validation recheck starts, its result is recorded through spec 19's `outcome` step and an
-  open episode stays open (19 C-10 row 12), and the attempt keeps the journal stage it had at
+  validation recheck starts, its result is recorded through spec 17's `outcome` step and an
+  open episode stays open (17 C-10 row 23), and the attempt keeps the journal stage it had at
   the stop for the resume (REQ-27).
 - **REQ-24 Failure isolation.** WHILE N > 1, IF a child's atomic validation returns NEEDS WORK
-  (unless spec 12a REQ-54 repairs the child, REQ-63),
+  (unless spec 22 REQ-54 repairs the child, REQ-63),
   its `/pae-tests` reports `atomic-tests: failed`, or a child is blocked, THEN THE SYSTEM [root] SHALL set its attempt `failed` or `blocked` with
   its `blocked_reason`, write `blocker: <blocked_reason>: <one-line detail>` in the child block,
   keep the attempt unintegrated with its branch, worktree and reservation, keep admitting
   independent children of the same composite, and stop the run with that child reported once no
   child of the composite is active or admissible.
-- **REQ-63 Repair in a parallel run (split from 12a REQ-54).** WHILE the effective limit is above
-  1, WHERE spec 19's repair policy is active for the run, WHEN spec 12a REQ-54 repairs a child,
+- **REQ-63 Repair in a parallel run (split from 22 REQ-54).** WHILE the effective limit is above
+  1, WHERE spec 17's repair policy is active for the run, WHEN spec 22 REQ-54 repairs a child,
   THE SYSTEM [root] SHALL run the repair instead of the REQ-24 stop and keep the attempt's
   concurrency slot and reservation; after an accepted
-  repair apply REQ-11 and REQ-14 as well as spec 12a REQ-54's merge rules; start no further
+  repair apply REQ-11 and REQ-14 as well as spec 22 REQ-54's merge rules; start no further
   repair attempt or recheck on a REQ-04 broad stop while letting a repair worker already
   dispatched finish, as REQ-04 states; copy the episode key into the next attempt's
-  `repair_episode` when REQ-14 supersedes an attempt with an open episode (19 C-10: an episode
+  `repair_episode` when REQ-14 supersedes an attempt with an open episode (17 C-10: an episode
   survives serialization, worktree change and new workers); apply the REQ-24 stop when a repair
   loop ends without acceptance (without the active policy, REQ-24 applies exactly as written); and run the `/pae-repair` invocation as one workflow invocation:
   the root spawns one fresh agent for it (REQ-21), the agent returns its leaf-block writes as
-  deltas (REQ-01), the root commits 19's checkpoints and builds a DM-6 handoff with stage
+  deltas (REQ-01), the root commits 17's checkpoints and builds a DM-6 handoff with stage
   `repair`, and the coordinator then requests a fresh validation phase (C-6 rows 6 and 10).
-- **REQ-55 Review records.** WHERE spec 16's `record` command is available (16 C-1), WHILE
+- **REQ-55 Review records.** WHERE spec 15's `record` command is available (15 C-1), WHILE
   N > 1, WHEN a review agent of the run returns its final report (the `/pav-check` workflow
   agent of a child attempt, REQ-21, the Validator of a child of a serialized composite, which uses
   the effective-limit-1 model and has no coordinator or phase agent, or the composite validation
-  agent, spec 12a REQ-12), THE SYSTEM [root]
+  agent, spec 22 REQ-12), THE SYSTEM [root]
   SHALL be the only invoker of `record`: the agent runs `prepare` and `run` but never `record`,
   never writes under `<task>/verification/` and returns its review draft in the report's
-  `review` object (C-6 row 11). The root SHALL write the returned DM-7 draft object of spec 16
+  `review` object (C-6 row 11). The root SHALL write the returned DM-7 draft object of spec 15
   to `<task>/verification/drafts/<scope key>-attempt-<k>.json` of the root worktree's task
   directory, and run `record --draft` on it with the options the agent passed to `prepare`, only
   after confirming that `--work` names the attempt's location and `--task` and `--ai-dir` name
   the root worktree's task directory and `.ai/`, before it applies any other delta of that
   report and before the root's checkpoint commit or the next dispatch for the attempt. When
   `record` publishes, the root SHALL apply the report's verdict and notes deltas and then append,
-  as the last entry, the 16 DM-8 entry `verification: review <scope key> <step> #<seq> <scope>
+  as the last entry, the 15 DM-8 entry `verification: review <scope key> <step> #<seq> <scope>
   sha256:<file hex>` built from the `record` result (`seq`, `file_sha256`); an agent never writes
   that entry. WHEN the report carries `draft: null` with a `none_reason`, THE SYSTEM [root]
   SHALL append the DM-8 entry `verification: review <scope key> <step> none — <reason>` instead
   and write no record. At N = 1 this requirement does not apply: the Validator runs `record`
-  itself as 16 C-4 states.
+  itself as 15 C-4 states.
 - **REQ-56 Refused or unusable review draft.** WHERE REQ-55 applies, IF the `review` object is missing, is not JSON of the C-6 row 11 form, or
   names a different `--work`, `--task` or `--ai-dir` (an unusable draft), or `record` exits 1
   (refused), THEN THE SYSTEM [root] SHALL write no record and apply none of that report's
   verdict, `verification:` entry or other review deltas, and SHALL spawn the same review role
   once more as a fresh agent whose message carries the refusal `reasons` (the correction, spec
-  16's `Record:` rule), replying to a requesting phase agent per C-6 row 12; IF the correction's
+  15's `Record:` rule), replying to a requesting phase agent per C-6 row 12; IF the correction's
   draft is also unusable or refused, or `record` exits 2, 3 or 4, THEN the root SHALL spawn the
   review role one further time with `"helper": "off"`, whose full review without the helper
-  returns `draft: null` with `none_reason: helper-error` (16 DM-8), and when that agent also
+  returns `draft: null` with `none_reason: helper-error` (15 DM-8), and when that agent also
   returns no usable report the attempt is `blocked` with reason `record-failed` (REQ-24); for
-  the spec 12a REQ-12 composite validation agent, which has no attempt, the root writes
+  the spec 22 REQ-12 composite validation agent, which has no attempt, the root writes
   `blocker: record-failed: <one-line detail>` in the composite block and stops the run.
-- **REQ-62 Owner-cleared resume with a worktree (split from 12a REQ-50).** WHEN spec 12a REQ-50
+- **REQ-62 Owner-cleared resume with a worktree (split from 22 REQ-50).** WHEN spec 22 REQ-50
   restarts an attempt that has a worktree, THE SYSTEM [root] SHALL restart it in that worktree,
   count it as active (it occupies a slot of the effective limit), and take the restart stage for
   the `blocked_reason` values `handoff-stale`, `liveness-unknown`, `uncommitted-work` and
-  `record-failed` from the spec 12a DM-3 resume table.
+  `record-failed` from the spec 22 DM-3 resume table.
 
 ### Agents in parallel mode
 
@@ -1015,7 +1015,7 @@ identifier.
   `/pav-propose --batch`, `/pav-close`).
 - **REQ-22 Verified handoff.** WHEN a workflow agent of a child returns, THE SYSTEM [root] SHALL
   commit the checkpoint its report represents (if any) in the attempt's worktree in the commit
-  sequence of spec 12a REQ-41 (`test:` before the implementation commit for `red` and `pinned`,
+  sequence of spec 22 REQ-41 (`test:` before the implementation commit for `red` and `pinned`,
   one commit for `n-a`, the legacy note unchanged), build the handoff (DM-6) from that
   report and the worktree, record its digest in the journal, run C-9 `check-handoff` on it
   immediately before dispatching the next workflow, and dispatch the next workflow with only that
@@ -1028,7 +1028,7 @@ identifier.
   spawn when `admit` lists the attempt in `respawn` after an attempt leaves the active stages
   (clearing `capacity_limit`), and, when no other child of the composite is active, set the attempt `blocked` with
   `blocker` and write `blocker: blocker: spawn refused by the harness`, then stop the run under
-  REQ-24 instead of recording a limit (spec 12a's `blocker` resume row applies).
+  REQ-24 instead of recording a limit (spec 22's `blocker` resume row applies).
 - **REQ-72 Unwritable worktree.** IF a workflow agent's report carries `"worktree_unwritable":
   true` (its edit tool refused a path inside the attempt's worktree), THEN THE SYSTEM [root]
   SHALL set the attempt `blocked` with `worktree-not-writable` and serialize the composite with
@@ -1047,10 +1047,10 @@ identifier.
 - **REQ-26 Run measurement.** WHEN a run with any composite ends, THE SYSTEM [root] SHALL report,
   per composite, the requested N, serialization events with reasons, and the output of C-9
   `measure`, printing `not measured` for each null value and claiming no speedup.
-- **REQ-15 Equivalence.** WHERE an owner-approved spec 09 `composite` golden run exists for
-  both `--parallel 1` and `--parallel 2`, THE SYSTEM [`scripts/check-composite-run.py`; spec 09
+- **REQ-15 Equivalence.** WHERE an owner-approved spec 10 `composite` golden run exists for
+  both `--parallel 1` and `--parallel 2`, THE SYSTEM [`scripts/check-composite-run.py`; spec 10
   defines no comparison between two runs' projections] SHALL compare their normalized
-  structural assertions (the two spec 09 expected projections) and treat any difference other than aliased hashes, branch
+  structural assertions (the two spec 10 expected projections) and treat any difference other than aliased hashes, branch
   names and timestamps as a defect.
 
 ## Data Model
@@ -1088,13 +1088,13 @@ under `.git` are not verified; REQ-49's probe and E-36 cover them by serializing
   listed order" (`workflows/pd-decompose.md:127-128`) is replaced by "composite children
   integrate in listed order; `### Parallel Safety` states which may run concurrently".
 - `Independence evidence`: one clause for each condition of REQ-05 and for resources.
-- Source of every row: the child's spec 20 DM-8 object (one per composite child; 20 DM-8 maps
+- Source of every row: the child's spec 18 DM-8 object (one per composite child; 18 DM-8 maps
   each field onto these columns). DM-8 carries no yes/no value: this spec renders the table,
   decides `Parallel-safe` (REQ-09) and owns the REQ-05 predicate. `/pd-design` re-renders the
   rows after resolving interface contracts (REQ-52).
 - Integration order is `## Subtasks` row order among ready children (C-9 `admit` rule 5); dependencies stay in `Depends On`.
 - Original fields `packet_digest` and `integration_checks` are not columns: the packet belongs to
-  spec 14 and the integration checks are the composite description's Acceptance Criteria.
+  spec 12 and the integration checks are the composite description's Acceptance Criteria.
 
 ### DM-6 Handoff (new, parallel mode)
 
@@ -1105,38 +1105,38 @@ agent, and stored by the root under `<git-common-dir>/orchestrail-composite/hand
 | Field | Type | Meaning |
 |---|---|---|
 | `schema_version` | `1` | — |
-| `child`, `attempt`, `stage` | text, int, `tests \| implement \| finalize \| check \| propose \| close \| repair` | Identity (`repair`: spec 12a REQ-54) |
+| `child`, `attempt`, `stage` | text, int, `tests \| implement \| finalize \| check \| propose \| close \| repair` | Identity (`repair`: spec 22 REQ-54) |
 | `worktree`, `branch`, `base_commit` | path, text, SHA | Child attempt |
 | `candidate_commit` | SHA | Worktree HEAD after the root's checkpoint commit |
 | `description_path` | path | The child's `description.md` |
 | `ac_ids` | list of text | Acceptance Criteria covered |
 | `allowed_paths` | list of paths | The reservation |
-| `test_mode`, `test_command` | as spec 12a DM-3 | — |
-| `observed` | `{"exit_code": int or null, "label": text or null, "failing_tests": [...]}` | RED, pinned or GREEN observation; see the spec 17 mapping below |
+| `test_mode`, `test_command` | as spec 22 DM-3 | — |
+| `observed` | `{"exit_code": int or null, "label": text or null, "failing_tests": [...]}` | RED, pinned or GREEN observation; see the spec 14 mapping below |
 | `test_files` | `{path: sha256}` | Frozen test set identity |
 | `previous_digest` | sha256 hex or `null` | Chain link |
 
 The digest is SHA-256 over the object serialized with sorted keys, `","`/`":"` separators and
 UTF-8. Handoffs pass between child workflows (`/pae-tests` → `/pae-implement` → `/pae-finalize`
 → `/pav-check` → `/pav-propose` → `/pav-close`); phase agents relay them (C-6) and produce none.
-Once spec 17 is delivered, test commands run through its output store, one store shared by the
-root and every child worktree (17 REQ-07), safe under concurrent use (17 REQ-11, REQ-12); `observed.exit_code` is 17's DM-3 `exit_code`
-only when 17's outcome `kind` is `exit`, and `null` otherwise, with `observed.label` set from
-17's outcome `label` (kinds `signal`, `interrupted`, `timeout`, `launch-error`). Before 17,
+Once spec 14 is delivered, test commands run through its output store, one store shared by the
+root and every child worktree (14 REQ-07), safe under concurrent use (14 REQ-11, REQ-12); `observed.exit_code` is 14's DM-3 `exit_code`
+only when 14's outcome `kind` is `exit`, and `null` otherwise, with `observed.label` set from
+14's outcome `label` (kinds `signal`, `interrupted`, `timeout`, `launch-error`). Before 14,
 `label` is `null` and `exit_code` is the shell's exit status.
 
-Spec 15 does not carry the DM-6 object: when 15 is delivered, its attempt record carries the
+Spec 13 does not carry the DM-6 object: when 13 is delivered, its attempt record carries the
 digest of the handoff given to the workflow as `input_handoff_digest`, and its receipt carries
 the digest of the handoff the root builds after that checkpoint as `output_handoff_digest`
-(15 REQ-41); the object itself exists only in the file above. For stage `repair` (spec 12a REQ-54) no
-receipt exists (15 C-10 row 12), so no `output_handoff_digest` is recorded for it (the field,
-where 15's record has it, stays `null`), while `input_handoff_digest` follows 15 REQ-41 as for
+(13 REQ-41); the object itself exists only in the file above. For stage `repair` (spec 22 REQ-54) no
+receipt exists (13 C-10 row 23), so no `output_handoff_digest` is recorded for it (the field,
+where 13's record has it, stays `null`), while `input_handoff_digest` follows 13 REQ-41 as for
 every other stage; no rule of this spec requires a receipt for a repair, and the root records
 the handoff digest in the journal `handoffs` list as for any stage.
 
 ### DM-7 Journal extension (new, parallel mode)
 
-Spec 12a DM-3 is canonical; this spec writes these optional fields and values, which spec 12a's
+Spec 22 DM-3 is canonical; this spec writes these optional fields and values, which spec 22's
 `validate` accepts:
 
 | Object | Field or value | Type | Writer | Meaning |
@@ -1152,32 +1152,32 @@ Spec 12a DM-3 is canonical; this spec writes these optional fields and values, w
 | attempt | stage `superseded` | — | root (REQ-14, REQ-49) | Terminal; `ended_at` is set when not already set |
 | attempt | `spawn_refused` | bool | root (REQ-71) | true while a refused spawn keeps the attempt `branched`; such an attempt is a waiting candidate, not active |
 | composite | `capacity_limit` | null or positive integer | root (REQ-71) | Set on a refused spawn while at least one other child is active; cleared when an attempt leaves the active stages |
-| attempt | `blocked_reason` `handoff-stale`, `liveness-unknown`, `worktree-not-writable`, `record-failed` | — | root (REQ-22, REQ-27, REQ-56, E-36) | Resume rows in spec 12a DM-3 |
+| attempt | `blocked_reason` `handoff-stale`, `liveness-unknown`, `worktree-not-writable`, `record-failed` | — | root (REQ-22, REQ-27, REQ-56, E-36) | Resume rows in spec 22 DM-3 |
 | attempt | `cleanup.worktree_removed` `true` | — | root (REQ-58) | After `git worktree remove` |
 
 `task-key` (DM-4 worktree path) = the first 16 hex characters of the journal's file-name digest.
 
 ## Contracts & Interfaces
 
-### C-7 `/spec-run` invocation (changed; delta to spec 12a C-1)
+### C-7 `/spec-run` invocation (changed; delta to spec 22 C-1)
 
 `/spec-run <path-to-spec> [--allow-pr] [--dry-run] [--parallel [N]]` — N per REQ-29. The
 run-start `--flags` value includes `--parallel N` as passed. Stops added: invalid value
 (REQ-29), preflight unavailable (REQ-25), per-leaf task with N > 1 (REQ-48). A resumed run uses
 the N passed to that invocation and repeats the preflight when N > 1 or any attempt has a
-worktree. Rows added to spec 12a's
+worktree. Rows added to spec 22's
 step changes:
 
 | Step | Change added by this spec |
 |---|---|
 | Step 0 | Parse `--parallel` (REQ-29); N > 1 preflight (REQ-25, REQ-48); on resume, REQ-27 agent recovery before redispatch |
-| Step 4 | An effective limit above 1 (N > 1, composite not serialized) uses REQ-17–REQ-27, REQ-57 and C-6; a serialized composite continues with spec 12a's one-at-a-time procedure (REQ-14) |
+| Step 4 | An effective limit above 1 (N > 1, composite not serialized) uses REQ-17–REQ-27, REQ-57 and C-6; a serialized composite continues with spec 22's one-at-a-time procedure (REQ-14) |
 | Step 8 | REQ-26 measures per composite |
 | Never list | "Never runs subtasks in parallel" becomes "Never runs subtasks in parallel except children of one composite under `--parallel N`, N > 1" |
 
 ### C-8 Git command forms added by this spec (each its own Bash call)
 
-Spec 12a C-2 is canonical; this spec adds:
+Spec 22 C-2 is canonical; this spec adds:
 
 | Purpose | Command |
 |---|---|
@@ -1188,7 +1188,7 @@ Spec 12a C-2 is canonical; this spec adds:
 ### C-9 `scripts/composite_run.py` subcommands added by this spec
 
 The helper, its invocation, exit codes, error codes and the subcommands `--version`,
-`validate`, `reconcile` and `post-merge-commands` are defined in spec 12a → C-3. This spec
+`validate`, `reconcile` and `post-merge-commands` are defined in spec 22 → C-3. This spec
 adds the subcommands below; the helper is required when N > 1 (REQ-25).
 
 | Subcommand | Arguments | Result |
@@ -1234,7 +1234,7 @@ the three time values are `null`.
    earlier child's latest attempt is `branched`, `dispatched`, `merge-intent` or `merged`.
 6. `done` = every child's latest attempt is `accepted` or `cleaned`.
 
-`reconcile` rows added for attempts with a non-null `worktree`, evaluated before spec 12a's
+`reconcile` rows added for attempts with a non-null `worktree`, evaluated before spec 22's
 rows:
 
 | Journal stage | Observation | Action |
@@ -1243,10 +1243,10 @@ rows:
 | `dispatched` | the worktree has tracked changes, or an untracked, non-ignored path outside `.ai/` that is not in `untracked_at_dispatch` (the worktree is not covered by the root's clean-tree gate) | `inspect-worker` |
 | `accepted` | the worktree still exists | `cleanup-pending` |
 
-Root actions in a parallel run (replacing spec 12a's for these attempts): `redo-worktree` —
+Root actions in a parallel run (replacing spec 22's for these attempts): `redo-worktree` —
 `git worktree add <path> <branch>` when the branch exists, otherwise the C-8 `git worktree add -b`
 form from the recorded `base_commit`; `redo-branch` — the C-8 form; `inspect-worker` — `blocked`
-with `uncommitted-work`, reservation kept (E-21); `cleanup-pending` — REQ-58, then spec 12a
+with `uncommitted-work`, reservation kept (E-21); `cleanup-pending` — REQ-58, then spec 22
 REQ-31; `none` on `branched` — spawn the leaf coordinator (REQ-20); `none` on `dispatched` —
 REQ-27 agent recovery.
 
@@ -1256,7 +1256,7 @@ worktree when one exists); `scope-exceeded` lists paths not in the planned write
 whose latest attempt is active, `accepted` or `cleaned`, named in `with`; `scope-exceeded`
 wins when both apply. The root calls it only when N > 1 or any attempt has a worktree (REQ-11).
 
-### C-10 Contract-file changes added by this spec (delta to spec 12a C-5)
+### C-10 Contract-file changes added by this spec (delta to spec 22 C-5)
 
 | File | Change |
 |---|---|
@@ -1264,20 +1264,20 @@ wins when both apply. The root calls it only when N > 1 or any attempt has a wor
 | `rules/workflow-reference.md` | `### Parallel Safety` format (DM-5) |
 | `rules/workflow-globals.md` | The sentence at `:106-109` becomes "Orchestrated mode is strictly sequential — no workflow may introduce concurrent subtask execution, except `/spec-run`'s children of one composite under `--parallel N`, N > 1." |
 | `workflows/spec-run.md` | C-7 and C-8 rows of this spec, C-6, worktree attempts, agent recovery; the "one synthetic aggregate per subtask" sentence (`:45-46`) becomes one per attempt (REQ-02) |
-| `workflows/phase-atomic-execution.md`, `workflows/phase-atomic-validation.md`, `workflows/pae-tests.md`, `workflows/pae-implement.md`, `workflows/pae-finalize.md`, `workflows/pav-check.md`, `workflows/pav-propose.md`, `workflows/pav-close.md` | Parallel-mode clause: run as one dedicated agent, request child invocations from the root (C-6), return every state write (own block included) as a delta, work only inside the given worktree; `workflows/pav-check.md` and `workflows/phase-composite-validation.md` additionally, in parallel mode, never run spec 16's `record` and return the `review` object of C-6 row 11 (REQ-55) |
+| `workflows/phase-atomic-execution.md`, `workflows/phase-atomic-validation.md`, `workflows/pae-tests.md`, `workflows/pae-implement.md`, `workflows/pae-finalize.md`, `workflows/pav-check.md`, `workflows/pav-propose.md`, `workflows/pav-close.md` | Parallel-mode clause: run as one dedicated agent, request child invocations from the root (C-6), return every state write (own block included) as a delta, work only inside the given worktree; `workflows/pav-check.md` and `workflows/phase-composite-validation.md` additionally, in parallel mode, never run spec 15's `record` and return the `review` object of C-6 row 11 (REQ-55) |
 | `workflows/pd-design.md` | REQ-52 re-render of `### Parallel Safety` after design |
-| `workflows/pd-decompose.md` | REQ-09 subsection rendered from 20 DM-8; replace "Do not claim unsupported parallel execution" and the Execution Strategy composite sentence per DM-5 |
-| `scripts/validate-contracts.sh` | No new check and no changed expression: `:1056` stays true (`rules/orchestration.md` keeps "strictly sequential" for everything outside one composite) and `:1513` stays true (`workflows/spec-run.md` keeps the same-agent resume sentence for spec 12a's one-at-a-time model); no `contract_changes` entry and no oracle change. Spec 12a's C-5 owns `:1454`, `:5456`, `:5614` |
+| `workflows/pd-decompose.md` | REQ-09 subsection rendered from 18 DM-8; replace "Do not claim unsupported parallel execution" and the Execution Strategy composite sentence per DM-5 |
+| `scripts/validate-contracts.sh` | No new check and no changed expression: `:1056` stays true (`rules/orchestration.md` keeps "strictly sequential" for everything outside one composite) and `:1513` stays true (`workflows/spec-run.md` keeps the same-agent resume sentence for spec 22's one-at-a-time model); no `contract_changes` entry and no oracle change. Spec 22's C-5 owns `:1454`, `:5456`, `:5614` |
 | `scripts/README.md` | Note the added subcommands of `composite_run.py` |
 | `.ai/principles/domain.md` | Terms of `## Terminology` (Implementer row: split in parallel mode) |
 | `.ai/principles/architecture.md` | P4 statement updated to name the root as the single writer of parallel mode |
 | `harness/claude/capabilities.md` | State that worker write restrictions are role discipline, not harness permissions (NFR-04) |
-| `tests/golden/cases/composite/case.json` (spec 09 DM-1 `workflows`) | Add a `composite` case workflow entry with `entry: "spec-run"` and `parallel: 2` (its prompt contains `--parallel 2`; the key may differ from `entry`, for example `spec-run-parallel-2`) for REQ-15, with the reference 09 requires for a case workflow |
+| `tests/golden/cases/composite/case.json` (spec 10 DM-1 `workflows`) | Add a `composite` case workflow entry with `entry: "spec-run"` and `parallel: 2` (its prompt contains `--parallel 2`; the key may differ from `entry`, for example `spec-run-parallel-2`) for REQ-15, with the reference 10 requires for a case workflow |
 | `docs/USAGE.md`, `docs/SPEC-RUN-QUICKSTART.md`, `workflows/PIPELINE.md` | `--parallel` |
-| `.ai/adr/NNNN-…` | One new ADR superseding ADR-0004 Decision 3 for children of one composite and ADR-0004 Decision 1 for parallel mode (D-01); spec 12a's ADR records the branch model |
+| `.ai/adr/NNNN-…` | One new ADR superseding ADR-0004 Decision 3 for children of one composite and ADR-0004 Decision 1 for parallel mode (D-01); spec 22's ADR records the branch model |
 
-File and command names are the current ones. If spec 13's migration lands first, each change
-applies to the file spec 13 gives that section: rule files become `<kind>-<subject>`
+File and command names are the current ones. If spec 09's migration lands first, each change
+applies to the file spec 09 gives that section: rule files become `<kind>-<subject>`
 (`rules/git-flow.md` → `contract-git-flow`; the `workflow-reference` sections → their split
 files such as `contract-state-files`; always-on content → `harness/<name>/always-on.md`), and
 commands are renamed (ADR-0009 Decision 3, `.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:116-130`: `/phase-composite-validation` →
@@ -1298,13 +1298,13 @@ non-root agents (`agent-messaging`). Each message is one JSON object.
 | 3 | phase agent → root | `{"request": "workflow", "workflow": "pae-tests" \| "pae-implement" \| "pae-finalize", "handoff_digest": <sha256 or null>}` | `check-handoff` on the named handoff (none for `pae-tests`); spawn the workflow agent with that handoff |
 | 4 | workflow agent → root (final report) | Workflow report: changed paths, test files, observed command and result, deltas, and `"worktree_unwritable": true` when its edit tool refused a worktree path (REQ-72) | REQ-11, checkpoint commit, REQ-22 handoff, apply deltas; reply to the phase agent `{"stage-done": <workflow>, "handoff_digest", "verdict"}` |
 | 5 | phase agent → root (final report) | `{"phase-done": "execution", "result": "complete" \| "blocked" \| "failed", "reason"}` | Forward to the coordinator |
-| 6 | coordinator → root | `{"request": "phase", "workflow": "phase-atomic-validation"}` only after a `complete` execution phase or, under spec 12a REQ-54, after the root reports a finished repair (row 10) | Spawn validation phase agent; it requests `pav-check`, `pav-propose`, `pav-close` as in row 3 |
-| 7 | phase agent → root (final report) | `{"phase-done": "validation", "verdict": "DONE" \| "NEEDS WORK", "composite_ready": <id or null>}` | Apply deltas; journal `validated`, or on NEEDS WORK `failed` (or, under spec 12a REQ-54, keep `dispatched` and run the repair); forward to the coordinator, which ends unless a repair runs, in which case it requests a validation phase again after the repair |
-| 8 | root → coordinator and root → its live phase agent | `{"stop": <reason>}` (REQ-04, REQ-14, REQ-27) | The phase agent lets its running workflow agent finish, requests nothing more and sends its final report; the coordinator replies `{"stopped": <last stage-done workflow>}`; a running `repair` workflow agent finishes the same way and starts no recheck (REQ-04, spec 12a REQ-54) |
+| 6 | coordinator → root | `{"request": "phase", "workflow": "phase-atomic-validation"}` only after a `complete` execution phase or, under spec 22 REQ-54, after the root reports a finished repair (row 10) | Spawn validation phase agent; it requests `pav-check`, `pav-propose`, `pav-close` as in row 3 |
+| 7 | phase agent → root (final report) | `{"phase-done": "validation", "verdict": "DONE" \| "NEEDS WORK", "composite_ready": <id or null>}` | Apply deltas; journal `validated`, or on NEEDS WORK `failed` (or, under spec 22 REQ-54, keep `dispatched` and run the repair); forward to the coordinator, which ends unless a repair runs, in which case it requests a validation phase again after the repair |
+| 8 | root → coordinator and root → its live phase agent | `{"stop": <reason>}` (REQ-04, REQ-14, REQ-27) | The phase agent lets its running workflow agent finish, requests nothing more and sends its final report; the coordinator replies `{"stopped": <last stage-done workflow>}`; a running `repair` workflow agent finishes the same way and starts no recheck (REQ-04, spec 22 REQ-54) |
 | 9 | root → coordinator or workflow agent | `{"status?": true}` (REQ-27) | Reply `{"status": <current workflow or "idle">}`. One status round is one such message to every probed agent followed by one collection of replies after all messages are sent; an agent that has not replied at that collection, and that the harness has not reported unknown or finished, is `unknown` |
-| 10 | root → coordinator | `{"repair-done": <episode key>, "handoff_digest": <sha256>}` after the root spawned the `/pae-repair` workflow agent (REQ-21, spec 12a REQ-54), applied its deltas, committed 19's checkpoints and built the DM-6 handoff with stage `repair` | Journal `agents.workflows` (the repair agent); the coordinator then sends row 6 |
-| 11 | review agent → root (final report): the `/pav-check` workflow agent, the Validator of a serialized composite's child (final report only, no phase agent) or the spec 12a REQ-12 composite validation agent | The row 4 report plus `"review": {"draft": {"level", "step", "scope_key", "options": {the `prepare` options as C-1 of spec 16 names them}, "record": <spec 16 DM-7 draft object>} \| null, "none_reason": null \| "unavailable" \| "disabled" \| "helper-error" \| "multi-repository" \| "blocked"}`; `draft` is null only with a `none_reason` (spec 16 DM-8 reasons) | REQ-55, REQ-56: write the draft file, run `record`, then apply the verdict and notes deltas and append the `verification:` entry from the `record` result; or append the `none` entry |
-| 12 | root → phase agent (reply replacing row 4's after a review report that REQ-56 handles) | `{"stage-redo": "pav-check", "record": "refused" \| "unusable" \| "error", "reasons": [<spec 16 refusal reasons, `draft-invalid` for an unusable draft, or the `record` error code for exit 2, 3 or 4>], "helper": "on" \| "off"}` | The phase agent requests `pav-check` again (row 3); the root spawns the fresh agent with `reasons` and `helper`; the composite validation agent and the Validator of a serialized composite's child have no phase agent, so the root respawns them directly with the same fields |
+| 10 | root → coordinator | `{"repair-done": <episode key>, "handoff_digest": <sha256>}` after the root spawned the `/pae-repair` workflow agent (REQ-21, spec 22 REQ-54), applied its deltas, committed 17's checkpoints and built the DM-6 handoff with stage `repair` | Journal `agents.workflows` (the repair agent); the coordinator then sends row 6 |
+| 11 | review agent → root (final report): the `/pav-check` workflow agent, the Validator of a serialized composite's child (final report only, no phase agent) or the spec 22 REQ-12 composite validation agent | The row 4 report plus `"review": {"draft": {"level", "step", "scope_key", "options": {the `prepare` options as C-1 of spec 15 names them}, "record": <spec 15 DM-7 draft object>} \| null, "none_reason": null \| "unavailable" \| "disabled" \| "helper-error" \| "multi-repository" \| "blocked"}`; `draft` is null only with a `none_reason` (spec 15 DM-8 reasons) | REQ-55, REQ-56: write the draft file, run `record`, then apply the verdict and notes deltas and append the `verification:` entry from the `record` result; or append the `none` entry |
+| 12 | root → phase agent (reply replacing row 4's after a review report that REQ-56 handles) | `{"stage-redo": "pav-check", "record": "refused" \| "unusable" \| "error", "reasons": [<spec 15 refusal reasons, `draft-invalid` for an unusable draft, or the `record` error code for exit 2, 3 or 4>], "helper": "on" \| "off"}` | The phase agent requests `pav-check` again (row 3); the root spawns the fresh agent with `reasons` and `helper`; the composite validation agent and the Validator of a serialized composite's child have no phase agent, so the root respawns them directly with the same fields |
 
 Messages that do not match the expected next row for the attempt are ignored and recorded in the
 journal attempt as `unexpected_messages` (count); a second report for the same workflow with the
@@ -1312,13 +1312,13 @@ same handoff digest is a duplicate and ignored (E-33).
 
 ## Non-Functional Requirements
 
-Spec 12a NFR-01 (determinism, also for this spec's subcommands), NFR-02, NFR-03, NFR-05 and
+Spec 22 NFR-01 (determinism, also for this spec's subcommands), NFR-02, NFR-03, NFR-05 and
 NFR-06 apply unchanged.
 
 | Id | Attribute | Target or standard | Verification |
 |---|---|---|---|
 | NFR-04 | Least privilege | Worker write restrictions are role discipline, not enforced by harness permissions; the capability record says so (P11) | AC-56 |
-| NFR-08 | Performance | N/A — no speedup, token or cost target (README gate G8; ADR-0009 Decision 5); only measurement per REQ-26 (renumbered from NFR-07, which spec 12a keeps) | — |
+| NFR-08 | Performance | N/A — no speedup, token or cost target (README gate G8; ADR-0009 Decision 5); only measurement per REQ-26 (renumbered from NFR-07, which spec 22 keeps) | — |
 
 ## Edge Cases & Failure Modes
 
@@ -1333,31 +1333,31 @@ NFR-06 apply unchanged.
 | E-08 | Two children rename to/from the same path | Overlap; not admitted together | REQ-05 |
 | E-09 | Child changes a lockfile or generated file not in its write set | `scope-exceeded` → serialization | REQ-11, REQ-14 |
 | E-10 | Worker writes under `.ai/` in its worktree | `scope-exceeded` → serialization; the change is never committed | REQ-11 |
-| E-12 | Textual merge conflict | `merge --abort`, `conflict`, serialization, new attempt from current tip | spec 12a REQ-36, REQ-14 |
-| E-13 | Rework attempt's new RED test already passes | `/pae-tests` stops under `tdd` (a new test passing before implementation stops and reports); no fabricated RED | spec 12a REQ-41 |
-| E-14 | Child NEEDS WORK while siblings are independent | Attempt `failed`, reservation kept; siblings continue; dependents wait `prerequisite-failed`; run stops when nothing is active or admissible; resumes per spec 12a REQ-50 after the owner clears `blocker:` | REQ-24, spec 12a REQ-50 |
+| E-12 | Textual merge conflict | `merge --abort`, `conflict`, serialization, new attempt from current tip | spec 22 REQ-36, REQ-14 |
+| E-13 | Rework attempt's new RED test already passes | `/pae-tests` stops under `tdd` (a new test passing before implementation stops and reports); no fabricated RED | spec 22 REQ-41 |
+| E-14 | Child NEEDS WORK while siblings are independent | Attempt `failed`, reservation kept; siblings continue; dependents wait `prerequisite-failed`; run stops when nothing is active or admissible; resumes per spec 22 REQ-50 after the owner clears `blocker:` | REQ-24, spec 22 REQ-50 |
 | E-15 | Class-B question or tripwire in one child | Broad stop: no admissions, stop sent to all coordinators | REQ-04 |
 | E-16 | Spawn refused for capacity | Attempt stays `branched` with `spawn_refused`; `capacity_limit` recorded; retried when a slot frees; with no other active child the attempt is `blocked` (`blocker`, detail `spawn refused by the harness`) and the run stops | REQ-71 |
 | E-20 | Coordinator `gone` after restart (the harness reports the identity unknown), clean worktree | Redispatch from the last verified checkpoint with fresh agents | REQ-27 |
 | E-20a | Coordinator status message neither answered nor rejected (`unknown`) | Child `blocked` with `liveness-unknown`, reservation kept; no redispatch | REQ-27 |
 | E-21 | Coordinator `gone`, dirty worktree | Child `blocked` with `uncommitted-work`, reservation kept; owner reconciles the paths | REQ-27 |
-| E-53 | Composite integration validation NEEDS WORK, fix sibling approved, N > 1 (split from spec 12a E-31) | The fix sibling is a new child admitted under REQ-18; composite validation runs again on the new tip (spec 12a REQ-67) | REQ-18 |
+| E-53 | Composite integration validation NEEDS WORK, fix sibling approved, N > 1 (split from spec 22 E-31) | The fix sibling is a new child admitted under REQ-18; composite validation runs again on the new tip (spec 22 REQ-67) | REQ-18 |
 | E-24 | `git worktree remove` refuses (dirty or locked) | Keep worktree and branch; record; continue | REQ-58 |
 | E-55 | The worktree probe leaves untracked build or cache files | Composite serialized with `worktree-probe` | REQ-49 |
 | E-56 | A superseded attempt's worktree holds changes at composite completion | Worktree and branch kept and reported in Step 8; the journal is kept | REQ-70 |
 | E-57 | Resume with N = 1 while worktree attempts are active | They continue with C-6; helper and preflight still required; no new admission above the limit | REQ-10, REQ-25 |
-| E-32 | Two agents return at the same moment | Root applies their deltas one after another; second re-reads the target section first (spec 15 REQ-18 derived proposal when the delta was composed against an older state) | REQ-01 |
+| E-32 | Two agents return at the same moment | Root applies their deltas one after another; second re-reads the target section first (spec 13 REQ-18 derived proposal when the delta was composed against an older state) | REQ-01 |
 | E-33 | Duplicate delivery of a worker result | Same handoff digest → ignored; different content for the same stage → stage blocked | REQ-22 |
 | E-34 | Provider limit during a parallel run | Treated as a blocker of that child; no account switch | REQ-24 |
 | E-36 | Worktree probe exit codes differ, or a workflow agent reports its edit tool refuses the worktree path | Composite serialized (`worktree-probe`), or child `blocked` with `worktree-not-writable` and then serialized; remaining children run in the root worktree | REQ-49, REQ-72, REQ-14 |
 | E-37 | `--parallel 3` on a task that recorded per-leaf branches | Stop before any write | REQ-48 |
-| E-38 | Resume with a different N than the journal's `requested_parallel` | New N applies to new admissions; existing attempts continue in their recorded location with the agent model they started with; while any attempt has a worktree, REQ-11, REQ-25's helper and preflight checks and C-6 apply even when the new N is 1 (C-6 for worktree attempts, which needs only the sub-agent and messaging support `/spec-run` already requires, `workflows/spec-run.md:16`); N > 1 repeats the preflight | REQ-29, spec 12a REQ-13 |
+| E-38 | Resume with a different N than the journal's `requested_parallel` | New N applies to new admissions; existing attempts continue in their recorded location with the agent model they started with; while any attempt has a worktree, REQ-11, REQ-25's helper and preflight checks and C-6 apply even when the new N is 1 (C-6 for worktree attempts, which needs only the sub-agent and messaging support `/spec-run` already requires, `workflows/spec-run.md:16`); N > 1 repeats the preflight | REQ-29, spec 22 REQ-13 |
 | E-40 | A child depends on a top-level leaf before its composite | Satisfied by that leaf's plan status `reviewed` (it is already in the composite base) | REQ-18 |
 | E-41 | Tracked `.ai/` state edited by the root while children run (N > 1) | Committed on the composite branch as `chore: update task records` before each merge; merges never touch `.ai/` because children may not | REQ-68, REQ-11 |
 | E-42 | A worker result arrives that does not match the expected next C-6 row | Ignored and counted; the attempt waits for the expected message | REQ-22 |
 | E-44 | Exclusive candidate while a sibling is `failed` with an intersecting reservation | Waits `exclusive-wait`; the run stops when nothing is active or admissible | REQ-18, REQ-24 |
-| E-45 | Root-run test commands (probe, post-merge checks) while an exclusive child that uses a fixed port or shared database is active | Cannot occur: an exclusive child is admitted only when no child is active (so no other child is `validated` or awaiting a probe), nothing is admitted while it is active, its own probe runs before its agents start, and its post-merge checks run after its agents have ended. Children that are not exclusive use no exclusive resource (DM-5) | REQ-18, REQ-49, spec 12a REQ-03 |
-| E-47 | The root restarts between a `pav-check` report and the end of its REQ-55 handling | No record or entry was applied before the report was handled; the attempt is still `dispatched` (REQ-27), the validation phase is requested again and the correction budget of REQ-56 starts anew; a record `record` published just before the restart stays, the re-review publishes the next record, and the missing `verification:` entry makes spec 16's next preparation a full scope (`prior-not-latest`, 16 REQ-12) | REQ-55, REQ-27 |
+| E-45 | Root-run test commands (probe, post-merge checks) while an exclusive child that uses a fixed port or shared database is active | Cannot occur: an exclusive child is admitted only when no child is active (so no other child is `validated` or awaiting a probe), nothing is admitted while it is active, its own probe runs before its agents start, and its post-merge checks run after its agents have ended. Children that are not exclusive use no exclusive resource (DM-5) | REQ-18, REQ-49, spec 22 REQ-03 |
+| E-47 | The root restarts between a `pav-check` report and the end of its REQ-55 handling | No record or entry was applied before the report was handled; the attempt is still `dispatched` (REQ-27), the validation phase is requested again and the correction budget of REQ-56 starts anew; a record `record` published just before the restart stays, the re-review publishes the next record, and the missing `verification:` entry makes spec 15's next preparation a full scope (`prior-not-latest`, 15 REQ-12) | REQ-55, REQ-27 |
 
 ## Acceptance Criteria
 
@@ -1367,7 +1367,7 @@ builtins, like `scripts/check-spec-draft.sh`): each [C] criterion names the exac
 anchored line the check matches, and the check fails on the unchanged files; **[H]** helper and
 hook fixtures in a new standalone `scripts/check-composite-run.py` (Python standard library,
 `unittest`) using disposable git repositories, journals and plans; **[G]** the existing
-`tests/git-rails.sh` (one replaced test, spec 12a C-4); **[L]** an owner-approved live spec 09 run, never
+`tests/git-rails.sh` (one replaced test, spec 22 C-4); **[L]** an owner-approved live spec 10 run, never
 part of ordinary validation. Agent behaviour that only a live run can show (actual concurrency,
 agent identities in a real session) is covered by [C] for the instruction and [L] for the
 behaviour.
@@ -1381,7 +1381,7 @@ behaviour.
 - [ ] **AC-39** (REQ-59) [H] Given a journal after a failing post-merge check (`check-failed`,
   `merge.check_failures: 1`), when `admit` runs, then it returns no admission and
   `integrate_next: null`, and `measure` reports `check_failures: 1`; given the same journal after
-  a passing rerun (`accepted`), `admit` resumes admissions. (Split from 12a AC-02.)
+  a passing rerun (`accepted`), `admit` resumes admissions. (Split from 22 AC-02.)
 - [ ] **AC-03** (REQ-05) [H] Given fixture plans and an empty journal, when `admit --limit 2`
   runs, then two children with disjoint complete write sets and no interface or dependency
   link are both admitted; and each of these pairs yields exactly one admission with the stated
@@ -1400,15 +1400,15 @@ behaviour.
   verdicts are `scope-exceeded`, `overlap` (naming the sibling in `with`) and `scope-exceeded`;
   and given a journal with `serialized` set and one `validated` attempt whose `check-merge` is
   `ok`, `admit` returns it as `integrate_next` and admits nothing while it is active.
-- [ ] **AC-10** (REQ-15) [L] Given owner-approved spec 09 `composite` golden runs with
+- [ ] **AC-10** (REQ-15) [L] Given owner-approved spec 10 `composite` golden runs with
   `--parallel 1` and `--parallel 2`, when `scripts/check-composite-run.py` compares the structural
-  assertions of the two spec 09 expected projections (normalized by spec 09's rules), then they
+  assertions of the two spec 10 expected projections (normalized by spec 10's rules), then they
   are equal except aliased hashes, branch names and timestamps. Not
   required for deterministic acceptance.
 - [ ] **AC-43** (REQ-57, REQ-22) [C] Given the changed `workflows/spec-run.md`, then it contains
   "In a worktree, commit `test:` before the implementation commit for `red` and `pinned`, make
   one implementation commit for `n-a`, and keep the legacy note; a new attempt never fabricates
-  RED." (Split from 12a AC-12.)
+  RED." (Split from 22 AC-12.)
 - [ ] **AC-13** (REQ-17, REQ-18, REQ-23) [H] Given five ready independent children of one
   composite and `admit --limit 4`, then four are admitted and the fifth waits `limit-reached`;
   after one admitted child's attempt becomes `accepted`, the next call admits the fifth while the
@@ -1459,17 +1459,17 @@ behaviour.
   stays empty, and for a child with one `superseded` attempt `next-attempt` returns attempt 2
   and branch `<composite>--<slug>-attempt-2`.
 - [ ] **AC-42** (REQ-48) [C] Given the changed `workflows/spec-run.md`, then it contains the
-  REQ-48 stop message verbatim before any branch creation step. (Split from 12a AC-28.)
+  REQ-48 stop message verbatim before any branch creation step. (Split from 22 AC-28.)
 - [ ] **AC-31** (REQ-49) [C] Given the changed `workflows/spec-run.md`, then it contains "Run the
   runbook `test:` command at the attempt's `base_commit` in the new worktree and in the root
   worktree before dispatch; when the exit codes differ or the probe leaves tracked changes or
   new untracked files, supersede the attempt and serialize the composite with `worktree-probe`."
   and names no setup command.
 - [ ] **AC-40** (REQ-62, REQ-24) [H][C] Given a journal whose child attempt has a worktree and was
-  set back to `dispatched` under spec 12a REQ-50, when `admit` runs, then it counts the attempt
+  set back to `dispatched` under spec 22 REQ-50, when `admit` runs, then it counts the attempt
   as active (it occupies a slot); and `workflows/spec-run.md` contains
   `blocker: <blocked_reason>: <one-line detail>` and "Restart an owner-cleared attempt that has
-  a worktree in that worktree." (Split from 12a AC-32.)
+  a worktree in that worktree." (Split from 22 AC-32.)
 - [ ] **AC-33** (REQ-18) [H] Given child A `failed` with planned write set {x} and exclusive
   candidates B (`Parallel-safe: no`, write set {y}), C (`Parallel-safe: no`, write set {x}) and D
   (write set containing a directory) in that row order, with no active child, when
@@ -1484,7 +1484,7 @@ behaviour.
   parallel run, a repaired attempt keeps its slot and reservation; after an accepted repair,
   check overlap again; on a broad stop, start no further repair and let a dispatched repair
   worker finish; copy the episode key on supersession; run `/pae-repair` as one fresh workflow
-  agent with a `repair` handoff." (Split from 12a AC-37.)
+  agent with a `repair` handoff." (Split from 22 AC-37.)
 - [ ] **AC-38** (REQ-55, REQ-56, REQ-01) [C] Given the changed files, then `workflows/pav-check.md`
   and `workflows/phase-composite-validation.md` each contain "In a parallel run, never run
   `record`; return the draft in the report's `review` object.", `workflows/pav-check.md` also
@@ -1497,7 +1497,7 @@ behaviour.
   publishes, then append the `verification:` entry from its result.", "A `draft: null` report
   appends the `none` entry." and "An unusable draft or exit 1 gets one correction spawn with the
   reasons; a second failure or exit 2, 3 or 4 gets one spawn with `\"helper\": \"off\"`; a
-  further failure blocks the attempt with `record-failed`." (Spec 12a depends on none of it.)
+  further failure blocks the attempt with `record-failed`." (Spec 22 depends on none of it.)
 - [ ] **AC-44** (REQ-58) [H][C] Given a journal with an `accepted` attempt whose worktree still
   exists and whose `cleanup.failure` is null, when `reconcile` runs, then it returns
   `cleanup-pending`; and `workflows/spec-run.md` contains the C-8 `Remove worktree` form verbatim
@@ -1506,7 +1506,7 @@ behaviour.
 - [ ] **AC-45** (REQ-61) [C] Given the changed `workflows/spec-run.md`, then its Step 8 contains
   "Delete the task's handoff directory together with the composite journal."
 - [ ] **AC-46** (REQ-60, REQ-14) [H][C] Given two child branches of one composite that conflict
-  textually in a disposable repository with N = 2, when the spec 12a C-2 merge and abort are
+  textually in a disposable repository with N = 2, when the spec 22 C-2 merge and abort are
   applied and the journal is updated, then the composite tip equals `merge.expected_target`, the
   conflicting attempt's stage is `conflict` with its worktree kept, the composite is
   `serialized`, and `admit` admits nothing while another child is active; and
@@ -1523,7 +1523,7 @@ behaviour.
   stop." and "A serialized composite commits task records as the one-at-a-time procedure
   does."
 - [ ] **AC-53** (REQ-69) [C] Given the changed `workflows/spec-run.md`, then, in the passage
-  conditioned on spec 14's `packet`, it contains "For an attempt with a worktree, pass that
+  conditioned on spec 12's `packet`, it contains "For an attempt with a worktree, pass that
   worktree as `--work`."
 - [ ] **AC-54** (REQ-71) [H] Given a journal where one child's coordinator spawn was refused
   (`spawn_refused: true`, `capacity_limit: 1`) and one other child is active, when `admit
@@ -1595,29 +1595,29 @@ behaviour.
 
 ## Assumptions
 
-- A-01 | Scope of parallelism | Resolved: only children of one composite run concurrently; top-level leaves and children of different composites keep the sequential stack; the 2026-11-06 owner widening (across composite boundaries and of top-level leaves) was deferred by the owner on 2026-11-14 (D-04, Q-01 resolved) and is out of scope | Source: ADR-0009 Decision 4 (`.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:154-156`); spec 20 REQ-07 keeps the sequential top-level stack; D-04 | Reversible: yes (a successor specification, `## Notes → ### Successor path`)
+- A-01 | Scope of parallelism | Resolved: only children of one composite run concurrently; top-level leaves and children of different composites keep the sequential stack; the 2026-11-06 owner widening (across composite boundaries and of top-level leaves) was deferred by the owner on 2026-11-14 (D-04, Q-01 resolved) and is out of scope | Source: ADR-0009 Decision 4 (`.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:154-156`); spec 18 REQ-07 keeps the sequential top-level stack; D-04 | Reversible: yes (a successor specification, `## Notes → ### Successor path`)
 - A-02 | `--parallel` semantics | Resolved: no flag → N = 1; `--parallel` → 2; `--parallel N` → N; positive integers only | Source: original §2 and §6.1; ADR-0009 Decision 4 "Default `--parallel 2`" read as the flag's default value | Reversible: yes
 - A-06 | Worktree location | Resolved: under `<git-common-dir>/orchestrail-worktrees/` | Source: existing pattern of run records under the common directory (`workflows/restack.md:12-15`); disposable-repository verification of 2026-11-13 (DM-4) | Reversible: yes
-- A-29 | Repair worker on a broad stop (added 2026-11-14) | Resolved: a spec 12a REQ-54 repair worker already dispatched when REQ-04 stops the run is not interrupted and not duplicated: it finishes, its result is recorded through spec 19's `outcome` step, no new repair attempt or recheck starts and the episode stays open; this adopts 19 C-10 row 12 and is consistent with C-6 row 8, where a stopped phase agent lets its running workflow agent finish | Source: spec 19 C-10 row 12; REQ-04 and C-6 row 8 of this spec | Reversible: yes
+- A-29 | Repair worker on a broad stop (added 2026-11-14) | Resolved: a spec 22 REQ-54 repair worker already dispatched when REQ-04 stops the run is not interrupted and not duplicated: it finishes, its result is recorded through spec 17's `outcome` step, no new repair attempt or recheck starts and the episode stays open; this adopts 17 C-10 row 23 and is consistent with C-6 row 8, where a stopped phase agent lets its running workflow agent finish | Source: spec 17 C-10 row 23; REQ-04 and C-6 row 8 of this spec | Reversible: yes
 - A-10 | Conflict handling | Resolved: `git merge --abort`, then serialization; the child branch keeps all commits | Source: original §10 (conflict disproves independence; preserve work; no forced reset); `/restack` aborts are already accepted forms (`workflows/restack.md:96-98`) | Reversible: yes
 - A-15 | Separate test and implementation agents | Resolved: in parallel mode only (D-01); N = 1 keeps the one-Implementer two-checkpoint handoff | Source: original §8.2 and REQ-21 explicitly supersede the same-agent rule for the new mode | Reversible: yes
 - A-16 | Nested delegation | Resolved: root-mediated dispatch is the specified path: the root spawns every coordinator, phase and workflow agent, and coordinators and phase agents request invocations by message (C-6) | Source: original REQ-25 permits it; smallest choice independent of whether sub-agents can spawn sub-agents | Reversible: yes
 - A-17 | Platform agent capacity | Resolved: not declared anywhere; a refused spawn is the observed limit (E-16); no number is invented | Source: original REQ-23; README G1/G4 | Reversible: yes
-- A-35 | Dependence on specs 14, 15, 16, 19 not yet delivered, parallel mode (split from spec 12a A-18) | Resolved: before each is delivered, workers bootstrap context themselves (existing rule), deltas use the existing report route, checks are those of spec 12a REQ-03, and no repair attempt is made (NEEDS WORK stops per REQ-24/spec 12a REQ-51). Once delivered: 14 → the root builds packets per spec 12a REQ-53 (14 C-8); 15 → handoff digests per 15 REQ-41; 16 → receipts per spec 12a A-28; 19 → repair per spec 12a REQ-54 when its policy is passed; 16 → at N > 1 the root writes review records from returned drafts per REQ-55 and REQ-56 | Source: README prerequisites row for 12 (`.ai/specs/README.md` → "Dependency order"); G4 conservative path; peer contracts named | Reversible: yes
-- A-36 | Telemetry in parallel mode (split from spec 12a A-19) | Resolved: no new run-log fields; one aggregate per attempt; measurements come from the journal through `measure` | Source: spec 02/05 own the run-log contract; P9 (durations never model-written) | Reversible: yes
+- A-35 | Dependence on specs 12, 13, 15, 17 not yet delivered, parallel mode (split from spec 22 A-18) | Resolved: before each is delivered, workers bootstrap context themselves (existing rule), deltas use the existing report route, checks are those of spec 22 REQ-03, and no repair attempt is made (NEEDS WORK stops per REQ-24/spec 22 REQ-51). Once delivered: 12 → the root builds packets per spec 22 REQ-53 (12 C-8); 13 → handoff digests per 13 REQ-41; 15 → receipts per spec 22 A-28; 17 → repair per spec 22 REQ-54 when its policy is passed; 15 → at N > 1 the root writes review records from returned drafts per REQ-55 and REQ-56 | Source: README prerequisites row for 23 (`.ai/specs/README.md` → "Dependency order"); G4 conservative path; peer contracts named | Reversible: yes
+- A-36 | Telemetry in parallel mode (split from spec 22 A-19) | Resolved: no new run-log fields; one aggregate per attempt; measurements come from the journal through `measure` | Source: spec 02/05 own the run-log contract; P9 (durations never model-written) | Reversible: yes
 - A-37 | Bounded waits (2026-11-16) | Resolved: one further status round (C-6 row 9: one message per agent, one collection of replies) after a stop; no reply means `unknown` | Source: original REQ-27 (never duplicate a live invocation); smallest conservative choice without a numeric timeout | Reversible: yes
-- A-38 | Disposal of superseded attempts (2026-11-16) | Resolved: clean worktrees removed, branches kept and reported; the journal is kept while a worktree remains | Source: original §10 step 10 (keep earlier branches until proven integrated or decided); 12a REQ-31 deletes only verified integrated branches | Reversible: yes
+- A-38 | Disposal of superseded attempts (2026-11-16) | Resolved: clean worktrees removed, branches kept and reported; the journal is kept while a worktree remains | Source: original §10 step 10 (keep earlier branches until proven integrated or decided); 22 REQ-31 deletes only verified integrated branches | Reversible: yes
 - A-22 | Liveness of agents after a restart | Resolved: a status message to the recorded identity; the harness's unknown-identity answer means `gone`; anything else that is not a reply means `unknown` and blocks | Source: original REQ-27 ("never duplicate a live invocation"); smallest conservative choice | Reversible: yes
 - A-23 | Resource locks and ordering constraints of the original | Resolved: no separate lock mechanism; a child needing an exclusive resource or named by an ordering constraint is `Parallel-safe: no` and runs exclusively | Source: original §17.3 (host-exclusive checks "apply globally") and REQ-05; exclusivity is the smallest rule that needs no new runtime | Reversible: yes
 - A-26 | Worktree tooling risk | Resolved: keep DM-4 for hook coverage; a probe (REQ-49) serializes the composite when the worktree behaves differently | Source: hook registry prefix matching (`hooks/git_rails.py:330`); best practice | Reversible: yes
-- A-27 | Effort for parallel-mode spawns | Resolved: parallel-mode spawns (leaf coordinators, phase agents and workflow agents) are outside spec 18's policy version 1 and keep today's dispatch behaviour: no resolver call, no effort parameter and no `## Effort Decisions` line for them; the `/pae-tests` and `/pae-implement` agents take the leaf's model resolution of `workflows/spec-run.md` Step 2 like an Implementer, and every other parallel-mode agent uses the session default like the Validator. This delivery adds no effort handling itself. Bringing them under the policy is a later revision of 18 triggered by this delivery (18 A-29): it adds the roles leaf coordinator, phase agent and workflow agent and the stages `tests`, `implement`, `finalize`, `check`, `propose`, `close` to 18 DM-2/DM-6 and names the root as the only writer of `## Effort Decisions` in 18 C-4. The `repair` stage (spec 12a REQ-54) is not in that list: it stays with spec 19's own route (19 C-8) | Source: spec 18 C-6 row 12 and its A-14, A-29; `workflows/spec-run.md:126-131` | Reversible: yes
+- A-27 | Effort for parallel-mode spawns | Resolved: parallel-mode spawns (leaf coordinators, phase agents and workflow agents) are outside spec 16's policy version 1 and keep today's dispatch behaviour: no resolver call, no effort parameter and no `## Effort Decisions` line for them; the `/pae-tests` and `/pae-implement` agents take the leaf's model resolution of `workflows/spec-run.md` Step 2 like an Implementer, and every other parallel-mode agent uses the session default like the Validator. This delivery adds no effort handling itself. Bringing them under the policy is a later revision of 16 triggered by this delivery (16 A-29): it adds the roles leaf coordinator, phase agent and workflow agent and the stages `tests`, `implement`, `finalize`, `check`, `propose`, `close` to 16 DM-2/DM-6 and names the root as the only writer of `## Effort Decisions` in 16 C-4. The `repair` stage (spec 22 REQ-54) is not in that list: it stays with spec 17's own route (17 C-8) | Source: spec 16 C-6 row 23 and its A-14, A-29; `workflows/spec-run.md:126-131` | Reversible: yes
 
 ## Decisions
 
-- D-03 | After serialization, a validated attempt is integrated only when `check-merge` is `ok`; every other non-accepted attempt is superseded and redone; no partial evidence is carried over | Overrides: none (narrows original §10 step 8, which permitted reuse after a currency check) | Rationale: the currency check of evidence belongs to specs 14/16, which are not delivered; redoing is the smallest safe choice | Follow-up: revisit when 14/16 land
+- D-03 | After serialization, a validated attempt is integrated only when `check-merge` is `ok`; every other non-accepted attempt is superseded and redone; no partial evidence is carried over | Overrides: none (narrows original §10 step 8, which permitted reuse after a currency check) | Rationale: the currency check of evidence belongs to specs 12/15, which are not delivered; redoing is the smallest safe choice | Follow-up: revisit when 12/15 land
 - D-01 | In parallel mode, `/pae-tests` and `/pae-implement` run in distinct fresh agents, with the root committing the test checkpoint and passing a verified handoff | Overrides: ADR-0004 Decision 1 rejected alternative "Tests and implementation in separate agents" (`.ai/adr/0004-task-unknown-sequential-orchestration-context-roles.md:46-47`) and `rules/orchestration.md:58-61`, for parallel mode only | Rationale: authorized by the source (original §8.2 and REQ-21: "This supersedes the existing same-agent RED-to-GREEN rule for this mode; implementation must record the decision") | Follow-up: the superseding ADR of C-10
-- D-04 | Parallelism only within one composite: children of one composite may run concurrently (`--parallel N`); children of different composites and top-level leaves never run concurrently and keep the sequential stack | Overrides: the owner's own clarification of 2026-11-06 (Source, §2 and §17) asking for parallel execution across composite boundaries and of leaves directly under the task, which the owner now defers | Rationale: ADR-0009 Decision 4 allows parallelism "only between children of one composite", the stack rule in `rules/git-flow.md` builds top-level branches sequentially from the previous reviewed tip, and widening later is additive because admission works on the dependency graph | Follow-up: deliver stages 12A and 12B, measure on real tasks, and only then consider a separate successor specification for a materialized stack (`## Notes → ### Successor path`), which would supersede ADR-0009 Decision 4 and change the git-flow stack rule; nothing in this spec depends on it
-- D-05 | In parallel mode the root orchestrator runs spec 16's `record`, on the review draft the review agent returns in its report (REQ-55, REQ-56, C-6 rows 11 and 12) | Overrides: none (16 assumed the reviewing workflow writes the record; in parallel mode that conflicts with REQ-01, which the owner's choice resolves in favour of REQ-01) | Rationale: in parallel mode the root is the only writer (REQ-01), so verification records are written by the root from a returned draft, which needs no new mechanism | Follow-up: spec 16 is edited separately so that its C-6 row for spec 12 and its parallel-mode review text point at this resolved question; no change to 16's DM-7, DM-4a or record contents is required
+- D-04 | Parallelism only within one composite: children of one composite may run concurrently (`--parallel N`); children of different composites and top-level leaves never run concurrently and keep the sequential stack | Overrides: the owner's own clarification of 2026-11-06 (Source, §2 and §17) asking for parallel execution across composite boundaries and of leaves directly under the task, which the owner now defers | Rationale: ADR-0009 Decision 4 allows parallelism "only between children of one composite", the stack rule in `rules/git-flow.md` builds top-level branches sequentially from the previous reviewed tip, and widening later is additive because admission works on the dependency graph | Follow-up: deliver stages 23A and 23B, measure on real tasks, and only then consider a separate successor specification for a materialized stack (`## Notes → ### Successor path`), which would supersede ADR-0009 Decision 4 and change the git-flow stack rule; nothing in this spec depends on it
+- D-05 | In parallel mode the root orchestrator runs spec 15's `record`, on the review draft the review agent returns in its report (REQ-55, REQ-56, C-6 rows 11 and 12) | Overrides: none (15 assumed the reviewing workflow writes the record; in parallel mode that conflicts with REQ-01, which the owner's choice resolves in favour of REQ-01) | Rationale: in parallel mode the root is the only writer (REQ-01), so verification records are written by the root from a returned draft, which needs no new mechanism | Follow-up: spec 15 is edited separately so that its C-6 row for spec 23 and its parallel-mode review text point at this resolved question; no change to 15's DM-7, DM-4a or record contents is required
 
 ## Clarifications
 
@@ -1637,8 +1637,8 @@ behaviour.
 
 - Q: Does parallelism go beyond the children of one composite (Q-01)? → A: No. Option (a):
   parallelism only within one composite; across composite boundaries and of top-level leaves it
-  is deferred (D-04); a materialized-stack successor specification is considered only after 12A
-  and 12B are delivered and measured.
+  is deferred (D-04); a materialized-stack successor specification is considered only after 23A
+  and 23B are delivered and measured.
 - Q: Who runs the scoped-verification `record` command in parallel mode (Q-03)? → A: The root
   orchestrator, on the review draft that the review agent returns (D-05, REQ-55, REQ-56).
 
@@ -1665,13 +1665,13 @@ behaviour.
   cross-composite and top-level-leaf parts are out of scope; the materialized-stack option (b) is
   the named successor path (`## Notes → ### Successor path`); option (c) stays rejected. No
   longer a blocker.
-- **Q-03 (resolved, non-blocker)** | Who writes spec 16's review records (`<task>/verification/reviews/`,
-  16 DM-1, written by its `record` step from `/pav-check` and the review workflows) in parallel
+- **Q-03 (resolved, non-blocker)** | Who writes spec 15's review records (`<task>/verification/reviews/`,
+  15 DM-1, written by its `record` step from `/pav-check` and the review workflows) in parallel
   mode, where REQ-01 makes the root the only writer under `.ai/`? Worker-written `notes:` entries
-  (14 DM-11, 16 DM-8, 17 DM-9) are already covered: they are returned as deltas under REQ-01 and
-  appended by the root with 14 DM-11's append rule. No source decides the record file write; 16
-  assumes the reviewing workflow writes it. Recommended: the workflow agent returns the 16 record
-  draft in its report and the root runs 16's `record` against the root worktree's task directory
+  (12 DM-11, 15 DM-8, 14 DM-9) are already covered: they are returned as deltas under REQ-01 and
+  appended by the root with 12 DM-11's append rule. No source decides the record file write; 15
+  assumes the reviewing workflow writes it. Recommended: the workflow agent returns the 15 record
+  draft in its report and the root runs 15's `record` against the root worktree's task directory
   in REQ-01's sequential order; workflow agents never invoke `record`. Impact: REQ-01, the C-6
   report fields and A-35; N = 1 is unaffected.
   Resolved 2026-11-14: the recommendation was accepted — the root orchestrator runs `record` on
@@ -1681,7 +1681,7 @@ behaviour.
 
 ### Constraints
 
-- Every git write is a separate Bash call (policy, spec 12a C-2).
+- Every git write is a separate Bash call (policy, spec 22 C-2).
 - No pipeline identifier reaches branch names, commits or PR text (`rules/git-flow.md:129-154`);
   the journal and handoffs live in the git common directory and are never committed.
 - `.ai/` tracking policy is unchanged; untracked consumer state is never staged
@@ -1702,7 +1702,7 @@ records (REQ-55, REQ-56); (8) rules, documentation, golden case and ADR.
 
 ### Successor path
 
-Recommended order (D-04): deliver spec 12a, then this spec, measure on real tasks (REQ-26), and only then
+Recommended order (D-04): deliver spec 22, then this spec, measure on real tasks (REQ-26), and only then
 consider a separate successor specification for a "materialized stack": independent top-level
 items run concurrently, and the stack branches are built afterwards in plan order. It is not
 part of this specification. It would need ADR-0009 Decision 4 superseded and the stack rule in
@@ -1712,19 +1712,19 @@ top-level work stays untouched here.
 
 ### Follow-up changes outside this spec
 
-- Spec 09: its branch-ancestry facts for a `per-composite` run are in spec 12a → Notes; with
+- Spec 10: its branch-ancestry facts for a `per-composite` run are in spec 22 → Notes; with
   N > 1 the `base_commit` of a child is a descendant of, or equal to, the `merge_commit` of each
   of its prerequisites in the same composite.
-- Spec 13: none — the five capability names of REQ-25 and the `state: yes` record form follow
-  13 DM-4, and the preflight and its stop message, including the next step it names for each
-  missing key, are those of 13 REQ-37; this spec restates no wording of it.
-- Spec 15: none — it carries handoff digests (15 REQ-41) and its derived-proposal rule (15 REQ-18)
+- Spec 09: none — the five capability names of REQ-25 and the `state: yes` record form follow
+  09 DM-4, and the preflight and its stop message, including the next step it names for each
+  missing key, are those of 09 REQ-37; this spec restates no wording of it.
+- Spec 13: none — it carries handoff digests (13 REQ-41) and its derived-proposal rule (13 REQ-18)
   covers E-32.
-- Spec 18: none from this delivery, which adds no effort handling (A-27). A later revision of 18 (18 A-29), triggered by this delivery, adds the three parallel-mode roles and the stages `tests`, `implement`, `finalize`, `check`, `propose`, `close` to its DM-2/DM-6, with the root as sole writer of `## Effort Decisions` in its C-4; the `repair` stage stays with 19's route.
-- Spec 19: none — its spec-12 row in 19 C-10 is wired by spec 12a REQ-54.
-- Spec 20: none — DM-8 supplies the evidence REQ-09 and REQ-52 render.
-- Specs 14, 17: none — wired by spec 12a REQ-53 and the DM-6 note respectively.
-- Spec 16: none — its REQ-62 and its C-4 `Record:` line already carry the resolved Q-03 (`.ai/specs/16-scoped-verification.md:601-617`, `:1026`).
+- Spec 16: none from this delivery, which adds no effort handling (A-27). A later revision of 16 (16 A-29), triggered by this delivery, adds the three parallel-mode roles and the stages `tests`, `implement`, `finalize`, `check`, `propose`, `close` to its DM-2/DM-6, with the root as sole writer of `## Effort Decisions` in its C-4; the `repair` stage stays with 17's route.
+- Spec 17: none — its spec-23 row in 17 C-10 is wired by spec 22 REQ-54.
+- Spec 18: none — DM-8 supplies the evidence REQ-09 and REQ-52 render.
+- Specs 12, 14: none — wired by spec 22 REQ-53 and the DM-6 note respectively.
+- Spec 15: none — its REQ-62 and its C-4 `Record:` line already carry the resolved Q-03 (`.ai/specs/15-scoped-verification.md:601-617`, `:1026`).
 
 ### Change Log
 
@@ -1741,60 +1741,60 @@ top-level work stays untouched here.
 
 #### 2026-11-14 — reconciliation with refined peer specs
 
-- Spec 15: handoff digests (15 REQ-41) replace "carried inside its envelope"; E-32 cites 15 REQ-18.
-- Spec 20: `### Parallel Safety` rendered from 20 DM-8 (REQ-09); new REQ-52 (`/pd-design`
-  re-render); A-01 cites 20 REQ-07.
-- Spec 14: new REQ-53 (packet per 14 C-8); A-18 keeps the interim until 14 is delivered.
-- Spec 16: A-28 (receipts bound to content and worktree root; composite review
+- Spec 13: handoff digests (13 REQ-41) replace "carried inside its envelope"; E-32 cites 13 REQ-18.
+- Spec 18: `### Parallel Safety` rendered from 18 DM-8 (REQ-09); new REQ-52 (`/pd-design`
+  re-render); A-01 cites 18 REQ-07.
+- Spec 12: new REQ-53 (packet per 12 C-8); A-18 keeps the interim until 12 is delivered.
+- Spec 15: A-28 (receipts bound to content and worktree root; composite review
   `full-integration`); notes in Terminology and REQ-12.
-- Spec 17: DM-6 `observed` gains `label`; exit-code mapping and shared store.
-- Spec 18: A-27 (today's dispatch behaviour until 18 is amended; the amendment stated).
-- Spec 19: new REQ-54 and DM-3 `repair_episode`; REQ-24/REQ-51 unchanged without the policy.
-- Spec 13: REQ-25 delegates the capability check to 13 REQ-37 and 13 DM-4; citations by id.
-- Spec 09: Notes state the branch-ancestry facts of a per-composite run.
+- Spec 14: DM-6 `observed` gains `label`; exit-code mapping and shared store.
+- Spec 16: A-27 (today's dispatch behaviour until 16 is amended; the amendment stated).
+- Spec 17: new REQ-54 and DM-3 `repair_episode`; REQ-24/REQ-51 unchanged without the policy.
+- Spec 09: REQ-25 delegates the capability check to 09 REQ-37 and 09 DM-4; citations by id.
+- Spec 10: Notes state the branch-ancestry facts of a per-composite run.
 - New ids: REQ-52–REQ-54, AC-35–AC-37, A-27, A-28. Readiness verdict unchanged.
 - Independent check of the changed passages: 13 findings fixed (A-28 reuse limited; REQ-54
   parallel repair path, episode carry-over and C-6 row 7; REQ-28/REQ-53 packet wording and
-  failure path; REQ-52 "started" per 20 REQ-24; DM-3 optional fields; DM-6 `repair` stage;
+  failure path; REQ-52 "started" per 18 REQ-24; DM-3 optional fields; DM-6 `repair` stage;
   citation corrections).
 
 #### 2026-11-14 — second reconciliation pass
 
-- Spec 09: Notes fact 2 now covers a promoted leaf (REQ-37) and the unpromoted `composite`/`spec-run`
+- Spec 10: Notes fact 2 now covers a promoted leaf (REQ-37) and the unpromoted `composite`/`spec-run`
   case; C-5 and the delivery stages list the rebuilt golden reference and the `parallel: 2` case entry.
-- Spec 19: REQ-04, REQ-54, C-6 row 8, AC-37 and new A-29 state that a dispatched repair worker
+- Spec 17: REQ-04, REQ-54, C-6 row 8, AC-37 and new A-29 state that a dispatched repair worker
   finishes on a broad stop and the episode stays open; Terminology gains "Episode key" and "Slot";
   DM-3 `repair_episode` states the opt-in.
-- Spec 15: DM-6 states that no `output_handoff_digest` exists for stage `repair`.
-- Spec 18: A-27 and the follow-up list agree with 18 A-29 and C-6 row 12.
-- Spec 13: REQ-25 and AC-17 cite 13 REQ-37 for the stop instead of restating it; the follow-up
+- Spec 13: DM-6 states that no `output_handoff_digest` exists for stage `repair`.
+- Spec 16: A-27 and the follow-up list agree with 16 A-29 and C-6 row 23.
+- Spec 09: REQ-25 and AC-17 cite 09 REQ-37 for the stop instead of restating it; the follow-up
   entry is closed.
-- Spec 17: DM-6 `observed` confirmed against 17 DM-3 and C-7 row 12; no change.
+- Spec 14: DM-6 `observed` confirmed against 14 DM-3 and C-7 row 23; no change.
 - New id: A-29. Q-01 and the readiness verdict unchanged.
 
 #### 2026-11-14 — owner decisions recorded
 
 - D-04 (Q-01 resolved): parallelism only within one composite; Out of Scope names parallelism across composite boundaries and of top-level leaves; A-01, R-9, the Context paragraph and the Requirements preamble no longer treat it as pending; `### Successor path` added to Notes.
-- D-05 (Q-03 resolved): the root runs spec 16's `record` on the returned review draft; REQ-01 amended; new REQ-55, REQ-56, AC-38, E-47, C-6 rows 11 and 12; C-5 workflow row and A-18 extended; spec 16 follow-up added.
+- D-05 (Q-03 resolved): the root runs spec 15's `record` on the returned review draft; REQ-01 amended; new REQ-55, REQ-56, AC-38, E-47, C-6 rows 11 and 12; C-5 workflow row and A-18 extended; spec 15 follow-up added.
 - New ids: D-04, D-05, REQ-55, REQ-56, AC-38, E-47. Readiness Checklist re-evaluated; verdict READY WITH RESERVATIONS.
 
 #### 2026-11-14 — independent final review
 
-- REQ-04 leaves `atomic-tests: failed` and worker blockers to REQ-24; stage-specific AC clauses assigned; validator literal changes go through 13 DM-9 under REQ-69; serialized composites use the effective-limit-1 agent model; C-6 row 6 widened and row 10 added for repair; child `commits:` include root record commits; REQ-15 owned by `check-composite-run.py`; new non-blocker Q-03 (writer of peer-spec files in parallel mode); spec 09 follow-up marked adopted; ids reordered; identity-ledger follow-up. Q-01 untouched; verdict NOT READY unchanged.
+- REQ-04 leaves `atomic-tests: failed` and worker blockers to REQ-24; stage-specific AC clauses assigned; validator literal changes go through 09 DM-9 under REQ-69; serialized composites use the effective-limit-1 agent model; C-6 row 6 widened and row 10 added for repair; child `commits:` include root record commits; REQ-15 owned by `check-composite-run.py`; new non-blocker Q-03 (writer of peer-spec files in parallel mode); spec 10 follow-up marked adopted; ids reordered; identity-ledger follow-up. Q-01 untouched; verdict NOT READY unchanged.
 
-#### 2026-11-16 — split into spec 12a and this spec
+#### 2026-11-16 — split into spec 22 and this spec
 
-- Stage 12A (REQ-03, REQ-06–REQ-08, REQ-12, REQ-13, REQ-16, REQ-30–REQ-37, REQ-39–REQ-47,
+- Stage 23A (REQ-03, REQ-06–REQ-08, REQ-12, REQ-13, REQ-16, REQ-30–REQ-37, REQ-39–REQ-47,
   REQ-50, REQ-51, REQ-53, REQ-54; AC-02, AC-04, AC-05, AC-08, AC-09, AC-11, AC-12, AC-19,
   AC-23–AC-30, AC-32, AC-34, AC-36, AC-37; DM-1–DM-3, C-4, the N = 1 parts of C-1–C-3 and C-5;
   their edge cases, risks and assumptions; D-02, Q-02) moved to
-  `.ai/specs/12a-composite-branch-model.md` without renumbering. Their N > 1 clauses became
-  REQ-57–REQ-63 and AC-39–AC-46 here, each marked "split from 12a …"; A-30 and E-48 (N = 1
-  merge conflict) were added to spec 12a. This file keeps stage 12B, the Source history
+  `.ai/specs/22-composite-branch-model.md` without renumbering. Their N > 1 clauses became
+  REQ-57–REQ-63 and AC-39–AC-46 here, each marked "split from 22 …"; A-30 and E-48 (N = 1
+  merge conflict) were added to spec 22. This file keeps stage 23B, the Source history
   and this Change Log. The verdict "NOT READY unchanged" in the entry above is historical; the
   checklist of `e3ba41a` read READY WITH RESERVATIONS and no longer applies.
 - Same day, `/spec-draft --auto-mode` review loop with an independent critic (3 rounds: 59, 87,
-  98/100): contract sections renamed C-7–C-10 as deltas to spec 12a; new REQ-68 (record commits),
+  98/100): contract sections renamed C-7–C-10 as deltas to spec 22; new REQ-68 (record commits),
   REQ-69 (packet location), REQ-70 (superseded attempts), REQ-71 (spawn refusal), REQ-72
   (unwritable worktree) and AC-51–AC-57; `admit` rule 0, `exclusive-active` and `respawn`; reconcile
   rows for worktree attempts; bounded status rounds; DM-7 journal extension; hard prerequisites
@@ -1806,12 +1806,12 @@ Result of 2026-11-16 (first review after the split).
 
 | # | Check | Result |
 |---|---|---|
-| 1 | Goal is one domain-language paragraph | PASS — concurrent children of one composite on spec 12a's branch model, single writer, serialization and recovery |
+| 1 | Goal is one domain-language paragraph | PASS — concurrent children of one composite on spec 22's branch model, single writer, serialization and recovery |
 | 2 | Out of Scope names concrete exclusions | PASS — cross-composite and top-level parallelism (D-04), other workflows, peer-owned contracts and others named |
 | 3 | Each REQ has a stable id and one EARS behaviour | PASS — 40 requirements, including split REQ-57–REQ-63 and new REQ-68–REQ-72 |
 | 4 | Every REQ maps to an AC and every AC names a REQ | PASS — Traceability complete both ways |
 | 5 | Every AC is binary and testable before implementation | PASS — [C] literals, [H] helper fixtures; AC-10 [L] is binary but runs only in an owner-approved live run and is not required for deterministic acceptance |
-| 6 | Non-functional targets measurable or N/A | PASS — spec 12a NFRs apply; NFR-04 verified by AC-56; NFR-08 N/A with its source |
+| 6 | Non-functional targets measurable or N/A | PASS — spec 22 NFRs apply; NFR-04 verified by AC-56; NFR-08 N/A with its source |
 | 7 | Data model and contracts specified | PASS — DM-4–DM-7, C-6–C-10 |
 | 8 | Error, empty, boundary and concurrency cases covered | PASS — this file's E rows, including E-55–E-57 |
 | 9 | Every ambiguity recorded | PASS — A-01, A-02, A-06, A-10, A-15–A-17, A-22, A-23, A-26, A-27, A-29, A-35–A-38; D-01, D-03–D-05; Q-01 and Q-03 resolved |

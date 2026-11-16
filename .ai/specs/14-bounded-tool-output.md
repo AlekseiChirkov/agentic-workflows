@@ -1,4 +1,4 @@
-# 17. Bounded tool output with full local evidence
+# 14. Bounded tool output with full local evidence
 
 ## Source
 
@@ -34,7 +34,7 @@ same ids.
 
 ### Original text (translated from Russian; historical, non-normative)
 
-**Title.** "17. Bounded display of tool results with full local evidence."
+**Title.** "14. Bounded display of tool results with full local evidence."
 
 **1. Status and purpose.** "Status: target specification of workstream 6 of the request of
 2026-10-21, aligned with source snapshot `8c2fa08c18115ffcf38a1798742c41e53a2c7461` of
@@ -280,14 +280,14 @@ Traceability: `REQ-01–02 → AC-01`; `REQ-03,05 → AC-02`; `REQ-04 → AC-03`
 table; prepare synthetic failure scenarios before implementation. 2. Implement streaming
 capture and immutable artifacts, then the presentation and range retrieval. 3. Check
 compatibility with permissions/06, separately commands with side effects and disk errors.
-4. Connect manifests to 14/15/16 and safe diagnostic metadata to 05. A diagnostic event does
+4. Connect manifests to 12/13/15 and safe diagnostic metadata to 05. A diagnostic event does
 not create a new billable model unit. 5. Describe local storage, disabling and recovery; run
-the checks of 09 without a model and network.
+the checks of 10 without a model and network.
 
-Dependencies: 06, 09, 14. G1–G8 are mandatory, see the [guide](README.md#shared-acceptance-gates).
+Dependencies: 06, 10, 12. G1–G8 are mandatory, see the [guide](README.md#shared-acceptance-gates).
 The 8 KiB limit is a configurable initial policy, not a measured optimum and not a limit on
 the evidence available to the agent. The monetary effect, including additional retrievals,
-is evaluated only through 05/09."
+is evaluated only through 05/10."
 
 ## Context & Problem
 
@@ -320,9 +320,9 @@ Facts verified on 2026-11-14 at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
    run and failed for the expected reason (`rules/tdd.md:86-95`); `/pae-tests` writes the
    `tdd: red digest` line mapping criteria to test names (`workflows/pae-tests.md:205-230`).
    `notes:` lines beginning with `tdd:` are a protected audit trail, "Never removed or
-   summarized" (`rules/workflow-reference.md:358-359`). Spec 09's offline extraction reads
+   summarized" (`rules/workflow-reference.md:358-359`). Spec 10's offline extraction reads
    `tdd: characterize —`, `tdd: none —` and `tdd: red digest —` lines only
-   (spec 09 DM-3 fact "Leaf mode and leaf tests", REQ-18, A-28).
+   (spec 10 DM-3 fact "Leaf mode and leaf tests", REQ-18, A-28).
 5. **The git-rails hook sees only the Bash command text.** The entrypoint starts the core only
    when the raw event contains a `git` or `gh` word delimited by characters other than letters,
    digits, `_`, `.` and `-` (`hooks/git-rails.sh:55-59,89`). In the core, a `bash` command whose
@@ -350,12 +350,12 @@ Facts verified on 2026-11-14 at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
    (`scripts/usage_telemetry_contract.py:304-313`); a diagnostic measurement carries a value,
    a scope and quality `measured` or `unknown` (`:1406-1438`); opaque identifiers must come
    from a keyed mapping (`.ai/adr/0016-task-05-additive-usage-telemetry.md:75`).
-8. **Report evidence (spec 08, prerequisite).** Spec 08's evidence reference
+8. **Report evidence (spec 11, prerequisite).** Spec 11's evidence reference
    `EVIDENCE <path> | <scope> | sha256:<hex> | format:<name>@<version>` admits only the path
-   bases `work` and `task` (08 DM-7), and 08 DM-7 states that neither spec 15 nor spec 17
-   registers a format beyond its `Evidence formats: text@1` line (08 Q-06); a report must
+   bases `work` and `task` (11 DM-7), and 11 DM-7 states that neither spec 13 nor spec 14
+   registers a format beyond its `Evidence formats: text@1` line (11 Q-06); a report must
    carry an error or acceptance evidence "verbatim or as an evidence reference (DM-7), never
-   shortened, summarized or elided" (08 REQ-07).
+   shortened, summarized or elided" (11 REQ-07).
 9. **Helper conventions.** Every script must remain optional (ADR-0001,
    `.ai/adr/0001-task-unknown-markdown-only-no-runtime.md:64-65`); Python 3 is allowed for
    optional tools (ADR-0009 Decision 6, `.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:243-244`);
@@ -410,18 +410,18 @@ missing, disabled or refuses.
    `/pav-check`, `/bugfix` and `/phase-composite-validation`.
 9. A standalone acceptance suite `scripts/check-capture-output.py`, knowledge-base and
    documentation updates and an ADR.
-10. The contract exposed to specs 05, 08, 12, 15, 16 and 19 (C-7).
+10. The contract exposed to specs 05, 11, 23, 13, 15 and 17 (C-7).
 
 ## Out of Scope
 
 - Git and gh commands, including read-only `git diff`, `git log` and `git status`: they run
   directly, where the git-rails hook sees them; this spec only adds text guidance on narrowing
-  them (REQ-05). Orchestrator inspections and delta rendering (spec 15).
-- Evidence reuse and review sufficiency (spec 16), repair policy (spec 19), the checkpoint
-  envelope (spec 15), parallel scheduling (spec 12), context packets (spec 14), report forms
-  and the `EVIDENCE` reference (spec 08), names and capability records (spec 13).
+  them (REQ-05). Orchestrator inspections and delta rendering (spec 13).
+- Evidence reuse and review sufficiency (spec 15), repair policy (spec 17), the checkpoint
+  envelope (spec 13), parallel scheduling (spec 23), context packets (spec 12), report forms
+  and the `EVIDENCE` reference (spec 11), names and capability records (spec 09).
 - Mapping manifests into spec 05 `diagnostic_measurement` objects and any token, cache or cost
-  measurement (spec 05); any claim of savings and any paid run (spec 09).
+  measurement (spec 05); any claim of savings and any paid run (spec 10).
 - Automatic deletion, retention periods and pinning of artifacts (original `retention_refs`);
   preview masking or redaction; an interleaved stream log; progress output while a command
   runs; interactive commands and standard input; Windows.
@@ -442,7 +442,7 @@ missing, disabled or refuses.
 | `scripts/capture-output.sh` | Runs exactly one child per `run`; writes only inside its own staging and artifact directories and the read log; runs no model and opens no network connection |
 | git-rails hook | Unchanged; judges the Bash command text that invokes the helper |
 | Spec 05 adapter (future) | Reads manifests, previews and read logs to emit `tool_output.*` diagnostics |
-| Owner | Disables capture (`ORCHESTRAIL_OUTPUT_CAPTURE=off`); removes old artifacts manually; decides on any paid comparison under 09 |
+| Owner | Disables capture (`ORCHESTRAIL_OUTPUT_CAPTURE=off`); removes old artifacts manually; decides on any paid comparison under 10 |
 
 ## Terminology
 
@@ -471,13 +471,13 @@ the preview is).
 
 ## Requirements
 
-Names are today's. Spec 13, a transitive prerequisite (`.ai/specs/README.md` "Dependency
-order": 13 → 09 → 17), renames `workflows/pae-tests.md` → `atomic-execution-tests`,
+Names are today's. Spec 09, a transitive prerequisite (`.ai/specs/README.md` "Dependency
+order": 09 → 10 → 14), renames `workflows/pae-tests.md` → `atomic-execution-tests`,
 `workflows/pae-implement.md` → `atomic-execution-implement`, `workflows/pav-check.md` →
 `atomic-validation-check`, `workflows/phase-composite-validation.md` → `composite-validation`
 and `rules/tdd.md` → `rules/contract-tdd.md`, and keeps `bugfix`
-(spec 13 DM-10 and DM-11); at delivery every name
-follows 13's maps, which govern where they differ. "THE SYSTEM" is the capture helper unless
+(spec 09 DM-10 and DM-11); at delivery every name
+follows 09's maps, which govern where they differ. "THE SYSTEM" is the capture helper unless
 a requirement names a rule or workflow.
 
 ### Capture
@@ -643,10 +643,10 @@ a requirement names a rule or workflow.
 
 - **REQ-05.** THE rule `rules/contract-output.md` SHALL contain the `Search:` line of C-4
   verbatim.
-- **REQ-47.** THE rule `rules/contract-output.md` SHALL have spec 13 rule front matter with
+- **REQ-47.** THE rule `rules/contract-output.md` SHALL have spec 09 rule front matter with
   `description:` and `load: on-demand`, the sections `## Capture`, `## Reading output` and
   `## Evidence`, the nine anchored lines of C-4 verbatim, one per line, and at most 700 words
-  by spec 08's counter (whole file, front matter included).
+  by spec 11's counter (whole file, front matter included).
 - **REQ-48.** THE rule `rules/contract-output.md` SHALL contain the five statements S1–S5 of
   C-4 verbatim.
 - **REQ-49.** THE workflow `/pae-tests` SHALL contain the C-5.1 sentences, keep every existing
@@ -655,22 +655,22 @@ a requirement names a rule or workflow.
 - **REQ-50.** THE workflow `/pae-implement` SHALL contain the C-5.2 sentence in
   `## Final Verification`.
 - **REQ-51.** THE workflow `/pav-check` SHALL contain the C-5 row 3b text in its `green` TDD
-  check and, in step 5, the C-5 row 3a text WHILE spec 16 is not delivered, and spec 16's
-  replacement sentence (16 REQ-60) once it is.
+  check and, in step 5, the C-5 row 3a text WHILE spec 15 is not delivered, and spec 15's
+  replacement sentence (15 REQ-60) once it is.
 - **REQ-52.** THE workflow `/bugfix` SHALL contain the C-5.4 sentences in Steps 1, 3, 4 and 5.
 - **REQ-53.** THE workflow `/phase-composite-validation` SHALL contain, in
-  `## Context Bootstrap`, the C-5 row 5 text WHILE spec 16 is not delivered, and spec 16's
-  replacement sentence (16 REQ-60) once it is.
+  `## Context Bootstrap`, the C-5 row 5 text WHILE spec 15 is not delivered, and spec 15's
+  replacement sentence (15 REQ-60) once it is.
 - **REQ-54.** EACH workflow that cites a section of `contract-output` SHALL declare
-  `rules/contract-output.md` with the cited sections in the `mandatory` list of its spec 08
+  `rules/contract-output.md` with the cited sections in the `mandatory` list of its spec 11
   `loads:` declaration.
 
 ### Delivery
 
 - **REQ-55.** THE delivered change SHALL pass the unchanged `scripts/validate-contracts.sh`,
-  spec 08's `measure-context.sh check` and spec 13's `scripts/lint-instructions.py`, with no
+  spec 11's `measure-context.sh check` and spec 09's `scripts/lint-instructions.py`, with no
   change to `scripts/validate-contracts.sh` or to any file under `tests/`.
-- **REQ-56.** THE delivered change SHALL pass spec 09's offline suite
+- **REQ-56.** THE delivered change SHALL pass spec 10's offline suite
   (`python3 -I tests/golden-runs.py`) with no change to its expected results.
 - **REQ-57.** THE delivered change SHALL update `.ai/principles/domain.md`,
   `.ai/memory/architecture.md`, `.ai/context/runbook.md`, `scripts/README.md` and
@@ -679,7 +679,7 @@ a requirement names a rule or workflow.
 - **REQ-58.** THE delivered change SHALL register `rules/contract-output.md` in the rule
   deployment mechanism current at delivery — today the four rule lists of
   `scripts/setup-new-project.sh` (`:89-91`, `:124-126`) and `scripts/sync.sh` (`:208-210`,
-  `:218-220`), or spec 13's deployment code where it replaced them.
+  `:218-220`), or spec 09's deployment code where it replaced them.
 - **REQ-59.** THE delivered documentation SHALL describe preview and output sizes as size
   diagnostics and SHALL contain no statement that the helper saves tokens, cost or time.
 
@@ -880,7 +880,7 @@ OUTPUT <artifact id> | sha256:<manifest digest> | <outcome label> | capture:<com
 
 Grammar: `^OUTPUT ([0-9a-f]{32}) \| sha256:([0-9a-f]{64}) \| (exit:[0-9]{1,3}|signal:[A-Z0-9+]+|interrupted:[A-Z0-9+]+|timeout:[0-9]{1,9}s|launch-error:[A-Z0-9]+) \| capture:(complete|partial|not_started)$`.
 The reference names an artifact of the store of the repository where it is read (`--work`,
-default the current directory). It is not a spec 08 `EVIDENCE` line.
+default the current directory). It is not a spec 11 `EVIDENCE` line.
 
 ### DM-7 Read-log record
 
@@ -1059,28 +1059,28 @@ Statements (verbatim, each its own paragraph, under the section named):
 - **S5** (`## Capture`): "The read-only git rev-parse calls the helper makes to find its store
   are not git operations in the sense of the Implementer never running git."
 
-Runbook values run as `bash -c '<runbook value>'` (the form spec 16 REQ-17 also uses), so
+Runbook values run as `bash -c '<runbook value>'` (the form spec 15 REQ-17 also uses), so
 `cd`, `&&`, pipes and assignments inside a runbook value keep working; the helper still
 refuses the whole value when it holds a git or gh word (REQ-40), and the worker then runs
 it directly. Quoting: a single quote inside the value is written `'\''`.
 
-Name and placement follow spec 13's Notes → "Files and sections created after this spec":
+Name and placement follow spec 09's Notes → "Files and sections created after this spec":
 `rules/contract-output.md`, DM-2 kind `contract`, `load: on-demand`, no `docs/name-map.json`
 row. Size: every word of the rule is fixed by REQ-47, REQ-48 and AC-31, so the implementer
-never shortens it. If any later edit would push this rule over spec 08's 700-word limit, or a
+never shortens it. If any later edit would push this rule over spec 11's 700-word limit, or a
 section a workflow cites over any limit that applies to it, the implementer stops and the
 change goes back to this spec through `/spec-sync`, where its author shortens the C-4 lines
 without dropping an obligation; no obligation is dropped, moved to a reference file or
 paraphrased away.
 
 The rule holds nothing but its front matter, the three headings, the nine lines and S1–S5
-(about 680 words by 08's counter at the time of writing, close to the 700-word limit; the size
+(about 680 words by 11's counter at the time of writing, close to the 700-word limit; the size
 rule above applies).
 
-Spec 08: every workflow citing a section of `contract-output` declares it in `loads:`
-(REQ-54), so 08's `check` reports no `textual-load-undeclared` for it.
+Spec 11: every workflow citing a section of `contract-output` declares it in `loads:`
+(REQ-54), so 11's `check` reports no `textual-load-undeclared` for it.
 
-Spec 13, REQ-68: this delivery moves no text out of any existing rule. The five workflow
+Spec 09, REQ-68: this delivery moves no text out of any existing rule. The five workflow
 edits of C-5 only insert sentences and `loads:` entries, and the new rule's text is written
 fresh, so no check of `scripts/validate-contracts.sh` or `tests/` asserts text that moved into
 it, and `rules/contract-output.md` gets no
@@ -1099,13 +1099,13 @@ written before the defect is reproduced", "reproduction *is* the RED test", "ver
 full" (`scripts/validate-contracts.sh:861-918`, `:1256-1262`, `:1940-1963`, `:1983-1995`;
 `/phase-composite-validation` at `:1715-1798`). Each row gives the exact resulting text;
 line wrapping is free, and AC-32 compares after joining lines and collapsing runs of spaces
-(`tr '\n' ' ' | tr -s ' '`, as the validator does). Rows 3a and 5 hold until spec 16 is
-delivered (order 17 then 16); its delivery replaces them with its own sentences (16 REQ-60)
-and updates this suite's cases for them (16 REQ-61). Row 3b is untouched by spec 16. Until
-then the rows hold this spec's text; afterwards spec 16's replacement sentences, and nothing
-of them is quoted here. The file names and `(:N-M)` locators are today's; after spec 13's
+(`tr '\n' ' ' | tr -s ' '`, as the validator does). Rows 3a and 5 hold until spec 15 is
+delivered (order 14 then 15); its delivery replaces them with its own sentences (15 REQ-60)
+and updates this suite's cases for them (15 REQ-61). Row 3b is untouched by spec 15. Until
+then the rows hold this spec's text; afterwards spec 15's replacement sentences, and nothing
+of them is quoted here. The file names and `(:N-M)` locators are today's; after spec 09's
 renames the sentence, step or section named in each row's "File and place" column is the
-authoritative anchor, and the file is found through spec 13's old-prefix translation (13
+authoritative anchor, and the file is found through spec 09's old-prefix translation (09
 Notes → "Files and sections created after this spec", DM-11).
 
 | # | File and place | Resulting text |
@@ -1142,14 +1142,14 @@ unseen as without the helper (X1).
 
 | Consumer | Contract |
 |---|---|
-| 05 | DM-2 `streams.*.observed_bytes` (sum → `tool_output.full_bytes`), `preview.txt` size (→ `tool_output.shown_bytes`), DM-7 `bytes` (sum → `tool_output.additional_read_bytes`); `capture_status` tells whether full bytes are complete. A 05 adapter emits the objects and derives opaque ids from artifact ids with its keyed mapping (ADR-0016 Decision 3); 17 emits no 05 object |
-| 08 | No evidence format is registered, and no requirement of this spec needs an OUTPUT line to be an accepted evidence reference: 08 Q-06 answers this spec's Q-03 "No". The `command:` line, failing test names and error lines are copied verbatim, which meets 08 REQ-07; OUTPUT lines may be listed as `Evidence` items but are not 08 DM-7 references, and `evidence verify` does not check them (`verify` of this spec does) |
-| 12 | One store for all child worktrees (REQ-07), safe under concurrent use (REQ-11, REQ-12). Spec 12's DM-6 handoff takes `observed.exit_code` from DM-3 `exit_code` only when the outcome `kind` is `exit` and records `null` otherwise, with `observed.label` set from DM-3 `label` (kinds `signal`, `interrupted`, `timeout`, `launch-error`) |
-| 15 | OUTPUT lines are copied verbatim inside report `Evidence`; no envelope field. Spec 15 C-10 row 17 agrees: it needs nothing from this spec, copies report `Evidence:` items that reference these artifacts verbatim, and its A-16 registers no 08 evidence format |
-| 16 | Spec 16 DM-4a and REQ-57–REQ-61 consume: C-1 `run` (invoked as `run --purpose <test\|lint> -- bash -c '<runbook value>'`, typecheck as `lint`, no `--timeout-seconds` or `--limit-bytes`) and `verify`; the C-2 refusal form (exit 125, empty stdout, `capture-output: <code>: started=no: `), and Bash's exit 126/127 without a `capture-output:` line when the helper cannot be opened; the DM-1 manifest path `<git-common-dir>/orchestrail-output/<id>/manifest.json`; the DM-4.1 first line `capture: v1 <id>` and last line; the DM-6 grammar; and copies of the DM-2 keys `capture_status`, `command_status`, `purpose`, `argv_sha256`, `cwd`, `worktree`, `head`, `started_at` and `ended_at`, each a top-level DM-2 key under exactly that name. A run whose preview carries a published artifact is 16's case B whatever the exit status (a command not found inside `bash -c` exits 127 with an artifact, kind `exit`); a published artifact whose capture status is not `complete` is case B with evidence unusable (16 REQ-59); a started run with no published artifact, or a failing `verify`, is case C; neither is rerun; a refusal is case A, and 16 runs the check directly. 16's helper invokes this helper as a program, so the Capture line's `--timeout-seconds` rule, which governs a worker's own shell call, does not bind it: the time limit stays with the worker's outer call that runs spec 16's helper (a follow-up for 16 below). 16 keeps the inputs digest, the reuse decision and the review record; this spec states only that incomplete capture or a failing `verify` is never evidence of a pass. Spec 16's delivery replaces C-5 rows 3a and 5 (16 REQ-60, REQ-61); row 3b stays |
-| 19 | DM-9 `tdd: red output` / `tdd: green output` lines, copied verbatim as `Evidence` items (not 08 DM-7 references, 08 Q-06); DM-3 kinds separate infrastructure outcomes (`launch-error`, `timeout`, `interrupted`, `signal`) from failing tests (`exit` with records), and a run without a known outcome (`Not started:` "unknown") is an evidence gap, as spec 19 REQ-45 states; DM-5 records and `next` for locating a failure. A capture-mode spec 16 receipt carries no stream digests, only the OUTPUT reference, `artifact_id` and `manifest_sha256` (16 DM-4a); integrity of such evidence is checked with `verify`, not with stream digests |
-| 09 | Offline suite unchanged (REQ-56); no paid run |
-| 13 | No capability record is required; the rule is of kind `contract`, `load: on-demand` |
+| 05 | DM-2 `streams.*.observed_bytes` (sum → `tool_output.full_bytes`), `preview.txt` size (→ `tool_output.shown_bytes`), DM-7 `bytes` (sum → `tool_output.additional_read_bytes`); `capture_status` tells whether full bytes are complete. A 05 adapter emits the objects and derives opaque ids from artifact ids with its keyed mapping (ADR-0016 Decision 3); 14 emits no 05 object |
+| 11 | No evidence format is registered, and no requirement of this spec needs an OUTPUT line to be an accepted evidence reference: 11 Q-06 answers this spec's Q-03 "No". The `command:` line, failing test names and error lines are copied verbatim, which meets 11 REQ-07; OUTPUT lines may be listed as `Evidence` items but are not 11 DM-7 references, and `evidence verify` does not check them (`verify` of this spec does) |
+| 23 | One store for all child worktrees (REQ-07), safe under concurrent use (REQ-11, REQ-12). Spec 23's DM-6 handoff takes `observed.exit_code` from DM-3 `exit_code` only when the outcome `kind` is `exit` and records `null` otherwise, with `observed.label` set from DM-3 `label` (kinds `signal`, `interrupted`, `timeout`, `launch-error`) |
+| 13 | OUTPUT lines are copied verbatim inside report `Evidence`; no envelope field. Spec 13 C-10 row 14 agrees: it needs nothing from this spec, copies report `Evidence:` items that reference these artifacts verbatim, and its A-16 registers no 11 evidence format |
+| 15 | Spec 15 DM-4a and REQ-57–REQ-61 consume: C-1 `run` (invoked as `run --purpose <test\|lint> -- bash -c '<runbook value>'`, typecheck as `lint`, no `--timeout-seconds` or `--limit-bytes`) and `verify`; the C-2 refusal form (exit 125, empty stdout, `capture-output: <code>: started=no: `), and Bash's exit 126/127 without a `capture-output:` line when the helper cannot be opened; the DM-1 manifest path `<git-common-dir>/orchestrail-output/<id>/manifest.json`; the DM-4.1 first line `capture: v1 <id>` and last line; the DM-6 grammar; and copies of the DM-2 keys `capture_status`, `command_status`, `purpose`, `argv_sha256`, `cwd`, `worktree`, `head`, `started_at` and `ended_at`, each a top-level DM-2 key under exactly that name. A run whose preview carries a published artifact is 15's case B whatever the exit status (a command not found inside `bash -c` exits 127 with an artifact, kind `exit`); a published artifact whose capture status is not `complete` is case B with evidence unusable (15 REQ-59); a started run with no published artifact, or a failing `verify`, is case C; neither is rerun; a refusal is case A, and 16 runs the check directly. 15's helper invokes this helper as a program, so the Capture line's `--timeout-seconds` rule, which governs a worker's own shell call, does not bind it: the time limit stays with the worker's outer call that runs spec 15's helper (a follow-up for 15 below). 15 keeps the inputs digest, the reuse decision and the review record; this spec states only that incomplete capture or a failing `verify` is never evidence of a pass. Spec 15's delivery replaces C-5 rows 3a and 5 (15 REQ-60, REQ-61); row 3b stays |
+| 17 | DM-9 `tdd: red output` / `tdd: green output` lines, copied verbatim as `Evidence` items (not 11 DM-7 references, 11 Q-06); DM-3 kinds separate infrastructure outcomes (`launch-error`, `timeout`, `interrupted`, `signal`) from failing tests (`exit` with records), and a run without a known outcome (`Not started:` "unknown") is an evidence gap, as spec 17 REQ-45 states; DM-5 records and `next` for locating a failure. A capture-mode spec 15 receipt carries no stream digests, only the OUTPUT reference, `artifact_id` and `manifest_sha256` (15 DM-4a); integrity of such evidence is checked with `verify`, not with stream digests |
+| 10 | Offline suite unchanged (REQ-56); no paid run |
+| 09 | No capability record is required; the rule is of kind `contract`, `load: on-demand` |
 
 ### C-8 Acceptance suite
 
@@ -1196,7 +1196,7 @@ manual removal), `.ai/principles/domain.md` (terms "Captured run", "Output artif
 counts, rule count), `.ai/context/runbook.md` (suite command, disable switch, store removal),
 `.ai/adr/index.md`, and the rule-deployment lists (REQ-58). The ADR records: the optional
 helper and its fallback, the store location, refusal of git/gh/log-step words and why, the
-exit mapping, the 8192-byte initial preview policy, no automatic deletion, no 08 format
+exit mapping, the 8192-byte initial preview policy, no automatic deletion, no 11 format
 registration, the disable switch and the not-a-permission-boundary limitation.
 
 ## Non-Functional Requirements
@@ -1213,10 +1213,10 @@ registration, the disable switch and the not-a-permission-boundary limitation.
 | Ownership (G5) | No mandatory runtime, no spawned model, no git; not a permission boundary, stated in S1 | AC-29, AC-31 |
 | Testing (G6) | Every AC except the C-8 delivery gates (AC-34, AC-35, AC-38) has a failing suite case before implementation; no paid run in the suite, sync or validator | AC-34; suite never invokes a model |
 | Quality (G3) | Test-first order, frozen RED, stops and independent validation unchanged; RED and verdicts based only on seen output (Sufficiency) | AC-31, AC-32 |
-| Attribution and economics (G1, G2, G8) | Byte counts only; no token, cost or saving claim (REQ-46, REQ-59); savings only through 09 | AC-29, AC-36 |
+| Attribution and economics (G1, G2, G8) | Byte counts only; no token, cost or saving claim (REQ-46, REQ-59); savings only through 10 | AC-29, AC-36 |
 | Rollback (G7) | `ORCHESTRAIL_OUTPUT_CAPTURE=off` restores direct runs; artifacts and notes untouched | AC-05 |
 | Runtime overhead | No numeric target: no measured basis exists; the suite prints the elapsed time of `run` on F1 for a 1-byte and a 64 MiB output | Recorded, not gated |
-| Size | `rules/contract-output.md` ≤ 700 words (08 REQ-01) | AC-31 |
+| Size | `rules/contract-output.md` ≤ 700 words (11 REQ-01) | AC-31 |
 | Instruction load | No target: the five workflows' mandatory load grows by the cited sections of `contract-output` (about 640 words); the delivery report records `measure --workflow` mandatory words of each before and after | Recorded, not gated (A-45) |
 
 ## Edge Cases & Failure Modes
@@ -1252,7 +1252,7 @@ registration, the disable switch and the not-a-permission-boundary limitation.
 | Not a git repository | Refusal `not-a-git-repository` | REQ-13 |
 | Store is a symlink or owned by another user | Refusal `store-unsafe` | REQ-07, REQ-13 |
 | Common directory not writable (sandbox) | Refusal `store-unavailable`; direct run | REQ-13 |
-| Linked worktree (spec 12 child) | Same store; artifact readable from the root worktree | REQ-12 |
+| Linked worktree (spec 23 child) | Same store; artifact readable from the root worktree | REQ-12 |
 | Concurrent runs | Distinct ids; no shared file except none | REQ-12 |
 | Artifact edited, deleted or manifest truncated | `artifact-changed` / `artifact-missing` / `artifact-corrupt` (exit 1) | REQ-35 |
 | Range beyond the stream, length 0, negative | `range-invalid` / `usage` (exit 2) | REQ-35 |
@@ -1436,16 +1436,16 @@ under `<git-common-dir>/orchestrail-output/` plus the set of its directory names
   suite's other cases the earlier artifacts' files are byte-, mode- and mtime-identical except
   appended `reads.jsonl` lines.
 - **AC-31** (REQ-05, REQ-47, REQ-48) — `rules/contract-output.md` has front matter with exactly
-  `description:` and `load: on-demand` (plus an optional 08 `loads:` key), the three sections,
+  `description:` and `load: on-demand` (plus an optional 11 `loads:` key), the three sections,
   each of the nine C-4 anchored lines and statements S1–S5 verbatim on its own line, and at
-  most 700 words by spec 08's counter (`len(text.split())` over the whole file, front matter
+  most 700 words by spec 11's counter (`len(text.split())` over the whole file, front matter
   included); a fixture copy with one word changed in the
   `Search:` line fails the case.
 - **AC-32** (REQ-49, REQ-50, REQ-51, REQ-52, REQ-53) — After joining lines and collapsing
   runs of spaces (`tr '\n' ' ' | tr -s ' '`), the five workflows contain every C-5 resulting
   text (the parts shown with `…` matched from their first quoted word) and every C-5 anchor,
-  where rows 3a and 5 are asserted as this spec's text until spec 16 is delivered and as spec
-  16's replacement sentences afterwards (16 REQ-60, REQ-61, AC-42); `/pae-tests` shows the `tdd: red output` line in
+  where rows 3a and 5 are asserted as this spec's text until spec 15 is delivered and as spec
+  15's replacement sentences afterwards (15 REQ-60, REQ-61, AC-42); `/pae-tests` shows the `tdd: red output` line in
   both block templates; `python3 tests/workflow-instructions.py` reports no missing canonical
   section.
 - **AC-33** (REQ-54) — Each of the five workflows declares `rules/contract-output.md` in
@@ -1554,7 +1554,7 @@ Every AC above names at least one REQ, and every REQ has at least one AC.
 
 | Original id | Now carried by |
 |---|---|
-| REQ-01 | REQ-01, REQ-60 (identity, streams, outcome); REQ-05 (search/read/diff guidance); orchestrator inspections → spec 15 (Out of Scope) |
+| REQ-01 | REQ-01, REQ-60 (identity, streams, outcome); REQ-05 (search/read/diff guidance); orchestrator inspections → spec 13 (Out of Scope) |
 | REQ-02 | REQ-02 (limit); REQ-10, REQ-11 (stored before preview, sizes, hashes, lines); REQ-22 (8192 default); REQ-23 (reject before run); REQ-24, REQ-26 (multibyte, long line); REQ-28 (truncation marking) |
 | REQ-03 | REQ-03 (diagnostics first); REQ-32, REQ-33 (counts, unknown format); REQ-26 (stderr kept, head/tail) |
 | REQ-04 | REQ-04 (exact retrieval); REQ-35, REQ-36, REQ-37, REQ-39 (invalid, changed, missing) |
@@ -1584,13 +1584,13 @@ Every AC above names at least one REQ, and every REQ has at least one AC.
 | Workers keep piping to `tail` | No capture | Medium | Rule text; future hook enforcement (P10) |
 | Output holds secrets stored on disk | Local exposure if `.git` is copied | Low | `0600` files, local only, never exported (C-7 05 row) |
 | Commands a project allowlists today (for example `Bash(pytest *)`) prompt once prefixed by the helper | Autonomous workers wait for approval in `default` mode | Medium | S1 names the acceptable allow-rule shape (helper path plus wrapped program); Q-06 |
-| The mandatory instruction load of five workflows grows | Less of 08's reduction remains | High | Section-selected loads; size recorded (NFR); A-45 |
-| 13 or 08 land with different names or `loads:` mechanics | Edits target wrong names | Medium | Requirements preamble: 13's maps govern; REQ-54 follows 08's grammar |
+| The mandatory instruction load of five workflows grows | Less of 11's reduction remains | High | Section-selected loads; size recorded (NFR); A-45 |
+| 09 or 11 land with different names or `loads:` mechanics | Edits target wrong names | Medium | Requirements preamble: 09's maps govern; REQ-54 follows 11's grammar |
 
 ## Assumptions
 
-- A-01 | Mechanism | Resolved: optional Bash launcher plus Python 3.11+ standard-library engine; without it commands run directly | Source: ADR-0001 (`.ai/adr/0001-task-unknown-markdown-only-no-runtime.md:64-65`); ADR-0009 Decision 6 (`:243-244`); `scripts/run-log-timing.sh:17-22`; spec 14 C-1; G4, G5 | Reversible: yes
-- A-02 | Artifact location | Resolved: `<git-common-dir>/orchestrail-output/` | Source: `hooks/git_rails.py:2402` precedent; spec 12 DM-4 and spec 14 DM-10 (shared by worktrees, invisible to `git status`); original REQ-07 ("outside product commits") | Reversible: yes
+- A-01 | Mechanism | Resolved: optional Bash launcher plus Python 3.11+ standard-library engine; without it commands run directly | Source: ADR-0001 (`.ai/adr/0001-task-unknown-markdown-only-no-runtime.md:64-65`); ADR-0009 Decision 6 (`:243-244`); `scripts/run-log-timing.sh:17-22`; spec 12 C-1; G4, G5 | Reversible: yes
+- A-02 | Artifact location | Resolved: `<git-common-dir>/orchestrail-output/` | Source: `hooks/git_rails.py:2402` precedent; spec 23 DM-4 and spec 12 DM-10 (shared by worktrees, invisible to `git status`); original REQ-07 ("outside product commits") | Reversible: yes
 - A-03 | Runs outside a git repository | Resolved: refusal `not-a-git-repository`, direct run | Source: G4 conservative path; smallest choice (no second store family) | Reversible: yes
 - A-04 | Default limit | Resolved: 8192 bytes, an initial policy, not a measured optimum | Source: original invariant 2 and §10 | Reversible: yes
 - A-05 | Insufficient limit | Resolved: minimum derived from the worst-case skeleton (DM-4.5), exposed by `limits` | Source: original §5 "Before the run" step 3 | Reversible: yes
@@ -1599,7 +1599,7 @@ Every AC above names at least one REQ, and every REQ has at least one AC.
 - A-08 | Hiding git from the hook | Resolved: refuse any argument word containing a git or gh word with the hook's delimiter class | Source: `hooks/git-rails.sh:55-59`; probe of Context fact 5 (`bash -c 'git push'` passes the hook when wrapped); original invariant 6 and REQ-06 | Reversible: yes
 - A-09 | Run-log calls | Resolved: refused (`log-step-refused`) | Source: original §6 third paragraph; P9 (`.ai/principles/architecture.md:70-74`) | Reversible: yes
 - A-10 | Pipelines and redirections | Resolved: the helper has no pipe or redirection syntax of its own; runbook values, which may contain them, run as `bash -c '<runbook value>'` (A-41); bounding pipes such as `| tail` are replaced by the preview | Source: original REQ-06 ("through an explicitly checked script or a supported native shell call"); smallest choice | Reversible: yes
-- A-11 | Retention | Resolved: no deletion, no pinning; `retention_refs` withdrawn; manual removal documented | Source: original §8 ("without an approved policy, destructive cleanup does not run by default"); spec 14 DM-10 precedent | Reversible: yes
+- A-11 | Retention | Resolved: no deletion, no pinning; `retention_refs` withdrawn; manual removal documented | Source: original §8 ("without an approved policy, destructive cleanup does not run by default"); spec 12 DM-10 precedent | Reversible: yes
 - A-12 | Preview masking | Resolved: out of scope | Source: original §4 "permitted" (optional); no masking policy exists; smallest choice | Reversible: yes
 - A-13 | Interleaved log | Resolved: out of scope | Source: original §4 "if … collected" (optional) | Reversible: yes
 - A-14 | Progress messages | Resolved: none; output appears at the end | Source: original §5 "may" (optional) | Reversible: yes
@@ -1611,29 +1611,29 @@ Every AC above names at least one REQ, and every REQ has at least one AC.
 - A-20 | Timeout | Resolved: optional `--timeout-seconds`, no default, `SIGKILL` to the group | Source: original §5 "During the run" step 4; rule against invented numbers | Reversible: yes
 - A-21 | Process group and signals | Resolved: child in a new process group; `SIGINT`/`SIGTERM`/`SIGHUP` forwarded | Source: original §5 ("process or group created by this run") | Reversible: yes
 - A-22 | Standard input | Resolved: `/dev/null` | Source: best practice for non-interactive capture; interactive commands run directly | Reversible: yes
-- A-23 | Spec 08 evidence format | Resolved: none registered; OUTPUT lines plus verbatim copies | Source: 08 DM-7 (bases `work`/`task` only; neither 15 nor 17 registers a format) and 08 REQ-07 (verbatim copies satisfy it); confirmed by 08 Q-06, the answer to this spec's Q-03 | Reversible: yes (a new 08 answer would reopen it)
-- A-24 | Reference syntax | Resolved: DM-6 `OUTPUT` line | Source: shape of 08's `EVIDENCE` line; this spec | Reversible: yes
-- A-25 | Where RED/GREEN artifacts are recorded | Resolved: `tdd: red output` / `tdd: green output` notes lines | Source: `rules/workflow-reference.md:358-359` (protected `tdd:` lines); 09 extraction unaffected (spec 09 DM-3 fact "Leaf mode and leaf tests", REQ-18, A-28) | Reversible: yes
-- A-26 | Home of the contract | Resolved: new on-demand rule `rules/contract-output.md` | Source: P6 (one definition); spec 13 DM-2 (`contract` kind, `load: on-demand`); spec 14 `contract-context` precedent | Reversible: yes
+- A-23 | Spec 11 evidence format | Resolved: none registered; OUTPUT lines plus verbatim copies | Source: 11 DM-7 (bases `work`/`task` only; neither 13 nor 14 registers a format) and 11 REQ-07 (verbatim copies satisfy it); confirmed by 11 Q-06, the answer to this spec's Q-03 | Reversible: yes (a new 11 answer would reopen it)
+- A-24 | Reference syntax | Resolved: DM-6 `OUTPUT` line | Source: shape of 11's `EVIDENCE` line; this spec | Reversible: yes
+- A-25 | Where RED/GREEN artifacts are recorded | Resolved: `tdd: red output` / `tdd: green output` notes lines | Source: `rules/workflow-reference.md:358-359` (protected `tdd:` lines); 10 extraction unaffected (spec 10 DM-3 fact "Leaf mode and leaf tests", REQ-18, A-28) | Reversible: yes
+- A-26 | Home of the contract | Resolved: new on-demand rule `rules/contract-output.md` | Source: P6 (one definition); spec 09 DM-2 (`contract` kind, `load: on-demand`); spec 12 `contract-context` precedent | Reversible: yes
 - A-27 | Workflows wired | Resolved: the five of Context fact 2 | Source: Context fact 2 | Reversible: yes
-- A-28 | Names | Resolved: today's names; 13's maps govern at delivery | Source: owner instruction for this refinement; `.ai/specs/README.md` order | Reversible: yes
-- A-29 | Harness capability | Resolved: none required; no behaviour-table row | Source: spec 13 DM-4 canonical keys and REQ-16 (only capability-dependent behaviours are listed); fallback covers every missing condition | Reversible: yes
-- A-30 | Disable switch | Resolved: `ORCHESTRAIL_OUTPUT_CAPTURE`; unset, empty or `on` enable | Source: spec 14 A-16 precedent; G7 | Reversible: yes
+- A-28 | Names | Resolved: today's names; 09's maps govern at delivery | Source: owner instruction for this refinement; `.ai/specs/README.md` order | Reversible: yes
+- A-29 | Harness capability | Resolved: none required; no behaviour-table row | Source: spec 09 DM-4 canonical keys and REQ-16 (only capability-dependent behaviours are listed); fallback covers every missing condition | Reversible: yes
+- A-30 | Disable switch | Resolved: `ORCHESTRAIL_OUTPUT_CAPTURE`; unset, empty or `on` enable | Source: spec 12 A-16 precedent; G7 | Reversible: yes
 - A-31 | Suite location | Resolved: `scripts/check-capture-output.py`, not registered in the validator | Source: ADR-0019 Decision 3; `tests/fixtures/validator-runtime/README.md:3-27` | Reversible: yes
 - A-32 | Telemetry hand-off | Resolved: manifests, previews and read logs only; 05 adapters map | Source: `scripts/usage_telemetry_contract.py:304-313`; ADR-0016 Decision 3 (`:75`) | Reversible: yes
-- A-33 | Tree identity | Resolved: `head`, `worktree`, `cwd`; no tree digest | Source: spec 14 A-13; spec 16 owns evidence reuse | Reversible: yes
+- A-33 | Tree identity | Resolved: `head`, `worktree`, `cwd`; no tree digest | Source: spec 12 A-13; spec 15 owns evidence reuse | Reversible: yes
 - A-34 | Read accounting | Resolved: `read` appends to `reads.jsonl` | Source: original REQ-08 ("retrieved additions") | Reversible: yes
-- A-35 | Concurrency | Resolved: random ids, exclusive staging, rename publication; no lock | Source: spec 14 C-5; spec 12 parallel children | Reversible: yes
+- A-35 | Concurrency | Resolved: random ids, exclusive staging, rename publication; no lock | Source: spec 12 C-5; spec 23 parallel children | Reversible: yes
 - A-36 | Platform | Resolved: POSIX only; refusal elsewhere | Source: `.ai/context/environment.md:58` (Linux host) | Reversible: yes
 - A-37 | Permission rules | Resolved: not enforced by the helper; S1 and the Capture line limit use | Source: G5; `harness/claude/capabilities.md:49-52` | Reversible: yes (Q-01)
 - A-38 | Shared gates | Resolved: G1–G8 of `.ai/specs/README.md` bind this spec (NFR) | Source: `.ai/specs/README.md` "Shared acceptance gates"; original REQ-08 | Reversible: no
 - A-39 | Store safety | Resolved: `lstat` directory owned by the effective user; `O_NOFOLLOW` files | Source: original §5 "absence of unsafe links/path substitution"; best practice | Reversible: yes
 - A-40 | Publication failure | Resolved: own staging removed; unpublished preview | Source: original §8 (only owned objects deleted); best practice | Reversible: yes
-- A-41 | Runbook values are free shell strings | Resolved: captured as `bash -c '<runbook value>'`; the git-word refusal applies to the whole value | Source: spec 16 REQ-17 and DM-4a (same form); `rules/tdd.md:90-91` (the runbook `test:` command is the RED runner) | Reversible: yes
+- A-41 | Runbook values are free shell strings | Resolved: captured as `bash -c '<runbook value>'`; the git-word refusal applies to the whole value | Source: spec 15 REQ-17 and DM-4a (same form); `rules/tdd.md:90-91` (the runbook `test:` command is the RED runner) | Reversible: yes
 - A-42 | A forwarded signal the child survives or traps | Resolved: kind `interrupted`, exit 128 + n, never a pass | Source: original §5 "During the run" step 4 ("do not declare a forced termination a success") | Reversible: yes
 - A-43 | Header size depends on the layout | Resolved: budget with maximum widths for `shown`, `next`, `truncated` (DM-4.4) | Source: REQ-02 must hold for every input; smallest deterministic rule | Reversible: yes
 - A-44 | Missing preview without `started=no` | Resolved: outcome unknown, no immediate re-run, reported as an evidence gap; `--timeout-seconds` required in Capture | Source: original invariant 4; `workflows/pav-check.md:47-49` (incomplete runs are evidence gaps); `.ai/context/runbook.md:26` (concurrent validator runs can be killed) | Reversible: yes
-- A-45 | Load mode of `contract-output` | Resolved: `mandatory` section-selected entries; no conditional load, because 08's condition registry has no feature for helper presence and `on_unknown: load` would load it anyway | Source: 08 DM-1 (`on_unknown` only `load`) and 08 DM-2 (no helper-presence feature in the registry today; adding a feature is additive, but an unknown value would still load the rule, so it would not shrink the load) | Reversible: yes
+- A-45 | Load mode of `contract-output` | Resolved: `mandatory` section-selected entries; no conditional load, because 11's condition registry has no feature for helper presence and `on_unknown: load` would load it anyway | Source: 11 DM-1 (`on_unknown` only `load`) and 11 DM-2 (no helper-presence feature in the registry today; adding a feature is additive, but an unknown value would still load the rule, so it would not shrink the load) | Reversible: yes
 - A-46 | Which time limit bounds `--timeout-seconds` | Resolved: the limit of the shell call the worker itself issues (for example the Bash tool's timeout parameter, or the harness default when the call sets none); background calls without any limit need no timeout; no fixed number | Source: rule against invented numbers; ADR-0020 (`.ai/adr/0020-task-unknown-source-guard-watchdog-timeouts.md:44`, "a wall-clock limit tighter than the measured duration fails correct code"); Codex limits not verified | Reversible: yes
 
 ## Decisions
@@ -1651,17 +1651,17 @@ N/A — no questions were asked (autonomous mode, owner unavailable for this run
   rule naming a wrapped program is not applied to it (Context fact 6); use is limited by S1.
 - Q-02 | non-blocker | Should artifacts be removed automatically (age or task completion)?
   Impact: disk use only; manual removal is documented.
-- Q-03 | resolved 2026-11-14 by spec 08 Q-06 (answer "No") | Should spec 08 accept OUTPUT lines
+- Q-03 | resolved 2026-11-14 by spec 11 Q-06 (answer "No") | Should spec 11 accept OUTPUT lines
   as a second evidence reference kind in report `Evidence` fields and REQ-07? No requirement
   here needs it. The `Evidence:` line already requires the `command:` line, failing test names
-  and error lines to be copied verbatim, which meets 08 REQ-07's "verbatim" branch; the OUTPUT
-  line is an additional `Evidence` item that 08 does not verify. Acceptance would only let a
-  report cite captured output by reference instead of copying it. A-23 and C-7 row 08 hold.
+  and error lines to be copied verbatim, which meets 11 REQ-07's "verbatim" branch; the OUTPUT
+  line is an additional `Evidence` item that 11 does not verify. Acceptance would only let a
+  report cite captured output by reference instead of copying it. A-23 and C-7 row 11 hold.
 - Q-04 | non-blocker | Which further output formats (for example `go test`, `jest`, `cargo`)
   deserve parsers? Impact: those outputs read as `parser=none` with head and tail excerpts.
-- Q-05 | resolved 2026-11-14 by spec 16 DM-4a and REQ-60 | Spec 16's `run` executes its checks
+- Q-05 | resolved 2026-11-14 by spec 15 DM-4a and REQ-60 | Spec 15's `run` executes its checks
   through this helper when it is available, falls back to its own capture only on a refusal,
-  and its sentences replace C-5 rows 3a and 5 on delivery (C-7 row 16).
+  and its sentences replace C-5 rows 3a and 5 on delivery (C-7 row 15).
 - Q-06 | non-blocker | Should the delivery ship recommended allow rules for the helper per
   runbook command? Impact: without them, autonomous workers in `default` mode may wait on
   permission prompts for captured commands that were allowlisted directly.
@@ -1670,8 +1670,8 @@ N/A — no questions were asked (autonomous mode, owner unavailable for this run
 
 ### Prerequisites and guard for the implementing task
 
-Specs 06 (done), 13, 09, 08 and 14 must have landed (`.ai/specs/README.md` "Dependency
-order"). If 08's `measure-context.sh`, 13's `scripts/lint-instructions.py` or 09's
+Specs 06 (done), 09, 10, 11 and 12 must have landed (`.ai/specs/README.md` "Dependency
+order"). If 11's `measure-context.sh`, 09's `scripts/lint-instructions.py` or 10's
 `tests/golden-runs.py` is absent, the corresponding command of AC-33–AC-35 cannot run: record
 it as unmet and hand the decision to the owner rather than weakening it.
 
@@ -1683,7 +1683,7 @@ it as unmet and hand the decision to the owner rather than weakening it.
 2. Preview and parsers: rendering, layout, diagnostics, `limits`; AC-02, AC-17–AC-24.
 3. Retrieval: `read`, `verify`, read log; AC-03, AC-25, AC-26.
 4. Rule and workflows, `loads:`, deployment lists; AC-31–AC-33, AC-37, AC-38.
-5. Knowledge base, documentation, ADR; full validator, 08, 13 and 09 gates (AC-34–AC-36).
+5. Knowledge base, documentation, ADR; full validator, 11, 09 and 10 gates (AC-34–AC-36).
 
 ### Rollback
 
@@ -1693,19 +1693,19 @@ remain verifiable. Resume by unsetting the variable.
 
 ### Follow-ups for other specs and shared files (not edited here)
 
-- 08: done — Q-06 answers Q-03 "No", and DM-7 states that neither 15 nor 17 registers a
+- 08: done — Q-06 answers Q-03 "No", and DM-7 states that neither 13 nor 14 registers a
   format (A-23).
 - 05: an adapter mapping C-7's byte counts to `tool_output.*` diagnostics.
-- 12: done — its DM-6 mapping paragraph reads DM-3 `label` for non-`exit` outcomes (C-7 row 12).
+- 12: done — its DM-6 mapping paragraph reads DM-3 `label` for non-`exit` outcomes (C-7 row 23).
 - 16: done — DM-4a and REQ-57–REQ-61 settle Q-05. Open point: when the worker's call that runs
-  16's helper has a time limit, 16 may pass `--timeout-seconds` below it, so that a long check
+  15's helper has a time limit, 15 may pass `--timeout-seconds` below it, so that a long check
   ends with a preview (`timeout:<S>s`, case B) instead of being killed with the outer call.
 - 19: cite DM-9 lines and DM-3 kinds for RED preservation and infrastructure classification
-  (done in its REQ-45 and C-row 17); its `evidence_refs` should take `output.reference`,
-  `artifact_id` and `manifest_sha256` for capture-mode spec 16 receipts, which have no stream
+  (done in its REQ-45 and C-row 14); its `evidence_refs` should take `output.reference`,
+  `artifact_id` and `manifest_sha256` for capture-mode spec 15 receipts, which have no stream
   digests; and it should cite this spec by DM-9 id instead of line numbers.
-- `.ai/specs/README.md`: the workstream row for 17 stays valid; the prerequisites row may add
-  08 and 13, which are already transitive prerequisites.
+- `.ai/specs/README.md`: the workstream row for 14 stays valid; the prerequisites row may add
+  11 and 09, which are already transitive prerequisites.
 
 ### Rejected alternatives
 
@@ -1735,32 +1735,32 @@ remain verifiable. Resume by unsetting the variable.
 
 #### 2026-11-14 — reconciliation with refined peer specs
 
-- Q-05 resolved by spec 16 DM-4a and REQ-60; REQ-51, REQ-53, C-5 and AC-32 state that rows 3a
-  and 5 yield to spec 16's sentences on its delivery; C-7 rows 12, 15, 16 and 19 aligned with
-  those specs; an edge row for a command not found inside `bash -c`; spec 13 placement and the
-  size rule added to C-4; Q-03 restated as a yes/no question for spec 08; A-41 Source updated
-  to spec 16 REQ-17 and DM-4a; follow-ups for 12, 16 and 19 updated. No id renumbered.
+- Q-05 resolved by spec 15 DM-4a and REQ-60; REQ-51, REQ-53, C-5 and AC-32 state that rows 3a
+  and 5 yield to spec 15's sentences on its delivery; C-7 rows 23, 13, 15 and 17 aligned with
+  those specs; an edge row for a command not found inside `bash -c`; spec 09 placement and the
+  size rule added to C-4; Q-03 restated as a yes/no question for spec 11; A-41 Source updated
+  to spec 15 REQ-17 and DM-4a; follow-ups for 23, 15 and 17 updated. No id renumbered.
 
 #### 2026-11-14 — second reconciliation pass
 
-- Spec 08: citations by line number in Context fact 8, A-23 and A-45 replaced by ids (08
-  REQ-07, DM-1, DM-2, DM-7, Q-06); Q-03 marked resolved by 08 Q-06 ("No"); C-7 row 08 and the
-  follow-up for 08 aligned; C-7 row 19 calls the DM-9 lines `Evidence` items, not references.
-- Spec 15: C-7 row 15 paraphrases 15 C-10 row 17 and cites it by id instead of quoting it;
-  15 A-16 confirmed.
-- Spec 19: ids cited by 19 (DM-3, DM-9, C-7 row 19) checked against this text; no change.
-- Spec 13: citation by line numbers replaced by DM-10 and DM-11; C-4 states that no text is
+- Spec 11: citations by line number in Context fact 8, A-23 and A-45 replaced by ids (11
+  REQ-07, DM-1, DM-2, DM-7, Q-06); Q-03 marked resolved by 11 Q-06 ("No"); C-7 row 11 and the
+  follow-up for 11 aligned; C-7 row 17 calls the DM-9 lines `Evidence` items, not references.
+- Spec 13: C-7 row 13 paraphrases 13 C-10 row 14 and cites it by id instead of quoting it;
+  13 A-16 confirmed.
+- Spec 17: ids cited by 17 (DM-3, DM-9, C-7 row 17) checked against this text; no change.
+- Spec 09: citation by line numbers replaced by DM-10 and DM-11; C-4 states that no text is
   moved, so no name-map row or amendment (REQ-68); C-5 states that sections and sentences are
   the anchors.
-- Spec 16: C-5 rows 3a and 5, REQ-51, REQ-53 and AC-32 re-checked against 16 DM-4a and
-  REQ-57–REQ-61; the C-5 introduction says nothing of 16's sentences beyond REQ-60 and
+- Spec 15: C-5 rows 3a and 5, REQ-51, REQ-53 and AC-32 re-checked against 15 DM-4a and
+  REQ-57–REQ-61; the C-5 introduction says nothing of 15's sentences beyond REQ-60 and
   REQ-61.
-- Spec 12: C-7 row 12 re-checked (REQ-07 shared store, REQ-11 and REQ-12 concurrency).
+- Spec 23: C-7 row 23 re-checked (REQ-07 shared store, REQ-11 and REQ-12 concurrency).
 - No REQ, AC, A or Q id added, removed or renumbered.
 
 #### 2026-11-14 — independent final review
 
-- Context item 4 and A-25 cite spec 09 DM-3 fact "Leaf mode and leaf tests", REQ-18 and A-28; assumptions in id order.
+- Context item 4 and A-25 cite spec 10 DM-3 fact "Leaf mode and leaf tests", REQ-18 and A-28; assumptions in id order.
 
 ## Readiness Checklist
 
@@ -1769,7 +1769,7 @@ Result of 2026-11-14.
 | # | Check | Result |
 |---|---|---|
 | 1 | Goal is one domain-language paragraph describing the outcome | PASS — single `## Goal` paragraph |
-| 2 | Out of Scope names concrete exclusions | PASS — git commands, owners 05, 08, 12, 13, 14, 15, 16, 19, retention, masking, interleaving, progress, Windows |
+| 2 | Out of Scope names concrete exclusions | PASS — git commands, owners 05, 11, 23, 09, 12, 13, 15, 17, retention, masking, interleaving, progress, Windows |
 | 3 | Each REQ has a stable id and one EARS behavior | PASS — REQ-01–REQ-63; original ids preserved, bundles split |
 | 4 | Every REQ maps to ≥1 AC; every AC names ≥1 REQ | PASS — `## Traceability` covers REQ-01–REQ-63 and AC-01–AC-39 |
 | 5 | Every AC is binary, observable and can guide a test before implementation | PASS — fixture cases in `scripts/check-capture-output.py` (C-8); AC-34, AC-35, AC-38 classified as delivery gates |
@@ -1785,7 +1785,7 @@ Result of 2026-11-14.
 
 Reconciliation pass of 2026-11-14: targeted edits checked by an independent review (changed
 passages only); the verdict below is unchanged.
-Second reconciliation pass of 2026-11-14 (peer-spec points of 08, 12, 13, 15, 16 and 19, see
+Second reconciliation pass of 2026-11-14 (peer-spec points of 11, 23, 09, 13, 15 and 17, see
 Change Log): ids and citations only, no requirement or acceptance criterion changed; checked by
 an independent review of the changed passages; the verdict below is unchanged.
 

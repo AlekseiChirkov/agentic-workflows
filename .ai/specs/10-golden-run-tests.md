@@ -1,8 +1,8 @@
-# 09. Golden-run regression tests and independent strategy evaluation
+# 10. Golden-run regression tests and independent strategy evaluation
 
 ## Source
 
-- **Request:** `/spec-draft .ai/specs/09-golden-run-tests.md --auto-mode` (refinement in place,
+- **Request:** `/spec-draft .ai/specs/10-golden-run-tests.md --auto-mode` (refinement in place,
   2026-11-13). The owner authorized in-place replacement and will not answer questions during
   this run; every gap is resolved under `## Assumptions` with its source.
 - **Input:** the existing Russian-language specification at commit `060ce6d` (file last
@@ -57,7 +57,7 @@ evaluation, a scenario calculator, reports, cancellation and evidence storage. O
 automatic paid checks on sync or ordinary CI, real pull requests, a third harness, a trained
 model router, changes to production budgets. The primary golden executor is the historically
 chosen Claude harness; another harness only through an explicitly supported verified adapter
-or supplied recorded results. Dependencies: completed 01, 13, 05, 06; 08 and 14–20 consume this
+or supplied recorded results. Dependencies: completed 01, 09, 05, 06; 11 and 12–18 consume this
 evaluation; 12 later extends the composite example.
 
 **4. Roles.** Fixture author (observable requirements, constraints, open and hidden cases);
@@ -85,7 +85,7 @@ reviewable change, never auto-accepted; separately check behaviour, tests-before
 frozen tests, architectural invariants and injected defects. REQ-05 model runs only for a
 release or an explicitly authorized manual experiment; sync, ordinary validation and default
 jobs run offline checks only; a subscription does not authorize buying API access; examples for
-11 come only from synthetic projects. REQ-06 manifest variants A–F with exact models, effort,
+21 come only from synthetic projects. REQ-06 manifest variants A–F with exact models, effort,
 context preparation, reviewers, retries, escalation and selection grounds; unsupported variants
 are marked unavailable or manual, never measured. REQ-07 same initial revisions, specs and
 criteria; historical tasks only owner-selected and anonymized; separate tuning and held-out
@@ -107,7 +107,7 @@ total savings.
 **6. Offline suite.** Per-project detection targets: `flat` — missed leaf, dependent work
 before the previous review, wrong branch order, incomplete criteria traceability;
 `composite` — successful children with a broken shared contract, missing integration check,
-wrong final state, later parallel-integration errors after 12; `quick` — missing quick
+wrong final state, later parallel-integration errors after 23; `quick` — missing quick
 contract, artificial full decomposition, lost constraints of the short path; `bugfix` — fix
 without a reproducing case, changed pinned expected behaviour, regression of a neighbouring
 case. Each project has a spec, initial application state, minimal project context, open tests
@@ -218,7 +218,7 @@ comparison estimate. Hypothetical break-even: strong path costs 7, cheap path 4 
 chain of 5 with probability `p`; expected cheap cost `4 + 5p`, break-even `p = 0.6`; at
 `p = 0.2` cheap 5 vs strong 7, at `p = 0.6` 7 vs 7, at `p = 0.8` 8 vs 7. The numbers are
 synthetic; with differing acceptance probabilities the formula is insufficient; it allows no
-unbounded retries and does not change 19's attempt limits. The extended calculator takes
+unbounded retries and does not change 17's attempt limits. The extended calculator takes
 outcome branches with probabilities and planning/review/tool/repair/escalation costs and an
 acceptance chance, validates probabilities, keeps unknowns unknown and shows sensitivity.
 
@@ -309,7 +309,7 @@ Verified facts:
   (`harness/claude/capabilities.md:77`). `pytest` is not installed in the repository's pinned
   Python 3.12.16 (`python3 -m pytest --version` → `No module named pytest`, 2026-11-13).
 
-Consequence: optimization specs 08 and 14–20 cannot show that a change preserves behaviour, and
+Consequence: optimization specs 11 and 12–18 cannot show that a change preserves behaviour, and
 no cheaper strategy can be qualified, because there is neither a deterministic regression of
 whole pipeline runs nor a protocol that measures independently accepted results and their
 total cost.
@@ -351,15 +351,15 @@ order`):
 - Any paid model run, live experiment, or creation of live expected results; this spec ships
   the capability with live execution disabled until an owner approval exists.
 - Registering the golden suite in `scripts/validate-contracts.sh` (frozen inventory) or as a
-  `scripts/sync.sh` gate (open question Q-01). Creating any CI file: this spec creates none; spec 11
+  `scripts/sync.sh` gate (open question Q-01). Creating any CI file: this spec creates none; spec 21
   REQ-81 owns the one offline workflow `.github/workflows/offline-checks.yml`, whose last step runs
   this spec's `python3 -I tests/golden-runs.py` when that file exists. A paid run never starts in
   CI (gate G6).
 - Changing pipeline defaults, model plans, effort policy, run-log emission or any production
   budget; adopting a promoted variant is a separate owner decision and spec.
-- Building `docs/examples/flat-task/` (owned by spec 11 REQ-11); this spec only makes the
+- Building `docs/examples/flat-task/` (owned by spec 21 REQ-11); this spec only makes the
   `flat` case and its runs available as the source.
-- Parallel composite execution and its integration errors (spec 12 extends the `composite`
+- Parallel composite execution and its integration errors (spec 23 extends the `composite`
   case later).
 - A third harness, a trained router (strategy D is hypothetical unless recorded results are
   supplied), Codex execution (only through recorded results).
@@ -397,8 +397,8 @@ order`):
 | Case workflow | A key of `case.json → workflows` naming one pipeline entry invocation for the case (initially `spec-run`, `phase-pipeline`, `bugfix`). | DM-1 |
 | Catalog pair | One (case, case workflow) pair; the initial catalog has five (DM-1). | DM-1 |
 | Seed project | The case's initial project tree copied into a workspace and committed as the seed commit. | DM-1 |
-| Branch model | `per-leaf` or `per-composite`, spec 12a DM-1; decides which SA-10/SA-11 rules apply. | Spec 12a DM-1 |
-| Stack entry | Under `per-composite`, a top-level leaf or a composite (its children excluded) in plan order. | Spec 12a Notes |
+| Branch model | `per-leaf` or `per-composite`, spec 22 DM-1; decides which SA-10/SA-11 rules apply. | Spec 22 DM-1 |
+| Stack entry | Under `per-composite`, a top-level leaf or a composite (its children excluded) in plan order. | Spec 22 Notes |
 | Variant switch | A spec's opt-in setting a variant applies through `switches` (prompt arguments, environment values, overlay files). | REQ-52 |
 | Evaluator-only material | A case's `hidden/` and `reference/`, every artifact root, every `cases_root`, and `blinding.json`; never copied into a workspace or helper home. | REQ-20 |
 | Workspace | A fresh temporary git repository holding one attempt's executor-visible project. | REQ-47 |
@@ -619,8 +619,8 @@ behaviour and its remaining obligations move to REQ-13 onward (2026-11-13).
   manifest with exit 2 naming the variant.
 - **REQ-54 Owner policy files in the instructions digest (Q-07, D-01).** THE SYSTEM SHALL list
   in the shipped `claude` declaration's `instruction_paths` the entries
-  `$XDG_CONFIG_HOME/orchestrail/effort-policy.json` (spec 18, owner effort policy) and
-  `$XDG_CONFIG_HOME/orchestrail/repair-policy.json` (spec 19, owner repair policy) and SHALL
+  `$XDG_CONFIG_HOME/orchestrail/effort-policy.json` (spec 16, owner effort policy) and
+  `$XDG_CONFIG_HOME/orchestrail/repair-policy.json` (spec 17, owner repair policy) and SHALL
   include each in the instructions digest as defined in `## Data Model`. WHEN such a file does
   not exist, THE SYSTEM SHALL contribute the line `absent  <entry>` for it, so that absence is a
   stable value distinct from every present file. IF a policy entry exists but is not a readable
@@ -680,14 +680,14 @@ tests/golden/cases/<case>/
 | `case` | string | Case id; equals the directory name |
 | `test_command` | list of strings | Open-test argv run in the workspace: `["python3", "-m", "pytest", "-q", "tests"]` |
 | `test_globs` | list of globs | Paths that count as test files: `["tests/**/*.py"]` |
-| `workflows` | object | Key = case workflow (names per Notes → Spec 13 coupling); value `{"entry": "spec-run"\|"phase-pipeline"\|"bugfix", "prompt": string, "commits": bool, "expect_flow": "full"\|"quick", "parallel": int}`; `entry` is the pipeline workflow the prompt invokes and the key may differ from it (for example a later `spec-run-parallel-2`); `commits` is true exactly when `entry` is `spec-run`; `parallel` (default 1) is the child concurrency N the prompt requests and SA-10/SA-11 use; a prompt with `parallel` > 1 contains `--parallel <N>` |
+| `workflows` | object | Key = case workflow (names per Notes → Spec 09 coupling); value `{"entry": "spec-run"\|"phase-pipeline"\|"bugfix", "prompt": string, "commits": bool, "expect_flow": "full"\|"quick", "parallel": int}`; `entry` is the pipeline workflow the prompt invokes and the key may differ from it (for example a later `spec-run-parallel-2`); `commits` is true exactly when `entry` is `spec-run`; `parallel` (default 1) is the child concurrency N the prompt requests and SA-10/SA-11 use; a prompt with `parallel` > 1 contains `--parallel <N>` |
 | `acceptance_ids` | list of strings | Spec criterion ids (`AC-01`, …) expected `PASS` in `## Contract Check` |
 | `allowed_paths` | list of globs | Paths a run may create or change (always including `.ai/**`) |
 | `forbidden_paths` | list of globs | Paths a run must not change; take precedence over `allowed_paths` |
 | `pinned_tests` | list of `"path::function"` | Seed test functions whose source must stay identical |
 | `dependency_chain` | list of paths | Modules whose owning leaves must complete in this order (`flat` only) |
 | `max_changed_files` | int or null | Quick-gate file limit (3 for `quick` and `bugfix`, else null) |
-| `published` | bool | `true` when the case's reference result is published (`flat`, by spec 11 REQ-11); such a case may only be a `tuning` task (REQ-50) |
+| `published` | bool | `true` when the case's reference result is published (`flat`, by spec 21 REQ-11); such a case may only be a `tuning` task (REQ-50) |
 
 `hidden/defects.json`: `{"schema_version":1,"defects":[{"defect_id":"D-1","severity":"critical|important|optional","detected_by":["<file>::<test>"]}]}`;
 every hidden test appears in exactly one defect's `detected_by`.
@@ -745,13 +745,13 @@ facts and their sources:
 | Task directory | Exactly one directory under `.ai/tasks/todo/` or `.ai/tasks/completed/` whose `state.md` is new or differs from the seed | error |
 | `flow:`, `kind:`, `## Phases` values | Task `state.md` (`rules/workflow-globals.md:160-169`, `workflows/bugfix.md:37-45`) | error |
 | Leaf and composite blocks, fields by name | `## Subtask Progress` (`:175-186`, `:210-219`) | error when a block header is unparsable |
-| Leaf mode and leaf tests | `notes:` entries — the value and continuation lines of every `notes` field group split at line breaks and at `; ` per spec 15 Data Model → Note entries, which joins to a `tdd: red digest —` entry each following piece on its line that matches `^.+ → test_\w+(, test_\w+)*$` and starts with none of `tdd:`, `context-` or `verification:`, because the digest separates its behaviours with `; ` (`workflows/pae-tests.md:210`, `:225`) — starting with `tdd: characterize —` (pinned), `tdd: none —` (n-a), `tdd: red digest —` (test names: every `test_\w+` after any `→` within that entry only); these three are the only entries read and every other entry, such as `tdd: red output` or `tdd: green output`, is ignored | error when a name matches functions in two files |
+| Leaf mode and leaf tests | `notes:` entries — the value and continuation lines of every `notes` field group split at line breaks and at `; ` per spec 13 Data Model → Note entries, which joins to a `tdd: red digest —` entry each following piece on its line that matches `^.+ → test_\w+(, test_\w+)*$` and starts with none of `tdd:`, `context-` or `verification:`, because the digest separates its behaviours with `; ` (`workflows/pae-tests.md:210`, `:225`) — starting with `tdd: characterize —` (pinned), `tdd: none —` (n-a), `tdd: red digest —` (test names: every `test_\w+` after any `→` within that entry only); these three are the only entries read and every other entry, such as `tdd: red output` or `tdd: green output`, is ignored | error when a name matches functions in two files |
 | `plan.md` subtask statuses | Status table (`:268-278`) | error for `full` flow; not read for `quick` |
 | Contract Check rows | `## Contract Check` tables; a row's criterion id is the first token matching `AC-\d+` in its Criterion cell, else none | error when the section is absent and `validation` is `complete` |
 | Issue List entries | `### Approved`, `### Deferred`; an entry is a line matching `^\s*(?:[-*]\s*)?\[?(\d+)\]?[.):]?\s`; `None` means empty | error when a subsection has other non-empty content |
 | Quick contract and TDD record | `## Contract (quick)`, `## TDD (quick)` (`tests:` names, `level:`, `red-observed:`, `green-observed:`) | error for `quick` flow |
 | Commits, refs | `git.json` | error |
-| Branch model | Task `state.md` `branch_model:` resolved by spec 12a DM-1's reader rule: the value when present; absent with any block recording `branch:` → `per-leaf`; otherwise none | error for a value other than `per-leaf` or `per-composite` |
+| Branch model | Task `state.md` `branch_model:` resolved by spec 22 DM-1's reader rule: the value when present; absent with any block recording `branch:` → `per-leaf`; otherwise none | error for a value other than `per-leaf` or `per-composite` |
 | Changed paths | Final workspace tree versus the baseline (seed project plus the variant's switch overlay, `Variant switches`) by per-file content hash, excluding `.git/` | error |
 | Run-log events | JSONL files under the captured log root, ordered by run and `seq` | absent store → empty list |
 | Open-test result | `test_command` exit code | error when it cannot start |
@@ -769,7 +769,7 @@ Semantic assertions:
 | SA-07 | No Acceptance Criteria row is `FAIL`; the number of rows is at least the number of `acceptance_ids`; every `acceptance_ids` entry found as a row id is `PASS` | never |
 | SA-08 | Number of Contract Check `FAIL` rows ≤ number of Issue List entries (approved + deferred) | never |
 | SA-09 | Every changed path matches `allowed_paths` and none matches `forbidden_paths`; changed paths outside `.ai/` ≤ `max_changed_files` when set | never |
-| SA-10 | Rules by branch model (DM-3 fact). **`per-leaf` or field absent:** each leaf has `branch:`, `base_branch:`, `base_commit:`, `commits:`; `base_commit` and every listed commit resolve; the first leaf's `base_branch` is the seed branch and each later leaf's `base_branch` is the previous leaf's `branch` in plan order. **`per-composite`** (spec 12a DM-1, DM-2): the stack entries are the top-level leaves and composites in plan order, children excluded; every entry and every child has `branch:`, `base_branch:`, `base_commit:`, `commits:`; `base_commit`, every listed commit and every child `merge_commit` resolve, while a child's `branch:` need not exist; the first entry's `base_branch` is the seed branch, and each later entry's `base_branch` is the previous entry's `branch` with `base_commit` equal to the previous entry's last listed commit; each child's `base_branch` is its composite's `branch`; the composite's start tip is its last listed commit that precedes its first `merge` entry (a promoted leaf's own commits, spec 12a REQ-37) or its `base_commit` when there is none; at N = 1 exactly one child of a composite has the start tip as `base_commit` and every other child's `base_commit` equals another child's `merge_commit` in that composite; at N > 1 each child's `base_commit` equals or descends from the `merge_commit` of each prerequisite child (plan `Depends On`) in the same composite; each child's `merge_commit` has a first parent equal to (N = 1) or descending from (N > 1) the child's `base_commit`, a second parent equal to the child's last listed commit, is an ancestor of the composite's last listed commit, and has a subject matching `^Merge branch '[^']+' into \S+$`. N is the case workflow's `parallel`. **Both models:** no commit subject matches `\bT-\d` | workflow `commits: false` |
+| SA-10 | Rules by branch model (DM-3 fact). **`per-leaf` or field absent:** each leaf has `branch:`, `base_branch:`, `base_commit:`, `commits:`; `base_commit` and every listed commit resolve; the first leaf's `base_branch` is the seed branch and each later leaf's `base_branch` is the previous leaf's `branch` in plan order. **`per-composite`** (spec 22 DM-1, DM-2): the stack entries are the top-level leaves and composites in plan order, children excluded; every entry and every child has `branch:`, `base_branch:`, `base_commit:`, `commits:`; `base_commit`, every listed commit and every child `merge_commit` resolve, while a child's `branch:` need not exist; the first entry's `base_branch` is the seed branch, and each later entry's `base_branch` is the previous entry's `branch` with `base_commit` equal to the previous entry's last listed commit; each child's `base_branch` is its composite's `branch`; the composite's start tip is its last listed commit that precedes its first `merge` entry (a promoted leaf's own commits, spec 22 REQ-37) or its `base_commit` when there is none; at N = 1 exactly one child of a composite has the start tip as `base_commit` and every other child's `base_commit` equals another child's `merge_commit` in that composite; at N > 1 each child's `base_commit` equals or descends from the `merge_commit` of each prerequisite child (plan `Depends On`) in the same composite; each child's `merge_commit` has a first parent equal to (N = 1) or descending from (N > 1) the child's `base_commit`, a second parent equal to the child's last listed commit, is an ancestor of the composite's last listed commit, and has a subject matching `^Merge branch '[^']+' into \S+$`. N is the case workflow's `parallel`. **Both models:** no commit subject matches `\bT-\d` | workflow `commits: false` |
 | SA-11 | For consecutive modules in `dependency_chain`, take the owning leaf of each (the one leaf listing the module in `target_files:`); zero or two owning leaves → failed `chain-leaf-missing`. With commits and `per-leaf` (or field absent): the later owning leaf's `base_commit` equals the earlier owning leaf's last listed commit. With commits and `per-composite`: when both owning leaves are children of one composite, the later child's `base_commit` equals or descends from the earlier child's `merge_commit`; otherwise the stack entry containing the later leaf (the leaf itself or its composite) has a `base_commit` equal to or descending from the last listed commit of the entry containing the earlier leaf. Without commits, completion order only: the later leaf's `pe-execute` step event has a higher `seq` than the earlier leaf's `pe-execute` event with outcome `ok` in the same run, and when either event is absent the result is `not-applicable` with reason `not-observed` | no `dependency_chain` |
 | SA-12 | Open-test command exits 0 | never |
 | SA-13 | `## Contract (quick)` has `### Off-limits`, `### Invariants`, `### Acceptance Criteria`; `## TDD (quick)` has `level:` and `red-observed:`; no `T-` subtask directories and no `## Subtask Progress` blocks | flow `full` |
@@ -860,7 +860,7 @@ Review record `tests/expected/<case>/<workflow>/review.json`:
 | `sources` | `{source_revision: 40-hex, instructions_digest: 64-hex}` |
 | `tasks[]` | `{task_id: ^[a-z0-9][a-z0-9-]{0,31}$, case, workflow, split: "tuning"\|"holdout", risk, complexity, context_size: "low"\|"medium"\|"high", observability: text, provenance: "synthetic"\|"owner-selected", cases_root: path\|null, anonymization_record: text\|null, case_digest: 64-hex}`; `risk`/`complexity` are `low`/`medium`/`high`; `owner-selected` requires a `cases_root` outside the repository and a non-empty `anonymization_record`; a task whose case declares `published: true` has `split: "tuning"` |
 | `exclusion_rules[]` | `{rule_id, description}` |
-| `variants[]` | `{variant_id: ^[A-F][a-z0-9-]{0,15}$, strategy: "A".."F", availability, adapter: "claude"\|null, roles: {orchestrator\|arbiter\|implementer\|validator: {model: string\|null, effort: "low"\|"medium"\|"high"\|"xhigh"\|"max"\|"session-default"\|null}}, permission_mode, allowed_tools[], disallowed_tools[], context_preparation, verification, retries, escalation, selection_rationale, strategy_details, switches}`; `roles` has exactly the four keys `orchestrator`, `arbiter`, `implementer` and `validator` (the roles of the `orchestration` rule; spec 18 DM-3 reads the last three); `switches` is defined under `Variant switches`; `executable` requires one adapter, every role with the same model and effort, and non-null fields; `strategy_details` holds non-empty text keys per strategy: A `planner_and_reviewer`, `same_models_by_role`; B `reviewer_cost`, `repair_policy`, `escalation_limits`; C `handover`, `shared_plan_scope`, `plan_staleness`; D `routing_rules`, `features`, `switch_point`; E `level_order`, `transition_conditions`, `early_stop_risks`; F `composition`, `frozen_rules` |
+| `variants[]` | `{variant_id: ^[A-F][a-z0-9-]{0,15}$, strategy: "A".."F", availability, adapter: "claude"\|null, roles: {orchestrator\|arbiter\|implementer\|validator: {model: string\|null, effort: "low"\|"medium"\|"high"\|"xhigh"\|"max"\|"session-default"\|null}}, permission_mode, allowed_tools[], disallowed_tools[], context_preparation, verification, retries, escalation, selection_rationale, strategy_details, switches}`; `roles` has exactly the four keys `orchestrator`, `arbiter`, `implementer` and `validator` (the roles of the `orchestration` rule; spec 16 DM-3 reads the last three); `switches` is defined under `Variant switches`; `executable` requires one adapter, every role with the same model and effort, and non-null fields; `strategy_details` holds non-empty text keys per strategy: A `planner_and_reviewer`, `same_models_by_role`; B `reviewer_cost`, `repair_policy`, `escalation_limits`; C `handover`, `shared_plan_scope`, `plan_staleness`; D `routing_rules`, `features`, `switch_point`; E `level_order`, `transition_conditions`, `early_stop_risks`; F `composition`, `frozen_rules` |
 | `baseline_variant` | A `variant_id` or null |
 | `order` | `{repetitions: int ≥ 1, method: "fixed"\|"seeded-hash", seed: int\|null}`; `seeded-hash` requires `seed` |
 | `cache` | `{condition: "cold"\|"warm"\|"unspecified", reuse_policy: text}` |
@@ -1003,7 +1003,7 @@ comparisons: [{candidate, baseline, decision_split, quality_diff: {estimate, low
 upper}|null, cost_ratio: {estimate, lower, upper}|null, confidence_adjusted, hard_constraints:
 {name: bool}, verdict, reasons}], contamination: [task_id], disputes_open: [attempt_key],
 exclusions: [{attempt_key, rule_id}], diagnostics: []}`. Neither `report.json` nor the DM-6 manifest
-carries a size limit of its own; a reader that needs one sets it itself (spec 18 DM-3 applies
+carries a size limit of its own; a reader that needs one sets it itself (spec 16 DM-3 applies
 1,048,576 bytes and rejects a larger file as `qualification-invalid`).
 
 METRICS: `planned`, `started`, `completed`, `pending`, `unit_outcomes` (count per outcome),
@@ -1149,11 +1149,11 @@ variable names are recorded, except that `switches.env` values are part of the m
 `switches` = `{prompt_args: [string], env: {NAME: string}, overlay: path|null, overlay_digest:
 64-hex|null}` (empty list, empty object and nulls when unused). A variant that differs from the
 baseline only by a spec's opt-in setting is declared with the same roles and the switch here,
-for example `prompt_args: ["--repair-policy", "bounded-local"]` on the candidate for spec 19
-(the flag's absence is the no-repair arm, spec 19's row for 09 in its C-10), or
-`env: {"ORCHESTRAIL_SCOPED_VERIFICATION": "off"}` on the full-review arm for spec 16 (spec 16
-REQ-34 and its row for 09). Spec 20 defines no switch (spec 20 A-14); its decomposition-policy
-variants differ only in `strategy_details` (spec 20's row for 09). `prompt_args` are appended,
+for example `prompt_args: ["--repair-policy", "bounded-local"]` on the candidate for spec 17
+(the flag's absence is the no-repair arm, spec 17's row for 10 in its C-10), or
+`env: {"ORCHESTRAIL_SCOPED_VERIFICATION": "off"}` on the full-review arm for spec 15 (spec 15
+REQ-34 and its row for 10). Spec 18 defines no switch (spec 18 A-14); its decomposition-policy
+variants differ only in `strategy_details` (spec 18's row for 10). `prompt_args` are appended,
 space-separated, to the case workflow's prompt; `--allow-pr` and `--parallel` are rejected
 (exit 2), because REQ-36 forbids the first and N comes from the case workflow entry. `env` names
 must match `^ORCHESTRAIL_[A-Z0-9_]{1,56}$` and must not be `ORCHESTRAIL_HOME` or
@@ -1628,7 +1628,7 @@ Reference workspaces come from `build-reference`.
 | Adapter result fields and cost cap unverified | Live cost and model unknown; promotion impossible; launches refused without weaker-design acceptance | High | `null` fields stay unknown (REQ-34); Q-02, Q-06 |
 | New files under `tests/` invalidate the source guard inventory | Validator red after the change | Certain | Re-pin per `tests/fixtures/validator-runtime/README.md:9-28` in the same change (Notes) |
 | Offline suite not run by `validate-contracts.sh` | Regressions unnoticed between releases | Medium | Manual run before release and in the manual; Q-01 |
-| Spec 13 renames workflows | Case prompts stale | Medium | Prompts are data in `case.json`; update with 13 |
+| Spec 09 renames workflows | Case prompts stale | Medium | Prompts are data in `case.json`; update with 09 |
 | Small samples | Most comparisons `insufficient-data` | High | Valid result by design (REQ-12) |
 | Scope size | Long implementation | Medium | Delivery order in eight parts; parts 1–3 are useful alone |
 
@@ -1657,7 +1657,7 @@ Reference workspaces come from `build-reference`.
 - A-21 | Exit codes | Resolved: table under Contracts | Source: best practice; spec 07 style of distinct refusal codes | Reversible: yes
 - A-22 | Retention | Resolved: recorded only, no automatic deletion | Source: original §8.1 "Data"; smallest choice | Reversible: yes
 - A-23 | Sequential attempts | Resolved: one attempt at a time | Source: P4; ADR-0004 | Reversible: yes
-- A-24 | CI | Resolved 2026-11-14 (supersedes "no CI file exists or is created"): this spec creates no CI file; spec 11 REQ-81 owns the one offline workflow, which runs this spec's command when present; paid runs never start in CI (G6) | Source: spec 11 REQ-81, D-03; gate G6; no `.github/` at `060ce6d` | Reversible: yes
+- A-24 | CI | Resolved 2026-11-14 (supersedes "no CI file exists or is created"): this spec creates no CI file; spec 21 REQ-81 owns the one offline workflow, which runs this spec's command when present; paid runs never start in CI (G6) | Source: spec 21 REQ-81, D-03; gate G6; no `.github/` at `060ce6d` | Reversible: yes
 - A-25 | Calculator range limit | Resolved: at most 16 range parameters | Source: best practice — bounded enumeration, not a quality target | Reversible: yes
 - A-26 | Quick and bugfix test-first evidence | Resolved: `## TDD (quick)` record plus HC-2 seed replay | Source: `rules/quick-flow.md:90-97`; `workflows/bugfix.md:106-112` | Reversible: yes
 - A-27 | `pytest` provisioning | Resolved: the owner installs `pytest` once, outside any check run, into the interpreter used for the suite and runs (for example a virtual environment outside the repository: `python3 -m venv <dir> && <dir>/bin/pip install pytest`); the diagnostic prints this command | Source: original §6.1 (install diagnostics outside the check run); ADR-0009 Decision 6 (pytest fixture) | Reversible: yes
@@ -1667,7 +1667,7 @@ Reference workspaces come from `build-reference`.
 
 ## Decisions
 
-- D-01 | Owner policy files enter the instructions digest through `$XDG_CONFIG_HOME/…` entries of `instruction_paths` (Q-07) | Overrides: none (accepts the Q-07 recommendation; no earlier text excluded these files) | Rationale: otherwise two runs with different effort or repair policy would receive the same configuration hash, which breaks attribution (G1) and comparability (G2) | Follow-up: REQ-54, the digest definition, DM-8, AC-42–AC-44 and Traceability added; spec 19 C-10 row 09 (no repair policy file assumed for a comparison run) becomes checkable through the digest
+- D-01 | Owner policy files enter the instructions digest through `$XDG_CONFIG_HOME/…` entries of `instruction_paths` (Q-07) | Overrides: none (accepts the Q-07 recommendation; no earlier text excluded these files) | Rationale: otherwise two runs with different effort or repair policy would receive the same configuration hash, which breaks attribution (G1) and comparability (G2) | Follow-up: REQ-54, the digest definition, DM-8, AC-42–AC-44 and Traceability added; spec 17 C-10 row 10 (no repair policy file assumed for a comparison run) becomes checkable through the digest
 
 ## Clarifications
 
@@ -1679,7 +1679,7 @@ A-01–A-30 and Q-01–Q-06.
 - Q: Do the owner policy files under `XDG_CONFIG_HOME` (`effort-policy.json`, `repair-policy.json`)
   enter the instructions digest? → A: Yes; they are listed as `$XDG_CONFIG_HOME/…` entries of the
   digest inputs (D-01, REQ-54). Rationale: attribution (G1) and comparability (G2).
-- Q: Does this spec create a CI file now that spec 11 creates an offline workflow? → A: No; spec 11
+- Q: Does this spec create a CI file now that spec 21 creates an offline workflow? → A: No; spec 21
   REQ-81 owns the one offline workflow, which runs `python3 -I tests/golden-runs.py` when the file
   exists; paid runs never start in CI (G6).
 
@@ -1707,10 +1707,10 @@ A-01–A-30 and Q-01–Q-06.
   API billing? Impact: until verified the declaration says `unverified` and live runs need the
   owner's `accept_unverified_cost_cap`. Recommended: verify in the first approved run.
 - Q-07 | non-blocker | Should owner policy files that the executor reads from the passed-through
-  `XDG_CONFIG_HOME` — spec 18's `effort-policy.json` and spec 19's `repair-policy.json` under
+  `XDG_CONFIG_HOME` — spec 16's `effort-policy.json` and spec 17's `repair-policy.json` under
   `${XDG_CONFIG_HOME:-$HOME/.config}/orchestrail/` — enter the instructions digest? Today
   `instruction_paths` covers only the adapter's declared paths, so two arms can differ in those
-  files unseen, and spec 19's C-10 row 09 assumes no repair policy file exists for a comparison
+  files unseen, and spec 17's C-10 row 10 assumes no repair policy file exists for a comparison
   run. Impact: comparability of live runs only (G2); offline implementation unaffected.
   Recommended: let DM-8 `instruction_paths` entries start with `$XDG_CONFIG_HOME/` (empty →
   `$HOME/.config`) and list both files in the shipped declaration; an absent file contributes
@@ -1722,7 +1722,7 @@ A-01–A-30 and Q-01–Q-06.
 ## Notes
 
 - **CI consistency (2026-11-14):** REQ-35 (exit 3 without `pytest`) and the exclusion of CI
-  configuration are consistent with spec 11 REQ-81, which installs `pytest` and guards the step
+  configuration are consistent with spec 21 REQ-81, which installs `pytest` and guards the step
   that runs `python3 -I tests/golden-runs.py` with an existence check; this spec has no default
   CI job of its own.
 - **Delivery order (eight parts):** (1) cases, seeds, hidden checks, references and
@@ -1738,42 +1738,42 @@ A-01–A-30 and Q-01–Q-06.
   guard inventory digest; finish all test sources, then follow
   `tests/fixtures/validator-runtime/README.md:9-28` to classify new call sites and re-pin
   `inventory_sha256`, then run the guard, regression and oracle suites.
-- **Spec 13 coupling:** workflow and step names in this spec are today's. Spec 13 is a
-  prerequisite (README → "Dependency order"), so the delivered values use its names (13 DM-11):
+- **Spec 09 coupling:** workflow and step names in this spec are today's. Spec 09 is a
+  prerequisite (README → "Dependency order"), so the delivered values use its names (09 DM-11):
   the DM-1 `entry` value `phase-pipeline` is `pipeline`, SA-11's step `pe-execute` is
-  `execution-execute`, and `case.json` prompts use the renamed commands; spec 13's reference
+  `execution-execute`, and `case.json` prompts use the renamed commands; spec 09's reference
   scan includes `tests/golden/cases/*/case.json`.
-- **Specs 12a and 12:** before spec 12a is delivered, `/spec-run` writes no `branch_model:`, so
+- **Specs 22 and 23:** before spec 22 is delivered, `/spec-run` writes no `branch_model:`, so
   the `composite`/`spec-run` pair exercises the `per-leaf` rules of SA-10 and SA-11. After spec
-  12a's composite branch model is delivered, new `/spec-run` tasks record `per-composite` (spec
-  12a REQ-16), so the same pair exercises the `per-composite` rules at N = 1; its reference and
-  expected projection must be rebuilt in the change that delivers spec 12a, and a `composite`
-  workflow entry with `entry: "spec-run"` and `parallel: 2` must be added for spec 12 REQ-15 in
-  the change that delivers spec 12's parallel children. Spec 12a's C-5 row lists
+  22's composite branch model is delivered, new `/spec-run` tasks record `per-composite` (spec
+  22 REQ-16), so the same pair exercises the `per-composite` rules at N = 1; its reference and
+  expected projection must be rebuilt in the change that delivers spec 22, and a `composite`
+  workflow entry with `entry: "spec-run"` and `parallel: 2` must be added for spec 23 REQ-15 in
+  the change that delivers spec 23's parallel children. Spec 22's C-5 row lists
   `tests/golden/cases/composite/reference/spec-run/` with
-  `tests/expected/composite/spec-run/projection.json`, and spec 12's C-5 row lists
+  `tests/expected/composite/spec-run/projection.json`, and spec 23's C-5 row lists
   `tests/golden/cases/composite/case.json` (entry `spec-run`, `parallel: 2`); the paths and the
   `entry` and `parallel` fields match DM-1 (the case-workflow key may differ from `entry`, as
-  DM-1 allows). Spec 12a's Notes also describe the first child's `base_commit` as the
+  DM-1 allows). Spec 22's Notes also describe the first child's `base_commit` as the
   composite's start tip (the composite's own `base_commit`, or the promoted leaf's tip after a
-  promotion, spec 12a REQ-37),
+  promotion, spec 22 REQ-37),
   which agrees with the start-tip rule of SA-10 and SA-11. Old tasks stay `per-leaf` and keep
   today's rules.
-- **Spec 17:** its `tdd: red output` and `tdd: green output` notes lines do not affect results:
+- **Spec 14:** its `tdd: red output` and `tdd: green output` notes lines do not affect results:
   the DM-3 fact "Leaf mode and leaf tests" reads only entries starting with `tdd: characterize —`,
   `tdd: none —` or `tdd: red digest —` and ignores every other `notes:` entry (REQ-18, A-28).
-- **Specs 16, 18, 19, 20:** their qualification claims use comparison manifests whose candidate
+- **Specs 15, 16, 17, 18:** their qualification claims use comparison manifests whose candidate
   differs from the baseline by the spec's opt-in setting (`Variant switches`), by
-  `strategy_details` (spec 20), or, for spec 18, by role effort; because an `executable` variant
-  has one effort for every role, a spec 18 rule that matches only some roles is qualified with
+  `strategy_details` (spec 18), or, for spec 16, by role effort; because an `executable` variant
+  has one effort for every role, a spec 16 rule that matches only some roles is qualified with
   `recorded` variants (a `manual` variant has no finished attempt and is never measured, REQ-06),
-  or with an executable candidate whose uniform effort also changes the other roles; spec 09 defines no experiment for them.
-- **Spec 14:** its `context-receipt:` and `context-expansion:` notes entries are free text, which
+  or with an executable candidate whose uniform effort also changes the other roles; spec 10 defines no experiment for them.
+- **Spec 12:** its `context-receipt:` and `context-expansion:` notes entries are free text, which
   the projection excludes, so they do not change expected results.
-- **Spec 15:** its checkpoint journal records order for `/spec-run` only and leaves
-  `/phase-pipeline` emissions unchanged (spec 15 Out of Scope), so Q-05 stands.
-- **Spec 11:** `docs/examples/flat-task/` is built from a `flat` run per spec 11 REQ-11.
-- **Spec 19:** the calculator models finite branches only and does not change attempt limits.
+- **Spec 13:** its checkpoint journal records order for `/spec-run` only and leaves
+  `/phase-pipeline` emissions unchanged (spec 13 Out of Scope), so Q-05 stands.
+- **Spec 21:** `docs/examples/flat-task/` is built from a `flat` run per spec 21 REQ-11.
+- **Spec 17:** the calculator models finite branches only and does not change attempt limits.
 - Hint: keep every process launch inside `scripts/golden_*.py` so the test file needs few guard
   classifications.
 - Hint: modules `golden_cases`, `golden_capture`, `golden_semantics`, `golden_normalize`,
@@ -1783,7 +1783,7 @@ A-01–A-30 and Q-01–Q-06.
   run's wording); a single cumulative spend counter without per-attempt cap (cannot stop an
   in-flight overrun); approval embedded in the manifest (circular hash); requiring a composite
   for acceptance (the classifier's nesting choice is legitimate either way).
-- **Identity ledger (follow-up outside this spec):** the ledger row(s) at `.ai/tasks/completed/task-01-git-source-of-truth/state.md` line 207 pins a former-name occurrence at this spec's line 19, which the refined text no longer holds; the change that commits this revision removes them, as spec 11 A-41 does for its own row.
+- **Identity ledger (follow-up outside this spec):** the ledger row(s) at `.ai/tasks/completed/task-01-git-source-of-truth/state.md` line 207 pins a former-name occurrence at this spec's line 19, which the refined text no longer holds; the change that commits this revision removes them, as spec 21 A-41 does for its own row.
 
 ### Change Log
 
@@ -1805,52 +1805,52 @@ A-01–A-30 and Q-01–Q-06.
   REQ-09, REQ-33, REQ-34; REQ-10 → REQ-10, REQ-22–REQ-27, REQ-44, REQ-45; REQ-11 → REQ-11;
   REQ-12 → REQ-12, REQ-30, REQ-39, REQ-40, REQ-42, REQ-43.
 
-#### 2026-11-14 — reconciliation with specs 11–20
+#### 2026-11-14 — reconciliation with specs 08, 09, 12–18, 21 and 23
 
-- SA-10 and SA-11 gain `per-composite` rules from spec 12's branch-ancestry facts; the branch
+- SA-10 and SA-11 gain `per-composite` rules from spec 23's branch-ancestry facts; the branch
   model fact, projection field, `merge` history step and `parallel` case field are added
   (REQ-51, AC-39).
 - `flat` is published and stays `tuning` (`published` case field, REQ-50, AC-38);
   reference-build determinism is specified (REQ-49, AC-37).
 - Manifest role keys are fixed to `orchestrator`, `arbiter`, `implementer`, `validator` for
-  spec 18 (this spec's REQ-53, AC-41); opt-in variant switches are added for specs 16, 19 and 20
+  spec 16 (this spec's REQ-53, AC-41); opt-in variant switches are added for specs 15, 17 and 18
   (REQ-52, AC-40).
-- Notes confirm specs 13, 14 and 15; Q-05 stands.
-- Independent check of the changed passages: env switches restricted to `ORCHESTRAIL_*`, spec 16
-  and spec 20 switch forms corrected, `entry` workflow field for N > 1 pairs, composite start
+- Notes confirm specs 09, 12 and 13; Q-05 stands.
+- Independent check of the changed passages: env switches restricted to `ORCHESTRAIL_*`, spec 15
+  and spec 18 switch forms corrected, `entry` workflow field for N > 1 pairs, composite start
   tip, merge numbering, inherited `GIT_*` cleared, `notes:` entry splitting.
 
 #### 2026-11-14 — second reconciliation pass
 
-- Spec 12 now lists the rebuilt `composite`/`spec-run` reference and projection (C-5, stage 12A)
-  and the `composite` case entry with `entry: "spec-run"` and `parallel: 2` (C-5, stage 12B);
-  the Notes cite them and confirm the start-tip rule against spec 12's Notes and REQ-37.
-- Spec 18 DM-3 statements confirmed (it reads `arbiter`, `implementer`, `validator` and ignores
+- Spec 23 now lists the rebuilt `composite`/`spec-run` reference and projection (C-5, stage 23A)
+  and the `composite` case entry with `entry: "spec-run"` and `parallel: 2` (C-5, stage 23B);
+  the Notes cite them and confirm the start-tip rule against spec 23's Notes and REQ-37.
+- Spec 16 DM-3 statements confirmed (it reads `arbiter`, `implementer`, `validator` and ignores
   `orchestrator`; `adapter` admits `claude` or `null`; an executable variant has one effort for
   every role); DM-12 now says this spec sets no size limit on `report.json` or the manifest.
-- Spec 11's citations of this spec's REQ-49, REQ-50, the `published` field and the run-log fields
+- Spec 21's citations of this spec's REQ-49, REQ-50, the `published` field and the run-log fields
   `step`, `subtask`, `outcome`, `tests`, `gate` confirmed; no change.
-- Spec 17 cites this spec by line number for its extraction of `tdd:` notes lines. This spec
+- Spec 14 cites this spec by line number for its extraction of `tdd:` notes lines. This spec
   states the fact: the DM-3 "Leaf mode and leaf tests" fact reads only three `tdd:` entry kinds
   (REQ-18, A-28) and ignores other `notes:` entries; it is recorded in the Notes and made
-  explicit in that fact. Spec 17 now cites it by id (independent final review).
+  explicit in that fact. Spec 14 now cites it by id (independent final review).
 
 #### 2026-11-14 — independent final review
 
-- DM-3 notes parsing joins the `; `-separated behaviours of a `tdd: red digest` entry per spec 15 Data Model → Note entries and reads every `notes` group (AC-12 case g); spec 13 name coupling stated; `manual` variants are not measured; Q-01 recommendation follows ADR-0019; new non-blocker Q-07 (owner policy files and the instructions digest); change-log attributions and identity-ledger follow-up; stale citations corrected.
+- DM-3 notes parsing joins the `; `-separated behaviours of a `tdd: red digest` entry per spec 13 Data Model → Note entries and reads every `notes` group (AC-12 case g); spec 09 name coupling stated; `manual` variants are not measured; Q-01 recommendation follows ADR-0019; new non-blocker Q-07 (owner policy files and the instructions digest); change-log attributions and identity-ledger follow-up; stale citations corrected.
 
 #### 2026-11-14 — owner decision recorded
 
 - Q-07 resolved (D-01): REQ-54, AC-42–AC-44, the digest definition, DM-8 `instruction_paths` and
   Traceability record that owner policy files enter the instructions digest. Out of Scope and A-24
-  updated for spec 11 REQ-81 (the one offline workflow); Notes record the REQ-35 consistency.
+  updated for spec 21 REQ-81 (the one offline workflow); Notes record the REQ-35 consistency.
 
 ## Readiness Checklist
 
 | # | Check | Result |
 |---|---|---|
 | 1 | Goal is one domain-language paragraph | PASS — one paragraph stating the problem and the outcome |
-| 2 | Out of Scope names concrete exclusions | PASS — paid runs, validator registration, CI files (spec 11 REQ-81 owns the one workflow), defaults, 11/12 work, telemetry, isolation implementation and others are named |
+| 2 | Out of Scope names concrete exclusions | PASS — paid runs, validator registration, CI files (spec 21 REQ-81 owns the one workflow), defaults, 21/23 work, telemetry, isolation implementation and others are named |
 | 3 | Each REQ has a stable id and one EARS behaviour | PASS — REQ-01–REQ-54; originals keep their ids, bundled obligations split into REQ-13 onward |
 | 4 | Every REQ maps to an AC and every AC names a REQ | PASS — `## Traceability` covers REQ-01–REQ-54 and AC-01–AC-44 |
 | 5 | Every AC is binary, observable and test-first | PASS — each AC names inputs, a test double or reference build, and exact outputs or exit codes |
@@ -1865,7 +1865,7 @@ A-01–A-30 and Q-01–Q-06.
 | 14 | Devil's Advocate review passed | PASS — Review: 5 rounds, score 99/100, critic: sub-agent, open: none (minor F-46 applied after round 5 without re-scoring) |
 
 Note (2026-11-14, second reconciliation pass): peer-spec obligations and citations were rechecked
-against specs 11, 12, 17 and 18 by id; the verdict is unchanged.
+against specs 21, 23, 14 and 16 by id; the verdict is unchanged.
 
 Verdict: **READY FOR DEVELOPMENT**. Live execution remains limited by non-blocking questions
 Q-02, Q-03 and Q-06 until the owner approves a first regression run. Automated readiness is

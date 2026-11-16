@@ -1,12 +1,12 @@
-# 15. Orchestrator overhead: deterministic checkpoints, inspection and delta rendering
+# 13. Orchestrator overhead: deterministic checkpoints, inspection and delta rendering
 
 ## Source
 
 - **Origin:** workstream 4 ("orchestrator overhead") of the owner's token-optimization
   request of 2026-10-21. Roadmap row 4 of `.ai/specs/README.md` → "Nine token optimization workstreams" — "Fewer status turns,
   bounded history, deterministic inspection and delta rendering; shared state stays
-  single-writer" — and order row of `.ai/specs/README.md` → "Dependency order" (order 9, prerequisites 06, 09,
-  14, disposition "New workstream 4; no general state engine"). The shared acceptance gates
+  single-writer" — and order row of `.ai/specs/README.md` → "Dependency order" (order 9, prerequisites 06, 10,
+  12, disposition "New workstream 4; no general state engine"). The shared acceptance gates
   G1–G8 (`.ai/specs/README.md` → "Shared acceptance gates") are part of this specification's acceptance contract.
 - **Previous revision:** 2026-10-28 (reconciled 2026-11-06), written in Russian. The full
   Russian text, including REQ-01–REQ-08 and AC-01–AC-05, is retrievable from git history of
@@ -30,7 +30,7 @@
     models".
   - REQ-01: "Define complete RED, GREEN, review and completion messages with task/leaf, role,
     event and attempt identifiers, source and checked tree, AC/evidence, exact change/test
-    paths, check outcomes, findings and the proposed delta. Short text per 08 does not
+    paths, check outcomes, findings and the proposed delta. Short text per 11 does not
     shorten the structured content."
   - REQ-02: "Merge repeated polls and retellings up to the next significant boundary,
     keeping RED before implementation, GREEN before independent review and every
@@ -148,13 +148,13 @@ Verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
    `sha256:` values (`scripts/usage_telemetry_contract.py:350-353`, `:1406-1431`), but no
    producer emits a `diagnostic_measurement` record: the adapter emits only `source_issue`
    diagnostics (`scripts/usage_telemetry_adapter.py:209-214`, `:309-313`).
-7. **Report shape.** Spec 08 (order 7, delivered before this spec through 14's prerequisites,
+7. **Report shape.** Spec 11 (order 7, delivered before this spec through 12's prerequisites,
    `.ai/specs/README.md` → "Dependency order") defines four concise report forms with anchored field lists,
    fenced `delta` blocks and a rejection rule for truncated deltas
-   (spec 08 DM-8 "Report forms" and its delta rule), and names this spec's checkpoint message
-   as the "full structured result" on the helper route only (spec 08 Terminology row "Full
+   (spec 11 DM-8 "Report forms" and its delta rule), and names this spec's checkpoint message
+   as the "full structured result" on the helper route only (spec 11 Terminology row "Full
    structured result"). It leaves the inner syntax of a `delta` block and the general envelope
-   to this spec (spec 08 DM-8, delta paragraph).
+   to this spec (spec 11 DM-8, delta paragraph).
 8. **Validator inventory frozen.** New checks cannot be added to
    `scripts/validate-contracts.sh`; standalone checks live in `scripts/`
    (`.ai/adr/0019-task-unknown-spec-draft-devils-advocate-review.md:68-80`); the source guard
@@ -186,7 +186,7 @@ stay as they are; without the helper the existing manual procedure continues unc
 1. A checkpoint journal per task directory holding write-once attempt records, worker
    reports, checkpoint messages, proposals and receipts.
 2. A versioned checkpoint message for the four `/spec-run` boundaries (`red`, `pinned`,
-   `green`, `review`), composed deterministically from the worker's spec-08 report and observed
+   `green`, `review`), composed deterministically from the worker's spec-11 report and observed
    repository and task facts.
 3. A structured syntax for the content of `delta` blocks (five operations) with a closed
    per-checkpoint policy, and its use by the four worker workflows that return deltas under
@@ -203,19 +203,19 @@ stay as they are; without the helper the existing manual procedure continues unc
    `rules/contract-delta-operations.md`), one citation line in the orchestration rule,
    documentation, an ignore rule, a decision record, and the standalone acceptance suite
    `scripts/check-controller-step.py`.
-8. The interfaces this spec exposes to specs 05, 08, 09, 12, 14, 16, 17, 18, 19 and 20
+8. The interfaces this spec exposes to specs 05, 11, 10, 23, 12, 15, 14, 16, 17 and 18
    (Contracts → C-10).
 
 ## Out of Scope
 
 - A general state-changing tool or arbitrary field writes (spec 07, ADR-0021). The helper
   neither imports nor invokes `scripts/state-tool.py`.
-- Parallel execution, worktrees, leaf coordinators and the DM-6 handoff object (spec 12);
+- Parallel execution, worktrees, leaf coordinators and the DM-6 handoff object (spec 23);
   this spec only carries handoff digests (REQ-41).
-- Project and task context packets, their freshness and content (spec 14); reviewer packets
-  and review scope (spec 16); bounded tool-output capture (spec 17); reasoning effort (spec
-  18); repair limits (spec 19); decomposition (spec 20).
-- New run-log events, step names, markers or `/phase-pipeline` per-leaf events (spec 09 Q-05); any 05 producer or new 05 metric.
+- Project and task context packets, their freshness and content (spec 12); reviewer packets
+  and review scope (spec 15); bounded tool-output capture (spec 14); reasoning effort (spec
+  16); repair limits (spec 17); decomposition (spec 18).
+- New run-log events, step names, markers or `/phase-pipeline` per-leaf events (spec 10 Q-05); any 05 producer or new 05 metric.
 - Changes to `/phase-pipeline`, `/phase-execution`, `/phase-validation`, `/pe-execute` or any
   workflow other than those listed in C-9; Discovery, the Arbiter and the batch gate.
 - Changing status vocabularies, protected sections, test-first order, the two-commit rule,
@@ -223,7 +223,7 @@ stay as they are; without the helper the existing manual procedure continues unc
 - Structured operations for architecture entries, D8 fix-sibling creation, `children:` lists,
   `## Fix-Tasks` counters and `.ai/memory/*` entries: they stay free-text deltas applied by
   the manual route (REQ-20).
-- Measured savings, paid model runs and comparative evaluation (spec 09).
+- Measured savings, paid model runs and comparative evaluation (spec 10).
 - Locks against a second concurrent Orchestrator on the same task.
 
 ## Actors & Roles
@@ -231,8 +231,8 @@ stay as they are; without the helper the existing manual procedure continues unc
 | Actor | Allowed actions |
 |---|---|
 | Orchestrator (`/spec-run`) | Runs the helper; writes journal records, worker reports and patches it receives from the helper; applies patches; commits; writes git fields; decides on stops. Sole writer of shared files and of the journal |
-| Implementer | Unchanged rights (own progress block, code, tests). Returns its spec-08 report with deltas in DM-4 syntax |
-| Validator | Unchanged rights (own block). Returns its spec-08 reports with deltas in DM-4 syntax; never receives Implementer reports, messages or journal paths |
+| Implementer | Unchanged rights (own progress block, code, tests). Returns its spec-11 report with deltas in DM-4 syntax |
+| Validator | Unchanged rights (own block). Returns its spec-11 reports with deltas in DM-4 syntax; never receives Implementer reports, messages or journal paths |
 | Arbiter | Unchanged; not part of checkpoints |
 | `scripts/controller-step.py` | Reads files and runs read-only git subcommands; prints JSON; writes nothing, starts no model, uses no network |
 | `scripts/check-controller-step.py` | Acceptance suite; creates and removes disposable fixture repositories under a temporary directory only |
@@ -246,8 +246,8 @@ stay as they are; without the helper the existing manual procedure continues unc
 | Checkpoint kind | `red`, `pinned`, `green` or `review` | This spec (A-09) |
 | Attempt | One spawned worker instance for one leaf and role; numbered from 1 per leaf and role; a recreated worker is a new attempt | This spec |
 | Active attempt | The attempt with the highest number for its leaf and role | This spec |
-| Checkpoint report | The worker's final response for a boundary, without run-log marker lines, saved verbatim in the journal | This spec; 08 DM-8 |
-| Checkpoint message | The canonical JSON record (DM-3) composed by the helper from one checkpoint report and observed facts; spec 08's "full structured result" for that boundary on the helper route only; on the manual route and outside `/spec-run` the canonical state-file writes plus complete `delta` blocks stay that result | This spec; 08 Terminology row "Full structured result" |
+| Checkpoint report | The worker's final response for a boundary, without run-log marker lines, saved verbatim in the journal | This spec; 11 DM-8 |
+| Checkpoint message | The canonical JSON record (DM-3) composed by the helper from one checkpoint report and observed facts; spec 11's "full structured result" for that boundary on the helper route only; on the manual route and outside `/spec-run` the canonical state-file writes plus complete `delta` blocks stay that result | This spec; 11 Terminology row "Full structured result" |
 | Delta operation | One JSON line of DM-4 inside a `delta` block | This spec |
 | Proposal | The helper's rendering (DM-6) of a message's operations against current file bytes, with an exact patch | This spec |
 | Derived proposal | A proposal rendered against bytes that differ from the message's `source_digests` while every operation still holds | Previous revision §6 |
@@ -255,19 +255,19 @@ stay as they are; without the helper the existing manual procedure continues unc
 | Checkpoint journal | `<task>/checkpoints/` (DM-1) | This spec |
 | Helper route / manual route | Boundary handling with the helper (C-5) / without it (C-8) | This spec |
 | Leaf, RED, Pinned, `n-a`, Orchestrator, Implementer, Validator | As defined | `.ai/principles/domain.md:19-35` |
-| `WORK_DIR`, task directory | As resolved by `/spec-run` Step 0; 08 DM-7 bases `work:` and `task:` | `workflows/spec-run.md:58-64`; 08 DM-7 |
+| `WORK_DIR`, task directory | As resolved by `/spec-run` Step 0; 11 DM-7 bases `work:` and `task:` | `workflows/spec-run.md:58-64`; 11 DM-7 |
 | `AI_DIR` | `WORK_DIR/.ai` | `rules/phase-atomic-execution.md:18-19` |
 | Dirty path | A path that `git status --porcelain=v1 --untracked-files=all` reports as modified, added, deleted or untracked (ignored files excluded) | This spec |
 | Canonical completion | A boundary whose effects the canonical state already shows (DM-9 predicates), with or without a journal record | This spec |
 
-Rejected synonyms: "envelope" (spec 12 uses it for the checkpoint message; this spec says
+Rejected synonyms: "envelope" (spec 23 uses it for the checkpoint message; this spec says
 checkpoint message), "transaction" or "commit" for a receipt, "status" for a receipt result,
 "close" as a checkpoint kind (folded into `review`, A-09).
 
 ## Requirements
 
-Names follow today's files; once spec 13 is delivered (it precedes this spec through spec
-09), each path follows 13's rename map (Notes → Name mapping). Requirements REQ-01–REQ-08
+Names follow today's files; once spec 09 is delivered (it precedes this spec through spec
+10), each path follows 09's rename map (Notes → Name mapping). Requirements REQ-01–REQ-08
 keep the previous revision's identifiers and subjects; each is restated as one behaviour,
 and the remainder of each previous requirement is split into later identifiers.
 
@@ -403,14 +403,14 @@ and the remainder of each previous requirement is split into later identifiers.
 ### Route selection
 
 - **REQ-33 Disable switch.** WHERE the environment variable `ORCHESTRAIL_CONTROLLER_STEP` is set
-  to a value other than the empty string or `on` (documented value `off`; the rule of spec 14
+  to a value other than the empty string or `on` (documented value `off`; the rule of spec 12
   REQ-32), THE Orchestrator SHALL use the manual route for the whole run.
 - **REQ-34 Availability probe.** WHEN `/spec-run` Step 0 item 2 completes, THE Orchestrator SHALL
   run `python3 -I "$ORCHESTRAIL_HOME/scripts/controller-step.py" version` once and use the
   helper route only on exit 0; IF any later subcommand exits 3, THEN THE Orchestrator SHALL
   switch to the manual route for the rest of the run and report the switch once.
 - **REQ-45 Unavailable environment.** IF Python is older than 3.11, `git` cannot be executed,
-  or spec 08's report-field lines cannot be read from the source checkout, THEN the helper
+  or spec 11's report-field lines cannot be read from the source checkout, THEN the helper
   SHALL exit 3 with `unavailable` and a reason code on stderr.
 
 ### Canonical contract and delivery
@@ -426,7 +426,7 @@ and the remainder of each previous requirement is split into later identifiers.
   `phase-composite-validation` SHALL instruct the worker, under `/spec-run`, to return each
   shared-file change that a DM-4 operation expresses as a DM-4 line in a fenced `delta` block,
   and every other shared-file change as a free-text `delta` block. Outside `/spec-run` these
-  workflows keep today's behaviour and no consumer applies the rejection rule (08 DM-8).
+  workflows keep today's behaviour and no consumer applies the rejection rule (11 DM-8).
 - **REQ-37 Ignore rule.** THE repository's `.gitignore` SHALL contain the line
   `/.ai/tasks/*/*/checkpoints/`, and THE entry list that `scripts/setup-new-project.sh` appends
   to a consumer's `.gitignore` and the entry list in `docs/USAGE.md` SHALL contain
@@ -434,12 +434,12 @@ and the remainder of each previous requirement is split into later identifiers.
 - **REQ-38 Decision record.** THE delivery SHALL add an Accepted ADR recording the checkpoint
   journal, message, delta operations, the stop of REQ-24 and the helper route, indexed in
   `.ai/adr/index.md`.
-- **REQ-39 Golden regression.** THE delivered change SHALL pass spec 09's offline suite
+- **REQ-39 Golden regression.** THE delivered change SHALL pass spec 10's offline suite
   (`python3 -I tests/golden-runs.py`) with no change to its expectations.
 - **REQ-40 Audit proposals.** THE delivery SHALL implement, or list as declined with a reason
-  in the ADR of REQ-38, every proposal that the spec 13a audit assigns to owner 15
-  (13a REQ-02, which names 15 as one of the owners of fixes).
-- **REQ-41 Handoff digests.** WHERE a dispatch carries a spec-12 DM-6 handoff, THE attempt
+  in the ADR of REQ-38, every proposal that the spec 08 audit assigns to owner 13
+  (08 REQ-02, which names 13 as one of the owners of fixes).
+- **REQ-41 Handoff digests.** WHERE a dispatch carries a spec-23 DM-6 handoff, THE attempt
   record SHALL carry its digest in `input_handoff_digest` and the receipt SHALL carry the digest
   of the handoff the root builds after that checkpoint in `output_handoff_digest`; no journal
   record SHALL contain a DM-6 object.
@@ -453,21 +453,21 @@ and the remainder of each previous requirement is split into later identifiers.
   the journal lives.
 - **REQ-47 No savings claim.** THE delivered documentation, ADR and reports SHALL state that no
   token, cost or time saving of the helper route has been measured and that comparisons
-  belong to spec 09.
+  belong to spec 10.
 - **REQ-48 Vocabulary entries.** THE delivery SHALL add the terms Checkpoint report,
   Checkpoint message, Checkpoint journal, Proposal, Receipt and Attempt to
   `.ai/principles/domain.md` before the rules use them.
 - **REQ-50 Final response composition.** THE `/spec-run` spawn instructions for the
   Implementer's GREEN batch and for the Validator SHALL require a final response that contains,
-  in step order, every spec-08 report form the batch produced (GREEN; Check, then Completion
+  in step order, every spec-11 report form the batch produced (GREEN; Check, then Completion
   when `/pav-close` ran), followed by every `delta` block the batch produced.
 - **REQ-51 Context packet fields.** WHEN `attempt` or `compose` runs, THE SYSTEM SHALL set
   `packet_digest` to the digest of the leaf's latest Orchestrator `context-packet:` notes
-  entry for the role (spec 14 DM-11; a `successor` entry counts) and `task_contract_hash` to
-  `sha256:` plus `parts.contract.sha256` of that packet's manifest in the spec-14 store, and
+  entry for the role (spec 12 DM-11; a `successor` entry counts) and `task_contract_hash` to
+  `sha256:` plus `parts.contract.sha256` of that packet's manifest in the spec-12 store, and
   set both to `null` when the entry is absent or `none`, or the packet file is missing.
 - **REQ-49 Rule size.** Each new rule file SHALL be `load: on-demand` and SHALL raise no
-  `rule-size-exceeded` finding of spec 08's meter (08 REQ-01: at most 700 words per top-level
+  `rule-size-exceeded` finding of spec 11's meter (11 REQ-01: at most 700 words per top-level
   rule, whatever its `load:` mode); WHERE the C-1 sections of
   `rules/contract-checkpoints.md` exceed that limit, they SHALL be split into further
   `rules/contract-checkpoints-<topic>.md` files, each section keeping its heading.
@@ -492,7 +492,7 @@ A file digest covers the file's raw bytes; an absent file has digest `null`.
 | `task_id` | base name of the canonical task directory | `task-12-oauth-login` |
 | `repository_id` | digest of the UTF-8 canonical absolute path of `git rev-parse --git-common-dir` | |
 | `worktree_id` | digest of the UTF-8 canonical absolute path of `git rev-parse --show-toplevel` | |
-| Path reference | 08 DM-7 form `work:<relative POSIX path>` or `task:<relative POSIX path>`; no `..`, no leading `/` | `work:src/token.py` |
+| Path reference | 11 DM-7 form `work:<relative POSIX path>` or `task:<relative POSIX path>`; no `..`, no leading `/` | `work:src/token.py` |
 
 ### Note entries (parsing rule, new)
 
@@ -501,8 +501,8 @@ its field line without the `notes:` label and each of its continuation lines; sp
 of these lines on `; `, except that a piece which follows a `tdd: red digest —` piece on the same
 line, matches `^.+ → test_\w+(, test_\w+)*$` and starts with none of `tdd:`, `context-` or `verification:` is joined to
 that digest entry (the digest separates its behaviours with `; `, `workflows/pae-tests.md:225`,
-while spec 14 DM-11 appends other entries to the same line); and trimming spaces from each piece. Every non-empty piece is one entry, in file order. This covers separate `notes:` groups, continuation lines
-(`workflows/pae-tests.md:209-210`) and `; `-joined entries (spec 14 DM-11, append rule). "A note starting with X" means an entry
+while spec 12 DM-11 appends other entries to the same line); and trimming spaces from each piece. Every non-empty piece is one entry, in file order. This covers separate `notes:` groups, continuation lines
+(`workflows/pae-tests.md:209-210`) and `; `-joined entries (spec 12 DM-11, append rule). "A note starting with X" means an entry
 starting with X. `amendment_notes`, the C-4 note checks and REQ-51 use this rule.
 
 ### DM-1 Checkpoint journal (new; local, ignored)
@@ -532,8 +532,8 @@ cleanup is defined. Migration: none; a task without a journal is a manual-route 
 | `attempt_id`, `leaf_id`, `role`, `attempt` | as Identifiers | `attempt` = 1 + highest existing attempt for leaf and role |
 | `supersedes` | `attempt_id` or `null` | The previous attempt of this leaf and role |
 | `dispatched` | object | `repository_id`, `worktree_id`, `branch` (string or `null` when detached), `head_revision` (full object name), `state_sha256`, `plan_sha256`, `description_sha256` at the time `attempt` ran |
-| `packet_digest`, `task_contract_hash` | digest or `null` | Spec 14 packet in effect at dispatch (REQ-51) |
-| `input_handoff_digest` | 64 hex or `null` | Spec 12 DM-6 digest passed with `--input-handoff-digest` |
+| `packet_digest`, `task_contract_hash` | digest or `null` | Spec 12 packet in effect at dispatch (REQ-51) |
+| `input_handoff_digest` | 64 hex or `null` | Spec 23 DM-6 digest passed with `--input-handoff-digest` |
 | `telemetry_ref` | string or `null` | The run-log adapter `checkpoint_id` issued for this spawn (`workflows/spec-run.md:208-230`), passed with `--telemetry-ref`; opaque, never read to decide |
 
 ### DM-3 Checkpoint message (`checkpoint_message`)
@@ -562,13 +562,13 @@ cleanup is defined. Migration: none; a task without a journal is a manual-route 
 | `next_gate` | string | `Next:` value of the last form |
 | `proposed_delta` | list | Structured operations (DM-4) in report order, each with an added `block` (0-based index of its `delta` block) and `line` (1-based line within the block) |
 | `manual_deltas` | list of `{"block", "sha256", "reason"}` | Unstructured or empty `delta` blocks; `reason` ∈ `delta-unstructured`, `delta-empty` |
-| `packet_digest`, `task_contract_hash` | digest or `null` | Packet in effect when `compose` runs (REQ-51); differs from the attempt record after a spec-14 successor packet at the RED continuation |
-| `context_receipt` | string or `null` | The leaf's latest worker `context-receipt:` notes entry for the role, verbatim (spec 14 DM-11) |
+| `packet_digest`, `task_contract_hash` | digest or `null` | Packet in effect when `compose` runs (REQ-51); differs from the attempt record after a spec-12 successor packet at the RED continuation |
+| `context_receipt` | string or `null` | The leaf's latest worker `context-receipt:` notes entry for the role, verbatim (spec 12 DM-11) |
 | `input_handoff_digest`, `telemetry_ref` | copied | From the attempt record |
 | `payload_digest` | digest | Self-digest |
 
 `acceptance_criteria` replaces the previous revision's `ac_ids`: subtask descriptions carry no
-criterion identifiers today (`templates/subtask-description.md:32-37`); when a spec-14 contract
+criterion identifiers today (`templates/subtask-description.md:32-37`); when a spec-12 contract
 supplies identifiers, they appear verbatim in the items.
 
 ### DM-4 Delta operations (worker-authored; one JSON object per line)
@@ -664,7 +664,7 @@ same inputs.
 | `repository` | `repository_id`, `worktree_id`, `top_level`, `branch`, `head_revision`, `dirty_paths` (sorted, relative to `WORK_DIR`, ignored files excluded) |
 | `task` | `task_id`, `flow`, `phases` (the `## Phases` values) |
 | `plan_rows` | `{"id", "type", "status", "depends_on", "dependencies_satisfied"}` per row in table order; `type` `leaf` when the column is absent; `depends_on` `[]` for `—`, `-` or empty; `dependencies_satisfied` by `workflows/pe-execute.md:32-33` (leaf `done`/`reviewed`; composite also `integration-validation: complete`) |
-| `leaf` | With `--leaf`: header statuses, `last_action`, `target_files` (split on `,` and trimmed as spec 16 C-3; empty pieces dropped), `blocker`, `notes` (all groups), git fields, unknown field names, `composite_parent`, `description_path` |
+| `leaf` | With `--leaf`: header statuses, `last_action`, `target_files` (split on `,` and trimmed as spec 15 C-3; empty pieces dropped), `blocker`, `notes` (all groups), git fields, unknown field names, `composite_parent`, `description_path` |
 | `journal` | With `--leaf`: active attempt per role and the latest event state per checkpoint kind (DM-9 states) |
 | `obstacles` | Sorted codes: `branch-mismatch` (current branch ≠ block `branch:`), `base-commit-not-ancestor`, `block-invalid`, `plan-row-missing`, `plan-table-invalid`, `dependency-unknown`, `dependency-cycle`, `description-missing`, `description-ambiguous`, `journal-record-invalid` |
 | `sufficient` | `true` only when every read is `ok` |
@@ -736,7 +736,7 @@ and exits 0; the Orchestrator then uses the manual route's existing reconciliati
 
 ### C-1 Contract rules and anchored lines
 
-`rules/contract-checkpoints.md` (`load: on-demand`; a mandatory entry of `spec-run`'s spec-08
+`rules/contract-checkpoints.md` (`load: on-demand`; a mandatory entry of `spec-run`'s spec-11
 `loads:` declaration) has exactly these sections: `## Helper route` (C-5 including the save
 procedure), `## Stop classes` (C-6), `## Waiting` (C-7) and `## Manual route` (C-8).
 `rules/contract-delta-operations.md` (`load: on-demand`) has the section `## Delta operations`
@@ -819,7 +819,7 @@ python3 -I scripts/controller-step.py summary   --work W --task T
   option → exit 2 `invalid-arguments`.
 - The source checkout is `ORCHESTRAIL_HOME` when set and non-empty, otherwise the parent of the
   helper's own directory (the existing script convention, `.ai/memory/architecture.md:179`);
-  spec 08's `rules/contract-reports.md` is read from it.
+  spec 11's `rules/contract-reports.md` is read from it.
 - Git subcommands used, always with `GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0`, `LC_ALL=C`
   and no pager: `rev-parse`, `status --porcelain=v1 -z --untracked-files=all --no-renames`,
   `merge-base --is-ancestor`, `cat-file`, `diff-tree -r -z --no-commit-id --name-status`,
@@ -839,12 +839,12 @@ python3 -I scripts/controller-step.py summary   --work W --task T
 
 ### C-4 Composition rules
 
-**Report forms.** `compose` reads the four `Report fields — <Form>:` lines of spec 08's
+**Report forms.** `compose` reads the four `Report fields — <Form>:` lines of spec 11's
 `rules/contract-reports.md` from `$ORCHESTRAIL_HOME`. A form is a run of field lines
 `<Field>:` or `<Field>: <value>` whose names equal one anchored list in order, starting at
 `Boundary:`; list items are the following lines that start with one or more spaces and `- `.
 Fenced `delta` blocks are recognized with the fence rules of `rules/run-log.md:408-418`
-applied to the info string `delta`. Spec 08's rejection rule for truncated blocks (08 DM-8,
+applied to the info string `delta`. Spec 11's rejection rule for truncated blocks (11 DM-8,
 "Delta block" rule) is applied first on the helper route; a block it
 cannot bring to a complete report yields `delta-truncated` (C-6).
 
@@ -901,7 +901,7 @@ directories are created with `mkdir -p` on the first save.
 shares a Bash call with a write of another step, because a same-command write makes the git
 rails deny later reads, `.ai/memory/architecture.md:204-205`):
 
-1. Before the spawn, after any spec-14 packet is built and its `context-packet:` entry
+1. Before the spawn, after any spec-12 packet is built and its `context-packet:` entry
    recorded: `attempt …` → save `attempts/<attempt_id>.json` (REQ-09).
 2. On the final response: save the report (REQ-10–REQ-12); `compose` → save
    `messages/<event_id>.json`. Outcomes follow C-6.
@@ -935,7 +935,7 @@ own git-field writes and the manual deltas.
 
 The `Checkpoint stop codes:` line lists the exit 1 and exit 2 codes of the stop row.
 
-`delta-truncated` follows spec 08's consuming rule first; it stops only when that rule does not
+`delta-truncated` follows spec 11's consuming rule first; it stops only when that rule does not
 obtain a complete report.
 
 ### C-7 Waiting triggers (REQ-02)
@@ -952,7 +952,7 @@ Today's procedure, with one addition (the rejection rule before DM-5 application
 spec, including Step 0 reconciliation (`:64-81`), the RED/GREEN commit handoff (`:244-282`),
 delta application by the Orchestrator (`:194-198`, `:312-318`) and the structural block check
 (`rules/orchestration.md:130-132`). No journal record is written. Structured `delta` blocks
-are applied by reading their operations as instructions under DM-5, after spec 08's rejection rule (08 DM-8, "Delta block" rule) has been applied to each received block. A task that switched route
+are applied by reading their operations as instructions under DM-5, after spec 11's rejection rule (11 DM-8, "Delta block" rule) has been applied to each received block. A task that switched route
 keeps its journal; `reconcile` reports events without receipts, and Step 0 reconciliation
 remains the authority for boundaries handled manually.
 
@@ -975,22 +975,22 @@ remains the authority for boundaries handled manually.
 | Spec | Relationship |
 |---|---|
 | 05 | Consumed: none required. Exposed: `event_id`, `attempt_id` as plain identifiers; a 05 producer maps them to opaque `sha256:` identifiers with its keyed mapping (`scripts/usage_telemetry_adapter.py:20-24`). No 05 record is written here |
-| 08 | Consumed: report forms, `delta` fences and rejection rule, DM-7 path bases, `loads:`. Exposed: the checkpoint message is the "full structured result" on the helper route only (08 Terminology row "Full structured result"); under `/spec-run` the four workflows of REQ-36 return `delta` blocks whose lines are DM-4, 08's rejection rule applies first (helper route: `delta-truncated`; manual route: by the Orchestrator before it applies each block by hand under DM-5); outside `/spec-run` there is no consumer. No evidence format is registered: journal files satisfy `text@1` and are referenced as `task:checkpoints/…` with scope `file` |
-| 09 | Consumed: offline suite (REQ-39). Exposed: the journal inside the captured task directory records per-leaf order (`seq`, commits) for `/spec-run` runs; `/phase-pipeline` emissions are unchanged |
-| 12 | Exposed: DM-2 `input_handoff_digest` and DM-7 `output_handoff_digest` (REQ-41), the derived-proposal rule (REQ-18) for deltas returned against an older state (12 E-32), `attempt` numbering per leaf and role. A repair of a composite child under 12a REQ-54 and 12 REQ-63 (12 DM-6 stage `repair`) is outside this spec: repair boundaries have no receipt, so no `output_handoff_digest` is recorded for a `repair` handoff (it exists only in 12's handoff file), and a repair Implementer spawned on the helper route is an ordinary further attempt of the leaf. The DM-6 object is not carried: it is built by the root after the checkpoint commit, i.e. after the message it would be inside, and storing it twice would create a second definition |
-| 14 | Consumed (spec 14 C-8 row 15 and DM-11): `packet_digest` from the Orchestrator's `context-packet:` notes entry and `task_contract_hash` = `sha256:` + `parts.contract.sha256` of that packet's manifest in `<git-common-dir>/orchestrail-context/packets/` (14 DM-10); `context_receipt` from the worker's `context-receipt:` entry. Adopted as requested by 14: DM-2 holds the packet at dispatch, DM-3 the packet in effect at compose, so a successor packet sent at the RED continuation (14 REQ-42) appears in the `green` message. Packets exist only for Implementers and Validators under `/spec-run`; without one both fields are `null` |
-| 16 | Not consumed by 16 (16 C-6, row for 15; 16 A-14): accepted `green` messages and `red`/`pinned` receipts are not offered as fact sources, because REQ-30 forbids passing any Implementer report, checkpoint message, proposal, receipt or journal path to a Validator; the reviewer re-derives test paths, digests and commits from git and its own leaf block. Validator inputs stay `workflows/spec-run.md:284-292` plus 16's reviewer inputs. 15 needs no amendment |
-| 17 | Consumed: none; matches 17 C-7 row 15 (OUTPUT lines copied verbatim inside report `Evidence`, no envelope field, no registered 08 evidence format). Report `Evidence:` items referencing 17 artifacts are copied verbatim |
-| 18 | Not used: 18 declined DM-2 as its dispatch record (18 C-6, row for 15; 18 A-13), because the attempt record exists only on the helper route and for Implementer and Validator and is written once before the spawn, so it cannot hold a later rejection; 18 keeps per-spawn effort facts in the append-only `## Effort Decisions` section of the task `state.md`. This spec adds no effort field and no schema version for one |
-| 19 | Exposed: `checkpoint_save` (C-5), canonical JSON and the note-entry rule, attempt lineage (`supersedes`), `attempt-superseded`, duplicate handling by `event_id`; limits stay 19's. Repair resume is governed by 19's `status` alone: repair boundaries are not checkpoint kinds, so `compose`, `render` and `receipt` are not used for them; `reconcile` may report a repair Implementer's due `green` event as `manual-route` with `none` (DM-9 state row 6: no message, canonical completion predicate holds from the leaf's original commits and a `done` plan row), and its entries for repair attempts are ignored. 19's Orchestrator rewrites a `blocked` plan row as `done` by hand before saving the repair Implementer's attempt record and the spawn (19 REQ-35) and again before the recheck (19 C-5 step 12); DM-5 has no `blocked` → `done` transition for a leaf plan row, and this helper does not perform or verify that write. No change to the helper for ordinary leaves |
-| 20 | Exposed: `summary` per-leaf attempt counts (DM-10 `leaves[<leaf_id>].attempts`), which 20 reads as the `attempts` of its overhead report; 20 does not use the event counts |
+| 11 | Consumed: report forms, `delta` fences and rejection rule, DM-7 path bases, `loads:`. Exposed: the checkpoint message is the "full structured result" on the helper route only (11 Terminology row "Full structured result"); under `/spec-run` the four workflows of REQ-36 return `delta` blocks whose lines are DM-4, 11's rejection rule applies first (helper route: `delta-truncated`; manual route: by the Orchestrator before it applies each block by hand under DM-5); outside `/spec-run` there is no consumer. No evidence format is registered: journal files satisfy `text@1` and are referenced as `task:checkpoints/…` with scope `file` |
+| 10 | Consumed: offline suite (REQ-39). Exposed: the journal inside the captured task directory records per-leaf order (`seq`, commits) for `/spec-run` runs; `/phase-pipeline` emissions are unchanged |
+| 23 | Exposed: DM-2 `input_handoff_digest` and DM-7 `output_handoff_digest` (REQ-41), the derived-proposal rule (REQ-18) for deltas returned against an older state (23 E-32), `attempt` numbering per leaf and role. A repair of a composite child under 22 REQ-54 and 23 REQ-63 (23 DM-6 stage `repair`) is outside this spec: repair boundaries have no receipt, so no `output_handoff_digest` is recorded for a `repair` handoff (it exists only in 23's handoff file), and a repair Implementer spawned on the helper route is an ordinary further attempt of the leaf. The DM-6 object is not carried: it is built by the root after the checkpoint commit, i.e. after the message it would be inside, and storing it twice would create a second definition |
+| 12 | Consumed (spec 12 C-8 row 13 and DM-11): `packet_digest` from the Orchestrator's `context-packet:` notes entry and `task_contract_hash` = `sha256:` + `parts.contract.sha256` of that packet's manifest in `<git-common-dir>/orchestrail-context/packets/` (12 DM-10); `context_receipt` from the worker's `context-receipt:` entry. Adopted as requested by 14: DM-2 holds the packet at dispatch, DM-3 the packet in effect at compose, so a successor packet sent at the RED continuation (12 REQ-42) appears in the `green` message. Packets exist only for Implementers and Validators under `/spec-run`; without one both fields are `null` |
+| 15 | Not consumed by 15 (15 C-6, row for 13; 15 A-14): accepted `green` messages and `red`/`pinned` receipts are not offered as fact sources, because REQ-30 forbids passing any Implementer report, checkpoint message, proposal, receipt or journal path to a Validator; the reviewer re-derives test paths, digests and commits from git and its own leaf block. Validator inputs stay `workflows/spec-run.md:284-292` plus 15's reviewer inputs. 13 needs no amendment |
+| 14 | Consumed: none; matches 14 C-7 row 13 (OUTPUT lines copied verbatim inside report `Evidence`, no envelope field, no registered 11 evidence format). Report `Evidence:` items referencing 14 artifacts are copied verbatim |
+| 16 | Not used: 16 declined DM-2 as its dispatch record (16 C-6, row for 13; 16 A-13), because the attempt record exists only on the helper route and for Implementer and Validator and is written once before the spawn, so it cannot hold a later rejection; 16 keeps per-spawn effort facts in the append-only `## Effort Decisions` section of the task `state.md`. This spec adds no effort field and no schema version for one |
+| 17 | Exposed: `checkpoint_save` (C-5), canonical JSON and the note-entry rule, attempt lineage (`supersedes`), `attempt-superseded`, duplicate handling by `event_id`; limits stay 17's. Repair resume is governed by 17's `status` alone: repair boundaries are not checkpoint kinds, so `compose`, `render` and `receipt` are not used for them; `reconcile` may report a repair Implementer's due `green` event as `manual-route` with `none` (DM-9 state row 6: no message, canonical completion predicate holds from the leaf's original commits and a `done` plan row), and its entries for repair attempts are ignored. 17's Orchestrator rewrites a `blocked` plan row as `done` by hand before saving the repair Implementer's attempt record and the spawn (17 REQ-35) and again before the recheck (17 C-5 step 12); DM-5 has no `blocked` → `done` transition for a leaf plan row, and this helper does not perform or verify that write. No change to the helper for ordinary leaves |
+| 18 | Exposed: `summary` per-leaf attempt counts (DM-10 `leaves[<leaf_id>].attempts`), which 18 reads as the `attempts` of its overhead report; 18 does not use the event counts |
 | 07 | None: the helper does not use `scripts/state-tool.py`; 07's `state_receipts:` field is preserved as an unknown field |
 
 ### C-11 Acceptance suite
 
 `python3 -I scripts/check-controller-step.py` builds disposable git repositories in a temporary
 directory (tracked and ignored `.ai/` variants, real `state.md`/`plan.md` shapes copied from
-`.ai/tasks/completed/task-06-harness-git-rails/`), a scripted spec-08
+`.ai/tasks/completed/task-06-harness-git-rails/`), a scripted spec-11
 `rules/contract-reports.md` and synthetic worker reports, runs the helper as a subprocess with
 `ORCHESTRAIL_HOME` pointing at a temporary checkout copy, and exits 0 only when every AC case
 passes. It reads, never edits, the repository's rules and workflows for the contract cases.
@@ -1003,7 +1003,7 @@ passes. It reads, never edits, the repository's rules and workflows for the cont
 | NFR-02 | Non-interference | No change to bytes, modes or mtimes of any fixture file, `.git/index`, refs or config (REQ-03) | AC-02 |
 | NFR-03 | Portability | Python 3.11+ standard library; Bash, `git`, `ln`, `cmp`, `sha256sum` or `shasum` for the save procedure; no network | AC-16, review of imports |
 | NFR-04 | Bounded input | 1,048,576 bytes per read file (REQ-43), matching `rules/run-log.md:455` | AC-16 |
-| NFR-05 | Performance | N/A — no owner target exists and none is invented; measured effects belong to spec 09 (REQ-47) | — |
+| NFR-05 | Performance | N/A — no owner target exists and none is invented; measured effects belong to spec 10 (REQ-47) | — |
 | NFR-06 | Privacy | stderr and summaries carry no file contents; journal files stay in the ignored task directory | AC-05, AC-14 |
 
 ## Edge Cases & Failure Modes
@@ -1028,13 +1028,13 @@ passes. It reads, never edits, the repository's rules and workflows for the cont
 | Resume with tracked uncommitted implementation files | Step 0 item 3 stops as today; its report names `reconcile`'s next actions | REQ-25 |
 | Interruption while applying manual deltas | State `committed`, next action `manual-then-render`; the manual route checks each target before changing it | REQ-20, REQ-26 |
 | Boundary handled by the manual route, helper available on a later resume | `manual-route` state; `none` when canonical completion holds | REQ-26 |
-| Successor spec-14 packet at the RED continuation | `green` message carries the successor's digests; the attempt record keeps the dispatch packet | REQ-51 |
+| Successor spec-12 packet at the RED continuation | `green` message carries the successor's digests; the attempt record keeps the dispatch packet | REQ-51 |
 | Worker response with CRLF endings or two trailing newlines | Saved in canonical form; a non-canonical file → `report-not-canonical` fallback | REQ-10 |
 | Orchestrator wrote git fields after compose | Proposal `derived: true`; applies normally | REQ-18 |
 | Human edited the same plan cell | `conflict`; stop | REQ-04, REQ-24 |
 | Worker proposes a write to another leaf's block or to `commits:` | `protected-field`; stop | REQ-19 |
 | Free-text delta | `manual_deltas`; manual application after the commit, before `render`; receipt needs `--manual-applied` | REQ-20, REQ-22 |
-| `delta` block truncated or with `…` line | 08 consuming rule, else `delta-truncated` stop | REQ-24 |
+| `delta` block truncated or with `…` line | 11 consuming rule, else `delta-truncated` stop | REQ-24 |
 | CRLF or non-UTF-8 target | Fallback for this boundary | C-6 |
 | Task directory outside the repository (umbrella `.ai/`) | Exit 2 `target-outside-repository` at `attempt`; manual route for the run | C-2, REQ-08 |
 | Crash between patch and receipt | `applied-unreceipted` → `receipt` | REQ-26 |
@@ -1044,7 +1044,7 @@ passes. It reads, never edits, the repository's rules and workflows for the cont
 | Worker gone without a response | `dispatched` → recreate as a new attempt; never success | C-7, REQ-26 |
 | `git apply --check` fails twice | Stop | C-5 |
 | Filesystem without hard links | `link-failed` → manual route for the run | C-5, C-6 |
-| Python < 3.11, git missing, 08 field lines missing | Exit 3 → manual route | REQ-34, REQ-45 |
+| Python < 3.11, git missing, 11 field lines missing | Exit 3 → manual route | REQ-34, REQ-45 |
 | `ORCHESTRAIL_CONTROLLER_STEP=off` | Manual route; no journal writes | REQ-33 |
 | Oversized report or record | Exit 2 `input-too-large`; Orchestrator stops at that boundary | REQ-43 |
 | Two Orchestrators on one task | Not supported; write-once saves surface `conflict`/`event-exists`, which stop; no lock | Out of Scope |
@@ -1165,20 +1165,20 @@ Each is written first and observed failing before implementation (G6).
   the parent revision; and no file under `tests/` is added or changed.
 - **AC-13** (REQ-32, REQ-49) — Given the delivered rules, `version` prints exactly the C-1
   document and each registry equals its anchored line split by the C-1 rule; given a temporary copy with one anchored value changed, the suite fails naming that
-  line; spec 08's `measure-context.sh check` reports no `rule-size-exceeded` for the two new rules,
+  line; spec 11's `measure-context.sh check` reports no `rule-size-exceeded` for the two new rules,
   and both declare `load: on-demand`.
 - **AC-14** (REQ-37, REQ-38, REQ-40, REQ-48) — Given the delivered tree, `.gitignore` contains
   `/.ai/tasks/*/*/checkpoints/` and `git check-ignore` matches a file in a fixture task's
   journal; `GITIGNORE_ENTRIES` in `scripts/setup-new-project.sh` and the entry list in
   `docs/USAGE.md` contain `.ai/tasks/*/*/checkpoints/`; `.ai/adr/index.md` lists an Accepted ADR that names the journal, the message, the
-  delta operations and the REQ-24 stop, and lists every 13a proposal owned by 15 as implemented
+  delta operations and the REQ-24 stop, and lists every 08 proposal owned by 13 as implemented
   or declined with a reason; `.ai/principles/domain.md` defines the six REQ-48 terms.
 - **AC-15** (REQ-41) — Given `attempt --input-handoff-digest H1` and `receipt
   --output-handoff-digest H2`, the attempt record, message and receipt carry `H1`/`H1`/`H2`, and
-  no journal file contains a key of spec 12's DM-6 object other than these digests.
+  no journal file contains a key of spec 23's DM-6 object other than these digests.
 - **AC-16** (REQ-43, REQ-45) — Given a 1,048,577-byte report, `compose` exits 2 with
   `input-too-large`; given `PATH` without `git`, `version` exits 3 with `git-unavailable`; given
-  the 08 field lines removed from the temporary checkout, `compose` exits 3 with
+  the 11 field lines removed from the temporary checkout, `compose` exits 3 with
   `report-contract-unavailable`; given the helper module loaded by path with `importlib` (the
   only in-process seam) and its version-check function `require_python((3, 10, 0))` called, it
   raises the `python-unsupported` exit (status 3) while `(3, 11, 0)` passes.
@@ -1268,8 +1268,8 @@ REQ-35, REQ-39; G7 — REQ-33, REQ-46, C-8; G8 — REQ-47, NFR-05.
 | Risk | Impact | Likelihood | Mitigation |
 |---|---|---|---|
 | The Orchestrator model skips or reorders C-5 steps | Unverified acceptance | Medium | REQ-23 gate, `reconcile` on resume, contract checks (AC-06) |
-| More tool calls per boundary than today | Overhead may rise | Medium | No saving claimed (REQ-47); spec 09 measures |
-| Spec 08's delivered forms differ from its spec text | `compose` falls back | Medium | Forms read from the delivered anchored lines at run time; fallback is the manual route |
+| More tool calls per boundary than today | Overhead may rise | Medium | No saving claimed (REQ-47); spec 10 measures |
+| Spec 11's delivered forms differ from its spec text | `compose` falls back | Medium | Forms read from the delivered anchored lines at run time; fallback is the manual route |
 | `git apply` behaviour differs across git versions | Patch rejected | Low | AC-11 on the installed git; failure is a stop, never a silent change |
 | Frozen validator checks grep sentences in edited workflows | Validator failures | Medium | REQ-35, AC-12; additive edits only |
 | Journals grow without cleanup | Disk use | Low | Small text files; deletion only with the task directory |
@@ -1278,29 +1278,29 @@ REQ-35, REQ-39; G7 — REQ-33, REQ-46, C-8; G8 — REQ-47, NFR-05.
 ## Assumptions
 
 - A-01 | Language and identifiers | Resolved: English refinement in place; REQ-01–REQ-08 and AC-01–AC-05 keep their ids and subjects; remainders split into new ids | Source: `/spec-draft` Step 5 id rule; owner authorization | Reversible: yes
-- A-02 | File names | Resolved: today's names in text; 13's map at implementation; new rules named `contract-checkpoints` and `contract-delta-operations`, `load: on-demand` | Source: `.ai/specs/README.md` → "Dependency order" (13 precedes 09 precedes 15); spec 13 DM-10, DM-11 and Notes → Files and sections created after this spec | Reversible: yes
-- A-03 | Helper language and name | Resolved: one Python 3.11+ standard-library file `scripts/controller-step.py`, run with `python3 -I` without a Bash launcher; the previous `.sh` name becomes `.py`. Consequence: the entry file as a whole uses only syntax older Python 3 interpreters parse and loads 3.11-only code after the check, so that REQ-45's version check, not a syntax error, decides (spec 20 A-26: entry module plus path-loaded engine) | Source: ADR-0021 Decision 3 (`scripts/`); `scripts/model-catalog.py` pattern; spec 13 Scope item 3 (standard-library Python 3.11+ engine precedent) | Reversible: yes
+- A-02 | File names | Resolved: today's names in text; 09's map at implementation; new rules named `contract-checkpoints` and `contract-delta-operations`, `load: on-demand` | Source: `.ai/specs/README.md` → "Dependency order" (09 precedes 10 precedes 13); spec 09 DM-10, DM-11 and Notes → Files and sections created after this spec | Reversible: yes
+- A-03 | Helper language and name | Resolved: one Python 3.11+ standard-library file `scripts/controller-step.py`, run with `python3 -I` without a Bash launcher; the previous `.sh` name becomes `.py`. Consequence: the entry file as a whole uses only syntax older Python 3 interpreters parse and loads 3.11-only code after the check, so that REQ-45's version check, not a syntax error, decides (spec 18 A-26: entry module plus path-loaded engine) | Source: ADR-0021 Decision 3 (`scripts/`); `scripts/model-catalog.py` pattern; spec 09 Scope item 3 (standard-library Python 3.11+ engine precedent) | Reversible: yes
 - A-04 | Who writes the journal | Resolved: the Orchestrator through Bash redirection and the save procedure; the helper writes nothing | Source: previous revision §2 helper row and AC-02 ("files unchanged") | Reversible: yes
 - A-05 | Journal location | Resolved: `<task>/checkpoints/`, ignored in this repository and in the consumer entries of project setup | Source: previous revision §6 ("durable in the task's local data"); spec 07 REQ-26 ignore precedent | Reversible: yes
-- A-06 | Who builds the message | Resolved: the helper, run by the Orchestrator, from the worker's spec-08 report and observed facts; worker rights unchanged | Source: previous revision §2 ("new messages do not extend worker rights"); spec 08 Terminology "Full structured result" | Reversible: yes
+- A-06 | Who builds the message | Resolved: the helper, run by the Orchestrator, from the worker's spec-11 report and observed facts; worker rights unchanged | Source: previous revision §2 ("new messages do not extend worker rights"); spec 11 Terminology "Full structured result" | Reversible: yes
 - A-07 | Event identity | Resolved: deterministic readable `event_id` from attempt and kind; attempts numbered per leaf and role | Source: previous revision §4 (`event_id` stable across redelivery); best practice | Reversible: yes
 - A-08 | Acceptance-criterion identity | Resolved: verbatim report items plus `description_sha256` | Source: `templates/subtask-description.md:32-37` (no ids) | Reversible: yes
 - A-09 | Checkpoint kinds | Resolved: `red`, `pinned`, `green`, `review`; `close` folded into `review` | Source: `workflows/spec-run.md:291-292` (one Validator return covers check to close) | Reversible: yes
 - A-10 | Delta operation set | Resolved: five operations; architecture, D8, children, Fix-Tasks and memory entries stay free text | Source: `rules/orchestration.md:110-117`; smallest reversible set | Reversible: yes
 - A-11 | Application tool | Resolved: `git apply --check` then `git apply` from the top level | Source: previous revision §6 step 6 (existing tool with expected-source check); local experiment with git 2.53.0 confirmed application to ignored untracked files | Reversible: yes
-- A-12 | Staleness | Resolved: operation-level preconditions decide; file-digest change alone yields a derived proposal | Source: previous revision §6; spec 12 E-32 (derived proposal when a delta was composed against an older state) | Reversible: yes
+- A-12 | Staleness | Resolved: operation-level preconditions decide; file-digest change alone yields a derived proposal | Source: previous revision §6; spec 23 E-32 (derived proposal when a delta was composed against an older state) | Reversible: yes
 - A-13 | New stop | Resolved: one declared stop class (C-6) added to the orchestration stop list | Source: P5 (`.ai/principles/architecture.md:39-44`); previous revision §6 steps 2–3 | Reversible: yes
 - A-14 | Telemetry | Resolved: no run-log change, no 05 producer, counts from the journal only | Source: `rules/run-log.md:584-585`; `scripts/usage_telemetry_adapter.py:208-214`; P9 | Reversible: yes
-- A-15 | Spec 12 handoffs | Resolved: digests only | Source: spec 12 DM-6 Handoff, REQ-22 | Reversible: yes
-- A-16 | Evidence format | Resolved: none registered; `text@1` suffices | Source: 08 DM-7 (neither 15 nor 17 registers a format) | Reversible: yes
+- A-15 | Spec 23 handoffs | Resolved: digests only | Source: spec 23 DM-6 Handoff, REQ-22 | Reversible: yes
+- A-16 | Evidence format | Resolved: none registered; `text@1` suffices | Source: 11 DM-7 (neither 13 nor 14 registers a format) | Reversible: yes
 - A-17 | Input bound | Resolved: 1,048,576 bytes | Source: `rules/run-log.md:455` | Reversible: yes
 - A-18 | Timeouts | Resolved: none of its own; harness command timeout applies; the helper is safe to rerun | Source: ADR-0020 (timeouts are watchdogs, not budgets) | Reversible: yes
-- A-19 | Disable switch | Resolved: `ORCHESTRAIL_CONTROLLER_STEP=off`; any value other than unset, empty or `on` disables (spec 14 REQ-32 rule); only the Orchestrator reads it | Source: `ORCHESTRAIL_*` variable convention (`.ai/principles/coding.md:66-67`) | Reversible: yes
+- A-19 | Disable switch | Resolved: `ORCHESTRAIL_CONTROLLER_STEP=off`; any value other than unset, empty or `on` disables (spec 12 REQ-32 rule); only the Orchestrator reads it | Source: `ORCHESTRAIL_*` variable convention (`.ai/principles/coding.md:66-67`) | Reversible: yes
 - A-20 | Test placement | Resolved: standalone `scripts/check-controller-step.py` | Source: ADR-0019 Decision 3 (`.ai/adr/0019-task-unknown-spec-draft-devils-advocate-review.md:68-80`) | Reversible: yes
 - A-21 | Spec 07 | Resolved: not used; its grammar cited as the parsing definition | Source: ADR-0021 Decision 1 consequences; gate G5 | Reversible: yes
-- A-22 | Spec 14 fields | Resolved: read from the notes entries and packet manifest, never passed by hand; nullable | Source: spec 14 C-8 row 15 ("15's checkpoint message carries them"), DM-11, REQ-42 (successor) | Reversible: yes
-- A-23 | Validator inputs | Resolved: unchanged until 16 | Source: `workflows/spec-run.md:284-292`; previous revision §8 | Reversible: yes
-- A-24 | Other orchestrators | Resolved: unchanged | Source: spec 09 Q-05 (separate run-log change recommended) | Reversible: yes
+- A-22 | Spec 12 fields | Resolved: read from the notes entries and packet manifest, never passed by hand; nullable | Source: spec 12 C-8 row 13 ("13's checkpoint message carries them"), DM-11, REQ-42 (successor) | Reversible: yes
+- A-23 | Validator inputs | Resolved: unchanged until 15 | Source: `workflows/spec-run.md:284-292`; previous revision §8 | Reversible: yes
+- A-24 | Other orchestrators | Resolved: unchanged | Source: spec 10 Q-05 (separate run-log change recommended) | Reversible: yes
 - A-25 | Gates | Resolved: G1–G8 | Source: `.ai/specs/README.md` → "Shared acceptance gates"; previous revision §10 | Reversible: no
 - A-26 | Line endings | Resolved: LF targets only; CR → fallback | Source: `.ai/specs/completed/07-state-tool.md` grammar ("Line endings are LF") | Reversible: yes
 - A-27 | Waiting | Resolved: trigger list without a numeric polling interval | Source: previous revision §8; no owner target | Reversible: yes
@@ -1310,15 +1310,15 @@ REQ-35, REQ-39; G7 — REQ-33, REQ-46, C-8; G8 — REQ-47, NFR-05.
 - A-31 | Duplicate definition | Resolved: identical report bytes | Source: previous revision §6 step 2 | Reversible: yes
 - A-32 | Ordering field | Resolved: `seq` from record count; no timestamps | Source: P9 (no model-written time) | Reversible: yes
 - A-33 | Plan cell rewrite | Resolved: width-preserving padding | Source: `rules/workflow-reference.md:190-199` table shape; best practice | Reversible: yes
-- A-34 | 13a proposals | Resolved: REQ-40 | Source: spec 13a REQ-02 (owner 15); spec 08 precedent (08 Scope item 9) | Reversible: yes
-- A-35 | Golden regression | Resolved: REQ-39 | Source: spec 08 REQ-26 precedent; `.ai/specs/README.md` → "Dependency order" (09 prerequisite) | Reversible: yes
+- A-34 | 08 proposals | Resolved: REQ-40 | Source: spec 08 REQ-02 (owner 13); spec 11 precedent (11 Scope item 9) | Reversible: yes
+- A-35 | Golden regression | Resolved: REQ-39 | Source: spec 11 REQ-26 precedent; `.ai/specs/README.md` → "Dependency order" (10 prerequisite) | Reversible: yes
 - A-36 | Dry run | Resolved: no journal write | Source: `workflows/spec-run.md:10-11` | Reversible: yes
-- A-37 | Forms per kind | Resolved: C-4 table; no form → fallback | Source: 08 DM-8 "Report forms"; `workflows/spec-run.md:264-269`, `:291-292` | Reversible: yes
+- A-37 | Forms per kind | Resolved: C-4 table; no form → fallback | Source: 11 DM-8 "Report forms"; `workflows/spec-run.md:264-269`, `:291-292` | Reversible: yes
 - A-38 | Repository identity | Resolved: path digests of git common dir and top level | Source: previous revision §4 (`repository_id`, `worktree_id`) | Reversible: yes
 - A-39 | Staging path form | Resolved: plain paths relative to `WORK_DIR` | Source: `workflows/spec-run.md:261-263` | Reversible: yes
 - A-40 | Task outside repository | Resolved: exit 2, manual route | Source: `rules/git-flow.md:35-36` (single repository); smallest choice | Reversible: yes
 - A-41 | Test-path source at RED | Resolved: dirty `target_files:` entries, not all entries | Source: `workflows/pd-decompose.md:162` (seeded from Scope); `workflows/pae-tests.md:207`, `:222` (appended) | Reversible: yes
-- A-42 | Final response shape | Resolved: every report form of the batch in step order, then every `delta` block (REQ-50) | Source: 08 DM-8, delta paragraph (finalize deltas outside the forms); `workflows/spec-run.md:264-269`, `:291-292` | Reversible: yes
+- A-42 | Final response shape | Resolved: every report form of the batch in step order, then every `delta` block (REQ-50) | Source: 11 DM-8, delta paragraph (finalize deltas outside the forms); `workflows/spec-run.md:264-269`, `:291-292` | Reversible: yes
 - A-43 | Manual deltas | Resolved: applied after the commit and before `render`, confirmed by `--manual-applied` | Source: previous revision §7 (no step may be lost on resume); smallest change keeping one receipt | Reversible: yes
 - A-44 | Resume gate | Resolved: Step 0 item 3's clean-tree stop is kept; `reconcile` runs read-only first and its next actions go into the stop report | Source: `workflows/spec-run.md:64-69`; P5 (no new silent exception) | Reversible: yes
 - A-45 | `AI_DIR` | Resolved: `WORK_DIR/.ai` | Source: `rules/phase-atomic-execution.md:18-19` | Reversible: yes
@@ -1326,8 +1326,8 @@ REQ-35, REQ-39; G7 — REQ-33, REQ-46, C-8; G8 — REQ-47, NFR-05.
 - A-47 | Report bytes | Resolved: canonical form (LF, one trailing LF, markers removed) written with the file-write tool | Source: best practice (byte-stable duplicate detection) | Reversible: yes
 - A-48 | Manual-route boundaries in the journal | Resolved: no extra record; `reconcile` reads canonical completion predicates | Source: P2 (state on disk is authoritative, `.ai/principles/architecture.md:18-22`) | Reversible: yes
 - A-49 | `inspect` failure | Resolved: facts fallback to direct reads, no stop | Source: previous revision §5 ("absence leads to manual execution of the same checks") | Reversible: yes
-- A-50 | Version test seam | Resolved: `require_python(version_info)` called in-process after loading the module by path | Source: spec 14 C-9 precedent | Reversible: yes
-- A-51 | Peer reconciliation 2026-11-14 | Resolved: C-10 states what each final peer spec consumes; repair resume stays 19's `status` and the helper is unchanged for ordinary leaves; no repair receipt and no `output_handoff_digest` for a 12 `repair` handoff | Source: 19 C-10 row 15, A-18; 12a REQ-54, 12 REQ-63, 12 DM-6; 18 C-6, A-13; 16 C-6, A-14; 17 C-7; 20 DM-9 | Reversible: yes
+- A-50 | Version test seam | Resolved: `require_python(version_info)` called in-process after loading the module by path | Source: spec 12 C-9 precedent | Reversible: yes
+- A-51 | Peer reconciliation 2026-11-14 | Resolved: C-10 states what each final peer spec consumes; repair resume stays 17's `status` and the helper is unchanged for ordinary leaves; no repair receipt and no `output_handoff_digest` for a 23 `repair` handoff | Source: 17 C-10 row 13, A-18; 22 REQ-54, 23 REQ-63, 23 DM-6; 16 C-6, A-13; 15 C-6, A-14; 14 C-7; 18 DM-9 | Reversible: yes
 
 ## Decisions
 
@@ -1347,26 +1347,26 @@ stop (A-13) extends the declared stop list as P5 requires and is recorded by REQ
   ADR-0012 instead of ignoring them (REQ-37)? Impact: evidence retention versus repository
   noise. Recommended: ignore (A-05) until a consumer needs them.
 - Q-02 | non-blocker | Should `/phase-pipeline` adopt `inspect` for its re-reads? Impact: possible
-  context reduction in single-session runs. Recommended: a follow-up after spec 09 measures the
+  context reduction in single-session runs. Recommended: a follow-up after spec 10 measures the
   `/spec-run` route.
-- Q-03 | withdrawn | Spec 14's final names were confirmed by its refined text (A-22).
+- Q-03 | withdrawn | Spec 12's final names were confirmed by its refined text (A-22).
 
 ## Notes
 
-### Name mapping (spec 13)
+### Name mapping (spec 09)
 
-| Today | After 13 |
+| Today | After 09 |
 |---|---|
 | `rules/orchestration.md` | `rules/contract-orchestration.md` |
 | `rules/workflow-globals.md` | `rules/contract-phases.md` |
 | `rules/workflow-reference.md` | `rules/contract-state-files.md` |
 | `rules/git-flow.md`, `rules/run-log.md`, `rules/tdd.md` | `rules/contract-git-flow.md`, `rules/contract-run-log.md`, `rules/contract-tdd.md` |
-| `pae-finalize`, `pav-close`, `pav-propose`, `phase-composite-validation` | 13's workflow map governs |
-| `rules/contract-checkpoints.md`, `rules/contract-delta-operations.md` | Created by this spec after 13: named by 13's rule for later files (Notes "Files and sections created after this spec"), `load: on-demand`, no `docs/name-map.json` row |
+| `pae-finalize`, `pav-close`, `pav-propose`, `phase-composite-validation` | 09's workflow map governs |
+| `rules/contract-checkpoints.md`, `rules/contract-delta-operations.md` | Created by this spec after 13: named by 09's rule for later files (Notes "Files and sections created after this spec"), `load: on-demand`, no `docs/name-map.json` row |
 
 `workflows/spec-run.md` keeps its name. Every edit of this spec to an existing file is stated as
 a section, sentence or `loads:` entry of that file, so an implementer applies it to the file's
-successor after 13's renames (13's old-prefix translation: `pae-` → `atomic-execution-`,
+successor after 09's renames (09's old-prefix translation: `pae-` → `atomic-execution-`,
 `pav-` → `atomic-validation-`, `phase-<x>` → `<x>`), citing `<target> → ## <heading>`.
 
 ### Implementation hints (nonbinding)
@@ -1382,9 +1382,9 @@ successor after 13's renames (13's old-prefix translation: `pae-` → `atomic-ex
 ### Rejected alternatives
 
 - Workers write their reports or messages to files and return a pointer — rejected: extends
-  worker rights (previous revision §2) and moves spec 08's report out of the response.
+  worker rights (previous revision §2) and moves spec 11's report out of the response.
 - Helper applies patches or writes the journal — rejected: previous revision §2 and AC-02.
-- Carrying the DM-6 handoff object inside the message — rejected (C-10, 12 row).
+- Carrying the DM-6 handoff object inside the message — rejected (C-10, 23 row).
 - Generic text-replace operations on `state.md` — rejected: protected fields could not be
   checked reliably.
 - Using spec 07's state tool for application — rejected: 07 is optional and unwired (ADR-0021).
@@ -1395,12 +1395,12 @@ successor after 13's renames (13's old-prefix translation: `pae-` → `atomic-ex
 
 ### Follow-ups outside this spec (not edited here)
 
-- Spec 12: done by its 2026-11-14 reconciliation (DM-6 note cites REQ-41; E-32 cites REQ-18).
-- Spec 08: done by its 2026-11-14 reconciliation (Terminology row "Full structured result" cites
+- Spec 23: done by its 2026-11-14 reconciliation (DM-6 note cites REQ-41; E-32 cites REQ-18).
+- Spec 11: done by its 2026-11-14 reconciliation (Terminology row "Full structured result" cites
   DM-3 and DM-4; DM-8 delta paragraph cites REQ-36, REQ-50, REQ-08 and DM-5).
-- Specs 16, 17, 18, 19, 20: none; their contract rows agree with this spec's C-10 rows as
-  amended on 2026-11-14 (16 declines messages and receipts; 18 declines the attempt record; 19
-  owns repair resume; 20 reads DM-10 `attempts`). Their line-number citations into this spec
+- Specs 15, 14, 16, 17, 18: none; their contract rows agree with this spec's C-10 rows as
+  amended on 2026-11-14 (15 declines messages and receipts; 16 declines the attempt record; 17
+  owns repair resume; 18 reads DM-10 `attempts`). Their line-number citations into this spec
   drift with edits and should become id citations.
 
 ### Change log
@@ -1408,25 +1408,25 @@ successor after 13's renames (13's old-prefix translation: `pae-` → `atomic-ex
 - 2026-11-06 — implementation/state reconciliation (preserved in Source).
 - 2026-11-14 — English refinement: REQ-01–REQ-08 and AC-01–AC-05 restated; REQ-09–REQ-51 and
   AC-06–AC-19 added; data model (including the note-entry rule and the DM-9 state order),
-  contracts and edge cases specified; spec 14's packet fields adopted (REQ-51); the
+  contracts and edge cases specified; spec 12's packet fields adopted (REQ-51); the
   Devil's Advocate review findings folded in.
-- 2026-11-14 — reconciliation with refined peer specs: 08 citations by id (DM-7, DM-8,
+- 2026-11-14 — reconciliation with refined peer specs: 11 citations by id (DM-7, DM-8,
   Terminology row "Full structured result"), the checkpoint message is the full structured
   result on the helper route only, and the delta route statements restated (Terminology, C-4,
-  C-8, C-10, REQ-36); C-10 rows 12, 16, 17, 18, 19, 20 aligned with the final peer texts (18 does
-  not use DM-2; 16 does not consume messages or receipts; repair resume is 19's `status`; 12
-  `repair` handoffs carry no receipt digest); spec 13 file-naming and rename note added; A-51
-  appended; Context item 7, the Name mapping row and paragraph, and REQ-49's citation of 08
+  C-8, C-10, REQ-36); C-10 rows 23, 15, 14, 16, 17, 18 aligned with the final peer texts (16 does
+  not use DM-2; 15 does not consume messages or receipts; repair resume is 17's `status`; 23
+  `repair` handoffs carry no receipt digest); spec 09 file-naming and rename note added; A-51
+  appended; Context item 7, the Name mapping row and paragraph, and REQ-49's citation of 11
   REQ-01 added. No requirement id, acceptance criterion or id changed; REQ-36 gained one
-  sentence and REQ-49 an explicit citation of 08 REQ-01.
-- 2026-11-14 — independent final review: disable switch follows the spec 14 REQ-32 rule; A-03 states the no-launcher consequence; Note entries keep a red digest whole; `target_files` split rule aligned with 16; citations by id (09 Q-05, 12 E-32, 14 C-8/DM-11/REQ-42, 13 Notes).
+  sentence and REQ-49 an explicit citation of 11 REQ-01.
+- 2026-11-14 — independent final review: disable switch follows the spec 12 REQ-32 rule; A-03 states the no-launcher consequence; Note entries keep a red digest whole; `target_files` split rule aligned with 15; citations by id (10 Q-05, 23 E-32, 12 C-8/DM-11/REQ-42, 09 Notes).
 
 ## Readiness Checklist
 
 | # | Check | Result |
 |---|---|---|
 | 1 | Goal is one domain-language paragraph | PASS — one paragraph stating problem and outcome |
-| 2 | Out of Scope names concrete exclusions | PASS — 07, 12, 14, 16–20, run-log/05 changes, other orchestrators, structured ops not offered, measured savings, locking |
+| 2 | Out of Scope names concrete exclusions | PASS — 07, 23, 12, 14–18, run-log/05 changes, other orchestrators, structured ops not offered, measured savings, locking |
 | 3 | Each REQ has a stable id and one EARS behaviour | PASS — REQ-01–REQ-51, previous ids preserved |
 | 4 | Every REQ maps to an AC and back | PASS — Traceability table covers all 51 REQs and 19 ACs |
 | 5 | Every AC is binary and can guide a test first | PASS — fixture-based Given/When/Then in `scripts/check-controller-step.py` |
@@ -1443,6 +1443,6 @@ successor after 13's renames (13's old-prefix translation: `pae-` → `atomic-ex
 Verdict: **READY FOR DEVELOPMENT**. Automated readiness is not sign-off; review before
 implementation.
 
-Note (2026-11-14 reconciliation with refined peer specs): citations to specs 08, 12, 13, 14, 16,
-17, 18, 19 and 20 were checked against their final texts and only wording in Context,
+Note (2026-11-14 reconciliation with refined peer specs): citations to specs 11, 23, 09, 12, 15,
+14, 16, 17 and 18 were checked against their final texts and only wording in Context,
 Terminology, REQ-36, REQ-49, C-4, C-8, C-10 and Notes changed; the verdict stands and no requirement or acceptance criterion changed.

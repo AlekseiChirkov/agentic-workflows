@@ -1,4 +1,4 @@
-# 19. Bounded local repair after NEEDS WORK and explicit escalation
+# 17. Bounded local repair after NEEDS WORK and explicit escalation
 
 ## Source
 
@@ -9,13 +9,13 @@
   non-normative. Every requirement and acceptance identifier of the original (REQ-01–REQ-09,
   AC-01–AC-05) is kept with its meaning restated under `## Requirements` and
   `## Acceptance Criteria`; new identifiers are appended. Three narrowings are deliberate and
-  recorded: the economic comparison of original REQ-05 and §10 is owned by spec 09's scenario
+  recorded: the economic comparison of original REQ-05 and §10 is owned by spec 10's scenario
   calculator, so this spec only reads the owner's start choice (A-09); a lost repair worker is
-  never recreated inside the same attempt (A-14); and repair inside spec 12's scheduler is
-  wired by spec 12a REQ-54 (N = 1) and spec 12 REQ-63 (N > 1) against this spec's C-5 and C-10 row 12, not by this spec's own files (A-21).
+  never recreated inside the same attempt (A-14); and repair inside spec 23's scheduler is
+  wired by spec 22 REQ-54 (N = 1) and spec 23 REQ-63 (N > 1) against this spec's C-5 and C-10 row 23, not by this spec's own files (A-21).
 - **Refinement.** Rewritten in English on 2026-11-14 in an autonomous refinement under the
   owner's standing authorization for in-place replacement, against worktree revision
-  `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`. Specs 14–18 were read in their refined state of
+  `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`. Specs 12–16 were read in their refined state of
   the same day.
 
 ### Implementation review — 2026-11-06 (preserved verbatim)
@@ -33,7 +33,7 @@
 
 ### Original text (translated from Russian; historical, non-normative)
 
-**Title.** 19. Bounded local repairs and an explicit transition to a stronger model.
+**Title.** 17. Bounded local repairs and an explicit transition to a stronger model.
 
 **1. Status and source contract.** Status: a future capability of direction 8 of the request of
 2026-10-21. Basis of current behaviour: snapshot `8c2fa08c18115ffcf38a1798742c41e53a2c7461` of
@@ -90,19 +90,19 @@ line of 05.
   explicitly permitted attempt by a stronger model. Each gets an independent verdict. A repeat
   of the same defect, no progress, a new important violation, termination by the provider, or
   doubt about locality forbid further cheap attempts.
-- **REQ-05.** Comparing local repair and strong execution relies only on usable 05/09 data on
+- **REQ-05.** Comparing local repair and strong execution relies only on usable 05/10 data on
   full execution, review, success/repair and escalation. Without such data a suitable
   conservative/strong path is kept; probabilities are not invented. A permitted strong model
   may be chosen immediately if the full expected result is preferable.
 - **REQ-06.** Before escalation, check availability and the floors of 04, resolve a supported
-  setting through 18, and store the requested/resolved/actual model separately. Give the new
+  setting through 16, and store the requested/resolved/actual model separately. Give the new
   executor the sufficient source contract and unresolved findings. No permitted candidate means
   an explicit stop, not a hidden substitution.
 - **REQ-07.** Keep the order of tests before the corresponding implementation, the immutability
   of the frozen RED and the provided procedure for authorizing test amendments. For a new
   behavioural case, add and commit a reproducing test before the fixing code. Repeat the
-  affected commands and the independent check of 16 before closing.
-- **REQ-08.** Keep the attempt/finding line and the last verified tree through messages of 15
+  affected commands and the independent check of 15 before closing.
+- **REQ-08.** Keep the attempt/finding line and the last verified tree through messages of 13
   with a single writer of shared data. A resume does not reset the limit. Dependent leaves are
   blocked until independent acceptance; a final failure keeps branches, commits and findings.
 - **REQ-09.** Account all repair, context, review and escalation work under 05, apply G1–G8,
@@ -114,7 +114,7 @@ line of 05.
 | Class | Autonomous action with the policy enabled |
 |---|---|
 | An unambiguous local implementation defect inside the permitted contract | One local attempt with a specific reproduction is possible |
-| Missing context whose answer exists in current sources | First obtain the context through 14/the arbiter; then reclassify, do not repair by guessing |
+| Missing context whose answer exists in current sources | First obtain the context through 12/the arbiter; then reclassify, do not repair by guessing |
 | An additional test is needed for an unchanged requirement | Allowed only with an existing right to add a test and the order test → commit → implementation |
 | An existing frozen test is wrong or needs weakening | Stop for the established agreement on changing the test basis |
 | Network/environment/tool failure without a proven code defect | Diagnose the infrastructure; do not rewrite code to hide the failure |
@@ -130,11 +130,11 @@ classification.
 
 **6. Repair contract and episode record.** The repair contract contains: `episode_id`,
 `attempt_id`, `task_id`, `leaf_id`, `task_contract_hash`; the last independently checked tree,
-the current actual tree and the 14 packet; the full set of open findings with stable
+the current actual tree and the 12 packet; the full set of open findings with stable
 identifiers, severity, AC and source; the reproduction, expected behaviour and actual failure;
 permitted/forbidden files, interfaces and constraints; the frozen test set and its hash, the
 required new tests and the grounds for adding them; mandatory deterministic checks and the scope
-of the independent check of 16; the permitted model/effort, the source of the permission and the
+of the independent check of 15; the permitted model/effort, the source of the permission and the
 reasons for the choice; stop conditions, remaining slots and the expected next report. The
 durable episode record additionally contains `policy_version`, the initial failed check, the
 reservation/dispatch/completion of each attempt, previous and new tree hashes, independent
@@ -155,9 +155,9 @@ executor**, durably reserve a specific slot with an `attempt_id` through the orc
 the write fails or the state is ambiguous, do not start the executor. (6) Send the repair
 contract; a repeated transport delivery keeps the `attempt_id` and does not create a second
 run; if it is unknown whether the run started, the slot counts as used until absence of
-execution is confirmed. (7) Receive the actual tree, test evidence and the 15 message; reconcile
+execution is confirmed. (7) Receive the actual tree, test evidence and the 13 message; reconcile
 the contract, scope and frozen tests; do not accept a result only because the executor says
-"fixed". (8) Run the affected checks and an independent recheck under 16; every actually
+"fixed". (8) Run the affected checks and an independent recheck under 15; every actually
 executed attempt gets its own verdict, even if execution was interrupted or produced no useful
 change. (9) If everything is accepted, close the episode and only then permit dependent
 progress; on failure determine progress and the next permitted step from the remaining slots.
@@ -184,7 +184,7 @@ only as an explicit owner decision to change the policy, the contract of a new t
 permitted replanning. The decision references the earlier episode, explains the new scope and
 keeps the earlier costs/failures in the shared result. Creating a technically new identifier
 without such a decision is forbidden. Reserving two attempts of one leaf in parallel is not
-allowed. In 12, isolated leaves may have their own episodes, but a shared critical defect stops
+allowed. In 23, isolated leaves may have their own episodes, but a shared critical defect stops
 new dispatches and requires a shared decision. The limit of one leaf is not used to create
 uncontrolled copies of the same error.
 
@@ -206,11 +206,11 @@ Already verified correct parts are kept unless the repair is proven to affect th
 overall architecture needs a separate decision.
 
 **10. Economic decision without invented probabilities.** The full comparison is made under
-05/09 with the same acceptance criterion. In a simplified scheme: expected chain cost = initial
+05/10 with the same acceptance criterion. In a simplified scheme: expected chain cost = initial
 execution and review + P(local repair) × cost of local repair with review + P(local repair) ×
 P(escalation | local repair) × cost of escalation with review + other explicitly accounted
 costs. Conditional probabilities are not multiplied as independent without grounds. Real missed
-defects, failed final results and accepted results are accounted by the canonical 05/09 method;
+defects, failed final results and accepted results are accounted by the canonical 05/10 method;
 this formula does not replace it. A synthetic example only to check the arithmetic: initial
 execution and review cost 16 units; local repair with review 16; the probability that it is
 needed 0.6; the conditional probability of a later escalation 0.5; escalation with review 30.
@@ -226,7 +226,7 @@ suitability and risk, not by an invented saving percentage.
 |---|---|
 | Interrupted before dispatch after reservation | Confirm that nothing was sent; keep the cancellation or continue the same slot |
 | Unknown whether the run started | Do not send again automatically; recover the facts; the slot counts as used for now |
-| A duplicate result arrived | Apply once by `attempt_id/event_id` through 15 |
+| A duplicate result arrived | Apply once by `attempt_id/event_id` through 13 |
 | The contract or test basis changed | Invalidate the old packet, stop for a permitted amendment |
 | An earlier finding repeated | No new local attempt; a possible already permitted escalation or a stop |
 | A new important violation | Stop cheap retries, reclassify; escalation only with eligibility kept and a permission already given |
@@ -261,9 +261,9 @@ Traceability: `REQ-01–02 → AC-01`; `REQ-03,07 → AC-02`; `REQ-04,08 → AC-
 stop and leave the policy off by default. (2) Introduce the durable episode/slot line and
 synthetic interruption scenarios before any automatic run. (3) Implement classification and the
 repair contract, then bounded transitions, the test order and the independent recheck. (4)
-Connect 04/18 for the permitted configuration, 14/15 for context/checkpoints and 05 for full
+Connect 04/16 for the permitted configuration, 12/13 for context/checkpoints and 05 for full
 attribution. (5) Check disabling, no available strong model, limit exhaustion and no reset on
-resume. Dependencies: 04, 06, 09, 15, 16, 18; the context contracts of 14 are used. G1–G8 are
+resume. Dependencies: 04, 06, 10, 13, 15, 16; the context contracts of 12 are used. G1–G8 are
 mandatory, see the [guide](README.md#shared-acceptance-gates). One local retry is a conservative
 initial decision, not a proven optimum. Changing the limit, the initial policy or quality needs
 an explicit decision and a separate evaluation, not a technical restart.
@@ -293,8 +293,8 @@ Facts verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
    reasoning (`:80-92`); sub-agents write only their own block, code and tests and return
    deltas (`:96-132`). Class B intent is the human's (`:148-153`); a class-B leak during
    Execution stops the run (`:173-178`). The always-stop list (`:180-187`) does not name NEEDS
-   WORK; spec 15 adds one bullet for checkpoint stops
-   (`.ai/specs/15-orchestrator-overhead.md` C-6, row `stop`).
+   WORK; spec 13 adds one bullet for checkpoint stops
+   (`.ai/specs/13-orchestrator-overhead.md` C-6, row `stop`).
 5. **Test-first and the frozen set.** RED requires an observed failure for the expected reason
    (`rules/tdd.md:86-100`); the RED set is frozen during GREEN, amendments need a
    `tdd: test amended` record, and adding new tests is always allowed (`:169-189`);
@@ -312,23 +312,23 @@ Facts verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
    needs an authorized eligible fallback or a stop, and actual identity stays unknown without a
    separate receipt (`rules/workflow-reference.md:156-188`, `workflows/spec-run.md:139-156`).
    The plan reader requires a `## Subtasks` table with `ID` and `Status` columns
-   (`scripts/model_plan.py:167-180`). Spec 18 owns effort; its resolver request has an
-   `escalation` input and spec 19 owns when to escalate
-   (`.ai/specs/18-reasoning-effort-policy.md` REQ-29 and C-6 row 19).
-8. **Neighbouring contracts this spec builds on.** Spec 16 records findings `<scope key>/F<n>`
+   (`scripts/model_plan.py:167-180`). Spec 16 owns effort; its resolver request has an
+   `escalation` input and spec 17 owns when to escalate
+   (`.ai/specs/16-reasoning-effort-policy.md` REQ-29 and C-6 row 17).
+8. **Neighbouring contracts this spec builds on.** Spec 15 records findings `<scope key>/F<n>`
    with `same_as`, severities, per-finding outcomes, verdicts and recheck plans, and makes a
-   repair attempt's recheck a review under 16 (`.ai/specs/16-scoped-verification.md` DM-5, DM-7 and its Terminology entry
+   repair attempt's recheck a review under 15 (`.ai/specs/15-scoped-verification.md` DM-5, DM-7 and its Terminology entry
    "Finding-led recheck"); a defined check exiting non-zero is a finding of at least `important`, and one that
-   cannot complete is a blocker (spec 16 REQ-55). Spec 15 offers attempt lineage (`supersedes`),
-   `attempt-superseded` and duplicate handling by `event_id` and leaves limits to 19
-   (`.ai/specs/15-orchestrator-overhead.md` DM-2 and C-10 row 19). Spec 14 gives a repair attempt a
+   cannot complete is a blocker (spec 15 REQ-55). Spec 13 offers attempt lineage (`supersedes`),
+   `attempt-superseded` and duplicate handling by `event_id` and leaves limits to 17
+   (`.ai/specs/13-orchestrator-overhead.md` DM-2 and C-10 row 17). Spec 12 gives a repair attempt a
    fresh implementer packet built with `--predecessor`
-   (`.ai/specs/14-task-context-and-reuse.md` C-8 row 19 and C-1 `--predecessor`). Spec 17 separates infrastructure outcomes
-   from failing tests (`.ai/specs/17-bounded-tool-output.md` DM-3 and C-7 row 19). Specs 12a and 12 keep a
-   failed child unintegrated (`.ai/specs/12a-composite-branch-model.md` REQ-51 and
-   `.ai/specs/12-composite-branch-model-and-parallel-children.md` REQ-24) and, only when the policy
-   is active, send it into this spec's repair loop (spec 12a REQ-54 and DM-3 `repair_episode`,
-   spec 12 REQ-63 and DM-6 stage `repair`).
+   (`.ai/specs/12-task-context-and-reuse.md` C-8 row 17 and C-1 `--predecessor`). Spec 14 separates infrastructure outcomes
+   from failing tests (`.ai/specs/14-bounded-tool-output.md` DM-3 and C-7 row 17). Specs 22 and 23 keep a
+   failed child unintegrated (`.ai/specs/22-composite-branch-model.md` REQ-51 and
+   `.ai/specs/23-composite-branch-model-and-parallel-children.md` REQ-24) and, only when the policy
+   is active, send it into this spec's repair loop (spec 22 REQ-54 and DM-3 `repair_episode`,
+   spec 23 REQ-63 and DM-6 stage `repair`).
 9. **The validator inventory is frozen.** New checks go into standalone scripts outside
    `scripts/validate-contracts.sh` and outside `tests/`
    (`.ai/adr/0019-task-unknown-spec-draft-devils-advocate-review.md:68-80`). Per-file loops of
@@ -343,7 +343,7 @@ stacked run and waits for the owner, even when the defect is reproducible, insid
 files and fixable without touching its tests. Nothing records repair attempts, so a manual
 retry has no limit, no lineage and no defined escalation. The roadmap states that no saving
 has been measured (`.ai/specs/README.md`, ownership-map note); this spec makes bounded repair possible and
-attributable and leaves every claim about quality or cost to spec 09.
+attributable and leaves every claim about quality or cost to spec 10.
 
 ## Goal
 
@@ -353,7 +353,7 @@ read-only helper decides eligibility deterministically and conservatively, the O
 durably reserves at most one local attempt and, only when the owner authorized it in advance,
 at most one escalated attempt per episode, a fresh Implementer repairs only the leaf's own files
 test-first without touching any frozen test, and a fresh Validator rechecks the result as a
-spec-16 review — so that correct code and RED evidence are preserved, every attempt is recorded
+spec-15 review — so that correct code and RED evidence are preserved, every attempt is recorded
 and never reset, every escalation is explicit and goes through the existing model and effort
 resolution, and every case the policy does not cover ends at today's NEEDS WORK stop. Without
 the opt-in, behaviour is exactly today's.
@@ -371,7 +371,7 @@ the opt-in, behaviour is exactly today's.
 5. A new atomic workflow for one repair attempt (`/pae-repair`, C-6) and its stage checks (DM-9).
 6. Outcome and progress judgement after the independent recheck (DM-10, DM-16) and the next
    permitted step.
-7. Escalation resolution through spec 04's model resolution and spec 18's effort escalation
+7. Escalation resolution through spec 04's model resolution and spec 16's effort escalation
    input (C-8).
 8. Resume and recovery (`status`, DM-11), cancellation, owner decisions to reopen or cancel
    (DM-4).
@@ -379,7 +379,7 @@ the opt-in, behaviour is exactly today's.
    `rules/contract-repair.md` (C-4), edits to `/spec-run`, `/pav-check`, the orchestration,
    TDD, globals and reference rules (C-7), the standalone acceptance suite
    `scripts/check-repair-episode.py` (C-11), documentation, an ignore rule, vocabulary and an ADR.
-10. The contracts exposed to specs 05, 09, 12 and 20 and consumed from 04, 14, 15, 16, 17 and 18
+10. The contracts exposed to specs 05, 10, 23 and 18 and consumed from 04, 12, 13, 15, 14 and 16
     (C-10).
 
 ## Out of Scope
@@ -388,13 +388,13 @@ the opt-in, behaviour is exactly today's.
   validation issues (fix-tasks stay as they are), of quick-tier tasks and of `/bugfix`.
 - Repair outside `/spec-run`: standalone `/phase-atomic-validation`, `/pav-check`,
   `/phase-execution`, `/pe-execute` and `/phase-pipeline` keep today's NEEDS WORK stop.
-- Wiring repair into the scheduler of specs 12a and 12 (N = 1 and N > 1): spec 12a REQ-54 and spec 12 REQ-63 own its journal, its
-  handoff stage `repair` and its stops, and calls this spec's C-5 (C-10 row 12).
+- Wiring repair into the scheduler of specs 22 and 23 (N = 1 and N > 1): spec 22 REQ-54 and spec 23 REQ-63 own its journal, its
+  handoff stage `repair` and its stops, and calls this spec's C-5 (C-10 row 23).
 - Defining review coverage, evidence reuse, finding identity, review records or the recheck
-  scope (spec 16); closing a finding (only a spec-16 review gives outcomes).
-- The effort policy itself and model eligibility (specs 18 and 04); a model or effort that the
+  scope (spec 15); closing a finding (only a spec-15 review gives outcomes).
+- The effort policy itself and model eligibility (specs 16 and 04); a model or effort that the
   owner did not declare; any automatic choice of the escalation target.
-- Economic modelling, probabilities, savings and comparative evaluation (spec 09's calculator
+- Economic modelling, probabilities, savings and comparative evaluation (spec 10's calculator
   and goldens); a production money or time limit; timeouts on workers or checks (ADR-0020).
 - Changing the definitions of DONE/NEEDS WORK, severities, status vocabularies, test-first
   order, the RED/pinned/`n-a` rules, git rails, the batch gate or the Arbiter's authority.
@@ -411,10 +411,10 @@ the opt-in, behaviour is exactly today's.
 |---|---|---|
 | Owner | Passes `--repair-policy bounded-local`; sets `ORCHESTRAIL_REPAIR_POLICY=off`; writes the policy file (DM-5); writes reopen and cancel decision lines (DM-4); resolves stops | — |
 | Orchestrator (`/spec-run`) | Runs the helper; saves its records; appends ledger lines; resolves model and effort; asks the Arbiter; builds packets; spawns repair Implementers and Validators; commits; writes git fields and plan rows; decides stops | Writing code or tests; editing records; reserving beyond the helper's output; dispatching without a saved reservation |
-| Validator | Runs the spec-16 review as today; under an active policy writes the classification draft (DM-6) in `<task>/repairs/drafts/` | Reading the Implementer's reasoning or report; writing ledger lines or records |
+| Validator | Runs the spec-15 review as today; under an active policy writes the classification draft (DM-6) in `<task>/repairs/drafts/` | Reading the Implementer's reasoning or report; writing ledger lines or records |
 | Repair Implementer | Runs `/pae-repair` with one contract; writes new test files, edits allowed paths, writes its own leaf block | Running git; editing frozen tests, the description, `state.md` outside its block, `plan.md`, other leaves; creating non-test files |
 | Arbiter | Answers class-A questions of `missing-context` findings with a citation | Deciding eligibility, intent or a test-basis change |
-| `scripts/repair-episode.py` | Reads the task directory, the knowledge root, spec-16 records and the repository through read-only git; prints one JSON document | Writing any file; starting a model or a network connection |
+| `scripts/repair-episode.py` | Reads the task directory, the knowledge root, spec-15 records and the repository through read-only git; prints one JSON document | Writing any file; starting a model or a network connection |
 | `scripts/check-repair-episode.py` | Acceptance suite in disposable fixtures | Touching the real home or this repository's `.git` |
 
 ## Terminology
@@ -425,7 +425,7 @@ the opt-in, behaviour is exactly today's.
 | Active policy | The flag is given, the disable switch is not `off`, and the helper's `version` exits 0 | This spec |
 | Policy file | The optional owner file DM-5; it authorizes escalation and chooses the start slot | Original REQ-05, REQ-06 |
 | Episode | The record of repairing one leaf from one initial NEEDS WORK review record under one contract digest, with all its attempts; id `<leaf_id>.E<n>` (DM-2) | Original §3 |
-| Repair attempt | One reserved dispatch of a fresh repair Implementer with one contract; id `<episode_id>.A<m>`. Its `attempt_id` is not a spec-15 `attempt_id` (`<leaf>.<role>.<n>`), but the spawn of the repair Implementer is a spec-15 attempt, recorded as spec 15 specifies (role `implementer`, `supersedes` lineage through its `attempt` number), and it is not a spec-12 attempt (a child execution) | Original §7; `.ai/specs/15-orchestrator-overhead.md` DM-2 |
+| Repair attempt | One reserved dispatch of a fresh repair Implementer with one contract; id `<episode_id>.A<m>`. Its `attempt_id` is not a spec-13 `attempt_id` (`<leaf>.<role>.<n>`), but the spawn of the repair Implementer is a spec-13 attempt, recorded as spec 13 specifies (role `implementer`, `supersedes` lineage through its `attempt` number), and it is not a spec-23 attempt (a child execution) | Original §7; `.ai/specs/13-orchestrator-overhead.md` DM-2 |
 | Slot | `local` (the model and effort the leaf's Implementer resolves today) or `escalated` (the owner-declared escalation); limit 1 each per episode | Original REQ-04 |
 | Reservation | Saving an attempt's repair contract and appending its `reserved` ledger line, both before the spawn | Original §7 step 5 |
 | Repair contract | The write-once record DM-8 given to the repair Implementer | Original §6 |
@@ -438,22 +438,22 @@ the opt-in, behaviour is exactly today's.
 | Outcome | The result of one attempt (DM-10) | This spec |
 | Progress | `resolved`, `progress`, `no-progress` or `regression` from the recheck record (DM-16) | Original §7 |
 | Terminal | The reason an episode closed (DM-3) | Original §6 |
-| Recheck | The spec-16 leaf review of the tree an attempt produced | `.ai/specs/16-scoped-verification.md` DM-5 and Terminology "Finding-led recheck" |
-| Finding, outcome (`resolved` …), `same_as`, review record, DM-8 notes entry | As spec 16 defines them | `.ai/specs/16-scoped-verification.md` DM-5, DM-7, DM-7a, DM-8 |
-| Canonical JSON, self-digest | As spec 15 defines them | `.ai/specs/15-orchestrator-overhead.md` Data Model introduction |
+| Recheck | The spec-15 leaf review of the tree an attempt produced | `.ai/specs/15-scoped-verification.md` DM-5 and Terminology "Finding-led recheck" |
+| Finding, outcome (`resolved` …), `same_as`, review record, DM-8 notes entry | As spec 15 defines them | `.ai/specs/15-scoped-verification.md` DM-5, DM-7, DM-7a, DM-8 |
+| Canonical JSON, self-digest | As spec 13 defines them | `.ai/specs/13-orchestrator-overhead.md` Data Model introduction |
 | Leaf, RED, Pinned, `n-a`, Orchestrator, Implementer, Validator, Arbiter, Class A/B | As defined | `.ai/principles/domain.md` vocabulary |
 
 Rejected synonyms: "retry" for a repair attempt (a retry suggests unbounded repetition);
-"fix-task" for a repair (fix-tasks are separate leaves); "attempt" alone where a spec-15 or
-spec-12 attempt could be meant; "stronger model" as a proven property (the owner declares the
+"fix-task" for a repair (fix-tasks are separate leaves); "attempt" alone where a spec-13 or
+spec-23 attempt could be meant; "stronger model" as a proven property (the owner declares the
 escalation; strength is not established here); "budget" for slots.
 
 ## Requirements
 
-Names follow today's files; once spec 13 is delivered (it precedes this spec,
-`.ai/specs/README.md` dependency table), every workflow and rule path follows 13's maps (`## Notes → Name
-mapping`). Spec 08's `loads:` declarations and its 700-word limit for rules apply to every file
-this spec adds or edits when spec 08 is in force. "THE helper" is `scripts/repair-episode.py`.
+Names follow today's files; once spec 09 is delivered (it precedes this spec,
+`.ai/specs/README.md` dependency table), every workflow and rule path follows 09's maps (`## Notes → Name
+mapping`). Spec 11's `loads:` declarations and its 700-word limit for rules apply to every file
+this spec adds or edits when spec 11 is in force. "THE helper" is `scripts/repair-episode.py`.
 
 ### Previous identifiers, restated
 
@@ -462,7 +462,7 @@ this spec adds or edits when spec 08 is in force. "THE helper" is `scripts/repai
   Orchestrator SHALL handle a leaf NEEDS WORK exactly as `workflows/spec-run.md:297-299` does
   today and SHALL run no helper subcommand other than `version`, append no ledger line and
   instruct no Validator to classify.
-- **REQ-02 Classification.** WHILE the policy is active, WHEN a leaf review publishes a spec-16
+- **REQ-02 Classification.** WHILE the policy is active, WHEN a leaf review publishes a spec-15
   record with verdict NEEDS WORK, THE Validator SHALL write a DM-6 draft that gives every finding
   of that record with status `open` exactly one repair class and one reproduction.
 - **REQ-03 Repair contract.** WHEN the Orchestrator reserves an attempt, THE helper SHALL print a
@@ -499,7 +499,7 @@ this spec adds or edits when spec 08 is in force. "THE helper" is `scripts/repai
   `bounded-local`, THE Orchestrator SHALL stop in its Guard with the C-9 `repair-policy-unknown`
   message before any write.
 - **REQ-11 Disable switch.** WHERE `ORCHESTRAIL_REPAIR_POLICY` is set to a value other than the empty
-  string or `on` (documented value `off`; the rule of spec 14 REQ-32), THE Orchestrator SHALL
+  string or `on` (documented value `off`; the rule of spec 12 REQ-32), THE Orchestrator SHALL
   treat the policy as inactive for the whole run and report "repair policy disabled by
   ORCHESTRAIL_REPAIR_POLICY=<value>" once.
 - **REQ-12 Helper probe.** WHEN Step 0 resolves the task and the flag is given, THE Orchestrator
@@ -520,7 +520,7 @@ this spec adds or edits when spec 08 is in force. "THE helper" is `scripts/repai
 
 - **REQ-16 Opening.** WHEN a leaf review returns NEEDS WORK under an active policy and `status`
   reports `open`, THE Orchestrator SHALL run `open` with the record named by the leaf's last
-  spec-16 DM-8 entry for step `check`, and append the printed `opened` line.
+  spec-15 DM-8 entry for step `check`, and append the printed `opened` line.
 - **REQ-17 Review record required.** IF the leaf's last DM-8 entry for step `check` is a `none`
   entry, is absent, or names a file whose SHA-256 differs from the entry, or the record fails
   DM-7's review checks, THEN `open` SHALL exit 1 with `review-unavailable` or `review-invalid`,
@@ -563,7 +563,7 @@ this spec adds or edits when spec 08 is in force. "THE helper" is `scripts/repai
 ### Reservation and dispatch
 
 - **REQ-29 Resolution before reservation.** WHEN an attempt is to be reserved, THE Orchestrator
-  SHALL resolve its model and effort (C-8) and build its spec-14 packet before running `reserve`.
+  SHALL resolve its model and effort (C-8) and build its spec-12 packet before running `reserve`.
 - **REQ-30 Reservation before spawn.** THE Orchestrator SHALL spawn a repair Implementer only
   after the attempt's contract file is saved with result `saved` (or `duplicate` while no
   `RESERVED` line names the attempt) and its `reserved` line is appended.
@@ -576,15 +576,15 @@ this spec adds or edits when spec 08 is in force. "THE helper" is `scripts/repai
   other than a provider limit, THEN THE Orchestrator SHALL run `cancel --reason spawn-refused`,
   append its line, and IF the slot then holds two `spawn-refused` cancellations, SHALL run `close`
   (terminal `stopped`, detail `dispatch-refused`) instead of reserving again. WHEN the refusal
-  names spec 18's effort parameter or value, THE Orchestrator SHALL also append 18's DM-5
-  rejection line, and the spec 18 request of the next reservation SHALL set
-  `session.parameter: "absent"` (18 REQ-10).
+  names spec 16's effort parameter or value, THE Orchestrator SHALL also append 16's DM-5
+  rejection line, and the spec 16 request of the next reservation SHALL set
+  `session.parameter: "absent"` (16 REQ-10).
 - **REQ-34 Unknown dispatch.** IF `status` finds an attempt with a `reserved` line and neither a
   `dispatched` nor a `cancelled` line, THEN THE helper SHALL report next action `stop` with detail
   `dispatch-unknown` unless a DM-4 `repair-cancel` line names that attempt, in which case it SHALL
   report next action `cancel`.
 - **REQ-35 Plan row.** WHEN an attempt's `reserved` line has been appended and the leaf's plan row
-  status is `blocked`, THE Orchestrator SHALL set it to `done` before saving the spec-15 attempt
+  status is `blocked`, THE Orchestrator SHALL set it to `done` before saving the spec-13 attempt
   record for the repair Implementer and before the spawn.
 - **REQ-36 Spawn inputs.** WHEN the Orchestrator spawns a repair Implementer, THE Orchestrator SHALL
   give it exactly the description path, `WORK_DIR`, the branch, the contract path, the packet path
@@ -617,14 +617,14 @@ this spec adds or edits when spec 08 is in force. "THE helper" is `scripts/repai
 - **REQ-44 Worker blockers.** WHEN the repair Implementer meets a C-6 blocker condition, THE
   workflow SHALL stop, report the blocker code from the `Repair blockers:` line, and leave
   allowed paths as they are.
-- **REQ-45 Infrastructure outcomes.** IF a command run by the repair Implementer ends with spec 17
+- **REQ-45 Infrastructure outcomes.** IF a command run by the repair Implementer ends with spec 14
   DM-3 kind `launch-error`, `timeout`, `interrupted` or `signal` (kind `exit` is a failing test or
   check, never an infrastructure blocker), or without a known outcome, THEN THE
   workflow SHALL report blocker `infrastructure` or `evidence-gap` and SHALL change no code to make
   the command pass.
 - **REQ-46 Notes entries.** WHEN `/pae-repair` observes its reproduction and when it completes
   verification, THE workflow SHALL append the DM-13 `tdd: repair red` and `tdd: repair green`
-  entries to its own leaf block with spec 14's append rule, keeping `atomic-tests:`,
+  entries to its own leaf block with spec 12's append rule, keeping `atomic-tests:`,
   `atomic-execution: complete` and `atomic-validation: failed` unchanged.
 
 ### Recheck, outcome and next step
@@ -632,14 +632,14 @@ this spec adds or edits when spec 08 is in force. "THE helper" is `scripts/repai
 - **REQ-47 Recheck.** WHEN an attempt's `fix:` commit is made, or `outcome` exits 1
   `review-required` for a lost attempt that left commits, THE Orchestrator SHALL spawn a fresh
   Validator exactly as step 4.3 does, with the repair-active instruction of C-5 step 1, and then
-  run `outcome` with the new record. The recheck is an ordinary spec 16 leaf review (spec 16
-  C-6 row 19): its prior is the newest valid record of step `check`, which is the record the
-  attempt answered, finding-led eligibility and outcomes follow spec 16 DM-5 and R-05, and spec 16
+  run `outcome` with the new record. The recheck is an ordinary spec 15 leaf review (spec 15
+  C-6 row 17): its prior is the newest valid record of step `check`, which is the record the
+  attempt answered, finding-led eligibility and outcomes follow spec 15 DM-5 and R-05, and spec 15
   neither ends nor removes the NEEDS WORK stop that this loop defers (REQ-56).
 - **REQ-48 Outcome record.** WHEN `outcome` runs, THE helper SHALL print a DM-10 record, its
   `outcome` line and, when the episode ends, its `closed` line, and SHALL exit 1 with
   `review-required` when the attempt left commits, no DM-10 row before `accepted` matches, and the
-  leaf's last spec-16 DM-8 entry for step `check` is still the one of the record the attempt
+  leaf's last spec-15 DM-8 entry for step `check` is still the one of the record the attempt
   answered; a `--review` record that fails DM-7's review checks gives exit 1 `review-invalid`.
 - **REQ-49 Foreign change.** IF a commit between the attempt's start head and `HEAD` is absent from
   the leaf's `commits:`, `HEAD` does not descend from the start head, or a commit of the attempt
@@ -726,7 +726,7 @@ this spec adds or edits when spec 08 is in force. "THE helper" is `scripts/repai
   `rules/orchestration.md:136`).
 - **REQ-74 No saving claim.** THE delivered documentation, ADR and reports SHALL state that no
   quality, token, cost or time effect of the repair policy has been measured and that comparison
-  belongs to spec 09.
+  belongs to spec 10.
 - **REQ-75 Unlisted helper failures.** IF a helper subcommand run by the repair loop exits 1, 2, 3 or
   4 with a reason that C-5 does not map, or `outcome` exits 1 `review-required` a second time for
   one attempt, THEN THE Orchestrator SHALL stop with the C-9 `repair-state` message, leaving the
@@ -734,7 +734,7 @@ this spec adds or edits when spec 08 is in force. "THE helper" is `scripts/repai
 
 ## Data Model
 
-All entities are **new**. JSON is canonical JSON as in spec 15 (UTF-8, sorted keys,
+All entities are **new**. JSON is canonical JSON as in spec 13 (UTF-8, sorted keys,
 `ensure_ascii=False`, separators `,` and `:`, one trailing LF); a self-digest is computed over
 the canonical JSON without its own key; a digest is `sha256:` + 64 lowercase hex. Paths inside
 records are POSIX paths relative to the repository top level of `WORK_DIR`, without `..` or a
@@ -752,8 +752,8 @@ leading `/`, unless a field says "task-relative".
 | `<task>/repairs/context/<attempt_id>.json` | DM-8 `context_answers` input | Orchestrator | Written before `reserve`; replaceable until a `RESERVED` line names the attempt, then never changed; not counted by REQ-62 |
 | `<task>/repairs/outcomes/<attempt_id>.json` | DM-10 record | Orchestrator saves helper output | Write-once |
 
-Records are saved with spec 15's `checkpoint_save TMP FINAL no`
-(`.ai/specs/15-orchestrator-overhead.md` C-5, `checkpoint_save`): the helper's stdout `record` value is written
+Records are saved with spec 13's `checkpoint_save TMP FINAL no`
+(`.ai/specs/13-orchestrator-overhead.md` C-5, `checkpoint_save`): the helper's stdout `record` value is written
 to `<final>.tmp`, then linked; `saved` and `duplicate` proceed, `conflict` and `link-failed` stop
 (REQ-31). Directories are created with `mkdir -p` on the first save. `<task>/repairs/` is ignored
 (REQ-67) and moves with the task directory; `/compress-state` does not touch it. Deleting it while
@@ -765,20 +765,20 @@ without the section has no episodes.
 
 | Identifier | Form | Example |
 |---|---|---|
-| `leaf_id` | Spec 15's pattern `^T-[0-9]{2,}[a-z]?(-fix-[a-z0-9]+(-[a-z0-9]+)*)?$` | `T-04d-fix-rounding` |
+| `leaf_id` | Spec 13's pattern `^T-[0-9]{2,}[a-z]?(-fix-[a-z0-9]+(-[a-z0-9]+)*)?$` | `T-04d-fix-rounding` |
 | `episode_id` | `<leaf_id>.E<n>`, `n` = 1 + number of `opened` lines of the leaf | `T-03.E1` |
 | `attempt_id` | `<episode_id>.A<m>`, `m` per REQ-62 | `T-03.E1.A2` |
 | Classification number | `C<n>`, `n` per REQ-62 | `C2` |
-| Review reference | `#<seq> sha256:<hex>`: the spec-16 record `reviews/<leaf_id>/<seq>.json` and its file SHA-256 | `#3 sha256:9f…` |
+| Review reference | `#<seq> sha256:<hex>`: the spec-15 record `reviews/<leaf_id>/<seq>.json` and its file SHA-256 | `#3 sha256:9f…` |
 
-`attempt_id` matches spec 18's `reference` pattern (`.ai/specs/18-reasoning-effort-policy.md`
-DM-6) and is distinct from spec 15's `<leaf>.<role>.<n>`; the spawn of a repair attempt's Implementer
-has its own spec 15 `attempt_id` (REQ-35, C-5 step 8).
+`attempt_id` matches spec 16's `reference` pattern (`.ai/specs/16-reasoning-effort-policy.md`
+DM-6) and is distinct from spec 13's `<leaf>.<role>.<n>`; the spawn of a repair attempt's Implementer
+has its own spec 13 `attempt_id` (REQ-35, C-5 step 8).
 
 ### DM-3 Ledger `## Repair Episodes`
 
 Each line is a full-line match of one form (`EP` = episode id, `AT` = attempt id, `HEX` =
-64 lowercase hex, `MODEL` = `(anthropic|openai)/[^\s|;]{1,256}|session-default`, `KEY` = a spec-18
+64 lowercase hex, `MODEL` = `(anthropic|openai)/[^\s|;]{1,256}|session-default`, `KEY` = a spec-16
 DM-5 key or `none`):
 
 ```text
@@ -797,7 +797,7 @@ CLOSED     ^- (EP) \| closed \| (TERMINAL) \| ([a-z-]+)$
 `OUTCOME`; `CLOSED` is last; at most one episode per leaf is open (no `CLOSED`). Lines of different
 leaves may interleave. The `contract` digest of `OPENED` is the record's `contract.contract_digest`.
 Every `record sha256:` value is the SHA-256 of the saved record file's bytes (not its
-`record_digest`); the `contract sha256:` of `OPENED` is spec 16's `contract_digest`. A line never
+`record_digest`); the `contract sha256:` of `OPENED` is spec 15's `contract_digest`. A line never
 contains `; `. Reader tolerance: a task without the section has no episodes; blank
 lines inside the section are ignored.
 
@@ -881,15 +881,15 @@ Permitted reproduction kinds by class and test mode (DM-17):
 **Review checks** (`open`, `classify`, `outcome`): the file is `reviews/<leaf_id>/<seq>.json`
 under `<task>/verification/`, at most 1,048,576 bytes, parses as JSON with `schema_version` 1,
 `kind` `review_record`, `level` `leaf`, `step` `check`, `scope_key` equal to the leaf, a
-self-digest `record_digest` that verifies, and a SHA-256 equal to the leaf's last spec-16 DM-8
-entry for step `check` (`.ai/specs/16-scoped-verification.md` DM-8).
+self-digest `record_digest` that verifies, and a SHA-256 equal to the leaf's last spec-15 DM-8
+entry for step `check` (`.ai/specs/15-scoped-verification.md` DM-8).
 
 **Overrides**, per open finding: `critical` severity → `hard-stop` (`critical-severity`); any
 obligation id `INV-*` or `OFF-*` → `hard-stop` (`invariant-or-off-limits`); any listed obligation
 whose record `risks` contain `security` or `data-integrity` → `hard-stop` (`risk-hard`); `contract`,
 `migration`, `shared-dependency` or `uncertain` → `contract-divergence` (`risk-contract`); a
 `locations` path equal to a `target_files:` entry of another leaf block (resolved against that
-leaf's `working_dir:` as spec 16 DM-5 (7) does) → `contract-divergence` (`cross-leaf`).
+leaf's `working_dir:` as spec 15 DM-5 (7) does) → `contract-divergence` (`cross-leaf`).
 **Restriction order** (most restrictive first): `hard-stop`, `contract-divergence`, `test-basis`,
 `infrastructure`, `missing-context`, `test-missing`, `local-defect`.
 
@@ -911,18 +911,18 @@ does not trigger it, because the stage checks still confine every change to `all
 | `schema_version`, `kind` | `1`, `"repair_contract"` |
 | `episode_id`, `attempt_id`, `slot`, `task_id`, `leaf_id` | Identifiers; `task_id` = base name of the task directory |
 | `policy` | `{"name": "bounded-local", "version": 1, "file": null or {"policy_id", "policy_version", "sha256"}}` |
-| `contract_digest` | The episode's spec-16 contract digest |
+| `contract_digest` | The episode's spec-15 contract digest |
 | `description` | `{"path" (task-relative), "sha256"}` |
 | `design_sha256` | Digest of the bytes of `## Solution Design` in `state.md` (C-3 extent) |
 | `packet` | `{"packet_digest", "task_contract_hash"}`, each from the command line or `null` |
 | `review` | `{"seq", "file_sha256", "verdict"}` of the record this attempt answers |
 | `classification` | `{"seq", "record_digest"}` |
-| `start` | `{"branch", "head", "worktree_id"}` (`worktree_id` as spec 15 defines it); `head` must equal the review record's `subject.head` and the tree must be clean outside the task directory and `AI_DIR` (this spec's definition; spec 16's `subject.clean` is not read because it also counts `AI_DIR` paths), else `reserve` exits 1 `tree-changed` |
+| `start` | `{"branch", "head", "worktree_id"}` (`worktree_id` as spec 13 defines it); `head` must equal the review record's `subject.head` and the tree must be clean outside the task directory and `AI_DIR` (this spec's definition; spec 15's `subject.clean` is not read because it also counts `AI_DIR` paths), else `reserve` exits 1 `tree-changed` |
 | `test_mode`, `frozen_tests`, `frozen_tests_digest` | DM-17; DM-14 list `{"path", "sha256"}`; digest of its canonical JSON |
 | `allowed_paths` | DM-15 |
-| `required_checks` | Defined checks of the runbook by spec 16 DM-9, in the order `test`, `lint`, `typecheck` |
+| `required_checks` | Defined checks of the runbook by spec 15 DM-9, in the order `test`, `lint`, `typecheck` |
 | `findings` | Per open finding: the record's `findings[].id` (copied as `finding`) and `severity`, `title`, `obligations` (each `{"id", "kind", "state"}`), `locations`, `evidence`, `check`, `same_as`; classification fields `class`, `reproduction`, `expected`; `context_answer` (`null` or `{"question", "answer", "source"}`) |
-| `evidence_refs` | `{"tdd_output": [...], "checks": [...]}`. `tdd_output`: the leaf's `tdd: red output` and `tdd: green output` notes lines copied verbatim (spec 17 DM-9; the lines are never reworded or re-derived). `checks`: for each distinct non-null `check` of the open findings, the answered record's `checks[]` entry of that name, as `{"check", "receipt_id", "mode", "stdout_sha256", "stderr_sha256", "reference", "artifact_id", "manifest_sha256"}` read from the referenced spec 16 DM-4 receipt (found as `receipts/*/<hex of receipt_id>.json` under `<git common dir>/orchestrail-verification/`, searching the `<inputs hex>` subdirectories, spec 16 DM-1). By `output.mode`: `direct` fills `stdout_sha256` and `stderr_sha256` from `output.stdout.sha256` and `output.stderr.sha256` (each `null` when capture failed) and leaves `reference`, `artifact_id` and `manifest_sha256` `null`; `capture-output` fills `reference`, `artifact_id` and `manifest_sha256` from `output.reference`, `output.artifact_id` and `output.manifest_sha256` and leaves both stream digests `null`, because spec 16 stores no stream digests in that mode (spec 16 DM-4a, spec 17 helper). A receipt that is missing, unreadable or of another shape gives `mode` `null` and every other field after `receipt_id` `null`: an evidence gap, never an error. The helper copies references only; it does not read captured bytes, run `verify`, or judge them. Empty lists when absent |
+| `evidence_refs` | `{"tdd_output": [...], "checks": [...]}`. `tdd_output`: the leaf's `tdd: red output` and `tdd: green output` notes lines copied verbatim (spec 14 DM-9; the lines are never reworded or re-derived). `checks`: for each distinct non-null `check` of the open findings, the answered record's `checks[]` entry of that name, as `{"check", "receipt_id", "mode", "stdout_sha256", "stderr_sha256", "reference", "artifact_id", "manifest_sha256"}` read from the referenced spec 15 DM-4 receipt (found as `receipts/*/<hex of receipt_id>.json` under `<git common dir>/orchestrail-verification/`, searching the `<inputs hex>` subdirectories, spec 15 DM-1). By `output.mode`: `direct` fills `stdout_sha256` and `stderr_sha256` from `output.stdout.sha256` and `output.stderr.sha256` (each `null` when capture failed) and leaves `reference`, `artifact_id` and `manifest_sha256` `null`; `capture-output` fills `reference`, `artifact_id` and `manifest_sha256` from `output.reference`, `output.artifact_id` and `output.manifest_sha256` and leaves both stream digests `null`, because spec 15 stores no stream digests in that mode (spec 15 DM-4a, spec 14 helper). A receipt that is missing, unreadable or of another shape gives `mode` `null` and every other field after `receipt_id` `null`: an evidence gap, never an error. The helper copies references only; it does not read captured bytes, run `verify`, or judge them. Empty lists when absent |
 | `dispatch` | `{"role": "implementer", "model": {"requested", "resolved", "actual": null, "status"}, "effort": {"decision_key", "outcome", "resolved"} or null, "escalation": null or {"model", "effort"}}` from the command-line inputs |
 | `slots` | `{"local": {"used", "limit": 1}, "escalated": {"used", "limit": 1}}` counting non-cancelled attempts including this one |
 | `previous_attempts` | `{"attempt_id", "slot", "outcome", "progress", "record_sha256"}` in order |
@@ -972,7 +972,7 @@ reports `nothing-to-stage`.
 | `provider-stopped` | `worker: provider-stopped` | `stopped` / `provider-stopped` |
 | `worker-blocked` | `worker: blocked` | `stopped` / `worker-blocked-<code>` |
 | `worker-lost` | `worker: lost` and the tree is dirty | `stopped` / `worker-lost-dirty` |
-| `recheck-blocked` | The leaf's last DM-8 entry for step `check` is `none — blocked` written after the answered record's entry, or the leaf block's `blocker:` starts with `verification check ` (spec 16 DM-8 reason `blocked` and REQ-56) | `stopped` / `recheck-blocked` |
+| `recheck-blocked` | The leaf's last DM-8 entry for step `check` is `none — blocked` written after the answered record's entry, or the leaf block's `blocker:` starts with `verification check ` (spec 15 DM-8 reason `blocked` and REQ-56) | `stopped` / `recheck-blocked` |
 | `recheck-unrecorded` | Commits exist and the leaf's last DM-8 entry for step `check` is any other `none` entry written after the answered record's entry | `stopped` / `recheck-unrecorded` |
 | `accepted` | Review verdict `DONE` | `accepted` / `recheck-done` |
 | `rejected` | Review verdict `NEEDS WORK` | per REQ-52/REQ-53 |
@@ -1010,8 +1010,8 @@ file contents.
 
 ### DM-13 Notes entries
 
-Appended by `/pae-repair` to its own leaf block's notes with spec 14's append rule
-(`.ai/specs/14-task-context-and-reuse.md` DM-11); never edited or removed; protected like other
+Appended by `/pae-repair` to its own leaf block's notes with spec 12's append rule
+(`.ai/specs/12-task-context-and-reuse.md` DM-11); never edited or removed; protected like other
 `tdd:` lines:
 
 ```text
@@ -1020,7 +1020,7 @@ Appended by `/pae-repair` to its own leaf block's notes with spec 14's append ru
 ```
 
 The arrow part names the test ids or the check observed and the observed result (`fails`,
-`passes`). The optional ` — OUTPUT …` suffix is spec 17's OUTPUT line when the run was captured.
+`passes`). The optional ` — OUTPUT …` suffix is spec 14's OUTPUT line when the run was captured.
 The original `tdd: red digest`, `tdd: red output` and `tdd: green output` lines stay untouched.
 
 ### DM-14 Frozen test set
@@ -1097,8 +1097,8 @@ python3 -I … close    --work W --task T --episode E [--terminal CODE --detail 
 - `MODEL.json` is spec 04's resolution report for the spawn (`status`, `requested`, `resolved`), or
   `{"status": "session-default", "requested": null, "resolved": null}`; `--local-model` (required
   for `--slot escalated`, forbidden otherwise) is the same for the local resolution;
-  `DECISION.json` is `{"decision": <spec 18 DM-7 object>, "key": <spec 18 DM-5 key>}`; a file of
-  any other shape (extra or missing key, `key` not matching 18 DM-5 `KEY`, `decision.kind` not
+  `DECISION.json` is `{"decision": <spec 16 DM-7 object>, "key": <spec 16 DM-5 key>}`; a file of
+  any other shape (extra or missing key, `key` not matching 16 DM-5 `KEY`, `decision.kind` not
   `effort_decision`) → exit 2 `json-invalid`. For `--slot escalated`, `reserve`
   applies C-8 steps 1–4 to these inputs and exits 1 with `escalation-unauthorized`,
   `model-unresolved` (a declared model whose `MODEL.json` status is not `resolved`),
@@ -1129,21 +1129,21 @@ python3 -I … close    --work W --task T --episode E [--terminal CODE --detail 
 | 0 | Completed; the printed result may report `eligible: false`, violations or a terminal | — |
 | 1 | Refused | `ledger-invalid`, `commits-invalid`, `episode-open`, `reopen-required`, `review-unavailable`, `review-invalid`, `leaf-state` (`open` or `reserve` while the leaf is not `atomic-execution: complete` with `atomic-validation: failed`), `slot-exhausted`, `slot-order`, `attempt-pending`, `escalation-unauthorized`, `model-unresolved`, `effort-not-applied`, `escalation-identical`, `context-answer-missing`, `tree-changed`, `attempt-unknown` (no such attempt), `attempt-state` (the subcommand does not fit the attempt's or episode's last line), `review-required`, `policy-invalid` (`open`, `status`, `reserve`, `outcome` given an invalid policy file), `cancel-unauthorized` |
 | 2 | Invalid invocation | `usage`, `path-invalid`, `input-too-large`, `json-invalid` |
-| 3 | Unavailable | `runtime-unavailable` (Python < 3.11; the entry file as a whole uses only syntax older Python 3 interpreters parse and loads 3.11-only code after the check, so this code, not a syntax error, results, as spec 20 A-26), `git-unavailable`, `not-a-repository` |
+| 3 | Unavailable | `runtime-unavailable` (Python < 3.11; the entry file as a whole uses only syntax older Python 3 interpreters parse and loads 3.11-only code after the check, so this code, not a syntax error, results, as spec 18 A-26), `git-unavailable`, `not-a-repository` |
 | 4 | Disabled | `disabled` (`ORCHESTRAIL_REPAIR_POLICY` disabling per REQ-11, e.g. `=off`; every subcommand except `version` and `check-policy`) |
 
 ### C-3 Parsing rules
 
-Headings, sections, list items and leaf blocks follow spec 16 C-3
-(`.ai/specs/16-scoped-verification.md` C-3); notes entries follow spec 15's note-entry rule
-(`.ai/specs/15-orchestrator-overhead.md` Data Model → Note entries). The `## Solution Design` extent for
+Headings, sections, list items and leaf blocks follow spec 15 C-3
+(`.ai/specs/15-scoped-verification.md` C-3); notes entries follow spec 13's note-entry rule
+(`.ai/specs/13-orchestrator-overhead.md` Data Model → Note entries). The `## Solution Design` extent for
 `design_sha256` runs from its heading line to the line before the next `## ` heading. The ledger
 section is the single `## Repair Episodes` heading outside fences; a second one → `ledger-invalid`.
 
 ### C-4 `rules/contract-repair.md`
 
 Front matter `description: Repair contract — bounded local repair after NEEDS WORK, escalation and
-ledger`, `load: on-demand` (spec 13 DM-2; kind `contract` from the file name, no name-map row, no
+ledger`, `load: on-demand` (spec 09 DM-2; kind `contract` from the file name, no name-map row, no
 `trigger:`). Sections `## Repair loop`, `## Classification`, `## Repair attempt`,
 `## Ledger`, `## Stop classes`. Anchored lines, each exactly once:
 
@@ -1163,7 +1163,7 @@ Repair exit codes: 0 completed | 1 refused | 2 invalid-invocation | 3 unavailabl
 finding is local, use contract-divergence." `## Repair attempt` holds, verbatim: "Never edit a
 frozen test, the description, plan.md or another leaf; create new files only as new test files
 before any fix; never run git." The drift check (AC-35) splits each line after `: ` on ` | ` and
-compares it with `version`'s registry of the same name. Where spec 08's 700-word limit is in force
+compares it with `version`'s registry of the same name. Where spec 11's 700-word limit is in force
 and the rule exceeds it, the sections move into `rules/contract-repair-<section>.md` files, each
 keeping its heading and anchored lines.
 
@@ -1182,20 +1182,20 @@ keeping its heading and anchored lines.
    `<task>/repairs/context/<next_attempt_id>.json`.
 5. **Resolve.** Slot from `status`. Always compute the leaf's ordinary model resolution
    (`workflows/spec-run.md:139-156`), called the *local resolution*. Local slot: use it and a
-   spec-18 decision with `escalation: null`. Escalated slot: C-8 steps 2–3. A spec-18 `stop`, or a
+   spec-16 decision with `escalation: null`. Escalated slot: C-8 steps 2–3. A spec-16 `stop`, or a
    local resolution that stops, is that existing stop (no repair ledger line; the episode stays
-   open). Spec 18 resolver unusable while an escalation declares `effort` → `close --terminal
+   open). Spec 16 resolver unusable while an escalation declares `effort` → `close --terminal
    escalation-unavailable --detail resolver-unusable`, append, stop.
-6. **Packet.** Spec 14 `packet --role implementer --predecessor <digest of the leaf's latest
+6. **Packet.** Spec 12 `packet --role implementer --predecessor <digest of the leaf's latest
    implementer context-packet entry>` with its DM-11 entry.
 7. **Reserve.** `reserve`; on exit 0 save `record` (`saved` proceeds; `duplicate` proceeds only when
    no `RESERVED` line names the attempt yet) and append `line` (REQ-30, REQ-31). On exit 1 follow
    the reserve-refusal table below.
-8. **Plan row and spec-15 record.** Set the plan row per REQ-35; on the spec-15 helper route run
+8. **Plan row and spec-13 record.** Set the plan row per REQ-35; on the spec-13 helper route run
    `attempt --role implementer` and save it.
 9. **Spawn.** A fresh Implementer with the REQ-36 inputs and the instruction: "Run `/pae-repair
    <description> --contract <contract path>`; when it reports RED, stop and wait; one message
-   resumes you." Append `dispatch_line` (REQ-32), or on refusal `cancel` per REQ-33 / REQ-57; when the refusal names spec 18's effort parameter or value, also append 18's DM-5 rejection line, and the next reservation's step 5 uses `session.parameter: "absent"`.
+   resumes you." Append `dispatch_line` (REQ-32), or on refusal `cancel` per REQ-33 / REQ-57; when the refusal names spec 16's effort parameter or value, also append 16's DM-5 rejection line, and the next reservation's step 5 uses `session.parameter: "absent"`.
 10. **RED.** On a RED report: `check --stage red`; no violation → commit `stage_paths` (plus allowed
     bookkeeping, REQ-40) as
     `test: <what the tests assert>` under `git-flow → ## Commits`, append the sha to `commits:`,
@@ -1212,7 +1212,7 @@ keeping its heading and anchored lines.
     `no-change`). Also when `outcome` exits 1 `review-required` for the first time for the attempt;
     a second `review-required` for the same attempt → stop with `repair-state`. Steps that already
     ran `outcome` (blocker, lost, violation) do not reach this step. Recheck: set the plan row to `done` if it is `blocked`, build the validator
-    packet (spec 14 REQ-41), spawn a fresh Validator exactly as 4.3 with step 1's addition (an ordinary spec 16 leaf review
+    packet (spec 12 REQ-41), spawn a fresh Validator exactly as 4.3 with step 1's addition (an ordinary spec 15 leaf review
     whose prior is the record the attempt answered; REQ-47); then
     `outcome --review <record>`.
 13. **Outcome.** Save `record`; append `line`, then `close_line` when present. `continue` → step
@@ -1224,7 +1224,7 @@ keeping its heading and anchored lines.
 
 Steps 10 and 11 keep the order: no `fix:` commit of an attempt precedes its `test:` commit, and the
 repair Implementer edits no allowed path before its RED report (C-6 steps 2–3). No step polls a
-running worker (spec 15 C-7 triggers apply). A git command never shares a Bash call with a write
+running worker (spec 13 C-7 triggers apply). A git command never shares a Bash call with a write
 of another step.
 
 **Resume table** (`status` next action → Orchestrator action):
@@ -1236,7 +1236,7 @@ of another step.
 | `classify` | Step 3 |
 | `reserve-local`, `reserve-escalated` | Step 4 when the classification has `missing-context` findings, else step 5 |
 | `cancel` | `cancel --reason owner-confirmed-undispatched`; append; continue with the new `status` |
-| `dispatched-pending` | In the session that spawned the worker: wait for a C-7 trigger of spec 15. In any later session (the worker is gone): `outcome --worker lost` |
+| `dispatched-pending` | In the session that spawned the worker: wait for a C-7 trigger of spec 13. In any later session (the worker is gone): `outcome --worker lost` |
 | `recheck` | Step 12 |
 | `outcome` | `outcome --review <newest record>` when the newer DM-8 entry names a record, else `outcome` without `--review` (a `none` entry); worker defaulted by C-1; step 13 |
 | `close` | `close --episode E`; append; `resolved-outside` → continue the ordinary flow, else stop (REQ-56) |
@@ -1283,19 +1283,19 @@ Unlisted: any other helper refusal or failure stops the run with repair-state an
 ### C-6 `/pae-repair` (workflow contract)
 
 Front matter `description: Atomic Execution Step 4 (Repair) — apply one bounded repair attempt from
-a repair contract, test-first` (after spec 13: file `atomic-execution-repair.md` with `phase:
+a repair contract, test-first` (after spec 09: file `atomic-execution-repair.md` with `phase:
 atomic-execution` and `step: 4`, its DM-3 and DM-11); `Invocation: /pae-repair <path-to-atomic-description> --contract
 <path>`.
 
-**Metadata for the generated reference docs (spec 10).** The new workflow also carries the three
-keys that spec 10 requires of every workflow (`.ai/specs/10-generated-reference-docs.md` REQ-05 and
-Data Model → Workflow metadata; a missing key is `metadata-missing-field`, and spec 10 A-54 records
+**Metadata for the generated reference docs (spec 19).** The new workflow also carries the three
+keys that spec 19 requires of every workflow (`.ai/specs/19-generated-reference-docs.md` REQ-05 and
+Data Model → Workflow metadata; a missing key is `metadata-missing-field`, and spec 19 A-54 records
 that no other spec prescribes them for this file): `reads`, `writes` and `called_by`. `called_by` is
-`[spec-run]` (spec 10 REQ-23: each item names an existing workflow). The file has a `Called by:` line
+`[spec-run]` (spec 19 REQ-23: each item names an existing workflow). The file has a `Called by:` line
 whose text begins with the backticked command, the form `Called by: ` followed by the backticked
 `/spec-run` and the words `(repair loop)`, so that its leading caller list is `spec-run` and agrees
-with `called_by` (spec 10 REQ-35, Data Model → Leading caller list). `reads` and `writes` use spec
-10's Location grammar (REQ-46) and list only what steps 1–5 below already read and write; nothing is
+with `called_by` (spec 19 REQ-35, Data Model → Leading caller list). `reads` and `writes` use spec
+19's Location grammar (REQ-46) and list only what steps 1–5 below already read and write; nothing is
 added for the generator's sake: `reads` holds the atomic description (`<subtask-dir>/description.md`),
 the repair contract (`<task-dir>/repairs/contracts/*.json`), the parent `state.md` sections the
 workflow reads (`<task-dir>/state.md → ## Subtask Progress`, `<task-dir>/state.md → ## Solution
@@ -1306,10 +1306,10 @@ constraints). Sections:
 
 1. **Guard** — REQ-37; a `tdd: repair green — <attempt_id>` entry already present → **stop**:
    "Repair attempt <attempt_id> already completed."
-2. **Reproduce** — working directory and bootstrap as `/pae-implement` (packet per spec 14 when
+2. **Reproduce** — working directory and bootstrap as `/pae-implement` (packet per spec 12 when
    supplied); read the contract, frozen tests, description and Solution Design. Per finding:
    `frozen-test` → run that test, it must fail; `failing-check` → run that check, it must exit
-   non-zero (spec 17 kind `exit`); `new-test` → write tests in new files, run them, each must fail
+   non-zero (spec 14 kind `exit`); `new-test` → write tests in new files, run them, each must fail
    for the expected reason (`rules/tdd.md:86-100`); `coverage` → write tests in new files and record
    pass or fail; `inspection` → inspect and record. A reproduction that passes → blocker
    `not-reproduced`; a new test that passes before the fix → `red-not-established`; DM-3 kinds
@@ -1341,7 +1341,7 @@ Order: observe every reproduction before editing any allowed path.
 
 | File | Edit |
 |---|---|
-| `workflows/spec-run.md` | Invocation gains `[--repair-policy bounded-local]` with one bullet; `## Guard` gains REQ-10; Step 0 gains "Repair policy: resolve per `contract-repair → ## Repair loop` step 0; on resume run its `status` for each unreviewed leaf before item 3's clean-tree decision."; 4.3 keeps verbatim its NEEDS WORK stop paragraph (from "If the verdict is NEEDS WORK" to "failing base.", today `:297-299`) and gains, after it, "With an active repair policy, follow `contract-repair → ## Repair loop` first; the run stops here only when that loop ends without acceptance."; `## What this workflow never does` gains "Never starts a repair attempt without an active repair policy, or beyond the slots `contract-repair` permits."; a `loads:` entry for `contract-repair` (spec 08) |
+| `workflows/spec-run.md` | Invocation gains `[--repair-policy bounded-local]` with one bullet; `## Guard` gains REQ-10; Step 0 gains "Repair policy: resolve per `contract-repair → ## Repair loop` step 0; on resume run its `status` for each unreviewed leaf before item 3's clean-tree decision."; 4.3 keeps verbatim its NEEDS WORK stop paragraph (from "If the verdict is NEEDS WORK" to "failing base.", today `:297-299`) and gains, after it, "With an active repair policy, follow `contract-repair → ## Repair loop` first; the run stops here only when that loop ends without acceptance."; `## What this workflow never does` gains "Never starts a repair attempt without an active repair policy, or beyond the slots `contract-repair` permits."; a `loads:` entry for `contract-repair` (spec 11) |
 | `workflows/pav-check.md` | After the NEEDS WORK bullet of the verdict writes and before the paragraph beginning `**If NEEDS WORK**` (today the bullet is `:106` and the paragraph `:108`): "Under `/spec-run` with an active repair policy (the spawn instruction says so), after the NEEDS WORK writes and before stopping, write the repair classification draft per `contract-repair → ## Classification`." No other change |
 | `workflows/pae-repair.md` (new) | C-6 |
 | `rules/orchestration.md` | `### Conditions that always stop the run` gains "- A repair outcome classified stop by `contract-repair → ## Stop classes`."; `## Shared-file discipline` gains "Repair classification drafts are written by the Validator under `<task>/repairs/drafts/`; repair records and `## Repair Episodes` lines are written only by the Orchestrator."; `### Implementer` gains "A repair attempt is a fresh Implementer running `/pae-repair` under `contract-repair → ## Repair attempt`." |
@@ -1367,15 +1367,15 @@ verb precedes `plan.md`, `architecture.md`, `.ai/memory/state.md` or `.ai/projec
    null}` and `execution: null` (`rules/workflow-reference.md:166-176`). Status `resolved` → use it;
    any other status → `model-unresolved`. When `model` is null, the leaf's ordinary resolution is
    used.
-3. **Effort.** When `effort` is non-null: spec 18 C-4 with `escalation: {"value": <effort>,
+3. **Effort.** When `effort` is non-null: spec 16 C-4 with `escalation: {"value": <effort>,
    "reference": <next_attempt_id>}`. The component *resolves* iff the decision's `outcome` is
    `requested` and its `reasons` lack `escalation-unverifiable`; it is *effective* iff it resolves
-   and the decision's `source` is `escalation` (spec 18 raised the effort to the declared value).
+   and the decision's `source` is `escalation` (spec 16 raised the effort to the declared value).
    `not-requested`, or `escalation-unverifiable` (which every harness yields while its
-   `## sub-agent-effort` capability is `unknown`) → `effort-not-applied`; resolver unusable (spec 18
-   REQ-14) → `resolver-unusable`; `stop` → spec 18's stop. A resolved, non-effective effort (the
-   requested effort was already provably at least the declared value) is not a failure. A spec 18
-   `stop` stays spec 18's own stop (C-5 step 5), and an `escalation-unverifiable` or `not-requested`
+   `## sub-agent-effort` capability is `unknown`) → `effort-not-applied`; resolver unusable (spec 16
+   REQ-14) → `resolver-unusable`; `stop` → spec 16's stop. A resolved, non-effective effort (the
+   requested effort was already provably at least the declared value) is not a failure. A spec 16
+   `stop` stays spec 16's own stop (C-5 step 5), and an `escalation-unverifiable` or `not-requested`
    effort is never replaced by another model, effort or harness setting: the declared component is
    either applied as declared or the episode ends (REQ-06).
 4. **Identity.** The model component is *effective* iff its resolved identity differs from the
@@ -1406,15 +1406,15 @@ No partial escalation: a declared component that is not applied ends the episode
 |---|---|
 | 04 (completed) | Consumed: `--resolve-plan` with its resolution input and statuses (C-8 step 2); no change |
 | 05 (completed) | Exposed: `episode_id`, `attempt_id`, slot, terminal and the ledger as plain identifiers; a 05 producer maps them to its `attempt` dimension with its keyed mapping (`scripts/usage_telemetry_adapter.py:20-24`, `scripts/usage_telemetry_contract.py:2911`). No 05 record is written; unknown counts stay unknown |
-| 09 | Exposed: ledger and records inside captured task directories; the flag's absence or the switch gives the no-repair arm (variant strategy details `repair_policy`, `escalation_limits`, `.ai/specs/09-golden-run-tests.md` DM-6). The two switches are expressible as spec 09 REQ-52 `switches` (its `Variant switches`): the candidate variant declares `prompt_args: ["--repair-policy", "bounded-local"]`, and a control that must disable repair even where the flag could be inherited declares `env: {"ORCHESTRAIL_REPAIR_POLICY": "off"}` (`ORCHESTRAIL_REPAIR_POLICY` matches spec 09's `ORCHESTRAIL_*` rule and is neither `ORCHESTRAIL_HOME` nor `ORCHESTRAIL_LOG_ROOT`); the control normally omits both. No overlay is needed, but the owner policy file (DM-5) is read from the runner's `HOME` or `XDG_CONFIG_HOME`, which spec 09 passes through to the executor: a comparison run must have no policy file there (then it starts `local` with no escalation, REQ-05), or its candidate arm may escalate; `ORCHESTRAIL_REPAIR_POLICY=off` disables the policy, and so escalation, only in an arm that sets it. Consumed: offline suite (REQ-69). Every quality and cost claim, and the chain arithmetic, belong to 09's calculator (spec 09 REQ-11 and DM-13) |
-| 12 | Wired by spec 12a REQ-54 and spec 12 REQ-63 (with 12a DM-3 `repair_episode`, 12 DM-6 stage `repair` and C-6 row 7 of spec 12), which runs C-5 for a failed child while the policy is active, instead of its REQ-24 or REQ-51 stop. What this spec guarantees to it: spec 12's episode key is the `episode_id` (DM-2); an episode is keyed by leaf and, in its `opened` line, the contract digest, and survives serialization, worktree change and new workers, so when spec 12 REQ-14 supersedes an attempt with an open episode, copying that key into the next attempt's `repair_episode` is enough: `status` continues the same episode with its recorded slots, and every limit comes from the ledger alone, never from a spec 12 attempt count. The child keeps spec 12's own concurrency slot, its reservation and its claim on its files while the episode is open; spec 12's slot is unrelated to this spec's `local` and `escalated` slots (DM-8 `slots`). A repair runs only on the leaf's own unmerged branch in its recorded location; a child whose attempt is `merged`, `accepted` or `cleaned` is never repaired here (integration failures use spec 12a's REQ-35 and REQ-45 and the D8 fix siblings); a partially merged composite keeps its merged siblings untouched; an accepted repair (`accepted` outcome, `continue`) leaves spec 12 to set the attempt `validated` and to apply its merge rules, check-merge, abort and serialization unchanged. A spec 12 REQ-04 broad stop is stated by spec 12 itself (12 REQ-04, REQ-54 and C-6 row 8): a repair worker already dispatched is not interrupted and finishes, no further attempt, repair attempt or recheck starts, its result is recorded through this spec's `outcome` step as usual, and the open episode stays open; this spec reserves no new attempt after such a stop and adds nothing to it. At most one attempt per leaf is reserved at any moment. With N > 1 one `/pae-repair` invocation is one workflow invocation performed by one fresh agent that spec 12's root spawns; the agent returns its leaf-block writes as deltas, the root commits the repair checkpoints (REQ-40) and builds a spec 12 DM-6 handoff with stage `repair`, and the repair Validator recheck is a fresh validation phase (this spec's REQ-47; requested under spec 12 C-6 row 6); ledger lines and records are still written only by the Orchestrator, which is spec 12's root in that mode (A-34). A loop that ends without acceptance (REQ-56) returns to spec 12's REQ-24 or REQ-51 stop; without the active policy those stops apply as written (REQ-01) |
-| 14 | Consumed: role packets; the repair Implementer gets a fresh `implementer` packet with `--predecessor` (`.ai/specs/14-task-context-and-reuse.md` C-8 row 19 and C-1 `--predecessor`); digests recorded in the contract |
-| 15 | Consumed: `checkpoint_save` (C-5), canonical JSON, note-entry parsing, `attempt` lineage through `supersedes`; the spawn of a repair Implementer is a spec-15 attempt (REQ-35, C-5 step 8: role `implementer`, `supersedes` lineage through `attempt`), while this spec's `attempt_id` is not a spec-15 `attempt_id`; repair resume is governed by this spec's `status` alone, repair boundaries are not spec-15 checkpoint kinds, and `compose`, `render` and `receipt` are not used for repair; 15's `reconcile` classifies a repair Implementer's due `green` event as complete (`manual-route`, `none`) from the leaf's original `test:`/`feat:` commits and the `done` plan row even before the repair runs (`.ai/specs/15-orchestrator-overhead.md` DM-9, canonical completion predicates and row `manual-route`); therefore `reconcile`'s entries for repair attempts are ignored. The `blocked` to `done` plan-row rewrite (REQ-35, C-5 steps 8 and 12; A-18) is a manual write that spec 15's helper neither performs nor verifies (15 DM-5 has no such transition; 15 C-10 row 19). No new attempt-record field, so no amendment of 15 |
-| 16 | Consumed, under the names of spec 16 C-6 row 19 (the subset read here): the leaf record `reviews/<leaf>/<seq>.json` with `schema_version`, `kind`, `level`, `step`, `scope_key`, `seq`, `record_digest`, `verdict`, `contract.contract_digest`, `subject.head`, `scope`, `minimum_scope`, `findings[]` (`id`, `severity`, `title`, `evidence`, `status`, `obligations`, `locations`, `check`, `same_as`), `obligations[]` (`id`, `kind`, `state`, `risks`), `outcomes[]` (`finding`, `outcome`) and `checks[]` (`check`, `receipt_id`); in the referenced DM-4 receipt the `output` object by mode (DM-8 `evidence_refs`); the DM-8 notes entries including `none — blocked`; the spec 16 REQ-56 `verification check ` blocker prefix; the DM-7a decision sections; the C-3 parsing rules. Spec 16's own `subject.clean` is not read (A-29). The recheck is an ordinary spec 16 leaf review by a fresh Validator whose prior is the record the attempt answered (REQ-47); spec 16 neither ends nor removes the NEEDS WORK stop that this loop defers. 16's decision sections keep `owner-accepted` decisions; this spec never gives outcomes |
-| 17 | Consumed, as spec 17 C-7 row 19 states: DM-9 `tdd: red output` and `tdd: green output` lines copied verbatim as `Evidence` items (DM-8 `evidence_refs`; not spec 08 DM-7 evidence references, 08 Q-06); DM-3 kinds `launch-error`, `timeout`, `interrupted` and `signal` separate infrastructure blockers from failing tests (kind `exit`, REQ-45, C-6 step 2); an unknown outcome is an evidence gap; DM-5 records for locating a failure (hint); a command is never re-run by the helper. A spec 16 capture-mode receipt carries no stream digests, only its OUTPUT reference, `artifact_id` and `manifest_sha256` (DM-8) |
-| 18 | Consumed: DM-6 `escalation`, C-3 steps 5–7 and their codes (`escalation-raised`, `escalation-unverifiable`), DM-5 keys; C-8 step 3 defines the handling of `escalation-unverifiable` and `not-requested` (`effort-not-applied`, no substitution) and leaves a spec 18 `stop` as spec 18's own stop. While every harness declares the sub-agent effort capability `unknown`, an effort escalation ends `escalation-unavailable` / `effort-not-applied` (A-27) |
-| 20 | Exposed: per-leaf `## Repair Episodes` ledger lines (DM-3: `opened`, `reserved` with `slot (local\|escalated)`, `outcome`, `closed`; the section is created on the first line, DM-1, so its absence cannot tell an inactive policy from no repair) as read-only rework evidence for spec 20's per-leaf `repairs` counts (episodes, attempts per slot, closed). Read-only contract: spec 20 may read the section and the records, and never writes, reorders, validates (ledger validity stays `ledger-invalid`, REQ-61) or reinterprets a line, and never changes a slot or a limit |
-| 13, 08 | Consumed: rename maps and kind prefixes; `loads:` and rule size |
+| 10 | Exposed: ledger and records inside captured task directories; the flag's absence or the switch gives the no-repair arm (variant strategy details `repair_policy`, `escalation_limits`, `.ai/specs/10-golden-run-tests.md` DM-6). The two switches are expressible as spec 10 REQ-52 `switches` (its `Variant switches`): the candidate variant declares `prompt_args: ["--repair-policy", "bounded-local"]`, and a control that must disable repair even where the flag could be inherited declares `env: {"ORCHESTRAIL_REPAIR_POLICY": "off"}` (`ORCHESTRAIL_REPAIR_POLICY` matches spec 10's `ORCHESTRAIL_*` rule and is neither `ORCHESTRAIL_HOME` nor `ORCHESTRAIL_LOG_ROOT`); the control normally omits both. No overlay is needed, but the owner policy file (DM-5) is read from the runner's `HOME` or `XDG_CONFIG_HOME`, which spec 10 passes through to the executor: a comparison run must have no policy file there (then it starts `local` with no escalation, REQ-05), or its candidate arm may escalate; `ORCHESTRAIL_REPAIR_POLICY=off` disables the policy, and so escalation, only in an arm that sets it. Consumed: offline suite (REQ-69). Every quality and cost claim, and the chain arithmetic, belong to 10's calculator (spec 10 REQ-11 and DM-13) |
+| 23 | Wired by spec 22 REQ-54 and spec 23 REQ-63 (with 22 DM-3 `repair_episode`, 23 DM-6 stage `repair` and C-6 row 7 of spec 23), which runs C-5 for a failed child while the policy is active, instead of its REQ-24 or REQ-51 stop. What this spec guarantees to it: spec 23's episode key is the `episode_id` (DM-2); an episode is keyed by leaf and, in its `opened` line, the contract digest, and survives serialization, worktree change and new workers, so when spec 23 REQ-14 supersedes an attempt with an open episode, copying that key into the next attempt's `repair_episode` is enough: `status` continues the same episode with its recorded slots, and every limit comes from the ledger alone, never from a spec 23 attempt count. The child keeps spec 23's own concurrency slot, its reservation and its claim on its files while the episode is open; spec 23's slot is unrelated to this spec's `local` and `escalated` slots (DM-8 `slots`). A repair runs only on the leaf's own unmerged branch in its recorded location; a child whose attempt is `merged`, `accepted` or `cleaned` is never repaired here (integration failures use spec 22's REQ-35 and REQ-45 and the D8 fix siblings); a partially merged composite keeps its merged siblings untouched; an accepted repair (`accepted` outcome, `continue`) leaves spec 23 to set the attempt `validated` and to apply its merge rules, check-merge, abort and serialization unchanged. A spec 23 REQ-04 broad stop is stated by spec 23 itself (23 REQ-04, REQ-54 and C-6 row 8): a repair worker already dispatched is not interrupted and finishes, no further attempt, repair attempt or recheck starts, its result is recorded through this spec's `outcome` step as usual, and the open episode stays open; this spec reserves no new attempt after such a stop and adds nothing to it. At most one attempt per leaf is reserved at any moment. With N > 1 one `/pae-repair` invocation is one workflow invocation performed by one fresh agent that spec 23's root spawns; the agent returns its leaf-block writes as deltas, the root commits the repair checkpoints (REQ-40) and builds a spec 23 DM-6 handoff with stage `repair`, and the repair Validator recheck is a fresh validation phase (this spec's REQ-47; requested under spec 23 C-6 row 6); ledger lines and records are still written only by the Orchestrator, which is spec 23's root in that mode (A-34). A loop that ends without acceptance (REQ-56) returns to spec 23's REQ-24 or REQ-51 stop; without the active policy those stops apply as written (REQ-01) |
+| 12 | Consumed: role packets; the repair Implementer gets a fresh `implementer` packet with `--predecessor` (`.ai/specs/12-task-context-and-reuse.md` C-8 row 17 and C-1 `--predecessor`); digests recorded in the contract |
+| 13 | Consumed: `checkpoint_save` (C-5), canonical JSON, note-entry parsing, `attempt` lineage through `supersedes`; the spawn of a repair Implementer is a spec-13 attempt (REQ-35, C-5 step 8: role `implementer`, `supersedes` lineage through `attempt`), while this spec's `attempt_id` is not a spec-13 `attempt_id`; repair resume is governed by this spec's `status` alone, repair boundaries are not spec-13 checkpoint kinds, and `compose`, `render` and `receipt` are not used for repair; 13's `reconcile` classifies a repair Implementer's due `green` event as complete (`manual-route`, `none`) from the leaf's original `test:`/`feat:` commits and the `done` plan row even before the repair runs (`.ai/specs/13-orchestrator-overhead.md` DM-9, canonical completion predicates and row `manual-route`); therefore `reconcile`'s entries for repair attempts are ignored. The `blocked` to `done` plan-row rewrite (REQ-35, C-5 steps 8 and 12; A-18) is a manual write that spec 13's helper neither performs nor verifies (13 DM-5 has no such transition; 13 C-10 row 17). No new attempt-record field, so no amendment of 13 |
+| 15 | Consumed, under the names of spec 15 C-6 row 17 (the subset read here): the leaf record `reviews/<leaf>/<seq>.json` with `schema_version`, `kind`, `level`, `step`, `scope_key`, `seq`, `record_digest`, `verdict`, `contract.contract_digest`, `subject.head`, `scope`, `minimum_scope`, `findings[]` (`id`, `severity`, `title`, `evidence`, `status`, `obligations`, `locations`, `check`, `same_as`), `obligations[]` (`id`, `kind`, `state`, `risks`), `outcomes[]` (`finding`, `outcome`) and `checks[]` (`check`, `receipt_id`); in the referenced DM-4 receipt the `output` object by mode (DM-8 `evidence_refs`); the DM-8 notes entries including `none — blocked`; the spec 15 REQ-56 `verification check ` blocker prefix; the DM-7a decision sections; the C-3 parsing rules. Spec 15's own `subject.clean` is not read (A-29). The recheck is an ordinary spec 15 leaf review by a fresh Validator whose prior is the record the attempt answered (REQ-47); spec 15 neither ends nor removes the NEEDS WORK stop that this loop defers. 15's decision sections keep `owner-accepted` decisions; this spec never gives outcomes |
+| 14 | Consumed, as spec 14 C-7 row 17 states: DM-9 `tdd: red output` and `tdd: green output` lines copied verbatim as `Evidence` items (DM-8 `evidence_refs`; not spec 11 DM-7 evidence references, 11 Q-06); DM-3 kinds `launch-error`, `timeout`, `interrupted` and `signal` separate infrastructure blockers from failing tests (kind `exit`, REQ-45, C-6 step 2); an unknown outcome is an evidence gap; DM-5 records for locating a failure (hint); a command is never re-run by the helper. A spec 15 capture-mode receipt carries no stream digests, only its OUTPUT reference, `artifact_id` and `manifest_sha256` (DM-8) |
+| 16 | Consumed: DM-6 `escalation`, C-3 steps 5–7 and their codes (`escalation-raised`, `escalation-unverifiable`), DM-5 keys; C-8 step 3 defines the handling of `escalation-unverifiable` and `not-requested` (`effort-not-applied`, no substitution) and leaves a spec 16 `stop` as spec 16's own stop. While every harness declares the sub-agent effort capability `unknown`, an effort escalation ends `escalation-unavailable` / `effort-not-applied` (A-27) |
+| 18 | Exposed: per-leaf `## Repair Episodes` ledger lines (DM-3: `opened`, `reserved` with `slot (local\|escalated)`, `outcome`, `closed`; the section is created on the first line, DM-1, so its absence cannot tell an inactive policy from no repair) as read-only rework evidence for spec 18's per-leaf `repairs` counts (episodes, attempts per slot, closed). Read-only contract: spec 18 may read the section and the records, and never writes, reorders, validates (ledger validity stays `ledger-invalid`, REQ-61) or reinterprets a line, and never changes a slot or a limit |
+| 09, 11 | Consumed: rename maps and kind prefixes; `loads:` and rule size |
 | 07 | None |
 
 ### C-11 Acceptance suite
@@ -1451,20 +1451,20 @@ T-02 | beta | atomic-tests: not-started | atomic-execution: not-started | atomic
 
 `plan.md` has `## Subtasks` with T-01 `done` and T-02 `not-started` (`Depends On` T-01);
 `T-01-alpha/description.md` has `## Scope` with `Target files: src/a.py, tests/test_a.py` and two
-criteria. `verification/reviews/T-01/1.json` is a synthetic spec-16 record (valid self-digest,
+criteria. `verification/reviews/T-01/1.json` is a synthetic spec-15 record (valid self-digest,
 `subject.head` = C2, verdict `NEEDS WORK`, obligations `AC-1` `failed` and `AC-2` `verified` with
 empty `risks`, finding `T-01/F1` `important`, `obligations: ["AC-1"]`, `check: "test"`, status
 `open`, `locations` `[{"path": "src/a.py", "line": 2}, {"path": "tests/test_a.py", "line":
 null}]`). A *valid draft* classifies `T-01/F1` as `local-defect` with `failing-check`. Variants
 named in an AC derive from R1. Model inputs are synthetic spec-04 reports; effort inputs are
-synthetic spec-18 decisions.
+synthetic spec-16 decisions.
 
 ### C-12 Files created or changed
 
 New: `scripts/repair-episode.py`, `scripts/check-repair-episode.py`, `rules/contract-repair.md`,
 `workflows/pae-repair.md`, `.ai/adr/<NNNN>-*.md`. Changed: the files of C-7, `.gitignore`,
 `scripts/setup-new-project.sh` (rule list, `GITIGNORE_ENTRIES`), `scripts/sync.sh` (rule list) or
-13's replacement, `scripts/README.md`, `.ai/principles/domain.md` (REQ-73),
+09's replacement, `scripts/README.md`, `.ai/principles/domain.md` (REQ-73),
 `.ai/memory/architecture.md` (scripts table, inventory counts, workflow list),
 `.ai/context/runbook.md` (suite command, switch), `.ai/adr/index.md`.
 
@@ -1475,10 +1475,10 @@ New: `scripts/repair-episode.py`, `scripts/check-repair-episode.py`, `rules/cont
 | NFR-01 | Determinism | Byte-identical stdout for identical files, repository state and arguments (C-1 inputs only) | AC-24 |
 | NFR-02 | Read-only, no model, no network | The helper writes no file, imports no network module, starts no process other than `git` | AC-24 (fixture tree identity; static import scan) |
 | NFR-03 | Portability | Python 3.11+ standard library; `git`, `bash`, `ln`, `cmp` and `sha256sum` or `shasum` for the save procedure | AC-25 |
-| NFR-04 | Bounded input | 1,048,576 bytes per file read (matching spec 15 REQ-43); larger → exit 2 `input-too-large` | AC-25 |
+| NFR-04 | Bounded input | 1,048,576 bytes per file read (matching spec 13 REQ-43); larger → exit 2 `input-too-large` | AC-25 |
 | NFR-05 | Privacy | stderr and ledger lines carry no finding text or file contents; records stay in the ignored task directory | AC-24, AC-30 |
-| NFR-06 | Rule size | `rules/contract-repair.md` within spec 08's limit when in force (C-4 split rule) | AC-35 |
-| NFR-07 | Performance | N/A — no owner target exists and none is invented; measured effects belong to spec 09 (REQ-74) | — |
+| NFR-06 | Rule size | `rules/contract-repair.md` within spec 11's limit when in force (C-4 split rule) | AC-35 |
+| NFR-07 | Performance | N/A — no owner target exists and none is invented; measured effects belong to spec 10 (REQ-74) | — |
 
 ## Edge Cases & Failure Modes
 
@@ -1489,7 +1489,7 @@ New: `scripts/repair-episode.py`, `scripts/check-repair-episode.py`, `rules/cont
 | Invalid policy file | Stop before writes | REQ-13 |
 | Policy file absent | Local slot only; after a failed local attempt `exhausted`/`local` | REQ-05, REQ-52 |
 | `start: escalated` without an entry for the harness | `escalation-unavailable`/`escalation-unauthorized`; stop | REQ-06, C-8 |
-| Spec-16 helper unavailable (DM-8 `none` entry) | `review-unavailable`; today's stop | REQ-17 |
+| Spec-15 helper unavailable (DM-8 `none` entry) | `review-unavailable`; today's stop | REQ-17 |
 | Record edited after the DM-8 entry | `review-invalid`; stop | REQ-17 |
 | Validator wrote no draft or a wrong draft | `ineligible`/`draft-invalid`; stop | REQ-21, REQ-26 |
 | Draft classifies a critical finding as `local-defect` | Override `hard-stop`; ineligible | REQ-22 |
@@ -1504,7 +1504,7 @@ New: `scripts/repair-episode.py`, `scripts/check-repair-episode.py`, `rules/cont
 | Interruption after `reserved`, before `dispatched` | `dispatch-unknown` stop; owner `repair-cancel` line permits cancellation | REQ-34 |
 | Harness refuses the spawn | `cancelled`/`spawn-refused`; one new reservation; a second refusal → `stopped`/`dispatch-refused` | REQ-33 |
 | Re-running `reserve` after a `reserved` line exists | Exit 1 `attempt-pending`; stop with the episode open | REQ-04 |
-| Two Orchestrators on one task at once | Not supported, as in spec 15 (`.ai/specs/15-orchestrator-overhead.md` Out of Scope); no lock is added | — |
+| Two Orchestrators on one task at once | Not supported, as in spec 13 (`.ai/specs/13-orchestrator-overhead.md` Out of Scope); no lock is added | — |
 | Repair worker edits a frozen test | `frozen-tests-changed`; `violation`; stop | REQ-42 |
 | Repair worker edits a path outside allowed paths or creates a non-test file | `scope-exceeded`; stop | REQ-41 |
 | A new test passes before the fix | Blocker `red-not-established`; stop | REQ-44 |
@@ -1515,7 +1515,7 @@ New: `scripts/repair-episode.py`, `scripts/check-repair-episode.py`, `rules/cont
 | Worker lost after the `test:` commit | Recheck, then outcome | REQ-47, REQ-48 |
 | Worker lost with uncommitted changes | `stopped`/`worker-lost-dirty`; changes preserved | REQ-54 |
 | Provider limit | `stopped`/`provider-stopped`; no account or model switch | REQ-57 |
-| Recheck check cannot complete (spec 16 blocker) | `recheck-blocked`; stop | REQ-54 |
+| Recheck check cannot complete (spec 15 blocker) | `recheck-blocked`; stop | REQ-54 |
 | Recheck without a record | `recheck-unrecorded`; stop | REQ-54 |
 | Repeat of the same defect after the local attempt | `repeats` recorded; escalation only if authorized and still eligible | DM-16, REQ-52 |
 | New critical finding after the local attempt | New classification ineligible (`hard-stop`) | REQ-22, REQ-52 |
@@ -1601,7 +1601,7 @@ Helper cases run on fixture R1 (C-11); text cases read the delivered files.
   exits 1 `context-answer-missing`; with an answer whose `source` is empty, the same; with a cited
   answer, the contract's `context_answer` equals it.
 - **AC-15** (REQ-07, REQ-29, REQ-30, REQ-35, REQ-36) — Given the rule's repair loop, then the
-  numbered steps titled Resolve, Packet, Reserve, Plan row and spec-15 record, Spawn, RED and GREEN
+  numbered steps titled Resolve, Packet, Reserve, Plan row and spec-13 record, Spawn, RED and GREEN
   appear in that order; Packet names `--predecessor`; Spawn names `description path`, `WORK_DIR`,
   `branch`, `contract path` and `packet path`; the reserve-refusal table names
   `escalation-unauthorized`, `escalation-identical`, `model-unresolved`, `effort-not-applied`,
@@ -1610,7 +1610,7 @@ Helper cases run on fixture R1 (C-11); text cases read the delivered files.
   `none`, `open`, `classify`, `reserve-local`, `reserve-escalated`, `cancel`,
   `dispatched-pending`, `recheck`, `outcome`, `close` and `stop`; given R1 with a dirty `src/a.py`, `reserve` exits 1 `tree-changed`; given a second `reserve`
   after a `RESERVED` line without follow-up, exit 1 `attempt-pending`.
-- **AC-16** (REQ-31) — Given the save function of spec 15 run on a contract whose final file exists
+- **AC-16** (REQ-31) — Given the save function of spec 13 run on a contract whose final file exists
   with other bytes, the result is `conflict`; and the rule holds the C-5 `Saving:` verbatim line.
 - **AC-17** (REQ-32, REQ-33, REQ-34) — Given a `RESERVED` line without a follow-up, `status`
   reports `stop`/`dispatch-unknown`; with a DM-4 `repair-cancel: T-01.E1.A1 — not dispatched
@@ -1690,13 +1690,13 @@ Helper cases run on fixture R1 (C-11); text cases read the delivered files.
 - **AC-34** (REQ-72, REQ-73, REQ-74) — Given `.ai/adr/index.md`, a new Accepted entry names the repair
   policy; the ADR names the stop change, ledger, slots, classification, escalation and opt-in;
   `.ai/principles/domain.md` defines the five REQ-73 terms, including `Repair escalation`; `docs/USAGE.md` and the ADR state that
-  no effect has been measured and that comparison belongs to spec 09.
+  no effect has been measured and that comparison belongs to spec 10.
 - **AC-35** (REQ-63, NFR-06) — Given the rule and `version`, each anchored registry equals the
   corresponding `version` registry; given a temporary copy with one value changed, the suite fails
-  naming that line; where spec 08's meter exists, it reports no `rule-size-exceeded` for the rule
+  naming that line; where spec 11's meter exists, it reports no `rule-size-exceeded` for the rule
   or its split files.
 - **AC-36** (REQ-06, C-8) — Given a policy whose `claude` entry has only `effort: high` and a
-  synthetic spec-18 decision with `outcome: not-requested` and reasons containing
+  synthetic spec-16 decision with `outcome: not-requested` and reasons containing
   `capability-unknown` and `escalation-unverifiable`, `reserve --slot escalated` exits 1
   `effort-not-applied`, and `close --terminal escalation-unavailable --detail effort-not-applied`
   then exits 0; given a policy declaring a model and a spec-04 report with status `fallback` for
@@ -1807,8 +1807,8 @@ Helper cases run on fixture R1 (C-11); text cases read the delivered files.
 | REQ-75 | AC-41 |
 
 Every AC names at least one REQ above. Shared gates: G1 — REQ-09, C-5 step 14, C-10 row 05
-(identities, requested/resolved/actual, unknown stays unknown); G2 — C-10 row 09 (no-repair arm,
-comparisons owned by 09); G3 — REQ-07, REQ-22, REQ-38–REQ-47 (test-first, frozen RED intact,
+(identities, requested/resolved/actual, unknown stays unknown); G2 — C-10 row 10 (no-repair arm,
+comparisons owned by 10); G3 — REQ-07, REQ-22, REQ-38–REQ-47 (test-first, frozen RED intact,
 independent recheck, owner stops kept); G4 — REQ-01, REQ-12, REQ-17, REQ-60, C-8 (conservative
 paths, no hidden substitution); G5 — Actors, NFR-02, REQ-08 (single writer, read-only helper,
 optional); G6 — C-11, REQ-68–REQ-70 (failing fixtures first, no paid run); G7 — REQ-11, REQ-60,
@@ -1819,49 +1819,49 @@ DM-1 (disable, resume, preserved evidence); G8 — REQ-05, REQ-74 (no invented e
 | Risk | Impact | Likelihood | Mitigation |
 |---|---|---|---|
 | The Validator classifies a non-local defect as `local-defect` | Wasted attempt or wrong repair | Medium | Overrides from severity, obligations, risks and cross-leaf paths; scope and frozen checks; independent recheck; one attempt per slot |
-| The new-file-only rule for tests forces an existing test file to stay incomplete | More `repair-scope` stops | Medium | Conservative by design (A-12); spec 09 can justify relaxing it |
+| The new-file-only rule for tests forces an existing test file to stay incomplete | More `repair-scope` stops | Medium | Conservative by design (A-12); spec 10 can justify relaxing it |
 | Effort escalation is never applicable while both harnesses declare `unknown` | Effort-only policies always stop | High | Documented (C-8); owner declares a model escalation or none |
 | A forged decision line in `### Assumptions` | Episode reopened without the owner | Low | Text rule (P10 limitation); lines are reviewed with the state file; reopen keeps earlier episodes visible |
 | Orphan records accumulate | Clutter in an ignored directory | Low | Never reused (REQ-62); deletion after closure is safe |
-| Spec 12a REQ-54 or spec 12 REQ-63 and this spec drift apart | A parallel child repairs under another episode key or limit | Medium | C-10 row 12 and A-34 fix the shared names; limits come from the ledger only |
+| Spec 22 REQ-54 or spec 23 REQ-63 and this spec drift apart | A parallel child repairs under another episode key or limit | Medium | C-10 row 23 and A-34 fix the shared names; limits come from the ledger only |
 | Workflow edits break a frozen phrase | Validator red | Low | C-7 constraints; AC-31, AC-32 |
 
 ## Assumptions
 
-- A-01 | File names | Resolved: today's names in text; spec 13's maps at implementation, with `/pae-repair` becoming `atomic-execution-repair` (phase `atomic-execution`, step `4`) | Source: `.ai/specs/README.md` (dependency table); `.ai/specs/13-model-only-harnesses-and-rule-naming.md` Notes → Files and sections created after this spec, DM-3, DM-11 | Reversible: yes
+- A-01 | File names | Resolved: today's names in text; spec 09's maps at implementation, with `/pae-repair` becoming `atomic-execution-repair` (phase `atomic-execution`, step `4`) | Source: `.ai/specs/README.md` (dependency table); `.ai/specs/09-model-only-harnesses-and-rule-naming.md` Notes → Files and sections created after this spec, DM-3, DM-11 | Reversible: yes
 - A-02 | Opt-in form | Resolved: per-invocation `/spec-run` flag `--repair-policy bounded-local`; the owner's flag is the per-run authorization, the ADR records the stop change | Source: original REQ-01 and §1; README workstream 8 (`.ai/specs/README.md`, roadmap workstream 8); G3 owner-stop rule | Reversible: yes
-- A-03 | Disable switch | Resolved: `ORCHESTRAIL_REPAIR_POLICY=off`; any value other than unset, empty or `on` disables | Source: spec 14 REQ-32 rule, shared by specs 15, 16, 17, 18 | Reversible: yes
+- A-03 | Disable switch | Resolved: `ORCHESTRAIL_REPAIR_POLICY=off`; any value other than unset, empty or `on` disables | Source: spec 12 REQ-32 rule, shared by specs 13, 15, 14, 16 | Reversible: yes
 - A-04 | Where the tooling lives | Resolved: helper and suite under `scripts/`, outside the validator inventory and `tests/` | Source: ADR-0019 Decision 3 (`.ai/adr/0019-…:68-80`) | Reversible: yes
-- A-05 | Who classifies | Resolved: the Validator (independent, already holds the findings) writes a draft; the helper applies deterministic, more restrictive overrides | Source: original §3 roles; G3; spec 16 C-6 leaves classification to 19 | Reversible: yes
+- A-05 | Who classifies | Resolved: the Validator (independent, already holds the findings) writes a draft; the helper applies deterministic, more restrictive overrides | Source: original §3 roles; G3; spec 15 C-6 leaves classification to 17 | Reversible: yes
 - A-06 | Critical findings | Resolved: any `critical` finding makes the episode ineligible | Source: original §7 step 10 and REQ-02; `workflows/pav-check.md:63-68`, `:86-87` (weakened tests and missing GREEN are critical) | Reversible: yes
-- A-07 | Repair requires a spec-16 record | Resolved: no record → today's stop | Source: spec 16 C-6 (finding ids, outcomes); G4 conservative path | Reversible: yes
-- A-08 | Ledger location | Resolved: protected append-only lines in task `state.md` as the authority on limits, write-once JSON under the ignored `<task>/repairs/` for detail | Source: original §6 (protected from compression); spec 18 DM-5 precedent; spec 15 REQ-37 ignore precedent | Reversible: yes
-- A-09 | Economic choice | Resolved: the owner's `start` value; no probability or cost in this spec; arithmetic belongs to spec 09's calculator | Source: original REQ-05 and §10; `.ai/specs/09-golden-run-tests.md` `## Source` (original text, break-even example), REQ-11, DM-13 | Reversible: yes
+- A-07 | Repair requires a spec-15 record | Resolved: no record → today's stop | Source: spec 15 C-6 (finding ids, outcomes); G4 conservative path | Reversible: yes
+- A-08 | Ledger location | Resolved: protected append-only lines in task `state.md` as the authority on limits, write-once JSON under the ignored `<task>/repairs/` for detail | Source: original §6 (protected from compression); spec 16 DM-5 precedent; spec 13 REQ-37 ignore precedent | Reversible: yes
+- A-09 | Economic choice | Resolved: the owner's `start` value; no probability or cost in this spec; arithmetic belongs to spec 10's calculator | Source: original REQ-05 and §10; `.ai/specs/10-golden-run-tests.md` `## Source` (original text, break-even example), REQ-11, DM-13 | Reversible: yes
 - A-10 | Escalation authorization | Resolved: only an owner policy file naming a model and/or effort per harness; without it no escalation | Source: original REQ-06 ("no permitted candidate means an explicit stop") | Reversible: yes
-- A-11 | Partial escalation | Resolved: every declared component must be applied, else `escalation-unavailable` | Source: G4 no hidden substitution; spec 18 C-6 row 19 leaves the handling to 19 | Reversible: yes
+- A-11 | Partial escalation | Resolved: every declared component must be applied, else `escalation-unavailable` | Source: G4 no hidden substitution; spec 16 C-6 row 17 leaves the handling to 17 | Reversible: yes
 - A-12 | New files in a repair | Resolved: only new test files, only at stage `red`; no edits to existing test files outside allowed paths | Source: `rules/tdd.md:169-189` (frozen set; added tests allowed); best practice, smallest reversible choice for deterministic frozen-file checks | Reversible: yes
 - A-13 | Characterization and `n-a` leaves | Resolved: no new tests in either; repairs there rely on frozen pins or failing checks (or inspection for `n-a`) | Source: `rules/tdd.md:119-131` (a fix in a refactor must be split), original §9 | Reversible: yes
-- A-14 | Lost repair worker | Resolved: never recreated within the attempt; its commits get a recheck, an unchanged tree keeps the prior verdict | Source: original §7 "a failure/timeout does not return the slot"; spec 15 C-7 | Reversible: yes
+- A-14 | Lost repair worker | Resolved: never recreated within the attempt; its commits get a recheck, an unchanged tree keeps the prior verdict | Source: original §7 "a failure/timeout does not return the slot"; spec 13 C-7 | Reversible: yes
 - A-15 | Blocked attempts | Resolved: end the episode `stopped` without a further review | Source: `rules/orchestration.md:187` (a blocker stops the run) | Reversible: yes
 - A-16 | Missing context | Resolved: the Orchestrator asks the Arbiter; a cited answer enters the contract; an uncited answer is class B and stops | Source: `rules/orchestration.md:47-50`, `:140-153`, `:173-178` | Reversible: yes
 - A-17 | Model escalation mechanics | Resolved: a temporary one-row plan resolved through the existing `--resolve-plan` CLI, no fallback | Source: `scripts/model_plan.py:167-180`, `scripts/model-catalog.py:330-345`; `rules/workflow-reference.md:166-176` | Reversible: yes
-- A-18 | Plan row during repair | Resolved: the Orchestrator writes `done` over `blocked` at reservation and before the recheck | Source: spec 15 DM-5 validator transitions and DM-9 predicates (`.ai/specs/15-orchestrator-overhead.md` DM-5 and DM-9) | Reversible: yes
-- A-19 | Spawn refusal | Resolved: one cancellation per slot, then stop | Source: spec 18 REQ-10 (one new spawn after a refusal); P5 | Reversible: yes
-- A-20 | Reopening and unknown dispatch | Resolved: only by owner decision lines in `### Assumptions` | Source: original §8; spec 16 DM-7a decision-section precedent | Reversible: yes
-- A-21 | Parallel mode | Resolved: wired by spec 12a REQ-54 and spec 12 REQ-63, which call C-5 (C-10 row 12); this spec's files stay sequential and carry no spec 12 state | Source: `.ai/specs/README.md` (dependency table: spec 12 lists 19 as a prerequisite); spec 12 REQ-54 | Reversible: yes
+- A-18 | Plan row during repair | Resolved: the Orchestrator writes `done` over `blocked` at reservation and before the recheck | Source: spec 13 DM-5 validator transitions and DM-9 predicates (`.ai/specs/13-orchestrator-overhead.md` DM-5 and DM-9) | Reversible: yes
+- A-19 | Spawn refusal | Resolved: one cancellation per slot, then stop | Source: spec 16 REQ-10 (one new spawn after a refusal); P5 | Reversible: yes
+- A-20 | Reopening and unknown dispatch | Resolved: only by owner decision lines in `### Assumptions` | Source: original §8; spec 15 DM-7a decision-section precedent | Reversible: yes
+- A-21 | Parallel mode | Resolved: wired by spec 22 REQ-54 and spec 23 REQ-63, which call C-5 (C-10 row 23); this spec's files stay sequential and carry no spec 23 state | Source: `.ai/specs/README.md` (dependency table: spec 23 lists 17 as a prerequisite); spec 23 REQ-54 | Reversible: yes
 - A-22 | Policy disabled mid-episode | Resolved: episode paused, not closed; re-enabling continues it with its slots | Source: original §11 row "policy disabled"; reset protection §8 | Reversible: yes
 - A-23 | Commit types | Resolved: repair commits are `test:` (new tests) and `fix:` | Source: `rules/git-flow.md:94-96` | Reversible: yes
-- A-24 | Run log | Resolved: no new events or fields; `pae-repair` steps logged with existing vocabulary as step names derive from workflow files | Source: `rules/run-log.md:220-229`; spec 15 REQ-31 precedent | Reversible: yes
+- A-24 | Run log | Resolved: no new events or fields; `pae-repair` steps logged with existing vocabulary as step names derive from workflow files | Source: `rules/run-log.md:220-229`; spec 13 REQ-31 precedent | Reversible: yes
 - A-25 | Timeouts and caps | Resolved: none | Source: ADR-0020; G8 | Reversible: yes
 - A-26 | Fix leaves and composite children | Resolved: covered when validated through step 4.3; composite integration excluded | Source: `workflows/spec-run.md:333-340` (step 6 reuses step 4 handoffs); `workflows/phase-composite-validation.md:89-143` | Reversible: yes
-- A-27 | Escalation with unknown effort capability | Resolved: `effort-not-applied`, stop | Source: coordinator note (both harnesses declare `unknown`); spec 18 C-3 step 6 | Reversible: yes
-- A-28 | Spec 17 evidence lines | Resolved: copied verbatim as `Evidence` items (DM-8 `evidence_refs`; not spec 08 DM-7 evidence references); the repair's own captured runs append OUTPUT lines inside DM-13 entries | Source: `.ai/specs/17-bounded-tool-output.md` DM-9, C-7 row 19 | Reversible: yes
-- A-29 | Tree cleanliness at reservation | Resolved: this spec's own definition (outside the task directory and `AI_DIR`); spec 16's `subject.clean` is not read | Source: `.ai/specs/16-scoped-verification.md` DM-3 `clean` (counts `AI_DIR` paths); ADR-0012 (tracked `.ai/` here) | Reversible: yes
+- A-27 | Escalation with unknown effort capability | Resolved: `effort-not-applied`, stop | Source: coordinator note (both harnesses declare `unknown`); spec 16 C-3 step 6 | Reversible: yes
+- A-28 | Spec 14 evidence lines | Resolved: copied verbatim as `Evidence` items (DM-8 `evidence_refs`; not spec 11 DM-7 evidence references); the repair's own captured runs append OUTPUT lines inside DM-13 entries | Source: `.ai/specs/14-bounded-tool-output.md` DM-9, C-7 row 17 | Reversible: yes
+- A-29 | Tree cleanliness at reservation | Resolved: this spec's own definition (outside the task directory and `AI_DIR`); spec 15's `subject.clean` is not read | Source: `.ai/specs/15-scoped-verification.md` DM-3 `clean` (counts `AI_DIR` paths); ADR-0012 (tracked `.ai/` here) | Reversible: yes
 - A-30 | Collection stubs and touched test files | Resolved: every path of a `test` commit stays frozen (stubs have no machine-readable marker); findings located in a frozen path are ineligible; test files added by GREEN follow `rules/tdd.md:189` and are not frozen | Source: `workflows/pae-tests.md:151-155`; `rules/tdd.md:179-189`; G3 | Reversible: yes
-- A-31 | Effective escalation | Resolved: every declared component must resolve and at least one must change the dispatch (model differs from the local resolution, or spec 18 raised effort with source `escalation`) | Source: G4; spec 18 C-3 step 5 (`.ai/specs/18-reasoning-effort-policy.md` C-3 step 5) | Reversible: yes
-- A-34 | Spec 12 naming and writer | Resolved: spec 12's "episode key" is `episode_id` (DM-2); its "slot" is its concurrency slot, never the `local`/`escalated` slots; in parallel mode spec 12's root is the Orchestrator for ledger and record writes (this spec's REQ-08); the spec 12 wiring of REQ-54 is accepted as written, including its statement of the broad-stop case (a dispatched repair worker finishes, no further attempt, repair attempt or recheck starts, the result is recorded through `outcome`, the episode stays open), which spec 12 now states in its own requirements and which this spec only follows | Source: spec 12 REQ-04, REQ-54, C-6 row 8 and A-29; Terminology rows "Episode key" and "Slot"; DM-3 `repair_episode`, DM-6 stage `repair`; spec 12 Notes (follow-up for spec 19: none) | Reversible: yes
+- A-31 | Effective escalation | Resolved: every declared component must resolve and at least one must change the dispatch (model differs from the local resolution, or spec 16 raised effort with source `escalation`) | Source: G4; spec 16 C-3 step 5 (`.ai/specs/16-reasoning-effort-policy.md` C-3 step 5) | Reversible: yes
+- A-34 | Spec 23 naming and writer | Resolved: spec 23's "episode key" is `episode_id` (DM-2); its "slot" is its concurrency slot, never the `local`/`escalated` slots; in parallel mode spec 23's root is the Orchestrator for ledger and record writes (this spec's REQ-08); the spec 23 wiring of REQ-54 is accepted as written, including its statement of the broad-stop case (a dispatched repair worker finishes, no further attempt, repair attempt or recheck starts, the result is recorded through `outcome`, the episode stays open), which spec 23 now states in its own requirements and which this spec only follows | Source: spec 23 REQ-04, REQ-54, C-6 row 8 and A-29; Terminology rows "Episode key" and "Slot"; DM-3 `repair_episode`, DM-6 stage `repair`; spec 23 Notes (follow-up for spec 17: none) | Reversible: yes
 - A-33 | Dirty tree on resume | Resolved: the existing git-flow preflight stop stays first; the owner reconciles, then `status` decides | Source: `rules/git-flow.md:16-22`; G4 (ambiguous state stops before mutation) | Reversible: yes
-- A-32 | Concurrent Orchestrators | Resolved: unsupported, no lock; sequential re-reservation refused `attempt-pending` | Source: `.ai/specs/15-orchestrator-overhead.md` Out of Scope | Reversible: yes
+- A-32 | Concurrent Orchestrators | Resolved: unsupported, no lock; sequential re-reservation refused `attempt-pending` | Source: `.ai/specs/13-orchestrator-overhead.md` Out of Scope | Reversible: yes
 
 ## Decisions
 
@@ -1872,25 +1872,25 @@ N/A — auto mode; every resolution is recorded under Assumptions.
 ### Session 2026-11-14
 
 - No question was put to the owner (auto mode under standing authorization). A coordinator note
-  reported the finished state of specs 17 and 18 (effort capability `unknown` on both harnesses;
-  17's notes lines and outcome kinds); folded into C-8, A-27 and A-28.
+  reported the finished state of specs 14 and 16 (effort capability `unknown` on both harnesses;
+  14's notes lines and outcome kinds); folded into C-8, A-27 and A-28.
 
 ## Open Questions
 
 - Q-01 | non-blocker | Should this repository track `<task>/repairs/` as knowledge (ADR-0012)
   instead of ignoring it? Impact: detail survives a fresh clone. Recommended: ignore, matching
-  specs 15 and 16; limits already survive in the ledger lines.
+  specs 13 and 15; limits already survive in the ledger lines.
 - Q-02 | non-blocker | Should a repair be allowed to add tests to an existing test file when every
   test named in the RED digest stays byte-identical? Impact: fewer `repair-scope` stops.
-  Recommended: no until spec 09 shows misses do not rise.
+  Recommended: no until spec 10 shows misses do not rise.
 - Q-03 | non-blocker | Should repair apply in `/phase-pipeline` single-session runs? Impact: a second
   integration point. Recommended: later spec; today's stop kept.
 
 ## Notes
 
-### Name mapping (spec 13)
+### Name mapping (spec 09)
 
-| Today | After 13 |
+| Today | After 09 |
 |---|---|
 | `workflows/pav-check.md` | `workflows/atomic-validation-check.md` |
 | `workflows/pae-implement.md`; new `workflows/pae-repair.md` | `workflows/atomic-execution-implement.md`; `workflows/atomic-execution-repair.md` |
@@ -1898,23 +1898,23 @@ N/A — auto mode; every resolution is recorded under Assumptions.
 | `rules/orchestration.md`, `rules/tdd.md`, `rules/workflow-globals.md`, `rules/workflow-reference.md` | `contract-orchestration`, `contract-tdd`, `contract-phases`, `contract-state-files` |
 | `workflows/spec-run.md` | unchanged |
 
-Name map (spec 13 REQ-68): `rules/contract-repair.md` receives no text moved out of a rule that has a row in `docs/name-map.json`, so it gets no row, no `docs/USAGE.md` row change and no `path_changes` entry, and the edits of existing files in C-7 (the always-stop bullet of `### Conditions that always stop the run`, the `rules/workflow-globals.md` sentence, the `loads:` entry of `workflows/spec-run.md`) are added sentences, section entries or `loads:` entries located by heading or sentence, which survive 13's file renames.
+Name map (spec 09 REQ-68): `rules/contract-repair.md` receives no text moved out of a rule that has a row in `docs/name-map.json`, so it gets no row, no `docs/USAGE.md` row change and no `path_changes` entry, and the edits of existing files in C-7 (the always-stop bullet of `### Conditions that always stop the run`, the `rules/workflow-globals.md` sentence, the `loads:` entry of `workflows/spec-run.md`) are added sentences, section entries or `loads:` entries located by heading or sentence, which survive 09's file renames.
 
 ### Implementation hints (nonbinding)
 
 - Hint: order — (1) suite skeleton and fixture R1 with failing cases; (2) ledger parsing, `status`,
   `open`; (3) `classify` and overrides; (4) `reserve`, `check`, `cancel`; (5) `outcome`, progress,
   `close`; (6) rule and workflow text with failing text cases first; (7) docs, ignore rule, ADR.
-- Hint: reuse spec 16's C-3 parsing code by copying the rules, not by importing its helper, so that
+- Hint: reuse spec 15's C-3 parsing code by copying the rules, not by importing its helper, so that
   each helper stays independently runnable.
-- Hint: spec 17's DM-5 records help the repair Implementer locate the first failing test in a
+- Hint: spec 14's DM-5 records help the repair Implementer locate the first failing test in a
   captured output.
 
 ### Change record
 
-- 2026-11-14 — reconciliation with refined peer specs. Targeted edits against specs 09, 12, 13, 14, 15, 16, 17, 18 and 20 in their refined state; no id renumbered, no Q answered. (1) DM-8 `evidence_refs` reads the spec 16 receipt `output` object by mode (`direct`: stream digests; `capture-output`: `reference`, `artifact_id`, `manifest_sha256`) and `findings` come from `findings[].id`. (2) Every spec 16 field this spec reads was checked against spec 16 C-6 row 19; C-10 row 16 now lists them by name. (3) REQ-47, C-5 step 12 and C-10 row 16 state that a recheck is an ordinary spec 16 leaf review whose prior is the answered record and that spec 16 neither ends nor removes the deferred stop. (4) and (5) Every citation of specs 09, 12, 13, 14, 15, 16, 17 and 18 by line number is replaced by a requirement, data-model, contract or section id; REQ-45 and C-10 row 17 follow spec 17 DM-3, DM-9 and C-7 row 19. (6) Spec 12 REQ-54 now wires repair: the Source, Out of Scope, A-21, the spec 12 follow-up and C-10 row 12 state the carry-over of the episode key, the handoff stage `repair` and the no-repair cases; A-34 added. (7) C-4 and C-6 state spec 13's kind, `load`, `phase` and `step`. (8) C-8 step 3 and C-10 row 18 state that an `escalation-unverifiable` effort is never substituted and that a spec 18 stop stays spec 18's own. (9) C-10 row 20 states the read-only contract and the ledger fields spec 20 reads. (10) C-10 row 09 maps the two switches onto spec 09 REQ-52 `switches`.
-- 2026-11-14 — second reconciliation pass. Targeted edits against specs 10, 12, 13 and 15; no id renumbered, no Q answered, no requirement or acceptance criterion added (AC-31 gains one clause). (1) Terminology "Repair attempt", DM-2 and C-10 row 15 state that the repair `attempt_id` is not a spec 15 `attempt_id` while the spawn of the repair Implementer is a spec 15 attempt with `supersedes` lineage through `attempt`, that repair resume is governed by `status` alone, that `compose`, `render` and `receipt` are not used for repair, that `reconcile` entries for repair attempts are ignored, and that the `blocked` to `done` plan-row rewrite is a manual write the spec 15 helper neither performs nor verifies. (2) C-6 gains the metadata paragraph: front matter keys `reads`, `writes` and `called_by` (`spec-run`) and a `Called by:` line that begins with the backticked command (spec 10 REQ-05, REQ-23, REQ-35, REQ-46 and A-54); AC-31 asserts it. (3) C-10 row 12 and A-34 say that spec 12 states the broad-stop case itself (12 REQ-04, REQ-54, C-6 row 8, A-29) and its Terminology rows "Episode key" and "Slot" match A-34; the Notes follow-up is updated. (4) A Notes sentence records that `rules/contract-repair.md` moves no text out of a mapped rule, so no name-map row under 13 REQ-68, and the C-7 anchors of the `pav-check`, `spec-run` and `workflow-globals` edits are given by sentence first, with today's line numbers only as a locator. (5) to (7) Checked and unchanged: the spec 16 fields read are those of 16 C-6 row 19 only; C-8 step 3 and C-10 row 18 agree with 18 C-6 row 19, REQ-29 and C-3 step 5; no citation of specs 09, 17 or 20 by line number remains.
-- 2026-11-14 — independent final review: spec 17 lines are `Evidence` items, not 08 DM-7 evidence references; REQ-33 sets 18's `session.parameter: "absent"` after an effort refusal; `DECISION.json` shape fixed; disable switch follows spec 14 REQ-32; `/pav-check` insertion anchor corrected; neutral provenance wording; citations corrected.
+- 2026-11-14 — reconciliation with refined peer specs. Targeted edits against specs 10, 23, 09, 12, 13, 15, 14, 16 and 18 in their refined state; no id renumbered, no Q answered. (1) DM-8 `evidence_refs` reads the spec 15 receipt `output` object by mode (`direct`: stream digests; `capture-output`: `reference`, `artifact_id`, `manifest_sha256`) and `findings` come from `findings[].id`. (2) Every spec 15 field this spec reads was checked against spec 15 C-6 row 17; C-10 row 15 now lists them by name. (3) REQ-47, C-5 step 12 and C-10 row 15 state that a recheck is an ordinary spec 15 leaf review whose prior is the answered record and that spec 15 neither ends nor removes the deferred stop. (4) and (5) Every citation of specs 10, 23, 09, 12, 13, 15, 14 and 16 by line number is replaced by a requirement, data-model, contract or section id; REQ-45 and C-10 row 14 follow spec 14 DM-3, DM-9 and C-7 row 17. (6) Spec 23 REQ-54 now wires repair: the Source, Out of Scope, A-21, the spec 23 follow-up and C-10 row 23 state the carry-over of the episode key, the handoff stage `repair` and the no-repair cases; A-34 added. (7) C-4 and C-6 state spec 09's kind, `load`, `phase` and `step`. (8) C-8 step 3 and C-10 row 16 state that an `escalation-unverifiable` effort is never substituted and that a spec 16 stop stays spec 16's own. (9) C-10 row 18 states the read-only contract and the ledger fields spec 18 reads. (10) C-10 row 10 maps the two switches onto spec 10 REQ-52 `switches`.
+- 2026-11-14 — second reconciliation pass. Targeted edits against specs 19, 23, 09 and 13; no id renumbered, no Q answered, no requirement or acceptance criterion added (AC-31 gains one clause). (1) Terminology "Repair attempt", DM-2 and C-10 row 13 state that the repair `attempt_id` is not a spec 13 `attempt_id` while the spawn of the repair Implementer is a spec 13 attempt with `supersedes` lineage through `attempt`, that repair resume is governed by `status` alone, that `compose`, `render` and `receipt` are not used for repair, that `reconcile` entries for repair attempts are ignored, and that the `blocked` to `done` plan-row rewrite is a manual write the spec 13 helper neither performs nor verifies. (2) C-6 gains the metadata paragraph: front matter keys `reads`, `writes` and `called_by` (`spec-run`) and a `Called by:` line that begins with the backticked command (spec 19 REQ-05, REQ-23, REQ-35, REQ-46 and A-54); AC-31 asserts it. (3) C-10 row 23 and A-34 say that spec 23 states the broad-stop case itself (23 REQ-04, REQ-54, C-6 row 8, A-29) and its Terminology rows "Episode key" and "Slot" match A-34; the Notes follow-up is updated. (4) A Notes sentence records that `rules/contract-repair.md` moves no text out of a mapped rule, so no name-map row under 09 REQ-68, and the C-7 anchors of the `pav-check`, `spec-run` and `workflow-globals` edits are given by sentence first, with today's line numbers only as a locator. (5) to (7) Checked and unchanged: the spec 15 fields read are those of 15 C-6 row 17 only; C-8 step 3 and C-10 row 16 agree with 16 C-6 row 17, REQ-29 and C-3 step 5; no citation of specs 10, 14 or 18 by line number remains.
+- 2026-11-14 — independent final review: spec 14 lines are `Evidence` items, not 11 DM-7 evidence references; REQ-33 sets 16's `session.parameter: "absent"` after an effort refusal; `DECISION.json` shape fixed; disable switch follows spec 12 REQ-32; `/pav-check` insertion anchor corrected; neutral provenance wording; citations corrected.
 
 ### Rejected alternatives
 
@@ -1930,9 +1930,9 @@ Name map (spec 13 REQ-68): `rules/contract-repair.md` receives no text moved out
 
 ### Follow-ups outside this spec (not edited here)
 
-- Specs 12a and 12: none — 12 REQ-04, 12a REQ-54 with 12 REQ-63, 12a DM-3 `repair_episode` and 12 DM-6 stage `repair` already call C-5,
-  keep the reservation while an episode is open and state the broad-stop case (C-10 row 12, A-34).
-- Spec 18: its C-4 step 2 "Escalation: `null` unless supplied by spec 19" is satisfied by C-8 step 3.
+- Specs 22 and 23: none — 23 REQ-04, 22 REQ-54 with 23 REQ-63, 22 DM-3 `repair_episode` and 23 DM-6 stage `repair` already call C-5,
+  keep the reservation while an episode is open and state the broad-stop case (C-10 row 23, A-34).
+- Spec 16: its C-4 step 2 "Escalation: `null` unless supplied by spec 17" is satisfied by C-8 step 3.
 - `.ai/specs/README.md`: no change required; the workstream row already names this spec.
 
 ## Readiness Checklist
@@ -1940,7 +1940,7 @@ Name map (spec 13 REQ-68): `rules/contract-repair.md` receives no text moved out
 | # | Check | Result |
 |---|---|---|
 | 1 | Goal is one domain-language paragraph | PASS — one paragraph on opt-in bounded repair, preserved code and RED evidence, recorded attempts and explicit escalation |
-| 2 | Out of Scope names concrete exclusions | PASS — D8 and fix-task repair, non-`/spec-run` paths, spec 12 wiring, review contracts (16), effort and models (18, 04), economics (09), frozen-test amendment, validator inventory |
+| 2 | Out of Scope names concrete exclusions | PASS — D8 and fix-task repair, non-`/spec-run` paths, spec 23 wiring, review contracts (15), effort and models (16, 04), economics (10), frozen-test amendment, validator inventory |
 | 3 | Each REQ has a stable id and one EARS behaviour | PASS — REQ-01–REQ-75; original REQ-01–REQ-09 restated |
 | 4 | REQ ↔ AC both ways | PASS — Traceability covers REQ-01–REQ-75 and AC-01–AC-42 |
 | 5 | Every AC binary and test-first | PASS — fixture R1 specified; text ACs assert verbatim lines and named tokens |
@@ -1956,7 +1956,7 @@ Name map (spec 13 REQ-68): `rules/contract-repair.md` receives no text moved out
 
 Note 2026-11-14 (reconciliation): checks 7, 9 and 11 were re-confirmed against the refined peers after the targeted edits of the Change record; the verdict is unchanged.
 
-Note 2026-11-14 (second reconciliation pass): the points settled with specs 10, 12, 13 and 15 are listed in the Change record; no check result changes and the verdict is unchanged.
+Note 2026-11-14 (second reconciliation pass): the points settled with specs 19, 23, 09 and 13 are listed in the Change record; no check result changes and the verdict is unchanged.
 
-Verdict: **READY FOR DEVELOPMENT**, once its roadmap prerequisites (04, 06, 09, 15, 16 and 18; 13
-and 08 for names and `loads:`) are delivered. Automated readiness is not owner sign-off.
+Verdict: **READY FOR DEVELOPMENT**, once its roadmap prerequisites (04, 06, 10, 13, 15 and 16; 09
+and 11 for names and `loads:`) are delivered. Automated readiness is not owner sign-off.

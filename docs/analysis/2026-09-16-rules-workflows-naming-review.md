@@ -145,12 +145,12 @@ Two viable schemes; pick one in an ADR.
 commands (`/discovery-decompose`). Benefit: no legend.
 
 **Scheme B — keep the short prefixes, add a `step:` and `phase:` front-matter key
-and render the legend into `docs/USAGE.md` automatically** (this is `specs/10`). Cost:
+and render the legend into `docs/USAGE.md` automatically** (this is `specs/19`). Cost:
 the legend stays necessary. Benefit: no command renames, nothing breaks for existing
 users.
 
-Recommendation: **Scheme B now** (zero-cost, ships with spec 10), reconsider A when the
-open-source release (spec 11) sets the public command names — renaming before a public
+Recommendation: **Scheme B now** (zero-cost, ships with spec 19), reconsider A when the
+open-source release (spec 21) sets the public command names — renaming before a public
 release is free, after it is a breaking change.
 
 ### R6 — Take `PIPELINE.md` out of `workflows/`
@@ -160,8 +160,8 @@ contract check that every file in `workflows/` has an `Invocation:` line.
 
 ## 7. Suggested execution
 
-One spec: `.ai/specs/13-rules-workflows-naming.md` covering R1–R4 and R6 (R5 is folded
-into spec 10/11). Order inside the task: R3 (pure fix) → R6 → R1 → R2 → R4. Each rename is
+One spec: `.ai/specs/09-rules-workflows-naming.md` covering R1–R4 and R6 (R5 is folded
+into spec 19/21). Order inside the task: R3 (pure fix) → R6 → R1 → R2 → R4. Each rename is
 `git mv` + `sed` over `workflows/ rules/ docs/ templates/ *.sh` + `validate-contracts.sh`
 green + `sync.sh`. Requires spec 01 (git) first — a rename sweep without version control
 is not reviewable.

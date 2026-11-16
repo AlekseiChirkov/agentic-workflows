@@ -79,16 +79,16 @@ name `state-tool` is provisional.
 `.ai/memory/state.md`, task descriptions, code, branches, commits, pull-request status or other
 `state.md` sections. Auxiliary lock and temporary files are allowed only in the task
 directory and never become a source of canonical status; they are not copied into consumer
-projects as mandatory infrastructure. Related specs: 14 builds derived context views and does
+projects as mandatory infrastructure. Related specs: 12 builds derived context views and does
 not own canonical state changes; 15 checks and forms proposals and gets no arbitrary write
-interface from this spec; 12 may run children in parallel without this tool because one
-orchestrator applies shared changes; 16 defines verification evidence, and the serializer
-cannot declare it successful; 19 defines attempt limits, and a field write does not reset
+interface from this spec; 23 may run children in parallel without this tool because one
+orchestrator applies shared changes; 15 defines verification evidence, and the serializer
+cannot declare it successful; 17 defines attempt limits, and a field write does not reset
 them. None of the nine optimization streams depends on 07.
 
 **4. Sources of truth and compatibility.** (1) Block format, vocabulary, required and
 protected fields come from the canonical state contract at a pinned revision; after the
-renames of spec 13 the single new path is used, never a second copy of the grammar.
+renames of spec 09 the single new path is used, never a second copy of the grammar.
 (2) Transitions and required evidence are defined by the execution and validation processes;
 a value being in the vocabulary does not make it reachable from every state. (3) A legacy leaf
 block without `atomic-tests:` reads as `not-started` by field name, not position; this does not
@@ -245,7 +245,7 @@ tool on 2026-11-13 (D-09); it stays optional and unwired.
   tracked (`scripts/sync.sh:267-276`); an existing consumer project gets the ignore entries
   by rerunning `scripts/setup-new-project.sh` or by hand (A-28).
 - Removing the grammar duplication between `rules/workflow-globals.md` and
-  `rules/workflow-reference.md` (spec 13a/13 territory).
+  `rules/workflow-reference.md` (spec 08/09 territory).
 
 ## Actors & Roles
 
@@ -1183,13 +1183,13 @@ None. Q-01 (ignore rules for the lock and temporary files) was resolved by D-10 
   validator exits 0 on all eight completed tasks, so none exist in this repository.
 - C-3: the manual procedure and every existing mandatory stop stay in force; a validator
   failure that stops finalization stays a stop.
-- C-4: rule file names in this spec are the current ones. If spec 13 has landed at
+- C-4: rule file names in this spec are the current ones. If spec 09 has landed at
   scheduling, the targets are its renamed canonical files
-  (`.ai/specs/13-model-only-harnesses-and-rule-naming.md:141-143`):
+  (`.ai/specs/09-model-only-harnesses-and-rule-naming.md:141-143`):
   `rules/workflow-globals.md` → `rules/contract-phases.md`, `rules/workflow-reference.md` →
   `rules/contract-state-files.md`, `rules/tdd.md` → `rules/contract-tdd.md`; the anchored line,
   protected entry, drift check and citations follow the file that then holds each definition.
-- Boundaries with other specs are unchanged: 12, 14, 15, 16, 19 neither depend on nor gain a
+- Boundaries with other specs are unchanged: 23, 12, 13, 15, 17 neither depend on nor gain a
   write interface from 07.
 
 ### Implementation hints (nonbinding)

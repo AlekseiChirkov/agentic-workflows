@@ -11,7 +11,7 @@ completed_at: 2026-10-28
 - **Disposition:** Delivered; later selection refinements integrated.
 - **Verified source scope:** main at `23bded3d96d9c562d16eb7e90285414f4412ac79`; owner-authorized specification/state reconciliation on 2026-11-06.
 - **Delivered evidence:** Cached catalog refresh/validation, conservative recommendation, provider plan columns, and current-invocation resolution are implemented. Main also contains configured recommendation-fallback refinements.
-- **Outstanding scope and limits:** Catalog data, actual worker identity, and effort support require fresh evidence. This does not deliver the separate role/stage effort policy in spec 18 or prove economic optimality.
+- **Outstanding scope and limits:** Catalog data, actual worker identity, and effort support require fresh evidence. This does not deliver the separate role/stage effort policy in spec 16 or prove economic optimality.
 - **Sources:** [`scripts/model-catalog.py`](../../../scripts/model-catalog.py), [`scripts/model_selection.py`](../../../scripts/model_selection.py), [`scripts/model_plan.py`](../../../scripts/model_plan.py), [`tests/model-selection.py`](../../../tests/model-selection.py), [`docs/MODEL-CATALOG.md`](../../../docs/MODEL-CATALOG.md), [`.ai/tasks/completed/task-04-model-catalog-cache/state.md`](../../../.ai/tasks/completed/task-04-model-catalog-cache/state.md).
 - Existing requirement and acceptance identifiers remain binding. Source inspection and historical validation records do not constitute a fresh full-suite or deployed-environment certification.
 
@@ -47,8 +47,8 @@ filtering, plan columns and requested-versus-resolved model reporting.
 
 ## Out of Scope
 
-Learned routing without calibration, automatic mid-task switching (spec 19), effort
-policy (18), or defining a second token-price ledger (05).
+Learned routing without calibration, automatic mid-task switching (spec 17), effort
+policy (16), or defining a second token-price ledger (05).
 
 ## Actors & Roles
 
@@ -158,7 +158,7 @@ uncertainty rather than asserting an unmeasured cheap-model success rate.
 ## Risks
 
 Cost-band selection can disguise quality differences. Independent quality evaluation
-under 09 is required before replacing conservative defaults; catalog labels are not
+under 10 is required before replacing conservative defaults; catalog labels are not
 measured task-success probabilities.
 
 ## Assumptions
@@ -173,7 +173,7 @@ selection logic without introducing a learned router or mandatory live evaluatio
 
 ## Clarifications
 
-2026-10-21: remove harness-name-based orchestration exclusions; spec 13 capabilities
+2026-10-21: remove harness-name-based orchestration exclusions; spec 09 capabilities
 control eligibility. Public API-equivalent price and actual subscription charge differ.
 
 ## Open Questions
@@ -184,11 +184,11 @@ None blocking. A new default model or paid routing comparison requires explicit 
 
 Deterministic catalog selection and plan resolution use explicit current-invocation
 capability evidence. The owner selected implementation before the broader harness
-migration; unknown support remains unavailable. Spec 13 retains ownership of the full
+migration; unknown support remains unavailable. Spec 09 retains ownership of the full
 deployed harness capability contract and naming migration.
 
-Consumers: 18 effort, 19 escalation, 20 decomposition. Spec 05 owns
-monetary definitions; 09 owns comparative evidence. Suggested slices: catalog/TTL,
+Consumers: 16 effort, 17 escalation, 18 decomposition. Spec 05 owns
+monetary definitions; 10 owns comparative evidence. Suggested slices: catalog/TTL,
 consistent scoring, availability/plan resolution, checks and documentation.
 
 ## Readiness Checklist

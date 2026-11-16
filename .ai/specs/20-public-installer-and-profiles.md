@@ -1,12 +1,12 @@
-# 11a. Public installer with ownership records, and technology-neutral profiles
+# 20. Public installer with ownership records, and technology-neutral profiles
 
 ## Source
 
-- **Split from:** `.ai/specs/11-open-source-readiness.md` at commit
+- **Split from:** `.ai/specs/21-open-source-readiness.md` at commit
   `e3ba41a000c927ac157fd2207df413107ed54cb5` (2026-11-16). That revision failed readiness
   check 13 (feature size) and recorded a split boundary (its Notes → Split boundary): Part A,
   installer and profiles, became this specification; Part B, public materials and release
-  readiness, stays in spec 11. Requirement, acceptance, assumption and question identifiers
+  readiness, stays in spec 21. Requirement, acceptance, assumption and question identifiers
   keep their numbers; an identifier is defined in exactly one of the two files.
 - **Origin of the requirements:** owner decisions in ADR-0009 Decision 1 and Decision 6
   (`.ai/adr/0009-task-unknown-roadmap-decisions-2026-09.md:47-75`, `:215-253`): "`sync.sh`
@@ -14,10 +14,10 @@
   `--uninstall`" (`:240-242`); "Technology-neutral core … `setup-new-project.sh --profile
   <name>` … the selection is recorded in `.ai/profile` (name + source version)" (`:223-229`).
 - **Original request text:** the 2026-10-28 Russian specification and its English translation
-  of §1–§3 and §7 are preserved in spec 11 → Source → "Translation of the 2026-10-28 request";
+  of §1–§3 and §7 are preserved in spec 21 → Source → "Translation of the 2026-10-28 request";
   "original REQ-NN" and "original §1–§3, §7" refer to that translation. The installation and
   profile sections §4, §5 and §8 were never translated there; this file cites them from the
-  Russian text at `060ce6d` (`git show 060ce6dbc7116002ac5e6cd47981cfd3c13d60ff:.ai/specs/11-open-source-readiness.md`)
+  Russian text at `060ce6d` (`git show 060ce6dbc7116002ac5e6cd47981cfd3c13d60ff:.ai/specs/21-open-source-readiness.md`)
   by line, translated below (translated from Russian).
 
 ### Translation of original §4, §5 and §8 (lines of the `060ce6d` text)
@@ -25,7 +25,7 @@
 §4.1 Mandatory preliminary check (`:53-57`): "The source version, target environments,
 applicable dependencies and rights on exactly named paths are checked. … Do not install system
 packages and do not change account settings automatically. The installer uses only permitted
-roots. `deploy.env` is parsed as data per 13 and is not executed by a shell. A symbolic link
+roots. `deploy.env` is parsed as data per 09 and is not executed by a shell. A symbolic link
 leading outside, an unexpected change of owner or a mismatch of the source hash stops the
 corresponding write before data is lost. The absence of a previous manifest does not prove
 ownership of a file found."
@@ -68,7 +68,7 @@ environments. … Removing global skills does not mean removing the project."
 `profiles/python-fastapi/principles/python-standards.md` and `infra-standards.md` to
 `.ai/principles/`, the moved stack context to a path under `.ai/context/` "defined by the
 profile manifest", and `always-on-fragment.md` to a managed fragment of `CLAUDE.md` and
-`AGENTS.md` obtained through 10. "The name of the target context file is fixed in the manifest
+`AGENTS.md` obtained through 19. "The name of the target context file is fixed in the manifest
 before implementation; the installer does not copy one file into two folders 'just in case'.
 `.ai/profile` contains at least `name` and the source `VERSION` … The project's own content
 outside the managed fragment is kept byte for byte. The neutral core does not prescribe an
@@ -80,9 +80,9 @@ consistent generation from the journal, re-checking user edits. If safe automati
 impossible, keep both versions and give concrete paths/differences for a decision. Do not use a
 general recursive removal to clean an unknown state."
 - **Request for the split:** owner request of 2026-11-16 (translated from Russian): "review
-  specs 11 and 12 in `.ai/specs`; they are very large and must be split in two if this can be
+  specs 21 and 23 in `.ai/specs`; they are very large and must be split in two if this can be
   done logically; then run each resulting spec through `/spec-draft`". The owner chose the
-  file names (`11a` for the first part, the original path for the second) and autonomous
+  file names (`20` for the first part, the original path for the second) and autonomous
   refinement (`--auto-mode`).
 
 ## Context & Problem
@@ -92,7 +92,7 @@ Verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
 **Deployment has no ownership, preview or removal.**
 - `scripts/sync.sh` recognizes only `--from` and `--help`; other arguments are collected and
   ignored (`scripts/sync.sh:9-24`). It copies workflows, rules and principles into the
-  Windsurf directories under `~/.codeium/windsurf/` (`:69-87`; spec 13 retires those targets),
+  Windsurf directories under `~/.codeium/windsurf/` (`:69-87`; spec 09 retires those targets),
   and it copies every
   workflow, rule and principle into `~/.claude/skills/` and `~/.codex/skills/` with `cp`
   (`:89-96`, `:104-112`, `:122-130`, `:132-140`, `:142-151`, `:166-174`) and overwrites
@@ -142,16 +142,16 @@ Verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
   by `test_sync_preserves_repository_knowledge_policy` (`:1174-1179`); every `rules/*.md`
   name in both scripts (`:1293-1305`); literal `cp "$file" ~/.claude/skills/…` and
   `~/.codex/skills/…` loops in sync's sections 3c and 4d (`:1308-1316`); literal
-  `mkdir -p ~/.<root>/skills/$skill_name` (`:1317-1320`). Spec 13 (data-driven sync, no project rule copies)
-  and REQ-04 of this spec and REQ-61 of spec 11 contradict these expressions, which the current inventory
-  cannot amend; spec 13 introduces a schema-2 inventory amendment (its DM-9) for changing
+  `mkdir -p ~/.<root>/skills/$skill_name` (`:1317-1320`). Spec 09 (data-driven sync, no project rule copies)
+  and REQ-04 of this spec and REQ-61 of spec 21 contradict these expressions, which the current inventory
+  cannot amend; spec 09 introduces a schema-2 inventory amendment (its DM-9) for changing
   existing expressions (see Q-06 for what this spec still needs from it).
-- Spec 13 (final, not yet delivered) specifies `scripts/deploy-skills.py` as the
+- Spec 09 (final, not yet delivered) specifies `scripts/deploy-skills.py` as the
   deployment engine behind `sync.sh`, with per-harness deploy manifests
   `C/deploy/<harness>.json` (its DM-6), journal and lock `C/deploy.lock` (its DM-7). Its
   Q-05 is resolved: this spec's installer supersedes the `deploy` write path and migrates
-  those manifests (spec 13 A-31 and Notes → Relationship to spec 11a); the mapping and the
-  preserved contracts are under Contracts → Relationship to spec 13's deployment engine.
+  those manifests (spec 09 A-31 and Notes → Relationship to spec 20); the mapping and the
+  preserved contracts are under Contracts → Relationship to spec 09's deployment engine.
 - `tests/hook-install.sh` feeds `2\n` to the setup prompt (`:129-133`), copies only
   `scripts hooks harness rules workflows principles templates` into its fixture source
   (`:70-73`) and asserts the sync deployment layout byte for byte (`:783-806`); it is an
@@ -159,7 +159,7 @@ Verified at `060ce6dbc7116002ac5e6cd47981cfd3c13d60ff`:
 
 **Consequence:** an external user cannot install without losing their own global
 instruction file, cannot preview or undo an installation, receives Python/FastAPI/GCP
-standards as global rules for every project; spec 11 cannot document an installation or a
+standards as global rules for every project; spec 21 cannot document an installation or a
 profile choice that does not exist.
 
 ## Goal
@@ -169,7 +169,7 @@ plan that names every write, an ownership record that never deletes or overwrite
 bytes without a backup, and a maintainer deployment that runs the same engine; projects get
 technology standards only through an explicitly selected, upgradable profile on top of a
 technology-neutral core. The public materials, worked example and release readiness that
-build on this installer belong to spec 11.
+build on this installer belong to spec 21.
 
 ## Scope
 
@@ -178,7 +178,7 @@ of this file is an [A] requirement.
 
 1. `scripts/install.sh` (public launcher) and `scripts/install.py` (standard-library Python
    3.11+ engine) with install, `--dry-run`, `--uninstall`, `--adopt`, `--harness`, `--from`
-   and `--force` (pass-through to spec 13's active-task rule).
+   and `--force` (pass-through to spec 09's active-task rule).
 2. The ownership manifest, installer journal, original, previous-state and adopted-edit
    backups, lock, plan, recovery and uninstall behaviour defined under Data Model and
    Contracts, and the retired-target list `scripts/install-retired.json`.
@@ -192,14 +192,14 @@ of this file is an [A] requirement.
    the managed fragment in project `CLAUDE.md` and `AGENTS.md`, `.ai/profile`, three-way
    profile upgrade and switch; removal of the interactive stack prompt.
 7. The standalone acceptance suite `scripts/check-install.py`.
-8. Changes to files spec 13 delivers: the subcommands of `scripts/deploy-skills.py` (REQ-71),
-   `scripts/check-deploy-skills.py` (Contracts → Relationship to spec 13's deployment
+8. Changes to files spec 09 delivers: the subcommands of `scripts/deploy-skills.py` (REQ-71),
+   `scripts/check-deploy-skills.py` (Contracts → Relationship to spec 09's deployment
    engine), and the inventory files `tests/validator-runtime-oracle.py`,
-   `tests/fixtures/validator-runtime/inventory-amendment.json` and spec 13's DM-20 record
+   `tests/fixtures/validator-runtime/inventory-amendment.json` and spec 09's DM-20 record
    (Q-06).
 
 **Delivery records:** the root-listing amendment of
-`.ai/principles/coding.md → Document placement` (`:83-85`) adding `profiles/` (spec 11 adds
+`.ai/principles/coding.md → Document placement` (`:83-85`) adding `profiles/` (spec 21 adds
 `.github/`), `scripts/README.md` rows, `.ai/memory/architecture.md`,
 `.ai/context/environment.md`, `.ai/context/runbook.md`, the re-pinned source-guard records,
 the identity-ledger rows of every edited file that holds a ledger token, and one ADR
@@ -207,24 +207,24 @@ recording the decisions marked "ADR at delivery" under Assumptions.
 
 ## Out of Scope
 
-- Everything spec 11 owns: `README.md`, `docs/USAGE.md` and the other public documents,
-  `docs/OPTIONAL-FEATURES.md` (spec 11 documents this spec's commands and profiles there),
+- Everything spec 21 owns: `README.md`, `docs/USAGE.md` and the other public documents,
+  `docs/OPTIONAL-FEATURES.md` (spec 21 documents this spec's commands and profiles there),
   `docs/CONTRIBUTING.md`, `.github/`, the worked example, the dry-run contract for
   `/phase-discovery` and `/bugfix`, the release checklist, `scripts/release-check.sh`, the
   onboarding measurement, the release-candidate report and the offline CI workflow.
 - Creating `LICENSE`, setting `VERSION`, creating a tag, publishing a release or changing
-  remote repository settings: owner actions recorded by spec 11.
-- Paid or live model runs of any kind, including spec 09 release golden runs.
-- A documentation site, a third harness, renaming the project or commands (spec 13),
+  remote repository settings: owner actions recorded by spec 21.
+- Paid or live model runs of any kind, including spec 10 release golden runs.
+- A documentation site, a third harness, renaming the project or commands (spec 09),
   rewriting history (ADR-0010), packaging (pip, Homebrew, npm), a `curl | sh` bootstrap,
   Windows support.
 - Deploy paths (`harness/<name>/deploy.env`), the installed-name map, the registry, the
   per-project pass, `list-projects`/`link-project`, legacy reporting and the active-consumer
-  rule: owned by spec 13 (`scripts/deploy-skills.py`). This spec consumes them and only
-  replaces the global-write part of that engine (Scope item 8) (Contracts → Relationship to spec 13's
+  rule: owned by spec 09 (`scripts/deploy-skills.py`). This spec consumes them and only
+  replaces the global-write part of that engine (Scope item 8) (Contracts → Relationship to spec 09's
   deployment engine).
 - The generator, the always-on composition bytes and `docs/harness-matrix.md`: owned by spec
-  10. This spec consumes `--check`, `--profile` and the deployment contract.
+  19. This spec consumes `--check`, `--profile` and the deployment contract.
 - Merging user text into the global instruction files (a managed region inside
   `~/.claude/CLAUDE.md`); removing a profile from a project without selecting another;
   automatic profile upgrades by `sync.sh` or `install.sh`; migrating stack content that the
@@ -240,7 +240,7 @@ recording the decisions marked "ADR at delivery" under Assumptions.
 | Maintainer | Runs `scripts/sync.sh [--from <dir>] [--adopt] [--force]` and `scripts/check-install.py` |
 | Engine (`scripts/install.py`) | Reads sources and targets; writes only targets in the deployment set, its manifest, journal, lock and backups; delegates hook settings |
 | Hook installer (`scripts/install-hooks.sh`) | Sole writer of `~/.claude/settings.json` hook and permission entries and of its receipt |
-| Generator (`scripts/gen-docs.py`, spec 10) | Answers `--check` and `--profile <name>`; never invoked with `--write` by this spec's scripts |
+| Generator (`scripts/gen-docs.py`, spec 19) | Answers `--check` and `--profile <name>`; never invoked with `--write` by this spec's scripts |
 | Implementer / reviewer | Builds and validates this spec in disposable homes; never deploys into a real home during tests |
 
 ## Terminology
@@ -250,12 +250,12 @@ recording the decisions marked "ADR at delivery" under Assumptions.
 | Launcher | `scripts/install.sh`: argument parsing, source-root resolution, runtime guard, then `python3 -I scripts/install.py` | This spec |
 | Engine | `scripts/install.py` | This spec |
 | Source root | The Orchestrail checkout being installed: `--from`, else `ORCHESTRAIL_HOME` when non-empty, else the parent of the launcher's directory (physical path) | `scripts/sync.sh:4-7`, `.ai/context/environment.md:43` |
-| Harness | A directory `harness/<name>/` holding spec 13's `deploy.env`; `skills_dir` and `always_on_path` are its deploy paths | Spec 13 REQ-35 |
+| Harness | A directory `harness/<name>/` holding spec 09's `deploy.env`; `skills_dir` and `always_on_path` are its deploy paths | Spec 09 REQ-35 |
 | Targeted harness | A harness the engine deploys to in one run (REQ-20) | This spec |
 | Deployment set | Every `(harness, target path, type, source)` the engine installs in one run (Data Model → Deployment set) | This spec |
 | Target | One path in the deployment set, or one path recorded in the ownership manifest | This spec |
 | Retired target | A skill path a released version deployed that is no longer in the deployment set, listed in `scripts/install-retired.json` | REQ-65 |
-| Ownership manifest | `$XDG_CONFIG_HOME/orchestrail/install-manifest.json`; records the installed state. Always qualified ("ownership manifest") to avoid spec 10's generator manifest | This spec |
+| Ownership manifest | `$XDG_CONFIG_HOME/orchestrail/install-manifest.json`; records the installed state. Always qualified ("ownership manifest") to avoid spec 19's generator manifest | This spec |
 | Installed state | The set of entries the ownership manifest records after the last successful operation, numbered by `revision` | This spec |
 | Entry | One record of the ownership manifest for one target | This spec |
 | Owned target | A target with an entry whose recorded installed content equals its current content | This spec |
@@ -265,37 +265,37 @@ recording the decisions marked "ADR at delivery" under Assumptions.
 | Original backup | A byte-exact copy (or link text) of a foreign target, taken before the engine first replaces it; kept until uninstall restores it | Original §4.2 `original_backup` |
 | Previous-state backup | A byte-exact copy of an owned target taken before an operation replaces or removes it; kept only until the operation commits | Original §4.2 `generation_backups` |
 | Adopted-edit backup | A byte-exact copy of a user-modified target replaced under `--adopt`; never deleted by the engine | REQ-23 |
-| Installer journal | `$XDG_CONFIG_HOME/orchestrail/install-journal.json`; exists only while an operation is incomplete. Always qualified to avoid spec 10's generator journal | This spec |
+| Installer journal | `$XDG_CONFIG_HOME/orchestrail/install-journal.json`; exists only while an operation is incomplete. Always qualified to avoid spec 19's generator journal | This spec |
 | Plan | The engine's complete list of intended actions (Data Model → Plan), computed before any write and printed by `--dry-run` | Original REQ-05 |
 | Conflict | A plan entry the engine refuses to act on without a decision; codes under Contracts | This spec |
 | Adopt | The `--adopt` decision: back up, then replace, a foreign, modified or symbolic-link target | This spec |
 | Delegated entry | A plan or manifest record for state another installer owns (hook settings) | Original §4.2 |
-| Installation record | The `## Current hook installation` section appended to a deployed always-on file | Spec 10 Terminology |
+| Installation record | The `## Current hook installation` section appended to a deployed always-on file | Spec 19 Terminology |
 | Neutral core | The core principle files `principles/code-quality.md` and `principles/testing-standards.md` after this spec | REQ-07 |
 | Stack term | One of the words listed under Data Model → Stack terms | This spec |
 | Profile | A directory `profiles/<name>/` with `profile.json`, its files and `always-on-fragment.md` | ADR-0009 Decision 6 |
 | Profile manifest | `profiles/<name>/profile.json` | Original §5 |
 | Profile record | `<project>/.ai/profile` | ADR-0009 Decision 6 |
 | Managed fragment | The marker-delimited region a profile owns in a project's `CLAUDE.md` and `AGENTS.md` | Original REQ-08 |
-| Profile fragment | `profiles/<name>/always-on-fragment.md`, read through `gen-docs.py --profile` | Spec 10 Terminology |
+| Profile fragment | `profiles/<name>/always-on-fragment.md`, read through `gen-docs.py --profile` | Spec 19 Terminology |
 
 Rejected synonyms: "receipt" for the ownership manifest (reserved for the hook installer's
-receipt); "generation" for the installed state (spec 10 uses "generation" for a generator
+receipt); "generation" for the installed state (spec 19 uses "generation" for a generator
 publication); "lock file" for the manifest; "stack overlay" for a profile.
 
 ## Requirements
 
 Identifiers REQ-01–REQ-17 keep their 2026-10-28 subjects; behaviours the earlier text bundled
 into one item are split into REQ-18 onward, noted in parentheses. Identifiers are unique across
-this file and spec 11: a new identifier takes the next number unused in either file.
+this file and spec 21: a new identifier takes the next number unused in either file.
 
-### Identifiers defined in spec 11
+### Identifiers defined in spec 21
 
 REQ-01, REQ-02, REQ-10–REQ-17, REQ-19, REQ-54–REQ-63, REQ-72 and REQ-81; AC-01, AC-09–AC-16,
 AC-18, AC-34–AC-37 and AC-43; A-24–A-29, A-32–A-37, A-41, A-43 and A-44; D-01–D-04; Q-01–Q-03
-and Q-05. A citation of one of them in this file names spec 11. A-01, A-30 and A-31 apply to
+and Q-05. A citation of one of them in this file names spec 21. A-01, A-30 and A-31 apply to
 both files and are repeated in each. "The engine" is `scripts/install.py` reached through
-`scripts/install.sh`; "suite A" is `scripts/check-install.py` (spec 11's suite B is
+`scripts/install.sh`; "suite A" is `scripts/check-install.py` (spec 21's suite B is
 `scripts/check-public-readiness.py`).
 
 ### Original requirements, restated
@@ -381,7 +381,7 @@ both files and are repeated in each. "The engine" is `scripts/install.py` reache
 - **REQ-33 [A] Corrupt backup.** IF a backup's content SHA-256 differs from the value recorded
   for it, THEN THE engine SHALL leave the current target untouched, report `backup-corrupt`
   and keep the entry.
-- **REQ-34 [A] Missing manifest.** IF `--uninstall` finds no ownership manifest and no spec 13
+- **REQ-34 [A] Missing manifest.** IF `--uninstall` finds no ownership manifest and no spec 09
   deploy manifest (REQ-43), THEN THE engine SHALL remove nothing, report `no-manifest` and exit 0.
 - **REQ-35 [A] Uninstall boundary.** WHEN `--uninstall` runs, THE engine SHALL NOT modify any
   consumer project, the project registry, the run-log store, legacy harness directories or
@@ -398,28 +398,28 @@ both files and are repeated in each. "The engine" is `scripts/install.py` reache
   (or, at uninstall, `uninstall` for each `delegated` hook record of the ownership manifest),
   never by writing `settings.json` or the hook receipt itself.
 - **REQ-39 [A] Always-on bytes.** THE engine SHALL install, at each targeted harness's
-  `always_on_path`, exactly the bytes spec 10's deployment contract defines: the generated
+  `always_on_path`, exactly the bytes spec 19's deployment contract defines: the generated
   `harness/<name>/always-on.md` followed by the installation record built from the hook
   installer's result, or `{"reason":"no-native-adapter","status":"unavailable"}` when the
   harness has no `hooks.json`.
 - **REQ-40 [A] Generated files must be current.** WHEN an install (dry-run included) starts,
   THE engine SHALL run `python3 -I <root>/scripts/gen-docs.py --check --root <root>` and, if
   it exits non-zero, SHALL exit 3 with `generated-files-stale` before reading any target.
-- **REQ-41 [A] Inputs as data.** THE engine SHALL parse `deploy.env`, spec 13 deploy manifests
+- **REQ-41 [A] Inputs as data.** THE engine SHALL parse `deploy.env`, spec 09 deploy manifests
   (`C/deploy/<harness>.json`; invalid → exit 2 `deploy-manifest-invalid`), the ownership
-  manifest, the installer journal, profile manifests and profile records only as data (spec 13
+  manifest, the installer journal, profile manifests and profile records only as data (spec 09
   REQ-44 for `deploy.env`; strict JSON for the rest: duplicate keys, `NaN`/`Infinity`,
   unknown keys and unknown `schema_version` rejected) and SHALL NOT migrate an unknown
   version by guessing.
 - **REQ-42 [A] Active consumers.** WHEN an install or uninstall plan has at least one entry
   whose action is not `unchanged` or `keep`, or a `delegated` record whose predicted settings
-  hash differs from the current one, and `deployment-set` reports an active consumer (spec 13 REQ-43) without `--force`,
+  hash differs from the current one, and `deployment-set` reports an active consumer (spec 09 REQ-43) without `--force`,
   THE engine SHALL write nothing and exit 1 with `active-task`; `--force` SHALL carry only
-  the meaning spec 13 gives it.
-- **REQ-43 [A] Migration of spec 13 deploy manifests.** WHEN an install or uninstall starts
-  without an ownership manifest and one or more spec 13 deploy manifests
-  (`C/deploy/<harness>.json`, spec 13 DM-6) exist, THE engine SHALL treat each of their
-  objects as an entry by the mapping under Contracts → Relationship to spec 13's
+  the meaning spec 09 gives it.
+- **REQ-43 [A] Migration of spec 09 deploy manifests.** WHEN an install or uninstall starts
+  without an ownership manifest and one or more spec 09 deploy manifests
+  (`C/deploy/<harness>.json`, spec 09 DM-6) exist, THE engine SHALL treat each of their
+  objects as an entry by the mapping under Contracts → Relationship to spec 09's
   deployment engine, and SHALL delete those deploy manifests when its own operation commits
   (Apply order step 11 for an install or an uninstall).
 - **REQ-44 [A] Exit codes and diagnostics.** THE launcher and the engine SHALL exit with the
@@ -466,8 +466,8 @@ both files and are repeated in each. "The engine" is `scripts/install.py` reache
 - **REQ-64 [A] Maintainer gates.** WHEN `scripts/sync.sh` runs, THE SYSTEM SHALL run the
   contract validator and `gen-docs.py --check` before invoking the installer, and SHALL NOT
   invoke the installer or the per-project pass when either fails or when the installer exits
-  non-zero. Where spec 08 is delivered, sync also runs its `measure-context.sh check` there
-  (spec 08 REQ-08) under the same rule. When the installer exits non-zero, sync SHALL print
+  non-zero. Where spec 11 is delivered, sync also runs its `measure-context.sh check` there
+  (spec 11 REQ-08) under the same rule. When the installer exits non-zero, sync SHALL print
   `ERROR: installation stopped (exit <n>); see the diagnostics above` and exit with that code.
 ### Requirements added in the 2026-11-13 and 2026-11-14 reviews (REQ-79 and REQ-80 on 2026-11-14)
 
@@ -494,7 +494,7 @@ both files and are repeated in each. "The engine" is `scripts/install.py` reache
 - **REQ-71 [A] One global writer.** THE SYSTEM SHALL remove the `deploy` subcommand of
   `scripts/deploy-skills.py` and SHALL provide in its place the read-only subcommand
   `deployment-set` and the subcommand `project-pass`, both under Contracts → Relationship
-  to spec 13's deployment engine, keeping `list-projects` and `link-project` unchanged.
+  to spec 09's deployment engine, keeping `list-projects` and `link-project` unchanged.
 - **REQ-73 [A] Modified orphans (split from REQ-28).** IF an orphaned entry of a targeted
   harness is modified, THEN THE engine SHALL report `user-modified` and, under `--adopt`,
   drop the entry, keep the file and report `released`.
@@ -521,15 +521,15 @@ both files and are repeated in each. "The engine" is `scripts/install.py` reache
   non-dry run once per run as `leftover <dir> (not removed; review,
   then remove it manually)`, SHALL NOT remove,
   modify or create any directory under such a name, and SHALL NOT change the exit code
-  (spec 13 REQ-57 preserved; Contracts → Relationship to spec 13's deployment engine).
+  (spec 09 REQ-57 preserved; Contracts → Relationship to spec 09's deployment engine).
 - **REQ-80 [A] Registry stays read-only.** THE engine and `project-pass` SHALL NOT write the
-  project registry (spec 13 REQ-08 preserved).
+  project registry (spec 09 REQ-08 preserved).
 - **REQ-84 [A] Locks are never taken over (split from REQ-80).** THE engine and `project-pass`
   SHALL NOT delete either lock file (`C/install.lock`, `C/deploy.lock`) or take one over from a
-  process that holds it (spec 13 DM-7 preserved).
+  process that holds it (spec 09 DM-7 preserved).
 - **REQ-85 [A] Project pass leaves profiles alone (split from REQ-80).** THE `project-pass`
   subcommand SHALL NOT create, refresh or remove any profile file or profile record in a
-  project (spec 13 Contracts → Project pass preserved).
+  project (spec 09 Contracts → Project pass preserved).
 - **REQ-82 [A] Runtime guard for profiles.** IF `scripts/setup-new-project.sh --profile` runs
   while `python3` is missing or older than 3.11, THEN THE SYSTEM SHALL exit 3 with
   `runtime-unavailable` before writing any file.
@@ -565,15 +565,15 @@ creates under `C` and `S` get mode 0700. An empty variable counts as unset.
 ### Deployment set
 
 Harnesses, deploy paths, skill names and sources come from `deployment-set` (Contracts →
-Relationship to spec 13's deployment engine), which applies spec 13's adapters, sources and
-name map and spec 08's `ref-` namespace (its REQ-02, DM-3). For orientation, today's equivalent
+Relationship to spec 09's deployment engine), which applies spec 09's adapters, sources and
+name map and spec 11's `ref-` namespace (its REQ-02, DM-3). For orientation, today's equivalent
 (`scripts/sync.sh:89-174`):
 
 | Source | Target | Type |
 |---|---|---|
 | `workflows/<n>.md` | `<skills_dir>/<installed name>/SKILL.md` | file |
 | `rules/<n>.md` (top level) | `<skills_dir>/rule-<n>/SKILL.md` | file |
-| `rules/reference/<n>.md` (only when spec 08 delivered it; spec 08 REQ-02) | `<skills_dir>/ref-<n>/SKILL.md` | file |
+| `rules/reference/<n>.md` (only when spec 11 delivered it; spec 11 REQ-02) | `<skills_dir>/ref-<n>/SKILL.md` | file |
 | `principles/<n>.md` | `<skills_dir>/principle-<n>/SKILL.md` | file |
 | each skill directory above | `<skills_dir>/<name>/` | directory |
 | `<skills_dir>` and, under `--harness`, every missing ancestor of `<skills_dir>` and of `always_on_path` up to the first existing directory | each such directory | directory (`created: true`) |
@@ -616,7 +616,7 @@ Entry:
 | `source` | string \| null | Source-root-relative path of the source file; for the always-on file, `harness/<h>/always-on.md`; null for directories |
 | `installed` | object | `{"sha256": hex}` for files (for the always-on file, the hash of the composed bytes actually written); `{"removed": true}` for a removed retired target (REQ-65); `{}` for directories |
 | `created` | bool | For directories, true when the engine created it; always false for files |
-| `original` | object | `{"state": "absent"}`, `{"state": "migrated"}` (adopted from a spec 13 deploy manifest, REQ-43), `{"state": "preexisting-identical"}`, `{"state": "backup", "type": "file", "sha256": hex, "mode": "0644", "backup": abs path}` or `{"state": "backup", "type": "symlink", "target": link text}` |
+| `original` | object | `{"state": "absent"}`, `{"state": "migrated"}` (adopted from a spec 09 deploy manifest, REQ-43), `{"state": "preexisting-identical"}`, `{"state": "backup", "type": "file", "sha256": hex, "mode": "0644", "backup": abs path}` or `{"state": "backup", "type": "symlink", "target": link text}` |
 | `retained` | string \| null | Conflict or info code that kept the entry after an uninstall (`user-modified`, `type-changed`, `backup-corrupt`, `directory-kept`), else null; a later install sets it to null for every entry it records as owned |
 | `adopted_backups` | list | `[{"sha256": hex, "backup": abs path}]` of adopted-edit backups taken for this target, oldest first; reported at uninstall, never deleted |
 
@@ -658,7 +658,7 @@ rewritten atomically (temporary file, `fsync`, `os.replace`) after each applied 
 | `recovery` | null, or `{"journal": path, "operation": …, "steps": [{"path", "action": "restore" \| "remove" \| "apply" \| "none" \| "delete-temporary" \| "hooks-uninstall" \| "conflict", "current": identity, "after": identity, "conflict": null \| "target-changed"}]}` in the order Contracts → Recovery runs them |
 | `entries` | Sorted by `path`: `{"path", "harness" (null for profile), "type", "action", "source", "previous", "next", "ownership", "conflict", "backup"}`; `backup` is null or `{"kind": "original" \| "previous" \| "adopted" \| "profile", "path": abs path}` naming the backup the action will write |
 | `delegated` | `[{"kind":"hooks","harness","operation","predicted_result","settings_path","settings_sha256_before","settings_sha256_after","receipt_path","receipt_sha256_before","receipt_sha256_after","lock_path"}]`; from `install-hooks.sh plan`: `predicted_result` is its `result` when `status` is `planned`, otherwise its whole output object; the path and hash fields are copied, or null when the output is unavailable; `lock_path` is `C/hooks-installed.lock` |
-| `bookkeeping` | Sorted `{"path","action"}` for the ownership manifest, journal, both locks (`C/install.lock`, `C/deploy.lock`), backup files and directories, each migrated spec 13 deploy manifest (`remove`), profile record; action `create`, `replace` or `remove`, except that a lock file appears only with `create` (or not at all when it exists) and is never removed (REQ-80) |
+| `bookkeeping` | Sorted `{"path","action"}` for the ownership manifest, journal, both locks (`C/install.lock`, `C/deploy.lock`), backup files and directories, each migrated spec 09 deploy manifest (`remove`), profile record; action `create`, `replace` or `remove`, except that a lock file appears only with `create` (or not at all when it exists) and is never removed (REQ-80) |
 | `leftover` | Sorted list of absolute paths reported as leftover skills (REQ-79); empty for uninstall and profile |
 | `summary` | Object with integer keys `create`, `replace`, `unchanged`, `remove`, `restore`, `keep`, `retain`, `conflict` |
 
@@ -688,7 +688,7 @@ Rules: exactly these four keys; `name` equals the directory name and matches
 `^[a-z0-9]+(-[a-z0-9]+)*$`; `files` non-empty; each `source` is a relative path inside
 `profiles/<name>/` naming a regular, non-symlink, UTF-8 file; each `target` is a relative
 path starting with `.ai/principles/` or `.ai/context/`, without `..`, unique within the
-list; `profiles/<name>/always-on-fragment.md` exists (spec 10 reads it).
+list; `profiles/<name>/always-on-fragment.md` exists (spec 19 reads it).
 
 The first profile's layout (new): `profiles/python-fastapi/principles/python-standards.md`
 and `infra-standards.md` (moved byte-identical from `principles/`),
@@ -768,7 +768,7 @@ python3 scripts/check-install.py
   `scripts/install-hooks.sh:45`). `--uninstall` with `--adopt` or `--harness`, an unknown
   option, a repeated `--from`, or a `--harness` name without `harness/<name>/deploy.env` →
   exit 2 `usage`.
-- `--force` is passed only to spec 13's active-task rule and, for `project-pass`, to its project skip (REQ-42).
+- `--force` is passed only to spec 09's active-task rule and, for `project-pass`, to its project skip (REQ-42).
 - `install-hooks.sh plan <op>`: same dependency and runtime guards as `install`/`uninstall`
   (a missing dependency prints the existing unavailable JSON); prints one JSON line
   `{"status":"planned","operation":…,"result":<object install|uninstall would print>,
@@ -776,14 +776,14 @@ python3 scripts/check-install.py
   "receipt_path":…,"receipt_sha256_before":hex|null,"receipt_sha256_after":hex|null}`; it
   simulates `recover_snapshot` and `plan_update` (`scripts/install-hooks.py:564-599`) in
   memory, takes no lock and writes nothing; exit 0.
-- `sync.sh` (spec 13's step list, changed here): source checks, validator, runtime guard and
-  legacy reporting as spec 13 defines them → `gen-docs.py --check` (spec 10; on its failure sync
-  prints spec 10's REQ-22 message and exits 1) → where spec 08 is delivered,
-  `measure-context.sh check --root "$ROOT"` (spec 08 REQ-08, its message, exit 1), kept next to
+- `sync.sh` (spec 09's step list, changed here): source checks, validator, runtime guard and
+  legacy reporting as spec 09 defines them → `gen-docs.py --check` (spec 19; on its failure sync
+  prints spec 19's REQ-22 message and exits 1) → where spec 11 is delivered,
+  `measure-context.sh check --root "$ROOT"` (spec 11 REQ-08, its message, exit 1), kept next to
   the generator check → launcher with
   `--from "$ROOT"` and `--harness <name>` for every `harness/*/deploy.env`, passing `--adopt`
   and `--force` through → `deploy-skills.py project-pass --from "$ROOT" [--force]` only after
-  exit 0. Spec 13's separate hook-installation step and its `deploy-skills.py deploy` step are
+  exit 0. Spec 09's separate hook-installation step and its `deploy-skills.py deploy` step are
   removed (the engine runs the hook installer). Any non-zero installer exit makes sync print
   `ERROR: installation stopped (exit <n>); see the diagnostics above` and exit with that code.
 - `setup-new-project.sh`: options are parsed before any write; `--adopt` without `--profile`
@@ -803,80 +803,80 @@ rules, source files and `gen-docs.py --profile`; exit 0, 2 or 3) and stops with
   `python3 -I <source>/scripts/gen-docs.py --profile <name> --root <source>`; a non-zero exit →
   exit 3 `profile-fragment-unavailable`.
 
-### Relationship to spec 13's deployment engine
+### Relationship to spec 09's deployment engine
 
-Spec 13 delivers `scripts/deploy-skills.py` (adapters, sources, name map, registry, deploy
+Spec 09 delivers `scripts/deploy-skills.py` (adapters, sources, name map, registry, deploy
 manifests DM-6, journal and lock DM-7, active consumers, project pass). Its engine, deploy
 manifests, journal and lock, `--force` and `sync.sh` exit code 3 are correct and complete as
-the state between the two deliveries; this spec supersedes the write path (spec 13 Notes →
-Relationship to spec 11a, A-31; its Q-05 is resolved). This spec changes it as follows:
+the state between the two deliveries; this spec supersedes the write path (spec 09 Notes →
+Relationship to spec 20, A-31; its Q-05 is resolved). This spec changes it as follows:
 
 - `deploy` is removed (REQ-71); `install.py` is the only global writer.
 - `deployment-set --from <root> [--force]` (new, read-only, takes no lock): prints one JSON
   object `{"schema_version":1, "harnesses":[{"name", "skills_dir", "skills_dir_resolved",
   "always_on_path", "has_hooks": bool, "skills":[{"name", "source"}],
-  "leftover_candidates":[path]}], "active":[{"root", "task"}]}` built by spec 13's adapter, source, name-map and active-consumer logic; exit 0,
-  or spec 13's error codes with exit 1. `active` lists every active registered root, the
-  source checkout included (spec 13 REQ-43, DM-8), and is empty under `--force`, which
+  "leftover_candidates":[path]}], "active":[{"root", "task"}]}` built by spec 09's adapter, source, name-map and active-consumer logic; exit 0,
+  or spec 09's error codes with exit 1. `active` lists every active registered root, the
+  source checkout included (spec 09 REQ-43, DM-8), and is empty under `--force`, which
   overrides only that freeze. A harness's `leftover_candidates` holds the
-  sorted absolute paths of existing directories `<skills_dir>/<name>` for the spec 13
-  leftover names (spec 13 Terminology → Leftover skill: `<old>` of a workflow row,
+  sorted absolute paths of existing directories `<skills_dir>/<name>` for the spec 09
+  leftover names (spec 09 Terminology → Leftover skill: `<old>` of a workflow row,
   `rule-<old>` of a rule row, `PIPELINE` and `rule-global-claude` of the file rows, none of
   them a current installed name). The engine builds its deployment set from it (Data Model →
   Deployment set) and adds the always-on composition (REQ-39).
-- `project-pass --from <root> [--force]` (new): runs spec 13's project pass unchanged and
-  prints its project lines; it takes spec 13's lock `C/deploy.lock`.
+- `project-pass --from <root> [--force]` (new): runs spec 09's project pass unchanged and
+  prints its project lines; it takes spec 09's lock `C/deploy.lock`.
 - `list-projects` and `link-project` are unchanged; `scripts/setup-new-project.sh` keeps
   calling `link-project`.
 - Locks: the engine holds `C/install.lock` and then `C/deploy.lock` (non-blocking, the same
-  5-second retry) for a non-dry run, so a spec 13 engine from another checkout cannot write
+  5-second retry) for a non-dry run, so a spec 09 engine from another checkout cannot write
   concurrently.
 - Migration (REQ-43): each DM-6 object becomes an entry with `path` = object `path`,
   `harness` = manifest `harness`, `type` `file`, `source` from `deployment-set` (null when the
   object is no longer planned), `installed.sha256` = object `sha256`, `created` false,
   `original` `{"state": "migrated"}`; directories of migrated skills become `directory`
-  entries with `created` true (spec 13's engine created them), so uninstall removes them when
-  empty. A spec 13 journal (`C/deploy/journal.json`) present at start
-  → exit 2 `legacy-journal-present` with the instruction to complete spec 13's recovery from
+  entries with `created` true (spec 09's engine created them), so uninstall removes them when
+  empty. A spec 09 journal (`C/deploy/journal.json`) present at start
+  → exit 2 `legacy-journal-present` with the instruction to complete spec 09's recovery from
   the checkout that wrote it; nothing written.
-- `scripts/check-deploy-skills.py` (spec 13's suite) is updated by this spec: its `deploy` cases
+- `scripts/check-deploy-skills.py` (spec 09's suite) is updated by this spec: its `deploy` cases
   move to suite A as installer cases or are rewritten against `deployment-set` and
   `project-pass`, and its other cases stay unchanged.
 
-**Leftover skills (spec 13 REQ-57).** Leftover reporting lives in the installer, which stays
+**Leftover skills (spec 09 REQ-57).** Leftover reporting lives in the installer, which stays
 after `deploy` is removed: `install` (not `uninstall`) takes each harness's
 `leftover_candidates` from `deployment-set`, drops every candidate that is, or lies inside,
 the path of an ownership-manifest entry (an owned object is not a leftover), and reports the rest as
 `leftover <dir> (not removed; review, then remove it manually)` lines and in the plan's
-`leftover` field (REQ-79). Spec 13's detection knowledge (name map, adapters) stays in
+`leftover` field (REQ-79). Spec 09's detection knowledge (name map, adapters) stays in
 `deployment-set`; the ownership knowledge stays in the installer.
 
-**Preserved contracts of spec 13** (spec 13 Notes → Relationship to spec 11a), each met by a
+**Preserved contracts of spec 09** (spec 09 Notes → Relationship to spec 20), each met by a
 requirement of this spec or changed on purpose:
 
-| Spec 13 contract | Met here by |
+| Spec 09 contract | Met here by |
 |---|---|
-| An owned file the user changed is never overwritten or removed; a conflict writes nothing (13 REQ-42, REQ-63) | REQ-03, Install classification (`user-modified`, exit 1, nothing written); the exception is `--adopt` with a verified backup (REQ-06), which replaces 13's implicit first-run adoption (see below) |
-| A deferral writes nothing while any active consumer exists, the source checkout included; `--force` overrides only that freeze (13 REQ-43, DM-8) | REQ-42 and `deployment-set`'s `active` list |
-| Leftover skills are reported and never removed (13 REQ-57) | REQ-79 |
-| The registry stays read-only (13 REQ-08) | REQ-80 (REQ-35 for uninstall) |
-| The lock is never taken over (13 DM-7) | REQ-84, REQ-24 |
-| The project pass stays as 13 defines it and never touches profile files (13 Contracts → Project pass) | REQ-71 (`project-pass` unchanged), REQ-85, A-21 |
+| An owned file the user changed is never overwritten or removed; a conflict writes nothing (09 REQ-42, REQ-63) | REQ-03, Install classification (`user-modified`, exit 1, nothing written); the exception is `--adopt` with a verified backup (REQ-06), which replaces 09's implicit first-run adoption (see below) |
+| A deferral writes nothing while any active consumer exists, the source checkout included; `--force` overrides only that freeze (09 REQ-43, DM-8) | REQ-42 and `deployment-set`'s `active` list |
+| Leftover skills are reported and never removed (09 REQ-57) | REQ-79 |
+| The registry stays read-only (09 REQ-08) | REQ-80 (REQ-35 for uninstall) |
+| The lock is never taken over (09 DM-7) | REQ-84, REQ-24 |
+| The project pass stays as 09 defines it and never touches profile files (09 Contracts → Project pass) | REQ-71 (`project-pass` unchanged), REQ-85, A-21 |
 
-Explicit changes from spec 13, each with its reason:
+Explicit changes from spec 09, each with its reason:
 
-- Implicit first-run adoption of unrecorded managed paths (13 A-10) becomes the `foreign-target`
+- Implicit first-run adoption of unrecorded managed paths (09 A-10) becomes the `foreign-target`
   conflict with `--adopt` as the explicit remedy, because the owner's request requires that user
   bytes are never replaced without a verified backup (REQ-03, REQ-06); homes deployed by spec
-  13's engine are migrated as owned objects (REQ-43), and the Risks table records the one-time
+  09's engine are migrated as owned objects (REQ-43), and the Risks table records the one-time
   `sync.sh --adopt` for older homes.
-- A modified owned orphan: 13 prints `release-modified` and drops the entry in the same run;
+- A modified owned orphan: 09 prints `release-modified` and drops the entry in the same run;
   here it is a `user-modified` conflict that writes nothing and, under `--adopt`, is released
-  with `released` (REQ-73), because a conflict writes nothing. Likewise 13's `keep-nonempty`
+  with `released` (REQ-73), because a conflict writes nothing. Likewise 09's `keep-nonempty`
   line becomes the `directory-kept` info.
 - The deferral's exit code and wording are this spec's: exit 1 with `active-task` (REQ-42), and
-  `sync.sh` passes the installer's exit code through instead of spec 13's exit 3.
-- Spec 13's `forced <root>` lines under `--force` are not printed: `deployment-set` returns an
+  `sync.sh` passes the installer's exit code through instead of spec 09's exit 3.
+- Spec 09's `forced <root>` lines under `--force` are not printed: `deployment-set` returns an
   empty `active` list under `--force`, so the installer does not know the forced roots; the
   override itself is unchanged.
 - `target-moved` and the deploy manifest's `install_id` are not carried over: manifest entries
@@ -889,7 +889,7 @@ Explicit changes from spec 13, each with its reason:
 - Other runs: one line `<action> <path>` per entry whose action is not `unchanged`, in plan
   order, then one `leftover <dir> (not removed; review, then remove it manually)` line per
   leftover skill (install only, REQ-79), then `summary: create=<n> replace=<n> unchanged=<n> remove=<n> restore=<n> keep=<n> retain=<n> conflict=<n>`,
-  then, only when the run wrote a target, spec 13's residual-race `note:` line as the last
+  then, only when the run wrote a target, spec 09's residual-race `note:` line as the last
   line (Apply order step 6).
 
 ### Exit codes
@@ -983,10 +983,10 @@ every `retain` entry and every `keep` entry with `directory-kept`; when none rem
 5. Build the deployment set, classify every target and build the plan.
 6. When the plan meets REQ-42's trigger (an entry whose action is not `unchanged` or `keep`,
    or a `delegated` record whose `settings_sha256_after` differs from
-   `settings_sha256_before`): spec 13's active-consumer rule (REQ-42). In a non-dry run, `deployment-set` is run again now, while both locks are
-   held (spec 13 REQ-43 evaluates after taking the lock), and its `active` list decides; a
+   `settings_sha256_before`): spec 09's active-consumer rule (REQ-42). In a non-dry run, `deployment-set` is run again now, while both locks are
+   held (spec 09 REQ-43 evaluates after taking the lock), and its `active` list decides; a
    dry run uses the list from step 1. A deferral adds `active-task` to the plan. A run that
-   writes prints spec 13's residual-race note
+   writes prints spec 09's residual-race note
    `note: task starts during deployment are not detected; run sync when no pipeline run is starting`
    as the last line of its standard output.
 7. Dry-run: print the plan and exit 0, or 1 when it has a conflict. Otherwise, conflicts →
@@ -1075,28 +1075,28 @@ file atomically and writes `.ai/profile` last. Any conflict → nothing written,
 
 ### Existing-check obligations
 
-- Except in spec 11 REQ-72's release-preparation commit (which changes check expressions only through
-  spec 13's schema-2 inventory amendment, followed by re-pinning), edits to
+- Except in spec 21 REQ-72's release-preparation commit (which changes check expressions only through
+  spec 09's schema-2 inventory amendment, followed by re-pinning), edits to
   `scripts/validate-contracts.sh` are allowed only inside function bodies outside the
   pinned-body region, never in a `check` line or failure message, and never add or
   remove a line matching `\bcheck\b`; any edit is followed by the source-guard re-pinning
-  procedure. This spec needs none; spec 11 needs one only if its REQ-63 forces a body change.
+  procedure. This spec needs none; spec 21 needs one only if its REQ-63 forces a body change.
 - Changing `scripts/sync.sh` or `scripts/setup-new-project.sh` is followed by re-pinning their
   digests under `tests/fixtures/validator-runtime/README.md:9-27`. `tests/hook-install.sh` is not
   edited; if a change is unavoidable, its inventory resource entry is re-amended and the
-  oracle digest updated as spec 10 describes.
+  oracle digest updated as spec 19 describes.
 
 ## Non-Functional Requirements
 
 | Attribute | Target / standard | Verification |
 |---|---|---|
-| Portability | Bash and Python 3.11+ standard library only; no package installation, no account-setting change; Linux local filesystems verified; macOS is a design target (`fcntl` is available there) that this delivery does not verify | Suite A static import check (standard-library modules only) and its Linux run; spec 11 states the macOS limit in `docs/OPTIONAL-FEATURES.md` |
+| Portability | Bash and Python 3.11+ standard library only; no package installation, no account-setting change; Linux local filesystems verified; macOS is a design target (`fcntl` is available there) that this delivery does not verify | Suite A static import check (standard-library modules only) and its Linux run; spec 21 states the macOS limit in `docs/OPTIONAL-FEATURES.md` |
 | Network and models | No network connection, model or harness CLI invocation by the engine, the launcher or suite A | Suite A runs the engine with `PATH` fakes for `gh`, `claude`, `codex`, `curl`, `wget` that record calls |
 | Data safety | Byte-exact backups verified by SHA-256; atomic per-file replacement with `fsync`; no write through a symbolic link | AC-05, AC-24, AC-25 |
 | Privacy | Backups, manifest and journal stay under the user's XDG directories with modes 0600/0700; nothing from them is committed | Suite A asserts the modes and that no manifest, journal, lock or backup path lies under the source root |
 | Determinism | Identical inputs give byte-identical installed bytes and plan JSON apart from paths containing `installation_id`; manifests differ only in `installation_id` | AC-03 (installed bytes, manifests); suite A compares two dry-run plans of one home byte for byte |
 | Isolation of tests | Suites use disposable `HOME`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, never the real home | Suite A asserts every write is under its temporary root |
-| Compatibility | Hook receipt versions 1 and 2 and the `install`/`uninstall` output of `install-hooks.sh` unchanged; deployed always-on bytes equal spec 10's contract | `tests/hook-install.sh` passing (its `copy_source` lacks `VERSION`, which is why `VERSION` is optional for the engine; any unavoidable fixture edit follows Existing-check obligations); AC-26 |
+| Compatibility | Hook receipt versions 1 and 2 and the `install`/`uninstall` output of `install-hooks.sh` unchanged; deployed always-on bytes equal spec 19's contract | `tests/hook-install.sh` passing (its `copy_source` lacks `VERSION`, which is why `VERSION` is optional for the engine; any unavoidable fixture edit follows Existing-check obligations); AC-26 |
 
 ## Edge Cases & Failure Modes
 
@@ -1117,9 +1117,9 @@ file atomically and writes `.ai/profile` last. Any conflict → nothing written,
 | Crash between temporary-file creation and rename | Recovery deletes the journalled temporary file | REQ-26 |
 | Profile switch with a begin marker naming another profile than the record | `fragment-markers-invalid`, nothing written | REQ-48 |
 | Source file edited during apply | Exit 4 `source-changed` before that write; rerun rolls back | REQ-45 |
-| Manifest deleted by the user, no spec 13 deploy manifest | Uninstall removes nothing (`no-manifest`); install treats targets as foreign | REQ-34 |
-| Uninstall in a home deployed by spec 13's engine (deploy manifests, no ownership manifest) | Objects migrate as owned entries and are removed as `migrated` (`no-original` for always-on files); deploy manifests deleted at commit | REQ-43, REQ-34 |
-| Spec 13 deploy manifest malformed or of an unknown version | Exit 2 `deploy-manifest-invalid`, nothing written | REQ-41 |
+| Manifest deleted by the user, no spec 09 deploy manifest | Uninstall removes nothing (`no-manifest`); install treats targets as foreign | REQ-34 |
+| Uninstall in a home deployed by spec 09's engine (deploy manifests, no ownership manifest) | Objects migrate as owned entries and are removed as `migrated` (`no-original` for always-on files); deploy manifests deleted at commit | REQ-43, REQ-34 |
+| Spec 09 deploy manifest malformed or of an unknown version | Exit 2 `deploy-manifest-invalid`, nothing written | REQ-41 |
 | `setup-new-project.sh --profile` with `python3` missing or older than 3.11 | Exit 3 `runtime-unavailable` before any write | REQ-82 |
 | Manifest with `schema_version` 2 or duplicate keys | Exit 2 `manifest-invalid`, nothing written | REQ-41 |
 | Original backup file deleted or altered | `backup-corrupt`, target kept, entry retained | REQ-33 |
@@ -1129,7 +1129,7 @@ file atomically and writes `.ai/profile` last. Any conflict → nothing written,
 | `jq` or `flock` missing | Hook result `missing-dependency` is recorded in the installation record; install continues | REQ-38, REQ-39 |
 | Hook result differs between plan and apply | Always-on content rebuilt with the actual result; info `hook-result-differs` | REQ-38 |
 | Generated files stale in the checkout | Exit 3 `generated-files-stale` | REQ-40 |
-| Registered project has an in-progress task | Spec 13 rule defers; exit 1 `active-task` unless spec 13's `--force` applies | REQ-42 |
+| Registered project has an in-progress task | Spec 09 rule defers; exit 1 `active-task` unless spec 09's `--force` applies | REQ-42 |
 | Profile principle file deleted by the user | `kept-deleted`, not recreated without `--adopt` | REQ-50 |
 | Project `AGENTS.md` already holds stack text from the old setup | Left as is; the fragment is appended; duplication is accepted | REQ-47 |
 | `CLAUDE.md` with two begin markers | `fragment-markers-invalid`, nothing written | REQ-48 |
@@ -1263,17 +1263,17 @@ acceptance and stay open until the owner acts.
   output, When `install.sh` and `install.sh --dry-run` run, Then both exit 3 with
   `generated-files-stale` and write nothing.
 - **AC-28** (REQ-42) — Given a registered fixture project with a task phase `in-progress` as
-  spec 13 defines it, When `install.sh` runs on a home where a target would change, Then it
+  spec 09 defines it, When `install.sh` runs on a home where a target would change, Then it
   exits 1 with `active-task` and writes nothing; and with `--force`, Then no `active-task`
   diagnostic is printed, the changed target is written and the exit code is 0.
-- **AC-29** (REQ-43, REQ-71) — Given a fixture home deployed by spec 13's engine (deploy
+- **AC-29** (REQ-43, REQ-71) — Given a fixture home deployed by spec 09's engine (deploy
   manifests for claude and codex, each skill and always-on object at its recorded digest
   except one skill the user edited), When `install.sh` runs, Then every unchanged object is
   classified `owned` with `original.state` `migrated`, the edited skill gives `user-modified`
   and exit 1, and nothing is written; When it runs with `--adopt`, Then the ownership manifest holds an
   entry per object and `C/deploy/claude.json` and `C/deploy/codex.json` no longer exist; and
   `scripts/deploy-skills.py deploy` exits 2 (unknown subcommand) while `deployment-set`
-  prints the documented JSON and leaves the snapshot unchanged; and Given a second spec 13 home
+  prints the documented JSON and leaves the snapshot unchanged; and Given a second spec 09 home
   without user edits, When `install.sh --uninstall` runs, Then every migrated object is removed,
   each always-on file reports `no-original`, the created skill directories are removed when
   empty, both deploy manifests are deleted and the run exits 0.
@@ -1317,8 +1317,8 @@ acceptance and stay open until the owner acts.
 - **AC-44** (REQ-64) — Given a fixture source whose validator stub exits 0 and whose
   `gen-docs.py --check` stub exits 1, and stubs for the installer and `deploy-skills.py
   project-pass` that record their calls, When `sync.sh --from <source>` runs, Then it prints
-  spec 10's REQ-22 message, exits 1, calls neither the installer nor `project-pass` and creates
-  no file under the fixture home; Given a meter stub exiting 1 in a source where spec 08's
+  spec 19's REQ-22 message, exits 1, calls neither the installer nor `project-pass` and creates
+  no file under the fixture home; Given a meter stub exiting 1 in a source where spec 11's
   `measure-context.sh` exists, Then the same holds; and Given passing gates and an installer
   stub exiting 1, Then sync prints `ERROR: installation stopped (exit 1); see the diagnostics
   above`, exits 1 and does not call `project-pass`.
@@ -1343,7 +1343,7 @@ acceptance and stay open until the owner acts.
   recorded as `directory` entries with `created: true`, no claude target is written, and
   `--uninstall` afterwards removes `~/.codex` when it is empty.
 - **AC-41** (REQ-79) — Given a fixture home whose `skills_dir` holds the directories
-  `pae-tests` and `rule-tdd` (names spec 13's name map lists as leftovers) with no manifest
+  `pae-tests` and `rule-tdd` (names spec 09's name map lists as leftovers) with no manifest
   entry, and a fixture source whose `deployment-set` reports them as `leftover_candidates`,
   When `install.sh` runs twice, Then each run prints one `leftover <dir> (not removed; review,
   then remove it manually)` line per directory, the directories are byte-for-byte unchanged,
@@ -1354,7 +1354,7 @@ acceptance and stay open until the owner acts.
   `install.sh --uninstall` and `deploy-skills.py project-pass` run, Then the registry bytes are
   unchanged, neither `C/install.lock` nor `C/deploy.lock` is deleted or replaced while another
   process holds an `flock` on it (the installer exits 3 `installer-busy`; `project-pass`
-  exits 1 with spec 13's `deploy-locked`), and in a registered
+  exits 1 with spec 09's `deploy-locked`), and in a registered
   project holding `.ai/profile` and a managed fragment `project-pass` leaves every profile
   file and record byte-identical.
 
@@ -1425,16 +1425,16 @@ acceptance and stay open until the owner acts.
 | REQ-84 | AC-42 |
 | REQ-85 | AC-42 |
 
-Every AC names at least one REQ. No criterion of this spec is a release gate; the release gates AC-34 and AC-37 are in spec 11.
+Every AC names at least one REQ. No criterion of this spec is a release gate; the release gates AC-34 and AC-37 are in spec 21.
 
 ## Risks
 
 | Risk | Impact | Likelihood | Mitigation |
 |---|---|---|---|
-| Users' personal global instruction files are replaced (with backup) | Lost personal instructions in sessions until restored | Medium | Conflict without `--adopt`; spec 11's README and USAGE explain the backup and uninstall |
-| Homes deployed before spec 13's engine have no manifest | First sync stops with `foreign-target` conflicts | Medium | Documented one-time `sync.sh --adopt`; identical files adopted without backup; homes deployed by spec 13 migrate without conflicts (REQ-43) |
-| Spec 13's delivered engine differs from its spec text | The `deployment-set` contract or DM-6 mapping needs adjustment | Medium | Discovery of this spec verifies DM-6 and the engine at the delivered revision; changes are recorded in this spec's delivery ADR |
-| Migrated always-on files have no original backup | Uninstall removes `CLAUDE.md`/`AGENTS.md` without restoring earlier user content | Medium | Info `no-original`; the earlier content was already overwritten by sync and spec 13's adopt |
+| Users' personal global instruction files are replaced (with backup) | Lost personal instructions in sessions until restored | Medium | Conflict without `--adopt`; spec 21's README and USAGE explain the backup and uninstall |
+| Homes deployed before spec 09's engine have no manifest | First sync stops with `foreign-target` conflicts | Medium | Documented one-time `sync.sh --adopt`; identical files adopted without backup; homes deployed by spec 09 migrate without conflicts (REQ-43) |
+| Spec 09's delivered engine differs from its spec text | The `deployment-set` contract or DM-6 mapping needs adjustment | Medium | Discovery of this spec verifies DM-6 and the engine at the delivered revision; changes are recorded in this spec's delivery ADR |
+| Migrated always-on files have no original backup | Uninstall removes `CLAUDE.md`/`AGENTS.md` without restoring earlier user content | Medium | Info `no-original`; the earlier content was already overwritten by sync and spec 09's adopt |
 | Frozen validator and source guard | Implementation blocked by fingerprint failures | High | Standalone suites; re-pinning procedure; no new `check` lines |
 | `flock` binary absent on macOS | Hook installation unavailable there | Medium | Recorded in the installation record and OPTIONAL-FEATURES; engine uses `fcntl` |
 
@@ -1451,34 +1451,34 @@ Every AC names at least one REQ. No criterion of this spec is a release gate; th
 - A-09 | Lifetime of previous-state backups | Resolved: only until the operation commits | Source: original §4.2 (rollback of a failed update); best practice (smallest retained data) | Reversible: yes
 - A-10 | Recovery direction | Resolved: install rolls back, uninstall rolls forward | Source: original §4.3 step 7 and §8 | Reversible: yes
 - A-11 | Hook settings in the plan | Resolved: new read-only `plan` operation of the hook installer; hooks are not rolled back | Source: original §4.2 last paragraph; `scripts/install-hooks.py:582-599` already computes the update without writing | Reversible: yes
-- A-12 | Stale generated files | Resolved: the engine runs `gen-docs.py --check` itself | Source: spec 10 Goal ("deployment refuses to proceed while any derived file is stale") | Reversible: yes
-- A-13 | Active tasks | Resolved: consume spec 13 REQ-43 through `deployment-set`'s `active` list; `--force` has only its meaning | Source: spec 13 REQ-09, REQ-43 | Reversible: yes
-- A-14 | Overlap with spec 13's `deploy-skills.py` (DM-6 manifests, DM-7 journal and lock, global writes) | Resolved: `install.py` becomes the only global writer; `deploy-skills.py deploy` is removed and replaced by read-only `deployment-set` and `project-pass`; DM-6 manifests are migrated and deleted (REQ-43, REQ-71) | Source: ADR-0009 Decision 1 Consequences and Decision 6 (installer belongs to 11); spec 13 A-31 and Notes → Relationship to spec 11a (its Q-05 is resolved; its list of preserved contracts is mapped to requirements under Contracts → Relationship to spec 13's deployment engine) | Reversible: yes (ADR at delivery)
-- A-15 | Exit codes | Resolved: 0/1/2/3 aligned with spec 10's family, plus 4 for incomplete | Source: spec 10 Contracts → Stages and exit codes; best practice | Reversible: yes
+- A-12 | Stale generated files | Resolved: the engine runs `gen-docs.py --check` itself | Source: spec 19 Goal ("deployment refuses to proceed while any derived file is stale") | Reversible: yes
+- A-13 | Active tasks | Resolved: consume spec 09 REQ-43 through `deployment-set`'s `active` list; `--force` has only its meaning | Source: spec 09 REQ-09, REQ-43 | Reversible: yes
+- A-14 | Overlap with spec 09's `deploy-skills.py` (DM-6 manifests, DM-7 journal and lock, global writes) | Resolved: `install.py` becomes the only global writer; `deploy-skills.py deploy` is removed and replaced by read-only `deployment-set` and `project-pass`; DM-6 manifests are migrated and deleted (REQ-43, REQ-71) | Source: ADR-0009 Decision 1 Consequences and Decision 6 (installer belongs to 21); spec 09 A-31 and Notes → Relationship to spec 20 (its Q-05 is resolved; its list of preserved contracts is mapped to requirements under Contracts → Relationship to spec 09's deployment engine) | Reversible: yes (ADR at delivery)
+- A-15 | Exit codes | Resolved: 0/1/2/3 aligned with spec 19's family, plus 4 for incomplete | Source: spec 19 Contracts → Stages and exit codes; best practice | Reversible: yes
 - A-16 | Interruption testing | Resolved: test-only fault variable that can only stop a run, and (2026-11-16) a pause variable that can only delay one, so the suite can change an input between planning and a write | Source: `.ai/memory/architecture.md:88` (git-rails test-only seam that can only deny) | Reversible: yes
 - A-17 | Profile layout and target names | Resolved: `profile.json`; targets under `.ai/principles/` and `.ai/context/stack-python-fastapi.md` | Source: ADR-0009 Decision 6 (`:225-229`); original §5 (name fixed in the manifest) | Reversible: yes
-- A-18 | Profile name grammar | Resolved: `^[a-z0-9]+(-[a-z0-9]+)*$` | Source: spec 10 REQ-43 | Reversible: yes
+- A-18 | Profile name grammar | Resolved: `^[a-z0-9]+(-[a-z0-9]+)*$` | Source: spec 19 REQ-43 | Reversible: yes
 - A-19 | Marker wording | Resolved: neutral `BEGIN/END MANAGED PROFILE` markers without the product name | Source: `.ai/principles/architecture.md` P8 | Reversible: yes
 - A-20 | Profile conflict handling | Resolved: all-or-nothing with `--adopt`; deleted files stay deleted | Source: A-06 consistency; best practice (respect a user's deletion) | Reversible: yes
 - A-21 | Profile upgrades in registered projects | Resolved: only by re-running setup with `--profile`; sync and install never touch project profiles | Source: ADR-0009 Decision 6 (setup copies profiles); smallest choice | Reversible: yes
 - A-22 | Interactive stack prompt | Resolved: removed | Source: original REQ-08 (explicit `--profile`); ADR-0009 Decision 6 | Reversible: yes
 - A-23 | What "neutral" means for the two core files | Resolved: no stack term anywhere in `principles/*.md`; stack-specific examples rewritten as language-neutral `text` pseudocode, originals moved verbatim to `profiles/python-fastapi/principles/code-examples.md` | Source: original §5 ("stack examples are allowed in an explicitly chosen profile"); REQ-07 | Reversible: yes
-- A-30 | Test location | Resolved: standalone `scripts/check-install.py` (suite A; spec 11 adds `scripts/check-public-readiness.py`), not registered in the validator | Source: ADR-0019 Decision 3; spec 10 Scope item 8 | Reversible: yes
+- A-30 | Test location | Resolved: standalone `scripts/check-install.py` (suite A; spec 21 adds `scripts/check-public-readiness.py`), not registered in the validator | Source: ADR-0019 Decision 3; spec 19 Scope item 8 | Reversible: yes
 - A-31 | Validator edits | Resolved: bodies only, outside the pinned region, expressions untouched, then re-pin | Source: `tests/fixtures/validator-runtime/oracle.py:160-252`; ADR-0020 Decision 2 | Reversible: yes
-- A-38 | Project skill links after uninstall | Resolved: left untouched (they belong to projects; spec 13's pass removes broken links) | Source: REQ-35; `scripts/sync.sh:226-239` | Reversible: yes
-- A-39 | Platform | Resolved: Linux and macOS local filesystems | Source: `scripts/install-hooks.py:16` (`fcntl`); spec 10 Non-Functional Requirements | Reversible: yes
+- A-38 | Project skill links after uninstall | Resolved: left untouched (they belong to projects; spec 09's pass removes broken links) | Source: REQ-35; `scripts/sync.sh:226-239` | Reversible: yes
+- A-39 | Platform | Resolved: Linux and macOS local filesystems | Source: `scripts/install-hooks.py:16` (`fcntl`); spec 19 Non-Functional Requirements | Reversible: yes
 - A-40 | Installed and backup modes | Resolved: installed files 0644; bookkeeping 0600/0700; restore uses the recorded mode | Source: best practice | Reversible: yes
-- A-45 | How a later spec's rows enter spec 13's signed DM-20 record (2026-11-16) | Resolved: this delivery appends its `## Superseded checks` rows and one further `Signed:` line by its own independent validator below the existing one; earlier rows and signatures are not changed | Source: spec 13 REQ-69 (a later spec adds verdict rows in its own delivery) and DM-20 (record ends with a `Signed:` line); smallest additive choice | Reversible: yes
-- A-42 | Which command reports leftover skills after `deploy` is removed (2026-11-14) | Resolved: the installer, on `install` and `--dry-run` (REQ-79), fed by `deployment-set`'s `leftover_candidates`; not an additional `deploy-skills.py` subcommand, so that REQ-71's subcommand set and the public installer's output stay the single place a user sees the lines | Source: spec 13 REQ-57 and Notes → Relationship to spec 11a (leftover reporting must survive `deploy`); spec 13 Terminology → Leftover skill | Reversible: yes
+- A-45 | How a later spec's rows enter spec 09's signed DM-20 record (2026-11-16) | Resolved: this delivery appends its `## Superseded checks` rows and one further `Signed:` line by its own independent validator below the existing one; earlier rows and signatures are not changed | Source: spec 09 REQ-69 (a later spec adds verdict rows in its own delivery) and DM-20 (record ends with a `Signed:` line); smallest additive choice | Reversible: yes
+- A-42 | Which command reports leftover skills after `deploy` is removed (2026-11-14) | Resolved: the installer, on `install` and `--dry-run` (REQ-79), fed by `deployment-set`'s `leftover_candidates`; not an additional `deploy-skills.py` subcommand, so that REQ-71's subcommand set and the public installer's output stay the single place a user sees the lines | Source: spec 09 REQ-57 and Notes → Relationship to spec 20 (leftover reporting must survive `deploy`); spec 09 Terminology → Leftover skill | Reversible: yes
 
 ## Decisions
 
 N/A — the owner decisions D-01–D-04 of 2026-11-14 concern licensing, translations and CI and
-are recorded in spec 11; no decision was taken for this part.
+are recorded in spec 21; no decision was taken for this part.
 
 ## Clarifications
 
-N/A — no questions were asked for this part; the 2026-11-14 session is recorded in spec 11.
+N/A — no questions were asked for this part; the 2026-11-14 session is recorded in spec 21.
 
 ### Session 2026-11-16
 
@@ -1487,81 +1487,81 @@ N/A — no questions were asked for this part; the 2026-11-14 session is recorde
 
 ## Open Questions
 
-- Q-04 | resolved 2026-11-13 | Spec 13 now specifies `scripts/deploy-skills.py`, DM-6 deploy
+- Q-04 | resolved 2026-11-13 | Spec 09 now specifies `scripts/deploy-skills.py`, DM-6 deploy
   manifests and DM-7 journal and lock; the mapping is under Contracts → Relationship to spec
-  13's deployment engine. Discovery of this spec re-verifies it against the delivered spec 13.
-- Q-06 | non-blocker (external precondition owned by spec 13) | The frozen checks that pin
+  09's deployment engine. Discovery of this spec re-verifies it against the delivered spec 09.
+- Q-06 | non-blocker (external precondition owned by spec 09) | The frozen checks that pin
   the text of `scripts/sync.sh` and `scripts/setup-new-project.sh`
-  (`scripts/validate-contracts.sh:953-957`, `:1166-1179`, `:1293-1320`, as spec 13 re-points
+  (`scripts/validate-contracts.sh:953-957`, `:1166-1179`, `:1293-1320`, as spec 09 re-points
   them for its own sync and setup) must be re-pointed before REQ-04 can pass.
-  Spec 13 is final and defines the mechanism: `tests/fixtures/validator-runtime/inventory-amendment.json`
+  Spec 09 is final and defines the mechanism: `tests/fixtures/validator-runtime/inventory-amendment.json`
   with `"schema": 2` and the lists `path_changes` and `contract_changes` (its DM-9; REQ-51
-  and REQ-52; A-02). What this spec needs amended is exactly the checks that, once spec 13
+  and REQ-52; A-02). What this spec needs amended is exactly the checks that, once spec 09
   is delivered, assert text this spec changes: in `sync.sh`, the separate hook-installation
   step and the `deploy-skills.py deploy --hook-result` step (replaced by the launcher call and
   `project-pass`, REQ-04, REQ-64, REQ-71); in `setup-new-project.sh`, the interactive stack
   prompt and standards injection (replaced by `--profile`, REQ-08, REQ-51); and any check
-  that names a rule file literally in either script if spec 13's delivery still leaves one
-  (spec 11's REQ-61 rule file is spec 11's own `contract_changes` entry, `spec-11 REQ-61`, in its delivery; this spec adds none for it). This spec's Discovery lists them by running the
-  oracle against the delivered spec 13. These changes are semantic, so they are
-  `contract_changes` entries, not `path_changes` (which spec 13's mask accepts only for
-  name-only differences). The precondition is met by spec 13's text for the mechanism but
-  not for these entries: the closed set of `requirement` values (spec 13's own REQ-05, REQ-06,
+  that names a rule file literally in either script if spec 09's delivery still leaves one
+  (spec 21's REQ-61 rule file is spec 21's own `contract_changes` entry, `spec-21 REQ-61`, in its delivery; this spec adds none for it). This spec's Discovery lists them by running the
+  oracle against the delivered spec 09. These changes are semantic, so they are
+  `contract_changes` entries, not `path_changes` (which spec 09's mask accepts only for
+  name-only differences). The precondition is met by spec 09's text for the mechanism but
+  not for these entries: the closed set of `requirement` values (spec 09's own REQ-05, REQ-06,
   REQ-09, REQ-10, REQ-11, REQ-12, REQ-14, REQ-15, REQ-23, REQ-36, REQ-55, REQ-66) is
   hard-coded in the oracle test and cannot name a requirement of this spec, and each entry also needs a
-  verdict row in the `## Superseded checks` table of spec 13's DM-20 record. Impact: this spec
-  extends the closed set under spec 13 REQ-69 with values of the form `spec-11a REQ-NN` in
+  verdict row in the `## Superseded checks` table of spec 09's DM-20 record. Impact: this spec
+  extends the closed set under spec 09 REQ-69 with values of the form `spec-20 REQ-NN` in
   `tests/validator-runtime-oracle.py` (updating `AMENDMENT_SHA256` and the source-guard records), appends its entries and their DM-20 rows, and states it in
-  this spec's delivery ADR; if spec 13 is delivered without DM-9 schema 2, Discovery stops.
-  The value `spec-11a` needs spec 13 REQ-69's prefix grammar to accept a letter after the
-  number; that grammar change is made to spec 13's text in the change that splits this spec
+  this spec's delivery ADR; if spec 09 is delivered without DM-9 schema 2, Discovery stops.
+  The value `spec-20` needs spec 09 REQ-69's prefix grammar to accept a letter after the
+  number; that grammar change is made to spec 09's text in the change that splits this spec
   out, so it is not a blocker. DM-20 rows are appended as A-45 states.
 
 ## Notes
 
-- **Preconditions (checked at Discovery):** spec 13 (`deploy.env`, installed-name map,
+- **Preconditions (checked at Discovery):** spec 09 (`deploy.env`, installed-name map,
   active-task rule, retired Windsurf targets; the active-task rule is delivered in
-  `deploy-skills.py` (spec 13 REQ-43, DM-8) and consumed through `deployment-set`; and the
+  `deploy-skills.py` (spec 09 REQ-43, DM-8) and consumed through `deployment-set`; and the
   checks listed under Context → Constraints that pin sync and setup text have been retired or
-  rewritten through an accepted inventory change, Q-06; spec 13 DM-9) and spec 10
+  rewritten through an accepted inventory change, Q-06; spec 09 DM-9) and spec 19
   (`gen-docs.py --check`, `--profile`, generated `harness/<name>/always-on.md`, sync deployment
   contract). Missing → Discovery stops.
-- **Relationship to spec 11:** spec 11 starts after this spec is reviewed. It documents this
+- **Relationship to spec 21:** spec 21 starts after this spec is reviewed. It documents this
   spec's command lines, profiles and optional features, its release check runs
-  `scripts/check-install.py`. Spec 11 adds its own inventory entry, `spec-11 REQ-61`, for its
-  rule file (spec 11 Q-07); this spec adds none for it.
+  `scripts/check-install.py`. Spec 21 adds its own inventory entry, `spec-21 REQ-61`, for its
+  rule file (spec 21 Q-07); this spec adds none for it.
 - Hint (nonbinding): subtasks — (1) manifest, plan and classification with suite A fixtures;
   (2) apply, journal, recovery and fault seam; (3) uninstall; (4) hook plan operation,
   launcher and sync delegation with source-guard re-pinning; (5) neutral core and profiles.
 - Ownership of the sync gates: this spec owns the position of the validator, generator and
-  meter gates in `scripts/sync.sh` after its delivery (REQ-64); spec 10 owns the generator
-  command and its exit semantics and spec 08 the meter command (spec 10 REQ-22, A-48).
+  meter gates in `scripts/sync.sh` after its delivery (REQ-64); spec 19 owns the generator
+  command and its exit semantics and spec 11 the meter command (spec 19 REQ-22, A-48).
 - Hint (nonbinding): keep classification, planning and applying as separate functions of the
   engine so suite A can test classification tables without subprocesses.
 - Shared acceptance gates G1–G8 apply (`.ai/specs/README.md` → "Shared acceptance gates"); G6
   is met by the standalone suite; no paid run is needed.
-- Rejected alternatives: a managed region inside the global instruction files (spec 10 and
+- Rejected alternatives: a managed region inside the global instruction files (spec 19 and
   ADR-0009 define whole-file always-on deployment); partial installs on conflict; a second
   ownership mechanism for hook settings; `install.sh` at the repository root (A-02);
   interactive profile prompts; automatic profile upgrades during sync.
-- **Follow-up for other specs (not changed here):** spec 13 records that its REQ-10, REQ-42
+- **Follow-up for other specs (not changed here):** spec 09 records that its REQ-10, REQ-42
   and REQ-45 for global targets are delivered by this engine and that its project pass never
-  refreshes profiles (its Notes → Relationship to spec 11a; A-21).
-- **Changed with the split (same change):** spec 13 REQ-69's `requirement` grammar accepts a
-  letter after the spec number (`spec-11a REQ-NN`, Q-06); `.ai/specs/README.md` lists this spec
-  as its own roadmap row before spec 11; citations in specs 08, 10 and 13 of identifiers that
-  moved here name spec 11a.
+  refreshes profiles (its Notes → Relationship to spec 20; A-21).
+- **Changed with the split (same change):** spec 09 REQ-69's `requirement` grammar accepts a
+  letter after the spec number (`spec-20 REQ-NN`, Q-06); `.ai/specs/README.md` lists this spec
+  as its own roadmap row before spec 21; citations in specs 11, 19 and 09 of identifiers that
+  moved here name spec 20.
 
 ## Change Log
 
-### 2026-11-16 — split from spec 11
+### 2026-11-16 — split from spec 21
 
-- Created from Part A of `.ai/specs/11-open-source-readiness.md` at `e3ba41a`: Context,
+- Created from Part A of `.ai/specs/21-open-source-readiness.md` at `e3ba41a`: Context,
   Scope items 1–7, the installer and profile requirements, Data Model, Contracts, Edge Cases,
   acceptance criteria, Traceability rows, Risks, Assumptions and Q-04/Q-06 moved without
-  renumbering. The history of these texts before the split is the Change Log of spec 11.
-- Q-06 now names `spec-11a REQ-NN` as the closed-set value; spec 11 keeps its own entry for
-  its REQ-61 (spec 11 Q-07).
+  renumbering. The history of these texts before the split is the Change Log of spec 21.
+- Q-06 now names `spec-20 REQ-NN` as the closed-set value; spec 21 keeps its own entry for
+  its REQ-61 (spec 21 Q-07).
 - Same day, `/spec-draft --auto-mode` review loop with an independent critic (3 rounds: 56, 92,
   99/100): REQ-49, REQ-50, REQ-34 and REQ-43 corrected; REQ-80 split into REQ-80, REQ-84 and
   REQ-85; new REQ-82 (setup runtime guard) and REQ-83 (writable parents); new AC-44 (sync
@@ -1577,7 +1577,7 @@ Result of 2026-11-16 (first review after the split).
 | # | Check | Result |
 |---|---|---|
 | 1 | Goal is one domain-language paragraph | PASS — installer, ownership record, maintainer deployment and profiles in one paragraph |
-| 2 | Out of Scope names concrete exclusions | PASS — spec 11's materials, owner actions, paid runs, spec 13 and 10 ownership and others named |
+| 2 | Out of Scope names concrete exclusions | PASS — spec 21's materials, owner actions, paid runs, spec 09 and 19 ownership and others named |
 | 3 | Each REQ has a stable id and one EARS behaviour | PASS — 62 requirements; REQ-80 split into REQ-80, REQ-84, REQ-85; new REQ-82, REQ-83 |
 | 4 | Every REQ maps to an AC and every AC names a REQ | PASS — Traceability covers every requirement and all 29 criteria |
 | 5 | Every AC is binary and testable before implementation | PASS — fixture-based Given/When/Then with the fault, pause and foreign-user test seams |
@@ -1585,9 +1585,9 @@ Result of 2026-11-16 (first review after the split).
 | 7 | Data model and contracts specified | PASS — locations, manifest, journal, plan, profile manifest and record, markers, CLIs, exit codes, diagnostics, classification, apply order, recovery |
 | 8 | Error, empty, boundary and concurrency cases covered | PASS — Edge Cases table and classification tables, including uninstall migration and the interrupted first install |
 | 9 | Every ambiguity recorded | PASS — A-01–A-23, A-30, A-31, A-38–A-40, A-42, A-45; Q-04 resolved, Q-06 open |
-| 10 | No blocker question remains | PASS — Q-06 is a non-blocker; the spec 13 grammar it needs is in spec 13's text |
+| 10 | No blocker question remains | PASS — Q-06 is a non-blocker; the spec 09 grammar it needs is in spec 09's text |
 | 11 | Every existing-code claim cited and verified | PASS — citations checked by the critic against `e3ba41a` (code unchanged since `060ce6d`) |
-| 12 | Terminology matches domain definitions | PASS — "ownership manifest" qualified throughout next to spec 13's deploy manifests |
+| 12 | Terminology matches domain definitions | PASS — "ownership manifest" qualified throughout next to spec 09's deploy manifests |
 | 13 | Scope is feature-sized (1–8 subtasks) | PASS — about five to six subtasks (Notes hint) |
 | 14 | Devil's Advocate review passed | PASS — Review: 3 rounds, score 99/100, critic: sub-agent, open: none (minor F-21 applied after the final round) |
 

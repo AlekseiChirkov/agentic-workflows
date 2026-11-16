@@ -22,15 +22,15 @@ flow: full
 → archived to state-archive.md
 
 ### Assumptions
-- Spec 13 not done; implement against the current `harness/claude/` layout → proceed on the current layout; 13a/13 follow afterwards (source: user, owner answer of 2026-11-03 to spec §2.3, recorded in the previous session's notes and ADR-0017 Q&A; shown for confirmation at the batch gate)
-- Rule path in diagnostics (`rules/git-flow.md → ## Safety rails`) → one constant in `hooks/git_rails.py`; tests read that constant so spec 13's rename touches one place (source: user, same 2026-11-03 answer)
-- Capability record shape → the `git-rails` section uses spec 13 §7.2 fields (name, state yes|no|unknown, verified runtime version, date, evidence URL, limitations) plus spec 06 §10.4 items (source: user, same 2026-11-03 answer; `.ai/specs/13-model-only-harnesses-and-rule-naming.md → 7.2`)
-- Roadmap order change (06 before 13a/13) → recorded in provisional ADR-0017; the `.ai/specs/README.md` order note and the ADR-0009 status change are written only when ADR-0017 is accepted at validation, so the README never contradicts an Accepted ADR-0009 (source: arbiter audit; ADR-0009 → Verification; `workflows/adr-new.md` Step 2); spec 13's REQ-35 adapter list gains `permissions.json` only when 13 is rewritten, not in this task (source: user, same 2026-11-03 answer)
+- Spec 09 not done; implement against the current `harness/claude/` layout → proceed on the current layout; 08/09 follow afterwards (source: user, owner answer of 2026-11-03 to spec §2.3, recorded in the previous session's notes and ADR-0017 Q&A; shown for confirmation at the batch gate)
+- Rule path in diagnostics (`rules/git-flow.md → ## Safety rails`) → one constant in `hooks/git_rails.py`; tests read that constant so spec 09's rename touches one place (source: user, same 2026-11-03 answer)
+- Capability record shape → the `git-rails` section uses spec 09 §7.2 fields (name, state yes|no|unknown, verified runtime version, date, evidence URL, limitations) plus spec 06 §10.4 items (source: user, same 2026-11-03 answer; `.ai/specs/09-model-only-harnesses-and-rule-naming.md → 7.2`)
+- Roadmap order change (06 before 08/09) → recorded in provisional ADR-0017; the `.ai/specs/README.md` order note and the ADR-0009 status change are written only when ADR-0017 is accepted at validation, so the README never contradicts an Accepted ADR-0009 (source: arbiter audit; ADR-0009 → Verification; `workflows/adr-new.md` Step 2); spec 09's REQ-35 adapter list gains `permissions.json` only when 09 is rewritten, not in this task (source: user, same 2026-11-03 answer)
 - Ask-capable permission modes → allowlist only modes the docs show prompting a human: `default` and `auto`; `acceptEdits`, `plan`, `dontAsk`, `bypassPermissions`, missing and unknown → `deny owner-approval-unavailable` unless T-01 finds explicit documentation (source: spec §6.3 step 1 listing criterion; docs read 2026-11-03)
 - Handler failure mode → the PreToolUse handler declares `"onFailure": "block"`; X6 is narrowed to harness behaviour outside that option, not removed (source: spec §10.1 "If the pinned harness offers a blocking failure mode, the handler uses it"; hooks docs)
 - Logging handlers keep `"onFailure": "continue"` unchanged; the installer validates each event group against its own declared handler (source: spec §10.2; ADR-0013 nonblocking logging)
 - Textual policy vs hook `ask` → Safety rails `Policy` stays as written for workflows ("Forbidden" for agents acting on their own); the new `Enforcement` column records the hook result, and `ask` is the owner-authorization channel of §6.3, except the branch-deletion row which §10.4 rewords (source: spec §8.1 "grants no new rights and does not narrow any textual rule", §10.4)
-- Fixture path `.ai/state.md` / `.ai/adr/x.md` in tests → permitted as disposable-repository fixture paths (source: precedent `scripts/validate-contracts.sh:2249-2255`); identifier literals `T-04b`/`ADR-0007` are batch Q2 (source: `rules/git-flow.md:131-139` vs spec §12 AC-04/AC-05; arbiter audit)
+- Fixture path `.ai/state.md` / `.ai/adr/x.md` in tests → permitted as disposable-repository fixture paths (source: precedent `scripts/validate-contracts.sh:2249-2255`); identifier literals `T-04b`/`ADR-0007` are batch Q2 (source: `rules/git-flow.md:131-139` vs spec §23 AC-04/AC-05; arbiter audit)
 - Test entry → `tests/git-rails.sh` is the suite entrypoint and is table-driven; it may embed or delegate to a stdlib Python table runner, following the embedded-Python pattern of `tests/hook-shell-quality.sh`; leaves before the entrypoint exists test the core by importing `hooks/git_rails.py` (source: codebase pattern, spec §12)
 - Python core runtime → Python 3.11+ stdlib only, typed, mandatory annotations, one file (spec §7.1 1d: `-I` isolates `sys.path`) (source: spec D1/§7.1; `scripts/install-hooks.py` pattern)
 - Registry matching → reuse `project_for` matching semantics (longest matching root wins; `/` matches everything; registry path `${XDG_CONFIG_HOME:-$HOME/.config}/orchestrail/projects`), but an unreadable registry gives `deny registry-error` rather than "not registered"; the definition of "malformed" is batch Q3 (source: `hooks/log-step-hook.sh:47-56`; spec §7.1 step 3, §11; arbiter audit)
@@ -38,7 +38,7 @@ flow: full
 - Q1 knowledge publication → feature commits stay code-only; after task-level validation the task knowledge (task directory, ADR-0017, memory/state, architecture, progress, index) lands as `docs:` commit(s) on the last leaf branch, carried by the final PR; an interrupted run needs owner reconciliation of the dirty tracked tree before resume (source: user, batch gate 2026-11-03)
 - Q2 identifier fixtures → scoped exception: literal `T-NN`/`ADR-NNNN` strings are allowed only as commit-message pattern fixtures inside `tests/git-rails.sh` (or its table data); recorded in ADR-0017; nowhere else in product content (source: user, batch gate 2026-11-03)
 - Q3 malformed registry → strict: the writer's predicate (`scripts/setup-new-project.sh:301-303`: empty, CR, NUL, relative or non-canonical line) plus non-UTF-8 content or unreadable file → `deny registry-error` for every relevant command; next step reads "fix or remove the invalid line in <registry path>" (source: user, batch gate 2026-11-03)
-- Q4 branch-deletion wording → domain wording in `rules/git-flow.md`: "owner approval required; a verified temporary child-branch exception is planned"; spec 12 is named only in knowledge records (source: user, batch gate 2026-11-03)
+- Q4 branch-deletion wording → domain wording in `rules/git-flow.md`: "owner approval required; a verified temporary child-branch exception is planned"; spec 23 is named only in knowledge records (source: user, batch gate 2026-11-03)
 - Parallel subtask execution → declined; the run stays strictly sequential per the orchestration contract (only T-01 ∥ T-02 was independent; offered as a one-off worktree exception) (source: user, 2026-11-03)
 - Ambiguous long-option prefix (e.g. `git push --forc`) → the parse-options helper follows git and reports `ambiguous-option` with its candidate list; rules treat an ambiguous prefix as every candidate and I3 keeps the most severe, so `--forc` → `ask push-force (R17)` and AC-06 holds; the spec's "`--forc` is `--force`" example is reconciled through /spec-sync at task end (source: user, execution-time question 2026-11-03; arbiter: spec §7.4 item 3, git 2.53 behaviour)
 - Shells other than bash/sh with `-c` (zsh, dash, ksh, mksh, …) inside registered projects → opaque, `deny unsupported-form` (source: user, execution-time question 2026-11-03; arbiter: spec §4 opaque form, §7.3)
@@ -319,7 +319,7 @@ T-06 | Restack journal verification | atomic-tests: green | atomic-execution: co
          validation probes (rebase forms and states): rebase.rebaseMerges and rebase.autoStash with the exact replay → allow, only feat/a moved; symbolic feat/a → branch-tip; refs/heads/feat/a operand → branch-in-order; --no-update-refs or any extra word → replay-form; branch checked out in another worktree → allow, git refused; same-command state change (`&& git rebase --continue`, `true;` prefix) → deny R26; --continue -q, --cont → replay-form; --continue on a stopped rebase of protected main → branch-protected; plain stopped replay --continue/--skip (merge and apply backends, main and linked worktree) → allow
          validation observation (optional, outside this subtask, push rules area, git config is X8): `push.recurseSubmodules=on-demand` and `remote.origin.receivepack` set in config leave a verified lease push allowed while the equivalent options deny unsupported-form (hooks/git_rails.py:2094-2095, 2728-2732); route to task-level review
          validation observation (optional, test naming): the round-2 class ValidationRepairTable and VALIDATION_REPAIR_CASES (tests/git-rails.sh:3918, 3953) name the process, not the behaviour; frozen once red, so a rename needs a recorded amendment later
-         validation observation (optional, wording): the docstring at hooks/git_rails.py:2315 names the recovery workflow by its command; acceptable product vocabulary in this repository, noted only for spec 13 renames
+         validation observation (optional, wording): the docstring at hooks/git_rails.py:2315 names the recovery workflow by its command; acceptable product vocabulary in this repository, noted only for spec 09 renames
          validation tdd audit: RED commits 13718ee, 3df17df, 96200c7 change tests/git-rails.sh only; the only removed lines in 13718ee are the two recorded identity assertions; 3df17df and 96200c7 remove none; f66d45b, f124d5a, d4ec578 change hooks/git_rails.py only; `git diff 96200c7 HEAD -- tests/ scripts/` empty; red digests present for the initial set and both repair rounds; no skip/xfail or weakened frozen case; commit messages carry no identifiers or attribution
          validation suites: `bash scripts/validate-contracts.sh --git-rails-only` Ran 1079 tests, OK (38.8 s); full `bash scripts/validate-contracts.sh` 653 passed, 0 failed, 2 skipped (hygiene), exit 0 (22m08s); lint bash -n clean, shellcheck absent; lines ≤120 characters, functions ≤30 lines and ≤3 parameters, annotations complete; no pipeline identifiers in added product lines (`.ai/restack` is the disposable marker fixture); hooks/__pycache__ removed
          proposals (pav-propose --batch 2026-11-04, second validation): Do Now 1 recorded, not applied — share one git-dir read between rebase_state and stored_update_refs (hooks/git_rails.py:3015-3029, 3077-3091) so --continue/--skip spend one bounded read instead of two; Do Later 2 — config-driven push programs (push.recurseSubmodules=on-demand, remote.<r>.receivepack) in the push rules area, and an optional start-form check for --continue/--skip (rebase-merge/onto and orig-head against the journal) to narrow the recorded non-journal --continue residual; Optional 2 — rename ValidationRepairTable/VALIDATION_REPAIR_CASES to behaviour names through a recorded amendment, and drop the workflow command name from the JournalBranch docstring; section returned to the orchestrator as a delta
@@ -831,7 +831,7 @@ Run on the stack tip `docs/git-rails-safety-rails-contract` @ 9c14f22 by an inde
 | No writes to real ~/.claude, ~/.codex, ~/.config/orchestrail; no registration or installation | PASS — real settings hold only the logging hooks, receipt schema 1 predates the task, no registry |
 | No network in hook or tests | PASS |
 | Hook writes nothing; never reads .ai/tasks/** | PASS |
-| No spec-12 verifier, RED/GREEN protection or Codex hook | PASS |
+| No spec-23 verifier, RED/GREEN protection or Codex hook | PASS |
 | Logging handlers unchanged | PASS |
 | No pipeline identifiers in product content or git metadata (fixture exception) | PASS — 41 commit messages and 10 branch names clean |
 | Spec files unchanged except the README roadmap note | PASS |
@@ -940,8 +940,8 @@ architecture memory.
 #### Out
 Spec §2.2 in full: RED/GREEN protection, TDD-state reading, `--allow-pr` verification, other
 commit/PR text rules, unlisted git operations (X3), non-Bash tools, Codex enforcement, network
-access, the spec-12 child-deletion verifier. Also out: installing on this machine, registering
-any project, editing spec 13, changing logging handler semantics.
+access, the spec-23 child-deletion verifier. Also out: installing on this machine, registering
+any project, editing spec 09, changing logging handler semantics.
 
 ### Rejected
 → archived to state-archive.md
@@ -950,7 +950,7 @@ any project, editing spec 13, changing logging handler semantics.
 - No writes to real user configuration (`~/.claude`, `~/.codex`, `~/.config/orchestrail`), no project registration, no installation on this machine.
 - No network access in the hook or tests; no model execution in tests.
 - The hook never writes anything and never reads `.ai/tasks/**`.
-- No spec-12 verifier, no RED/GREEN protection, no Codex hook.
+- No spec-23 verifier, no RED/GREEN protection, no Codex hook.
 - Stop/SubagentStop logging handlers and their `"onFailure": "continue"` unchanged.
 - No pipeline identifiers in commit messages, branch names, PR text, code comments or product docs (test fixture inputs required by AC-04/AC-05 excepted).
 - Spec files under `.ai/specs/` unchanged except the roadmap note in `.ai/specs/README.md` (orchestrator).

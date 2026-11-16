@@ -75,7 +75,7 @@ status: completed
 - The source guard classifies enumerated forms with exact exceptions; arbitrary dynamic Bash/Python is not proven fully covered.
 - Timing remains unfinished: candidate DEBUG instrumentation can change pre-existing trap semantics; explicit instrumentation requires a verified preservation strategy.
 - The private acceptance-runner candidate remains unfinished: a cgroup backend has targeted passes but lacks portable ownership fallback and needs independent integrated review and real-group validation. It was not merged into this tree.
-- Changes to `.ai/specs/12-composite-branch-model-and-parallel-children.md` belong to another workstream and were included at the owner's explicit request.
+- Changes to `.ai/specs/23-composite-branch-model-and-parallel-children.md` belong to another workstream and were included at the owner's explicit request.
 
 T-01 | Freeze the implementation equivalence oracle | atomic-tests: red | atomic-execution: not-started | atomic-validation: not-started
   branch: test/validator-equivalence-oracle
