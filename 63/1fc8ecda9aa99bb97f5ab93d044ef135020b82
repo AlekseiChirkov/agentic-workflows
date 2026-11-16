@@ -1,0 +1,47 @@
+.ai/adr/0001-task-unknown-markdown-only-no-runtime.md
+  s_75218c90170bfa::t_b12a9f8a48448b 66
+.ai/adr/0002-task-unknown-state-on-disk-untracked.md
+  s_75218c90170bfa::t_de857105d86918 84
+.ai/adr/0004-task-unknown-sequential-orchestration-context-roles.md
+  s_75218c90170bfa::t_582a989649c12f 106
+.ai/adr/0021-task-07-schedule-state-tool.md
+  s_75218c90170bfa::t_713efcb4485ed4 13-14
+.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md
+  s_75218c90170bfa::t_09a44787135f8b 13,187,228,257,297
+.ai/memory/progress.md
+  s_75218c90170bfa::t_edcd7aee842e81 128,130,142
+.ai/memory/state.md
+  s_75218c90170bfa::t_4c0b3267347b31 17,20
+.ai/specs/15-orchestrator-overhead.md
+  s_75218c90170bfa::t_80c993dd0a03ed 487,595,1305
+.ai/specs/README.md
+  s_75218c90170bfa::t_1b1d3b2874850b 118
+.ai/specs/completed/07-state-tool.md
+  s_75218c90170bfa::t_f8eb13e4443fef 11,13,28,37,45,47
+.ai/tasks/completed/task-07-state-tool/T-01-progress-parser-and-get/description.md
+  s_75218c90170bfa::t_0240d0182d3993 10
+.ai/tasks/completed/task-07-state-tool/T-14-fix-guard-cases/description.md
+  s_75218c90170bfa::t_f348de3cdbc53f 60,67,81
+.ai/tasks/completed/task-07-state-tool/T-15-fix-fences-and-file-shape/description.md
+  s_75218c90170bfa::t_52d87a94c697fc 73
+.ai/tasks/completed/task-07-state-tool/T-17-fix-lock-owner-and-signals/description.md
+  s_75218c90170bfa::t_7790c2fddb188f 55,89,92
+.ai/tasks/completed/task-07-state-tool/state.md
+  s_75218c90170bfa::t_cbe8cf221121a1 1,85-86,121,157-159,211,241,247,956
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "631fc8ecda9aa99bb97f5ab93d044ef135020b82",
+  "prompts": {},
+  "sessions": {
+    "s_75218c90170bfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d90e062-887f-4faa-b97c-24c39cc0d6f4",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
