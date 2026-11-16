@@ -445,7 +445,7 @@ T-13-fix-set-continuation-refusal | Refusal of set on a field with continuation 
   base_branch: fix/state-tool-non-utf8-arguments
   base_commit: dab2036f9ea55d8dd889aa17a5e8fe7918de8b82
   commits: b9253c1 test(state-tool): require set to refuse a field whose value continues, a394cae fix(state-tool): refuse set on a field whose value continues
-  pr: none
+  pr: #92 draft
 
 ## Execution Report
 - T-01: reviewed — structural parser and `get`; 43 tests at closing; one registration test deferred to T-09 by owner decision
