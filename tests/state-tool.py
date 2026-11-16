@@ -7262,12 +7262,48 @@ class SignalInterruptionTests(RecoveryCase):
         self.signal_during_the_pause_before_the_recheck(signal.SIGTERM)
 
 
+class InterruptOutsideTheMainProgramTests(unittest.TestCase):
+    """An interrupt while the tool is loaded under another name belongs to the loading program."""
+
+    def setUp(self) -> None:
+        self.assertTrue(TOOL.is_file(), f"state tool unavailable: expected {TOOL}")
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        shadow = Path(temporary.name).resolve()
+        (shadow / f"{SHADOWED_MODULE}.py").write_text("raise KeyboardInterrupt\n",
+                                                      encoding="utf-8")
+        saved_path = list(sys.path)
+        absent = object()
+        saved_module = sys.modules.pop(SHADOWED_MODULE, absent)
+
+        def restore() -> None:
+            sys.path[:] = saved_path
+            sys.modules.pop(SHADOWED_MODULE, None)
+            if saved_module is not absent:
+                sys.modules[SHADOWED_MODULE] = saved_module  # type: ignore[assignment]
+
+        self.addCleanup(restore)
+        sys.path.insert(0, str(shadow))
+
+    def test_interrupt_while_loaded_under_another_name_reaches_the_loading_program(self) -> None:
+        handler = signal.getsignal(signal.SIGINT)
+
+        with patch.object(os, "kill") as kill, patch.object(signal, "signal") as disposition:
+            with self.assertRaises(KeyboardInterrupt):
+                runpy.run_path(str(TOOL), run_name="state_tool")
+
+        kill.assert_not_called()
+        disposition.assert_not_called()
+        self.assertIs(signal.getsignal(signal.SIGINT), handler)
+
+
 SIGNAL_SENTENCE = (
     "a write killed after the rename is answered `already_applied`. An interrupt (Ctrl-C) or a "
     "termination signal counts as a kill: the tool ends by the signal without a JSON object, an "
     "exit code from the table or a traceback, also while it waits for the lock; only an interrupt "
-    "that arrives before the interpreter has started the script can still print the interpreter's "
-    "own traceback.")
+    "that arrives before the script's first statement runs — while the interpreter starts or "
+    "compiles the script — can still print the interpreter's own traceback, which may name the "
+    "script at line 0.")
 OWNER_SENTENCE = (
     "`lock_owner` (the recorded owner metadata, or null unless the whole lock file is one JSON "
     "object of at most 64 KiB that can be reported as standard JSON), `lock_age_seconds` (null "
