@@ -476,6 +476,22 @@ T-15-fix-fences-and-file-shape | In-block fences, file shape and read-path clean
   commits: 9fa4564 test(state-tool): require one rule for in-block fences and file shape, 94a909d fix(state-tool): treat in-block fences and file shape by one rule
   pr: none
 
+T-16-fix-write-rules | Write-rule refusals and message hygiene | atomic-tests: green | atomic-execution: complete | atomic-validation: not-started
+  last_action: implementation done 2026-11-16 — suite 293 → 326 tests, all passing; test file identical to the failing snapshot
+  target_files: scripts/state-tool.py, tests/state-tool.py, docs/USAGE.md, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
+  blocker: none
+  notes: tdd: integration and unit — 33 new tests in 23 failing methods plus 12 named guards, for the lock-wait pattern, header separators, continued target files, whitespace-only paths, notes and names, message rendering, the completed-leaf rule, the new-block candidate check, the conflict line, a status-named field line, an unwritable state file and the manual sentences.
+         observed RED 2026-11-16: 326 tests, 110 failing subtests in 23 methods, no errors; each fails for the decided reason (write applied or reported unchanged where a refusal is decided; internal error where applied is decided; sentence or key absent); guards named with a mutation that fails each.
+         tdd: green — suite 326 passed with the test file byte-identical to the failing snapshot.
+         orchestrator ruling 2026-11-16: the writability probe opens the state file with the non-blocking and binary flags as well, because the earlier decision that every open of the state file is non-blocking is pinned by a test; the outcome for the caller is as decided (exit 7, nothing written, no temporary file).
+         deviations: messages for invalid values echo no argument text, so the escaped-byte assertion covers the path, block-id, option and field-name messages and the invalid-value message gets the strict-encoding check as a guard; the completed-leaf refusal message wording was chosen by the implementer; the tool's module description gained one clause on continued target files.
+         verification: focused validator mode passed (326); inventory oracle suite 23 passed; source-guard suites passed; the manual changed only below line 900.
+  branch: fix/state-tool-write-rules
+  base_branch: fix/state-tool-fences-and-file-shape
+  base_commit: f531dfb829eb84497ee53e743216c9d8c5759a28
+  commits: e83c7c6 test(state-tool): require write refusals for unsafe or empty input, 9166dfe fix(state-tool): refuse writes that would store unsafe or empty input
+  pr: none
+
 ## Execution Report
 - T-01: reviewed — structural parser and `get`; 43 tests at closing; one registration test deferred to T-09 by owner decision
 - T-02: reviewed — `validate` and two grammar corrections; re-validated after one correction (specification labels removed from docstrings)
