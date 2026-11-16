@@ -72,7 +72,7 @@ T-01 | Progress parser and get command | atomic-tests: green | atomic-execution:
   base_branch: main
   base_commit: 060ce6dbc7116002ac5e6cd47981cfd3c13d60ff
   commits: b4d1309 test(state-tool): cover structural reads of the progress section, 19989c0 feat(state-tool): read the progress section with a structural parser
-  pr: #80 draft
+  pr: #80 ready
 
 T-02 | Static validation command | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close done — reviewed: 11/11 acceptance criteria met, suite 73/73, source guard and guard/oracle suites pass, validators unchanged, specification labels removed with no behaviour change; no critical or important finding; 8 proposals recorded in batch mode, none applied
@@ -108,7 +108,7 @@ T-02 | Static validation command | atomic-tests: green | atomic-execution: compl
   base_branch: feat/state-tool-reader
   base_commit: a02a8861f7537531bfefbcb78e07f33bb0e92ee4
   commits: bbbc32b test(state-tool): cover static validation and block grammar corrections, 7dcf8b9 feat(state-tool): validate the progress section statically, 51fee56 test(state-tool): require rules to be stated without specification labels, 8a3b9a9 fix(state-tool): state invariant rules in words in docstrings
-  pr: #81 draft
+  pr: #81 ready
 
 T-03 | Set write transaction | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close done — reviewed: 10/10 acceptance criteria met, suite 103/103, source guard and guard/oracle suites pass, validators unchanged; no critical or important finding; 8 proposals recorded in batch mode, none applied
@@ -143,7 +143,7 @@ T-03 | Set write transaction | atomic-tests: green | atomic-execution: complete 
   base_branch: feat/state-tool-validate
   base_commit: 5e49da3c248031a4415bfb5e6b08706e39733530
   commits: 04d8f9c test(state-tool): cover field updates through the write transaction, b558e3e feat(state-tool): update block fields through a locked atomic write
-  pr: #82 draft
+  pr: #82 ready
 
 T-04 | Note and target-file additions | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close done — reviewed: 8/8 acceptance criteria met, suite 126/126, source guard and guard/oracle suites pass, validators unchanged; no critical or important finding; 9 proposals recorded in batch mode, none applied
@@ -171,7 +171,7 @@ T-04 | Note and target-file additions | atomic-tests: green | atomic-execution: 
   base_branch: feat/state-tool-set
   base_commit: 98d046f8a249d93c15b6e06ef428e4ef55fb42e1
   commits: 778bea6 test(state-tool): cover note appends and target-file additions, 3b8f13c test(state-tool): refuse empty notes and keep whitespace-only note values, 0a32b7e feat(state-tool): append notes and add target files without rewriting them
-  pr: #83 draft
+  pr: #83 ready
 
 T-05 | Lifecycle invariants on set | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close done — reviewed: 10/10 acceptance criteria met, suite 140/140, source guard and guard/oracle suites pass, validators and oracle files unchanged; no critical or important finding; 10 proposals recorded in batch mode, none applied
@@ -195,7 +195,7 @@ T-05 | Lifecycle invariants on set | atomic-tests: green | atomic-execution: com
   base_branch: feat/state-tool-notes-and-files
   base_commit: e4c6a58591b499aafc141ac954108972b68f4b3b
   commits: a1a5de7 test(state-tool): cover lifecycle invariants on status changes, 6bb5eeb feat(state-tool): enforce lifecycle invariants on status changes
-  pr: #84 draft
+  pr: #84 ready
 
 T-06 | Block initialization | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close done — reviewed: 10/10 acceptance criteria met, no critical or important finding; init-block layout, canonical lines, refusals and the write refactor confirmed by independent probes; 9 proposals recorded in batch mode
@@ -229,7 +229,7 @@ T-06 | Block initialization | atomic-tests: green | atomic-execution: complete |
   base_branch: feat/state-tool-lifecycle-invariants
   base_commit: e61f5f95e02bccbdc7ff3b075979fee9afd2a273
   commits: e67f9bb test(state-tool): cover block initialization and its layout, c438ce0 test(state-tool): pin name content rules and the unclosed fence outcome, c42eb66 feat(state-tool): create progress blocks with canonical initial lines
-  pr: #85 draft
+  pr: #85 ready
 
 T-07 | Idempotent operation receipts | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close done — reviewed: all seven criteria met, no critical or important finding, 7 proposals recorded in batch mode and none applied; writes look their operation up in the target block's receipts before the revision check (already applied, or exit 8 operation-conflict), keep the 20 newest receipts, and init-block on an existing id checks receipts, then the revision, then refuses the existing id
@@ -258,7 +258,7 @@ T-07 | Idempotent operation receipts | atomic-tests: green | atomic-execution: c
   base_branch: feat/state-tool-init-block
   base_commit: b1d2af7c752945e204bf401c2f9e764d29243ea7
   commits: 4d32c44 test(state-tool): cover idempotent repeats and the receipt cap, b56e8d0 test(state-tool): refuse block creation over an ambiguous existing block, a6e6ba2 feat(state-tool): make repeated operations idempotent through receipts
-  pr: #86 draft
+  pr: #86 ready
 
 T-08 | Lock contention and interruption recovery | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close done — reviewed: 10/10 acceptance criteria met, suite 190/190, source guard and guard/oracle suites pass, validators unchanged; the earlier important finding (busy refusal broken by unreportable lock metadata) is resolved and held against 233 adversarial lock-file contents; no critical or important finding; 10 proposals recorded in batch mode, none applied
@@ -303,7 +303,7 @@ T-08 | Lock contention and interruption recovery | atomic-tests: green | atomic-
   base_branch: feat/state-tool-idempotent-receipts
   base_commit: 381d07fea1d913086c9c4b82b2cd0a5e5d84a819
   commits: 6c4bb50 test(state-tool): cover lock contention, fault injection and recovery, ab3ffea feat(state-tool): report lock owners and survive interrupted writes, 3f9d115 test(state-tool): require a strict JSON refusal for unreportable lock metadata, 979ceac fix(state-tool): keep the busy refusal for unreportable lock metadata
-  pr: #87 draft
+  pr: #87 ready
 
 T-09 | Receipts grammar contract and validator checks | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: validated and closed — all eight acceptance criteria met after the position-sentence correction, no critical or important finding; 10 proposals recorded in batch mode (2 Do Now, 4 Do Later, 4 Optional)
@@ -341,7 +341,7 @@ T-09 | Receipts grammar contract and validator checks | atomic-tests: green | at
   base_branch: feat/state-tool-lock-and-recovery
   base_commit: 6aa7f917a4942205ebe7c80984f31b7f5299cf50
   commits: d1af768 test(state-tool): cover the receipts grammar contract and suite registration, a2de798 feat(rules): define the tool-managed receipts field and check it, 9341755 test(state-tool): require the rule to state where the receipts line goes, f489cdf fix(rules): state the receipts line position as the last known field
-  pr: #88 draft
+  pr: #88 ready
 
 T-10 | Ignore rules and usage documentation | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: reviewed — all seven acceptance criteria met after the rework; the manual's consumer step followed by hand and by rerun gives the documented end state; suite 215/215 and all pins verified; 11 improvement proposals recorded, none applied
@@ -379,7 +379,7 @@ T-10 | Ignore rules and usage documentation | atomic-tests: green | atomic-execu
   base_branch: feat/state-receipts-contract
   base_commit: 8488c5b0d9b9dfd3df4fc044c5aeec3ede6a4573
   commits: cc936b8 test(state-tool): cover ignore rules and the operating manual section, 97442d9 feat(state-tool): ignore auxiliary files and document the tool, 3051b92 test(state-tool): require the manual to state what a setup rerun does to a tracked knowledge base, db26e1a fix(docs): warn that a setup rerun ignores a tracked knowledge base
-  pr: #89 draft
+  pr: #89 ready
 
 T-11-fix-identity-ledger-line | Identity ledger line for the manual | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: validated — identity check passes alone on the branch tip and fails on the base ledger; ledger diff is two lines; complete contract validator still to be re-run by the orchestrator after all fixes
@@ -398,7 +398,7 @@ T-11-fix-identity-ledger-line | Identity ledger line for the manual | atomic-tes
   base_branch: feat/state-tool-ignore-rules-and-manual
   base_commit: 0eca27ef3e62956710fcd4ec18b21a6e3cb82edf
   commits: 6c999c6 fix(hygiene): align the identity ledger with the manual's clone line
-  pr: #90 draft
+  pr: #90 ready
 
 T-12-fix-non-utf8-arguments | Refusal of arguments that are not valid UTF-8 | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close done — DONE, 4 of 4 criteria met with no critical or important finding: text that is not valid UTF-8 is refused with exit 6 by the content rules on every write command, stale revision exit 4 and reused operation id exit 8 keep their order, digests of valid input are byte-identical to the base tool; 3 optional findings recorded as proposals
@@ -421,7 +421,7 @@ T-12-fix-non-utf8-arguments | Refusal of arguments that are not valid UTF-8 | at
   base_branch: fix/identity-ledger-manual-line
   base_commit: 809d544eeadab48f9348c301d7caf0f125e4957c
   commits: c635205 test(state-tool): require a content refusal for text that is not valid UTF-8, d1e0df3 fix(state-tool): refuse text that is not valid UTF-8 by the content rules
-  pr: #91 draft
+  pr: #91 ready
 
 T-13-fix-set-continuation-refusal | Refusal of set on a field with continuation lines | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   last_action: pav-close done — DONE, 6 of 6 criteria met with no critical or important finding: set refuses last_action or blocker whose field group has continuation lines (exit 6 invalid-value, nothing written, no receipt), also for the current first-line value and as one of several fields; fields without continuation lines, header statuses, notes and target files behave exactly as the base tool; the manual states the limit and no earlier manual line moved
@@ -445,7 +445,7 @@ T-13-fix-set-continuation-refusal | Refusal of set on a field with continuation 
   base_branch: fix/state-tool-non-utf8-arguments
   base_commit: dab2036f9ea55d8dd889aa17a5e8fe7918de8b82
   commits: b9253c1 test(state-tool): require set to refuse a field whose value continues, a394cae fix(state-tool): refuse set on a field whose value continues
-  pr: #92 draft
+  pr: #92 ready
 
 ## Execution Report
 - T-01: reviewed — structural parser and `get`; 43 tests at closing; one registration test deferred to T-09 by owner decision
