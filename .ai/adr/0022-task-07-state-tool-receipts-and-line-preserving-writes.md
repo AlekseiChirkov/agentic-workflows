@@ -340,4 +340,4 @@ Follow-up changes (Decisions 6–10), 2026-11-16: verified by the acceptance sui
 `tests/state-tool.py` (347 tests), which passes through
 `bash scripts/validate-contracts.sh --state-tool-only`.
 
-Complete validator result for the follow-up changes: pending.
+Complete validator result for the follow-up changes (2026-11-16, stack tip `1ad3653`): 721 passed, 0 failed, 2 skipped (hygiene checks that need a local pattern file).
