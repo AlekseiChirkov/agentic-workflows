@@ -5071,7 +5071,7 @@ class LockMetadataRobustnessTests(RecoveryCase):
         self.assertEqual(snapshot(self.task), before)
 
 
-CONTRACT_VALIDATOR =ROOT / "scripts" / "validate-contracts.sh"
+CONTRACT_VALIDATOR = ROOT / "scripts" / "validate-contracts.sh"
 TASK_VALIDATOR = ROOT / "scripts" / "validate-task.sh"
 REFERENCE_RULES = ROOT / "rules" / "workflow-reference.md"
 COMPLETED_TASKS = ROOT / ".ai" / "tasks" / "completed"
@@ -5452,6 +5452,8 @@ STATE_TOOL_PATTERNS = (".state-tool.lock", ".state.md.*.tmp")
 SETUP_SCRIPT = ROOT / "scripts" / "setup-new-project.sh"
 MANUAL = ROOT / "docs" / "USAGE.md"
 SCRIPT_INVENTORY = ROOT / "scripts" / "README.md"
+UMBRELLA_SCRIPT = ROOT / "scripts" / "setup-umbrella.sh"
+UMBRELLA_ENTRIES = (".env",)
 SETUP_ENTRIES = (".ai/", ".claude/skills/", "!.claude/skills/.gitkeep", ".env", "*.pyc",
                  "__pycache__/", *STATE_TOOL_PATTERNS)
 TERMINATED_MESSAGE = "  ok: ended the unterminated last line of .gitignore"
@@ -5592,6 +5594,16 @@ class ConsumerSetupIgnoreTests(DisposableHomeCase):
                         first.stdout.index("  appended to .gitignore: .ai/"))
         self.assertNotIn(TERMINATED_MESSAGE, self.run_setup(project).stdout)
 
+    def test_setup_ends_a_last_line_whose_last_byte_is_a_nul_byte(self) -> None:
+        project = self.new_project("nul byte consumer", "node_modules\x00")
+
+        first = self.run_setup(project)
+
+        self.assertEqual(self.ignore_bytes(project).decode("utf-8"),
+                         "".join(entry + "\n" for entry in ("node_modules\x00", *SETUP_ENTRIES)))
+        self.assertIn(TERMINATED_MESSAGE + "\n", first.stdout)
+        self.assertNotIn(TERMINATED_MESSAGE, self.run_setup(project).stdout)
+
     def test_setup_adds_the_tool_patterns_after_an_unterminated_older_entry(self) -> None:
         older = SETUP_ENTRIES[:6]
         project = self.new_project("older consumer", "\n".join(older))
@@ -5712,6 +5724,75 @@ class ConsumerSetupIgnoreTests(DisposableHomeCase):
         self.assertEqual(warns, rerun_ignores_new_knowledge,
                          "the consumer step must warn that rerunning setup appends the .ai/ entry, "
                          "which must be removed again, exactly when the setup script does so")
+
+
+class UmbrellaSetupIgnoreTests(DisposableHomeCase):
+    def new_umbrella(self, name: str, ignore_text: str | None = None) -> Path:
+        """Create a disposable umbrella directory, optionally with an initial .gitignore."""
+        umbrella = self.base / name
+        umbrella.mkdir()
+        if ignore_text is not None:
+            (umbrella / ".gitignore").write_text(ignore_text, encoding="utf-8")
+        return umbrella
+
+    def run_setup(self, umbrella: Path) -> ToolResult:
+        """Run the umbrella setup script once in the directory and return its result."""
+        result = run_isolated(["bash", str(UMBRELLA_SCRIPT)], umbrella, self.home)
+        self.assertEqual(result.code, 0, result.stdout + result.stderr)
+        return result
+
+    def ignore_text(self, umbrella: Path) -> str:
+        return (umbrella / ".gitignore").read_bytes().decode("utf-8")
+
+    def test_umbrella_setup_counts_only_a_whole_line_as_an_existing_entry(self) -> None:
+        existing = ("# keep .env files out of the repository", ".env.local", "!.env")
+        umbrella = self.new_umbrella("partial match umbrella",
+                                     "".join(line + "\n" for line in existing))
+
+        outputs = [self.run_setup(umbrella).stdout for _ in range(2)]
+
+        self.assertEqual(self.ignore_text(umbrella),
+                         "".join(line + "\n" for line in (*existing, *UMBRELLA_ENTRIES)))
+        self.assertIn("  appended to .gitignore: .env\n", outputs[0])
+        self.assertIn("  ok: .env already in .gitignore\n", outputs[1])
+
+    def test_umbrella_setup_ends_an_unterminated_last_line_before_its_first_append(self) -> None:
+        for label, last_line in (("text", "node_modules"), ("nul byte", "node_modules\x00")):
+            with self.subTest(last_byte=label):
+                umbrella = self.new_umbrella(f"unterminated umbrella, {label}", last_line)
+
+                first = self.run_setup(umbrella)
+                after_first = self.ignore_text(umbrella)
+                second = self.run_setup(umbrella)
+
+                self.assertEqual(after_first, "".join(
+                    line + "\n" for line in (last_line, *UMBRELLA_ENTRIES)))
+                self.assertIn(TERMINATED_MESSAGE + "\n", first.stdout)
+                self.assertLess(first.stdout.index(TERMINATED_MESSAGE),
+                                first.stdout.index("  appended to .gitignore: .env"))
+                self.assertEqual(self.ignore_text(umbrella), after_first)
+                self.assertNotIn(TERMINATED_MESSAGE, second.stdout)
+
+    def test_umbrella_setup_leaves_a_complete_ignore_file_byte_identical(self) -> None:
+        for label, text in (("terminated last line", "node_modules\n.env\n"),
+                            ("unterminated last line", "node_modules\n.env")):
+            with self.subTest(file=label):
+                umbrella = self.new_umbrella(f"complete umbrella, {label}", text)
+
+                result = self.run_setup(umbrella)
+
+                self.assertEqual(self.ignore_text(umbrella), text)
+                self.assertNotIn(TERMINATED_MESSAGE, result.stdout)
+                self.assertNotIn("appended to .gitignore", result.stdout)
+                self.assertIn("  ok: .env already in .gitignore\n", result.stdout)
+
+    def test_umbrella_setup_creates_the_ignore_file_with_its_entry_once(self) -> None:
+        umbrella = self.new_umbrella("fresh umbrella")
+
+        outputs = [self.run_setup(umbrella).stdout for _ in range(2)]
+
+        self.assertEqual(self.ignore_text(umbrella), ".env\n")
+        self.assertNotIn(TERMINATED_MESSAGE, "".join(outputs))
 
 
 STATE_TOOL_HEADING = re.compile(r"^## (?:[0-9]+\. )?State tool$", re.I | re.M)
@@ -6236,8 +6317,9 @@ FENCE_LIMIT = (
     "point. An in-block fence that is never closed makes its block malformed (exit 3, "
     "`malformed-block`). A column-0 fence that is never closed hides every later block up to "
     "the end of the file: `get` and `validate` do not see them and a command that names one "
-    "exits 3 `block-missing`. In both cases `init-block` exits 1 and writes nothing; close the "
-    "fence by hand first.")
+    "exits 3 `block-missing`. `init-block` that names the block holding an unclosed in-block "
+    "fence exits 3 `malformed-block`, and `init-block` for a new block id exits 1 in both cases; "
+    "nothing is written either way. Close the fence by hand first.")
 FENCED_TEXT_SENTENCE = (
     "Fenced text placed under a field line is not a continuation line: `set` replaces the field "
     "line and leaves the fenced lines, and blank lines directly before them, where they are.")
@@ -6600,6 +6682,55 @@ class MessageTextTests(InitBlockCase):
                 self.assertIn(INVALID_BYTE_SPELLING, message)
                 self.assertIn(INVALID_BYTE_SPELLING, result.stderr)
                 self.assert_unchanged_after_refusal(before)
+
+    def one_line_refusal(self, result: ToolResult, command: str, code: int, error: str) -> str:
+        """A refusal with one error whose message holds no control character and whose stderr
+        diagnostic is exactly one line, followed only by the no-bypass sentence where it applies;
+        returns the message."""
+        document = self.refused_by(result, command, code, error)
+        self.assertEqual([item["code"] for item in document["errors"]], [error])
+        message = document["errors"][0]["message"]
+        self.assertNotRegex(message, r"[\x00-\x1f\x7f]")
+        location = (f" (line {document['errors'][0]['line']})"
+                    if "line" in document["errors"][0] else "")
+        expected = f"state-tool: {error}: {message}{location}\n"
+        if code in (4, 5, 6, 8):
+            expected += f"state-tool: {REFUSAL_SENTENCE}\n"
+        self.assertEqual(result.stderr, expected)
+        return message
+
+    def test_messages_render_a_line_feed_of_any_argument_as_a_visible_escape(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        before = self.files_without_lock()
+        note = ("--note", "a")
+        cases: dict[str, tuple[ToolResult, str, int, str, str]] = {
+            "field name": (self.write("set", "--field", "pr\nx=1"), "set", 6, "read-only-field",
+                           "pr\\nx"),
+            "operation id": (self.write("append-note", *note, operation_id="op\n1"),
+                             "append-note", 2, "invalid-operation-id", "op\\n1"),
+            "block id": (self.write("append-note", *note, block="T-01\nT-04"), "append-note", 2,
+                         "invalid-arguments", "T-01\\nT-04"),
+            "unknown option": (self.write("append-note", *note, "--bo\ngus", "x"), "append-note",
+                               2, "invalid-arguments", "--bo\\ngus"),
+            "revision": (self.write("append-note", *note, revision="sha256:\nabc"),
+                         "append-note", 2, "malformed-revision", "sha256:\\nabc")}
+        for label, (result, command, code, error, spelling) in cases.items():
+            with self.subTest(case=label):
+                message = self.one_line_refusal(result, command, code, error)
+
+                self.assertIn(spelling, message)
+                self.assert_unchanged_after_refusal(before)
+
+    def test_messages_render_every_control_character_and_keep_printable_text(self) -> None:
+        self.write_state(RECEIPT_STATE)
+        spellings = {"\r": "\\r", "\t": "\\t", "\x01": "\\x01", "\x1b": "\\x1b",
+                     "\x1f": "\\x1f", "\x7f": "\\x7f"}
+        for character, spelling in spellings.items():
+            with self.subTest(character=spelling):
+                result = self.write("append-note", "--note", "a", block=f"T-01{character}é — x")
+
+                message = self.one_line_refusal(result, "append-note", 2, "invalid-arguments")
+                self.assertTrue(message.endswith(f"T-01{spelling}é — x"), message)
 
     def test_invalid_value_message_for_text_that_is_not_utf8_is_valid_unicode(self) -> None:
         self.write_state(RECEIPT_STATE)
@@ -6977,6 +7108,35 @@ class LockOwnerRuleTests(RecoveryCase):
                 self.assertEqual(snapshot(self.task), before)
 
 
+# A module the tool imports at start and the interpreter does not load before the script runs.
+SHADOWED_MODULE = "secrets"
+# Stand-ins for that module: the first interrupts the process while the tool imports it; the
+# second interrupts the process at the tool's first later module-level pattern compilation.
+INTERRUPT_DURING_IMPORT_SOURCE = """import os
+import signal
+
+os.kill(os.getpid(), signal.SIGINT)
+"""
+INTERRUPT_DURING_DEFINITIONS_SOURCE = """import os
+import re
+import signal
+import sys
+
+compile_pattern = re.compile
+
+
+def interrupting(*arguments, **keywords):
+    caller = sys._getframe(1)
+    if caller.f_code.co_name == "<module>" and caller.f_globals.get("__name__") == "__main__":
+        re.compile = compile_pattern
+        os.kill(os.getpid(), signal.SIGINT)
+    return compile_pattern(*arguments, **keywords)
+
+
+re.compile = interrupting
+"""
+
+
 class SignalInterruptionTests(RecoveryCase):
     """A signal that ends the process is a silent kill: no output, no exit code of the table."""
 
@@ -7064,6 +7224,30 @@ class SignalInterruptionTests(RecoveryCase):
         self.assertEqual(again.code, 0, again.stdout + again.stderr)
         self.assertEqual(self.output(again)["result"], "already_applied", again.stdout)
 
+    def interrupt_at_start_up(self, shadow_source: str) -> None:
+        """Run a read with a module of the given source in place of one the tool imports at start
+        and check that the tool ends by the interrupt without any output."""
+        self.write_state(state_text(leaf("T-01")))
+        shadow = self.base / "shadow"
+        shadow.mkdir()
+        (shadow / f"{SHADOWED_MODULE}.py").write_text(shadow_source, encoding="utf-8")
+        before = snapshot(self.task)
+
+        process = self.launch([str(TOOL), "get", "--root", str(self.root), "--task",
+                               str(self.task)], {"PYTHONPATH": str(shadow)})
+        result = self.finish(process)
+
+        self.assertEqual(result.code, -signal.SIGINT, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(snapshot(self.task), before)
+
+    def test_interrupt_while_the_tool_imports_its_modules_ends_the_tool_silently(self) -> None:
+        self.interrupt_at_start_up(INTERRUPT_DURING_IMPORT_SOURCE)
+
+    def test_interrupt_while_the_tool_defines_its_names_ends_the_tool_silently(self) -> None:
+        self.interrupt_at_start_up(INTERRUPT_DURING_DEFINITIONS_SOURCE)
+
     def test_interrupt_while_waiting_for_the_lock_ends_the_tool_silently(self) -> None:
         self.signal_while_waiting_for_the_lock(signal.SIGINT)
 
@@ -7081,7 +7265,9 @@ class SignalInterruptionTests(RecoveryCase):
 SIGNAL_SENTENCE = (
     "a write killed after the rename is answered `already_applied`. An interrupt (Ctrl-C) or a "
     "termination signal counts as a kill: the tool ends by the signal without a JSON object, an "
-    "exit code from the table or a traceback, also while it waits for the lock.")
+    "exit code from the table or a traceback, also while it waits for the lock; only an interrupt "
+    "that arrives before the interpreter has started the script can still print the interpreter's "
+    "own traceback.")
 OWNER_SENTENCE = (
     "`lock_owner` (the recorded owner metadata, or null unless the whole lock file is one JSON "
     "object of at most 64 KiB that can be reported as standard JSON), `lock_age_seconds` (null "
