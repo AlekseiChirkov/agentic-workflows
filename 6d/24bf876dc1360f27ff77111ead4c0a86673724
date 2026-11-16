@@ -1,0 +1,31 @@
+.ai/tasks/todo/task-07-state-tool/T-14-fix-guard-cases/description.md
+  s_75218c90170bfa::t_1d56fcd05ad1fd 1-181
+.ai/tasks/todo/task-07-state-tool/T-15-fix-fences-and-file-shape/description.md
+  s_75218c90170bfa::t_22f101ac2d4259 1-155
+.ai/tasks/todo/task-07-state-tool/T-16-fix-write-rules/description.md
+  s_75218c90170bfa::t_5c9fe75b351a0a 1-203
+.ai/tasks/todo/task-07-state-tool/T-17-fix-lock-owner-and-signals/description.md
+  s_75218c90170bfa::t_78ed909c17a411 1-103
+.ai/tasks/todo/task-07-state-tool/T-18-fix-contract-surface/description.md
+  s_75218c90170bfa::t_7c650f54aaab7c 1-147
+.ai/tasks/todo/task-07-state-tool/plan.md
+  s_75218c90170bfa::t_ebb82589ad3b57 20-24
+.ai/tasks/todo/task-07-state-tool/state.md
+  s_75218c90170bfa::t_04062dc3f98308 884-997
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6d24bf876dc1360f27ff77111ead4c0a86673724",
+  "prompts": {},
+  "sessions": {
+    "s_75218c90170bfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d90e062-887f-4faa-b97c-24c39cc0d6f4",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
