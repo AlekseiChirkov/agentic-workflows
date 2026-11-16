@@ -37,8 +37,11 @@ block's state_receipts line, which keeps the 20 newest entries; a repeat of a re
 operation with the same inputs is already applied and writes nothing, whatever its expected
 revision, while the recorded id with other inputs is an operation conflict. A lock still
 held at the end of the wait bound is refused with exit 5 and the recorded owner, its age in
-seconds and stale_suspected (age of 600 s or more); age never proves that the owner is gone,
-so a held lock is never deleted, truncated or taken over. Leftover .state.md.*.tmp files are
+seconds and stale_suspected (age of 600 s or more); the owner is null unless the whole lock
+file is at most 64 KiB of UTF-8 holding one JSON object nested at most 16 levels with finite
+numbers and no lone surrogate, and the age is null unless the owner records a start time with
+a UTC offset that is not in the future; age never proves that the owner is gone, so a held
+lock is never deleted, truncated or taken over. Leftover .state.md.*.tmp files are
 listed in stale_temp_files and are never read as state or deleted. For tests only,
 STATE_TOOL_TEST_FAULT set to kill-before-replace or kill-after-replace kills the tool after
 its temporary file is synced or after the rename, and pause-before-recheck pauses it before
@@ -58,7 +61,8 @@ downgrade, pinned-transition, invalid-transition, pre-tdd-not-applicable, block-
 for validate required-field-missing); 7 file system or runtime (io-error, unsafe-state-file,
 unsafe-lock-path, locking-unavailable, python-too-old); 8 operation conflict
 (operation-conflict). validate exits 3 before 6 when both kinds of error exist and lists
-every error.
+every error. A signal that ends the process is treated as a kill: no JSON object and no exit
+code of this table; a temporary file already created stays behind.
 """
 import sys
 
@@ -1503,14 +1507,18 @@ def nesting_within(value: Any, limit: int) -> bool:
 
 
 def read_lock_owner(descriptor: int) -> dict[str, Any] | None:
-    """Return the recorded owner object of the lock file, or None when the bounded read is not a
-    JSON object that can be reported again as standard JSON within the nesting limit."""
+    """Return the recorded owner object of the lock file, or None when the whole file is longer
+    than the size limit or is not a JSON object that can be reported again as standard JSON in
+    strict UTF-8 within the nesting limit."""
     try:
-        metadata = json.loads(os.pread(descriptor, LOCK_METADATA_LIMIT, 0).decode("utf-8"),
-                              parse_constant=refuse_non_finite)
+        content = os.pread(descriptor, LOCK_METADATA_LIMIT + 1, 0)
+        if len(content) > LOCK_METADATA_LIMIT:
+            return None
+        metadata = json.loads(content.decode("utf-8"), parse_constant=refuse_non_finite)
         if not isinstance(metadata, dict) or not nesting_within(metadata, LOCK_METADATA_DEPTH):
             return None
-        json.dumps(metadata, allow_nan=False)  # A number overflowing to infinity is refused here.
+        # A number overflowing to infinity or a lone surrogate cannot be reported and fails here.
+        json.dumps(metadata, ensure_ascii=False, allow_nan=False).encode("utf-8")
     except (OSError, UnicodeDecodeError, ValueError, RecursionError):
         return None
     return metadata
@@ -1527,6 +1535,9 @@ def lock_owner_details(descriptor: int) -> dict[str, Any]:
 
 
 def owner_details(owner: dict[str, Any] | None) -> dict[str, Any]:
+    """Derive the lock age and the stale suspicion from the owner's recorded start time; the age
+    is unknown without an owner, without a start time carrying a UTC offset, or for a start time
+    in the future."""
     age = None
     if owner is not None and isinstance(owner.get("started_at"), str):
         try:
@@ -1534,7 +1545,8 @@ def owner_details(owner: dict[str, Any] | None) -> dict[str, Any]:
         except ValueError:
             started = None
         if started is not None and started.tzinfo is not None:
-            age = int((datetime.now(timezone.utc) - started).total_seconds())
+            elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+            age = int(elapsed) if elapsed >= 0 else None
     return {"lock_owner": owner, "lock_age_seconds": age,
             "stale_suspected": age is not None and age >= STALE_LOCK_SECONDS}
 
@@ -1908,4 +1920,9 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        # An interrupt ends the process as silently as any other kill: by the signal itself.
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        os.kill(os.getpid(), signal.SIGINT)

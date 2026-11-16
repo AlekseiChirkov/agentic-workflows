@@ -940,17 +940,22 @@ with the same inputs returns `already_applied` with exit 0 and writes nothing, w
 expected revision; the same id with other inputs is exit 8. After a timeout, a crash or a
 lost result, repeat the identical command: a write killed before the rename leaves
 `state.md` unchanged (its temporary file stays and is listed in `stale_temp_files`) and the
-repeat applies once; a write killed after the rename is answered `already_applied`.
+repeat applies once; a write killed after the rename is answered `already_applied`. An
+interrupt (Ctrl-C) or a termination signal counts as a kill: the tool ends by the signal
+without a JSON object, an exit code from the table or a traceback, also while it waits for
+the lock.
 
 An `unchanged` result writes nothing and records no receipt, so its operation id is not
 reserved: the same id may later be applied to that block with any inputs, and the receipts
 line lists only applied operations.
 
 A lock still held at the end of the wait is exit 5 with `lock_owner` (the recorded owner
-metadata, or null when it cannot be read), `lock_age_seconds` and `stale_suspected` (an age
-of 600 seconds or more). Age never proves the owner is gone, so the tool never deletes,
-truncates or takes over a held lock. The kernel releases the lock when its holder exits; a
-lock file left behind with old metadata does not block the next write.
+metadata, or null unless the whole lock file is one JSON object of at most 64 KiB that can be
+reported as standard JSON), `lock_age_seconds` (null when the start time is missing,
+unreadable or in the future) and `stale_suspected` (an age of 600 seconds or more). Age
+never proves the owner is gone, so the tool never deletes, truncates or takes over a held
+lock. The kernel releases the lock when its holder exits; a lock file left behind with old
+metadata does not block the next write.
 
 ### Exit codes
 
