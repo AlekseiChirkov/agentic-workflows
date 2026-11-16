@@ -947,8 +947,9 @@ lost result, repeat the identical command: a write killed before the rename leav
 repeat applies once; a write killed after the rename is answered `already_applied`. An
 interrupt (Ctrl-C) or a termination signal counts as a kill: the tool ends by the signal
 without a JSON object, an exit code from the table or a traceback, also while it waits for
-the lock; only an interrupt that arrives before the interpreter has started the script can
-still print the interpreter's own traceback.
+the lock; only an interrupt that arrives before the script's first statement runs — while
+the interpreter starts or compiles the script — can still print the interpreter's own
+traceback, which may name the script at line 0.
 
 An `unchanged` result writes nothing and records no receipt, so its operation id is not
 reserved: the same id may later be applied to that block with any inputs, and the receipts

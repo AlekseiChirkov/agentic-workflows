@@ -88,9 +88,12 @@ def end_by_interrupt() -> None:
     os.kill(os.getpid(), signal.SIGINT)
 
 
-# An interrupt is raised only where the interpreter runs a call, an import or a loop. The
-# statements above hold none after the version check, so every interrupt that arrives once
-# the script has started is raised inside this region, during start-up as well as in main.
+# When the script runs as the main program, an interrupt raised inside this region, during
+# start-up as well as in main, ends the process silently by the signal; loaded under any
+# other name, the interrupt goes to the loading program unchanged. An interrupt that arrives
+# before the script's first statement runs, while the interpreter starts or compiles the
+# script, is raised outside this region and can still print the interpreter's own traceback,
+# which may name the script at line 0.
 try:
     from dataclasses import dataclass, field
     from datetime import datetime, timezone
@@ -1971,4 +1974,6 @@ try:
     if __name__ == "__main__":
         sys.exit(main(sys.argv[1:]))
 except KeyboardInterrupt:
+    if __name__ != "__main__":
+        raise
     end_by_interrupt()

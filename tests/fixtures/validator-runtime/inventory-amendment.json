@@ -40,6 +40,14 @@
               "target_candidates": [
                 "scripts/state-tool.py"
               ]
+            },
+            {
+              "line": 7293,
+              "path": "tests/state-tool.py",
+              "reason": "literal dynamic target candidate",
+              "target_candidates": [
+                "scripts/state-tool.py"
+              ]
             }
           ],
           "evidence": "Lexical observations are not proof of isolation; serialize until each conflict and bound is audited.",
@@ -86,12 +94,12 @@
             ],
             "inherited_stores": [
               {
-                "line": 1651,
+                "line": 1654,
                 "line_sha256": "3c0fc1bfddf98d85f075ba96f83558863853bd10b261c6c7c1ef463bd4e16f93",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1661,
+                "line": 1664,
                 "line_sha256": "bc14cc00fa91b480ae7d4cca02aa35de8265314f9cadc06688048720b389fe7e",
                 "path": "scripts/state-tool.py"
               },
@@ -333,97 +341,97 @@
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 138,
+                "line": 141,
                 "line_sha256": "da9cb22876123534c0fd585152998b9d36b711b69bae9591872f56608f06a977",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 191,
+                "line": 194,
                 "line_sha256": "3a97faa13c7516537c6e580224e610c0580d76bf23024164201bc855152f68dc",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 387,
+                "line": 390,
                 "line_sha256": "cb8d0201f955c95d143f1bf4efd8afb18a38104a51ca570a959199f28031635f",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 388,
+                "line": 391,
                 "line_sha256": "50ef55dfe45fb70cca6afafbce17628a962f82617d81a3a1fde07ded69652d19",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 392,
+                "line": 395,
                 "line_sha256": "57d72d2470355c705c901cc3fa4d3d52fb7f7542d79da59aa6388fb2b67f158a",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1549,
+                "line": 1552,
                 "line_sha256": "76e6f9bb49bbe53d99d3df6e4c91a4e3f3e648b67129e0ad9795a4188bfcabb0",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1568,
+                "line": 1571,
                 "line_sha256": "b90d49c758eb9af1883acec25ef3290bba470e93fd31b231bcbbf5de2cd61e9e",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1573,
+                "line": 1576,
                 "line_sha256": "25397370cff044be61a149651ac73e2134d98e9ef0abec1f9496f6a3bf9606a2",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1578,
+                "line": 1581,
                 "line_sha256": "313000731c52beaaa84d870277c6334f7761a720808b1a2985038f7434b3a3ca",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1595,
+                "line": 1598,
                 "line_sha256": "fbf8983737b879fa0d3146bee3ac3852cd7d71c3257af9bc11f935807f2051fa",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1596,
+                "line": 1599,
                 "line_sha256": "25bc5c741344a8b520cda04e0f7e3176021a5e339e20a4406a04fa035c8625ed",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1605,
+                "line": 1608,
                 "line_sha256": "8e9c5e053837e372f207f24558528479f33a8e5188718b531ab26ed6220bcc3d",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1610,
+                "line": 1613,
                 "line_sha256": "8d8d6ff907cd34479e9da74f2058f67be93ce924b8fd1de593db975ceaf3e9ec",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1614,
+                "line": 1617,
                 "line_sha256": "7b748d0d1fd83ad92c4efeec6790d75bb8cb9a447273f9a72d8fe3a4688ad978",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1619,
+                "line": 1622,
                 "line_sha256": "ab66cde8e2b8a3ee61befa548a5d0b6958798f556acdbf43566854fa94add51e",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1622,
+                "line": 1625,
                 "line_sha256": "f9b7b20fc80b6d5ff9e6007827196869b43def42b841a8a36c9686aa692708ff",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1831,
+                "line": 1834,
                 "line_sha256": "d7d8fc20a23e63d9b7b6116d6607dd58ed48d90d5e7e44054e386895143dfd86",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1871,
+                "line": 1874,
                 "line_sha256": "12c94596bf459221477cf58bc17e62ccef2b381febd1be8308d7fe05fdb293c2",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1877,
+                "line": 1880,
                 "line_sha256": "4e23b677fd3d1a7c629669db72c92582bb151ce1d56db4666696c3e2e2897f5a",
                 "path": "scripts/state-tool.py"
               },
@@ -863,24 +871,24 @@
                 "path": "tests/state-tool.py"
               },
               {
-                "line": 7268,
+                "line": 7303,
                 "line_sha256": "7f92107bcf805a5e24692413ad0eecf595fccecfb368bd2e1f364c103eab702b",
                 "path": "tests/state-tool.py"
               },
               {
-                "line": 7272,
+                "line": 7308,
                 "line_sha256": "7ff3276668569fd976f6903bcfe9affa8643ad87ef82b57485b92ac5aa1de0cb",
                 "path": "tests/state-tool.py"
               }
             ],
             "ports": [
               {
-                "line": 104,
+                "line": 107,
                 "line_sha256": "d950f90f4413cfc0e37d8ac67136234afd6e3eabb4476e02ad757b2d33a281b3",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1632,
+                "line": 1635,
                 "line_sha256": "16f9ea630a2104446b364a936143ae9000377fd89484e67681fbf2f2abb7ee40",
                 "path": "scripts/state-tool.py"
               },
@@ -892,137 +900,137 @@
             ],
             "runtime_bounds": [
               {
-                "line": 311,
+                "line": 314,
                 "line_sha256": "a809c252a5767064a129cc6eaa567b652ce409ec2236f9e33747e630fe1b26fe",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 421,
+                "line": 424,
                 "line_sha256": "93b8438a5da2c9ebcd36e1e744ad555cd2bfc62b891533713daafb1e8d1983c8",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 551,
+                "line": 554,
                 "line_sha256": "be0c79420aad17c897f044beb45595103e1b363b0cee7f55244284916f309437",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 796,
+                "line": 799,
                 "line_sha256": "7ac299f4b58bf10419a2d25672d54989b7087a2778460016b23d33622f9e5a56",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 827,
+                "line": 830,
                 "line_sha256": "53c8bc0df641159787b578aa286209ddc25cc99d9385947d037a5c7a3ad4ba1d",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 896,
+                "line": 899,
                 "line_sha256": "71c04cfa9dffea9fb696fb8a988208843b75bda78a2797a14fd7ef537ed8be2f",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1138,
+                "line": 1141,
                 "line_sha256": "8f91665896102583876d0add299e91df66e5fe4a3872d9884152abc78756804d",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1185,
+                "line": 1188,
                 "line_sha256": "8ba1bfea5859ac4695e11e1f4431c4f065710186e4c5f707c36060618a3c4cee",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1291,
+                "line": 1294,
                 "line_sha256": "4f9557c2a08a1b86449dca5dc9425ef9e36afeff6cf4e5af3d1dc86913fece77",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1297,
+                "line": 1300,
                 "line_sha256": "da72ab883e3e24be66035153519e4c498b0295a43afcbd6835782af31f92ad12",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1298,
+                "line": 1301,
                 "line_sha256": "3ce93392231006993945b717c8f534bfa76f4fcd41c754881208b0d9f751abf8",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1340,
+                "line": 1343,
                 "line_sha256": "36cced443c098e90b5ce70893eba7a9a8ae3b3cb8dd7f05d679f197570e4dee5",
-                "path": "scripts/state-tool.py"
-              },
-              {
-                "line": 1375,
-                "line_sha256": "049a361f721274eaac1b871dcdae05dd9b6d2ebae7ceab07ff78b86232efb543",
                 "path": "scripts/state-tool.py"
               },
               {
                 "line": 1378,
+                "line_sha256": "049a361f721274eaac1b871dcdae05dd9b6d2ebae7ceab07ff78b86232efb543",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1381,
                 "line_sha256": "9f09b12dd108589fdaaba0d6e3be4579c5467a171d714711859ecd769a2f4cdf",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1379,
+                "line": 1382,
                 "line_sha256": "04d5d4d47649c508bf1f2caff533154b2d6c0250e43ca221dd79f9c29b2a9db6",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1431,
+                "line": 1434,
                 "line_sha256": "36cced443c098e90b5ce70893eba7a9a8ae3b3cb8dd7f05d679f197570e4dee5",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1459,
+                "line": 1462,
                 "line_sha256": "da72ab883e3e24be66035153519e4c498b0295a43afcbd6835782af31f92ad12",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1460,
+                "line": 1463,
                 "line_sha256": "71997073b0e29248721634dccb4b038ecec2e96ae226b7895186962e9c0081e8",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1599,
+                "line": 1602,
                 "line_sha256": "a60f4fa24b461443195f06ec3c6b000df3281786a6e72d4bcee5c43b5abbe0d4",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1611,
+                "line": 1614,
                 "line_sha256": "b7c49109d68b9c66d7cfe54f62a83a26015f49a87de1f955531aefd19d287edd",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1620,
+                "line": 1623,
                 "line_sha256": "9a98c4f579e98e7db581765e7d140e651ae978a06e349200f018ee4d00944539",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1624,
+                "line": 1627,
                 "line_sha256": "eae6caba403602385bc4335f2878452779fa60b521bc21f02e04b1e82d1bc85b",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1662,
+                "line": 1665,
                 "line_sha256": "c8f1197248a685cf4dfff4e7c387f3bdacd5e7f00852f7fabea4c9c09754f48b",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1663,
+                "line": 1666,
                 "line_sha256": "85ceb8e3ecadbdbc5f9a34c2128bc595cb039bbd4769a5ee1b6c678ded27138c",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1664,
+                "line": 1667,
                 "line_sha256": "128863df46932e302a6694232fef8e333f00bacf9265ac553acf4ce566f6dd9a",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1666,
+                "line": 1669,
                 "line_sha256": "e7816e1b5c1b5720878305ee62d37628ecd0cbda2d9c9a8e0de67d8d887f1a05",
                 "path": "scripts/state-tool.py"
               },
               {
-                "line": 1682,
+                "line": 1685,
                 "line_sha256": "a14565a0a524d831c2221d3931d447b59b85c0eacb1b0128e6678b74f24d6d95",
                 "path": "scripts/state-tool.py"
               },
@@ -1292,7 +1300,7 @@
                 "path": "tests/state-tool.py"
               },
               {
-                "line": 7285,
+                "line": 7321,
                 "line_sha256": "b004d31e3028ddba1fe46e5f705e7fa30cab055ef60e8c43aec1543b01435eb7",
                 "path": "tests/state-tool.py"
               }
@@ -1632,6 +1640,11 @@
                 "line": 7233,
                 "line_sha256": "a2734cb227787f7f4808ca34a5b62808b06ddae7812d5e42b3a2699c8263027a",
                 "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7273,
+                "line_sha256": "04f276e28bbecb5fd10cd53d90672aee6ca6458702faea4f142551b94e2f8139",
+                "path": "tests/state-tool.py"
               }
             ]
           },
@@ -1639,12 +1652,12 @@
             {
               "path": "scripts/state-tool.py",
               "provenance": "static import or dynamic target candidate",
-              "sha256": "9ca7215b0a2d029d31964a8240638ffeebbbe94317b70e4d962bd2f7b539732e"
+              "sha256": "ec36ab3690d1d027f0bd8b26aff1b3f9d50f3e6571ddbadc3b0b1e4af3758d3d"
             },
             {
               "path": "tests/state-tool.py",
               "provenance": "direct lexical reference",
-              "sha256": "237060744eb74f4115e9ffa2c31bf11f1ba461237078f29e17d1aebbbba74159"
+              "sha256": "fe2ce52b9eca9f85c893f230b0a98a57866f4c719857c32287394f3f0bd31354"
             }
           ],
           "transitive_status": "unresolved"
