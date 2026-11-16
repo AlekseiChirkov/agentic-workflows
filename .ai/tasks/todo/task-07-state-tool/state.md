@@ -544,7 +544,7 @@ T-19-fix-review-follow-ups | Fixes for the remaining review findings | atomic-te
   base_branch: fix/setup-ignore-lines-and-contract-checks
   base_commit: c434c248e431316e038f9a8d719b885fe3e3e4ef
   commits: d945d1c test: require silent start-up interrupts and one-line diagnostics, 3438bdb fix: end start-up interrupts silently and keep diagnostics on one line, b235f66 test(state-tool): keep an interrupt with the program that loads the tool, 52b0680 fix(state-tool): end by interrupt only when run as the main program
-  pr: none
+  pr: #98 ready
 
 ## Execution Report
 - T-01: reviewed — structural parser and `get`; 43 tests at closing; one registration test deferred to T-09 by owner decision
