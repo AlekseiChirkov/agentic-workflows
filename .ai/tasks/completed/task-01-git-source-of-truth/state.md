@@ -319,3 +319,13 @@ spec: .ai/specs/completed/01-git-source-of-truth.md
 - disposition: historically completed; retain existing validation evidence, approved deferrals and capability limits
 - evidence: docs/audits/2026-11-06-specification-delivery-review.md and the specification's Implementation review
 - limits: source-backed reconciliation only; no phase advancement, fresh full-suite certification, deployed-state verification or measured performance/economic acceptance
+
+## Knowledge Inventory Baseline
+
+The contract validator's knowledge check reads the last `base_commit:` line of this file
+and requires every `.ai` path of that commit to exist. On 2026-11-16 the open
+specifications were renumbered in execution order, so the baseline below names the commit
+that renamed them. The base commits recorded in the subtask blocks above are unchanged.
+
+- knowledge baseline, 2026-11-16:
+  base_commit: 0d96b07689dd9e44890c056fee0f36f9b73c1ead
