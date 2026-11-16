@@ -35,7 +35,7 @@ deployed into, plus consumer projects.
 - Seeded by `scripts/setup-new-project.sh`: `CLAUDE.md`, `AGENTS.md`, `.ai/` (from
   `templates/.ai/`, never overwrites), `.gitignore` entries (`.ai/`, `.claude/skills/`,
   `.env`, `*.pyc`, `__pycache__/`, and the state tool's `.state-tool.lock` and
-  `.state.md.*.tmp`); the script appends `.ai/` even where a project tracks it.
+  `.state.md.*.tmp`); the script skips the `.ai/` entry where `git ls-files .ai` lists a tracked file.
 - Consumer projects are recorded in the local registry; none is named here.
 
 ## Configuration

@@ -183,7 +183,7 @@ Use the sequential feature stack. It keeps each independently verifiable outcome
 
 ### Exact Identity Match Ledger
 
-The final scan compares each `(path, line, token, count)` against this ledger. Each count is per token on that line; any extra token on an approved line fails. T-04 refreshes line numbers after edits and records the resulting scan scope and counts.
+The final scan compares each `(path, line, token, count)` against this ledger. Each count is per token on that line; any extra token on an approved line fails. T-04 refreshes line numbers after edits and records the resulting scan scope and counts. The table is authoritative: the line numbers in the list under `## Approved Identity Scan Exceptions` record the approval as given and are not refreshed; no check reads them.
 
 | Path | Line | Expected token counts |
 |---|---:|---|

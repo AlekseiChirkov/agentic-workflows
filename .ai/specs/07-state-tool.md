@@ -36,6 +36,14 @@ completed_at: 2026-11-16
 - **Outstanding scope and limits:** none of the requirements is deferred. The tool is optional and no workflow calls it (D-07). Improvement proposals recorded by the reviews are pending with the owner and are not requirements of this specification.
 - **Sources:** `.ai/tasks/todo/task-07-state-tool/state.md` (contract check, code review, issue list, execution report), `.ai/adr/0021-task-07-schedule-state-tool.md`, `.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md`.
 
+### Delivery record — 2026-11-16, follow-up changes
+
+- **Disposition:** Every improvement proposal and deferred finding recorded by the reviews was decided on the owner's request of 2026-11-16, with the rulings delegated to independent analysts: 78 applied, 19 rejected, 11 already delivered. The applied ones were delivered by five follow-up changes of task `task-07-state-tool`.
+- **Verified source scope:** stack tip `75c54b7` over `d7bccc2` (five changes on stacked branches following pull requests #80–#92; awaiting review, not yet merged at the time of this record).
+- **Delivered evidence:** guard cases for behaviour that was delivered but unpinned; one rule for fences inside a block, blank lines and NUL bytes; refusals for continued target files, whitespace-only text, a tests-status change that would break a completed leaf and a state file the caller cannot write; the lock owner report rule and silent termination by a signal; project setup that compares whole ignore lines and keeps a tracked knowledge base tracked, with stricter contract checks. Acceptance suite `tests/state-tool.py`: 347 tests (232 before the series), passing through `--state-tool-only`. The complete contract validator result for the series is recorded under Verification of ADR-0022.
+- **Outstanding scope and limits:** none of the requirements is deferred and no proposal is pending. The tool is optional and no workflow calls it (D-07). A column-0 fence that is never closed stays a documented limit; read commands on a platform without `fcntl` are not covered by the acceptance suite.
+- **Sources:** `.ai/tasks/todo/task-07-state-tool/state.md` (`## Proposal Resolution` and the progress blocks of the five follow-up subtasks), `.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md` (Decisions 6–10).
+
 ### Original text (translated from Russian)
 
 **1. Status and basis.** The work is not scheduled. The document preserves and refines the
@@ -346,7 +354,7 @@ tool on 2026-11-13 (D-09); it stays optional and unwired.
 - **REQ-18 Target-file addition.** WHEN `add-file` runs, THE SYSTEM SHALL append each new
   valid path to `target_files:` with the separator `, ` and return `unchanged` without writing
   when every path is already listed, where the existing value is split on `, ` into entries
-  compared by exact string equality and an empty value has no entries; a block without
+  compared by exact string equality and an empty or whitespace-only value has no entries; a block without
   `target_files:` gets the line inserted by the REQ-03 rule. (Added 2026-11-13.)
 - **REQ-19 Receipts.** WHEN a write command applies, THE SYSTEM SHALL record
   `<operation_id>#<input digest>` as the last entry of the block's `state_receipts:` line and
@@ -380,12 +388,33 @@ tool on 2026-11-13 (D-09); it stays optional and unwired.
   and create no temporary file, also when the current first-line value is named; `set` never
   deletes existing continuation lines.
 
+- **REQ-28 Continued target files (added 2026-11-16, delegated ruling).** WHEN `add-file`
+  names a block whose `target_files` field group has continuation lines, THE SYSTEM SHALL
+  refuse with exit 6 (`invalid-value`) and leave `state.md` unchanged and create no temporary
+  file, also when every path is already listed; `add-file` reads and writes the field line
+  only.
+
 ## Data Model
 
 ### Section and block grammar (existing format; parsing rules new)
 
 Line endings are LF. A **fence** opens on a line matching `^ {0,3}(```|~~~)` and closes on the
 next line starting with the same marker at 0–3 spaces; fenced lines are opaque.
+
+**Fences inside the section.** A fence opened at column 0 ends the current block; its lines
+are foreign lines. A fence opened at 1–3 spaces while a block is open is opaque block
+content: its lines are not field, continuation or malformed lines, belong to no field group,
+and are never reported, changed or used as an insertion point; a continuation line after its
+closing line belongs to the preceding field line and is a malformed line when the block has
+no field line before the fence. Blank lines immediately followed by such a fence are opaque
+block content as well and do not end the block. An in-block fence that is not closed before
+the end of the file makes its block malformed (`malformed-block`, reported at the opening
+line). A column-0 fence that is not closed runs to the end of the file: the blocks after it
+are not read.
+
+A blank line is an empty line. A line that holds only spaces is not blank: inside a block one
+or two spaces make a malformed line and three or more a continuation line, and for block
+insertion such a line counts as non-blank.
 
 | Element | Rule |
 |---|---|
@@ -394,15 +423,17 @@ next line starting with the same marker at 0–3 spaces; fenced lines are opaque
 | Block header | Column-0 line matching `^(\[[^\]]+\] )?(T-[0-9]{2,}[a-z]?(-fix-[a-z0-9]+(-[a-z0-9]+)*)?) \| ([^|]+?) \|( [a-z][a-z-]*: [^|]*\|)*( [a-z][a-z-]*: [^|]*)$` inside the section and outside a fence |
 | Field line | `^  ([a-z][a-z0-9_-]*):( .*)?$` (exactly two spaces) directly inside a block |
 | Continuation line | Line indented by 3 or more spaces; or a blank line immediately followed, after any further blank lines, by such a line; it belongs to the preceding field line |
-| Block end | Line before the next block header, a column-0 non-blank line, trailing blank lines, or the section end |
+| Block end | Line before the next block header, a column-0 non-blank line, trailing blank lines (blank lines not followed by a continuation line or an in-block fence), or the section end |
 | Foreign line | Any section line outside blocks; preserved byte for byte |
 | Field group | A field line plus its continuation lines |
-| Repeated field | `notes` may occur in several field groups of one block (observed: `.ai/tasks/completed/task-05-cost-and-duration-telemetry/state.md:133-136`); the note text of a block is all `notes` groups in file order. An unknown field may repeat and is preserved. A repeated known field other than `notes` makes the block malformed |
-| Malformed line | Inside a block: a line indented by exactly 1 space, a two-space line that is not a field line, a tab-indented line, or a continuation line with no preceding field line |
+| Repeated field | `notes` may occur in several field groups of one block (observed: `.ai/tasks/completed/task-05-cost-and-duration-telemetry/state.md:133-136`); the note text of a block is all `notes` groups in file order. An unknown field may repeat and is preserved. A repeated known field other than `notes` makes the block malformed. A repeated known header field makes the block malformed. |
+| Malformed line | Inside a block: a line indented by exactly 1 space, a two-space line that is not a field line, a tab-indented line, or a continuation line with no preceding field line, or an in-block fence that is never closed |
 
 Known header fields: leaf `atomic-tests`, `atomic-execution`, `atomic-validation`; composite
 `rollup`, `integration-validation` (`rules/workflow-globals.md:177,212`). The `atomic-tests`
 segment, when present, is the first status segment (`rules/workflow-globals.md:207-208`).
+A field line whose name is a header field name is an unknown field: it is preserved and
+never read or written as the header status.
 
 Known field lines and canonical order:
 
@@ -420,7 +451,8 @@ preceding it in canonical order; when no such group exists, directly after the h
 fields and out-of-order known fields keep their places. Example: in a leaf with
 `last_action`, `target_files`, `blocker`, `notes`, `verification` (unknown), a new
 `state_receipts:` line goes after the last `notes` group, before `verification:`.
-An existing `state_receipts:` line is replaced in place.
+An existing `state_receipts:` line is replaced in place. A fence is never part of a field
+group, so an inserted line goes before a fence that follows the group.
 
 ### Field writability
 
@@ -479,15 +511,19 @@ python3 scripts/state-tool.py init-block  --root R --task T --block ID --kind le
 ```
 
 - `--field NAME=VALUE` splits at the first `=`. `--lock-wait-seconds` is an integer 0–600,
-  default 5. `--task` is resolved relative to the current directory; `state.md` is
-  `<task>/state.md`.
+  default 5. `--lock-wait-seconds` is written as one to three ASCII digits with a value from
+  0 to 600; anything else is exit 2 `invalid-arguments`. `--task` is resolved relative to the
+  current directory; `state.md` is `<task>/state.md`.
 - Text inputs (`VALUE`, `TEXT`, `NAME`, paths) are single-line UTF-8 without CR, LF or NUL.
   `NAME` (block name) is non-empty and contains no `|`. `last_action` and `blocker` values
-  are non-empty.
-- `add-file` / `--target-file` paths are lexical only (never resolved on disk): non-empty,
-  relative, no `..` segment, no leading `./`, no `,`, no trailing `/`.
+  are non-empty. A value, note, name or path made only of whitespace counts as empty; a
+  note or a block name with leading or trailing whitespace around visible text is stored as
+  given.
+- `add-file` / `--target-file` paths are lexical only (never resolved on disk): holding at
+  least one non-whitespace character, with no leading or trailing whitespace, relative, no
+  `..` segment, no leading `./`, no `,`, no trailing `/`.
 - Step 1 argument validation (exit 2 `invalid-arguments`) covers: missing required options,
-  `--lock-wait-seconds` out of range, `--field` without `=`, `--kind composite` without
+  `--lock-wait-seconds` out of range or not one to three digits, `--field` without `=`, `--kind composite` without
   `--children` or without `--note`, `--target-file` with `--kind composite`, `--children`
   with `--kind leaf`. Value and path content rules are exit 6 (`invalid-value`,
   `invalid-path`).
@@ -520,7 +556,8 @@ blank, `## Next`.
 ### Invariants
 
 "Notes text" means every `notes` field group of the resulting block. "Previous" means the value
-before the operation; an absent `atomic-tests` segment has rank 0.
+before the operation; an absent `atomic-tests` segment has rank 0. A previous value outside
+the vocabulary also has rank 0.
 
 | Id | Invariant | Scope | Error code | Source |
 |---|---|---|---|---|
@@ -528,7 +565,7 @@ before the operation; an absent `atomic-tests` segment has rank 0.
 | I-2 | `atomic-tests` rank never decreases: `not-started` (0) < `red`, `pinned`, `n-a`, `failed` (1) < `green` (2); a present `atomic-tests` is never removed | write | `downgrade` | `rules/workflow-globals.md:231-232` (A-16) |
 | I-3 | Previous `atomic-tests: pinned` changes only to `green` | write | `pinned-transition` | `rules/workflow-globals.md:199-201` |
 | I-4 | Resulting `atomic-tests: n-a` requires notes text containing `tdd: none — ` | write (when `atomic-tests` changes to `n-a`), validate | `n-a-unjustified` | `rules/tdd.md:78` |
-| I-5 | Resulting `atomic-execution: complete` requires `atomic-tests` `green` or `n-a`; or `atomic-tests` absent, previous `atomic-execution` `in-progress` (write) and notes text containing `pre-TDD task, TDD step skipped` | write (when `atomic-execution` changes to `complete`), validate (static part) | `completion-without-tests` | `workflows/pae-finalize.md:20-21`; `rules/workflow-globals.md:203-208` |
+| I-5 | Resulting `atomic-execution: complete` requires `atomic-tests` `green` or `n-a`; or `atomic-tests` absent, previous `atomic-execution` `in-progress` (write) and notes text containing `pre-TDD task, TDD step skipped` | write (when `atomic-execution` changes to `complete`, or when `atomic-tests` changes while an unchanged `atomic-execution` is `complete`), validate (static part) | `completion-without-tests` | `workflows/pae-finalize.md:20-21`; `rules/workflow-globals.md:203-208` |
 | I-6 | Leaf blocks carry `notes:` and `target_files:`; composite blocks carry `children:`, `blocker:`, `notes:`; the tool never removes a field line | validate (exit 6); `get` and writes report it as a warning; a write that supplies the missing field inserts it (REQ-17, REQ-18) | `required-field-missing` | `rules/workflow-globals.md:226-230,240-243` |
 | I-7 | Only fields writable for the block kind and command change (see Field writability) | write | `read-only-field`, `field-not-applicable` | `rules/workflow-globals.md:233-236` |
 | I-8 | Every pre-existing field line and continuation line other than the changed ones is byte-identical | write | `internal-error` (post-serialization re-check) | `rules/workflow-globals.md:237-238` |
@@ -541,8 +578,8 @@ violation in a field the operation does not change never blocks the write; it is
 value and path content rules are checked first; then, when no field value changes and no
 note or path is added, the result is `unchanged` before the remaining invariants are
 evaluated. Accepted gaps (D-05):
-`failed → red`, `red → n-a` and other moves inside rank 1 are allowed; atomic-validation and
-composite statuses are checked by vocabulary only.
+`failed → red`, `red → n-a` and other moves inside rank 1 are allowed unless I-5 refuses them
+on a completed leaf; atomic-validation and composite statuses are checked by vocabulary only.
 
 ### Write algorithm (normative order)
 
@@ -552,18 +589,27 @@ composite statuses are checked by vocabulary only.
    a missing `state.md` is exit 3 `state-missing`.
 3. Open the lock path with `O_NOFOLLOW`; acquire `flock(LOCK_EX | LOCK_NB)` with 25 ms retries
    until the wait bound (REQ-06); then truncate and write owner metadata.
-4. Read the full bytes; record `st_dev`, `st_ino`, revision; reject non-UTF-8, BOM or CR bytes
-   (exit 3, `unsupported-encoding`); check `contract_version:` (REQ-13).
-5. Parse (REQ-02); locate section and block.
-6. Receipt check (REQ-08): match → `already_applied`; digest mismatch → exit 8.
+4. Read the full bytes (the file is opened without blocking, and in binary mode where the
+   platform distinguishes it); record `st_dev`, `st_ino`, revision; reject non-UTF-8, BOM, CR
+   or NUL bytes (exit 3, `unsupported-encoding`); check `contract_version:` (REQ-13).
+5. Parse (REQ-02); locate section and block. For `init-block`, an id the section already
+   holds is located like the target of any other write: a duplicated id, a malformed line, a
+   malformed `state_receipts:` line, an unrecognized prefix or an unknown header field of
+   that block is exit 3.
+6. Receipt check (REQ-08): match → `already_applied`; digest mismatch → exit 8. A reused
+   operation id is judged here, before the field, value and path content rules of step 8: a
+   recorded id with other inputs is exit 8 even when those inputs would be refused with
+   exit 6.
 7. Revision check (REQ-05).
 8. Check I-7 and value/path content rules; build the candidate in memory; if no field value
    changes and no note or path is added, return `unchanged` without writing; otherwise
    evaluate the remaining write invariants.
 9. Insert the receipt (REQ-19); re-parse the candidate and confirm that bytes outside the
    block are identical and I-8 holds.
-10. Create the temporary file with `O_CREAT | O_EXCL | O_NOFOLLOW`, the original permission
-    bits, write, `fsync`.
+10. Open `state.md` for writing without truncation (without following links and without
+    blocking) and close it at once; failure is exit 7 `io-error` before any temporary file
+    exists. Create the temporary file with `O_CREAT | O_EXCL | O_NOFOLLOW`, the original
+    permission bits, write, `fsync`.
 11. Re-check `lstat` identity and revision of `state.md` (REQ-09); mismatch → remove own
     temporary file, exit 4 (`state-file-changed`).
 12. `os.replace`; `fsync` the task directory; a directory-sync failure after the rename
@@ -619,6 +665,14 @@ codes), `stale_temp_files` (list of names).
 | write commands | `applied`, `already_applied`, `unchanged`, `rejected` | `operation_id`, `block_id`, `block_kind`, `result_revision` (current file revision after the command; equals `source_revision` unless applied), `changed_fields` |
 | refusal with exit 5 | `rejected` | `lock_owner` (parsed metadata or null), `lock_age_seconds` (integer or null), `stale_suspected` (true when age ≥ 600) |
 
+`lock_owner` is the parsed lock file when the whole file is at most 65536 bytes of UTF-8 that
+parse as one JSON object nested at most 16 levels (an empty object or list counts as a
+level), with finite numbers only and no lone surrogate; otherwise it is null. A repeated key
+is reported with its last value. `lock_age_seconds` is the whole seconds since `started_at`
+when the owner is reported and `started_at` is an ISO-8601 time with a UTC offset that is not
+in the future; otherwise null. `stale_suspected` is true only for an integer age of 600 or
+more. None of this changes the refusal itself: exit 5, `lock-busy`, lock file untouched.
+
 A key that cannot be computed is present with the value `null`: `source_revision` and
 `result_revision` when the refusal precedes reading `state.md` (exit 2, exit 5,
 `state-missing`, `unsafe-state-file`, `unsafe-lock-path`, `python-too-old`,
@@ -655,8 +709,11 @@ invariant error exists. Its static checks are: structure, I-1, I-4, I-5 (static 
 `state_receipts:` format (1–20 entries, entry pattern, unique ids; violation
 `malformed-receipts`, exit 3). I-2, I-3, I-7–I-10 need a
 previous value and apply to writes only.
-The stderr text for exits 4, 5, 6 and 8 contains the sentence
-`Do not edit state.md by hand to bypass this refusal.`
+The stderr text of a write command refused with exit 4, 5, 6 or 8 contains the sentence
+`Do not edit state.md by hand to bypass this refusal.`; `validate` reports violations with
+exit 6 and refuses nothing, so its stderr does not carry the sentence.
+A process ended by a signal prints no JSON object and has no exit code from this table; the
+caller recovers by repeating the identical command.
 
 ### Test seam (REQ-25)
 
@@ -726,22 +783,34 @@ Any other value is ignored.
 | Hand-edited `state_receipts:` line (over 20 entries, bad entry, repeated id) | Writes to that block exit 3 `malformed-receipts`; `validate` exit 3; `get` warns | REQ-02 |
 | `set` naming a read-only field with its current value | Exit 6 `read-only-field` (checked before the `unchanged` shortcut) | REQ-04 |
 | `set` on `last_action` or `blocker` whose value has continuation lines | Exit 6 `invalid-value`, nothing changed; decided with the field rules, after the receipt and revision checks and before the `unchanged` shortcut | REQ-27 |
+| Fenced text directly under a field named by `set` | Applied; the field line is replaced, the fenced lines stay | REQ-27 |
+| `add-file` on a block whose `target_files` value has continuation lines | Exit 6 `invalid-value`, nothing changed, also when every path is already listed; decided after the receipt and revision checks, the block-kind rule and the note and path content rules (`invalid-path` wins) and before the `unchanged` shortcut; a block where only another field continues is not affected | REQ-28 |
+| Field line named like a header status (for example `  atomic-execution: x` in a leaf) | An unknown field: reads report it with `known: false`; `set` on that status changes the header segment only and leaves the field line and its continuation lines byte-identical | REQ-03 |
+| `atomic-tests` changed to a value other than `green` or `n-a` on a leaf whose `atomic-execution` is `complete` and is not changed by the same `set` | Exit 6 `completion-without-tests`, nothing changed; `downgrade`, `pinned-transition`, `invalid-transition` and `n-a-unjustified` keep precedence; the same change together with another `atomic-execution` value, and `red → green`, are applied | REQ-04 |
+| Previous `atomic-tests` value outside the vocabulary | Rank 0: `set` replaces it with any vocabulary value except `green` (exit 6 `invalid-transition`); `n-a` still needs its justification | REQ-04 |
 | Leaf without `atomic-tests` at `atomic-execution: not-started` moved to `in-progress` without `atomic-tests` | Exit 6 `pre-tdd-not-applicable` | REQ-04 |
 | `atomic-tests` `n-a`, `failed` or `not-started` set to `green` | Exit 6 `invalid-transition` | REQ-04 |
 | Existing `target_files:` entries containing spaces or prose | Compared as whole entries split on `, ` | REQ-18 |
 | Block-like lines inside a fence | Ignored | REQ-02 |
+| Blank lines, then a fence opened at 1–3 spaces inside a block | Block continues; field lines after the closing line are read | REQ-02 |
+| In-block fence never closed | Block malformed: reads of it and writes to it exit 3 `malformed-block` | REQ-02 |
+| Column-0 fence never closed | Later blocks are not read (`block-missing` when named); `init-block` exits 1, nothing written | REQ-02, REQ-16 |
 | Tab-indented or 1-space line inside target block | Exit 3 `malformed-block` | REQ-02 |
+| Line of one or two spaces inside a block | Exit 3 `malformed-block` | REQ-02 |
 | Unrecognized prefix `[x] T-01` | Read as leaf; writes exit 3 | REQ-13 |
 | Unknown header field `atomic-foo:` | Reads report it; writes exit 3 | REQ-13 |
 | `contract_version` greater than tool `VERSION`; absent or malformed; tool `VERSION` missing | See `### Contract version check`: greater or tool version missing → writes exit 3, reads warn; task line absent or not matching → no check | REQ-13 |
-| CR bytes, BOM, invalid UTF-8 | Writes exit 3 `unsupported-encoding`; reads exit 3 | REQ-02 |
+| CR bytes, BOM, invalid UTF-8, NUL bytes | Writes exit 3 `unsupported-encoding`; reads exit 3 | REQ-02 |
 | Missing final newline | Preserved; inserted lines keep the file's last-line state | REQ-01 |
 | `state.md` missing in the task directory | Exit 3 `state-missing` | REQ-02 |
 | `state.md` replaced by another inode with identical bytes during a write | Exit 4 `state-file-changed` | REQ-09 |
 | Quoted `notes:` value | Treated as opaque text; appends add a continuation line | REQ-17 |
 | Note with shell metacharacters | Stored literally | REQ-09 |
 | Note with newline, CR or NUL | Exit 6 `invalid-value` | REQ-17 |
+| Note or block name that is empty or only whitespace | Exit 6 `invalid-value`, the whole call refused, nothing written; whitespace around visible text is stored as given | REQ-16, REQ-17 |
 | Path with `..`, absolute, comma, empty | Exit 6 `invalid-path` | REQ-18 |
+| Path that is only whitespace, or has leading or trailing whitespace | Exit 6 `invalid-path`; inner whitespace stays valid | REQ-18 |
+| Existing `target_files:` value that is only whitespace | It has no entries; the written value is the new paths joined by `, ` | REQ-18 |
 | Task outside root, symlinked task escaping root | Exit 2 `path-outside-root` | REQ-09 |
 | `state.md` or lock path is a symlink | Exit 7 `unsafe-state-file` / `unsafe-lock-path` | REQ-09 |
 | Lock held by a live process | Wait up to bound, then exit 5 with owner metadata | REQ-06 |
@@ -749,11 +818,15 @@ Any other value is ignored.
 | Holder killed | Kernel releases the lock; next writer proceeds | REQ-06 |
 | Lock metadata names a reused PID but no flock is held | Lock acquired; metadata alone never blocks | REQ-06 |
 | Unreadable lock metadata while busy | Exit 5 with `lock_owner: null` | REQ-06 |
+| Lock file longer than 65536 bytes, nested deeper than 16 levels, holding a non-finite number or a lone surrogate, or not one JSON object | Exit 5 with `lock_owner: null`, `lock_age_seconds: null`, `stale_suspected: false`; a repeated key is reported with its last value | REQ-06 |
+| Lock metadata whose `started_at` is in the future | Exit 5 with the owner reported, `lock_age_seconds: null`, `stale_suspected: false` | REQ-06 |
 | Two tool writers with the same revision | Second gets exit 4 | REQ-05 |
 | External editor changes the file during a write | Exit 4 `state-file-changed` when detected at step 11; a change after step 11 is an accepted limitation | REQ-09 |
 | Killed before or after replace | Whole old or whole new file; retry gives `applied` or `already_applied` | REQ-07, REQ-08, REQ-12 |
+| A signal that ends the process (SIGINT, SIGTERM, SIGHUP, SIGQUIT), at any point including the lock wait | Same as a kill: no signal handler, no JSON object, nothing on stderr, no exit code from the table (the process ends by the signal); `state.md` is the whole old or the whole new file; a temporary file already created stays and is listed in `stale_temp_files`; the kernel releases the lock; retry gives `applied` or `already_applied` | REQ-07, REQ-08, REQ-12 |
 | Leftover temporary files | Reported in `stale_temp_files`; not deleted | REQ-12 |
 | Disk full or permission denied | Exit 7, `state.md` unchanged | REQ-07 |
+| `state.md` not writable by the caller | Exit 7 `io-error`, `state.md` unchanged, no temporary file; results decided earlier (`already_applied`, `unchanged`, exits 2–6 and 8) are not affected | REQ-07 |
 | Directory `fsync` fails after rename | `applied` with warning `directory-sync-failed`, exit 0 | REQ-07 |
 | Same `operation_id`, different inputs | Exit 8 | REQ-08 |
 | Retry after its receipt was dropped (21+ later writes) | Treated as new; usually exit 4 because the revision moved | REQ-19 |
@@ -763,11 +836,13 @@ Any other value is ignored.
 | Python older than 3.11 | Exit 7 `python-too-old` | REQ-22 |
 | Block id or child id not matching the id pattern; empty, repeated or self-referencing child | Exit 2 `invalid-arguments` | REQ-15 |
 | Same `--field` name twice in one `set` | Exit 2 `invalid-arguments` | REQ-15 |
+| `--lock-wait-seconds` with more than three digits (`0600`, thousands of digits), a sign or a non-digit | Exit 2 `invalid-arguments`; `0`, `005` and `600` are accepted | REQ-15 |
+| `init-block` on an id the section already holds | Matching receipt: `already_applied`; same operation id with other inputs: exit 8; otherwise a stale revision: exit 4, the current revision: exit 6 `block-exists`; a damaged existing block: exit 3 | REQ-16, REQ-08, REQ-05 |
 | Same path twice in one `add-file` or `init-block` call | Written once, at its first position | REQ-18 |
 | Read command with the task outside root, or `state.md` a symlink or not a regular file | Exit 2 `path-outside-root` / exit 7 `unsafe-state-file` | REQ-09 |
 | Write command refused after acquiring the lock | `state.md` unchanged, no temporary file left; `.state-tool.lock` may be created or its metadata rewritten | REQ-06 |
-| Existing consumer project that tracks `.ai/` | Gets the ignore entries by rerunning `scripts/setup-new-project.sh` or by hand; `scripts/sync.sh` adds none | REQ-26 |
-| Consumer `.gitignore` absent, or already holding an entry | File created; an existing entry is not repeated | REQ-26 |
+| Existing consumer project that tracks `.ai/` | Gets the ignore entries by rerunning `scripts/setup-new-project.sh` or by hand; the rerun skips the `.ai/` entry where `git ls-files .ai` lists a tracked file, so the knowledge base stays tracked; `scripts/sync.sh` adds none | REQ-26 |
+| Consumer `.gitignore` absent, or already holding an entry | File created; an existing entry is not repeated; an entry is present only when a whole line equals it, and an unterminated last line is ended before the first appended entry | REQ-26 |
 | Concurrency between reads and writes | Reads take no lock and see one complete file because writes rename | REQ-07 |
 
 ## Acceptance Criteria
@@ -934,6 +1009,44 @@ file remains after a refusal.
   blank line followed by a continuation line, and when the current first-line value is
   named; given `set --field last_action=x` on a block where only `blocker` continues, then
   `applied`.
+- **AC-25** (REQ-28; added 2026-11-16): Given a leaf whose `target_files: a.sh,` line is
+  followed by the continuation line `     b.sh`, when `add-file --path b.sh` runs, then exit
+  6 `invalid-value` and the fixture is unchanged; the same holds for a blank line followed
+  by a continuation line and when every named path is already listed on the field line; a
+  matching receipt, a reused operation id, a stale revision and an invalid path
+  (`invalid-path`) are reported first; given `add-file` on a block where only another field
+  continues, then `applied`.
+- **AC-26** (REQ-16, REQ-17, REQ-18; added 2026-11-16): Given a path made of spaces, a path
+  made of a tab, ` d.sh` or `c.sh `, when `add-file --path` or `init-block --target-file`
+  runs, then exit 6 `invalid-path` and the fixture is unchanged, while `docs/my guide.md` is
+  applied; given an existing `target_files:` value of one space, when `add-file --path c.sh`
+  applies, then the line is `  target_files: c.sh`; given a note made of spaces or of a tab,
+  when `append-note --note`, `set --note` or `init-block --note` runs, then exit 6
+  `invalid-value` and nothing is written; given `init-block --name` with one space, several
+  spaces or a tab, then exit 6 `invalid-value` and nothing is written, while `--name " Demo "`
+  is applied and read back unchanged.
+- **AC-27** (REQ-04; added 2026-11-16): Given a leaf with `atomic-execution: complete` and a
+  justified `atomic-tests: n-a`, when `set --field atomic-tests=red` or
+  `set --field atomic-tests=failed` runs, then exit 6 `completion-without-tests` and the
+  fixture is unchanged; given a completed leaf without the `atomic-tests` segment, when `set`
+  names `atomic-tests` as `not-started`, `red`, `pinned` or `failed`, then the same refusal;
+  `n-a → not-started` on the completed leaf stays exit 6 `downgrade`; given
+  `set --field atomic-tests=red --field atomic-execution=in-progress` on the completed leaf,
+  then `applied`; given a completed leaf with `atomic-tests: red`, when
+  `set --field atomic-tests=green` runs, then `applied`.
+- **AC-28** (REQ-03, REQ-11; added 2026-11-16): Given a leaf that carries the field line
+  `  atomic-execution: weird`, when `get` runs, then that line is reported under `fields`
+  with `known` false and `validate` is `valid`; when
+  `set --field atomic-execution=complete --field atomic-tests=green` runs on a block the
+  lifecycle rules allow to complete, then `applied`, `changed_fields` names the changed
+  header fields and `state_receipts`, and the field line and any continuation lines under it
+  are byte-identical; when `set` names the current header value, then `unchanged`, also when
+  the status-named field line has continuation lines.
+- **AC-29** (REQ-07; added 2026-11-16): Given a `state.md` the caller cannot open for writing
+  (mode 0444, caller not the superuser), when `set` runs with valid inputs, then exit 7
+  `io-error`, `state.md` keeps its inode, mode, modification time and bytes, and no temporary
+  file exists; given an operation applied before the file became read-only, when it is
+  repeated, then exit 0 `already_applied`.
 
 ## Traceability
 
@@ -941,22 +1054,22 @@ file remains after a refusal.
 |---|---|
 | REQ-01 | AC-02 |
 | REQ-02 | AC-01, AC-22 |
-| REQ-03 | AC-02, AC-11, AC-13 |
-| REQ-04 | AC-03, AC-11, AC-20, AC-21 |
+| REQ-03 | AC-02, AC-11, AC-13, AC-28 |
+| REQ-04 | AC-03, AC-11, AC-20, AC-21, AC-27 |
 | REQ-05 | AC-04 |
 | REQ-06 | AC-05 |
-| REQ-07 | AC-06 |
+| REQ-07 | AC-06, AC-29 |
 | REQ-08 | AC-07 |
 | REQ-09 | AC-08 |
 | REQ-10 | AC-09 |
-| REQ-11 | AC-10, AC-13 |
+| REQ-11 | AC-10, AC-13, AC-28 |
 | REQ-12 | AC-06 |
 | REQ-13 | AC-03, AC-22 |
 | REQ-14 | Withdrawn (AC-12 withdrawn) |
 | REQ-15 | AC-14 |
-| REQ-16 | AC-15 |
-| REQ-17 | AC-16, AC-21 |
-| REQ-18 | AC-17, AC-21 |
+| REQ-16 | AC-15, AC-26 |
+| REQ-17 | AC-16, AC-21, AC-26 |
+| REQ-18 | AC-17, AC-21, AC-26 |
 | REQ-19 | AC-07 |
 | REQ-20 | AC-18 |
 | REQ-21 | AC-11 |
@@ -966,6 +1079,7 @@ file remains after a refusal.
 | REQ-25 | AC-06, AC-08 |
 | REQ-26 | AC-23 |
 | REQ-27 | AC-24 |
+| REQ-28 | AC-25 |
 
 ## Risks
 
@@ -989,7 +1103,7 @@ file remains after a refusal.
 - A-06 | Git fields, `children:` and unknown fields | Resolved: read-only in this version | Source: `rules/workflow-globals.md:233-236`; smallest reversible choice | Reversible: yes
 - A-07 | Notes and target files mutation | Resolved: append-only / add-only | Source: `rules/workflow-globals.md:226-238`; `.ai/principles/domain.md:60-61` | Reversible: yes
 - A-08 | Note continuation indentation | Resolved: 9 spaces | Source: `.ai/tasks/completed/task-00-sensitive-data-scrub/state.md:88-89` | Reversible: yes
-- A-09 | Encoding and line endings | Resolved: UTF-8 without BOM, LF only; otherwise exit 3 | Source: best practice | Reversible: yes
+- A-09 | Encoding and line endings | Resolved: UTF-8 without BOM and without NUL bytes, LF only; otherwise exit 3 | Source: best practice | Reversible: yes
 - A-10 | Section creation and insertion point | Resolved: `init-block` needs an existing section and inserts after its last non-blank line | Source: `workflows/pd-decompose.md:159` owns section initialization | Reversible: yes
 - A-11 | Locking for reads | Resolved: reads take no lock | Source: best practice (atomic rename gives readers a complete file) | Reversible: yes
 - A-12 | Version source | Resolved: compare task `contract_version:` with the `VERSION` file of the tool's own checkout | Source: `workflows/pd-analyze.md:53-58` | Reversible: yes
@@ -1129,6 +1243,57 @@ None. Q-01 (ignore rules for the lock and temporary files) was resolved by D-10 
   by the content rules.
 - Delivery record added under `## Source`; completion metadata added to the front matter.
 
+#### 2026-11-16 — reconciliation after the follow-up changes (task-07-state-tool)
+
+- Source: the owner's request of 2026-11-16 to decide every pending improvement proposal,
+  with the rulings delegated to independent analysts (78 applied, 19 rejected, 11 already
+  delivered; `## Proposal Resolution` in the task state); five follow-up changes delivered
+  them; ADR-0022 Decisions 6–10.
+- Delta 1, implemented-beyond (approved): one rule for fences inside the section and for
+  blank lines. Edit: the paragraph on fences inside the section and the blank-line sentence
+  under `## Data Model`; the `Block end`, `Repeated field` and `Malformed line` rows; one
+  sentence in the insertion paragraph; five edge-case rows.
+- Delta 2, implemented-beyond (approved): NUL bytes in `state.md` are refused as
+  `unsupported-encoding`, and `state.md` is opened without blocking. Edit: write step 4, one
+  edge-case row, A-09.
+- Delta 3, wording aligned with the delivered tool: the no-bypass sentence belongs to
+  refused write commands; `validate` refuses nothing. Edit: the sentence under
+  `### Exit codes and error codes`. REQ-10 and AC-09 already speak of refusals and are
+  unchanged.
+- Delta 4, implemented-beyond (approved): `--lock-wait-seconds` is one to three digits. Edit:
+  the first bullet and the argument-validation bullet under `### Commands`; one edge-case
+  row.
+- Delta 5, implemented-beyond (approved): whitespace rules for paths, notes and block names,
+  and a whitespace-only existing `target_files:` value. Edit: the text-input and path bullets
+  under `### Commands`; REQ-18 wording ("an empty or whitespace-only value has no entries");
+  three edge-case rows; AC-26.
+- Delta 6, implemented-beyond (approved): `add-file` refuses a `target_files` value that
+  continues. Edit: REQ-28, AC-25, one edge-case row, one traceability row.
+- Delta 7, implemented-beyond (approved): a tests-status change may not break a completed
+  leaf, which narrows an accepted gap of D-05. Edit: the scope cell of I-5, the accepted-gaps
+  sentence, one edge-case row, AC-27.
+- Delta 8, stated behaviour that was delivered but unwritten: a previous `atomic-tests` value
+  outside the vocabulary has rank 0; the lookup order of `init-block` on an existing id and
+  of a reused operation id. Edit: one sentence under `### Invariants`; write steps 5 and 6;
+  two edge-case rows.
+- Delta 9, implemented-beyond (approved): a field line named like a header status is an
+  unknown field and no longer ends `set` on that status with an internal error. Edit: one
+  sentence under `## Data Model`, one edge-case row, AC-28.
+- Delta 10, implemented-beyond (approved): a `state.md` the caller cannot write is not
+  replaced. Edit: write step 10, one edge-case row, AC-29. The delivered probe also opens
+  the file without blocking, as every open of the state file does.
+- Delta 11, implemented-beyond (approved): the lock owner report rule and the treatment of a
+  signal as a kill. Edit: one paragraph under `### Output`, one sentence under
+  `### Exit codes and error codes`, three edge-case rows.
+- Delta 12, implemented-beyond (approved): project setup compares whole ignore lines and
+  skips its `.ai/` entry where the knowledge base is tracked. Edit: the two consumer rows of
+  the edge-case table; REQ-26 and AC-23 are unchanged.
+- No requirement was weakened, withdrawn or renumbered; REQ-28 and AC-25–AC-29 are new, and
+  the traceability rows of REQ-03, REQ-04, REQ-07, REQ-11, REQ-16, REQ-17 and REQ-18 gained
+  the new criteria. No exit code, error code or warning code was added. The readiness
+  checklist was not rerun; its rows 3 and 4 were annotated. A second delivery record was
+  added under `## Source`.
+
 ## Readiness Checklist
 
 Result of 2026-11-13:
@@ -1137,8 +1302,8 @@ Result of 2026-11-13:
 |---|---|---|
 | 1 | Goal is one domain-language paragraph | PASS — one paragraph: problem, outcome, scheduled status |
 | 2 | Out of Scope names concrete exclusions | PASS — ten named exclusions |
-| 3 | Each REQ has a stable id and one EARS behaviour | PASS — REQ-01–REQ-27, REQ-14 withdrawn with reason (REQ-27 added at reconciliation, 2026-11-16) |
-| 4 | Every REQ maps to ≥1 AC and every AC to ≥1 REQ | PASS — Traceability table; AC-12 withdrawn with REQ-14; AC-24 covers REQ-27 |
+| 3 | Each REQ has a stable id and one EARS behaviour | PASS — REQ-01–REQ-28, REQ-14 withdrawn with reason (REQ-27 and REQ-28 added at the reconciliations of 2026-11-16) |
+| 4 | Every REQ maps to ≥1 AC and every AC to ≥1 REQ | PASS — Traceability table; AC-12 withdrawn with REQ-14; AC-24 covers REQ-27; AC-25 covers REQ-28 and AC-26–AC-29 extend existing requirements |
 | 5 | Every AC is binary and observable | PASS — exit codes, error codes and exact layouts named |
 | 6 | Non-functional targets measurable or N/A | PASS — performance N/A with reason; others verified by AC-02, AC-06, AC-08, AC-14, AC-19 |
 | 7 | Data model and contracts specified | PASS — grammar, writability, receipts, files, commands, outputs, exit codes |

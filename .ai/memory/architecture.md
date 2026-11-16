@@ -332,6 +332,6 @@ anchored lines.
 This repository's `.gitignore` and the entries `scripts/setup-new-project.sh` appends ignore
 `.state-tool.lock` and `.state.md.*.tmp` (never a task `state.md`); `docs/USAGE.md → ## 11.
 State Tool` documents the commands, exit codes, the write protocol, the manual fallback,
-limits and the step for consumers that track `.ai/` (setup also appends the `.ai/` entry
-there, so the manual recommends adding the two lines by hand); `scripts/README.md` lists
+limits and the step for consumers that track `.ai/` (setup skips its `.ai/` entry
+there, so a rerun or two lines added by hand both work); `scripts/README.md` lists
 the tool. No workflow is wired to the tool. Decisions: ADR-0021 and ADR-0022 (both Accepted).

@@ -121,7 +121,7 @@ Follow `.ai/principles/coding.md → Changing a contract`. Additionally:
 4. Multi-repo: `scripts/setup-umbrella.sh` at the root first, then `scripts/setup-all-repos.sh` or
    `scripts/setup-new-project.sh` per service.
 5. Respect repository-owned tracking policy. New consumers keep `.ai/` ignored by default; existing tracked knowledge is preserved and is not a preflight failure.
-6. A consumer that tracks `.ai/` gets the two state-tool ignore entries by adding `.state-tool.lock` and `.state.md.*.tmp` to its `.gitignore` by hand, or by rerunning `scripts/setup-new-project.sh` and then removing the `.ai/` line the rerun appends.
+6. A consumer that tracks `.ai/` gets the two state-tool ignore entries by adding `.state-tool.lock` and `.state.md.*.tmp` to its `.gitignore` by hand, or by rerunning `scripts/setup-new-project.sh`, which appends both and skips its `.ai/` entry where files under `.ai/` are tracked.
 
 ### Recover from a bad deploy
 - Deployed copies are disposable. Fix the source here, re-run `scripts/sync.sh`.
