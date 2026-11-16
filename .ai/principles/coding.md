@@ -97,6 +97,13 @@ the analysis that motivated it stays in `docs/`.
   match the workflow (until `specs/10-generated-reference-docs.md` makes them generated).
 - Numbers quoted in docs (check counts, file counts) are updated in the same change that
   changes them.
+- The identity ledger in `.ai/tasks/completed/task-01-git-source-of-truth/state.md` pins
+  exact line numbers in other files, `docs/USAGE.md` among them. A change that adds or
+  removes a line above a pinned line refreshes that ledger row in the same change. No other
+  file that git does not ignore may contain the ledger's heading line, because the contract
+  validator requires exactly one file to carry it. Only the complete
+  `bash scripts/validate-contracts.sh` run detects either mistake, so run it before the tip
+  of a branch stack.
 
 ### Commits (once the repository is under git)
 - `<type>[(<scope>)]: <imperative summary>`; scope names a layer or workflow in plain words

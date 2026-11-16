@@ -145,6 +145,20 @@ class ScannerCharacterization(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn(b"Scanned path is missing or unreadable: missing.txt", result.stdout)
 
+    def test_ledger_count_other_than_one_names_the_candidates(self) -> None:
+        heading = "### Exact Identity " "Match Ledger\n"
+        args = ["bash", "-c", SCANNER + "\ntest_public_identity_matches_exact_ledger_and_preserves_knowledge"]
+        expected = b"Expected exactly one identity match ledger; found "
+        result = command(args, self.root, self.env)
+        self.assertEqual((result.returncode, result.stdout), (1, expected + b"0\n"))
+        (self.root / "notes").mkdir()
+        for name in ("second ledger.md", "notes/first.md"):
+            (self.root / name).write_text("intro\n" + heading + "  base_commit: " + self.commit + "\n")
+        (self.root / "plain.md").write_text("no heading here\n")
+        result = command(args, self.root, self.env)
+        self.assertEqual((result.returncode, result.stdout),
+                         (1, expected + b"2\n  notes/first.md\n  second ledger.md\n"))
+
     def test_nul_split_and_symlink_target(self) -> None:
         link = self.root / "link"
         link.symlink_to(TOKEN)

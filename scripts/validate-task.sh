@@ -138,7 +138,7 @@ if grep -q '^## Subtask Progress' "$STATE"; then
 
   BAD_TESTS="$(grep -oE 'atomic-tests: *[a-z-]+' "$STATE" | grep -vE 'atomic-tests: *(not-started|red|pinned|green|n-a|failed)$' || true)"
   check "atomic-tests: uses the canonical vocabulary" \
-    "$([ -z "$BAD_TESTS" ] && echo pass || echo "not-started|red|green|n-a|failed expected, found: $(echo "$BAD_TESTS" | tr '\n' ';')")"
+    "$([ -z "$BAD_TESTS" ] && echo pass || echo "not-started|red|pinned|green|n-a|failed expected, found: $(echo "$BAD_TESTS" | tr '\n' ';')")"
 
   BAD_STAT="$(grep -oE 'atomic-(execution|validation): *[a-z-]+' "$STATE" | grep -vE ': *(not-started|in-progress|complete|blocked|skipped|failed)$' || true)"
   check "atomic-execution/validation use the canonical vocabulary" \
@@ -152,6 +152,42 @@ if grep -q '^## Subtask Progress' "$STATE"; then
       "$([ "${COUNT:-0}" -ge "${LEAVES:-0}" ] && echo pass \
          || echo "$COUNT ${field}: lines for $LEAVES leaf blocks — the field is mandatory even when empty")"
   done
+
+  # Tool-managed receipts, per workflow-globals: only field lines (exactly two spaces of
+  # indentation) inside the progress section and outside fences are read, so prose that
+  # mentions the field never counts. A block without the line is valid. Fences follow the
+  # state tool's grammar: tracked from the first line of the file, opened by ``` or ~~~ after
+  # at most three spaces and closed only by a later line starting with the same marker; a
+  # fence still open at the end of the file fails, because the lines after it cannot be read.
+  RECEIPT_FINDINGS="$(LC_ALL=C awk '
+    marker == "~~~" { if ($0 ~ /^ ? ? ?~~~/) marker = ""; next }
+    marker == "```" { if ($0 ~ /^ ? ? ?```/) marker = ""; next }
+    /^ ? ? ?(```|~~~)/ { marker = ($0 ~ /^ ? ? ?~~~/) ? "~~~" : "```"; opened = NR; next }
+    /^(#|##) / { inside = ($0 ~ /^## Subtask Progress[[:space:]]*$/); next }
+    !inside || !/^  state_receipts:/ { next }
+    {
+      value = substr($0, length("  state_receipts:") + 1)
+      if (value != "" && substr(value, 1, 1) != " ") { print NR; next }
+      value = substr(value, 2)
+      count = (value == "") ? 0 : split(value, entries, ", ")
+      bad = (count < 1 || count > 20)
+      delete seen
+      for (i = 1; i <= count && !bad; i++) {
+        parts = split(entries[i], piece, "#")
+        if (parts != 2 || length(piece[1]) > 64 || piece[1] !~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/ ||
+            length(piece[2]) != 16 || piece[2] ~ /[^0-9a-f]/ || (piece[1] in seen)) bad = 1
+        seen[piece[1]] = 1
+      }
+      if (bad) print NR
+    }
+    END { if (marker != "") print "open " opened }' "$STATE")"
+  BAD_RECEIPTS="$(printf '%s\n' "$RECEIPT_FINDINGS" | grep -E '^[0-9]+$' | tr '\n' ' ' || true)"
+  OPEN_FENCE="$(printf '%s\n' "$RECEIPT_FINDINGS" | sed -n 's/^open //p')"
+  RECEIPT_PROBLEMS=""
+  [ -z "$BAD_RECEIPTS" ] || RECEIPT_PROBLEMS="malformed state_receipts: line(s) at line ${BAD_RECEIPTS% } — each holds 1 to 20 entries <operation_id>#<16 lowercase hex> separated by ', ' with unique operation ids; the line is tool-managed (workflow-globals → ## Canonical Status Formats)"
+  [ -z "$OPEN_FENCE" ] || RECEIPT_PROBLEMS="${RECEIPT_PROBLEMS:+$RECEIPT_PROBLEMS; }the fence opened at line $OPEN_FENCE is never closed, so the lines after it cannot be read — close the fence"
+  check "every state_receipts: line has 1 to 20 well-formed entries with unique operation ids" \
+    "$([ -z "$RECEIPT_PROBLEMS" ] && echo pass || echo "$RECEIPT_PROBLEMS")"
 
   # Composite blocks must declare children and blocker.
   COMPOSITES="$(grep -cE '^\[composite\] T-' "$STATE" || true)"

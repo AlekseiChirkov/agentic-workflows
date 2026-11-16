@@ -251,13 +251,35 @@ GITIGNORE_ENTRIES=(
   ".env"
   "*.pyc"
   "__pycache__/"
+  ".state-tool.lock"
+  ".state.md.*.tmp"
 )
+# An entry is present only when a whole line equals it; comments, negations and longer or
+# narrower lines never count. For the knowledge base a bare .ai line counts too.
+gitignore_has() {
+  grep -qxF -e "$1" .gitignore && return 0
+  [ "$1" = ".ai/" ] && grep -qxF -e ".ai" .gitignore
+}
+# A repository that tracks files under .ai/ keeps them tracked: the index decides, so a
+# staged file counts, and a directory outside a git repository tracks nothing.
+KNOWLEDGE_TRACKED="$(git ls-files .ai 2>/dev/null | head -1)"
+GITIGNORE_APPENDED=0
 for entry in "${GITIGNORE_ENTRIES[@]}"; do
-  if ! grep -qF "$entry" .gitignore; then
+  if gitignore_has "$entry"; then
+    echo "  ok: $entry already in .gitignore"
+  elif [ "$entry" = ".ai/" ] && [ -n "$KNOWLEDGE_TRACKED" ]; then
+    echo "  skipped: .ai/ — files under .ai/ are tracked in this repository; preserving its tracking policy"
+  else
+    # End an unterminated last line once, so the first appended entry starts its own line.
+    # The last byte is compared as a byte: command substitution alone would drop a NUL byte.
+    if [ "$GITIGNORE_APPENDED" -eq 0 ] && [ -s .gitignore ] &&
+       [ "$(tail -c 1 .gitignore | od -An -tx1 | tr -d ' \n')" != "0a" ]; then
+      echo >> .gitignore
+      echo "  ok: ended the unterminated last line of .gitignore"
+    fi
+    GITIGNORE_APPENDED=1
     echo "$entry" >> .gitignore
     echo "  appended to .gitignore: $entry"
-  else
-    echo "  ok: $entry already in .gitignore"
   fi
 done
 

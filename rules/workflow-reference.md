@@ -289,6 +289,9 @@ The following sections are contracts read by orchestrators and must never be rem
 - `## Solution Design` (Invariants, Off-limits, Acceptance Criteria, Decision, Scope)
 - `## Model Selection` — preserve the complete checkpoint, evidence and digests until explicitly invalidated or replaced by bulk selection.
 - `## Subtask Progress`
+- `state_receipts:` lines in `## Subtask Progress` blocks — tool-managed operation receipts written
+  only by `scripts/state-tool.py`; never removed, edited, merged or summarized (canonical
+  definition: `workflow-globals → ## Canonical Status Formats`)
 - `## Execution Report`
 - `## Contract Check` (including `### Critical Failures Decision`)
 - `## Code Review`

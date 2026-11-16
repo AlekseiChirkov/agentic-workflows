@@ -11,3 +11,7 @@
 
 # Python bytecode
 __pycache__/
+
+# State tool auxiliary files next to a task state.md (lock and temporary files)
+.state-tool.lock
+.state.md.*.tmp

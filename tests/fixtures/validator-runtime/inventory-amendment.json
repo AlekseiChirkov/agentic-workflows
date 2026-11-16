@@ -1,4 +1,1712 @@
 {
+  "added": {
+    "expressions": [
+      {
+        "after": "test_user_hook_installation_acceptance",
+        "value": {
+          "body": "test_state_tool_acceptance() {\n  local output\n  output=\"$(python3 \"$REPO_ROOT/tests/state-tool.py\" 2>&1)\" || {\n    printf '%s\\n' \"$output\" | tail -n 35\n    return 1\n  }\n}",
+          "expression": "\"$(test_state_tool_acceptance && echo pass || echo 'state tool reads, guarded writes, receipts, lock and recovery fixtures must pass')\"",
+          "name": "test_state_tool_acceptance"
+        }
+      }
+    ],
+    "focused": [
+      {
+        "after": "--git-rails-only",
+        "value": {
+          "dispatch": "if [ \"${1:-}\" = --state-tool-only ]; then\n  shift\n  exec python3 \"$REPO_ROOT/tests/state-tool.py\" \"$@\"\nfi",
+          "flag": "--state-tool-only"
+        }
+      }
+    ],
+    "resources": [
+      {
+        "after": "test_user_hook_installation_acceptance",
+        "value": {
+          "classification": "exclusive",
+          "dynamic_dependencies": [
+            {
+              "line": 625,
+              "path": "tests/state-tool.py",
+              "reason": "literal dynamic target candidate",
+              "target_candidates": [
+                "scripts/state-tool.py"
+              ]
+            },
+            {
+              "line": 6969,
+              "path": "tests/state-tool.py",
+              "reason": "literal dynamic target candidate",
+              "target_candidates": [
+                "scripts/state-tool.py"
+              ]
+            },
+            {
+              "line": 7293,
+              "path": "tests/state-tool.py",
+              "reason": "literal dynamic target candidate",
+              "target_candidates": [
+                "scripts/state-tool.py"
+              ]
+            }
+          ],
+          "evidence": "Lexical observations are not proof of isolation; serialize until each conflict and bound is audited.",
+          "name": "test_state_tool_acceptance",
+          "observations": {
+            "bytecode": [
+              {
+                "line": 142,
+                "line_sha256": "3b4ed4976faf25a2f033c0bc70202c436abe3bcf6665486bdf3656a90718f31f",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4369,
+                "line_sha256": "231d96119346c3ff1221c746abd3e290f5a3ef2abf9fe6aaad181daa26fc57e9",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5103,
+                "line_sha256": "3e15f92a92057a5ea9fcdfd33b023d2f74cdc62016bb2637459d5c3619d7f6f9",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5457,
+                "line_sha256": "60345bba7602b4784298c088b586b482082ce948d540d2d6126f6cf985a7d8e8",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5458,
+                "line_sha256": "e0caaa7393b761d0e75c9c5149778c24ad6d4345ad3031ef21943ab97986329e",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5480,
+                "line_sha256": "a077184391e60f826785f3ce6d5bbb5b7f7b18122f7ec435e5f14ef6bd8e9c48",
+                "path": "tests/state-tool.py"
+              }
+            ],
+            "fixed_paths": [
+              {
+                "line": 7149,
+                "line_sha256": "9c5623b52d65885a7805cb5c1670afa1ade2377f417edd86b2792c36731d0497",
+                "path": "tests/state-tool.py"
+              }
+            ],
+            "inherited_stores": [
+              {
+                "line": 1654,
+                "line_sha256": "3c0fc1bfddf98d85f075ba96f83558863853bd10b261c6c7c1ef463bd4e16f93",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1664,
+                "line_sha256": "bc14cc00fa91b480ae7d4cca02aa35de8265314f9cadc06688048720b389fe7e",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 140,
+                "line_sha256": "cac1a79f06f52d27d6160a93ed2df076801243a6ad87e7739d832223e9417479",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 3198,
+                "line_sha256": "c121f4a6c2a21162206398617083261246715aee752b5f62efe599a8d86442fc",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4367,
+                "line_sha256": "af745ed5ebff04d45ce21c3c48476957497529e90aafbbeb208ad480bdd1f3b5",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4667,
+                "line_sha256": "732d16c9e852d3007e9d116e33e326dab3310a7aa81ab8b2cbdaf298d2114ae8",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4668,
+                "line_sha256": "c36b7700488f4b72e52a9a3c22fc107958f11e2339c7308c656ffbe19cf3847c",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4669,
+                "line_sha256": "74e19849124dbf4b86bea7c6261129066dcc60b7ee5076b6b2ac6e5acba72c61",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4777,
+                "line_sha256": "ec4a51c47f39e384232bce4c6cddc9ecabfd2da086e04a207cef2030724ad665",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4778,
+                "line_sha256": "1af910fe0b715c8ae82689f66ebf53e29c1962968d91967250739ff1c93481d0",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4779,
+                "line_sha256": "c9a58906e2bc6727bce4bb8c354e859d876cd2a481704a679ff4ac455c49fc01",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5062,
+                "line_sha256": "8cc8f1368ad29873a0ca182909341d0e3c73828942354d880cb4d7e8a0f3c5d6",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5063,
+                "line_sha256": "c36b7700488f4b72e52a9a3c22fc107958f11e2339c7308c656ffbe19cf3847c",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5064,
+                "line_sha256": "74e19849124dbf4b86bea7c6261129066dcc60b7ee5076b6b2ac6e5acba72c61",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5101,
+                "line_sha256": "29f2fb183fc5299924c5c2dbc22d1cf82fab6a33f43b70909bcd32da87cf3137",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5463,
+                "line_sha256": "24527e212a9a03780e18eeaf7ea20961e8bcf423d3188cc8f0b3db0bf8881813",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5464,
+                "line_sha256": "da315502db9cda6265236a6503213e4635c2e8b3897787a0986ca19f5b107a31",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5468,
+                "line_sha256": "f6c6a941d600e0cddd91e17233a4a3528a2a6e4b783f5f1301d8f901ad71ad69",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5469,
+                "line_sha256": "5e36b996c4510f0747913c617d093536823a50e26931241de71fb0c786758836",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5473,
+                "line_sha256": "6d57c7ec6e8fd0be5b6cecd0e9086f162cdd36d70398a057d88615f1aa4d30f7",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5475,
+                "line_sha256": "29f2fb183fc5299924c5c2dbc22d1cf82fab6a33f43b70909bcd32da87cf3137",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5478,
+                "line_sha256": "22521685d35d88e1cf4d3384acf4106c36178eff3bb7d8bca43fcae7f1418461",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5479,
+                "line_sha256": "bf65c0ffb46b76bc0e02c22e3ec85b610cd462fb359b8382e0318d0e504ef7b8",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5480,
+                "line_sha256": "a077184391e60f826785f3ce6d5bbb5b7f7b18122f7ec435e5f14ef6bd8e9c48",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5481,
+                "line_sha256": "b2caab5d8d34494b5b2a663b90af7a5842dcf69351c130bda10f337e18f67608",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5488,
+                "line_sha256": "c1d741222ff8c24ff9787177f9daade66bcde06813218048dad07dcfcd25b64e",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5494,
+                "line_sha256": "1a48e601aa883a5bda11ad8000f0bd24c19cdfed53dad7268d2588ed71035b2a",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5495,
+                "line_sha256": "581ed8c85df272897f23e764f3ddc89b47148864bbf28181fdd2396c634caf9d",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5502,
+                "line_sha256": "ba5b9582d810891659e44f963c8345e8193792e3a4d4b0e24ea2e932a1c6b33d",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5527,
+                "line_sha256": "7a1d9756531698f154587b362d7351a371311e34e71ade0777da92c98a3d85c3",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5536,
+                "line_sha256": "568a55630d21dfee7375bbfa9fc291792f31f61b6a9f209c07f130b8190e6803",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5538,
+                "line_sha256": "b1950606f9404a35214cf327d4e43ad19cc83e0d13fed672c3d3933eb6907f59",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5566,
+                "line_sha256": "0854205f4f6950396e391936cf58570e06591371babc763f6da5097ce01e6326",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5580,
+                "line_sha256": "cba26e55be923954bd5a2d1414c22752e9230799faefe8af5de266e9d9ed26bc",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5657,
+                "line_sha256": "3edef88ac8f627fc6a4db3bf91d8e75a16449e80461b2eab54366bff3c75a430",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5702,
+                "line_sha256": "cba26e55be923954bd5a2d1414c22752e9230799faefe8af5de266e9d9ed26bc",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5707,
+                "line_sha256": "3edef88ac8f627fc6a4db3bf91d8e75a16449e80461b2eab54366bff3c75a430",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5740,
+                "line_sha256": "a2cd6afadc4d9eb2aaafe76534b6196bf72d039a5026b7bfcc36ca140890530a",
+                "path": "tests/state-tool.py"
+              }
+            ],
+            "locks": [
+              {
+                "line": 9,
+                "line_sha256": "bfeabe8e8b79059126ed7df048cd041147c18e35f395d2865b865fc8a6fb8c31",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 12,
+                "line_sha256": "8ad8c8108eb89d10e97e78d7cf10634d5a2e451fcaa3ab4190c43ae22bcbec82",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 15,
+                "line_sha256": "8ad8c8108eb89d10e97e78d7cf10634d5a2e451fcaa3ab4190c43ae22bcbec82",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 19,
+                "line_sha256": "bfeabe8e8b79059126ed7df048cd041147c18e35f395d2865b865fc8a6fb8c31",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 23,
+                "line_sha256": "8a8812ace8fe987558a55143bfdc7df6e1f7f0fd6a3c99c928fc7e2b075734cc",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 38,
+                "line_sha256": "79c381e4584abd6e196f5a8eb81f32956a21e0a52a82eacc7e92c953d50eedf2",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 40,
+                "line_sha256": "98d3373297ddfdaafa17a663ddf2b63d1252549bc53c5326939a16b0e902d169",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 44,
+                "line_sha256": "e19ca8819db4ff86fe6bd2c95fa6371005b0d78d26c48b122f5a17d5dac9ce3e",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 57,
+                "line_sha256": "c58ebd0c4fa235a11f1c108cf4b293f14652006bc2de3d6d5803ee5e4dd8e5c3",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 58,
+                "line_sha256": "1e750bd2dad3e7547d7865a82f9ad3ce0d97a1412ead5d063ecee6407f1a4a5c",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 62,
+                "line_sha256": "52e2789e698eb869b402677689544fdd075e714574dfd292ca07d039b15e3f3f",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 141,
+                "line_sha256": "da9cb22876123534c0fd585152998b9d36b711b69bae9591872f56608f06a977",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 194,
+                "line_sha256": "3a97faa13c7516537c6e580224e610c0580d76bf23024164201bc855152f68dc",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 390,
+                "line_sha256": "cb8d0201f955c95d143f1bf4efd8afb18a38104a51ca570a959199f28031635f",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 391,
+                "line_sha256": "50ef55dfe45fb70cca6afafbce17628a962f82617d81a3a1fde07ded69652d19",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 395,
+                "line_sha256": "57d72d2470355c705c901cc3fa4d3d52fb7f7542d79da59aa6388fb2b67f158a",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1552,
+                "line_sha256": "76e6f9bb49bbe53d99d3df6e4c91a4e3f3e648b67129e0ad9795a4188bfcabb0",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1571,
+                "line_sha256": "b90d49c758eb9af1883acec25ef3290bba470e93fd31b231bcbbf5de2cd61e9e",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1576,
+                "line_sha256": "25397370cff044be61a149651ac73e2134d98e9ef0abec1f9496f6a3bf9606a2",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1581,
+                "line_sha256": "313000731c52beaaa84d870277c6334f7761a720808b1a2985038f7434b3a3ca",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1598,
+                "line_sha256": "fbf8983737b879fa0d3146bee3ac3852cd7d71c3257af9bc11f935807f2051fa",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1599,
+                "line_sha256": "25bc5c741344a8b520cda04e0f7e3176021a5e339e20a4406a04fa035c8625ed",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1608,
+                "line_sha256": "8e9c5e053837e372f207f24558528479f33a8e5188718b531ab26ed6220bcc3d",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1613,
+                "line_sha256": "8d8d6ff907cd34479e9da74f2058f67be93ce924b8fd1de593db975ceaf3e9ec",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1617,
+                "line_sha256": "7b748d0d1fd83ad92c4efeec6790d75bb8cb9a447273f9a72d8fe3a4688ad978",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1622,
+                "line_sha256": "ab66cde8e2b8a3ee61befa548a5d0b6958798f556acdbf43566854fa94add51e",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1625,
+                "line_sha256": "f9b7b20fc80b6d5ff9e6007827196869b43def42b841a8a36c9686aa692708ff",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1834,
+                "line_sha256": "d7d8fc20a23e63d9b7b6116d6607dd58ed48d90d5e7e44054e386895143dfd86",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1874,
+                "line_sha256": "12c94596bf459221477cf58bc17e62ccef2b381febd1be8308d7fe05fdb293c2",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1880,
+                "line_sha256": "4e23b677fd3d1a7c629669db72c92582bb151ce1d56db4666696c3e2e2897f5a",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 330,
+                "line_sha256": "d35ee3433dac8588d07f5db6951c227ea564172ce1ce8328e1648d20eada3c56",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 868,
+                "line_sha256": "d35ee3433dac8588d07f5db6951c227ea564172ce1ce8328e1648d20eada3c56",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 885,
+                "line_sha256": "d35ee3433dac8588d07f5db6951c227ea564172ce1ce8328e1648d20eada3c56",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1386,
+                "line_sha256": "8e8758be86f25a2b6614f5404ee85ac65a96924906be7d6312f85d8b49c7b39c",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1388,
+                "line_sha256": "b9f7e74211a1b3a3ddd8b74f9aea9a492807d93348d83a35e0851095ce2bcb07",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1422,
+                "line_sha256": "5f1af321077ba98f91f6036b506c4dc2374a8702216da14536cca67f7adb3f2d",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1863,
+                "line_sha256": "ca475e2daf415f1ec026019e88b70bb7ce0fa2608d15d1ad648c3d3816117e00",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1865,
+                "line_sha256": "60cc4f48ebd8671370da1ed8399ee7bc3b582a20ac3e5b522aac9a2e6ec27a05",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1867,
+                "line_sha256": "9782bff6fbf28a17b7a6df4f643a483d19a28aec5938d874ce75d4ab3bd7bf6b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1885,
+                "line_sha256": "76001c555bc8e7c9decaf8ba9a416d1407668a3b470dd71de9835405e0779287",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1896,
+                "line_sha256": "0af71937f7b922c2a45ae3024347b91c704cdd24d9fffde807fd090b7e27a196",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1911,
+                "line_sha256": "76001c555bc8e7c9decaf8ba9a416d1407668a3b470dd71de9835405e0779287",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1923,
+                "line_sha256": "a2b613fceca26a7b8554c586612b232e97f74a01dc31cb6ff29a9f369b809573",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1924,
+                "line_sha256": "937fa6c79fe55269b662487a6ba04b778d0e89964f0d1d26b02c1614990d059b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1925,
+                "line_sha256": "c58f177c9c07ae2ece48d97868280f23577388ff0c68ce2a72d5b27ffbb16cbd",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1944,
+                "line_sha256": "f181795327c15aa69a64eafa35864d2bf6316e8de935542262b3ef3eb71c3ae0",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1945,
+                "line_sha256": "f93a7a2e7cccc277bd80b516aef427688bf0ceb30ba14c415c8d886132cc68fe",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1948,
+                "line_sha256": "d69e42b0fbdb8868f142ce3cc850bc7d2faf91b033e89b7eee5c3f1ae9e4b7f3",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 3671,
+                "line_sha256": "2f2faea9230f40077ff581cf253df7ac6f59ecad22cd7ea36dc8e41d526a3ce1",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4332,
+                "line_sha256": "1a0e20eb79f686a00328c3be81666404978bc7954239d022a976b7dbea6c29e0",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4337,
+                "line_sha256": "60902ef5e8d31166af6606b374d003a4d77dd30dea24dedd2bc1f48a63dc8712",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4351,
+                "line_sha256": "64793bb856c6fffc101db9367dba85a3d2fb7b72100fb2208c2ccf0fb699c1a0",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4357,
+                "line_sha256": "659e6909d5c371954cf7053d3545b0f9a9bb64d023481378c96f27e9b20a53b3",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4361,
+                "line_sha256": "c5cdbd8d86485f2b73bf260f6d188d48201c161e14377b85be13a6ca4a68100f",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4389,
+                "line_sha256": "59253af0c7ddd8a8f2d7f93420b855a58032cba932b0048fb85bf32682a08ba4",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4390,
+                "line_sha256": "8b8d5c795c53e3ca4f3462f818077088c59b824d7bf815455a9d7f7fbf28cf2b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4391,
+                "line_sha256": "59c539b688e994804298dd57617137a419a754828a6d0277b6c5e6a570b19289",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4394,
+                "line_sha256": "4a966a1bf8a81e61f889efce14bd0038efde76c0122d1868ca96c60faaab6018",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4395,
+                "line_sha256": "10ef4e646df233babc53c74f38126440b96b4aa7d8b2f6821dfd03a38531e8af",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4436,
+                "line_sha256": "8c055ba7ff0cee53fad541c2ffb6d51c447106d0ff8678bb61c36061cb17c674",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4444,
+                "line_sha256": "b6070dc982c11f8dab207d1dfc5d8fd0051cf5bc528886ae6bc765ad9ce7b4e2",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4454,
+                "line_sha256": "d9cf2fe18ac93170fe11738e523bc716fa8803e975528307e4b173b6867b952e",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4474,
+                "line_sha256": "70501f1f63366f98beb5bbc4472367f03f8dd30d5e80ccafe1da66b415b665b6",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4477,
+                "line_sha256": "22c734d88966e730a02311e885fc940f8158ed8c22c1c14e715aeb7899276971",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4478,
+                "line_sha256": "4d3e3a0fc9ca3cbf1c74c53e68dbbf65da8a5b947f945c64b8e3ba9b483e7f44",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4491,
+                "line_sha256": "fc57c2070da81c73e93c76eac27286c904b60c2494f241076b34fb465403b206",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4499,
+                "line_sha256": "70501f1f63366f98beb5bbc4472367f03f8dd30d5e80ccafe1da66b415b665b6",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4500,
+                "line_sha256": "3d3eec1a8ce533925dd8a3b7d5971400610d342558e070e323784e378a013b58",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4504,
+                "line_sha256": "681b2be39f1c4a88494a3e69f81bbf44fcdc6b93263e5cd5fee7cffa752b4011",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4507,
+                "line_sha256": "3d14c92bf25b76cebd488d5eb1a97b57561d73ca0d3cc08bb5aae896382eea8b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4520,
+                "line_sha256": "af5fca4b555caec8cc610fe9b63a92fc4576ca25b691c1033757c1e9cf1f07b0",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4523,
+                "line_sha256": "17425b6aab1d672f7116f6eec421b73071de1388e340b5bedf6b15fcab7c10c6",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4543,
+                "line_sha256": "7732d042467d13ab58ced8b310b40667c211f71d90f11b31509b613c84bad720",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4546,
+                "line_sha256": "17425b6aab1d672f7116f6eec421b73071de1388e340b5bedf6b15fcab7c10c6",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4556,
+                "line_sha256": "0a9a8991c9205acbd9aa77b6ce0bd221eddf769c5e5c50a085b89497c2b9532e",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4557,
+                "line_sha256": "b486327f30b07468cd6535d34a588139c1544cf4b05b7f9389889732dd42504a",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4560,
+                "line_sha256": "9fc065284f4a16d0b80c9d13c3bb2388c46bee90503271b0e121f09e19bacdb3",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4562,
+                "line_sha256": "627995dce7b84c0149b8fc806e739cc80680fa4f28a00291e8ae80acd51dfd3e",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4569,
+                "line_sha256": "501ec00899f3b4a5c2d8a4b8eebbfdb1be3bc87c247dd1d19e1eeda7c74e6974",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4570,
+                "line_sha256": "b486327f30b07468cd6535d34a588139c1544cf4b05b7f9389889732dd42504a",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4577,
+                "line_sha256": "627995dce7b84c0149b8fc806e739cc80680fa4f28a00291e8ae80acd51dfd3e",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4581,
+                "line_sha256": "489cc3e0064815d44623653c75b674a83c3c85593fc89c683ca0259e19c77ab4",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4891,
+                "line_sha256": "dd85eb9df900ddd72a730c34586eb431bc327047034f116d33144977df96f396",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4892,
+                "line_sha256": "d6c40f8e02ca3dce80c33ce58304c01accdc99a7ef1b072e8706c0e5f6ca27ce",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4899,
+                "line_sha256": "464d16e81a9900c3cdad2f5665958a72c2bcd9644833fd7624b1da3b78ba5529",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4903,
+                "line_sha256": "dd984f1fc31af4269686421237102f819b3c047135e17efad981321038e75355",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4904,
+                "line_sha256": "0daa81a90f5b41558c60ab832964c7c3eef00633293774ab9b3c2a70acffb3cd",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4906,
+                "line_sha256": "f76fa351c5ad348018754a132037afdb09ae72c035ff43d1688ee9b6f237c8b5",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4912,
+                "line_sha256": "5194c6685962fc482c5d948ae0c834acca08633fe7008db4ad982cc59501f38e",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4916,
+                "line_sha256": "baabf1b4433fb4d85033dd06719b66aa947b07119897ef8af30ecd72953d4958",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4926,
+                "line_sha256": "38571b6402995ceee9d4cc10095bd53dbc5c9a7c7b8da3e84d077b411abe695c",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4982,
+                "line_sha256": "7732d042467d13ab58ced8b310b40667c211f71d90f11b31509b613c84bad720",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4985,
+                "line_sha256": "bbbcd948de58eadae1533b72e2e525fa88fac55ed86259d3df311f34ad50b5f0",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4995,
+                "line_sha256": "8db1d2f7ae31f3a5990797520cfc8327a06e0a4d64aacc08bdda5adb46e51297",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5004,
+                "line_sha256": "652210f435ce5fe0535ca6f8744530867c9d001e918fd46bbc2947922d015d4c",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5007,
+                "line_sha256": "8bc35815ee21a078d59e1487579ab8b588ae13dc6ac8c6431a820e832f049e58",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5011,
+                "line_sha256": "456626c93d6341c3b7527ecbf06de7d26d6598ecea28e219577813b761450b5d",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5056,
+                "line_sha256": "73ebeb1d1561fd4b4eff3f20424a70a5de87850d3c7e8deca31daef2b8ddb383",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5065,
+                "line_sha256": "3de4a1638f98071fe0e3744becdf7cf15c91329e3a269928802d70714b0a4774",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5451,
+                "line_sha256": "cd1efe306693cd3a4f2e8bfd1d41903818aa46484f085698f38c1f79b7439174",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5508,
+                "line_sha256": "50d06f86f2116ac6c18db884d6bcc285c3f1b2446bfcf39a05ac7ac2af6e5c50",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5623,
+                "line_sha256": "6d7ff5e7b402a5b94fa52be5d19fd599c7464205e11744246811648197ced769",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5938,
+                "line_sha256": "ef76ab453fb66422346c1d5e6198ac4e1335b1b6d58b94855b8b844290555a5a",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7047,
+                "line_sha256": "26c483b9cefbed71fd71eed28aac1a0fa832857fec61360f4cc1fa16ca66ee82",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7049,
+                "line_sha256": "8bc35815ee21a078d59e1487579ab8b588ae13dc6ac8c6431a820e832f049e58",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7054,
+                "line_sha256": "c52ba5c3dfe246d1757f64a17cc744a1a50fccd237e0597744b5ff7143c488be",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7092,
+                "line_sha256": "7732d042467d13ab58ced8b310b40667c211f71d90f11b31509b613c84bad720",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7097,
+                "line_sha256": "288ad4fa17ac1f8063db8a5095dcfed025616cb2626ebbac77b0e718e227951f",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7144,
+                "line_sha256": "377bb33486d8aff09cc75b430e5ca549870eca605ce96dfe2384b9c489b95d27",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7145,
+                "line_sha256": "c096648d73de50594468710ded0a654341991721a227d61913df7429c1b08d6f",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7148,
+                "line_sha256": "e1acc8e8f1f312b31f798d0de831d1feac97f3b263457dc6425a99e9f3214626",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7153,
+                "line_sha256": "335f496fd3de93e35d5ad6a7287dc4e6a1fcec70737b7d80acb1080e93068611",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7157,
+                "line_sha256": "faa46ebf994b0295117dbc0b2a9aa5a96e9e749e2cbba6361fa88ad04671450b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7159,
+                "line_sha256": "2520205bdbe7e7b98752668286184f9aa8299aaf19791bfa3a91ab9f2c14ef21",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7162,
+                "line_sha256": "de93efcc46d09069f735434f4bdb032b1bfb7b53a1e46cded43889079e9cc9be",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7188,
+                "line_sha256": "73ebeb1d1561fd4b4eff3f20424a70a5de87850d3c7e8deca31daef2b8ddb383",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7196,
+                "line_sha256": "0708168b0c666a61e351a5b70771265455f93fb2afae7c17824b7dff7b31622b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7303,
+                "line_sha256": "7f92107bcf805a5e24692413ad0eecf595fccecfb368bd2e1f364c103eab702b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7308,
+                "line_sha256": "7ff3276668569fd976f6903bcfe9affa8643ad87ef82b57485b92ac5aa1de0cb",
+                "path": "tests/state-tool.py"
+              }
+            ],
+            "ports": [
+              {
+                "line": 107,
+                "line_sha256": "d950f90f4413cfc0e37d8ac67136234afd6e3eabb4476e02ad757b2d33a281b3",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1635,
+                "line_sha256": "16f9ea630a2104446b364a936143ae9000377fd89484e67681fbf2f2abb7ee40",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 746,
+                "line_sha256": "ec824afbf1ee46d667718877bd21f9ee495acded7945d55b50d468cc746bd444",
+                "path": "tests/state-tool.py"
+              }
+            ],
+            "runtime_bounds": [
+              {
+                "line": 314,
+                "line_sha256": "a809c252a5767064a129cc6eaa567b652ce409ec2236f9e33747e630fe1b26fe",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 424,
+                "line_sha256": "93b8438a5da2c9ebcd36e1e744ad555cd2bfc62b891533713daafb1e8d1983c8",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 554,
+                "line_sha256": "be0c79420aad17c897f044beb45595103e1b363b0cee7f55244284916f309437",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 799,
+                "line_sha256": "7ac299f4b58bf10419a2d25672d54989b7087a2778460016b23d33622f9e5a56",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 830,
+                "line_sha256": "53c8bc0df641159787b578aa286209ddc25cc99d9385947d037a5c7a3ad4ba1d",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 899,
+                "line_sha256": "71c04cfa9dffea9fb696fb8a988208843b75bda78a2797a14fd7ef537ed8be2f",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1141,
+                "line_sha256": "8f91665896102583876d0add299e91df66e5fe4a3872d9884152abc78756804d",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1188,
+                "line_sha256": "8ba1bfea5859ac4695e11e1f4431c4f065710186e4c5f707c36060618a3c4cee",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1294,
+                "line_sha256": "4f9557c2a08a1b86449dca5dc9425ef9e36afeff6cf4e5af3d1dc86913fece77",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1300,
+                "line_sha256": "da72ab883e3e24be66035153519e4c498b0295a43afcbd6835782af31f92ad12",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1301,
+                "line_sha256": "3ce93392231006993945b717c8f534bfa76f4fcd41c754881208b0d9f751abf8",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1343,
+                "line_sha256": "36cced443c098e90b5ce70893eba7a9a8ae3b3cb8dd7f05d679f197570e4dee5",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1378,
+                "line_sha256": "049a361f721274eaac1b871dcdae05dd9b6d2ebae7ceab07ff78b86232efb543",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1381,
+                "line_sha256": "9f09b12dd108589fdaaba0d6e3be4579c5467a171d714711859ecd769a2f4cdf",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1382,
+                "line_sha256": "04d5d4d47649c508bf1f2caff533154b2d6c0250e43ca221dd79f9c29b2a9db6",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1434,
+                "line_sha256": "36cced443c098e90b5ce70893eba7a9a8ae3b3cb8dd7f05d679f197570e4dee5",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1462,
+                "line_sha256": "da72ab883e3e24be66035153519e4c498b0295a43afcbd6835782af31f92ad12",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1463,
+                "line_sha256": "71997073b0e29248721634dccb4b038ecec2e96ae226b7895186962e9c0081e8",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1602,
+                "line_sha256": "a60f4fa24b461443195f06ec3c6b000df3281786a6e72d4bcee5c43b5abbe0d4",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1614,
+                "line_sha256": "b7c49109d68b9c66d7cfe54f62a83a26015f49a87de1f955531aefd19d287edd",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1623,
+                "line_sha256": "9a98c4f579e98e7db581765e7d140e651ae978a06e349200f018ee4d00944539",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1627,
+                "line_sha256": "eae6caba403602385bc4335f2878452779fa60b521bc21f02e04b1e82d1bc85b",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1665,
+                "line_sha256": "c8f1197248a685cf4dfff4e7c387f3bdacd5e7f00852f7fabea4c9c09754f48b",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1666,
+                "line_sha256": "85ceb8e3ecadbdbc5f9a34c2128bc595cb039bbd4769a5ee1b6c678ded27138c",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1667,
+                "line_sha256": "128863df46932e302a6694232fef8e333f00bacf9265ac553acf4ce566f6dd9a",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1669,
+                "line_sha256": "e7816e1b5c1b5720878305ee62d37628ecd0cbda2d9c9a8e0de67d8d887f1a05",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 1685,
+                "line_sha256": "a14565a0a524d831c2221d3931d447b59b85c0eacb1b0128e6678b74f24d6d95",
+                "path": "scripts/state-tool.py"
+              },
+              {
+                "line": 69,
+                "line_sha256": "e32889c77364ae697828cd071343e0c19ba7bddbfd523ccfca4134e415b43d3b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 87,
+                "line_sha256": "25259ffe3e9e3ca7c4d191c511b09b8bf44bf935e15ec58f05bde1a90c8139aa",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 145,
+                "line_sha256": "c9f8e3c4d3efea7362cf994abc25054e99a01e294ce73cc9084aa5dfd9b8da35",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 799,
+                "line_sha256": "7fa90d67a180648d11c599351bfd8fb8d86fb64022eb901f6b15478f37a28cec",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 805,
+                "line_sha256": "4728282ed8f3a80bd5add64da82b3c7513c8379edc4907535c1e0ac87aef5220",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 2860,
+                "line_sha256": "0fe59fcb2374e63f9f536ee8a6dc01d37d4fd312edebbc94bb2de3898da176be",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 2865,
+                "line_sha256": "557646fed89148fd0316f0c6f0c10b850e50ecd4633260400fe92cbfa75e01ae",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 3100,
+                "line_sha256": "95eddb3d3db234911675307c8e504b5f863ed98aa420fcbd08b4637dc11a6896",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 3784,
+                "line_sha256": "7c3b0896112e5764c313f6f7f5e1444bbc358ef3f6c7672e9a9bc5e8bb04a63f",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 3816,
+                "line_sha256": "c13539c3246464f839ccb4f37f984526723ec2f7092bc7a5ac1233c60213291e",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 3834,
+                "line_sha256": "6489477ffb256313c735f474b9f8cbb6b51168be23be203df16a603f3ac9cab3",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4087,
+                "line_sha256": "5fe93c41d0aeff9e16c24589945577a1429369bbab5724fdb91ee3b07782b2ec",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4382,
+                "line_sha256": "7591750ffca5a56dadd99fbd52534ecddf2d45940409ae781836124501aff954",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4414,
+                "line_sha256": "a17ace990fa515706124a62b057d46a53cbbc78f988fcfbf1ae4da5f3c8f4a59",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4488,
+                "line_sha256": "5bf8fb81e3b583e54016bb41af78a5c70d13712433cb69b0d0f394ea885660f2",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4613,
+                "line_sha256": "dc3e6bdfdff6b0427123db0acbf26b18f3f5822fc37a2d9f84c85c6a0bb10ce2",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4644,
+                "line_sha256": "dc3e6bdfdff6b0427123db0acbf26b18f3f5822fc37a2d9f84c85c6a0bb10ce2",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4699,
+                "line_sha256": "c519aa3c15165e7836bcc0432302e99387d5a2f66fdab83419fe692c6aa941f3",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4732,
+                "line_sha256": "c519aa3c15165e7836bcc0432302e99387d5a2f66fdab83419fe692c6aa941f3",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4796,
+                "line_sha256": "a83dc1bc6c18e95d097788dfcf15ec5d2bb5959aa0294dae9564ec4d17c084b3",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4801,
+                "line_sha256": "d2f4bb6cb69d92d1f74f45b5c8879abc863fa3e3bf2752b98fa124c27fc64355",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4802,
+                "line_sha256": "e5abd2d849c6a620b18657baa35c6d7354b83fc4a61228417e58e86d08f51eeb",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4805,
+                "line_sha256": "302f4ea322c8cfe2608236f6cec9fe7bcb1d549a3fb5c7b093768503eab3951d",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5105,
+                "line_sha256": "96ab8a089856cf2058d3b2f9b5a07ba4c4b8ed037a04ee78ef6d9842f0e1fff0",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5135,
+                "line_sha256": "ae6f04010beaa16402b8d020251871004dcffb56157c2495f4c60e3bcd52a7d2",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5265,
+                "line_sha256": "09e70155c67717e3cd0453c5ae13e0da3fefdd9698e80cefac8b66573f4c1c76",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5483,
+                "line_sha256": "259a597872bb92fad200a20d97dc28941ad274c3c1b2806bba32555bba037a28",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5591,
+                "line_sha256": "bc43a705d00bdf8f6bc33bdc4db510f65e00ddd726ada2dacf54daf363a298f7",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5603,
+                "line_sha256": "30a4da36adfcb2b8b9d40affcc37e622535fe82945563b979c63d0a73ee10c77",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5609,
+                "line_sha256": "33252fabb9a530521d32069eb99bdaced825ac17932664706ad858afe168ed11",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5616,
+                "line_sha256": "aabd158f136082534f02b91d9bf7022fbbd3484062a30017588af93c82b4e729",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5625,
+                "line_sha256": "447d24f023387e94f4c1ffbd0c75beb89645e361b47e279a84bc4124a6a92d70",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5639,
+                "line_sha256": "479395a5e46711fe017545c53f19e2b3e7fa69d7123cecc34791dc609a493a5f",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5721,
+                "line_sha256": "098290ffa2dc1f08525476b4e27d94fe73b0cb80419c7e5bdbbe5878c386912c",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5750,
+                "line_sha256": "ce6fd7f78685f2d02f27be80854a7df3978acb6273c6c560db366df549917ff2",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5755,
+                "line_sha256": "c8d413a022a68f93010def73437d806526403e81d3d48a6b5694c6ffa9a5a7f0",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5768,
+                "line_sha256": "b7358176dc6ef09744a70d07a1d0ffa18aa7c0b378aee933710b798d6a03fc8c",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5795,
+                "line_sha256": "c71208c9718270880c8cc70836bee7518a514fbef0348b2ed15b8107a05edce6",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5819,
+                "line_sha256": "a71c9502df64296dd6ed45cbe9694f966319250020f2605899c74f4b48acfc62",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5881,
+                "line_sha256": "ec1ee1632263b2b598a144e094ede1c34fea294df9288c9d9ea9e49045ffe7be",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5900,
+                "line_sha256": "15ee1698d2f9ade0f9a0880bc687c6a881f0deba6ac38845016086d507c6d036",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5926,
+                "line_sha256": "4fde16ba4adb1a8c32da596000deb6b6b8ae7645ccf199df26d52877f828d9a1",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5934,
+                "line_sha256": "155a7924416cd47678ac5e9dafa2ddc99d0262b7f89017b9956ade2fa61dc187",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 6089,
+                "line_sha256": "8a036841dfe5865e6c58743c3d65943f923fa1fd1808282134c3c759e224947e",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 6342,
+                "line_sha256": "8420aae6c91a6a6f215e5b4e86aeb7ee35e88efa0d60abc9c8ed314d64c9035d",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 6987,
+                "line_sha256": "a360257944710556870ceac3618e3ebbfd137cf66012c06a4f92736dc08e6584",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7001,
+                "line_sha256": "084e6280208df0de7f6553d8f3a8c89bf08073d505f4b9ba6d9d93e5ea6773a0",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7154,
+                "line_sha256": "6e92589a9ec81e91d469dd382271c6bf394e1c1ffb3e6ae6b5157467e0d68db8",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7159,
+                "line_sha256": "2520205bdbe7e7b98752668286184f9aa8299aaf19791bfa3a91ab9f2c14ef21",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7160,
+                "line_sha256": "d637b14670023db33e844d3538719c1dba1e3417b613a493bce93911b3145963",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7163,
+                "line_sha256": "87940f1af5aa439846cd28b4b8e89dfe1ad41460ac50c9b0c7b877b95ab132e9",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7258,
+                "line_sha256": "acfc85f030afeb439beeaf293459d22aafc07e22f085fab0620bacac506ce3e7",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7262,
+                "line_sha256": "eabd0ff2a8f9463dc9515c68ed63380a5118c7b7beb8fceb08b9b7ca84cfc454",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7321,
+                "line_sha256": "b004d31e3028ddba1fe46e5f705e7fa30cab055ef60e8c43aec1543b01435eb7",
+                "path": "tests/state-tool.py"
+              }
+            ],
+            "source_writes": [
+              {
+                "line": 125,
+                "line_sha256": "3f44641a8060cc622396ec59b5ffd8dc9eae0e50e553400e23f90f7abbc1a888",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 130,
+                "line_sha256": "89e914190aba4ad7997026e513ff2ff39567b4f420a9b8548bfd2221aef7cc5c",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 132,
+                "line_sha256": "b5ac2d2954ebe40d026ff83de026e5f25320669461ae9a9c1ce8938ea74267b2",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 321,
+                "line_sha256": "551cc7625cf73407b3a059db9f9d0337d9855090778adecb978234f1c45372d7",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 335,
+                "line_sha256": "3fce997f11742067b47c8f59fc8ea574c60dd294d32fe4e9ac080f5872a7079c",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 400,
+                "line_sha256": "945b135720b8ad4ed6bd5d086dea83e2982a4701ee6d400b16740bf444493ad3",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 401,
+                "line_sha256": "e70ea411874af18b5f938e04aeb4cff4c6416da843ab27e7c18c9a2e75a140b9",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 403,
+                "line_sha256": "6a460008d7bc6af000566d8203f6c13891af0ec72587eb6317210fd4d0774470",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 578,
+                "line_sha256": "5922aaec1bba255aa4569ca49f58b50a72eb0126f8ce2c251fb91216ce4312fe",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 588,
+                "line_sha256": "c396e8041b8515ce817be11a762257a40ee53f6406f38795089669d8d284c32b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 594,
+                "line_sha256": "76ad564ccfba43c7c1a398853007c8aabd72a92c658000bf5ae9d00c1913120b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 595,
+                "line_sha256": "c25bc2d0d1e708778c29727d17bb9d11d1e0e57bfa820534c66b9a12d5792d7e",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 819,
+                "line_sha256": "4327f61e2268bd4053fbe8954966344695407157b87329ab270170787f926412",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 820,
+                "line_sha256": "601a03a69f0c39ebe442956ce79a31fe4f4c2effefbc56b9fd045cb0177da302",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 822,
+                "line_sha256": "7642d5134a784a4865d5b6c83cf0e8d7c204cf88f015eb328d19b4e7647d8d57",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 857,
+                "line_sha256": "551cc7625cf73407b3a059db9f9d0337d9855090778adecb978234f1c45372d7",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 897,
+                "line_sha256": "c9fcd5f8676eb9ce410f0bd4c97bffb0c7af434d7ccf50cc5aa1f34ebe1eff0f",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1090,
+                "line_sha256": "aa81a36829d4fddc0266f7d1ea8a7a3bd81ae93aca6ba7af674a9b6d13cda07f",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1150,
+                "line_sha256": "76ad564ccfba43c7c1a398853007c8aabd72a92c658000bf5ae9d00c1913120b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1151,
+                "line_sha256": "c25bc2d0d1e708778c29727d17bb9d11d1e0e57bfa820534c66b9a12d5792d7e",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1156,
+                "line_sha256": "5922aaec1bba255aa4569ca49f58b50a72eb0126f8ce2c251fb91216ce4312fe",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1359,
+                "line_sha256": "1ada8b6f03dea276aaf6501eb2432441e071be845b3da20709aa3b5b37d7116d",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1360,
+                "line_sha256": "7a6a68273bb3dbd31e46d63085b9cd67e91a815205666523f7df3fe8dd5bce3d",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 1615,
+                "line_sha256": "6ef35194e31ebf2ee79eab1c49ee226939a3c5d1d00ed1dffa062d3c7a47002c",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 2178,
+                "line_sha256": "1b31f11f0bd6616536c519c7173a5ff3f97eae585af88eed584ccf8f45070008",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 2179,
+                "line_sha256": "8233dca13b64e10049aa5e02f00e586c1abe7a8310dfe27712ee080b996879dd",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 2182,
+                "line_sha256": "2598c6c73c80f871ee6c5e356f109e2a730e2bdebe56d25b9cd721ebb092e961",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 3197,
+                "line_sha256": "0a8e9fc11433a8acb03ddb3af8a9f6f810ceb02a9f7eabaca447ef5c9eab7b3a",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 3198,
+                "line_sha256": "c121f4a6c2a21162206398617083261246715aee752b5f62efe599a8d86442fc",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4390,
+                "line_sha256": "8b8d5c795c53e3ca4f3462f818077088c59b824d7bf815455a9d7f7fbf28cf2b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4474,
+                "line_sha256": "70501f1f63366f98beb5bbc4472367f03f8dd30d5e80ccafe1da66b415b665b6",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4499,
+                "line_sha256": "70501f1f63366f98beb5bbc4472367f03f8dd30d5e80ccafe1da66b415b665b6",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4520,
+                "line_sha256": "af5fca4b555caec8cc610fe9b63a92fc4576ca25b691c1033757c1e9cf1f07b0",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4543,
+                "line_sha256": "7732d042467d13ab58ced8b310b40667c211f71d90f11b31509b613c84bad720",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4556,
+                "line_sha256": "0a9a8991c9205acbd9aa77b6ce0bd221eddf769c5e5c50a085b89497c2b9532e",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4569,
+                "line_sha256": "501ec00899f3b4a5c2d8a4b8eebbfdb1be3bc87c247dd1d19e1eeda7c74e6974",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4810,
+                "line_sha256": "7d0b497afe95e9f5abfa976bc020e57c115d6b59f2c81e8e85299c8b79706da7",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4839,
+                "line_sha256": "e851cb5bd7cb077e40218eb3d7705e73bcdf9b369fbbfc3198c57e3541adc203",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4862,
+                "line_sha256": "76ad564ccfba43c7c1a398853007c8aabd72a92c658000bf5ae9d00c1913120b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4863,
+                "line_sha256": "e61e021f70fffaeca07aa384c64a9dfed7713d9a850dacfca28cc14e976aa3cb",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4878,
+                "line_sha256": "9a73021a56f30b2dfe5ef24e0acb89f8c823f5a38910d1ec17f4a41b1b317eb1",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4891,
+                "line_sha256": "dd85eb9df900ddd72a730c34586eb431bc327047034f116d33144977df96f396",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4916,
+                "line_sha256": "baabf1b4433fb4d85033dd06719b66aa947b07119897ef8af30ecd72953d4958",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 4982,
+                "line_sha256": "7732d042467d13ab58ced8b310b40667c211f71d90f11b31509b613c84bad720",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5007,
+                "line_sha256": "8bc35815ee21a078d59e1487579ab8b588ae13dc6ac8c6431a820e832f049e58",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5056,
+                "line_sha256": "73ebeb1d1561fd4b4eff3f20424a70a5de87850d3c7e8deca31daef2b8ddb383",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5119,
+                "line_sha256": "ce09674abd86ffc003d0954413a233a9b6416fb701ae9480fcc472171f10dbb1",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5120,
+                "line_sha256": "c645f0d82dc42aedcdf91444e40c742f61dc44e1a1f43ae5e90c9f497df4f7dd",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5160,
+                "line_sha256": "18282083f83d8081d2669e5dffdf122a4ebc54f4d36a12467059c32883321e95",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5163,
+                "line_sha256": "3d3b887e0a8d6c6999494ccbc8be99f94fdf0a1cfb727da949b44fa516e4e219",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5197,
+                "line_sha256": "29b392d5ff14da6bff651049c1568339f36eb1c4b1a4fd677d88a44e2fdcac5b",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5495,
+                "line_sha256": "581ed8c85df272897f23e764f3ddc89b47148864bbf28181fdd2396c634caf9d",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5526,
+                "line_sha256": "9b65499047c00ee4c4da23ee3bcf6b9bd13fc096bf164fe1daa07e2b0f3ca9bd",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5530,
+                "line_sha256": "b058af676a9434c2be53b896add1058a035bb8ac2414e3b26eaaadea7e1ed09d",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5577,
+                "line_sha256": "429a3333c0bb2bbb9cf4b2dc805feb39b010c25a95d615b0029e9303425b3f74",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5578,
+                "line_sha256": "822d42004018c37b8eac12de5c9e4287f28c6f0ba218a0919dc146d71c7f016c",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5582,
+                "line_sha256": "3c31e9a7048cb829e629432ff1d2fb7f5684036590e2ef90f815d2f454bd4bd0",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5685,
+                "line_sha256": "9b65499047c00ee4c4da23ee3bcf6b9bd13fc096bf164fe1daa07e2b0f3ca9bd",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5699,
+                "line_sha256": "429a3333c0bb2bbb9cf4b2dc805feb39b010c25a95d615b0029e9303425b3f74",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5700,
+                "line_sha256": "822d42004018c37b8eac12de5c9e4287f28c6f0ba218a0919dc146d71c7f016c",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5733,
+                "line_sha256": "294704ba15e834ab7630f39e5cc14ba82cd0335042b9b27495295f6f87ac9397",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 5735,
+                "line_sha256": "121f66f1d2041a5f2546fac042eed0229a6fba6515b3a9cd557fe1cc303ada23",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7049,
+                "line_sha256": "8bc35815ee21a078d59e1487579ab8b588ae13dc6ac8c6431a820e832f049e58",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7092,
+                "line_sha256": "7732d042467d13ab58ced8b310b40667c211f71d90f11b31509b613c84bad720",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7188,
+                "line_sha256": "73ebeb1d1561fd4b4eff3f20424a70a5de87850d3c7e8deca31daef2b8ddb383",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7232,
+                "line_sha256": "99de1d79fd082292b916b337b8acc071b4a5f32356a0339e408bf03d278758bc",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7233,
+                "line_sha256": "a2734cb227787f7f4808ca34a5b62808b06ddae7812d5e42b3a2699c8263027a",
+                "path": "tests/state-tool.py"
+              },
+              {
+                "line": 7273,
+                "line_sha256": "04f276e28bbecb5fd10cd53d90672aee6ca6458702faea4f142551b94e2f8139",
+                "path": "tests/state-tool.py"
+              }
+            ]
+          },
+          "source_references": [
+            {
+              "path": "scripts/state-tool.py",
+              "provenance": "static import or dynamic target candidate",
+              "sha256": "ec36ab3690d1d027f0bd8b26aff1b3f9d50f3e6571ddbadc3b0b1e4af3758d3d"
+            },
+            {
+              "path": "tests/state-tool.py",
+              "provenance": "direct lexical reference",
+              "sha256": "fe2ce52b9eca9f85c893f230b0a98a57866f4c719857c32287394f3f0bd31354"
+            }
+          ],
+          "transitive_status": "unresolved"
+        }
+      }
+    ],
+    "results": [
+      {
+        "after": {
+          "expression": "\"$(tr '\\n' ' ' < workflows/bugfix.md 2>/dev/null | tr -s ' ' | grep -qi 'reproduction \\*is\\* the RED test' && echo pass || echo 'bugfix.md does not turn the reproduction into a RED test, so the fix would be unverified and unguarded against regression')\"",
+          "name": "BUGFIX: the reproduction becomes the failing test"
+        },
+        "value": {
+          "expression": "\"$([ \"$(grep -cxF 'Tool-managed field state_receipts: <operation_id>#<16-hex digest>, \u2026 \u2014 at most 20 entries, oldest first; written only by scripts/state-tool.py; never edited or removed by hand or by /compress-state.' rules/workflow-globals.md 2>/dev/null)\" = 1 ] && grep -qF 'a block without a `state_receipts:` line is valid' rules/workflow-globals.md 2>/dev/null && echo pass || echo 'workflow-globals.md must define state_receipts: on exactly one anchored line and state that a block without it is valid \u2014 otherwise the tool-managed field has no canonical definition')\"",
+          "name": "RECEIPTS: workflow-globals defines state_receipts: on one anchored line and keeps blocks without it valid"
+        }
+      },
+      {
+        "after": {
+          "expression": "\"$([ \"$(grep -cxF 'Tool-managed field state_receipts: <operation_id>#<16-hex digest>, \u2026 \u2014 at most 20 entries, oldest first; written only by scripts/state-tool.py; never edited or removed by hand or by /compress-state.' rules/workflow-globals.md 2>/dev/null)\" = 1 ] && grep -qF 'a block without a `state_receipts:` line is valid' rules/workflow-globals.md 2>/dev/null && echo pass || echo 'workflow-globals.md must define state_receipts: on exactly one anchored line and state that a block without it is valid \u2014 otherwise the tool-managed field has no canonical definition')\"",
+          "name": "RECEIPTS: workflow-globals defines state_receipts: on one anchored line and keeps blocks without it valid"
+        },
+        "value": {
+          "expression": "\"$(awk '/^## Protected Sections Contract/,/^## Multi-Phase Spec Rules/' rules/workflow-reference.md 2>/dev/null | grep -qE '^- `state_receipts:` lines' && echo pass || echo 'workflow-reference.md Protected Sections Contract does not protect state_receipts: lines \u2014 /compress-state could drop the receipts that make a repeated state-tool write idempotent')\"",
+          "name": "RECEIPTS: the Protected Sections Contract protects state_receipts: lines"
+        }
+      },
+      {
+        "after": {
+          "expression": "\"$(awk '/^## Protected Sections Contract/,/^## Multi-Phase Spec Rules/' rules/workflow-reference.md 2>/dev/null | grep -qE '^- `state_receipts:` lines' && echo pass || echo 'workflow-reference.md Protected Sections Contract does not protect state_receipts: lines \u2014 /compress-state could drop the receipts that make a repeated state-tool write idempotent')\"",
+          "name": "RECEIPTS: the Protected Sections Contract protects state_receipts: lines"
+        },
+        "value": {
+          "expression": "\"$(state_tool_vocabulary_matches_rules && echo pass || echo 'scripts/state-tool.py vocabulary constants must list the values of their anchored lines in rules/workflow-globals.md, in the same order')\"",
+          "name": "RECEIPTS: the state tool vocabulary constants equal the anchored status lines"
+        }
+      },
+      {
+        "after": {
+          "expression": "\"$(test_user_hook_installation_acceptance && echo pass || echo 'owned user hook lifecycle and isolated deployment fixtures must pass')\"",
+          "name": "test_user_hook_installation_acceptance"
+        },
+        "value": {
+          "expression": "\"$(test_state_tool_acceptance && echo pass || echo 'state tool reads, guarded writes, receipts, lock and recovery fixtures must pass')\"",
+          "name": "test_state_tool_acceptance"
+        }
+      }
+    ]
+  },
   "paths": [
     "scripts/model-catalog.py",
     "scripts/model_selection.py",

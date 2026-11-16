@@ -93,6 +93,7 @@ with explicit state on disk. The AI assistant is constrained by:
 │   ├── install-hooks.sh             manage owned user hook entries
 │   ├── run-log-timing.sh            analyze explicit files with exact interval metrics
 │   ├── run-log-timing.py            source-only timing engine; Python standard library
+│   ├── state-tool.py                optional subtask-progress reader and editor (section 11)
 │   ├── validate-contracts.sh        check repository-wide workflow contracts
 │   └── validate-task.sh             check one task directory
 │
@@ -307,7 +308,7 @@ The script (idempotent — safe to re-run):
 | 3    | Notes about `.windsurf/workflows/` — uses global workflows unless local override exists     |
 | 4    | `.claude/skills/<name>` symlinks pointing at `~/.claude/skills/<name>` (Claude Code workaround) |
 | 5    | `.ai/` knowledge base seeded from `templates/.ai/` (never overwrites existing files), then `AGENTS.md` for Codex from `templates/AGENTS.md` |
-| 6    | `.gitignore` entries: `.ai/` (default for new consumer projects; existing repository tracking policy is authoritative), `.claude/skills/`, `.env`, `*.pyc`, `__pycache__/` |
+| 6    | `.gitignore` entries, each appended on its own line only when no existing line equals it: `.ai/` (default for new consumer projects; skipped with a message when `git ls-files .ai` lists a tracked file, so a repository that tracks its knowledge base keeps it tracked — section 11), `.claude/skills/`, `!.claude/skills/.gitkeep`, `.env`, `*.pyc`, `__pycache__/`, `.state-tool.lock`, `.state.md.*.tmp` (state tool lock and temporary files, section 11) |
 
 ### Manual steps required after the script runs
 
@@ -715,6 +716,7 @@ Or re-run `scripts/setup-new-project.sh` after deleting the affected file.
 | `scripts/validate-contracts.sh`    | Contract checks across the three layers, including optional tracked-file public hygiene. Run by `scripts/sync.sh` before every deploy; any failure blocks deployment. |
 | `scripts/sync.sh`                  | Deploy source → Windsurf workflows + rules, Claude skills, `~/.claude/CLAUDE.md`. Source tree defaults to the repository root (the parent of `scripts/`); `--from <dir>` takes precedence over `ORCHESTRAIL_HOME`. |
 | `scripts/validate-task.sh`         | Applies the canonical contracts to ONE task directory's artifacts (`state.md`, `plan.md`, `description.md`) rather than to the workflow definitions. Run by `/pd-finalize` and `/pe-finalize`; exit 1 blocks the phase. |
+| `scripts/state-tool.py`    | Optional reader and editor of one task's `## Subtask Progress` section: structural parser, per-task lock, expected revision, idempotent operation receipts, one JSON result per call. No workflow calls it yet; see section 11. |
 | `scripts/run-log-timing.sh` | Exact offline timing for explicit original run files; source-only Python engine, private validated snapshots and structured coverage. |
 | `scripts/log-step.sh`              | Append-only run log writer. Stamps its own timestamps and derives durations, so no duration is ever model-guessed. Exits 0 on every error path — logging never blocks a pipeline. |
 | `scripts/setup-new-project.sh`     | Initialize a project: `CLAUDE.md`, `AGENTS.md`, `.windsurf/rules/`, skill symlinks, `.gitignore`. |
@@ -848,13 +850,17 @@ T-XX | <name> | atomic-tests: <status> | atomic-execution: <status> | atomic-val
 Atomic statuses (`atomic-execution` / `atomic-validation`):
 `not-started` | `in-progress` | `complete` | `blocked` | `skipped` | `failed`.
 
-`atomic-tests` statuses: `not-started` | `red` | `green` | `n-a` | `failed`.
+`atomic-tests` statuses: `not-started` | `red` | `pinned` | `green` | `n-a` | `failed`.
 A block written before the TDD step existed has no `atomic-tests:` line; read it as
 `not-started` and do not error.
 
 Under `/spec-run` the block also carries `branch:`, `base_branch:`, `base_commit:`,
 `commits:`, and `pr:`. Composite subtasks use a `[composite]` block with
 `rollup:` / `integration-validation:` / `children:` instead of the three atomic status fields.
+
+A block may also carry a tool-managed `state_receipts:` line, written only by
+`scripts/state-tool.py` (section 11). Never edit or remove it by hand; a block without it
+is valid.
 
 ### `## Fix-Tasks` block
 
@@ -869,3 +875,176 @@ When none: `fixes-count: 0` and `Created: none`.
 
 Full canonical formats: `rules/workflow-globals.md`.
 Extended rationale + examples: `rules/workflow-reference.md`.
+
+---
+
+## 11. State Tool
+
+`scripts/state-tool.py` reads and edits the `## Subtask Progress` section of one task
+`state.md` through a structural parser instead of free-text edits. It is optional:
+no workflow calls it yet, and the canonical formats in `rules/workflow-globals.md` remain
+the contract, so the manual procedure below stays valid. It needs Python 3.11 or newer and only
+the standard library. `--root` is the project root; `--task` is the task directory
+(`.ai/tasks/todo/task-<NN>-<slug>/`), resolved from the current directory, and must lie
+inside the root. The tool writes only that task's `state.md`, its lock file and its own
+temporary file; it never writes git fields, unknown fields or `children:` after creation,
+never creates the section and never deletes or repairs a block.
+
+### Commands
+
+```bash
+python3 scripts/state-tool.py get         --root R --task T [--block ID] [--field NAME]
+python3 scripts/state-tool.py validate    --root R --task T [--block ID]
+python3 scripts/state-tool.py set         --root R --task T --block ID --expected-revision REV \
+    --operation-id OP --field NAME=VALUE [--field ...] [--note TEXT ...] [--lock-wait-seconds N]
+python3 scripts/state-tool.py append-note --root R --task T --block ID --expected-revision REV \
+    --operation-id OP --note TEXT [--note ...] [--lock-wait-seconds N]
+python3 scripts/state-tool.py add-file    --root R --task T --block ID --expected-revision REV \
+    --operation-id OP --path P [--path ...] [--lock-wait-seconds N]
+python3 scripts/state-tool.py init-block  --root R --task T --block ID --kind leaf|composite \
+    --name NAME --expected-revision REV --operation-id OP \
+    [--target-file P ...] [--children ID,ID...] [--note TEXT ...] [--lock-wait-seconds N]
+```
+
+| Command | What it does |
+|---|---|
+| `get` | Report the blocks (or one block, or one field) with header statuses, fields and continuation lines. Creates, changes and deletes nothing. |
+| `validate` | Check structure, status vocabularies, the static lifecycle rules and `state_receipts:` lines without writing; exits 3 before 6 when both kinds of error exist and lists every error. |
+| `set` | Change header statuses (`atomic-tests`, `atomic-execution`, `atomic-validation`; `rollup`, `integration-validation` on a composite) and `last_action` / `blocker`, optionally appending notes in the same write. Lifecycle rules (no tests-status downgrade, `pinned` only to `green`, completion needs `green` tests, a justified `n-a`, or the pre-TDD note on a block without `atomic-tests:`) are checked on the fields the write changes. A tests status cannot be changed to a value other than `green` or `n-a` while execution is `complete`. |
+| `append-note` | Append notes; existing note text is never changed. A note that is empty or only whitespace is refused. |
+| `add-file` | Add paths to `target_files:`; listed paths are kept and a call that adds nothing is `unchanged`. A path that is empty, only whitespace, or has leading or trailing whitespace is refused. |
+| `init-block` | Insert a new leaf or composite block with its canonical initial lines at the end of the section; an existing block is never changed. |
+
+For `init-block`, `--kind composite` requires `--children` and `--note` and refuses
+`--target-file`; `--kind leaf` refuses `--children` (exit 2, `invalid-arguments`).
+
+stdout carries exactly one JSON object (`schema_version` 1) with `command`, `task`, `result`
+(`read`, `valid`, `invalid`, `applied`, `already_applied`, `unchanged` or `rejected`), `errors`,
+`warnings`, `source_revision` and `stale_temp_files`; `get` adds `contract_version` and, when it
+reads, `blocks`; write commands add `operation_id`, `block_id`, `block_kind`, `result_revision`
+and `changed_fields`. Diagnostics go to stderr only. The acceptance suite
+runs with `bash scripts/validate-contracts.sh --state-tool-only`.
+
+### Write protocol
+
+1. Read the current revision: `source_revision` of a `get`, or `result_revision` of the
+   previous write (`sha256:` and 64 hex characters).
+2. Pass it as `--expected-revision` and choose a fresh `--operation-id` for the change
+   (first character a letter or digit, then letters, digits, `.`, `_` or `-`; 64 characters
+   at most).
+3. The tool takes the per-task lock `<task>/.state-tool.lock`, waiting at most
+   `--lock-wait-seconds` (default 5, at most 600), rereads `state.md`, refuses with exit 4
+   when its revision differs, changes only the named fields plus the block's
+   `state_receipts:` line, and replaces `state.md` by renaming its own temporary file
+   `<task>/.state.md.<token>.tmp` after checking that nobody changed the file meanwhile.
+
+Every applied write records its operation id and a digest of its inputs on the block's
+`state_receipts:` line, which keeps the 20 newest entries. Repeating a recorded operation id
+with the same inputs returns `already_applied` with exit 0 and writes nothing, whatever its
+expected revision; the same id with other inputs is exit 8. After a timeout, a crash or a
+lost result, repeat the identical command: a write killed before the rename leaves
+`state.md` unchanged (its temporary file stays and is listed in `stale_temp_files`) and the
+repeat applies once; a write killed after the rename is answered `already_applied`. An
+interrupt (Ctrl-C) or a termination signal counts as a kill: the tool ends by the signal
+without a JSON object, an exit code from the table or a traceback, also while it waits for
+the lock; only an interrupt that arrives before the script's first statement runs — while
+the interpreter starts or compiles the script — can still print the interpreter's own
+traceback, which may name the script at line 0.
+
+An `unchanged` result writes nothing and records no receipt, so its operation id is not
+reserved: the same id may later be applied to that block with any inputs, and the receipts
+line lists only applied operations.
+
+A lock still held at the end of the wait is exit 5 with `lock_owner` (the recorded owner
+metadata, or null unless the whole lock file is one JSON object of at most 64 KiB that can be
+reported as standard JSON), `lock_age_seconds` (null when the start time is missing,
+unreadable or in the future) and `stale_suspected` (an age of 600 seconds or more). Age
+never proves the owner is gone, so the tool never deletes, truncates or takes over a held
+lock. The kernel releases the lock when its holder exits; a lock file left behind with old
+metadata does not block the next write.
+
+### Exit codes
+
+| Exit | Meaning | Error codes |
+|---|---|---|
+| 0 | Read, valid, applied, already applied or unchanged | — |
+| 1 | Unexpected internal error | `internal-error` |
+| 2 | Invalid invocation | `invalid-arguments`, `unknown-command`, `malformed-revision`, `invalid-operation-id`, `path-outside-root` |
+| 3 | Structure or version refused | `state-missing`, `section-missing`, `section-duplicate`, `block-missing`, `block-duplicate`, `malformed-block`, `malformed-receipts`, `unrecognized-prefix`, `unknown-header-field`, `unsupported-contract-version`, `unsupported-encoding` |
+| 4 | Revision conflict | `revision-conflict`, `state-file-changed` |
+| 5 | Lock busy | `lock-busy` |
+| 6 | Field, value or invariant refused | `invalid-value`, `invalid-path`, `read-only-field`, `field-not-applicable`, `n-a-unjustified`, `completion-without-tests`, `downgrade`, `pinned-transition`, `invalid-transition`, `pre-tdd-not-applicable`, `block-exists`; for `validate` also `required-field-missing` |
+| 7 | File system or runtime | `io-error`, `unsafe-state-file`, `unsafe-lock-path`, `locking-unavailable`, `python-too-old` |
+| 8 | Operation conflict | `operation-conflict` |
+
+Exits 4, 5, 6 and 8 refuse a write, and stderr then carries the sentence
+`Do not edit state.md by hand to bypass this refusal.` A refusal is never bypassed by a
+manual edit: reread and retry with the current revision, wait for the lock, correct the
+value, or choose a new operation id. The manual procedure below is for when the tool is
+absent or cannot run in the environment, never for overriding its answer.
+
+### Manual fallback
+
+When the tool is absent or cannot run, edit the block by hand in this order:
+
+1. Stop all concurrent writers of this task's `state.md` (other agents, sessions and tool
+   runs) before editing.
+2. Read the whole block, including its continuation lines and any `state_receipts:` line.
+3. Change only the needed fields, in the canonical format of `rules/workflow-globals.md`;
+   never remove `notes:`, `target_files:`, `tdd:` or git field lines, and never edit or
+   remove a `state_receipts:` line.
+4. Review the diff of `state.md` and confirm that nothing outside those fields changed.
+5. Run `scripts/validate-task.sh` on the task directory and fix every `[FAIL]` it reports.
+6. Record the reason for the manual edit in the block's `notes:`.
+
+### Limits
+
+- External editors and agents that edit `state.md` directly ignore the lock. The check
+  before the rename refuses a write whose file changed meanwhile (exit 4,
+  `state-file-changed`), but an edit outside that window is not prevented; stop other
+  writers while the tool runs as well.
+- Local filesystems only: the lock is an advisory `flock` lock (taken through Python's
+  `fcntl` module), which network filesystems may not honour. Locking across hosts is not supported.
+- Without `fcntl` (for example on Windows) only `get` and `validate` work; write commands
+  exit 7 `locking-unavailable`. Read commands on such a platform are not covered by the
+  acceptance suite.
+- Leftover temporary files `.state.md.*.tmp` are listed in `stale_temp_files` by every
+  command and never deleted by the tool, nor read as state. Remove them by hand once no
+  write is running.
+- `set` refuses to change `last_action` or `blocker` when the value continues on following
+  lines (exit 6, `invalid-value`), because it replaces the field line only and never deletes
+  text; edit such a block by the manual procedure above, or append a note. Fenced text
+  placed under a field line is not a continuation line: `set` replaces the field line and
+  leaves the fenced lines, and blank lines directly before them, where they are. `add-file`
+  likewise refuses a `target_files:` value that continues on following lines (exit 6,
+  `invalid-value`), because it reads entries from the field line only.
+- A hand-edited `atomic-tests` value outside the vocabulary counts as `not-started`: `set`
+  replaces it with any vocabulary value except `green`.
+- A `state.md` the caller cannot open for writing is never replaced (exit 7, `io-error`). An
+  applied write replaces the file by rename, so the new file belongs to the user who ran the
+  tool; its permission bits are kept, its owner and group are not.
+- File shape: `state.md` must be UTF-8 without a byte order mark, carriage returns or NUL
+  bytes (exit 3, `unsupported-encoding`). A blank line is an empty line. Inside a block a
+  line holding only one or two spaces makes the block malformed (exit 3, `malformed-block`)
+  and a line of three or more spaces is a continuation line; `init-block` treats a
+  spaces-only line as the last non-blank line of the section.
+- Fences inside the section: a fence opened at column 0 ends the block before it. A fence
+  opened at one to three spaces inside a block stays part of that block, together with
+  blank lines directly before it; its lines are never reported, changed or used as an
+  insertion point. An in-block fence that is never closed makes its block malformed (exit
+  3, `malformed-block`). A column-0 fence that is never closed hides every later block up
+  to the end of the file: `get` and `validate` do not see them and a command that names
+  one exits 3 `block-missing`. `init-block` that names the block holding an unclosed
+  in-block fence exits 3 `malformed-block`, and `init-block` for a new block id exits 1 in
+  both cases; nothing is written either way. Close the fence by hand first.
+
+### Ignore rules for the auxiliary files
+
+The lock file and the temporary files sit next to the task `state.md`. This repository and
+new consumer projects ignore `.state-tool.lock` and `.state.md.*.tmp` through `.gitignore`
+(`scripts/setup-new-project.sh` adds both entries; `scripts/sync.sh` does not). An existing
+consumer project that tracks `.ai/` adds the two lines by hand or reruns
+`scripts/setup-new-project.sh`, which appends both and leaves the knowledge base tracked: when
+`git ls-files .ai` lists a tracked file, the script skips its `.ai/` entry and says so. No
+ignore rule may match a task `state.md`. A project that ignores `.ai/` already ignores both
+files.
