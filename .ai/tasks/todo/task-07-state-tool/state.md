@@ -507,6 +507,22 @@ T-17-fix-lock-owner-and-signals | Lock owner report and termination signals | at
   commits: 036903c test(state-tool): require a strict lock owner report and silent interrupts, ec190ad fix(state-tool): report a lock owner only when the whole file is one
   pr: none
 
+T-18-fix-contract-surface | Setup ignore lines, contract checks and manual corrections | atomic-tests: green | atomic-execution: complete | atomic-validation: not-started
+  last_action: implementation done 2026-11-16 — state tool suite 335 → 347 tests and the characterization suite 17 → 18, all passing; test files identical to the failing snapshots
+  target_files: scripts/setup-new-project.sh, scripts/validate-contracts.sh, scripts/validate-task.sh, rules/workflow-globals.md, docs/USAGE.md, tests/state-tool.py, tests/validator-runtime-characterization.py, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
+  blocker: none
+  notes: tdd: integration — new cases for nine rebinding forms of each vocabulary constant, four fence shapes for the receipts rule of the task validator, five setup-script shapes and the identity-check message; three setup guards and the constant-copy controls pass before the change.
+         observed RED 2026-11-16: state tool suite 347 tests with 47 failures (36 rebinding subtests where the validator statement passed, the fence cases with the wrong exit, the setup cases with joined or suppressed lines), characterization suite 18 with 1 failure (no count or paths in the message); guards named with a mutation that fails each.
+         tdd: green — both suites pass with the test files byte-identical to the failing snapshots.
+         the startup prefix of the contract validator (first 583 lines) is byte-identical, no validator statement was added, removed or reworded; the manual is unchanged above line 310.
+         pinned values refreshed once: the suite's amendment row and its digest, the inventory fingerprint on all 137 records, the dependency digests of the task validator and the setup script, the manifest digest; two reason texts of the manifest reworded as decided.
+         verification: focused validator mode passed (347); all 23 validator-runtime suites passed; the task validator passes on the nine task directories. The complete validator run is the orchestrator's step.
+  branch: fix/setup-ignore-lines-and-contract-checks
+  base_branch: fix/state-tool-lock-owner-and-signals
+  base_commit: 799f3780d04dd99962759b598e9239aa0155d241
+  commits: e4be555 test: require exact ignore lines and stricter contract checks, 75c54b7 fix: keep ignore files intact in setup and close contract check gaps
+  pr: none
+
 ## Execution Report
 - T-01: reviewed — structural parser and `get`; 43 tests at closing; one registration test deferred to T-09 by owner decision
 - T-02: reviewed — `validate` and two grammar corrections; re-validated after one correction (specification labels removed from docstrings)
