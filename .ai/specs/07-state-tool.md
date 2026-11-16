@@ -41,6 +41,7 @@ completed_at: 2026-11-16
 - **Disposition:** Every improvement proposal and deferred finding recorded by the reviews was decided on the owner's request of 2026-11-16, with the rulings delegated to independent analysts: 78 applied, 19 rejected, 11 already delivered. The applied ones were delivered by five follow-up changes of task `task-07-state-tool`.
 - **Verified source scope:** stack tip `75c54b7` over `d7bccc2` (five changes on stacked branches following pull requests #80–#92; awaiting review, not yet merged at the time of this record).
 - **Delivered evidence:** guard cases for behaviour that was delivered but unpinned; one rule for fences inside a block, blank lines and NUL bytes; refusals for continued target files, whitespace-only text, a tests-status change that would break a completed leaf and a state file the caller cannot write; the lock owner report rule and silent termination by a signal; project setup that compares whole ignore lines and keeps a tracked knowledge base tracked, with stricter contract checks. Acceptance suite `tests/state-tool.py`: 347 tests (232 before the series), passing through `--state-tool-only`. The complete contract validator result for the series is recorded under Verification of ADR-0022.
+- **Review follow-ups (2026-11-16, tip `52b0680`):** the optional findings of the independent reviews were fixed in one further change: a start-up interrupt ends the tool silently once its first statement has run and only when it runs as the main program; error messages keep each diagnostic on one line; both setup scripts end an ignore file whose last byte is not a line feed (NUL included) and the umbrella setup compares whole lines; two manual sentences were corrected. Suite: 357 tests; complete contract validator: 721 passed, 0 failed, 2 skipped.
 - **Outstanding scope and limits:** none of the requirements is deferred and no proposal is pending. The tool is optional and no workflow calls it (D-07). A column-0 fence that is never closed stays a documented limit; read commands on a platform without `fcntl` are not covered by the acceptance suite.
 - **Sources:** `.ai/tasks/todo/task-07-state-tool/state.md` (`## Proposal Resolution` and the progress blocks of the five follow-up subtasks), `.ai/adr/0022-task-07-state-tool-receipts-and-line-preserving-writes.md` (Decisions 6–10).
 
@@ -712,7 +713,7 @@ previous value and apply to writes only.
 The stderr text of a write command refused with exit 4, 5, 6 or 8 contains the sentence
 `Do not edit state.md by hand to bypass this refusal.`; `validate` reports violations with
 exit 6 and refuses nothing, so its stderr does not carry the sentence.
-A process ended by a signal prints no JSON object and has no exit code from this table; the
+Every error message renders C0 control characters and DEL as visible escapes (`\n`, `\r`, `\t`, otherwise `\xNN`) and bytes that are not valid UTF-8 as escaped code units, so each stderr diagnostic is one line. A process ended by a signal prints no JSON object and has no exit code from this table; the
 caller recovers by repeating the identical command.
 
 ### Test seam (REQ-25)
@@ -823,7 +824,7 @@ Any other value is ignored.
 | Two tool writers with the same revision | Second gets exit 4 | REQ-05 |
 | External editor changes the file during a write | Exit 4 `state-file-changed` when detected at step 11; a change after step 11 is an accepted limitation | REQ-09 |
 | Killed before or after replace | Whole old or whole new file; retry gives `applied` or `already_applied` | REQ-07, REQ-08, REQ-12 |
-| A signal that ends the process (SIGINT, SIGTERM, SIGHUP, SIGQUIT), at any point including the lock wait | Same as a kill: no signal handler, no JSON object, nothing on stderr, no exit code from the table (the process ends by the signal); `state.md` is the whole old or the whole new file; a temporary file already created stays and is listed in `stale_temp_files`; the kernel releases the lock; retry gives `applied` or `already_applied` | REQ-07, REQ-08, REQ-12 |
+| A signal that ends the process (SIGINT, SIGTERM, SIGHUP, SIGQUIT), at any point including the lock wait | Same as a kill: no signal handler, no JSON object, nothing on stderr once the script's first statement has run (an interrupt while the interpreter starts or compiles the script can still print the interpreter's own traceback, which may name the script at line 0; when the tool is loaded under another module name the interrupt propagates to the loading program), no exit code from the table (the process ends by the signal); `state.md` is the whole old or the whole new file; a temporary file already created stays and is listed in `stale_temp_files`; the kernel releases the lock; retry gives `applied` or `already_applied` | REQ-07, REQ-08, REQ-12 |
 | Leftover temporary files | Reported in `stale_temp_files`; not deleted | REQ-12 |
 | Disk full or permission denied | Exit 7, `state.md` unchanged | REQ-07 |
 | `state.md` not writable by the caller | Exit 7 `io-error`, `state.md` unchanged, no temporary file; results decided earlier (`already_applied`, `unchanged`, exits 2–6 and 8) are not affected | REQ-07 |
@@ -1318,3 +1319,4 @@ Result of 2026-11-13:
 Verdict: **READY FOR DEVELOPMENT**. The owner scheduled the work on 2026-11-13 (D-09);
 automated readiness is not sign-off. Delivered and reconciled on 2026-11-16 (see the
 delivery record under `## Source`).
+- 2026-11-16 (review follow-ups): the signal edge row states the start-up window and the main-program rule; the exit-code section states the one-line rendering of error messages; delivery record extended.

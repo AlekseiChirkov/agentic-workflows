@@ -22,6 +22,7 @@
 | T-16-fix-write-rules | Write-rule refusals and message hygiene | failing cases → whitespace and continued-path refusals → completed-leaf rule → read-only state file → message rendering → manual sentences → pinned fixtures | T-15-fix-fences-and-file-shape | reviewed |  |  |
 | T-17-fix-lock-owner-and-signals | Lock owner report and termination signals | failing cases → owner and age rules → silent interrupt → module description and manual → pinned fixtures | T-16-fix-write-rules | reviewed |  |  |
 | T-18-fix-contract-surface | Setup ignore lines, contract checks and manual corrections | failing cases → vocabulary check → receipts fence pass → setup whole-line rule and tracked knowledge base → identity message → manual and rule text → pinned fixtures | T-17-fix-lock-owner-and-signals | reviewed |  |  |
+| T-19-fix-review-follow-ups | Fixes for the remaining review findings | failing cases → silent start-up interrupt → one-line diagnostics → ignore-file termination in both setup scripts → manual sentences → pinned fixtures | T-18-fix-contract-surface | reviewed |  |  |
 
 ## Execution Strategy
 

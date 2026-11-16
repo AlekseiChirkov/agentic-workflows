@@ -341,3 +341,5 @@ Follow-up changes (Decisions 6–10), 2026-11-16: verified by the acceptance sui
 `bash scripts/validate-contracts.sh --state-tool-only`.
 
 Complete validator result for the follow-up changes (2026-11-16, stack tip `1ad3653`): 721 passed, 0 failed, 2 skipped (hygiene checks that need a local pattern file).
+
+Review follow-ups (2026-11-16, stack tip `52b0680`): the optional findings of the independent reviews were fixed and reviewed again (one rework: the silent end on an interrupt applies only when the tool runs as the main program). Suite 357 tests; complete contract validator 721 passed, 0 failed, 2 skipped. Limitation kept by decision: an interrupt while the interpreter starts or compiles the script can still print a traceback naming the script at line 0; closing it would need a separate launcher or a start-up change of the signal disposition.

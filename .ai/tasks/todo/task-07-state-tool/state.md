@@ -528,6 +528,24 @@ T-18-fix-contract-surface | Setup ignore lines, contract checks and manual corre
   commits: e4be555 test: require exact ignore lines and stricter contract checks, 75c54b7 fix: keep ignore files intact in setup and close contract check gaps
   pr: #97 ready
 
+T-19-fix-review-follow-ups | Fixes for the remaining review findings | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: pav-close 2026-11-16 — DONE after one rework; suite 347 → 357 tests, all passing; complete validator 721 passed, 0 failed, 2 skipped on the tip
+  target_files: scripts/state-tool.py, scripts/setup-new-project.sh, scripts/setup-umbrella.sh, docs/USAGE.md, tests/state-tool.py, tests/fixtures/validator-runtime/inventory-amendment.json, tests/validator-runtime-oracle.py, tests/fixtures/validator-runtime/source_guard_exceptions.json, tests/fixtures/validator-runtime/source_guard.py
+  blocker: none
+  notes: tdd: integration and unit — cases for an interrupt during the tool's imports and first definitions, control characters in five argument positions, ignore files ending in NUL or without a line feed for both setup scripts, whole-line comparison in the umbrella setup; two pinned manual sentences amended because the sentences they pinned were inaccurate.
+         observed RED 2026-11-16: 19 failures in the new or amended cases for the decided reasons (traceback on stderr; raw control character in the message; joined ignore lines; old manual text); two umbrella cases pass before the change as guards for properties the old script already had.
+         tdd: green — suite 356 passed with the test file identical to the failing snapshot.
+         pav-check 2026-11-16 (independent Validator): NEEDS WORK — two important findings: an interrupt during an in-process load ended the loading program, and the interpreter's compile window still prints a traceback naming the script at line 0, which the manual sentence did not say.
+         rework 2026-11-16, test first (2 failing): the silent end applies only when the tool runs as the main program; the manual sentence and the comment in the tool state the window that cannot be closed from inside the file. Suite 357 passed three times.
+         owner decision 2026-11-16: two reviewed source-guard records were reworded to describe the two new test callers and one gained the dependency pin of the umbrella setup script, after a safety classifier stopped the implementer from doing so; applied by the orchestrator, no record added or removed.
+         pav-check 2026-11-16, second pass (same independent Validator): PASS, no finding; 28 load-and-interrupt combinations keep the loading program alive, 800 staggered spawns show no traceback frame inside the script above line 0.
+         accepted as they are: an interrupt after the result was written leaves that output; only C0 characters and DEL are escaped.
+  branch: fix/review-follow-ups
+  base_branch: fix/setup-ignore-lines-and-contract-checks
+  base_commit: c434c248e431316e038f9a8d719b885fe3e3e4ef
+  commits: d945d1c test: require silent start-up interrupts and one-line diagnostics, 3438bdb fix: end start-up interrupts silently and keep diagnostics on one line, b235f66 test(state-tool): keep an interrupt with the program that loads the tool, 52b0680 fix(state-tool): end by interrupt only when run as the main program
+  pr: none
+
 ## Execution Report
 - T-01: reviewed — structural parser and `get`; 43 tests at closing; one registration test deferred to T-09 by owner decision
 - T-02: reviewed — `validate` and two grammar corrections; re-validated after one correction (specification labels removed from docstrings)
