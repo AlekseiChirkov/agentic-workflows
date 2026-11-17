@@ -12,6 +12,7 @@ Owner supplied and approved the complete design; requirements are retained in th
 ### Assumptions
 - Source dependency remains unmerged; implementation starts at its pinned tip without paused audit changes.
 - No --allow-pr authorization: all delivery stays local; no push or GitHub mutation.
+- Read-only monitoring later observed unrelated audit edits in the original checkout; preserve them without importing or reverting them. The isolated worktree remains based on the pinned dependency.
 
 ## Decomposition
 decomposition: complete
@@ -50,18 +51,30 @@ T-01 | Implement evidence, journal and lossless archival mechanics | atomic-test
   branch: feat/task-finalization
   base_branch: feat/multi-repository-spec-run
   base_commit: 488edb11b37c3028b720d7de06cfe64cf7fe30c1
-  commits: 16589db73254606caeb15bebe81912c462d91131 test: cover evidence-backed task closure and archive recovery
+  commits: a930fed05cd7d3d06d20e1db94cd24e0fdb78b23, 16589db73254606caeb15bebe81912c462d91131, 5df81f8516c48cbfffe627461e65bd9399212ab0, 36334993beecff0917cbee25839a83f86964eb66, 16a8a7d532c7e5acb57fb6b96c6fab7a0c461db1, 77274994364ed23f7d11106e724f899af1c9cedf, 24fcc759fea10008ed23b6bce8e01f7906e07e6d, 0aa6a9f276338ba5eb12181d2021fc6ceda46a12, 55568223cd7c07b6aa05053d4bb5cae6852e6b49
   pr: none
   notes: implementation commits — 5df81f8516c48cbfffe627461e65bd9399212ab0, 36334993beecff0917cbee25839a83f86964eb66, 16a8a7d532c7e5acb57fb6b96c6fab7a0c461db1; exact local object identities; no publication authorized.
 
-T-02 | Enforce scoped cleanup and stage provider outputs | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: approved scope recorded
-  target_files:
+T-02 | Enforce scoped cleanup and stage provider outputs | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: DoD satisfied — independent safety and staging validation passed
+  target_files: scripts/check-finalization-safety.py, scripts/finalization_evidence.py, rules/git-flow.md, hooks/git_rails.py, scripts/sync.sh, scripts/setup-new-project.sh
   blocker: none
-  notes:
+  branch: feat/task-closure-safety
+  notes: sequencing amendment — canonical narrow Git ownership/receipt exception is implemented with hooks in this leaf, preserving definition-before-reader order. Remaining contract readers stay in the next leaf; approved behavior and authorization unchanged.
+  notes: interface correction — observed origin transport identity must be journaled and unchanged on resume; name origin and matching SHA alone cannot authorize deletion after a URL/pushurl/rewrite change. Focused regressions precede the evidence-module addition.
+  notes: additional coverage — original 15 safety cases passed in 5.622s. Three characterized behaviors passed: actual stale/exact remote lease, denyDeletes failure after local cleanup with safe resume, canonical policy precedence. Five transport tests then produced six expected failures in 2.367s before helper/interface repair; SHA256 bde3ee8786dd845b138855b56d06af775d8d201cf225c5f949f0d554f2a67d62; test-only commit c4c48ac2c7edf2833f07700e35e38d02181cd05d; total 23 cases.
+  notes: focused GREEN — 23 safety/staging tests passed in 12.261s; 77 core regressions passed in 37.898s; shell/Python/whitespace checks passed. Existing rails ran 2336 cases in 303.937s with three degraded-PATH Python-shim failures; exact failing method passed all subcases with system Python in 2.609s. Full fresh validator remains pending. Source commit 17d2cede8e3941553dd3535e077a07d9c16256ba; independent review dispatched.
+  notes: runtime verification correction — an explicit mise version mistakenly started a Python download; that specific session and descendants were terminated after observed partial progress, no completed installation observed and no global cleanup performed. Use verified system Python for final checks, without further installation.
+  notes: tdd: red digest — original 15-case set SHA256 6c93adbe0eafbcb96655b535390ac846ffc5e97777791311ca10849876b45bc3, test-only commit 77a49a35dacd8ae98eac39b491e01ba9471d2b7e; 11 expected assertion failures in 10.171s. Expanded 23-case set SHA256 bde3ee8786dd845b138855b56d06af775d8d201cf225c5f949f0d554f2a67d62, test-only commit c4c48ac2c7edf2833f07700e35e38d02181cd05d; five transport tests produced six expected failures in 2.367s, with three separately passing Git/policy characterizations.
+  notes: independent PASS — safety/staging 23 passed in 14.499s; core 77 passed in 36.132s; syntax/annotations/whitespace passed; frozen digests and canonical RED notes verified, no tests weakened. pav-propose --batch: zero proposals. Full fresh validator and actual staged synchronization remain pending.
+  base_branch: feat/task-finalization
+  base_commit: 55568223cd7c07b6aa05053d4bb5cae6852e6b49
+  commits: 77a49a35dacd8ae98eac39b491e01ba9471d2b7e test: cover scoped deletion receipts and isolated staging
+  pr: none
+  notes: tdd: integration/contract — 15 disposable hook/staging tests observed 11 expected assertion failures in 10.171s, implementation unchanged; SHA256 6c93adbe0eafbcb96655b535390ac846ffc5e97777791311ca10849876b45bc3. Pre-freeze review corrected the protection fixture key and narrowed checkout expectations to preserve generic policy instead of introducing unrelated restrictions. Test-only commit recorded before GREEN.
 
 T-03 | Connect finalization with shared workflow contracts | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
-  last_action: approved scope recorded
+  last_action: approved scope recorded; journal recorder/checkpoint gap added to contract integration
   target_files:
   blocker: none
-  notes:
+  notes: contract audit — postconditions/action_history exist, but current helper has no supported failed-command recorder; nonzero verification is rejected and blocked responses are not persisted. Implement the approved checkpoint vocabulary and immutable attempt history before claiming full journal conformance; preserve recovered errors and do not hand-edit the journal.
