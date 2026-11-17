@@ -195,9 +195,26 @@ T-01 | Deliver product | atomic-tests: green | atomic-execution: complete | atom
         return self.checkpoint('record', prior)
 
     def attested(self, prior: dict) -> dict:
-        self.put_evidence(attestations=[{'kind': kind, 'observed_at': datetime.now(timezone.utc).isoformat(),
-            'task_path': str(self.task), 'state_sha256': hashlib.sha256((self.task / 'state.md').read_bytes()).hexdigest(),
-            'result': 'pass', 'provenance': 'independent fixture reviewer'} for kind in ('knowledge', 'audit')])
+        source_tips = {repo['path']: repo['integration']['tip'] for repo in prior['repositories']}
+        state_hash = hashlib.sha256((self.task / 'state.md').read_bytes()).hexdigest()
+        rows = [{'kind': kind, 'observed_at': datetime.now(timezone.utc).isoformat(),
+                 'task_path': str(self.task), 'state_sha256': state_hash, 'source_tips': source_tips,
+                 'result': 'pass', 'provenance': 'independent isolated fixture reviewer'}
+                for kind in ('knowledge', 'audit')]
+        commands = []
+        for repo, tip in source_tips.items():
+            output = self.git(Path(repo), 'show', tip + ':product')
+            self.assertEqual('delivered', output)
+            commands.append({'argv': ['git', '-C', repo, 'show', tip + ':product'],
+                             'exit_code': 0, 'stdout': output, 'stderr': ''})
+        rows.append({'kind': 'verification', 'observed_at': datetime.now(timezone.utc).isoformat(),
+                     'task_path': str(self.task), 'state_sha256': state_hash, 'source_tips': source_tips,
+                     'result': 'pass', 'provenance': 'independent executed fixture product assertion',
+                     'commands': commands, 'coverage': 'Committed fixture product contents at current integration tips.',
+                     'reuse': {'permitted': True, 'original_state_sha256': state_hash,
+                              'validated_tips': {repo['path']: repo['candidates'][-1]['original_tip'] for repo in prior['repositories']},
+                              'limitations': 'Only fixture product contents checked freshly; prior recorded product behavior reused. No external dependencies or deployment runtime were tested.'}})
+        self.put_evidence(attestations=rows)
         result = self.checkpoint('knowledge', prior)
         self.assertEqual('recorded', result['status'], result)
         return result
@@ -523,6 +540,260 @@ T-01 | Deliver product | atomic-tests: green | atomic-execution: complete | atom
         prior = self.checkpoint('archive', prior)
         self.assertEqual('archived', prior['status'], prior)
         self.blocked(self.checkpoint('finish', prior), 'deployment-unverified')
+
+    def test_clean_owned_checkout_plans_switch_before_local_deletion(self) -> None:
+        self.git(self.repo, 'checkout', 'feat/delivery')
+        result = self.call()
+        self.assertEqual('ready', result['status'], result)
+        self.assertEqual('checkout', result['actions'][0]['kind'])
+        self.assertEqual(['git', '-C', str(self.repo), 'switch', 'main'], result['actions'][0]['command'])
+        self.assertEqual('feat/delivery', self.git(self.repo, 'branch', '--show-current'))
+
+    def test_local_integration_behind_live_remote_gets_safe_refresh_plan(self) -> None:
+        remote = self.root / 'origin.git'
+        self.git(self.root, 'init', '--bare', str(remote))
+        self.git(self.repo, 'remote', 'add', 'origin', str(remote))
+        self.git(self.repo, 'push', 'origin', 'main', 'feat/delivery')
+        self.git(remote, 'symbolic-ref', 'HEAD', 'refs/heads/main')
+        target = self.git(self.repo, 'rev-parse', 'main')
+        self.git(self.repo, 'checkout', 'feat/delivery')
+        self.git(self.repo, 'branch', '-f', 'main', self.base)
+        self.git(self.repo, 'branch', '--set-upstream-to=origin/main', 'main')
+        result = self.call()
+        self.assertEqual('ready', result['status'], result)
+        refresh = next(action for action in result['actions'] if action['kind'] == 'refresh')
+        self.assertEqual(target, refresh['expected_tip'])
+        self.assertEqual(target, result['repositories'][0]['integration']['tip'])
+        self.assertEqual(self.base, self.git(self.repo, 'rev-parse', 'main'))
+
+    def test_journal_owned_tracked_state_phase_edit_is_safe_on_integration_checkout(self) -> None:
+        self.git(self.repo, 'add', '-f', '.ai')
+        self.git(self.repo, 'commit', '-m', 'docs: record reviewed delivery')
+        prior = self.prepare()
+        value = (self.task / 'state.md').read_text().replace('## Phases\n', '## Phases\n- finalization: in-progress\n')
+        (self.task / 'state.md').write_text(value)
+        result = self.checkpoint('record', prior)
+        self.assertEqual('recorded', result['status'], result)
+        self.assertEqual('incomplete', result['outcomes']['cleanup'])
+
+    def test_tracked_task_archive_resumes_without_allowing_unrelated_edits(self) -> None:
+        self.git(self.repo, 'add', '-f', '.ai')
+        self.git(self.repo, 'commit', '-m', 'docs: record reviewed delivery')
+        prior = self.attested(self.clean_actions(self.prepare()))
+        result = self.checkpoint('archive', prior)
+        self.assertEqual('archived', result['status'], result)
+        finished = self.checkpoint('finish', result)
+        self.assertEqual('complete', finished['status'], finished)
+        (self.repo / 'baseline').write_text('unrelated local work\n')
+        self.blocked(self.call(), 'worktree-dirty')
+
+    def test_existing_archive_requires_explicit_evidence_and_can_be_adopted(self) -> None:
+        destination = self.root / '.ai/tasks/completed' / self.task.name
+        destination.parent.mkdir(parents=True)
+        self.task.rename(destination)
+        completed_spec = self.root / '.ai/specs/completed/delivery.md'
+        completed_spec.parent.mkdir()
+        self.spec.rename(completed_spec)
+        state_path = destination / 'state.md'
+        state_path.write_text(state_path.read_text().replace('spec_path: .ai/specs/delivery.md', 'spec_path: .ai/specs/completed/delivery.md'))
+        files = {str(path.relative_to(destination)): hashlib.sha256(path.read_bytes()).hexdigest() for path in destination.rglob('*') if path.is_file()}
+        self.put_evidence(adoption={'task_path': str(destination), 'original_task_path': str(self.task),
+            'original_spec_path': str(self.spec), 'observed_at': datetime.now(timezone.utc).isoformat(),
+            'provenance': 'independent operator verified preexisting archive', 'task_files': files,
+            'spec_sha256': hashlib.sha256(completed_spec.read_bytes()).hexdigest()})
+        result = self.call('prepare', target=destination, args=('--authorize', '--expected-revision', 'absent'))
+        self.assertEqual('prepared', result['status'], result)
+        self.assertEqual(str(self.task), result['resolution']['original_task_path'])
+        self.assertFalse(result['complete'])
+        self.assertIn('adopt', ' '.join(result['trust_limitations']).lower())
+
+    def test_ancestry_proof_still_records_actual_closed_unmerged_pr_outcome(self) -> None:
+        value = self.state_text.replace('## Solution Design', '  pr: https://example.invalid/pull/3\n## Solution Design')
+        (self.task / 'state.md').write_text(value)
+        self.put_evidence(pull_requests=[{'url': 'https://example.invalid/pull/3', 'repository': str(self.repo),
+            'head_ref': 'feat/delivery', 'head_sha': self.tip, 'base_ref': 'main', 'state': 'CLOSED',
+            'merge_commit': None, 'merged_at': None}])
+        result = self.call()
+        self.assertEqual('ready', result['status'], result)
+        candidate = result['repositories'][0]['candidates'][0]
+        self.assertEqual('ancestry', candidate['integration_method'])
+        self.assertIsInstance(candidate['pr_receipt'], dict, 'Recorded PR outcome is missing')
+        self.assertEqual('CLOSED', candidate['pr_receipt']['state'])
+        self.assertIsNone(candidate['pr_receipt']['merge_commit'])
+
+    def test_recorded_pr_without_readable_authoritative_outcome_blocks_even_with_ancestry(self) -> None:
+        (self.task / 'state.md').write_text(self.state_text.replace('## Solution Design', '  pr: https://example.invalid/pull/3\n## Solution Design'))
+        self.blocked(self.call(), 'pr-authority-unverified')
+
+    def test_shared_fix_branch_members_collapse_to_unique_maximal_recorded_tip(self) -> None:
+        self.git(self.repo, 'checkout', 'feat/delivery')
+        (self.repo / 'fix').write_text('review repair\n')
+        self.git(self.repo, 'add', 'fix')
+        self.git(self.repo, 'commit', '-m', 'fix: address delivery review')
+        final_tip = self.git(self.repo, 'rev-parse', 'HEAD')
+        self.git(self.repo, 'checkout', 'main')
+        self.git(self.repo, 'merge', '--no-ff', 'feat/delivery', '-m', 'merge: integrate reviewed repair')
+        block = f'T-02 | Review repair | atomic-tests: green | atomic-execution: complete | atomic-validation: complete\n  branch: feat/delivery\n  base_branch: main\n  base_commit: {self.tip}\n  commits: {final_tip} fix: address delivery review\n  blocker: none\n  notes: independent repair review passed\n'
+        (self.task / 'state.md').write_text(self.state_text.replace('## Solution Design', block + '## Solution Design'))
+        (self.task / 'plan.md').write_text('## Subtasks\n| ID | Name | Depends On | Status |\n|---|---|---|---|\n| T-01 | Deliver | — | reviewed |\n| T-02 | Review repair | T-01 | reviewed |\n')
+        result = self.call()
+        self.assertEqual('ready', result['status'], result)
+        candidates = result['repositories'][0]['candidates']
+        self.assertEqual(1, len(candidates))
+        self.assertEqual(final_tip, candidates[0]['original_tip'])
+        self.assertEqual(2, len(candidates[0]['members']))
+        self.assertEqual(1, sum(action['kind'] == 'local-delete' for action in result['actions']))
+
+    def test_undiscovered_future_spec_phase_prevents_whole_spec_archive(self) -> None:
+        self.spec.write_text(self.spec.read_text() + '\n## Phase 1\nDelivered capability.\n## Phase 2\nUndelivered future capability.\n')
+        value = self.state_text.replace('flow: full', 'flow: full\nactive_phase: 1\nspec_phase_count: 2')
+        (self.task / 'state.md').write_text(value)
+        prior = self.attested(self.clean_actions(self.prepare()))
+        result = self.checkpoint('archive', prior)
+        self.assertEqual('archived', result['status'], result)
+        self.assertTrue(self.spec.exists())
+        self.assertEqual('active-other-phases', result['outcomes']['spec_archival'])
+
+    def test_historical_pointer_and_phase_examples_remain_immutable(self) -> None:
+        historical = '\n## Historical Examples\n```markdown\nspec_path: legacy-spec.md\n- finalization: not-started\n```\n'
+        (self.task / 'state.md').write_text(self.state_text + historical)
+        prior = self.prepare()
+        (self.task / 'state.md').write_text(self.state_text + historical.replace('legacy-spec.md', 'rewritten-spec.md'))
+        self.blocked(self.checkpoint('record', prior), 'protected-content-changed')
+
+    def test_changed_spec_requirements_reject_archival_without_losing_recovery(self) -> None:
+        prior = self.prepare()
+        original = self.spec.read_bytes()
+        self.spec.write_text(self.spec.read_text() + '- Additional requirement.\n')
+        self.blocked(self.checkpoint('record', prior), 'requirements-changed')
+        self.assertEqual(original, (Path(prior['snapshot_path']) / 'spec.md').read_bytes())
+
+    def test_spec_destination_collision_blocks_before_task_move(self) -> None:
+        prior = self.attested(self.clean_actions(self.prepare()))
+        collision = self.root / '.ai/specs/completed/delivery.md'
+        collision.parent.mkdir()
+        collision.write_text('Unrelated archived specification.\n')
+        self.blocked(self.checkpoint('archive', prior), 'archive-collision')
+        self.assertTrue(self.task.is_dir())
+        self.assertEqual('Unrelated archived specification.\n', collision.read_text())
+
+    def test_after_replace_interruption_requires_new_actual_revision(self) -> None:
+        prior = self.prepare()
+        interrupted = self.checkpoint('record', prior, fault='after-journal-replace')
+        self.assertEqual('interrupted', interrupted['status'], interrupted)
+        self.blocked(self.checkpoint('record', prior), 'revision-conflict')
+        current = self.call()
+        self.assertEqual('ready', current['status'], current)
+        self.assertEqual('recorded', self.checkpoint('record', current)['status'])
+
+    def test_remote_cleanup_requires_and_records_both_actual_deletions(self) -> None:
+        remote = self.root / 'origin.git'
+        self.git(self.root, 'init', '--bare', str(remote))
+        self.git(self.repo, 'remote', 'add', 'origin', str(remote))
+        self.git(self.repo, 'push', 'origin', 'main', 'feat/delivery')
+        self.git(remote, 'symbolic-ref', 'HEAD', 'refs/heads/main')
+        prior = self.prepare()
+        self.git(self.repo, 'branch', '-d', 'feat/delivery')
+        partial = self.checkpoint('record', prior)
+        action = next(a for a in partial['actions'] if a['kind'] == 'remote-delete')
+        result = subprocess.run(action['command'], capture_output=True, text=True, env=self.environment())
+        self.assertEqual(0, result.returncode, result.stderr)
+        complete = self.checkpoint('record', partial)
+        self.assertEqual('recorded', complete['status'], complete)
+        self.assertEqual('complete', complete['outcomes']['cleanup'])
+        self.assertTrue(all(row['satisfied'] for row in complete['action_receipts']))
+        self.assertTrue(any(not row['satisfied'] for observation in complete['action_history'] for row in observation))
+
+    def test_ff_refresh_postcondition_records_exact_advertised_tip(self) -> None:
+        remote = self.root / 'origin.git'
+        self.git(self.root, 'init', '--bare', str(remote))
+        self.git(self.repo, 'remote', 'add', 'origin', str(remote))
+        self.git(self.repo, 'push', 'origin', 'main', 'feat/delivery')
+        self.git(remote, 'symbolic-ref', 'HEAD', 'refs/heads/main')
+        target = self.git(self.repo, 'rev-parse', 'main')
+        self.git(self.repo, 'checkout', 'feat/delivery')
+        self.git(self.repo, 'branch', '-f', 'main', self.base)
+        self.git(self.repo, 'branch', '--set-upstream-to=origin/main', 'main')
+        prior = self.prepare()
+        for action in prior['actions']:
+            if action['kind'] in {'checkout', 'refresh'}:
+                result = subprocess.run(action['command'], capture_output=True, text=True, env=self.environment())
+                self.assertEqual(0, result.returncode, result.stderr)
+        recorded = self.checkpoint('record', prior)
+        self.assertEqual('recorded', recorded['status'], recorded)
+        self.assertEqual('complete', recorded['outcomes']['checkout'])
+        self.assertEqual(target, self.git(self.repo, 'rev-parse', 'main'))
+        self.assertTrue(all(row['satisfied'] for row in recorded['action_receipts'] if row['kind'] in {'checkout', 'refresh'}))
+
+    def test_quick_state_without_delivery_section_uses_explicit_original_receipts(self) -> None:
+        self.write_state(flow='quick')
+        start = self.state_text.index('## Subtask Progress')
+        end = self.state_text.index('## Solution Design')
+        value = self.state_text[:start] + self.state_text[end:]
+        value = value.replace('## Fix-Tasks\nfixes-created: complete\nfixes-count: 0\nCreated: none\n', '')
+        (self.task / 'state.md').write_text(value + QUICK)
+        self.put_evidence(delivery_records=[{'task_path': str(self.task), 'observed_at': datetime.now(timezone.utc).isoformat(),
+            'provenance': 'independent operator original-ref ownership record', 'branch': 'feat/delivery',
+            'base_branch': 'main', 'base_commit': self.base, 'commits': self.tip}])
+        self.assertEqual('ready', self.call()['status'])
+
+    def test_parent_traversal_target_is_refused(self) -> None:
+        target = self.task / '..' / self.task.name
+        self.blocked(self.call(target=target), 'unsafe-path')
+
+    def test_archive_rebases_moved_relative_links_and_current_spec_index(self) -> None:
+        description = self.task / 'T-01-deliver/description.md'
+        description.write_text(description.read_text() + '\n[Specification](../../../../specs/delivery.md)\n')
+        self.spec.write_text(self.spec.read_text() + '\n## References\n[Current state](../memory/state.md)\n')
+        index = self.root / '.ai/specs/README.md'
+        index.write_text('# Current specifications\n[Delivery](delivery.md)\n')
+        prior = self.attested(self.clean_actions(self.prepare()))
+        result = self.checkpoint('archive', prior)
+        self.assertEqual('archived', result['status'], result)
+        destination = self.root / '.ai/tasks/completed' / self.task.name
+        self.assertIn('../../../../specs/completed/delivery.md', (destination / 'T-01-deliver/description.md').read_text())
+        self.assertIn('../../memory/state.md', (self.root / '.ai/specs/completed/delivery.md').read_text())
+        self.assertIn('(completed/delivery.md)', index.read_text())
+        self.assertIn('(delivery.md)', (Path(prior['snapshot_path']) / 'current-links/.ai/specs/README.md').read_text())
+        self.assertEqual('complete', self.checkpoint('finish', result)['status'])
+
+    def test_broken_relative_link_blocks_before_any_archive_move(self) -> None:
+        description = self.task / 'T-01-deliver/description.md'
+        description.write_text(description.read_text() + '\n[Missing](missing-evidence.md)\n')
+        prior = self.attested(self.clean_actions(self.prepare()))
+        self.blocked(self.checkpoint('archive', prior), 'archive-link-broken')
+        self.assertTrue(self.task.is_dir())
+        self.assertTrue(self.spec.is_file())
+
+    def test_historical_progress_and_historical_sections_remain_exact(self) -> None:
+        historical = '## Historical\n- [Original delivery](../tasks/todo/task-delivery/state.md)\n'
+        progress = self.root / '.ai/memory/progress.md'
+        progress.write_text(historical)
+        architecture = self.root / '.ai/memory/architecture.md'
+        architecture.write_text('## Current\n- [Delivery](../tasks/todo/task-delivery/state.md)\n' + historical)
+        prior = self.attested(self.clean_actions(self.prepare()))
+        result = self.checkpoint('archive', prior)
+        self.assertEqual('archived', result['status'], result)
+        self.assertEqual(historical, progress.read_text())
+        self.assertIn('## Current\n- [Delivery](../tasks/completed/task-delivery/state.md)', architecture.read_text())
+        self.assertTrue(architecture.read_text().endswith(historical))
+
+    def test_protected_state_link_needing_rebase_blocks_archive_explicitly(self) -> None:
+        value = self.state_text + '\n## Current References\n[Specification](../../../specs/delivery.md)\n'
+        (self.task / 'state.md').write_text(value)
+        prior = self.attested(self.clean_actions(self.prepare()))
+        self.blocked(self.checkpoint('archive', prior), 'protected-state-link-relocation-required')
+        self.assertEqual(value, (self.task / 'state.md').read_text())
+        self.assertTrue(self.spec.exists())
+
+    def test_historical_state_archive_links_remain_byte_exact(self) -> None:
+        history = '## Original review\n[Original specification](../../../specs/delivery.md)\n'
+        (self.task / 'state-archive.md').write_text(history)
+        prior = self.attested(self.clean_actions(self.prepare()))
+        result = self.checkpoint('archive', prior)
+        self.assertEqual('archived', result['status'], result)
+        destination = self.root / '.ai/tasks/completed' / self.task.name
+        self.assertEqual(history, (destination / 'state-archive.md').read_text())
 
     def test_recorded_multi_repository_set_checks_every_stack(self) -> None:
         # Turn this fixture into an umbrella while retaining the first repository intact.
