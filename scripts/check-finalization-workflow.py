@@ -262,6 +262,28 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
             self.assertEqual('', self.git(repo, 'ls-files', '.ai'))
         self.assertTrue((self.root / '.ai/context/finalization').is_dir())
 
+    def test_all_repository_checkouts_precede_remote_then_local_cleanup(self) -> None:
+        self.test_recorded_multi_repository_set_checks_every_stack()
+        for name, branch in (('service', 'feat/delivery'), ('client', 'feat/client')):
+            repo = self.root / name
+            remote = self.root / '.ai' / (name + '-origin.git')
+            self.git(repo, 'init', '--bare', str(remote))
+            self.git(repo, 'remote', 'add', 'origin', str(remote))
+            self.git(repo, 'push', 'origin', 'main', branch)
+            self.git(remote, 'symbolic-ref', 'HEAD', 'refs/heads/main')
+            self.git(repo, 'checkout', branch)
+        result = self.call()
+        self.assertEqual('ready', result['status'], result)
+        actions = result['actions']
+        self.assertEqual({'service', 'client'}, {repo['name'] for repo in result['repositories']})
+        self.assertEqual(2, sum(row['kind'] == 'checkout' for row in actions))
+        self.assertEqual(2, sum(row['kind'] == 'remote-delete' for row in actions))
+        self.assertEqual(2, sum(row['kind'] == 'local-delete' for row in actions))
+        order = {'checkout': 0, 'refresh': 0, 'remote-delete': 1, 'local-delete': 2}
+        ranks = [order[row['kind']] for row in actions]
+        self.assertEqual(sorted(ranks), ranks,
+                         'Every integration checkout/refresh must precede any cleanup; remote deletion precedes local deletion')
+
     def test_required_deployment_unknown_remains_independent(self) -> None:
         self.test_required_deployment_without_dated_revision_environment_evidence_blocks_finish()
 
