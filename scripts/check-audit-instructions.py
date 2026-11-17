@@ -1937,5 +1937,50 @@ class CandidateInventoryTests(CandidateCase):
                 self.assertEqual(list(found), MEMBER_KEYS)
 
 
+class HomePathRewriteTests(CandidateCase):
+    def test_home_directory_prefixes_in_copied_text_become_tilde_paths(self) -> None:
+        shared = "Install the helper from /home/someone/tools/x and copy /Users/someone/y here."
+        variant = "Install the helper from /home/other/tools/x and copy /Users/else/y here."
+        rewritten = "Install the helper from ~/tools/x and copy ~/y here."
+        output_line = "Keep the full output of Codex in /home/someone/logs/run.txt now."
+        legacy_line = "Windsurf lives in /Users/someone/apps now."
+        self.write_lines("rules/r-home-a.md", [shared, "", output_line, "", legacy_line])
+        self.write_lines("rules/r-home-b.md", [shared])
+        self.write_lines("rules/r-home-c.md", [variant])
+        out = self.base / "inventory.json"
+
+        inventory = self.extract(out=out)
+
+        source = "rules/r-home-a.md"
+        self.assertEqual(inventory["duplicate_clusters"], [
+            cluster(1, rewritten, [(source, 1, 1), ("rules/r-home-b.md", 1, 1),
+                                   ("rules/r-home-c.md", 1, 1)]),
+        ])
+        output_text = "Keep the full output of Codex in ~/logs/run.txt now."
+        self.assertEqual(inventory["full_output"],
+                         [line_candidate("FO", 1, source, 3, output_text)])
+        self.assertEqual(inventory["harness_names"],
+                         [line_candidate("HN", 1, source, 3, output_text)])
+        self.assertEqual(inventory["legacy_mentions"], [
+            {"source": source, "line": 5, "column": 0, "term": "windsurf",
+             "text": "Windsurf lives in ~/apps now."},
+        ])
+        text = out.read_text(encoding="utf-8")
+        self.assertNotIn("/home/", text)
+        self.assertNotIn("/Users/", text)
+
+    def test_home_rewrite_needs_a_home_directory_and_a_name_segment(self) -> None:
+        line = ("Keep the full output in /homestead/x, /home/ alone, /Users/ too, ~/kept/y "
+                "and /home/someone/z.")
+        kept = ("Keep the full output in /homestead/x, /home/ alone, /Users/ too, ~/kept/y "
+                "and ~/z.")
+        self.write_lines("rules/r-paths.md", [line])
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["full_output"],
+                         [line_candidate("FO", 1, "rules/r-paths.md", 1, kept)])
+
+
 if __name__ == "__main__":
     unittest.main()
