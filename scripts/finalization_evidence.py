@@ -37,7 +37,8 @@ def git(repo: Path, *arguments: str, codes: tuple[int, ...] = (0,)) -> str:
     if arguments[0] == 'config':
         require(arguments[1] in {'--get', '--get-all'}, 'internal-read-policy', 'Only config reads are permitted')
     if arguments[0] == 'remote':
-        require(len(arguments) == 1, 'internal-read-policy', 'Only remote listing is permitted')
+        require(len(arguments) == 1 or arguments[1:] in {('get-url', '--all', 'origin'), ('get-url', '--push', '--all', 'origin')},
+                'internal-read-policy', 'Only remote listing and exact origin URL reads are permitted')
     result = process(['git', '--no-replace-objects', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', *arguments], repo)
     require(result.returncode in codes, 'git-read-failed', f'{arguments[0]} failed: {result.stderr.strip()}')
     return result.stdout.strip()
@@ -281,18 +282,30 @@ def pr_evidence(root: Path, repo: Path, candidate: dict, target: dict, evidence:
     return receipt
 
 
-def remote_refs(repo: Path) -> tuple[dict[str, str], str | None]:
+def remote_identity(repo: Path) -> dict:
+    """Bind configured and expanded transport destinations without contacting a remote."""
     urls = git(repo, 'config', '--get-all', 'remote.origin.url', codes=(0, 1)).splitlines()
     require(len(urls) <= 1, 'remote-unsafe', 'Multiple origin URLs cannot establish an exact delete destination')
-    remote = urls[0] if urls else ''
-    if not remote:
-        return {}, None
-    require(not remote.startswith('-') and re.match(r'^[A-Za-z][A-Za-z0-9+.-]*::', remote) is None, 'remote-unsafe', 'External Git transports are not permitted')
     pushurls = git(repo, 'config', '--get-all', 'remote.origin.pushurl', codes=(0, 1)).splitlines()
-    require(not pushurls or pushurls == [remote], 'remote-unsafe', 'Push destination differs from observed fetch destination')
+    require(len(pushurls) <= 1 and (not pushurls or urls), 'remote-unsafe', 'Multiple or orphan push URLs are not task scoped')
+    fetched = git(repo, 'remote', 'get-url', '--all', 'origin').splitlines() if urls else []
+    pushed = git(repo, 'remote', 'get-url', '--push', '--all', 'origin').splitlines() if urls else []
+    require(not urls or len(fetched) == len(pushed) == 1 and fetched == pushed,
+            'remote-unsafe', 'Expanded fetch and push destinations must be the same unique resource')
+    for remote in [*urls, *pushurls, *fetched, *pushed]:
+        require(remote and not remote.startswith('-') and re.match(r'^[A-Za-z][A-Za-z0-9+.-]*::', remote) is None,
+                'remote-unsafe', 'External Git transports are not permitted')
     require(git(repo, 'config', '--get', 'remote.origin.mirror', codes=(0, 1)).casefold() not in {'true', 'yes', '1', 'on'}, 'remote-unsafe', 'Mirror remotes are not task scoped')
     for key in ('remote.origin.uploadpack', 'remote.origin.receivepack', 'remote.origin.vcs', 'core.sshCommand'):
         require(not git(repo, 'config', '--get', key, codes=(0, 1)), 'remote-unsafe', f'Executable transport configuration: {key}')
+    return {'name': 'origin', 'configured_fetch_urls': urls, 'configured_push_urls': pushurls,
+            'effective_fetch_urls': fetched, 'effective_push_urls': pushed}
+
+
+def remote_refs(repo: Path) -> tuple[dict[str, str], str | None]:
+    identity = remote_identity(repo)
+    if not identity['configured_fetch_urls']:
+        return {}, None
     output = git(repo, 'ls-remote', '--symref', 'origin', 'HEAD', 'refs/heads/*')
     refs: dict[str, str] = {}
     default: str | None = None
@@ -472,7 +485,13 @@ def assess(root: Path, task: Path, spec: Path, evidence: dict, journal: dict | N
         integration_tip = commit(repo, integration_ref)
         local_integration_tip = integration_tip
         require(integration_tip, 'integration-unverified', f'Intended integration branch {base} is missing')
+        transport = remote_identity(repo)
+        if journal:
+            original = [item for item in journal['repositories'] if item['path'] == str(repo)]
+            require(len(original) == 1 and original[0].get('remote_identity') == transport,
+                    'remote-identity-changed', 'Original configured and effective remote destinations changed; no automatic rebinding is permitted')
         refs, remote_default = remote_refs(repo)
+        require(remote_identity(repo) == transport, 'remote-identity-changed', 'Remote destinations changed while observing integration')
         remote_configured = remote_default is not None
         refresh = False
         if remote_configured:
@@ -578,6 +597,7 @@ def assess(root: Path, task: Path, spec: Path, evidence: dict, journal: dict | N
                                 'remote_ref': candidate['remote_ref'], 'expected_tip': candidate['expected_remote_tip'],
                                 'command': ['git', '-C', str(repo), 'push', '--force-with-lease=' + candidate['remote_ref'] + ':' + candidate['expected_remote_tip'], 'origin', ':' + candidate['remote_ref']]})
         repositories.append({'name': entry['name'], 'path': str(repo), 'common_dir': str(common), 'integration': target,
+                             'remote_identity': transport,
                              'protected': protected, 'current_branch': current, 'remote_evidence': 'live ls-remote' if remote_configured else 'origin not configured',
                              'candidates': candidates})
     return {'repositories': repositories, 'actions': actions, 'validation_evidence': validation_info,
