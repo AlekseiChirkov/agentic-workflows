@@ -660,6 +660,15 @@ class InstructionContractTests(unittest.TestCase):
                       " ".join(self.read("workflows/pv-create-fixes.md").split()))
         self.contains("--repo <directory>", self.read("workflows/restack.md"))
 
+    def test_workers_fall_back_to_the_shared_runbook_when_a_repository_has_none(self) -> None:
+        rule = " ".join(self.read("rules/phase-atomic-execution.md").split())
+        self.contains("otherwise the umbrella's `context/runbook.md`", rule)
+        self.contains("from the umbrella root `<WORK_DIR>/..`", rule)
+        for reader in ("rules/phase-atomic-validation.md", "workflows/pae-tests.md",
+                       "workflows/pae-implement.md", "workflows/pav-check.md"):
+            self.contains("`phase-atomic-execution → ## Context Bootstrap`",
+                          " ".join(self.read(reader).split()))
+
     def test_quickstart_no_longer_limits_a_spec_to_one_repository(self) -> None:
         text = self.read("docs/SPEC-RUN-QUICKSTART.md")
         self.lacks("One spec covers **one repository**", text)
