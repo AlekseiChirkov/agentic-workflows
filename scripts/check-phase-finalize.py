@@ -128,6 +128,8 @@ class FinalizationChecks(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
         env.update({'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null',
                     'FINALIZATION_TEST_ROOT': str(self.root)})
+        if hasattr(self, 'fixture_path'):
+            env['PATH'] = self.fixture_path
         return env
 
     def write_state(self, extra: str = '', flow: str = 'full') -> None:
@@ -182,6 +184,9 @@ T-01 | Deliver product | atomic-tests: green | atomic-execution: complete | atom
 
     def prepare(self) -> dict:
         result = self.call('prepare', args=('--authorize', '--expected-revision', 'absent'))
+        if result['status'] == 'recovery-required':
+            self.write_recovery_packs(result)
+            result = self.checkpoint('prepare', result)
         self.assertEqual('prepared', result['status'], result)
         return result
 
@@ -546,7 +551,7 @@ T-01 | Deliver product | atomic-tests: green | atomic-execution: complete | atom
         result = self.call()
         self.assertEqual('ready', result['status'], result)
         self.assertEqual('checkout', result['actions'][0]['kind'])
-        self.assertEqual(['git', '-C', str(self.repo), 'switch', 'main'], result['actions'][0]['command'])
+        self.assertEqual(['git', '-C', str(self.repo), 'switch', '--no-overwrite-ignore', 'main'], result['actions'][0]['command'])
         self.assertEqual('feat/delivery', self.git(self.repo, 'branch', '--show-current'))
 
     def test_local_integration_behind_live_remote_gets_safe_refresh_plan(self) -> None:
@@ -602,6 +607,9 @@ T-01 | Deliver product | atomic-tests: green | atomic-execution: complete | atom
             'provenance': 'independent operator verified preexisting archive', 'task_files': files,
             'spec_sha256': hashlib.sha256(completed_spec.read_bytes()).hexdigest()})
         result = self.call('prepare', target=destination, args=('--authorize', '--expected-revision', 'absent'))
+        if result['status'] == 'recovery-required':
+            self.write_recovery_packs(result)
+            result = self.call('prepare', target=destination, args=('--authorize', '--expected-revision', result['revision']))
         self.assertEqual('prepared', result['status'], result)
         self.assertEqual(str(self.task), result['resolution']['original_task_path'])
         self.assertFalse(result['complete'])
@@ -794,6 +802,220 @@ T-01 | Deliver product | atomic-tests: green | atomic-execution: complete | atom
         self.assertEqual('archived', result['status'], result)
         destination = self.root / '.ai/tasks/completed' / self.task.name
         self.assertEqual(history, (destination / 'state-archive.md').read_text())
+
+    def github_pr_fixture(self, number: int = 142, *, returned_owner: str = 'fixture-org',
+                          exit_code: int = 0) -> Path:
+        remote = self.root / '.ai/fixture-origin.git'
+        self.git(self.root, 'init', '--bare', str(remote))
+        self.git(self.repo, 'remote', 'add', 'origin', 'https://github.com/fixture-org/product.git')
+        self.git(self.repo, 'config', 'url.' + remote.as_uri() + '.insteadOf', 'https://github.com/fixture-org/product.git')
+        self.git(self.repo, 'push', 'origin', 'main', 'feat/delivery')
+        self.git(remote, 'symbolic-ref', 'HEAD', 'refs/heads/main')
+        tools = self.root / '.ai/fixture-tools'
+        tools.mkdir()
+        call_log = self.root / '.ai/fixture-gh-call.json'
+        row = {'url': f'https://github.com/{returned_owner}/product/pull/{number}', 'state': 'CLOSED',
+               'baseRefName': 'main', 'headRefName': 'feat/delivery', 'headRefOid': self.tip,
+               'mergeCommit': None, 'mergedAt': None}
+        executable = tools / 'gh'
+        executable.write_text('#!' + sys.executable + '\nimport json, sys\nfrom pathlib import Path\n'
+                              + 'Path(' + repr(str(call_log)) + ').write_text(json.dumps(sys.argv[1:]))\n'
+                              + 'print(' + repr(json.dumps(row)) + ')\n'
+                              + 'raise SystemExit(' + str(exit_code) + ')\n')
+        executable.chmod(0o755)
+        self.fixture_path = str(tools) + os.pathsep + os.environ.get('PATH', '')
+        self.put_evidence(provenance={'kind': 'caller'})
+        return call_log
+
+    def test_ignored_untracked_checkout_collision_refuses_and_preserves_bytes(self) -> None:
+        cache = self.repo / 'local-cache'
+        cache.write_bytes(b'integration-owned cache\n')
+        self.git(self.repo, 'add', 'local-cache')
+        self.git(self.repo, 'commit', '-m', 'chore: add integration cache')
+        self.git(self.repo, 'checkout', 'feat/delivery')
+        (self.repo / '.git/info/exclude').write_text('local-cache\n')
+        private_bytes = b'private ignored cache\x00must survive\n'
+        cache.write_bytes(private_bytes)
+        result = self.call()
+        self.blocked(result, 'checkout-path-collision')
+        self.assertEqual(private_bytes, cache.read_bytes())
+        self.assertEqual('feat/delivery', self.git(self.repo, 'branch', '--show-current'))
+        self.assertFalse(any(action['kind'] == 'checkout' for action in result.get('actions', [])))
+
+    def test_returned_checkout_command_preserves_ignored_file_created_after_inspection(self) -> None:
+        cache = self.repo / 'local-cache'
+        cache.write_text('integration-owned cache\n')
+        self.git(self.repo, 'add', 'local-cache')
+        self.git(self.repo, 'commit', '-m', 'chore: add integration cache')
+        self.git(self.repo, 'checkout', 'feat/delivery')
+        result = self.call()
+        self.assertEqual('ready', result['status'], result)
+        action = next(action for action in result['actions'] if action['kind'] == 'checkout')
+        self.assertIn('--no-overwrite-ignore', action['command'])
+        (self.repo / '.git/info/exclude').write_text('local-cache\n')
+        private_bytes = b'late private ignored bytes\x00retain\n'
+        cache.write_bytes(private_bytes)
+        attempted = subprocess.run(action['command'], env=self.environment(), capture_output=True, text=True)
+        self.assertNotEqual(0, attempted.returncode, attempted.stdout + attempted.stderr)
+        self.assertEqual(private_bytes, cache.read_bytes())
+        self.assertEqual('feat/delivery', self.git(self.repo, 'branch', '--show-current'))
+
+    def test_interrupted_archive_rechecks_new_active_spec_reference_before_spec_move(self) -> None:
+        prior = self.attested(self.clean_actions(self.prepare()))
+        interrupted = self.checkpoint('archive', prior, fault='after-task-rename')
+        self.assertEqual('interrupted', interrupted['status'], interrupted)
+        another = self.root / '.ai/tasks/todo/task-new-phase'
+        another.mkdir()
+        (another / 'state.md').write_text('spec_path: .ai/specs/delivery.md\nflow: full\n## Phases\n- validation: not-started\n')
+        current = self.call()
+        self.assertEqual('ready', current['status'], current)
+        result = self.checkpoint('archive', current)
+        self.assertEqual('archived', result['status'], result)
+        self.assertFalse(self.task.exists())
+        self.assertTrue((self.root / '.ai/tasks/completed' / self.task.name).is_dir())
+        self.assertTrue(self.spec.is_file(), 'A newly active spec reference must prevent the cached spec move')
+        self.assertEqual('active-other-phases', result['outcomes']['spec_archival'])
+        self.assertFalse((self.root / '.ai/specs/completed/delivery.md').exists())
+
+    def test_canonical_pr_none_requires_no_authority_and_preserves_original_field(self) -> None:
+        value = self.state_text.replace('## Solution Design', '  pr: none\n## Solution Design')
+        (self.task / 'state.md').write_text(value)
+        result = self.call()
+        self.assertEqual('ready', result['status'], result)
+        candidate = result['repositories'][0]['candidates'][0]
+        self.assertEqual('none', candidate['pr'])
+        self.assertEqual('none', candidate['members'][0]['pr'])
+        self.assertEqual([], candidate['pr_receipts'])
+        self.assertIsNone(candidate['pr_receipt'])
+        self.assertEqual(value, (self.task / 'state.md').read_text())
+
+    def canonical_numbered_pr_is_repo_bound(self, suffix: str) -> None:
+        call_log = self.github_pr_fixture()
+        original = '#142 ' + suffix
+        value = self.state_text.replace('## Solution Design', '  pr: ' + original + '\n## Solution Design')
+        (self.task / 'state.md').write_text(value)
+        result = self.call()
+        self.assertEqual('ready', result['status'], result)
+        self.assertTrue(call_log.is_file(), 'A canonical number must reach the repository-bound authority read')
+        argv = json.loads(call_log.read_text())
+        bound = 'https://github.com/fixture-org/product/pull/142' in argv or ('--repo' in argv and argv[argv.index('--repo') + 1] == 'fixture-org/product')
+        self.assertTrue(bound, argv)
+        candidate = result['repositories'][0]['candidates'][0]
+        self.assertEqual(original, candidate['pr'])
+        self.assertEqual(original, candidate['members'][0]['pr'])
+        self.assertEqual('https://github.com/fixture-org/product/pull/142', candidate['pr_receipt']['url'])
+        self.assertEqual('CLOSED', candidate['pr_receipt']['state'])
+        self.assertEqual(value, (self.task / 'state.md').read_text())
+
+    def test_canonical_ready_pr_number_reads_repository_bound_authority(self) -> None:
+        self.canonical_numbered_pr_is_repo_bound('ready')
+
+    def test_canonical_draft_pr_number_reads_repository_bound_authority(self) -> None:
+        self.canonical_numbered_pr_is_repo_bound('draft')
+
+    def test_canonical_pr_number_rejects_inconsistent_repository_identity(self) -> None:
+        call_log = self.github_pr_fixture(returned_owner='unrelated-org')
+        (self.task / 'state.md').write_text(self.state_text.replace('## Solution Design', '  pr: #142 ready\n## Solution Design'))
+        result = self.call()
+        self.assertTrue(call_log.is_file(), 'Repository identity must be checked against a real authority response')
+        self.blocked(result, 'pr-repository-mismatch')
+
+    def test_canonical_pr_number_reports_unreadable_authority_after_repo_bound_attempt(self) -> None:
+        call_log = self.github_pr_fixture(exit_code=1)
+        (self.task / 'state.md').write_text(self.state_text.replace('## Solution Design', '  pr: #142 ready\n## Solution Design'))
+        result = self.call()
+        self.assertTrue(call_log.is_file(), 'Valid canonical PR references must attempt the repository-bound authority read')
+        self.blocked(result, 'pr-authority-unverified')
+
+    def write_recovery_packs(self, prior: dict, *, input_sha: str | None = None,
+                             omit_closure: bool = False) -> None:
+        for action in prior['recovery_actions']:
+            destination = Path(action['pack_path'])
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            arguments = list(action['command'])
+            if omit_closure:
+                arguments.remove('--revs')
+            stdin = (input_sha + '\n') if input_sha else action['stdin']
+            result = subprocess.run(arguments, input=stdin.encode(), capture_output=True, env=self.environment())
+            self.assertEqual(0, result.returncode, result.stderr.decode())
+            destination.write_bytes(result.stdout)
+
+    def initial_recovery_plan(self) -> dict:
+        result = self.call('prepare', args=('--authorize', '--expected-revision', 'absent'))
+        self.assertEqual('recovery-required', result['status'], result)
+        self.assertEqual('required', result['outcomes']['recovery'])
+        self.assertEqual([], result.get('hook_receipts', []))
+        self.assertTrue(result['recovery_actions'])
+        return result
+
+    def test_missing_recovery_pack_emits_no_deletion_authorizing_receipt(self) -> None:
+        prior = self.initial_recovery_plan()
+        for repository in prior['repositories']:
+            receipt = Path(repository['common_dir']) / 'orchestrail-finalize' / (prior['id'] + '.json')
+            self.assertFalse(receipt.exists())
+        again = self.checkpoint('prepare', prior)
+        self.assertEqual('recovery-required', again['status'], again)
+        self.assertEqual([], again.get('hook_receipts', []))
+        self.assertEqual(prior['revision'], again['revision'])
+
+    def test_corrupt_recovery_pack_is_rejected_without_replacement_or_authorization(self) -> None:
+        prior = self.initial_recovery_plan()
+        pack = Path(prior['recovery_actions'][0]['pack_path'])
+        pack.parent.mkdir(parents=True, exist_ok=True)
+        corrupt = b'corrupt recovery bytes\x00retain for diagnosis\n'
+        pack.write_bytes(corrupt)
+        result = self.checkpoint('prepare', prior)
+        self.blocked(result, 'recovery-pack-invalid')
+        self.assertEqual(corrupt, pack.read_bytes())
+        for repository in prior['repositories']:
+            self.assertFalse((Path(repository['common_dir']) / 'orchestrail-finalize' / (prior['id'] + '.json')).exists())
+
+    def test_valid_pack_without_original_tip_is_not_sufficient_recovery(self) -> None:
+        prior = self.initial_recovery_plan()
+        self.write_recovery_packs(prior, input_sha=self.base)
+        result = self.checkpoint('prepare', prior)
+        self.blocked(result, 'recovery-pack-incomplete')
+        self.assertEqual(self.tip, self.git(self.repo, 'rev-parse', 'feat/delivery'))
+
+    def test_pack_with_original_tip_but_missing_tree_closure_is_rejected(self) -> None:
+        prior = self.initial_recovery_plan()
+        self.write_recovery_packs(prior, input_sha=self.tip, omit_closure=True)
+        result = self.checkpoint('prepare', prior)
+        self.blocked(result, 'recovery-pack-incomplete')
+        self.assertEqual([], result.get('hook_receipts', []))
+
+    def test_verified_recovery_pack_restores_rewritten_commit_after_dangling_gc(self) -> None:
+        self.git(self.repo, 'checkout', '-b', 'feat/rewritten', self.base)
+        (self.repo / 'rewritten').write_text('original rewritten-history bytes\n')
+        self.git(self.repo, 'add', 'rewritten')
+        self.git(self.repo, 'commit', '-m', 'feat: preserve original rewritten delivery')
+        original = self.git(self.repo, 'rev-parse', 'HEAD')
+        self.git(self.repo, 'checkout', 'main')
+        self.git(self.repo, 'merge', '--squash', 'feat/rewritten')
+        self.git(self.repo, 'commit', '-m', 'feat: integrate rewritten delivery')
+        merged = self.git(self.repo, 'rev-parse', 'HEAD')
+        value = self.state_text.replace(self.tip, original).replace('feat/delivery', 'feat/rewritten')
+        (self.task / 'state.md').write_text(value.replace('## Solution Design', '  pr: https://example.invalid/pull/44\n## Solution Design'))
+        self.put_evidence(pull_requests=[{'url': 'https://example.invalid/pull/44', 'repository': str(self.repo),
+            'head_ref': 'feat/rewritten', 'head_sha': original, 'base_ref': 'main', 'state': 'MERGED',
+            'merge_commit': merged, 'merged_at': datetime.now(timezone.utc).isoformat()}])
+        prior = self.prepare()
+        self.assertEqual('verified', prior['outcomes'].get('recovery'), prior)
+        material = prior['recovery'][0]
+        pack = Path(material['pack_path'])
+        self.assertEqual(hashlib.sha256(pack.read_bytes()).hexdigest(), material['sha256'])
+        self.assertIn(original, material['tips'])
+        self.assertTrue(material['closure_verified'])
+        self.git(self.repo, 'branch', '-D', 'feat/rewritten')
+        self.git(self.repo, 'reflog', 'expire', '--expire=now', '--all')
+        self.git(self.repo, 'gc', '--prune=now')
+        missing = subprocess.run(['git', '-C', str(self.repo), 'cat-file', '-e', original], capture_output=True, env=self.environment())
+        self.assertNotEqual(0, missing.returncode, 'Fixture must actually prune the dangling original object')
+        self.assertEqual(str(pack), material['restore_stdin'])
+        restored = subprocess.run(material['restore_command'], input=pack.read_bytes(), capture_output=True, env=self.environment())
+        self.assertEqual(0, restored.returncode, restored.stderr.decode())
+        self.git(self.repo, 'branch', 'recovered-original', original)
+        self.assertEqual('original rewritten-history bytes', self.git(self.repo, 'show', 'recovered-original:rewritten'))
 
     def test_recorded_multi_repository_set_checks_every_stack(self) -> None:
         # Turn this fixture into an umbrella while retaining the first repository intact.
