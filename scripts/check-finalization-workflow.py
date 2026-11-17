@@ -666,6 +666,26 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
                 result = self.call('prepare', args=('--authorize', '--expected-revision', 'absent'))
                 self.blocked(result, 'knowledge-change-invalid')
 
+    def test_umbrella_check_attempts_bind_root_without_broadening_git_action_scope(self) -> None:
+        self.test_recorded_multi_repository_set_checks_every_stack()
+        prior = self.prepare()
+        recorded = self.attempt(prior, attempt_id='umbrella-audit', operation_id='audit',
+                                repository=str(self.root), argv=['fixture-audit', 'current-indexes'],
+                                exit_code=0, checkpoint='applied', stdout='current indexes inspected\n', stderr='')
+        self.assertEqual('recorded', recorded['status'], recorded)
+        self.assertEqual(str(self.root), recorded['command_attempts'][-1]['repository'])
+        self.assertEqual('unverified', recorded['outcomes']['audit'])
+        self.assertFalse(recorded['complete'])
+        for repository in (str(self.root / 'unrecorded-service'), str(self.root.parent / 'unrelated-project')):
+            with self.subTest(repository=repository):
+                self.blocked(self.attempt(recorded, attempt_id='unrelated-audit', operation_id='audit',
+                                          repository=repository, argv=['fixture-audit'], exit_code=0,
+                                          checkpoint='applied'), 'attempt-invalid')
+        self.blocked(self.attempt(recorded, attempt_id='misbound-action', repository=str(self.root)), 'attempt-invalid')
+        self.assertFalse((self.root / '.git').exists())
+        self.assertEqual({str(self.root / 'service'), str(self.root / 'client')},
+                         {row['repository'] for row in recorded['actions']})
+
     def test_required_deployment_unknown_remains_independent(self) -> None:
         self.test_required_deployment_without_dated_revision_environment_evidence_blocks_finish()
 
