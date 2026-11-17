@@ -669,6 +669,872 @@
         "scripts/sync.sh:157"
       ],
       "repetition": null
+    },
+    {
+      "path": "workflows/PIPELINE.md",
+      "sha256": "639c2f3b0adc77ec0effcc9a7d84c9ec6ddc813064b4c25f84acb97a6afdf033",
+      "kinds": [
+        "reference"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/PIPELINE.md:2",
+        "workflows/PIPELINE.md:8",
+        "workflows/PIPELINE.md:9"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "workflows/adr-new.md",
+      "sha256": "ddd8cb4d710d19f65de47ac2d24889fe062d0824d1b1d068f67a524fbaf9d780",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/adr-new.md:2",
+        "workflows/adr-new.md:5",
+        "workflows/adr-new.md:9"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/bugfix.md",
+      "sha256": "aac676509ed85d2a239d94bbbf1e57d3869a27e6eb5dce46c94976b23acfdecf",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/bugfix.md:2",
+        "workflows/bugfix.md:5",
+        "workflows/bugfix.md:14"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": [
+          "AUD-08-048"
+        ]
+      }
+    },
+    {
+      "path": "workflows/compress-state.md",
+      "sha256": "3b3ba3e8a057df347b35b79ce0b90bad5b64993c7667364c697ac308d311edf5",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/compress-state.md:2",
+        "workflows/compress-state.md:5",
+        "workflows/compress-state.md:9"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [
+          "AUD-08-045"
+        ],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/context-pack.md",
+      "sha256": "d757046d92c6d73b27e6bff9b4b9418049682944b4863bb87442e8df79e2fc3c",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/context-pack.md:2",
+        "workflows/context-pack.md:5",
+        "workflows/context-pack.md:10"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/onboard-legacy-project.md",
+      "sha256": "235db2e6ada843817185cc87d2af8a7728ddd25934dd1e619e4cd19a7f4797bf",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/onboard-legacy-project.md:2",
+        "workflows/onboard-legacy-project.md:5",
+        "workflows/onboard-legacy-project.md:10"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pae-finalize.md",
+      "sha256": "881ff99f99a0650a966b8bc40e364ba5e072b0b78960998ed161c509d870331d",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pae-finalize.md:2",
+        "workflows/pae-finalize.md:5",
+        "workflows/pae-finalize.md:13"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [
+          "AUD-08-045"
+        ],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pae-implement.md",
+      "sha256": "ddbd9ff8e9385172f2132801850e45e97ea4ea41f4bcd27a975b6170a2056865",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pae-implement.md:2",
+        "workflows/pae-implement.md:5",
+        "workflows/pae-implement.md:16"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pae-tests.md",
+      "sha256": "2c5ab47354ecc64b5ac08223fd1f5439d4edb655f08530799a2670fd741a5438",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pae-tests.md:2",
+        "workflows/pae-tests.md:5",
+        "workflows/pae-tests.md:21"
+      ],
+      "repetition": {
+        "report": [
+          "AUD-08-042"
+        ],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pav-check.md",
+      "sha256": "bb006d445c9d6ee291ab3ed16ec698f641c382423d13f0a9c919c3d5638abcef",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pav-check.md:2",
+        "workflows/pav-check.md:5",
+        "workflows/pav-check.md:13"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pav-close.md",
+      "sha256": "07b161a998bafcba38cab4754009b1c7f561b78f353273bbb1df081bb1919664",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pav-close.md:2",
+        "workflows/pav-close.md:5",
+        "workflows/pav-close.md:13"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [
+          "AUD-08-045"
+        ],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pav-propose.md",
+      "sha256": "e3c3ceb7b23138d248def0f04d698e8d48c6fc899887a28f939c5ae1bbdebf8b",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pav-propose.md:2",
+        "workflows/pav-propose.md:5",
+        "workflows/pav-propose.md:22"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [
+          "AUD-08-046"
+        ],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pd-analyze.md",
+      "sha256": "985770ab0c0b108aff897255c94f48bfa559e8936a2103cf4f7c727b15378384",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pd-analyze.md:2",
+        "workflows/pd-analyze.md:5",
+        "workflows/pd-analyze.md:11"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pd-archive.md",
+      "sha256": "fac195f3e99498d5cd3d61914057e52e4628fd55c3d096c6f6640c625988f4f7",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pd-archive.md:2",
+        "workflows/pd-archive.md:6",
+        "workflows/pd-archive.md:11"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pd-decompose.md",
+      "sha256": "06b7515589c31ca6cc4d6a6b88daeea0a28c0bb3ad4be87c2d8d79c608b6ebc7",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pd-decompose.md:2",
+        "workflows/pd-decompose.md:5",
+        "workflows/pd-decompose.md:12"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pd-design.md",
+      "sha256": "8fb082587153671fd950ed787245742533059e74e46f6ba178d170b53ffdbf71",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pd-design.md:2",
+        "workflows/pd-design.md:5",
+        "workflows/pd-design.md:12"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pd-finalize.md",
+      "sha256": "2113a86d7473b977eab045f49f89028961d3ced63b61a4651e24313a72130a58",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pd-finalize.md:2",
+        "workflows/pd-finalize.md:5",
+        "workflows/pd-finalize.md:12"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pd-select-model.md",
+      "sha256": "16a7239c47c97e0fc2c52a54a67017d45be9b12809bb010267555c3a3b6977d2",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pd-select-model.md:2",
+        "workflows/pd-select-model.md:5",
+        "workflows/pd-select-model.md:17"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pe-execute.md",
+      "sha256": "5d4097666f7bd3bc1d343c10dd545db306b845cc74cba2ce21e43acf8d28316e",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pe-execute.md:2",
+        "workflows/pe-execute.md:5",
+        "workflows/pe-execute.md:12"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [
+          "AUD-08-045"
+        ],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pe-finalize.md",
+      "sha256": "6eba443770005d9d7734cb40e21d09a43caf03ba05bcee4c0d15cd7164efb384",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pe-finalize.md:2",
+        "workflows/pe-finalize.md:5",
+        "workflows/pe-finalize.md:12"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/phase-atomic-execution.md",
+      "sha256": "2891c7773cb73a2d25d3ef23e8ec6c3c003f98342cbea69e1288796178ad48f8",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/phase-atomic-execution.md:2",
+        "workflows/phase-atomic-execution.md:5",
+        "workflows/phase-atomic-execution.md:20"
+      ],
+      "repetition": {
+        "report": [
+          "AUD-08-042"
+        ],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/phase-atomic-validation.md",
+      "sha256": "5f0c24b23a6126c5e74289aba236ac5432833dcf8d6874ed42124b149f5204d1",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/phase-atomic-validation.md:2",
+        "workflows/phase-atomic-validation.md:5",
+        "workflows/phase-atomic-validation.md:19"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/phase-composite-validation.md",
+      "sha256": "68cbf2e081ae2574492cfff679a3ebd45b5da2c2c244fcfe9f9aabb45503c2ef",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/phase-composite-validation.md:2",
+        "workflows/phase-composite-validation.md:5",
+        "workflows/phase-composite-validation.md:16"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [
+          "AUD-08-045"
+        ],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/phase-discovery.md",
+      "sha256": "4c3a29c76fbd65ddc5a03355a16c369d28d7605abf707ff4951c53f7c7bf6102",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/phase-discovery.md:2",
+        "workflows/phase-discovery.md:5",
+        "workflows/phase-discovery.md:11"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": [
+          "AUD-08-047"
+        ]
+      }
+    },
+    {
+      "path": "workflows/phase-execution.md",
+      "sha256": "00642cf36ffb64a08d8e2c2318871fcbd22263b972a7b973e0f0612a7ee6f4c6",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/phase-execution.md:2",
+        "workflows/phase-execution.md:5",
+        "workflows/phase-execution.md:16"
+      ],
+      "repetition": {
+        "report": [
+          "AUD-08-044"
+        ],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/phase-pipeline.md",
+      "sha256": "6510fdf8efc7eb9a3fda2193a21af31151372f3aff5f8f23170c72049f074345",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/phase-pipeline.md:2",
+        "workflows/phase-pipeline.md:5",
+        "workflows/phase-pipeline.md:11"
+      ],
+      "repetition": {
+        "report": [
+          "AUD-08-043"
+        ],
+        "checkpoint": [],
+        "review": [
+          "AUD-08-047"
+        ]
+      }
+    },
+    {
+      "path": "workflows/phase-validation.md",
+      "sha256": "e9da13b70da6ac4f79cf4f7fc3ac1bc7c4a79e01333281e044fb2b9079cf56c5",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/phase-validation.md:2",
+        "workflows/phase-validation.md:5",
+        "workflows/phase-validation.md:17"
+      ],
+      "repetition": {
+        "report": [
+          "AUD-08-044"
+        ],
+        "checkpoint": [],
+        "review": [
+          "AUD-08-048",
+          "AUD-08-049"
+        ]
+      }
+    },
+    {
+      "path": "workflows/pv-classify-fixes.md",
+      "sha256": "e5ee841a82cfe226bba2699ee2405dc26e61436bc4e5cce8b76bdbc9e1752abe",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pv-classify-fixes.md:2",
+        "workflows/pv-classify-fixes.md:5",
+        "workflows/pv-classify-fixes.md:12"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pv-contract.md",
+      "sha256": "0eb78bb230e90cdc9cabf82ef1f65c8853193ed49d5b5f1e8029960ee92edbaa",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pv-contract.md:2",
+        "workflows/pv-contract.md:5",
+        "workflows/pv-contract.md:12"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": [
+          "AUD-08-048"
+        ]
+      }
+    },
+    {
+      "path": "workflows/pv-create-fixes.md",
+      "sha256": "7f01772633ca8500701679cdd95720eb40eee4d7e5479627bf9cf25c2227fdc0",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pv-create-fixes.md:2",
+        "workflows/pv-create-fixes.md:5",
+        "workflows/pv-create-fixes.md:12"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pv-execute-fixes.md",
+      "sha256": "9d3e37bf7b399557f6e3653b60495f73c6a30d368157ccaf979f311c3f323e28",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pv-execute-fixes.md:2",
+        "workflows/pv-execute-fixes.md:5",
+        "workflows/pv-execute-fixes.md:12"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [
+          "AUD-08-045"
+        ],
+        "review": [
+          "AUD-08-049"
+        ]
+      }
+    },
+    {
+      "path": "workflows/pv-finalize.md",
+      "sha256": "c4bf378d55d5b3bf2dee3e5abcb386365a6dc756f8b0698ae9c9e914b73a9be7",
+      "kinds": [
+        "workflow",
+        "contract"
+      ],
+      "sections": [
+        {
+          "heading": "(preamble)",
+          "kind": "workflow",
+          "proposed_home": "workflows/validation-finalize.md"
+        },
+        {
+          "heading": "## Guard",
+          "kind": "workflow",
+          "proposed_home": "workflows/validation-finalize.md"
+        },
+        {
+          "heading": "## Context Bootstrap",
+          "kind": "workflow",
+          "proposed_home": "workflows/validation-finalize.md"
+        },
+        {
+          "heading": "## Instructions",
+          "kind": "contract",
+          "proposed_home": "workflows/validation-finalize.md"
+        }
+      ],
+      "evidence": [
+        "workflows/pv-finalize.md:2",
+        "workflows/pv-finalize.md:5",
+        "workflows/pv-finalize.md:12",
+        "workflows/pv-finalize.md:62",
+        "workflows/pv-finalize.md:171",
+        "workflows/adr-new.md:11"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": [
+          "AUD-08-049"
+        ]
+      }
+    },
+    {
+      "path": "workflows/pv-issues.md",
+      "sha256": "721839727f296885f08c259dc68b58b2119867816210c8f89be6a0db48464009",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pv-issues.md:2",
+        "workflows/pv-issues.md:5",
+        "workflows/pv-issues.md:12"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/pv-review.md",
+      "sha256": "9275c0054e2ea95cfa9cdc8ee159e38a41ee842a35f1ff3f6bd91df98e0bf777",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/pv-review.md:2",
+        "workflows/pv-review.md:5",
+        "workflows/pv-review.md:12"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": [
+          "AUD-08-048"
+        ]
+      }
+    },
+    {
+      "path": "workflows/restack.md",
+      "sha256": "5a3438f91e66054aa066ac044d8fb56786da14ed7524eaa05ba8c5179d68ce1b",
+      "kinds": [
+        "workflow",
+        "contract"
+      ],
+      "sections": [
+        {
+          "heading": "(preamble)",
+          "kind": "workflow",
+          "proposed_home": "workflows/restack.md"
+        },
+        {
+          "heading": "## Guard",
+          "kind": "workflow",
+          "proposed_home": "workflows/restack.md"
+        },
+        {
+          "heading": "## Recovery journal",
+          "kind": "contract",
+          "proposed_home": "workflows/restack.md"
+        },
+        {
+          "heading": "## Step 1 — Classify each branch",
+          "kind": "workflow",
+          "proposed_home": "workflows/restack.md"
+        },
+        {
+          "heading": "## Step 2 — Replay",
+          "kind": "workflow",
+          "proposed_home": "workflows/restack.md"
+        },
+        {
+          "heading": "## Step 3 — Publish (only with `--allow-pr`)",
+          "kind": "workflow",
+          "proposed_home": "workflows/restack.md"
+        },
+        {
+          "heading": "## Step 4 — Report",
+          "kind": "workflow",
+          "proposed_home": "workflows/restack.md"
+        }
+      ],
+      "evidence": [
+        "workflows/restack.md:2",
+        "workflows/restack.md:5",
+        "workflows/restack.md:13",
+        "workflows/restack.md:42",
+        "workflows/restack.md:90",
+        "scripts/validate-contracts.sh:5636"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/retro.md",
+      "sha256": "41d0df3ebc56b27c16f15b1bcffe39ecd8e62b9f51c17be52dcb893d788186b5",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/retro.md:2",
+        "workflows/retro.md:5",
+        "workflows/retro.md:17"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/spec-draft.md",
+      "sha256": "6a9adbd77065104d229050626695734a95d7784171b18a399a9f06c7be1f1a00",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/spec-draft.md:2",
+        "workflows/spec-draft.md:5",
+        "workflows/spec-draft.md:11"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": [
+          "AUD-08-050"
+        ]
+      }
+    },
+    {
+      "path": "workflows/spec-run.md",
+      "sha256": "a7a5af2cbadf807d2c316dfe1887bdf9eacb50d9f83c242bd7e0fea939b3106c",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/spec-run.md:2",
+        "workflows/spec-run.md:5",
+        "workflows/spec-run.md:19"
+      ],
+      "repetition": {
+        "report": [
+          "AUD-08-042"
+        ],
+        "checkpoint": [
+          "AUD-08-045"
+        ],
+        "review": [
+          "AUD-08-047"
+        ]
+      }
+    },
+    {
+      "path": "workflows/spec-sync.md",
+      "sha256": "8fe077ca25348fb526ccda1a7c5f6d093dba5dc37e17d819186b357056c51a30",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/spec-sync.md:2",
+        "workflows/spec-sync.md:5",
+        "workflows/spec-sync.md:13"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/suggest-commit-message.md",
+      "sha256": "38ae16684746bd03cd4a559cce33d5aa2b3fcbc952adb2a12e96e3af9c5f96a4",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/suggest-commit-message.md:2",
+        "workflows/suggest-commit-message.md:5",
+        "workflows/suggest-commit-message.md:11"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/suggest-commit-pr.md",
+      "sha256": "80fd230cc383e8ee0ff6dae7f382eb53e0d4938a784bccb6afb155bc638c7627",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/suggest-commit-pr.md:2",
+        "workflows/suggest-commit-pr.md:5",
+        "workflows/suggest-commit-pr.md:7"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
+    },
+    {
+      "path": "workflows/suggest-pr-description.md",
+      "sha256": "f3a6a34878df4aed2a1876bc6bf07aa78ea75f6515296da4a03b4f81719f017b",
+      "kinds": [
+        "workflow"
+      ],
+      "sections": null,
+      "evidence": [
+        "workflows/suggest-pr-description.md:2",
+        "workflows/suggest-pr-description.md:5",
+        "workflows/suggest-pr-description.md:10"
+      ],
+      "repetition": {
+        "report": [],
+        "checkpoint": [],
+        "review": []
+      }
     }
   ],
   "coverage": [
@@ -785,6 +1651,258 @@
       "sha256": "0d6649fdc87a0f0ae70b990ba957e5fe85b80148afab197ddb699e02aea39b95",
       "status": "read",
       "reader": "Implementer"
+    },
+    {
+      "path": "workflows/PIPELINE.md",
+      "sha256": "639c2f3b0adc77ec0effcc9a7d84c9ec6ddc813064b4c25f84acb97a6afdf033",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/adr-new.md",
+      "sha256": "ddd8cb4d710d19f65de47ac2d24889fe062d0824d1b1d068f67a524fbaf9d780",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/bugfix.md",
+      "sha256": "aac676509ed85d2a239d94bbbf1e57d3869a27e6eb5dce46c94976b23acfdecf",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/compress-state.md",
+      "sha256": "3b3ba3e8a057df347b35b79ce0b90bad5b64993c7667364c697ac308d311edf5",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/context-pack.md",
+      "sha256": "d757046d92c6d73b27e6bff9b4b9418049682944b4863bb87442e8df79e2fc3c",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/onboard-legacy-project.md",
+      "sha256": "235db2e6ada843817185cc87d2af8a7728ddd25934dd1e619e4cd19a7f4797bf",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pae-finalize.md",
+      "sha256": "881ff99f99a0650a966b8bc40e364ba5e072b0b78960998ed161c509d870331d",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pae-implement.md",
+      "sha256": "ddbd9ff8e9385172f2132801850e45e97ea4ea41f4bcd27a975b6170a2056865",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pae-tests.md",
+      "sha256": "2c5ab47354ecc64b5ac08223fd1f5439d4edb655f08530799a2670fd741a5438",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pav-check.md",
+      "sha256": "bb006d445c9d6ee291ab3ed16ec698f641c382423d13f0a9c919c3d5638abcef",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pav-close.md",
+      "sha256": "07b161a998bafcba38cab4754009b1c7f561b78f353273bbb1df081bb1919664",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pav-propose.md",
+      "sha256": "e3c3ceb7b23138d248def0f04d698e8d48c6fc899887a28f939c5ae1bbdebf8b",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pd-analyze.md",
+      "sha256": "985770ab0c0b108aff897255c94f48bfa559e8936a2103cf4f7c727b15378384",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pd-archive.md",
+      "sha256": "fac195f3e99498d5cd3d61914057e52e4628fd55c3d096c6f6640c625988f4f7",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pd-decompose.md",
+      "sha256": "06b7515589c31ca6cc4d6a6b88daeea0a28c0bb3ad4be87c2d8d79c608b6ebc7",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pd-design.md",
+      "sha256": "8fb082587153671fd950ed787245742533059e74e46f6ba178d170b53ffdbf71",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pd-finalize.md",
+      "sha256": "2113a86d7473b977eab045f49f89028961d3ced63b61a4651e24313a72130a58",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pd-select-model.md",
+      "sha256": "16a7239c47c97e0fc2c52a54a67017d45be9b12809bb010267555c3a3b6977d2",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pe-execute.md",
+      "sha256": "5d4097666f7bd3bc1d343c10dd545db306b845cc74cba2ce21e43acf8d28316e",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pe-finalize.md",
+      "sha256": "6eba443770005d9d7734cb40e21d09a43caf03ba05bcee4c0d15cd7164efb384",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/phase-atomic-execution.md",
+      "sha256": "2891c7773cb73a2d25d3ef23e8ec6c3c003f98342cbea69e1288796178ad48f8",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/phase-atomic-validation.md",
+      "sha256": "5f0c24b23a6126c5e74289aba236ac5432833dcf8d6874ed42124b149f5204d1",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/phase-composite-validation.md",
+      "sha256": "68cbf2e081ae2574492cfff679a3ebd45b5da2c2c244fcfe9f9aabb45503c2ef",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/phase-discovery.md",
+      "sha256": "4c3a29c76fbd65ddc5a03355a16c369d28d7605abf707ff4951c53f7c7bf6102",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/phase-execution.md",
+      "sha256": "00642cf36ffb64a08d8e2c2318871fcbd22263b972a7b973e0f0612a7ee6f4c6",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/phase-pipeline.md",
+      "sha256": "6510fdf8efc7eb9a3fda2193a21af31151372f3aff5f8f23170c72049f074345",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/phase-validation.md",
+      "sha256": "e9da13b70da6ac4f79cf4f7fc3ac1bc7c4a79e01333281e044fb2b9079cf56c5",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pv-classify-fixes.md",
+      "sha256": "e5ee841a82cfe226bba2699ee2405dc26e61436bc4e5cce8b76bdbc9e1752abe",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pv-contract.md",
+      "sha256": "0eb78bb230e90cdc9cabf82ef1f65c8853193ed49d5b5f1e8029960ee92edbaa",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pv-create-fixes.md",
+      "sha256": "7f01772633ca8500701679cdd95720eb40eee4d7e5479627bf9cf25c2227fdc0",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pv-execute-fixes.md",
+      "sha256": "9d3e37bf7b399557f6e3653b60495f73c6a30d368157ccaf979f311c3f323e28",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pv-finalize.md",
+      "sha256": "c4bf378d55d5b3bf2dee3e5abcb386365a6dc756f8b0698ae9c9e914b73a9be7",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pv-issues.md",
+      "sha256": "721839727f296885f08c259dc68b58b2119867816210c8f89be6a0db48464009",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/pv-review.md",
+      "sha256": "9275c0054e2ea95cfa9cdc8ee159e38a41ee842a35f1ff3f6bd91df98e0bf777",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/restack.md",
+      "sha256": "5a3438f91e66054aa066ac044d8fb56786da14ed7524eaa05ba8c5179d68ce1b",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/retro.md",
+      "sha256": "41d0df3ebc56b27c16f15b1bcffe39ecd8e62b9f51c17be52dcb893d788186b5",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/spec-draft.md",
+      "sha256": "6a9adbd77065104d229050626695734a95d7784171b18a399a9f06c7be1f1a00",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/spec-run.md",
+      "sha256": "a7a5af2cbadf807d2c316dfe1887bdf9eacb50d9f83c242bd7e0fea939b3106c",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/spec-sync.md",
+      "sha256": "8fe077ca25348fb526ccda1a7c5f6d093dba5dc37e17d819186b357056c51a30",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/suggest-commit-message.md",
+      "sha256": "38ae16684746bd03cd4a559cce33d5aa2b3fcbc952adb2a12e96e3af9c5f96a4",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/suggest-commit-pr.md",
+      "sha256": "80fd230cc383e8ee0ff6dae7f382eb53e0d4938a784bccb6afb155bc638c7627",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "workflows/suggest-pr-description.md",
+      "sha256": "f3a6a34878df4aed2a1876bc6bf07aa78ea75f6515296da4a03b4f81719f017b",
+      "status": "read",
+      "reader": "Implementer"
     }
   ],
   "loads": [
@@ -885,9 +2003,420 @@
       "column": 73,
       "mode": "conditional",
       "condition": "only after the execution phase, when /pe-finalize reads `## Improvement Proposals (T-XX)`; the span names that reader, and nothing is loaded (AUD-08-025)"
+    },
+    {
+      "source": "workflows/compress-state.md",
+      "line": 12,
+      "column": 9,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/context-pack.md",
+      "line": 46,
+      "column": 16,
+      "mode": "conditional",
+      "condition": "only when a pack already exists; the line reads the manifest of the pack file `AI_DIR/context-pack.md`, not the workflow (AUD-08-034)"
+    },
+    {
+      "source": "workflows/context-pack.md",
+      "line": 60,
+      "column": 72,
+      "mode": "conditional",
+      "condition": "only when the pack is stale, absent or refreshed; the span is the pack file this step writes, not the workflow (AUD-08-034)"
+    },
+    {
+      "source": "workflows/pae-finalize.md",
+      "line": 30,
+      "column": 46,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pae-implement.md",
+      "line": 53,
+      "column": 13,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pae-implement.md",
+      "line": 126,
+      "column": 44,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pae-tests.md",
+      "line": 56,
+      "column": 13,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pae-tests.md",
+      "line": 76,
+      "column": 6,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pav-check.md",
+      "line": 24,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pav-check.md",
+      "line": 55,
+      "column": 25,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pav-close.md",
+      "line": 26,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pav-close.md",
+      "line": 32,
+      "column": 41,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pav-propose.md",
+      "line": 18,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pav-propose.md",
+      "line": 91,
+      "column": 52,
+      "mode": "conditional",
+      "condition": "only when /phase-atomic-validation resumes; the line says that workflow reads the marker this step writes, and nothing of it is loaded (AUD-08-025)"
+    },
+    {
+      "source": "workflows/pd-decompose.md",
+      "line": 24,
+      "column": 9,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pd-finalize.md",
+      "line": 25,
+      "column": 6,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pe-execute.md",
+      "line": 14,
+      "column": 107,
+      "mode": "conditional",
+      "condition": "only when the task has no state.md; the span sits in the stop message that names the prerequisite, and nothing of it is loaded (AUD-08-025)"
+    },
+    {
+      "source": "workflows/pe-execute.md",
+      "line": 23,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pe-execute.md",
+      "line": 42,
+      "column": 6,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pe-finalize.md",
+      "line": 22,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pe-finalize.md",
+      "line": 27,
+      "column": 6,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/phase-atomic-execution.md",
+      "line": 22,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/phase-atomic-execution.md",
+      "line": 56,
+      "column": 72,
+      "mode": "conditional",
+      "condition": "only when the value set of `atomic-tests:` must be interpreted; the line reads the progress field, :58-63 list every value acted on, and the span names the rule that defines them; nothing of it is loaded (AUD-08-025)"
+    },
+    {
+      "source": "workflows/phase-atomic-validation.md",
+      "line": 21,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/phase-atomic-validation.md",
+      "line": 80,
+      "column": 38,
+      "mode": "conditional",
+      "condition": "after each child call; the line re-reads the progress block, and the span names the child that owns `failed`; nothing of it is loaded (AUD-08-025)"
+    },
+    {
+      "source": "workflows/phase-atomic-validation.md",
+      "line": 80,
+      "column": 66,
+      "mode": "conditional",
+      "condition": "after each child call; the line re-reads the progress block, and the span names the child that owns `complete`; nothing of it is loaded (AUD-08-025)"
+    },
+    {
+      "source": "workflows/phase-composite-validation.md",
+      "line": 18,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/phase-execution.md",
+      "line": 53,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/phase-pipeline.md",
+      "line": 7,
+      "column": 41,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/phase-pipeline.md",
+      "line": 105,
+      "column": 12,
+      "mode": "conditional",
+      "condition": "only while Discovery is incomplete; the line calls the child phase and the word `Read-only` makes it a load line; nothing of it is loaded (AUD-08-025)"
+    },
+    {
+      "source": "workflows/phase-validation.md",
+      "line": 54,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pv-classify-fixes.md",
+      "line": 14,
+      "column": 83,
+      "mode": "conditional",
+      "condition": "only when `### Approved` is missing; the span sits in the stop message that names the prerequisite, and nothing of it is loaded (AUD-08-025)"
+    },
+    {
+      "source": "workflows/pv-classify-fixes.md",
+      "line": 19,
+      "column": 51,
+      "mode": "conditional",
+      "condition": "only on standalone invocation, before project writes (pv-classify-fixes.md:19-20)"
+    },
+    {
+      "source": "workflows/pv-contract.md",
+      "line": 14,
+      "column": 107,
+      "mode": "conditional",
+      "condition": "only when state is missing or execution is incomplete; the span sits in the stop message that names the prerequisite, and nothing of it is loaded (AUD-08-025)"
+    },
+    {
+      "source": "workflows/pv-contract.md",
+      "line": 22,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pv-create-fixes.md",
+      "line": 29,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pv-execute-fixes.md",
+      "line": 26,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pv-finalize.md",
+      "line": 29,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pv-finalize.md",
+      "line": 30,
+      "column": 6,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pv-finalize.md",
+      "line": 63,
+      "column": 21,
+      "mode": "conditional",
+      "condition": "only when /adr-new reads step 3 for the ADR schema; the span names that reader, and the line forbids running the other steps while loading it"
+    },
+    {
+      "source": "workflows/pv-issues.md",
+      "line": 23,
+      "column": 10,
+      "mode": "conditional",
+      "condition": "only on standalone invocation, before writes (pv-issues.md:23)"
+    },
+    {
+      "source": "workflows/pv-review.md",
+      "line": 27,
+      "column": 10,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/pv-review.md",
+      "line": 40,
+      "column": 38,
+      "mode": "conditional",
+      "condition": "on every review; the line re-reads the file set the contract check used (AUD-08-048), and the span names that workflow; nothing of it is loaded (AUD-08-025)"
+    },
+    {
+      "source": "workflows/pv-review.md",
+      "line": 50,
+      "column": 35,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/restack.md",
+      "line": 6,
+      "column": 6,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/spec-run.md",
+      "line": 6,
+      "column": 36,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/spec-run.md",
+      "line": 6,
+      "column": 56,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "workflows/spec-run.md",
+      "line": 149,
+      "column": 7,
+      "mode": "conditional",
+      "condition": "only after Discovery, at the batch gate; the line reads `## Open Questions (batch)`, and the span names the step after which it is read; nothing of it is loaded (AUD-08-025)"
+    },
+    {
+      "source": "workflows/spec-run.md",
+      "line": 211,
+      "column": 68,
+      "mode": "conditional",
+      "condition": "only in Step 3, when the stack is resolved; the line reads plan.md and copies the ordering rule of /pe-execute (pe-execute.md:29-34), whose workflow is not run"
+    },
+    {
+      "source": "workflows/spec-run.md",
+      "line": 319,
+      "column": 1,
+      "mode": "conditional",
+      "condition": "once per leaf Implementer; the span is the last step named in the worker's instruction, and 'loads .ai/ context itself' describes the worker; the Orchestrator loads nothing"
+    },
+    {
+      "source": "workflows/spec-run.md",
+      "line": 486,
+      "column": 8,
+      "mode": "conditional",
+      "condition": "only on interruption recovery; the line re-runs the workflow, whose Step 0 reads state.md"
     }
   ],
   "candidates": [
+    {
+      "id": "FO-001",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The line lists the artifacts a phase writes (PIPELINE.md:73); no tool output is read or printed"
+    },
+    {
+      "id": "FO-002",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "\"complete until its outputs exist\" is a phase completion condition on written files (onboard-legacy-project.md:48-49), not a tool output"
+    },
+    {
+      "id": "FO-003",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The line records output paths and a completion time in the progress file (onboard-legacy-project.md:165-166); no output content is copied"
+    },
+    {
+      "id": "FO-004",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The line prints a one-line review marker after a child (phase-discovery.md:38); \"complete\" is part of the marker text"
+    },
+    {
+      "id": "FO-005",
+      "disposition": "finding",
+      "finding": "AUD-08-039",
+      "reason": null
+    },
+    {
+      "id": "FO-006",
+      "disposition": "finding",
+      "finding": "AUD-08-039",
+      "reason": null
+    },
+    {
+      "id": "FO-007",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "The analyzer's output goes to a pipe or socket for a trusted consumer (retro.md:263-271), and the workflow keeps raw records and the working dataset out of the conversation (retro.md:43-44, :239-240)"
+    },
+    {
+      "id": "FO-008",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The line keeps the full critic round log out of the specification (spec-draft.md:304-305); it limits output rather than asking for it"
+    },
+    {
+      "id": "FO-009",
+      "disposition": "finding",
+      "finding": "AUD-08-039",
+      "reason": null
+    },
     {
       "id": "HN-001",
       "disposition": "not-applicable",
@@ -1055,6 +2584,192 @@
       "disposition": "not-applicable",
       "finding": null,
       "reason": "The Codex always-on template names its own harness and its own instruction file; the naming migration maps the file to harness/codex/always-on.md"
+    },
+    {
+      "id": "HN-029",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The workflow fills the project instruction file that scripts/setup-new-project.sh creates for each supported harness (:39-42 and :188-190); it names the file, and no step branches on which harness runs it"
+    },
+    {
+      "id": "HN-030",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The workflow fills the project instruction file that scripts/setup-new-project.sh creates for each supported harness (:39-42 and :188-190); it names the file, and no step branches on which harness runs it"
+    },
+    {
+      "id": "HN-031",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The workflow fills the project instruction file that scripts/setup-new-project.sh creates for each supported harness (:39-42 and :188-190); it names the file, and no step branches on which harness runs it"
+    },
+    {
+      "id": "HN-032",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "The column headers key plan cells by provider (rules/workflow-reference.md:131-132); a model request is authorized only by observed support, and provider names are not proof of support (rules/workflow-reference.md:158-165)"
+    },
+    {
+      "id": "HN-033",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "The column headers key plan cells by provider (rules/workflow-reference.md:131-132); a model request is authorized only by observed support, and provider names are not proof of support (rules/workflow-reference.md:158-165)"
+    },
+    {
+      "id": "HN-034",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "The column headers key plan cells by provider (rules/workflow-reference.md:131-132); a model request is authorized only by observed support, and provider names are not proof of support (rules/workflow-reference.md:158-165)"
+    },
+    {
+      "id": "HN-035",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "The column headers key plan cells by provider (rules/workflow-reference.md:131-132); a model request is authorized only by observed support, and provider names are not proof of support (rules/workflow-reference.md:158-165)"
+    },
+    {
+      "id": "HN-036",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "The column headers key plan cells by provider (rules/workflow-reference.md:131-132); a model request is authorized only by observed support, and provider names are not proof of support (rules/workflow-reference.md:158-165)"
+    },
+    {
+      "id": "HN-037",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "The column headers key plan cells by provider (rules/workflow-reference.md:131-132); a model request is authorized only by observed support, and provider names are not proof of support (rules/workflow-reference.md:158-165)"
+    },
+    {
+      "id": "HN-038",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "The column headers key plan cells by provider (rules/workflow-reference.md:131-132); a model request is authorized only by observed support, and provider names are not proof of support (rules/workflow-reference.md:158-165)"
+    },
+    {
+      "id": "RL-001",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The detected call is the continuation of a quoted stop message whose `**stop**` marker is on the previous line (pae-implement.md:65-66); /pae-implement never runs /pd-decompose"
+    },
+    {
+      "id": "RL-002",
+      "disposition": "finding",
+      "finding": "AUD-08-054",
+      "reason": null
+    },
+    {
+      "id": "RL-003",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "The composite check bootstraps for the composite's own `working_dir:` (phase-composite-validation.md:18-21), which can be another repository than the closing leaf's; the rule reuses sources only for the same resolved project (rules/phase-atomic-validation.md:10-12)"
+    },
+    {
+      "id": "RL-004",
+      "disposition": "finding",
+      "finding": "AUD-08-054",
+      "reason": null
+    },
+    {
+      "id": "RL-005",
+      "disposition": "finding",
+      "finding": "AUD-08-054",
+      "reason": null
+    },
+    {
+      "id": "RL-006",
+      "disposition": "finding",
+      "finding": "AUD-08-054",
+      "reason": null
+    },
+    {
+      "id": "RL-007",
+      "disposition": "finding",
+      "finding": "AUD-08-051",
+      "reason": null
+    },
+    {
+      "id": "RL-008",
+      "disposition": "finding",
+      "finding": "AUD-08-051",
+      "reason": null
+    },
+    {
+      "id": "RL-009",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The caller's span points to the `tdd` rule for the value set of `atomic-tests:` (phase-atomic-execution.md:56) and lists every value it acts on at :58-63, so nothing is loaded there; /pae-tests (:76) is the only load in this pair"
+    },
+    {
+      "id": "RL-010",
+      "disposition": "finding",
+      "finding": "AUD-08-053",
+      "reason": null
+    },
+    {
+      "id": "RL-011",
+      "disposition": "finding",
+      "finding": "AUD-08-053",
+      "reason": null
+    },
+    {
+      "id": "RL-012",
+      "disposition": "finding",
+      "finding": "AUD-08-053",
+      "reason": null
+    },
+    {
+      "id": "RL-013",
+      "disposition": "finding",
+      "finding": "AUD-08-053",
+      "reason": null
+    },
+    {
+      "id": "RL-014",
+      "disposition": "finding",
+      "finding": "AUD-08-052",
+      "reason": null
+    },
+    {
+      "id": "RL-015",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "/pv-classify-fixes loads the `phase-validation` rule only on standalone invocation (pv-classify-fixes.md:19-20), so under /phase-validation the parent's load is the only one"
+    },
+    {
+      "id": "RL-016",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The detected call is the sentence \"This step runs before /pv-create-fixes writes that section\" (pv-classify-fixes.md:73-74), an ordering statement; /pv-classify-fixes never runs /pv-create-fixes"
+    },
+    {
+      "id": "RL-017",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "/pv-classify-fixes loads the `phase-validation` rule only on standalone invocation (pv-classify-fixes.md:19-20), so the caller's load at pv-create-fixes.md:29 is the only one"
+    },
+    {
+      "id": "RL-018",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The detected call is the sentence \"Quick tasks execute approved fixes inline in /phase-validation\" (pv-execute-fixes.md:27), which names where quick fixes run; /pv-execute-fixes never runs /phase-validation"
+    },
+    {
+      "id": "RL-019",
+      "disposition": "finding",
+      "finding": "AUD-08-053",
+      "reason": null
+    },
+    {
+      "id": "RL-020",
+      "disposition": "finding",
+      "finding": "AUD-08-053",
+      "reason": null
+    },
+    {
+      "id": "RL-021",
+      "disposition": "finding",
+      "finding": "AUD-08-054",
+      "reason": null
     }
   ],
   "legacy": [
@@ -1946,6 +3661,936 @@
       "status": "open",
       "evidence": [
         "rules/global-claude.md:2"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-031",
+      "type": "reference-defect",
+      "severity": "minor",
+      "source": "workflows/phase-execution.md",
+      "section": "## Execution",
+      "sha256": "00642cf36ffb64a08d8e2c2318871fcbd22263b972a7b973e0f0612a7ee6f4c6",
+      "lines": [
+        96,
+        97
+      ],
+      "observation": "Two references name `quick-flow → ## Mid-flight escalation (quick → full)`. The heading exists at rules/quick-flow.md:137, but its text contains the component separator ` → `, so the reference grammar splits it into `## Mid-flight escalation (quick` and `full)` and reports a missing heading. The references are correct on reading; the heading text makes them unresolvable by any grammar that splits on the separator. The same heading is cited unmarked at rules/workflow-globals.md:140.",
+      "consequence": "The naming migration's reference check reports these two pre-existing references as defects it must fix, and a renamed or moved escalation section would leave them stale without a reliable diagnostic.",
+      "owner": "09",
+      "closure": "The heading text no longer contains ` → ` (for example `(quick to full)`) and both references match it, or the migration's grammar resolves a component against a whole heading before splitting; both edges then resolve.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/phase-execution.md:97",
+        "workflows/bugfix.md:104",
+        "rules/quick-flow.md:137",
+        "rules/quick-flow.md:36",
+        "rules/workflow-globals.md:140"
+      ],
+      "edges": [
+        {
+          "source": "workflows/phase-execution.md",
+          "line": 97,
+          "column": 1
+        },
+        {
+          "source": "workflows/bugfix.md",
+          "line": 104,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-032",
+      "type": "ambiguous-name",
+      "severity": "minor",
+      "source": "workflows/pae-tests.md",
+      "section": "## Pre-check",
+      "sha256": "2c5ab47354ecc64b5ac08223fd1f5439d4edb655f08530799a2670fd741a5438",
+      "lines": [
+        63
+      ],
+      "observation": "Four atomic workflows name `phase-atomic-execution → ## Context Bootstrap` for the runbook resolution with its umbrella fallback. The stem is both a rule and a workflow and both files have a `## Context Bootstrap` heading; on reading the rule is meant (rules/phase-atomic-execution.md:21-25). This is the pattern AUD-08-002 records in rules/phase-atomic-validation.md:21.",
+      "consequence": "A reader or tool cannot tell from the reference which file is meant; the shared stem resolves only through the surrounding prose.",
+      "owner": "09",
+      "closure": "Every reference names a stem that is unique after the naming migration (the rule's bootstrap name, the workflow `atomic-execution`).",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pae-tests.md:63",
+        "workflows/pae-implement.md:159",
+        "workflows/pae-finalize.md:30",
+        "workflows/pav-check.md:48",
+        "rules/phase-atomic-execution.md:21",
+        "workflows/phase-atomic-execution.md:20",
+        "rules/phase-atomic-validation.md:21"
+      ],
+      "edges": [
+        {
+          "source": "workflows/pae-tests.md",
+          "line": 63,
+          "column": 16
+        },
+        {
+          "source": "workflows/pae-implement.md",
+          "line": 159,
+          "column": 29
+        },
+        {
+          "source": "workflows/pae-finalize.md",
+          "line": 30,
+          "column": 46
+        },
+        {
+          "source": "workflows/pav-check.md",
+          "line": 48,
+          "column": 53
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-033",
+      "type": "reference-defect",
+      "severity": "minor",
+      "source": "workflows/pv-contract.md",
+      "section": "## Instructions",
+      "sha256": "0eb78bb230e90cdc9cabf82ef1f65c8853193ed49d5b5f1e8029960ee92edbaa",
+      "lines": [
+        33
+      ],
+      "observation": "Two section references omit the `##` marker of their target heading: `quick-flow → The quick path` (target `## The quick path — what changes`, rules/quick-flow.md:61) and `workflow-reference → Autonomous Subtask Classifier → Runtime self-correction` (targets rules/workflow-reference.md:487 and :530). Both targets exist, so a reader finds them, but the cross-reference syntax requires the marker and the migration's executable-reference grammar does not read the unmarked form.",
+      "consequence": "No grammar-based check or rewrite sees these references, so a renamed or split target leaves them stale without a diagnostic; the classifier section is a split target of the naming migration.",
+      "owner": "11",
+      "closure": "Both spans carry the markers of their target headings (`## The quick path — what changes`; `## Autonomous Subtask Classifier → ### Runtime self-correction (tripwire)`), or the finding is re-owned to 09 with an amendment that gives the naming migration the obligation.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pv-contract.md:33",
+        "workflows/pae-implement.md:141",
+        "rules/quick-flow.md:61",
+        "rules/workflow-reference.md:487",
+        "rules/workflow-reference.md:530",
+        ".ai/principles/coding.md:46"
+      ],
+      "edges": [
+        {
+          "source": "workflows/pv-contract.md",
+          "line": 33,
+          "column": 5
+        },
+        {
+          "source": "workflows/pae-implement.md",
+          "line": 141,
+          "column": 98
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-034",
+      "type": "accepted-observation",
+      "severity": "minor",
+      "source": "workflows/context-pack.md",
+      "section": "(file)",
+      "sha256": "d757046d92c6d73b27e6bff9b4b9418049682944b4863bb87442e8df79e2fc3c",
+      "lines": [
+        46,
+        60
+      ],
+      "observation": "Both edges read `context-pack.md` inside the span `AI_DIR/context-pack.md`, which names the generated pack file in the project's knowledge base, not the workflow file `workflows/context-pack.md`. The token grammar matches the file name and resolves it to the workflow; on reading the references are correct. AUD-08-006 records the same resolution in rules/workflow-globals.md.",
+      "consequence": "None for the workflow; the edges count as suffixed workflow names only because the pack shares the workflow's stem.",
+      "owner": "none",
+      "closure": "No change; the observation stands while the pack keeps this file name.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/context-pack.md:46",
+        "workflows/context-pack.md:60",
+        "workflows/context-pack.md:7"
+      ],
+      "edges": [
+        {
+          "source": "workflows/context-pack.md",
+          "line": 46,
+          "column": 16
+        },
+        {
+          "source": "workflows/context-pack.md",
+          "line": 60,
+          "column": 72
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-035",
+      "type": "reference-defect",
+      "severity": "minor",
+      "source": "workflows/phase-pipeline.md",
+      "section": "(file)",
+      "sha256": "6510fdf8efc7eb9a3fda2193a21af31151372f3aff5f8f23170c72049f074345",
+      "lines": [
+        111,
+        112,
+        113,
+        114,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147
+      ],
+      "observation": "Three lists map each child command to its workflow file name (`/pd-analyze` → `pd-analyze.md`). The file names are suffixed references outside the migration's grammar; `phase-atomic-execution.md` and `phase-atomic-validation.md` are also ambiguous between a rule and a workflow. The lists restate children that the phase orchestrators own, and line 109 forbids replaying them separately.",
+      "consequence": "The command renames of the naming migration leave every file name stale, and no grammar-based rewrite or check sees them.",
+      "owner": "11",
+      "closure": "The lists name commands only, or are removed in favour of the phase orchestrators; or the finding is re-owned to 09 with an amendment that gives the naming migration the obligation to rewrite the suffixed names.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/phase-pipeline.md:108",
+        "workflows/phase-pipeline.md:109",
+        "workflows/phase-pipeline.md:111",
+        "workflows/phase-pipeline.md:125",
+        "workflows/phase-pipeline.md:129",
+        "workflows/phase-pipeline.md:147"
+      ],
+      "edges": [
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 111,
+          "column": 19
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 112,
+          "column": 21
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 113,
+          "column": 18
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 114,
+          "column": 20
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 123,
+          "column": 19
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 124,
+          "column": 20
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 125,
+          "column": 31
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 126,
+          "column": 18
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 127,
+          "column": 22
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 128,
+          "column": 21
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 129,
+          "column": 32
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 130,
+          "column": 18
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 131,
+          "column": 20
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 132,
+          "column": 18
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 133,
+          "column": 35
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 141,
+          "column": 20
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 142,
+          "column": 18
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 143,
+          "column": 18
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 144,
+          "column": 24
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 145,
+          "column": 25
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 146,
+          "column": 20
+        },
+        {
+          "source": "workflows/phase-pipeline.md",
+          "line": 147,
+          "column": 23
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-036",
+      "type": "reference-defect",
+      "severity": "minor",
+      "source": "workflows/pav-propose.md",
+      "section": "(preamble)",
+      "sha256": "e3c3ceb7b23138d248def0f04d698e8d48c6fc899887a28f939c5ae1bbdebf8b",
+      "lines": [
+        12
+      ],
+      "observation": "The proposal semantics are cited as `workflow-globals → Workflow-declared mode overrides`, which is no heading: the registry sits inside `## Context Pack` (rules/workflow-globals.md:40, :62). This is the missing registry heading that AUD-08-026 records; this finding records the citing edge so the defect is not reported twice.",
+      "consequence": "The citation cannot be resolved or checked, and it points into a section whose heading says nothing about mode overrides.",
+      "owner": "11",
+      "closure": "Closes with AUD-08-026: the registry gets its own heading and this span names it with the `##` marker.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pav-propose.md:12",
+        "rules/workflow-globals.md:40",
+        "rules/workflow-globals.md:62"
+      ],
+      "edges": [
+        {
+          "source": "workflows/pav-propose.md",
+          "line": 12,
+          "column": 31
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-037",
+      "type": "mixed-kind",
+      "severity": "minor",
+      "source": "workflows/restack.md",
+      "section": "## Recovery journal",
+      "sha256": "5a3438f91e66054aa066ac044d8fb56786da14ed7524eaa05ba8c5179d68ce1b",
+      "lines": [
+        42,
+        44,
+        90
+      ],
+      "observation": "The workflow holds a contract: `## Recovery journal` defines the journal schema and the exact command forms that the git-rails hook verifies (restack.md:44-46, :90-93; rules/git-flow.md:205, :237). The rest of the file is the workflow's steps.",
+      "consequence": "The hook's evidence contract is read only through the workflow; a reader of the safety rails reaches the schema through a workflow body.",
+      "owner": "11",
+      "closure": "The section stays in place, since the validator pins the heading in this file (scripts/validate-contracts.sh:5636) and only this workflow writes the journal; context tiering records it as contract when it classifies the workflow.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/restack.md:42",
+        "workflows/restack.md:44",
+        "workflows/restack.md:90",
+        "scripts/validate-contracts.sh:5636",
+        "rules/git-flow.md:205",
+        "rules/git-flow.md:237"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-038",
+      "type": "mixed-kind",
+      "severity": "minor",
+      "source": "workflows/pv-finalize.md",
+      "section": "## Instructions",
+      "sha256": "c4bf378d55d5b3bf2dee3e5abcb386365a6dc756f8b0698ae9c9e914b73a9be7",
+      "lines": [
+        62,
+        63
+      ],
+      "observation": "Step 3 of `## Instructions` (lines 62-181) is the canonical ADR trigger, body template, numbering, file name and index schema. It is consumed by /adr-new (adr-new.md:11-13), /pd-design (pd-design.md:77), /spec-sync (spec-sync.md:101-102) and /bugfix (bugfix.md:138), and line 63 warns readers not to execute the other finalization steps while loading it.",
+      "consequence": "Every consumer loads the finalization section, and the contract has no heading of its own that a section reference can name.",
+      "owner": "11",
+      "closure": "The ADR schema is a section of its own (or a contract rule) that the four consumers cite by heading, and the finalization step cites it in turn.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pv-finalize.md:62",
+        "workflows/pv-finalize.md:63",
+        "workflows/pv-finalize.md:171",
+        "workflows/adr-new.md:11",
+        "workflows/pd-design.md:77",
+        "workflows/spec-sync.md:102",
+        "workflows/bugfix.md:138"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-039",
+      "type": "conditional-context",
+      "severity": "major",
+      "source": "workflows/phase-execution.md",
+      "section": "## Run Logging",
+      "sha256": "00642cf36ffb64a08d8e2c2318871fcbd22263b972a7b973e0f0612a7ee6f4c6",
+      "lines": [
+        18
+      ],
+      "observation": "Three orchestrators instruct to follow the `run-log` rule in full (phase-execution.md:18, phase-validation.md:19, spec-run.md:63); /bugfix follows the whole rule at :30. The rule has 585 lines, while a prompt-logged boundary needs `## Workflow coverage and routing` (rules/run-log.md:116), which /phase-discovery and /phase-pipeline cite as their only section (phase-discovery.md:135, phase-pipeline.md:19).",
+      "consequence": "Every Execution, Validation and orchestrated run loads the native hook adapter, lint and legacy normalization sections it does not use; AUD-08-013 records the rule side of the same cost.",
+      "owner": "11",
+      "closure": "The three orchestrators and /bugfix name the sections they use, as /phase-discovery does, and load the rest only when the condition that needs it holds.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/phase-execution.md:18",
+        "workflows/phase-validation.md:19",
+        "workflows/spec-run.md:63",
+        "workflows/bugfix.md:30",
+        "workflows/phase-discovery.md:135",
+        "workflows/phase-pipeline.md:19",
+        "rules/run-log.md:116"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-040",
+      "type": "conditional-context",
+      "severity": "major",
+      "source": "workflows/pae-implement.md",
+      "section": "## Tripwire Check (composite promotion)",
+      "sha256": "ddbd9ff8e9385172f2132801850e45e97ea4ea41f4bcd27a975b6170a2056865",
+      "lines": [
+        125,
+        126
+      ],
+      "observation": "The tripwire loads the whole `workflow-reference` rule (634 lines) to use the Autonomous Subtask Classifier (rules/workflow-reference.md:487-548), at the start and again at the midpoint of every leaf. /pav-close (:32), /pe-finalize (:27) and /pv-finalize (:30) likewise load the whole rule for the status translation table or the memory entry format.",
+      "consequence": "Every leaf loads the state-file contract, the decision protocol and the model resolution protocol to evaluate one classifier section; AUD-08-018 and AUD-08-028 record the rule side.",
+      "owner": "11",
+      "closure": "Each of these workflows loads only the section it uses by its marked heading (`workflow-reference → ## Autonomous Subtask Classifier`, `## Status Translation Table`, `## .ai/memory/state.md Entry Format`).",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pae-implement.md:125",
+        "workflows/pae-implement.md:126",
+        "workflows/pav-close.md:32",
+        "workflows/pe-finalize.md:27",
+        "workflows/pv-finalize.md:30",
+        "rules/workflow-reference.md:487",
+        "rules/workflow-reference.md:261",
+        "rules/workflow-reference.md:377"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-041",
+      "type": "conditional-context",
+      "severity": "minor",
+      "source": "workflows/pd-select-model.md",
+      "section": "## Instructions",
+      "sha256": "16a7239c47c97e0fc2c52a54a67017d45be9b12809bb010267555c3a3b6977d2",
+      "lines": [
+        66,
+        129,
+        162
+      ],
+      "observation": "Routine selection is offline (pd-select-model.md:15), yet every run loads the refresh procedure (:66-85) and the refresh candidate schema (:129-139), which apply only with `--refresh`, and the cost-comparison contract (:162-170), which applies only when the owner supplies qualified comparable-task evaluations.",
+      "consequence": "Each bulk or single selection loads instructions for paths it does not take.",
+      "owner": "11",
+      "closure": "The refresh procedure, the candidate schema and the cost-comparison contract load only under their conditions (a flag or a supplied evaluation).",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pd-select-model.md:15",
+        "workflows/pd-select-model.md:66",
+        "workflows/pd-select-model.md:129",
+        "workflows/pd-select-model.md:162",
+        "workflows/pd-select-model.md:192"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-042",
+      "type": "report-repeat",
+      "severity": "minor",
+      "source": "workflows/pae-tests.md",
+      "section": "## Report",
+      "sha256": "2c5ab47354ecc64b5ac08223fd1f5439d4edb655f08530799a2670fd741a5438",
+      "lines": [
+        237,
+        241
+      ],
+      "observation": "The test level is reported before writing (:80-86), the criterion mapping before writing code (:133-139), and both again with the digest in the final report (:237-241). The final digest is suppressed only by `--batch` or /phase-pipeline, but /phase-atomic-execution calls /pae-tests without the flag (:101) and reports the level and RED result once more (:110-111); /spec-run asks the worker to report the RED digest after the step (:318, :325-326); /phase-pipeline asks for `--batch` (:47), but no workflow on its call chain passes it to /pae-tests.",
+      "consequence": "Each leaf reports the same level, mapping and digest up to three times in one session.",
+      "owner": "11",
+      "closure": "The level, mapping and digest are reported once per leaf at the boundary that needs them, and the callers that want suppression pass it on the actual call.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pae-tests.md:80",
+        "workflows/pae-tests.md:133",
+        "workflows/pae-tests.md:241",
+        "workflows/phase-atomic-execution.md:101",
+        "workflows/phase-atomic-execution.md:110",
+        "workflows/spec-run.md:318",
+        "workflows/spec-run.md:325",
+        "workflows/phase-pipeline.md:47"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-043",
+      "type": "report-repeat",
+      "severity": "minor",
+      "source": "workflows/phase-pipeline.md",
+      "section": "## Phase 1 — Discovery",
+      "sha256": "6510fdf8efc7eb9a3fda2193a21af31151372f3aff5f8f23170c72049f074345",
+      "lines": [
+        116
+      ],
+      "observation": "After Discovery completes, the pipeline reports the chosen approach (:116), which /pd-finalize already reported as the single final report that its parent reuses (pd-finalize.md:104-107; phase-discovery.md:178-179); the pipeline's final report restates the phase outcomes again (:153-156).",
+      "consequence": "The chosen approach is printed twice within one run and a third time in the final report.",
+      "owner": "11",
+      "closure": "The pipeline reuses /pd-finalize's report as a progress marker and adds only what it decides itself.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/phase-pipeline.md:116",
+        "workflows/phase-pipeline.md:153",
+        "workflows/pd-finalize.md:104",
+        "workflows/phase-discovery.md:178"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-044",
+      "type": "report-repeat",
+      "severity": "minor",
+      "source": "workflows/phase-execution.md",
+      "section": "## Execution",
+      "sha256": "00642cf36ffb64a08d8e2c2318871fcbd22263b972a7b973e0f0612a7ee6f4c6",
+      "lines": [
+        99,
+        100,
+        101
+      ],
+      "observation": "/phase-execution reports completed and skipped work, verification and paths and displays `Execution complete. Run /phase-validation <task-directory> to start validation.` (:100-101) right after /pe-finalize reported outcomes, verification and paths and displayed the same line (pe-finalize.md:106-107). /phase-validation repeats /pv-finalize's report the same way (phase-validation.md:105; pv-finalize.md:204-205). /phase-discovery avoids this by letting /pd-finalize supply the single final report (phase-discovery.md:178).",
+      "consequence": "Every Execution and Validation phase ends with two reports of the same outcome.",
+      "owner": "11",
+      "closure": "Both orchestrators reuse their finalizer's report, as /phase-discovery does, and add only the run-closing facts they own.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/phase-execution.md:100",
+        "workflows/phase-execution.md:101",
+        "workflows/pe-finalize.md:106",
+        "workflows/pe-finalize.md:107",
+        "workflows/phase-validation.md:105",
+        "workflows/pv-finalize.md:204",
+        "workflows/phase-discovery.md:178"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-045",
+      "type": "checkpoint-repeat",
+      "severity": "major",
+      "source": "workflows/pe-execute.md",
+      "section": "## Instructions",
+      "sha256": "5d4097666f7bd3bc1d343c10dd545db306b845cc74cba2ce21e43acf8d28316e",
+      "lines": [
+        72
+      ],
+      "observation": "Each leaf compresses the same parent state three times in one Execution: /pae-finalize after execution (pae-finalize.md:62), /pav-close after validation (pav-close.md:51) and /pe-execute right after the leaf is reviewed (:72), with no write between the last two. A composite check (phase-composite-validation.md:85), each fix cycle (pv-execute-fixes.md:43) and the orchestrated loop (spec-run.md:403) add further passes.",
+      "consequence": "Each pass reads the whole state and audits it against the protected-sections contract, so the cost grows with the number of leaves while the second and third pass of a leaf find nothing new.",
+      "owner": "13",
+      "closure": "One compression checkpoint per leaf cycle, owned by one workflow, with the others returning to it.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pe-execute.md:72",
+        "workflows/pae-finalize.md:62",
+        "workflows/pav-close.md:51",
+        "workflows/phase-composite-validation.md:85",
+        "workflows/pv-execute-fixes.md:43",
+        "workflows/spec-run.md:403"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-046",
+      "type": "checkpoint-repeat",
+      "severity": "minor",
+      "source": "workflows/pav-propose.md",
+      "section": "## Instructions",
+      "sha256": "e3c3ceb7b23138d248def0f04d698e8d48c6fc899887a28f939c5ae1bbdebf8b",
+      "lines": [
+        77
+      ],
+      "observation": "Proposals are recorded in `## Improvement Proposals (T-XX)` (:60-75) and their Do Later and Optional summaries are mirrored into the leaf's `notes:` (:77).",
+      "consequence": "The same record lives twice in one state file; /compress-state classifies such content as a duplicate to keep once (compress-state.md:25), so the mirror can be removed and later read from either place.",
+      "owner": "13",
+      "closure": "One location holds the proposals, and the leaf block points to it.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pav-propose.md:60",
+        "workflows/pav-propose.md:77",
+        "workflows/compress-state.md:25"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-047",
+      "type": "review-repeat",
+      "severity": "minor",
+      "source": "workflows/phase-pipeline.md",
+      "section": "## Step 0 — Bootstrap",
+      "sha256": "6510fdf8efc7eb9a3fda2193a21af31151372f3aff5f8f23170c72049f074345",
+      "lines": [
+        89,
+        90
+      ],
+      "observation": "For a spec input, the pipeline runs `phase-discovery` Step 0 in full for resolution (:89-92), then runs /phase-discovery (:105), whose Step 0 parses the arguments, reads the spec, checks prefix collisions and locates task directories again (phase-discovery.md:58-93) on inputs nothing has changed in between. /spec-run does the same (spec-run.md:103-105, :134).",
+      "consequence": "Every pipeline and orchestrated run repeats the Discovery input checks once per start or resume.",
+      "owner": "15",
+      "closure": "The resolution-only result is passed to /phase-discovery, which skips the checks whose inputs are unchanged.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/phase-pipeline.md:89",
+        "workflows/phase-pipeline.md:105",
+        "workflows/phase-discovery.md:54",
+        "workflows/phase-discovery.md:58",
+        "workflows/spec-run.md:103",
+        "workflows/spec-run.md:134"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-048",
+      "type": "review-repeat",
+      "severity": "minor",
+      "source": "workflows/pv-review.md",
+      "section": "## Instructions",
+      "sha256": "9275c0054e2ea95cfa9cdc8ee159e38a41ee842a35f1ff3f6bd91df98e0bf777",
+      "lines": [
+        40,
+        41
+      ],
+      "observation": "/pv-review reads the same task-owned file set that /pv-contract read immediately before (pv-contract.md:34-39), including the tests, and resolves the same `working_dir:` values; /phase-validation (:87-88) and /bugfix (:132) run the two steps back to back.",
+      "consequence": "Every Validation reads the unchanged implementation and test files twice; the two steps apply different criteria to the same inputs.",
+      "owner": "15",
+      "closure": "The second step reuses the file set and reading of the first in the same session, or the two reviews are one pass with two verdict sections.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pv-review.md:40",
+        "workflows/pv-contract.md:34",
+        "workflows/phase-validation.md:87",
+        "workflows/bugfix.md:132"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-049",
+      "type": "review-repeat",
+      "severity": "minor",
+      "source": "workflows/pv-execute-fixes.md",
+      "section": "## Instructions",
+      "sha256": "9d3e37bf7b399557f6e3653b60495f73c6a30d368157ccaf979f311c3f323e28",
+      "lines": [
+        46,
+        47
+      ],
+      "observation": "After the fixes, three places order a recheck of contract and review: /pv-execute-fixes re-runs /pv-contract and /pv-review for the changed surface (:47), /phase-validation asks to recheck the affected contract and review findings before finalization (phase-validation.md:101-102), and /pv-finalize reruns both when the evidence does not cover the changed surface (pv-finalize.md:51-52).",
+      "consequence": "The orchestrator's recheck can run the two reviews again on code that has not changed since /pv-execute-fixes reviewed it.",
+      "owner": "15",
+      "closure": "One owner of the post-fix recheck; the others confirm its recorded evidence covers the changed surface.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pv-execute-fixes.md:47",
+        "workflows/phase-validation.md:101",
+        "workflows/pv-finalize.md:51"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-050",
+      "type": "review-repeat",
+      "severity": "minor",
+      "source": "workflows/spec-draft.md",
+      "section": "## Step 6 — Devil's Advocate review",
+      "sha256": "6a9adbd77065104d229050626695734a95d7784171b18a399a9f06c7be1f1a00",
+      "lines": [
+        216,
+        217
+      ],
+      "observation": "Without sub-agents each critic round is a fresh pass that re-reads the spec and all Step 1 sources (:216-217), for up to ten rounds (:205). The Step 1 sources do not change between rounds, and the inline review is declared not independent anyway (:217-218).",
+      "consequence": "An inline loop re-reads unchanged project sources every round without gaining the independence the re-reading is meant to buy.",
+      "owner": "15",
+      "closure": "Inline rounds re-read only the changed spec and keep the Step 1 sources from the first round.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/spec-draft.md:205",
+        "workflows/spec-draft.md:216",
+        "workflows/spec-draft.md:218"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-051",
+      "type": "load-repeat",
+      "severity": "minor",
+      "source": "workflows/pae-tests.md",
+      "section": "## Pre-check",
+      "sha256": "2c5ab47354ecc64b5ac08223fd1f5439d4edb655f08530799a2670fd741a5438",
+      "lines": [
+        56,
+        57,
+        58
+      ],
+      "observation": "/pae-tests and /pae-implement load the `phase-atomic-execution` rule and \"run the full bootstrap even when standalone\" (pae-tests.md:56-58, pae-implement.md:53-55); /pae-finalize loads it again (:29-31). Under /phase-atomic-execution, which loaded it at :22, and inside one /spec-run worker that runs all three steps in the context it holds (spec-run.md:342-344), the rule is loaded three or four times per leaf. The rule itself reuses current sources (rules/phase-atomic-execution.md:10-14), so the repeat is the rule text and its bootstrap reports (:26, :28).",
+      "consequence": "Each atomic step reloads the rule and repeats the working-directory and loaded-file reports, and the workflow wording contradicts the rule's reuse clause.",
+      "owner": "12",
+      "closure": "The three steps load the rule only when no caller in the session has loaded it, as the rule's reuse clause states, and report the bootstrap once.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pae-tests.md:56",
+        "workflows/pae-implement.md:53",
+        "workflows/pae-finalize.md:30",
+        "workflows/phase-atomic-execution.md:22",
+        "workflows/spec-run.md:342",
+        "rules/phase-atomic-execution.md:10",
+        "rules/phase-atomic-execution.md:26"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-052",
+      "type": "load-repeat",
+      "severity": "major",
+      "source": "workflows/pe-finalize.md",
+      "section": "## Context Bootstrap",
+      "sha256": "6eba443770005d9d7734cb40e21d09a43caf03ba05bcee4c0d15cd7164efb384",
+      "lines": [
+        22,
+        23
+      ],
+      "observation": "/pe-finalize runs the `phase-execution` Context Bootstrap \"including standalone runs\", that is under /phase-execution as well, which ran it at phase-execution.md:53. /pv-create-fixes (:29) and /pv-finalize (:29) do the same under /phase-validation (:54). Unlike the atomic phase rules, the phase-execution and phase-validation rules have no reuse clause (rules/phase-execution.md:10-12, rules/phase-validation.md:10-12), so the seven bootstrap sources load again.",
+      "consequence": "Every Execution and Validation reloads the whole knowledge-base bootstrap inside the session that already holds it.",
+      "owner": "12",
+      "closure": "The three steps bootstrap only when invoked standalone, as /pe-execute does (pe-execute.md:23-24), or the two phase rules gain the reuse clause of the atomic rules.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pe-finalize.md:22",
+        "workflows/pv-create-fixes.md:29",
+        "workflows/pv-finalize.md:29",
+        "workflows/phase-execution.md:53",
+        "workflows/phase-validation.md:54",
+        "rules/phase-execution.md:10",
+        "rules/phase-validation.md:10",
+        "workflows/pe-execute.md:23"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-053",
+      "type": "load-repeat",
+      "severity": "minor",
+      "source": "workflows/pe-execute.md",
+      "section": "## Context Bootstrap",
+      "sha256": "5d4097666f7bd3bc1d343c10dd545db306b845cc74cba2ce21e43acf8d28316e",
+      "lines": [
+        23,
+        24
+      ],
+      "observation": "Children load their phase rule unconditionally while limiting the full bootstrap to standalone runs (pe-execute.md:23-24, pav-check.md:24-25, pv-contract.md:22-23, pv-review.md:27-28, pv-execute-fixes.md:26-27), or run the bootstrap in both modes where the rule's reuse clause keeps the sources (pav-close.md:26, pav-propose.md:18). Their parents loaded the same rule (phase-execution.md:53, phase-atomic-validation.md:21, phase-validation.md:54).",
+      "consequence": "The rule text is loaded again by each step of a phase; the general reuse rule (rules/workflow-globals.md:35-36) is not restated where the load is written.",
+      "owner": "12",
+      "closure": "The load sentence of each child is conditional on the rule not being loaded in the session.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pe-execute.md:23",
+        "workflows/pav-check.md:24",
+        "workflows/pav-close.md:26",
+        "workflows/pav-propose.md:18",
+        "workflows/pv-contract.md:22",
+        "workflows/pv-review.md:27",
+        "workflows/pv-execute-fixes.md:26",
+        "rules/workflow-globals.md:35"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-054",
+      "type": "load-repeat",
+      "severity": "major",
+      "source": "workflows/compress-state.md",
+      "section": "## Guard",
+      "sha256": "3b3ba3e8a057df347b35b79ce0b90bad5b64993c7667364c697ac308d311edf5",
+      "lines": [
+        12
+      ],
+      "observation": "/compress-state loads `workflow-reference → ## Protected Sections Contract` on every run, with no reuse condition. Its callers have already loaded the rule in the same session: /pd-finalize loads exactly that section (:25) before calling it (:75); /pe-finalize (:27), /pv-finalize (:30) and /pav-close (:32) load the whole rule; /pe-execute loads its model-resolution section (:42).",
+      "consequence": "Each compression, which runs several times per leaf (AUD-08-045), reloads part or all of a 634-line rule already in context.",
+      "owner": "12",
+      "closure": "The Guard loads the contract only when the caller has not loaded it in the session.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/compress-state.md:12",
+        "workflows/pd-finalize.md:25",
+        "workflows/pd-finalize.md:75",
+        "workflows/pe-finalize.md:27",
+        "workflows/pv-finalize.md:30",
+        "workflows/pav-close.md:32",
+        "workflows/pe-execute.md:42"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-055",
+      "type": "load-repeat",
+      "severity": "major",
+      "source": "workflows/bugfix.md",
+      "section": "## Step 5 — Verify and record",
+      "sha256": "aac676509ed85d2a239d94bbbf1e57d3869a27e6eb5dce46c94976b23acfdecf",
+      "lines": [
+        132
+      ],
+      "observation": "/bugfix loads the principles, architecture and state memory, ADR index and runbook in its Guard (:16-17) and later runs /pv-contract and /pv-review (:132). Neither runs under its parent orchestrator, so each performs the full `phase-validation` bootstrap (pv-contract.md:22-23, pv-review.md:27-28), whose rule has no reuse clause (rules/phase-validation.md:10-12); the standalone rule says never to assume pre-loaded context (rules/workflow-globals.md:35), while the next sentence reuses context within one parent invocation (:35-36).",
+      "consequence": "One defect fix loads the same seven sources three times, and the two global sentences give opposite answers for a non-orchestrator caller.",
+      "owner": "12",
+      "closure": "A caller that has loaded the bootstrap sources counts as the parent for reuse, and the two validation steps reuse them.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/bugfix.md:16",
+        "workflows/bugfix.md:132",
+        "workflows/pv-contract.md:22",
+        "workflows/pv-review.md:27",
+        "rules/phase-validation.md:10",
+        "rules/workflow-globals.md:35"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-056",
+      "type": "load-repeat",
+      "severity": "major",
+      "source": "workflows/pe-execute.md",
+      "section": "## Instructions",
+      "sha256": "5d4097666f7bd3bc1d343c10dd545db306b845cc74cba2ce21e43acf8d28316e",
+      "lines": [
+        41,
+        42
+      ],
+      "observation": "Within one Execution session `workflow-reference` is loaded at several call depths for every leaf: /pe-execute for model resolution (:41-42), /phase-atomic-execution for the same section (:76-77), /pae-implement twice for the classifier (pae-implement.md:125-126), /pae-finalize for the status translation table (:35), /pav-close for the same table (:32) and /compress-state for the protected sections (:12). These repeats lie two or three call levels apart, so no repeated-load candidate covers them.",
+      "consequence": "The 634-line rule is loaded several times per leaf; no workflow states that a load made earlier in the session is reused.",
+      "owner": "12",
+      "closure": "The rule, or the sections in use, is loaded once per session and reused by every deeper step while unchanged.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pe-execute.md:42",
+        "workflows/phase-atomic-execution.md:77",
+        "workflows/pae-implement.md:126",
+        "workflows/pae-finalize.md:35",
+        "workflows/pav-close.md:32",
+        "workflows/compress-state.md:12"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-057",
+      "type": "load-repeat",
+      "severity": "minor",
+      "source": "workflows/pav-check.md",
+      "section": "## Instructions",
+      "sha256": "bb006d445c9d6ee291ab3ed16ec698f641c382423d13f0a9c919c3d5638abcef",
+      "lines": [
+        55
+      ],
+      "observation": "/pav-check loads the `tdd` rule for its audit (:55) after /pae-tests loaded `tdd → ## Test-level gate` (pae-tests.md:76) and /pae-implement enforced its GREEN section (pae-implement.md:107) for the same leaf. Under /pe-execute both subtrees run in one session (pe-execute.md:63-67), two call levels below it; /spec-run avoids the repeat with a separate Validator worker (spec-run.md:365-374).",
+      "consequence": "The 226-line rule is loaded twice per leaf in a non-orchestrated Execution.",
+      "owner": "12",
+      "closure": "The validation step reuses the rule loaded by the execution steps of the same session, or loads only the sections it audits.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pav-check.md:55",
+        "workflows/pae-tests.md:76",
+        "workflows/pae-implement.md:107",
+        "workflows/pe-execute.md:63",
+        "workflows/spec-run.md:365"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-058",
+      "type": "other",
+      "severity": "minor",
+      "source": "workflows/PIPELINE.md",
+      "section": "## Child Workflows (Direct Step Access)",
+      "sha256": "639c2f3b0adc77ec0effcc9a7d84c9ec6ddc813064b4c25f84acb97a6afdf033",
+      "lines": [
+        140
+      ],
+      "observation": "The reference says /pv-classify-fixes is \"called by fix creation in orchestrated mode\", but /pv-create-fixes calls it in every mode before allocating fix-task IDs (pv-create-fixes.md:50-54), as /phase-validation states (:12, :90).",
+      "consequence": "A reader of the reference may skip classification outside /spec-run, and the fix IDs then lack the classification table that /pv-create-fixes reuses.",
+      "owner": "11",
+      "closure": "The reference row states that fix creation always calls the classifier.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/PIPELINE.md:140",
+        "workflows/pv-create-fixes.md:50",
+        "workflows/phase-validation.md:12",
+        "workflows/phase-validation.md:90"
       ],
       "edges": []
     }
