@@ -1,0 +1,14 @@
+scripts/check-audit-instructions.py
+  h_55b3d43804372f 2001-2022,2037-2038,2044,2052-2059,2190-2191,2193,2197-2242,2244,2266-2267,3115,3123,3129,3345-3969
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6928971681aac639e5761b4e3b9f317602dbb5a7",
+  "prompts": {},
+  "humans": {
+    "h_55b3d43804372f": {
+      "author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
