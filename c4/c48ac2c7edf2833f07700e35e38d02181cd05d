@@ -1,0 +1,19 @@
+scripts/check-finalization-safety.py
+  s_9c536b19227776::t_da6eb3c4bf81a5 241-327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c4c48ac2c7edf2833f07700e35e38d02181cd05d",
+  "prompts": {},
+  "sessions": {
+    "s_9c536b19227776": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1ea09-12e6-7ce0-a551-a8f1b0b99a8c",
+        "model": "unknown"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
