@@ -1,0 +1,93 @@
+.ai/adr/0024-task-unknown-multi-repository-spec-run.md
+  s_5a145215dff8bf::t_cc4df5c6dd6bf2 1-130
+.ai/adr/index.md
+  s_5a145215dff8bf::t_02b6eb016085b3 36
+.ai/context/runbook.md
+  s_5a145215dff8bf::t_cb2b3cd5619478 35-39,128-130
+.ai/memory/architecture.md
+  s_5a145215dff8bf::t_33e055f3d31147 22,91,147-148,172-174,343-361
+.ai/memory/progress.md
+  s_5a145215dff8bf::t_ba7d145e8bdfa2 146
+.ai/memory/state.md
+  s_5a145215dff8bf::t_897035bc651336 19
+.ai/principles/domain.md
+  s_5a145215dff8bf::t_bd98ef1d4d3bd6 40-43
+docs/USAGE.md
+  s_5a145215dff8bf::t_20b868cd29c013 585-588,861-862
+rules/git-flow.md
+  s_5a145215dff8bf::t_c7e3c85e16c960 35-37,298-364
+rules/orchestration.md
+  s_5a145215dff8bf::t_5de6c9265cc4c7 69-71
+rules/phase-atomic-execution.md
+  s_5a145215dff8bf::t_d11e3f943f829a 21-24
+rules/phase-atomic-validation.md
+  s_5a145215dff8bf::t_abaa1fda9fadbc 21
+rules/workflow-globals.md
+  s_5a145215dff8bf::t_474c8e58ba5e72 182,192-194,198-214
+rules/workflow-reference.md
+  s_5a145215dff8bf::t_94de5c3ad2a028 291-294
+scripts/README.md
+  s_5a145215dff8bf::t_2909c6c287f4f4 22-23
+scripts/repo-set.py
+  s_5a145215dff8bf::t_60b3ac04785162 1-682
+templates/.ai-umbrella/README.md
+  s_5a145215dff8bf::t_fa611e505064a6 58,70-71
+templates/subtask-description.md
+  s_5a145215dff8bf::t_4a686f3f3f49c0 9
+workflows/PIPELINE.md
+  s_5a145215dff8bf::t_ffe17281591cc5 157,169-172,174
+workflows/compress-state.md
+  s_5a145215dff8bf::t_8b78f266f0c88b 45-46
+workflows/pae-implement.md
+  s_5a145215dff8bf::t_de3629a18e184f 158-160
+workflows/pae-tests.md
+  s_5a145215dff8bf::t_c8825c4c067d1f 62-63,172
+workflows/pav-check.md
+  s_5a145215dff8bf::t_f886d815bfa4a9 47-48
+workflows/phase-discovery.md
+  s_9ffcb74080ebec::t_732058b34930dc 124-130
+workflows/restack.md
+  s_5a145215dff8bf::t_5f221d87f11002 5,8-11
+workflows/spec-run.md
+  s_8024eab928561c::t_a82cc1b3ebe558 5,12-50,91,100-102,109-110,121-122,136-138,235-256,279-285,359-361,371-372,386,392-397,413-415,431-434,442-443,458-463,481-482,490-494
+docs/SPEC-RUN-QUICKSTART.md
+  s_5a145215dff8bf::t_030e90511bcae2 23-61,187-190
+workflows/pd-decompose.md
+  s_5a145215dff8bf::t_90a405e4a631e2 123-134
+workflows/pv-classify-fixes.md
+  s_5a145215dff8bf::t_55f10722fb899d 51-53
+workflows/pv-create-fixes.md
+  s_5a145215dff8bf::t_c129a0612eb32f 126-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "56724a9c9fbe6b2433624fa1d5f0022397b2d42c",
+  "prompts": {},
+  "sessions": {
+    "s_5a145215dff8bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea228cfd-3630-4545-afdf-6b2a54f51340",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_8024eab928561c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e71c-21d4-79c3-90bf-5c7ca833e173",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_9ffcb74080ebec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc38276e-d819-4acd-ac7b-a035ad8deb45",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
