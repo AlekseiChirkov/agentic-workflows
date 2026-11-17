@@ -1998,6 +1998,28 @@ LINK = "harness/x/link.json"
 BLOB = "harness/x/blob.bin"
 GUIDE = "docs/GUIDE.md"
 SHARED_SENTENCE = "Every change keeps the recorded state on disk for later readers."
+PHASE_DISCOVERY = "rules/phase-discovery.md"
+PHASE_DISCOVERY_TEXT = (
+    "# Phase discovery\n\nThe phase starts here.\n\n## Codebase Reading Rules\n\n"
+    "- Inspect the target files before any proposal.\n"
+    "- Cite each observed line by its number.\n\n## Decision Protocol\n\n"
+    "Decide alone when the evidence is sufficient.\nRecord the decision with its reason.\n\n"
+    "## Other\n\nUnrelated text sits outside both sections.\n")
+STATEMENT_UNIT_LINES = (7, 8, 12)
+DISCOVERY_BOOTSTRAP = "rules/bootstrap-discovery.md"
+DISCOVERY_CONDUCT = "rules/protocol-discovery-conduct.md"
+AUTONOMOUS_DECISION = "rules/protocol-autonomous-decision.md"
+DISCOVERY_OVERFLOW = "rules/reference/discovery-examples.md"
+KIND_PREFIXED_RULE_RE = re.compile(r"rules/(bootstrap|contract|protocol|procedure)-[^/]+\.md")
+SPEC09_PATH = ".ai/specs/09-synthetic-migration.md"
+SPEC09_ANY = ".ai/specs/09-*.md:0"
+SPEC09_CURRENT = "The conduct rule covers every statement unit."
+SPEC09_TEXT = (
+    "# 09. Synthetic naming migration\n\n## Requirements\n\n"
+    f"- **REQ-21 Conduct coverage.** {SPEC09_CURRENT}\n\n## Acceptance Criteria\n\n"
+    "- **AC-05** — Given a map, then each target is checked.\n\n## Terminology\n\n"
+    "| Term | Meaning |\n|---|---|\n| Kind prefix | The first stem component |\n\n"
+    "## Notes\n\n### Ownership\n\nThe migration owns every rename.\n")
 
 VERIFY_FILES: dict[str, str | bytes] = {
     ALPHA: ("---\ntrigger: always_on\n---\n# Alpha flow\n\nIntro line.\n\n## Contract\n\n"
@@ -2012,18 +2034,28 @@ VERIFY_FILES: dict[str, str | bytes] = {
     CAPS: '{"name": "x"}\n',
     BLOB: b"\xff\xfe\n",
     GUIDE: "See rules/zz-gone.md for history.\n",
+    PHASE_DISCOVERY: PHASE_DISCOVERY_TEXT,
+    SPEC09_PATH: SPEC09_TEXT,
 }
 VERIFY_LINKS = {LINK: "caps.json"}
 VERIFY_KINDS = {
     ALPHA: ["contract", "reference"], DELTA: ["contract"], BETA: ["workflow"],
     GAMMA: ["workflow"], CAPS: ["adapter-config"], LINK: ["adapter-config"],
-    BLOB: ["adapter-config"],
+    BLOB: ["adapter-config"], PHASE_DISCOVERY: ["bootstrap", "protocol"],
 }
 VERIFY_SECTIONS = {
     ALPHA: [
         {"heading": "(preamble)", "kind": "contract", "proposed_home": ALPHA},
         {"heading": "## Contract", "kind": "contract", "proposed_home": ALPHA},
         {"heading": "## Example", "kind": "reference", "proposed_home": "rules/reference/alpha.md"},
+    ],
+    PHASE_DISCOVERY: [
+        {"heading": "(preamble)", "kind": "bootstrap", "proposed_home": DISCOVERY_BOOTSTRAP},
+        {"heading": "## Codebase Reading Rules", "kind": "protocol",
+         "proposed_home": DISCOVERY_CONDUCT},
+        {"heading": "## Decision Protocol", "kind": "protocol",
+         "proposed_home": DISCOVERY_CONDUCT},
+        {"heading": "## Other", "kind": "protocol", "proposed_home": DISCOVERY_CONDUCT},
     ],
 }
 LOAD_CONDITIONS = {(GAMMA, 5): "when the flow is active"}
@@ -2155,15 +2187,61 @@ def finding_rows(inventory: dict) -> list[dict]:
 
 
 def amendment_rows() -> list[dict]:
-    return [{"id": "AMD-08-01", "target": "REQ-01", "change": "editorial",
-             "current": "Current text.", "proposed": "Proposed text.",
+    return [{"id": "AMD-08-01", "target": "REQ-21", "change": "editorial",
+             "current": SPEC09_CURRENT, "proposed": "Proposed text.",
              "reason": "The reference names a heading that does not exist.",
-             "evidence": ["AUD-08-001"], "affected": [], "depends_on": [],
+             "evidence": ["AUD-08-001"], "affected": ["AC-05"], "depends_on": [],
              "requires_adr": False, "disposition": "proposed"}]
 
 
+def map_target(path: str, sections: list[str] | None = None,
+               merge_reason: str | None = None) -> dict:
+    return {"path": path, "sections": sections, "merge_reason": merge_reason}
+
+
+def default_of(targets: list[dict]) -> list[dict]:
+    """The migration default that equals the given targets."""
+    return [{"path": item["path"], "sections": copy.deepcopy(item["sections"])}
+            for item in targets]
+
+
+def map_row(entry: dict) -> dict:
+    """A non-deviating map entry: the discovery rule split by its own sections, every other
+    top-level rule renamed to a kind-prefixed stem, and every other path kept."""
+    source = entry["path"]
+    optional: list[str] = []
+    if source == PHASE_DISCOVERY:
+        headings = [item["heading"] for item in entry["sections"]]
+        decision = "split"
+        targets = [map_target(DISCOVERY_BOOTSTRAP, headings[:1]),
+                   map_target(DISCOVERY_CONDUCT, headings[1:])]
+        optional = [DISCOVERY_OVERFLOW]
+    elif re.fullmatch(r"rules/[^/]+\.md", source) and not KIND_PREFIXED_RULE_RE.fullmatch(source):
+        decision, targets = "rename", [map_target("rules/contract-" + source[len("rules/"):])]
+    else:
+        decision, targets = "keep", [map_target(source)]
+    default = default_of(targets)
+    return {"source": source, "decision": decision,
+            "targets": targets + [map_target(path) for path in optional],
+            "spec09_default": default, "spec09_optional": optional, "amendment": None}
+
+
+def statement(line: int, covered_by: str | None = f"{ALPHA}:9") -> dict:
+    return {"source": f"{PHASE_DISCOVERY}:{line}", "text": "A statement of the rule.",
+            "covered_by": covered_by}
+
+
+def req21_record(inventory: dict) -> dict:
+    """One covered statement per statement unit of the fixture's discovery rule; none when a
+    case replaced that rule by text without the two sections."""
+    entry = inventory_entry(inventory, PHASE_DISCOVERY)
+    lines = (STATEMENT_UNIT_LINES if entry["sha256"] == sha256(PHASE_DISCOVERY_TEXT.encode())
+             else ())
+    return {"verdict": "covered", "statements": [statement(line) for line in lines]}
+
+
 def valid_assessment(inventory: dict) -> dict:
-    """A fully valid assessment of the verify fixture; map and req21 are placeholders."""
+    """A fully valid assessment of the verify fixture, map and statement coverage included."""
     audited = {entry["path"] for entry in inventory["files"]}
     files = [files_row(entry) for entry in inventory["files"]]
     for row in files:
@@ -2185,8 +2263,8 @@ def valid_assessment(inventory: dict) -> dict:
                     "role": "example", "note": "Names a former harness."}
                    for item in inventory["legacy_mentions"]],
         "duplicate_groups": group_rows(inventory),
-        "map": [],
-        "req21": {"verdict": "covered", "statements": []},
+        "map": [map_row(entry) for entry in inventory["files"]],
+        "req21": req21_record(inventory),
         "findings": finding_rows(inventory),
         "amendments": amendment_rows(),
         "installed": [],
@@ -3034,7 +3112,7 @@ class VerifyDepthTests(SharedVerifyCase):
             ("amendment field", lambda value: value["amendments"][0].update(
                 current=deeply_nested("Costs $5.")), "AMD-08-01"),
             ("map entry", lambda value: value["map"].append(deeply_nested("Costs $5.")),
-             "map[0]"),
+             f"map[{len(self.inventory['files'])}]"),
         )
         for name, fault, fragment_text in cases:
             with self.subTest(case=name):
@@ -3042,13 +3120,13 @@ class VerifyDepthTests(SharedVerifyCase):
                 fault(value)
                 result = self.verify(text=compact(value))
                 self.assertNotIn("Traceback", result.stderr)
-                self.assert_reports(result, [("economics-claim", assessment_at(fragment_text))])
+                self.assert_reports(result, [("assessment-invalid", assessment_at(fragment_text))])
 
     def test_deeply_nested_values_without_amounts_are_silent(self) -> None:
         self.assessment["req21"]["statements"] = deeply_nested([])
         result = self.verify(text=compact(self.assessment))
         self.assertNotIn("Traceback", result.stderr)
-        self.assert_silent(result)
+        self.assert_reports(result, [("assessment-invalid", assessment_at("req21"))])
 
 
 class VerifyDeepTreeTests(VerifyAssertions):
@@ -3263,6 +3341,631 @@ class VerifyOutputBoundaryTreeTests(VerifyAssertions):
         self.assertEqual(len(lines), 1, lines)
         self.assertTrue(lines[0].startswith("ERROR: "), lines)
 
+
+class MigrationMapCase(SharedVerifyCase):
+    """Cases that vary the map, the amendments or the statement coverage of the valid pair."""
+
+    def map_index(self, source: str) -> int:
+        return row_index(self.assessment["map"], "source", source)
+
+    def map_entry(self, source: str) -> dict:
+        return self.assessment["map"][self.map_index(source)]
+
+    def map_at(self, source: str) -> str:
+        return assessment_at(f"map[{self.map_index(source)}]")
+
+    def last_map_at(self) -> str:
+        return assessment_at(f"map[{len(self.assessment['map']) - 1}]")
+
+    def retarget(self, source: str, decision: str, targets: list[dict]) -> dict:
+        """Give an entry new targets and the default equal to them, so it does not deviate."""
+        entry = self.map_entry(source)
+        entry.update(decision=decision, targets=targets, spec09_default=default_of(targets),
+                     spec09_optional=[])
+        return entry
+
+    def split_discovery(self, bootstrap: list[str], conduct: list[str],
+                        conduct_path: str = DISCOVERY_CONDUCT) -> dict:
+        """Split the discovery rule into two sectioned targets plus the overflow target."""
+        entry = self.retarget(PHASE_DISCOVERY, "split", [
+            map_target(DISCOVERY_BOOTSTRAP, bootstrap), map_target(conduct_path, conduct)])
+        entry["targets"].append(map_target(DISCOVERY_OVERFLOW))
+        entry["spec09_optional"] = [DISCOVERY_OVERFLOW]
+        return entry
+
+    def add_amendment(self, **changes: object) -> str:
+        """Append a valid second amendment with the given field values; return its id."""
+        amendment = copy.deepcopy(self.assessment["amendments"][0])
+        amendment.update(id="AMD-08-02", evidence=[f"{BETA}:9"])
+        amendment.update(changes)
+        self.assessment["amendments"].append(amendment)
+        return amendment["id"]
+
+
+DISCOVERY_SECTIONS = ["(preamble)", "## Codebase Reading Rules", "## Decision Protocol",
+                      "## Other"]
+
+
+class VerifyMapRowTests(MigrationMapCase):
+    def test_valid_pair_holds_one_map_entry_per_audited_path_and_a_split_with_overflow(
+            self) -> None:
+        self.assertEqual(sorted(entry["source"] for entry in self.assessment["map"]),
+                         sorted(entry["path"] for entry in self.inventory["files"]))
+        discovery = self.map_entry(PHASE_DISCOVERY)
+        self.assertEqual(discovery["targets"][-1], map_target(DISCOVERY_OVERFLOW))
+        self.assertEqual(discovery["spec09_optional"], [DISCOVERY_OVERFLOW])
+        self.assertEqual([item["source"] for item in self.assessment["req21"]["statements"]],
+                         [f"{PHASE_DISCOVERY}:{line}" for line in STATEMENT_UNIT_LINES])
+        self.assert_silent(self.verify())
+        self.assessment["map"].pop(self.map_index(DELTA))
+        self.assert_reports(self.verify(), [("row-missing", f"{DELTA}:0")])
+
+    def test_map_entry_for_a_path_outside_the_audited_set_is_row_extra(self) -> None:
+        self.assessment["map"].append(copy.deepcopy(self.map_entry(DELTA)) | {"source": GUIDE})
+        self.assert_reports(self.verify(), [("row-extra", self.last_map_at())])
+
+    def test_second_map_entry_for_one_source_is_row_duplicate_only(self) -> None:
+        self.assessment["map"].append(copy.deepcopy(self.map_entry(DELTA)))
+        self.assert_reports(self.verify(), [("row-duplicate", self.last_map_at())])
+
+
+class VerifyMapShapeTests(MigrationMapCase):
+    def test_decision_target_shapes_are_map_invalid(self) -> None:
+        renamed = "rules/contract-delta-rule.md"
+        faults: tuple[tuple[str, str, list[dict]], ...] = (
+            ("keep with another target", "keep", [map_target(renamed)]),
+            ("keep with two targets", "keep",
+             [map_target(renamed), map_target("rules/contract-delta-extra.md")]),
+            ("rename into another directory", "rename",
+             [map_target("rules/sub/contract-delta-rule.md")]),
+            ("move within its own directory", "move",
+             [map_target("rules/contract-delta-moved.md")]),
+            ("split with one target", "split", [map_target(renamed, ["(preamble)"])]),
+            ("merge into a target no other entry shares", "merge",
+             [map_target(renamed, None, "Both rules state one contract.")]),
+            ("no target", "rename", []),
+            ("one target path twice", "split",
+             [map_target(renamed, ["(preamble)"]), map_target(renamed)]),
+            ("section that is not a heading of the source", "rename",
+             [map_target(renamed, ["## Nowhere"])]),
+            ("blank merge reason", "rename", [map_target(renamed, None, "  ")]),
+        )
+        for name, decision, targets in faults:
+            with self.subTest(fault=name):
+                self.setUp()
+                self.retarget(DELTA, decision, targets)
+                self.assert_reports(self.verify(), [("map-invalid", self.map_at(DELTA))])
+        accepted: tuple[tuple[str, str, str, list[dict]], ...] = (
+            ("move into another directory", DELTA, "move",
+             [map_target("rules/reference/delta.md")]),
+            ("move with the same name", DELTA, "move",
+             [map_target("rules/reference/delta-rule.md")]),
+            ("keep with sections of the source", BETA, "keep", [map_target(BETA, ["(preamble)"])]),
+        )
+        for name, source, decision, targets in accepted:
+            with self.subTest(accepted=name):
+                self.setUp()
+                self.retarget(source, decision, targets)
+                self.assert_silent(self.verify())
+
+    def test_map_schema_violations_are_assessment_invalid(self) -> None:
+        def unknown_decision(entry: dict) -> None:
+            entry["decision"] = "copy"
+
+        def missing_key(entry: dict) -> None:
+            del entry["amendment"]
+
+        def absolute_target(entry: dict) -> None:
+            entry["targets"][0]["path"] = "/rules/contract-delta-rule.md"
+
+        def optional_not_a_list(entry: dict) -> None:
+            entry["spec09_optional"] = None
+
+        def malformed_amendment_id(entry: dict) -> None:
+            entry["amendment"] = "AMD-8-1"
+
+        def default_without_sections(entry: dict) -> None:
+            del entry["spec09_default"][0]["sections"]
+
+        for fault in (unknown_decision, missing_key, absolute_target, optional_not_a_list,
+                      malformed_amendment_id, default_without_sections):
+            with self.subTest(fault=fault.__name__):
+                self.setUp()
+                fault(self.map_entry(DELTA))
+                self.assert_reports(self.verify(), [("assessment-invalid", self.map_at(DELTA))])
+
+
+class VerifySplitTests(MigrationMapCase):
+    def test_split_that_omits_repeats_or_invents_a_section_is_split_sections_incomplete(
+            self) -> None:
+        faults = (
+            ("omits a section", ["(preamble)"], DISCOVERY_SECTIONS[1:3]),
+            ("repeats a section", ["(preamble)", "## Other"], DISCOVERY_SECTIONS[1:]),
+            ("names a heading the source lacks", ["(preamble)"],
+             DISCOVERY_SECTIONS[1:] + ["## Missing"]),
+        )
+        for name, bootstrap, conduct in faults:
+            with self.subTest(fault=name):
+                self.setUp()
+                self.split_discovery(bootstrap, conduct)
+                self.assert_reports(self.verify(), [("split-sections-incomplete",
+                                                     self.map_at(PHASE_DISCOVERY))])
+        with self.subTest(accepted="sections moved between targets, overflow left out"):
+            self.setUp()
+            self.split_discovery(DISCOVERY_SECTIONS[:2], DISCOVERY_SECTIONS[2:])
+            self.assert_silent(self.verify())
+
+
+class VerifySharedTargetTests(MigrationMapCase):
+    def test_shared_target_without_a_merge_reason_on_every_sharer_is_map_collision(
+            self) -> None:
+        alpha_target = self.map_entry(ALPHA)["targets"][0]
+        self.map_entry(DELTA).update(
+            decision="merge", amendment="AMD-08-01",
+            targets=[map_target(alpha_target["path"], None, "Both rules state one contract.")])
+        self.assert_reports(self.verify(), [("map-collision", self.map_at(ALPHA))])
+        alpha_target["merge_reason"] = "The delta rule joins this contract."
+        self.assert_silent(self.verify())
+
+    def test_two_sources_merged_into_one_new_target_need_both_reasons(self) -> None:
+        merged = "rules/contract-merged.md"
+        for source in (ALPHA, DELTA):
+            self.map_entry(source).update(decision="merge", amendment="AMD-08-01",
+                                          targets=[map_target(merged)])
+        self.assert_reports(self.verify(), [("map-collision", self.map_at(ALPHA)),
+                                            ("map-collision", self.map_at(DELTA))])
+        for source in (ALPHA, DELTA):
+            self.map_entry(source)["targets"][0]["merge_reason"] = "One contract remains."
+        self.assert_silent(self.verify())
+
+
+class VerifyInstalledNameTests(MigrationMapCase):
+    def test_final_installed_names_equal_under_casefolding_collide(self) -> None:
+        with self.subTest(case="rule-A-b and rule-a-b"):
+            self.retarget(ALPHA, "rename", [map_target("rules/A-b.md")])
+            self.retarget(DELTA, "rename", [map_target("rules/a-b.md")])
+            self.assert_reports(self.verify(), [
+                ("installed-name-collision", self.map_at(ALPHA)),
+                ("installed-name-collision", self.map_at(DELTA)),
+                ("kind-prefix-invalid", self.map_at(ALPHA)),
+                ("kind-prefix-invalid", self.map_at(DELTA))])
+        with self.subTest(case="sharp s folds to ss"):
+            self.setUp()
+            self.retarget(ALPHA, "rename", [map_target("rules/contract-straße.md")])
+            self.retarget(DELTA, "rename", [map_target("rules/contract-strasse.md")])
+            self.assert_reports(self.verify(), [
+                ("installed-name-collision", self.map_at(ALPHA)),
+                ("installed-name-collision", self.map_at(DELTA))])
+        with self.subTest(case="workflow named like the skill of a rule"):
+            self.setUp()
+            self.retarget(BETA, "rename", [map_target("workflows/rule-contract-alpha-flow.md")])
+            self.assert_reports(self.verify(), [
+                ("installed-name-collision", self.map_at(ALPHA)),
+                ("installed-name-collision", self.map_at(BETA))])
+        with self.subTest(accepted="paths below rules/reference/ are not deployed"):
+            self.setUp()
+            self.retarget(ALPHA, "move", [map_target("rules/reference/Alpha.md")])
+            self.retarget(DELTA, "move", [map_target("rules/reference/alpha.md")])
+            self.assert_silent(self.verify())
+
+    def test_final_rule_stem_equal_to_a_final_workflow_stem_is_stem_overlap(self) -> None:
+        self.retarget(BETA, "rename", [map_target("workflows/contract-alpha-flow.md")])
+        self.assert_reports(self.verify(), [("stem-overlap", self.map_at(ALPHA)),
+                                            ("stem-overlap", self.map_at(BETA))])
+
+    def test_top_level_rule_target_without_a_kind_prefix_is_kind_prefix_invalid(self) -> None:
+        self.retarget(DELTA, "rename", [map_target("rules/plain.md")])
+        self.assert_reports(self.verify(), [("kind-prefix-invalid", self.map_at(DELTA))])
+        for name, target in (("reference directory", "rules/reference/plain.md"),
+                             ("procedure prefix", "rules/procedure-delta-rule.md")):
+            with self.subTest(accepted=name):
+                self.setUp()
+                decision = "move" if "/reference/" in target else "rename"
+                self.retarget(DELTA, decision, [map_target(target)])
+                self.assert_silent(self.verify())
+
+
+class VerifyDeviationTests(MigrationMapCase):
+    def test_targets_unequal_to_the_default_need_an_amendment(self) -> None:
+        entry = self.map_entry(DELTA)
+        entry["targets"] = [map_target("rules/contract-delta-renamed.md")]
+        self.assert_reports(self.verify(), [("deviation-unamended", self.map_at(DELTA))])
+        entry["amendment"] = "AMD-08-01"
+        self.assert_silent(self.verify())
+
+    def test_null_default_needs_an_amendment(self) -> None:
+        entry = self.map_entry(CAPS)
+        entry["spec09_default"] = None
+        self.assert_reports(self.verify(), [("deviation-unamended", self.map_at(CAPS))])
+        entry["amendment"] = "AMD-08-01"
+        self.assert_silent(self.verify())
+
+    def test_default_plus_one_optional_path_is_no_deviation_and_another_path_is(self) -> None:
+        extra = "rules/reference/delta-extra.md"
+        entry = self.retarget(DELTA, "split", [
+            map_target("rules/contract-delta-rule.md", ["(preamble)"])])
+        entry["targets"].append(map_target(extra))
+        entry["spec09_optional"] = [extra]
+        self.assert_silent(self.verify())
+        entry["spec09_optional"] = []
+        self.assert_reports(self.verify(), [("deviation-unamended", self.map_at(DELTA))])
+
+    def test_section_sets_order_and_optional_targets_decide_deviation(self) -> None:
+        with self.subTest(case="same paths, other sections"):
+            entry = self.split_discovery(DISCOVERY_SECTIONS[:1], DISCOVERY_SECTIONS[1:])
+            entry["targets"][0]["sections"] = DISCOVERY_SECTIONS[:2]
+            entry["targets"][1]["sections"] = DISCOVERY_SECTIONS[2:]
+            self.assert_reports(self.verify(),
+                                [("deviation-unamended", self.map_at(PHASE_DISCOVERY))])
+        with self.subTest(case="default target missing"):
+            self.setUp()
+            entry = self.map_entry(DELTA)
+            entry["spec09_default"].append({"path": "rules/contract-delta-more.md",
+                                            "sections": None})
+            self.assert_reports(self.verify(), [("deviation-unamended", self.map_at(DELTA))])
+        with self.subTest(accepted="targets in another order, overflow left out"):
+            self.setUp()
+            entry = self.split_discovery(DISCOVERY_SECTIONS[:1], DISCOVERY_SECTIONS[1:])
+            entry["targets"] = [entry["targets"][1], entry["targets"][0]]
+            entry["targets"][1]["sections"] = list(reversed(DISCOVERY_SECTIONS[:1]))
+            self.assert_silent(self.verify())
+
+    def test_conduct_rule_replacement_is_no_deviation_only_while_coverage_is_covered(
+            self) -> None:
+        def replace_conduct_rule() -> dict:
+            entry = self.split_discovery(DISCOVERY_SECTIONS[:1], DISCOVERY_SECTIONS[1:])
+            entry["targets"][1]["path"] = AUTONOMOUS_DECISION
+            return entry
+
+        with self.subTest(case="covered"):
+            replace_conduct_rule()
+            self.assert_silent(self.verify())
+        with self.subTest(case="not covered"):
+            self.setUp()
+            replace_conduct_rule()
+            self.assessment["req21"]["verdict"] = "not-covered"
+            self.assessment["req21"]["statements"][0]["covered_by"] = None
+            self.assert_reports(self.verify(),
+                                [("deviation-unamended", self.map_at(PHASE_DISCOVERY))])
+        with self.subTest(case="covered, with other sections"):
+            self.setUp()
+            entry = replace_conduct_rule()
+            entry["targets"][1]["sections"] = DISCOVERY_SECTIONS[1:3]
+            entry["targets"][0]["sections"] = ["(preamble)", "## Other"]
+            self.assert_reports(self.verify(),
+                                [("deviation-unamended", self.map_at(PHASE_DISCOVERY))])
+
+    def test_map_amendment_naming_no_amendment_is_reference_unknown(self) -> None:
+        with self.subTest(case="deviating entry"):
+            entry = self.map_entry(DELTA)
+            entry.update(targets=[map_target("rules/contract-delta-renamed.md")],
+                         amendment="AMD-08-09")
+            self.assert_reports(self.verify(), [("deviation-unamended", self.map_at(DELTA)),
+                                                ("reference-unknown", self.map_at(DELTA))])
+        with self.subTest(case="entry equal to its default"):
+            self.setUp()
+            self.map_entry(ALPHA)["amendment"] = "AMD-08-09"
+            self.assert_reports(self.verify(), [("reference-unknown", self.map_at(ALPHA))])
+
+
+class VerifyAmendmentTests(MigrationMapCase):
+    def test_amendment_target_absent_from_the_migration_specification_is_target_unknown(
+            self) -> None:
+        for target in ("REQ-99", "Notes:Missing", "REQ-2", "Notes:Owner",
+                       "Terminology:Kind", "Section 4", "AC-05 and AC-06"):
+            with self.subTest(target=target):
+                self.setUp()
+                amendment = self.add_amendment(target=target)
+                self.assert_reports(self.verify(), [("amendment-target-unknown",
+                                                     assessment_at(amendment))])
+
+    def test_amendment_target_forms_present_in_the_migration_specification_are_accepted(
+            self) -> None:
+        self.add_amendment(target="Q-01")
+        self.assert_reports(self.verify(), [("amendment-target-unknown",
+                                             assessment_at("AMD-08-02"))])
+        cases = (
+            ("AC-05", "- **AC-05** — Given a map, then each target is checked."),
+            ("Notes:Ownership", "The migration owns every rename."),
+            ("Terminology:Kind prefix", "| Kind prefix | The first stem component |"),
+            ("new-REQ", None),
+            ("new-AC", None),
+        )
+        for target, current in cases:
+            with self.subTest(target=target):
+                self.setUp()
+                self.add_amendment(target=target, current=current)
+                self.assert_silent(self.verify())
+
+    def test_affected_id_absent_from_the_migration_specification_is_target_unknown(
+            self) -> None:
+        for affected in ("AC-99", "AC-5"):
+            with self.subTest(affected=affected):
+                self.setUp()
+                amendment = self.add_amendment(affected=["AC-05", affected])
+                self.assert_reports(self.verify(), [("amendment-target-unknown",
+                                                     assessment_at(amendment))])
+
+    def test_amendment_field_faults_are_amendment_invalid(self) -> None:
+        faults: tuple[tuple[str, dict], ...] = (
+            ("no evidence", {"evidence": []}),
+            ("new requirement with current text", {"target": "new-REQ"}),
+            ("existing target without current text", {"current": None}),
+            ("current text absent from the specification", {"current": "Text never written."}),
+            ("blank proposed text", {"proposed": " "}),
+            ("blank reason", {"reason": ""}),
+            ("evidence that is no finding id or path:line", {"evidence": ["see the finding"]}),
+            ("affected id that is not an acceptance criterion", {"affected": ["REQ-21"]}),
+        )
+        for name, changes in faults:
+            with self.subTest(fault=name):
+                self.setUp()
+                amendment = self.add_amendment(**changes)
+                self.assert_reports(self.verify(), [("amendment-invalid",
+                                                     assessment_at(amendment))])
+
+    def test_amendment_citing_an_unknown_finding_or_amendment_is_reference_unknown(
+            self) -> None:
+        for name, changes in (("finding", {"evidence": ["AUD-08-001", "AUD-08-099"]}),
+                              ("dependency", {"depends_on": ["AMD-08-07"]})):
+            with self.subTest(cited=name):
+                self.setUp()
+                amendment = self.add_amendment(**changes)
+                self.assert_reports(self.verify(), [("reference-unknown",
+                                                     assessment_at(amendment))])
+        self.setUp()
+        self.add_amendment(evidence=["AUD-08-001", f"{BETA}:9"], depends_on=["AMD-08-01"])
+        self.assert_silent(self.verify())
+
+    def test_amendment_schema_violations_are_assessment_invalid(self) -> None:
+        faults: tuple[tuple[str, dict], ...] = (
+            ("change outside its set", {"change": "rewrite"}),
+            ("disposition outside its set", {"disposition": "accepted"}),
+            ("requires_adr not a boolean", {"requires_adr": "no"}),
+            ("malformed dependency id", {"depends_on": ["AMD-8-1"]}),
+            ("unknown key", {"note": "Extra."}),
+        )
+        for name, changes in faults:
+            with self.subTest(fault=name):
+                self.setUp()
+                amendment = self.add_amendment(**changes)
+                self.assert_reports(self.verify(), [("assessment-invalid",
+                                                     assessment_at(amendment))])
+        for name, change in (("missing key", lambda item: item.pop("depends_on")),
+                             ("repeated id", lambda item: item.update(id="AMD-08-01"))):
+            with self.subTest(fault=name):
+                self.setUp()
+                self.add_amendment()
+                change(self.assessment["amendments"][1])
+                self.assert_codes(self.verify(), "assessment-invalid", assessment_at("AMD-08-0"))
+
+
+class VerifyStatementCoverageTests(MigrationMapCase):
+    def test_statements_must_be_one_per_unit_of_the_two_sections(self) -> None:
+        statements = self.assessment["req21"]["statements"]
+        added_at = assessment_at(f"req21.statements[{len(statements)}]")
+        faults: tuple[tuple[str, Callable[[list[dict]], None], str], ...] = (
+            ("two of three units", lambda items: items.pop(2), f"{PHASE_DISCOVERY}:12"),
+            ("a line outside the two sections",
+             lambda items: items.append(statement(17)), added_at),
+            ("a line inside a unit that starts no unit",
+             lambda items: items.append(statement(13)), added_at),
+            ("a heading line", lambda items: items.append(statement(10)), added_at),
+            ("a unit listed twice", lambda items: items.append(statement(7)), added_at),
+            ("a line of another file",
+             lambda items: items.append(statement(7) | {"source": f"{ALPHA}:7"}), added_at),
+        )
+        for name, fault, location in faults:
+            with self.subTest(fault=name):
+                self.setUp()
+                fault(self.assessment["req21"]["statements"])
+                self.assert_reports(self.verify(), [("req21-invalid", location)])
+
+    def test_verdict_must_agree_with_the_covered_by_values(self) -> None:
+        with self.subTest(fault="covered with a null covered_by"):
+            self.assessment["req21"]["statements"][1]["covered_by"] = None
+            self.assert_reports(self.verify(), [("req21-invalid", assessment_at("req21"))])
+        with self.subTest(fault="not-covered with every unit covered"):
+            self.setUp()
+            self.assessment["req21"]["verdict"] = "not-covered"
+            self.assert_reports(self.verify(), [("req21-invalid", assessment_at("req21"))])
+        with self.subTest(accepted="not-covered with a null covered_by"):
+            self.setUp()
+            self.assessment["req21"]["verdict"] = "not-covered"
+            self.assessment["req21"]["statements"][1]["covered_by"] = None
+            self.assert_silent(self.verify())
+
+    def test_statement_coverage_schema_violations_are_assessment_invalid(self) -> None:
+        def verdict(record: dict) -> None:
+            record["verdict"] = "partly"
+
+        def statements_not_a_list(record: dict) -> None:
+            record["statements"] = {}
+
+        def statement_missing_key(record: dict) -> None:
+            del record["statements"][0]["text"]
+
+        def covered_by_not_a_line(record: dict) -> None:
+            record["statements"][0]["covered_by"] = "the alpha rule"
+
+        for fault in (verdict, statements_not_a_list, statement_missing_key,
+                      covered_by_not_a_line):
+            with self.subTest(fault=fault.__name__):
+                self.setUp()
+                fault(self.assessment["req21"])
+                self.assert_reports(self.verify(), [("assessment-invalid",
+                                                     assessment_at("req21"))])
+
+
+UNIT_TABLE: tuple[tuple[str, bool], ...] = (
+    ("---", False),
+    ("description: Phase discovery fixture", False),
+    ("---", False),
+    ("# Phase discovery", False),
+    ("", False),
+    ("## Codebase Reading Rules", False),
+    ("- First item", True),
+    ("  continues here", False),
+    ("  - nested item", True),
+    ("* star item", True),
+    ("1) numbered item", True),
+    ("2. dotted item", True),
+    ("| Column | Value |", True),
+    ("|---|---|", False),
+    ("| Row | One |", True),
+    ("", False),
+    ("```text", True),
+    ("## Not a section", False),
+    ("- not an item", False),
+    ("", False),
+    ("inside the fence", False),
+    ("```", False),
+    ("After the fence without a blank line.", False),
+    ("", False),
+    ("Paragraph after a blank line", True),
+    ("still the same paragraph.", False),
+    ("### Heading inside the paragraph", False),
+    ("   ", False),
+    ("### Heading after a blank line", True),
+    ("", False),
+    ("## Decision Protocol", False),
+    ("Directly after the heading.", True),
+    ("", False),
+    ("## Trailing", False),
+    ("Outside both sections.", False),
+)
+UNIT_STARTS = [number for number, (_, starts) in enumerate(UNIT_TABLE, start=1) if starts]
+
+
+class VerifyStatementUnitTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+    verify = VerifyTreeTests.verify
+
+    def discovery_root(self, name: str, text: str) -> tuple[FixtureRoot, dict]:
+        """A root whose discovery rule is `text`, with a files row naming its sections."""
+        fixture, inventory = self.build(name, extra={PHASE_DISCOVERY: text})
+        assessment = valid_assessment(inventory)
+        row = assessment["files"][row_index(assessment["files"], "path", PHASE_DISCOVERY)]
+        row["sections"] = [{"heading": item["heading"], "kind": "protocol",
+                            "proposed_home": DISCOVERY_CONDUCT}
+                           for item in inventory_entry(inventory, PHASE_DISCOVERY)["sections"]]
+        return fixture, assessment
+
+    def verify_statements(self, fixture: FixtureRoot, assessment: dict,
+                          lines: list[int]) -> subprocess.CompletedProcess[str]:
+        assessment["req21"] = {"verdict": "covered",
+                               "statements": [statement(line) for line in lines]}
+        (fixture.root / ASSESSMENT_PATH).write_text(canonical(assessment), encoding="utf-8")
+        return self.verify(fixture)
+
+    def test_units_start_at_list_items_table_rows_fences_and_paragraphs(self) -> None:
+        for ending in ("\n", "\r\n"):
+            with self.subTest(line_ending=repr(ending)):
+                text = "".join(line + ending for line, _ in UNIT_TABLE)
+                fixture, assessment = self.discovery_root(f"units{len(ending)}", text)
+                self.assert_silent(self.verify_statements(fixture, assessment, UNIT_STARTS))
+                fence = UNIT_STARTS.index(17)
+                self.assert_reports(
+                    self.verify_statements(fixture, assessment,
+                                           UNIT_STARTS[:fence] + UNIT_STARTS[fence + 1:]),
+                    [("req21-invalid", f"{PHASE_DISCOVERY}:17")])
+                for line in (8, 14, 18, 19, 23, 26, 27, 35):
+                    self.assert_reports(
+                        self.verify_statements(fixture, assessment, UNIT_STARTS + [line]),
+                        [("req21-invalid", assessment_at(f"req21.statements[{len(UNIT_STARTS)}]"))])
+
+    def test_rule_without_the_two_sections_has_no_statement_units(self) -> None:
+        fixture, assessment = self.discovery_root(
+            "no-sections", "# Phase discovery\n\n## Other\n\nPlain text here.\n")
+        self.assert_silent(self.verify_statements(fixture, assessment, []))
+        self.assert_reports(self.verify_statements(fixture, assessment, [5]),
+                            [("req21-invalid", assessment_at("req21.statements[0]"))])
+
+    def test_first_line_directly_after_the_section_heading_starts_a_unit_even_a_heading(
+            self) -> None:
+        fixture, assessment = self.discovery_root(
+            "after-heading", "# Phase discovery\n\n## Codebase Reading Rules\n### Sub rule\n"
+            "Text of the sub rule.\n\n## Decision Protocol\n\nOne paragraph.\n")
+        self.assert_silent(self.verify_statements(fixture, assessment, [4, 9]))
+        self.assert_reports(self.verify_statements(fixture, assessment, [9]),
+                            [("req21-invalid", f"{PHASE_DISCOVERY}:4")])
+        self.assert_reports(self.verify_statements(fixture, assessment, [4, 9, 5]),
+                            [("req21-invalid", assessment_at("req21.statements[2]"))])
+
+    def test_not_covered_verdict_with_no_statement_is_req21_invalid(self) -> None:
+        fixture, assessment = self.discovery_root(
+            "vacuous", "# Phase discovery\n\n## Other\n\nPlain text here.\n")
+        assessment["req21"] = {"verdict": "not-covered", "statements": []}
+        (fixture.root / ASSESSMENT_PATH).write_text(canonical(assessment), encoding="utf-8")
+        self.assert_reports(self.verify(fixture), [("req21-invalid", assessment_at("req21"))])
+
+
+class VerifyMigrationSpecificationTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+    verify = VerifyTreeTests.verify
+
+    def test_absent_or_ambiguous_migration_specification_is_spec09_unavailable(self) -> None:
+        cases: tuple[tuple[str, Callable[[FixtureRoot], object]], ...] = (
+            ("no matching file", lambda fixture: (fixture.root / SPEC09_PATH).unlink()),
+            ("two matching files",
+             lambda fixture: fixture.write(".ai/specs/09-second-copy.md", SPEC09_TEXT)),
+            ("no specification directory", lambda fixture: shutil.rmtree(fixture.root / ".ai")),
+            ("specification directory is a file", lambda fixture: (
+                shutil.rmtree(fixture.root / ".ai/specs"), fixture.write(".ai/specs", "x\n"))),
+        )
+        for name, change in cases:
+            with self.subTest(case=name):
+                fixture, _ = self.build(name.replace(" ", "-"))
+                change(fixture)
+                result = self.verify(fixture)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assert_reports(result, [("spec09-unavailable", SPEC09_ANY)])
+
+    def test_unreadable_or_undecodable_migration_specification_is_spec09_unavailable(
+            self) -> None:
+        cases = (
+            ("byte that is not UTF-8", SPEC09_TEXT.encode("utf-8") + b"\xff\n"),
+            ("encoded surrogate", SPEC09_TEXT.encode("utf-8") + b"\xed\xa0\x80\n"),
+        )
+        for name, data in cases:
+            with self.subTest(case=name):
+                fixture, _ = self.build(name.replace(" ", "-"))
+                fixture.write(SPEC09_PATH, data)
+                result = self.verify(fixture)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assert_reports(result, [("spec09-unavailable", f"{SPEC09_PATH}:0")])
+        if os.geteuid() == 0:
+            self.skipTest("permissions do not restrict the superuser")
+        for name, target, location in (("unreadable file", SPEC09_PATH, f"{SPEC09_PATH}:0"),
+                                       ("unreadable directory", ".ai/specs", SPEC09_ANY)):
+            with self.subTest(case=name):
+                fixture, _ = self.build(name.replace(" ", "-"))
+                path = fixture.root / target
+                original = path.stat().st_mode
+                path.chmod(0)
+                try:
+                    result = self.verify(fixture)
+                finally:
+                    path.chmod(original)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assert_reports(result, [("spec09-unavailable", location)])
+
+    def test_large_migration_specification_is_searched_to_its_end(self) -> None:
+        fixture, inventory = self.build("large")
+        fixture.write(SPEC09_PATH, "word " * 1_000_000 + "\n" + "x" * 2_000_000 + "\n"
+                      + SPEC09_TEXT)
+        assessment = valid_assessment(inventory)
+        assessment["amendments"].append(copy.deepcopy(assessment["amendments"][0])
+                                        | {"id": "AMD-08-02", "target": "REQ-98"})
+        (fixture.root / ASSESSMENT_PATH).write_text(canonical(assessment), encoding="utf-8")
+        result = self.verify(fixture)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assert_reports(result, [("amendment-target-unknown",
+                                      assessment_at("AMD-08-02"))])
 
 if __name__ == "__main__":
     unittest.main()
