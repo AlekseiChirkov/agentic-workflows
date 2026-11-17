@@ -3,8 +3,9 @@ flow: full
 
 ## Phases
 - discovery: complete
-- execution: in-progress
-- validation: not-started
+- execution: complete
+- validation: complete
+- finalization: not-started
 
 ## Task Analysis
 Owner supplied and approved the complete design; requirements are retained in the source specification.
@@ -27,11 +28,11 @@ One phase, deterministic evidence/journal/archive helper, explicit Git commands,
 ### Scope
 One validated development task, all recorded repositories, mandatory cleanup.
 ### Invariants
-No uncertain deletion, no lost protected history, no implicit deployment, no live test mutations.
+- No uncertain deletion, no lost protected history, no implicit deployment, no live test mutations.
 ### Off-limits
-Paused audit, consumer installations, PR merging and protected/base publication.
+- Paused audit, consumer installations, PR merging and protected/base publication.
 ### Acceptance Criteria
-The source specification AC-01 through AC-06 apply.
+- The source specification AC-01 through AC-06 apply.
 
 ## Subtask Progress
 T-01 | Implement evidence, journal and lossless archival mechanics | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
@@ -73,14 +74,14 @@ T-02 | Enforce scoped cleanup and stage provider outputs | atomic-tests: green |
   pr: none
   notes: tdd: integration/contract — 15 disposable hook/staging tests observed 11 expected assertion failures in 10.171s, implementation unchanged; SHA256 6c93adbe0eafbcb96655b535390ac846ffc5e97777791311ca10849876b45bc3. Pre-freeze review corrected the protection fixture key and narrowed checkout expectations to preserve generic policy instead of introducing unrelated restrictions. Test-only commit recorded before GREEN.
 
-T-03 | Connect finalization with shared workflow contracts | atomic-tests: green | atomic-execution: complete | atomic-validation: in-progress
-  last_action: final implementation GREEN; independent validation pending
+T-03 | Connect finalization with shared workflow contracts | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: DoD satisfied — independent scenario/contract review and complete staged preflight passed
   target_files: scripts/check-finalization-workflow.py, workflows/phase-finalize.md, rules/phase-finalize.md, scripts/phase-finalize.py, scripts/finalization_attempts.py, scripts/finalization_knowledge.py, scripts/finalization_outputs.py, scripts/finalization_evidence.py, scripts/finalization_archive.py, scripts/validate-task.sh, shared workflow contracts, provider templates and documentation
   blocker: none
   branch: feat/task-closure-workflow
   base_branch: feat/task-closure-safety
   base_commit: 60bd3e9b8bed9eb17dd3c95af80092d22956c07e
-  commits: 0736b8f627e39fa7a0869628e05b91bf0b099f65, f8dffc660c4421e8308e8dd2b80ebaafe2ea0048, 05b83a3d475415996cf1392e2543845103e41e8b, 43556513c24599fda182bc4230a105e9b3bff08d, a6e345f33c98fe8d5027712a9881f4ccd51cb8f8, dbc038b25ff0b71416e0c50ded84efb7c89b0f66, 98a6ca351712e8fd0304aedbb3ecf8d4fbcfed9a, 80d051f8142537bb9169a1a2c3bc032c81142ffc, eaa4e8d5314a6b5f10810edc2c1d3e686411f0cd, 110d5b490c606dda29a382d5dc94c65fae03151c, eac1687f56524b02185027790a712465c49dcd11, 5e6eae74ec1d0e5ef9bba896f3dd8b1786e3f623, 4a6a27c58e442fa60fbc4d1edc353b6b3ad4a4f4, 01200f2b4d03f8c8c5b2e041c0ee78168b36a0bd, 0cebf96b2327718103006c23b02f3e63ec6cb4b6
+  commits: 0736b8f627e39fa7a0869628e05b91bf0b099f65, f8dffc660c4421e8308e8dd2b80ebaafe2ea0048, 05b83a3d475415996cf1392e2543845103e41e8b, 43556513c24599fda182bc4230a105e9b3bff08d, a6e345f33c98fe8d5027712a9881f4ccd51cb8f8, dbc038b25ff0b71416e0c50ded84efb7c89b0f66, 98a6ca351712e8fd0304aedbb3ecf8d4fbcfed9a, 80d051f8142537bb9169a1a2c3bc032c81142ffc, eaa4e8d5314a6b5f10810edc2c1d3e686411f0cd, 110d5b490c606dda29a382d5dc94c65fae03151c, eac1687f56524b02185027790a712465c49dcd11, 5e6eae74ec1d0e5ef9bba896f3dd8b1786e3f623, 4a6a27c58e442fa60fbc4d1edc353b6b3ad4a4f4, 01200f2b4d03f8c8c5b2e041c0ee78168b36a0bd, 0cebf96b2327718103006c23b02f3e63ec6cb4b6, db967b5057f00797ed0586e371c2a5822e1213a6, 9e5b062a22cf919d39d86f1e7c38d62ac9d4fd23
   pr: none
   notes: tdd: red digest — 23 cases in scripts/check-finalization-workflow.py, SHA256 78b96fafe3b87ca15cf40b44acf7962b8586055f44ee5f3fc4c11563b5df97dc; 19 expected assertion failures in 18.117s, no errors. Test-only commit 0736b8f627e39fa7a0869628e05b91bf0b099f65 precedes product edits.
   notes: pre-freeze fixture correction — primary GitHub CLI source confirms explicit repository arguments do not translate SSH aliases; controlled ssh -G translation followed by explicit canonical repository lookup replaces the invalid raw-alias argument expectation. No live network fixtures.
@@ -129,3 +130,170 @@ T-03 | Connect finalization with shared workflow contracts | atomic-tests: green
   notes: fixture amendment oracle follow-up — hook 78 passed in 62.437s and safety 23 in 23.591s; main guard and focused 6/25/4/5 passed. Oracle 23 then failed three assertions in 43.965s, preserved at /tmp/finalization-hook-fixture-oracle.log. Exact inventory comparison identifies only two unchanged locks observations relocated from lines 612/650 to 614/652 in the same approved hook resource. Authorize one additional observations/locks dataset with original before and relocated after, plus exact dependent pins; all 345 assertion AST calls, 78 test bodies, timeout 25, frozen compressed baseline, registry, approved paths and oracle logic remain unchanged. This records the previously omitted observation kind, without broadening production permission or bypassing any gate. Fresh oracle and independent review remain required.
   notes: bounded fixture correction GREEN — worker hook 78/62.437s, safety 23/23.591s, main guard and focused 6/25/4/5, oracle 23/64.747s, final pin-dependent guard/allowlist and syntax/whitespace passed. All 78 test methods and 345 assertion calls remain byte-equivalent ASTs, timeout 25 unchanged; production sync/three suites, frozen compressed baseline and oracle logic unchanged. Seven exact hook resource datasets preserve original before values; manifest updates only 137 existing inventory fingerprints and six existing contexts. Amendment bce36ca6889af4f094abd36aa5300a47e3259a76d1121074b38e4423e380f5b2; final manifest 538f4785161b9ff07b3142f034d4310fcab83563717512eff8efd2d5d494b50d; normalized inventory cc5215ad24f85d026ee7f16046fe0fdceb843f83392f719820d4ed1eb6026241. Oracle passed before restoration of original semantically identical JSON formatting; final guard/allowlist passed afterward with identical normalized inventory. Machine proof: /tmp/finalization-hook-fixture-final-bounds-proof.json. Independent fresh hook 78 passed in 65.086s; independent safety and fresh complete staged preflight remain pending.
   notes: independent bounded fixture PASS — safety/provider 23 passed in 26.140s after independent hook 78/65.086s; final static audit verifies all assertions, original before values, seven exact datasets, final pins, frozen baseline and production gate preservation. No remaining required finding or optional proposal. Prior full runs remain failed/stopped; fresh complete staged preflight is required on the following clean source commit.
+  notes: final complete staged preflight PASS — clean source 9e5b062a22cf919d39d86f1e7c38d62ac9d4fd23, started 2026-11-17T18:25:35Z, completed before 2026-11-17T18:56:29Z, exit 0. Full existing validator: 725 passed, 0 failed, 2 optional private-pattern skips. Fresh mandatory acceptance: core 77/77 in 77.534s, safety 23/23 in 24.681s, workflow 56/56 in 153.735s. Supported staged sync generated 188 files under /tmp/orchestrail-finalization-stage, without live installation. Raw log /tmp/orchestrail-finalization-staged-sync-9e5b062.log, SHA256 c566ceb232e9ce6749556b43d3c54be0fab9e72a157f27a27e009f465807e1ab. An independently launched validator in the canonical checkout overlapped; this run launched no competing heavy checks and claims no exclusive-resource/performance result. Prior two deliberately stopped failed runs and recovered errors remain above.
+  notes: contract presentation amendment — add Markdown bullet markers to the three existing Solution Design normative sentences, retaining their exact wording and meaning so canonical validation readers can verify them. No requirement, invariant or off-limits weakening. Compression audit retains every original Git/TDD/decision/history note because it is needed for audit; no lossy compression applied.
+
+## Execution Report
+
+Implemented one separately invoked post-merge phase, deterministic evidence/journal/archive mechanics, scoped independent Git-rails receipts and isolated provider synchronization. All three leaves are independently reviewed. This local development task is ready for owner-controlled integration, with its pinned multi-repository dependency retained; it has no published PR or merge evidence and is not itself finalized or archived.
+
+Canonical changes include `workflows/phase-finalize.md`, `rules/phase-finalize.md`, the coordinator and seven adjacent `finalization_*.py` modules, three standalone acceptance suites, scoped hooks/Git policy, additive shared status/protection/bootstrap/logging contracts, parent handoffs, setup/sync explicit lists, templates, operating guides and current knowledge. Generated outputs are isolated under `/tmp/orchestrail-finalization-stage`; installed consumer copies were not edited.
+
+## Contract Check
+
+### Invariants
+| Invariant | Status |
+|-----------|--------|
+| No uncertain deletion, no lost protected history, no implicit deployment, no live test mutations. | PASS: exact evidence/ref/lease/protection checks, immutable recovery and no-overwrite archive tests plus independent forward scenario; all destructive operations used disposable local repositories. |
+
+### Acceptance Criteria
+| Criterion | Status |
+|-----------|--------|
+| The source specification AC-01 through AC-06 apply. | PASS: all six criteria mapped below; full validator and 156 fresh standalone cases passed on the clean source. |
+
+### Off-limits
+| Constraint | Status |
+|------------|--------|
+| Paused audit, consumer installations, PR merging and protected/base publication. | PASS: separate worktree at the pinned dependency; only isolated staged outputs; no PR/push/merge/deployment or changes to InvestAI. Independent canonical checkout work was observed read-only and excluded. |
+
+### Source criterion evidence
+| Criterion | Verified coverage |
+|-----------|-------------------|
+| AC-01 | Normal/stack/intermediate target/multiple repositories, authoritative rewritten-history and closed-unmerged/missing-ref cases in core/workflow suites; independent real two-repository merge scenario. |
+| AC-02 | Changed local/remote tips, dirty/diverged trees, protected/unrelated branches, worktrees, unique commits, missing authorization, independent scoped hooks and actual stale/exact remote lease. |
+| AC-03 | Partial remote refusal/retry, immutable recovery packs, journal CAS/locking and interruption checkpoints, archive collisions, old paths and byte-identical completed repeat; independent forward fixture. |
+| AC-04 | Manifests/empty directories/original snapshots, protected fields and requirements, mechanical relative-link repair, traversal/symlink refusal and strict whole multi-phase eligibility. |
+| AC-05 | Typed tracked/untracked umbrella knowledge, unrelated scope preservation, deployment unknown/required evidence, optional tooling/logging failure, source-bound fresh/reused/failed receipts and exact output preservation. |
+| AC-06 | Full original rails/installation/runtime gates, independent hook safety and normal/staged parity fixtures; complete supported staged sync and read-only generated parity audit. |
+
+## Code Review
+
+### Findings
+(none)
+
+### Summary
+PASS: zero remaining critical, important or optional findings. Separate validators reviewed each leaf, original RED test integrity, source/reader contracts, safety/recovery boundaries and the complete skill through a realistic forward run. Earlier defects and their repairs remain in the append-only subtask notes. The final bounded installation-fixture amendment received independent static review and fresh hook 78/78 plus safety 23/23 execution. Python 3.11 grammar/API compatibility was reviewed statically; actual execution used system Python 3.14.4, Git 2.53.0 and Bash 5.3.9.
+
+## Issue List
+
+### Approved
+(none)
+
+### Deferred
+(none)
+
+All review defects discovered during the leaf implementation cycles were repaired and independently rechecked before task-level closure. There are no unresolved approved fixes; preserved earlier failed/recovered runs are evidence, not hidden passing results.
+
+## Fix-Tasks
+fixes-created: complete
+fixes-count: 0
+Created: none
+
+## Deferred
+(none)
+
+## Knowledge Reconciliation
+
+Updated current architecture/module inventory, environment/runbook, scope index, task memory, append-only progress and accepted ADR verification. Existing architecture principles remain applicable and are unchanged; ADR-0025 records the narrow required-helper and Git-ownership extensions. `.ai/project_state.md` is absent and explicitly skipped. The scope roadmap is `.ai/specs/README.md`; no separate roadmap or delivery-note file was invented. This Execution Report provides the task's delivery record. Earlier audit/roadmap work remains unfinished and unchanged. Source knowledge is tracked by this repository's policy; consumer umbrella state stays local.
+
+## Spec Sync
+sync: complete
+synced_at: 2026-11-18T00:56:29+06:00
+deltas: 0 (implemented-differently: 0, not-implemented: 0, implemented-beyond: 0)
+spec: .ai/specs/24-task-finalization.md
+
+Reconciled under the verified `/pv-finalize` completion context after all independent contract/review/fix prerequisites and actual final checks passed. All 12 requirements and six criteria retain their original text and identifiers. Completion metadata describes validated implementation only; it does not prove merge, cleanup, archival or deployment. The accepted decision is reused, not replaced.
+
+## Final Verification
+
+Date: 2026-11-18 (Asia/Bishkek); underlying run timestamps are UTC above.
+Independent verifier: separate finalization contract/safety validators and a separately constructed whole-workflow forward fixture; no implementation self-review substituted for their verdicts.
+Source revision: `9e5b062a22cf919d39d86f1e7c38d62ac9d4fd23`, clean before and after the actual full staged run. Subsequent closure edits affect shared `.ai/` metadata only; all executable, workflow, rule, template and generated-source bytes remain the tested bytes.
+
+| Actual command/check | Result and provenance |
+|----------------------|-----------------------|
+| `PATH=/usr/bin:/bin bash scripts/sync.sh --from /tmp/orchestrail-task-finalization --stage /tmp/orchestrail-finalization-stage` | Exit 0; complete existing validator 725 passed / 0 failed / 2 optional private-pattern skips, then fresh core 77 / safety 23 / workflow 56 passed, then 188 generated files. Exact raw log and digest above. |
+| Independent core/safety/workflow on clean `01200f2` | 77/23/55 passed, followed by independent changed-sync and new-parity checks on `db967b5`; final staged run freshly executes all 156 on the final source. Earlier results are not presented as fresh final-source execution. |
+| Independent final fixture correction | Hook 78 in 65.086s and safety 23 in 26.140s passed; all original assertions/timeout and frozen inventory/oracle logic preserved. |
+| Independent whole-workflow forward fixture | Real two-repository normal delivery, actual remote denial/retry, original offline audit output retained, recovery/knowledge/archive/final audit complete; old-path repeat byte-identical and genuinely cold dry-run unchanged. Report `/tmp/finalization-forward-final-report.md`; exact source provenance `/tmp/finalization-forward-final-source-provenance.json`. |
+
+Coverage limits: controlled PR fixtures replace live GitHub; no live provider/hooks install, production deployment, migration or source publication. ShellCheck unavailable; actual Python 3.11 execution unavailable (static compatibility only). Semantic knowledge and command/deployment receipts remain externally attested, bound by the helper rather than independently executed by it. Dated environment/revision evidence is required for deployment claims; this task's deployment is unverified. Finalization cannot bypass ordinary local `branch -d` refusal and remains incomplete in that case.
+
+Owner follow-ups: integrate the dependency and this local stack through the normal reviewed process; choose live synchronization separately; invoke `/phase-finalize` for this task only after its intended integration is proven. No unresolved implementation scope remains, and this record claims no merge, branch cleanup, archival or product-wide completion.
+
+### Generated parity
+Independent exhaustive read-only audit passed for all 188 regular files against pinned source `9e5b062a22cf919d39d86f1e7c38d62ac9d4fd23`: 43 Windsurf workflows plus 19 rules/principles, 62 skills each for Claude and Codex, and two global instruction files. No missing/extra/symlink output; six workflow/rule name collisions remain separate. Global instructions contain exactly the canonical prefix, single capability appendix and honest unavailable-installation result. All four setup/sync explicit context lists contain exactly 14 project rules, including phase-finalize. Proof `/tmp/orchestrail-finalization-independent-parity.json`; report `/tmp/orchestrail-finalization-independent-parity.txt`. This verifies isolated export, not live installation.
+
+### Metadata audit
+Final metadata-only checks passed: `bash scripts/validate-task.sh .ai/tasks/todo/task-24-task-finalization` reports 23 passed, 0 failed, 0 skipped. Direct read-only `finalization_evidence.validation` accepts the canonical full-flow contract with `fresh_tests: false` and `requires_final_receipt: true`; it creates no journal or Git mutation and does not replace future source-bound post-integration evidence. Exact comparison against the validated source retains all 66 original notes, original branch/base/PR fields and append-only commit lists. Requirement-section SHA256 remains 720fc9f35e45d744ecc80798e853344cc23f2a1d38ef9534f802b262dff208a5; criterion-section SHA256 remains 3a0005b8dba222685042c9f7f7f3333d213be650a66e2349dc8fa316ddd1d821. Only seven shared `.ai/` records changed after full validation; tested product/provider-source bytes remain unchanged.
+
+Independent final metadata review passed with its own 23/0/0 task check and read-only prerequisite-reader check; proof `/tmp/orchestrail-finalization-independent-metadata-audit.json`. No remaining required findings or proposals.
+
+## Delivery Inventory
+
+Canonical changed files relative to the pinned dependency (all retained in this isolated local stack):
+
+```text
+.ai/adr/0025-task-24-post-merge-finalization.md
+.ai/adr/index.md
+.ai/context/environment.md
+.ai/context/runbook.md
+.ai/memory/architecture.md
+.ai/memory/progress.md
+.ai/memory/state.md
+.ai/principles/domain.md
+.ai/specs/24-task-finalization.md
+.ai/specs/README.md
+.ai/tasks/completed/task-01-git-source-of-truth/state.md
+.ai/tasks/todo/task-24-task-finalization/T-01-finalization-evidence/description.md
+.ai/tasks/todo/task-24-task-finalization/T-02-finalization-safety/description.md
+.ai/tasks/todo/task-24-task-finalization/T-03-finalization-workflow/description.md
+.ai/tasks/todo/task-24-task-finalization/plan.md
+.ai/tasks/todo/task-24-task-finalization/state.md
+README.md
+docs/README.md
+docs/SPEC-RUN-QUICKSTART.md
+docs/USAGE.md
+harness/claude/capabilities.md
+hooks/git_rails.py
+rules/git-flow.md
+rules/global-claude.md
+rules/orchestration.md
+rules/phase-finalize.md
+rules/run-log.md
+rules/workflow-globals.md
+rules/workflow-reference.md
+scripts/README.md
+scripts/check-finalization-safety.py
+scripts/check-finalization-workflow.py
+scripts/check-phase-finalize.py
+scripts/finalization_archive.py
+scripts/finalization_attempts.py
+scripts/finalization_evidence.py
+scripts/finalization_knowledge.py
+scripts/finalization_outputs.py
+scripts/finalization_recovery.py
+scripts/finalization_support.py
+scripts/phase-finalize.py
+scripts/setup-new-project.sh
+scripts/sync.sh
+scripts/validate-task.sh
+templates/.ai-umbrella/README.md
+templates/.ai-umbrella/memory/state.md
+templates/.ai/README.md
+templates/.ai/context/runbook.md
+templates/.ai/memory/state.md
+templates/codex-global-AGENTS.md
+tests/fixtures/validator-runtime/inventory-amendment.json
+tests/fixtures/validator-runtime/source_guard.py
+tests/fixtures/validator-runtime/source_guard_exceptions.json
+tests/hook-install.sh
+tests/validator-runtime-oracle.py
+workflows/PIPELINE.md
+workflows/phase-finalize.md
+workflows/phase-pipeline.md
+workflows/pv-finalize.md
+workflows/spec-run.md
+```
+
+Generated outputs: `/tmp/orchestrail-finalization-stage/.claude/skills/` and `.codex/skills/` each contain 62 generated skills; `.codeium/windsurf/global_workflows/` contains 43 workflows and `global_rules/` contains 19 rules/principles. The stage also contains the generated global `.claude/CLAUDE.md` and `.codex/AGENTS.md`. All 188 files were independently verified; none was installed into the real consumer directories.
