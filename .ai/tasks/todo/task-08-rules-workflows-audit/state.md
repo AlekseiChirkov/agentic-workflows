@@ -277,17 +277,23 @@ T-06 | Renderer and report checks | atomic-tests: green | atomic-execution: comp
          pav-check findings (optional only): V1 a backslash before `|` in source text renders as `\\|`, which GitHub-flavoured Markdown reads as an escaped backslash followed by a cell delimiter, so the displayed row gains a column (round trip and verify unaffected); V2 render --write replaces a read-only (0444) report and keeps 0444; V3 render exit 2 for report-unreadable and report-unwritable, and the check order (report before inputs) are not in the Contracts row; V4 CRLF line endings in the report are undefined (render refuses with report-markers, verify reports report-layout); V5 Inventory, Sections, Loads, Defect edges and Legacy rows follow inventory order rather than sorting, which equals path order only for an extracted inventory; V6 forward risk: economics-claim over the region means copied audited text (candidate Text, section headings, defect Raw) holding `$<digit>`, `<n> tokens`, USD or EUR would make verify unpassable — none on this checkout (grep of rules/, workflows/, harness/ and the adapter template empty); V7 suite time rose to 121–163 s because every verify case renders the region
          pav-check evidence gap: the full `bash scripts/validate-contracts.sh` was not run here (owner's low-memory instruction); the implementer's run stopped after 530 PASS / 0 FAIL — a complete run is still owed before the stack tip
          pav-propose --batch: 1 Do Now (P1 escape a backslash in cells), 4 Do Later (P2 spec-sync render refusal exits and check order; P3 spec-sync report line endings; P4 decide economics-claim over copied audited text in the region before extraction; P5 spec-sync the 64 MiB report cap), 3 Optional (P6 sort rendered rows explicitly; P7 decide read-only report under --write; P8 cut suite time of the report refresh); recorded, nothing applied; section returned to the orchestrator as a delta
+         orchestrator 2026-11-17: complete `MISE_PYTHON_VERSION=3.12.16 bash scripts/validate-contracts.sh` at 242303d (stack tip after this leaf): 721 passed, 0 failed, 2 skipped; replaces the earlier run stopped for low memory
   branch: feat/instruction-audit-report-render
   base_branch: feat/instruction-audit-verify-migration-map
   base_commit: cc172eaacfd56c9bf6e7d48ea440265ab9b793c1
   commits: 79e7936 test(audit): cover report rendering and report verification, 582ae34 feat(audit): render the report region and verify the report
-  pr: none
+  pr: #110 draft
 
 T-07 | Extraction and assessment of rules and adapters | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: none
   target_files: docs/audits/<run_date>-rules-workflows-audit.inventory.json, docs/audits/<run_date>-rules-workflows-audit.assessment.json
   blocker: none
   notes:
+  branch: docs/audit-rules-and-adapters
+  base_branch: feat/instruction-audit-report-render
+  base_commit: 242303d4de01929493d35b55e4787d306934abc1
+  commits:
+  pr: none
 
 T-08 | Assessment of workflows | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: none
