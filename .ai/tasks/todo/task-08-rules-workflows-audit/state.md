@@ -322,13 +322,18 @@ T-07 | Extraction and assessment of rules and adapters | atomic-tests: green | a
   base_branch: feat/instruction-audit-report-render
   base_commit: 242303d4de01929493d35b55e4787d306934abc1
   commits: 9c76631 docs(audit): extract the inventory of rules, workflows and adapters, adfad0f docs(audit): assess the rule and adapter files, 326f9bc fix(audit): record the swallowed principles section and correct locations
-  pr: none
+  pr: #111 draft
 
 T-08 | Assessment of workflows | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: none
   target_files: docs/audits/<run_date>-rules-workflows-audit.assessment.json
   blocker: none
   notes:
+  branch: docs/audit-workflows
+  base_branch: docs/audit-rules-and-adapters
+  base_commit: 14d541aa336e94d5188bc31a17b233df06e27410
+  commits:
+  pr: none
 
 T-09 | Map, findings, amendments and report | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: none
