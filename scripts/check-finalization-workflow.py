@@ -792,6 +792,47 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertEqual('archived', archived['status'], archived)
         self.assertTrue(self.checkpoint('finish', archived)['complete'])
 
+    def test_clean_owner_knowledge_commit_reconciles_only_fresh_verified_source_binding(self) -> None:
+        prior, path, original = self.knowledge_fixture()
+        initial = json.loads(Path(prior['journal_path']).read_bytes())
+        updated = original + b'\nOwner committed current delivered architecture.\n'
+        path.write_bytes(updated)
+        self.git(self.repo, 'add', '-f', str(path))
+        self.git(self.repo, 'commit', '-m', 'docs: reconcile delivered architecture')
+        advanced = self.git(self.repo, 'rev-parse', 'HEAD')
+        rows = json.loads(self.evidence.read_bytes())['attestations']
+        knowledge = next(row for row in rows if row['kind'] == 'knowledge')
+        knowledge['file_changes'] = [{'path': path.relative_to(self.root).as_posix(),
+                                     'before_sha256': hashlib.sha256(original).hexdigest(),
+                                     'after_sha256': hashlib.sha256(updated).hexdigest()}]
+        for row in rows:
+            row['source_tips'] = {str(self.repo): 'f' * 40}
+            row['observed_at'] = datetime.now(timezone.utc).isoformat()
+        self.put_evidence(attestations=rows)
+        rejected = self.checkpoint('knowledge', prior)
+        self.assertEqual('blocked', rejected['status'], rejected)
+        self.assertEqual(initial, json.loads(Path(prior['journal_path']).read_bytes()))
+        for row in rows:
+            row['source_tips'] = {str(self.repo): advanced}
+        verification = next(row for row in rows if row['kind'] == 'verification')
+        output = self.git(self.repo, 'show', advanced + ':product')
+        verification['commands'] = [{'argv': ['git', '-C', str(self.repo), 'show', advanced + ':product'],
+                                     'exit_code': 0, 'stdout': output, 'stderr': ''}]
+        self.put_evidence(attestations=rows)
+        reconciled = self.checkpoint('knowledge', prior)
+        self.assertEqual('recorded', reconciled['status'], reconciled)
+        self.assertEqual(advanced, reconciled['repositories'][0]['integration']['tip'])
+        self.assertEqual(initial['knowledge_files'], reconciled['knowledge_files'])
+        self.assertEqual(original, Path(reconciled['knowledge_files'][0]['snapshot_path']).read_bytes())
+        stored = json.loads(Path(prior['journal_path']).read_bytes())
+        self.assertIn(initial['knowledge_indexes'], stored['knowledge_index_history'])
+        self.assertEqual(hashlib.sha256(updated).hexdigest(), reconciled['knowledge_changes'][0]['after_sha256'])
+        self.assertEqual('', self.git(self.repo, 'diff', '--cached', '--name-only'))
+        self.assertEqual(advanced, self.git(self.repo, 'rev-parse', 'HEAD'))
+        archived = self.checkpoint('archive', reconciled)
+        self.assertEqual('archived', archived['status'], archived)
+        self.assertTrue(self.checkpoint('finish', archived)['complete'])
+
     def test_clean_index_metadata_refresh_is_read_only_and_staged_content_stays_blocked(self) -> None:
         prior, _, _ = self.knowledge_fixture()
         index_path = Path(self.git(self.repo, 'rev-parse', '--path-format=absolute', '--git-path', 'index'))
