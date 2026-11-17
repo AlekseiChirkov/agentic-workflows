@@ -6,7 +6,7 @@ Format: "<Subject> can/does <action> <measurable condition>."
 Example: "Users can authenticate with email/password and receive a JWT token valid for 24h."
 
 ## Context
-- working_dir: <relative path from the task directory to the repo where this subtask runs, e.g. ../../../../service-api — omit entirely for single-repo tasks>
+- working_dir: <relative path from this T-XX directory to the repo where this subtask runs, e.g. ../../../../../service-api — omit entirely for single-repo tasks; required on every leaf of a multi-repository /spec-run>
 - Dependencies: which T-XX this subtask depends on and why.
 - Constraints: technical or architectural limits that apply here.
 - Reason: why this subtask exists as a separate unit.

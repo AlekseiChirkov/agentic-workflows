@@ -121,6 +121,13 @@ overwrite confirmation and returns before state changes, logging or child execut
    prior phases `complete` only when their task validation is complete. If another
    discovered phase is incomplete, **stop** and report it before claiming completion
    or proceeding to a later phase. Single-phase tasks omit these phase-specific fields.
+
+   When `/spec-run` supplies a multi-repository set, write `## Repositories` after
+   `## Phases` with one repository set line per repository, in the supplied order
+   (`workflow-globals → ## Canonical Status Formats`). On resume add the section only when
+   it is absent; never change existing lines. A task without the section is
+   single-repository, and Discovery otherwise runs unchanged: analysis reads every
+   repository, and `/pd-decompose` routes each leaf to one of them.
 8. Bootstrap context and open the run log before the first child.
 
 ## Run Logging

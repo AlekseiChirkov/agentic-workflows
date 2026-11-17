@@ -32,8 +32,9 @@ proceed on a partial pass.
 6. **`--allow-pr` only:** a remote named `origin` exists, and `gh auth status` succeeds.
    Without the flag, neither `git push` nor any `gh` command is executed at any point.
 
-Single-repo only. A task whose subtasks carry `working_dir:` pointing outside the repository
-is out of scope — one spec covers exactly one repository.
+In a multi-repository run (`## Multi-repository runs`) every check above applies to each
+participating repository separately; `WORK_DIR` is that repository. A single-repository run
+is unchanged.
 
 ---
 
@@ -294,3 +295,70 @@ strategy-agnostic — see `restack`.
 `commits:` is appended at each commit, not reconstructed at the end. Hashes recorded here are
 **pre-merge**: after a squash or rebase merge they will not exist in `<base>`. Any report that
 prints them says so.
+
+---
+
+## Multi-repository runs
+
+One shared specification may cover several git repositories when the project keeps its
+knowledge base (`.ai/`, the specification and the task directory) in a root directory that
+is **not** a git repository and its code in git repositories that are direct children of
+that root. The root is never turned into a repository, and no file is moved.
+
+**Repository set.** The participating repositories and their base branches are declared
+explicitly — `/spec-run <spec> --repo <directory>=<base-branch> …` — and recorded once in
+task `state.md → ## Repositories` (format: `workflow-globals → ## Canonical Status Formats`).
+A nested repository that is not declared takes no part in the run. A resumed run reuses the
+recorded set; a different set stops the run until it is reconciled explicitly. The facts below
+come from the read-only helper `scripts/repo-set.py` (`mode`, `preflight`, `route`,
+`reconcile`), which never writes a file, never changes a ref and never contacts a remote.
+
+**Preflight.** Run the preflight separately for every participating repository: a repository
+root, a clean tracked tree, no unfinished git operation, a resolvable local base branch, no
+collision with a planned branch, and with `--allow-pr` a remote named `origin` and a
+successful `gh auth status` in that repository. Any failure stops the run before the first
+branch and is reported as repository, check and reason. Without `--allow-pr`, neither
+`git push` nor any `gh` command runs in any repository.
+
+**Routing.** Every leaf belongs to exactly one repository: its `plan.md` `Repo` cell names a
+declared repository and its `working_dir:` resolves to that repository. A composite and its
+children belong to one repository. Work that touches several repositories is split into one
+leaf per repository, and the dependent leaf depends on the one it consumes. A leaf with no
+declared repository cannot run.
+
+**One stack per repository, one shared order.** Leaves run strictly sequentially in the
+shared topological order of `plan.md`. Within each repository the stack rule of
+`## Branch model — the stack` applies unchanged: the repository's first leaf branches from
+its base branch, and each later leaf branches from the tip of the previous reviewed leaf of
+the same repository. A leaf never starts before every leaf it depends on, in any repository,
+is `reviewed`.
+
+**No shared git history.** The repositories have no shared git history. A branch, a pull
+request or a commit never names a branch of another repository as its base, and nothing is
+cherry-picked, merged or copied between repositories. A dependency between repositories is
+an ordering fact, recorded as cross-repository dependencies in `plan.md → ## Execution
+Strategy`, in `state.md → ## Repositories` and, with `--allow-pr`, in each affected pull
+request body:
+`Depends on the backend change feat/watchlist-api (<pull request URL or "local branch">) — merge and deploy it first.`
+
+**Pull requests and promotion.** A pull request's base is its stack parent in the same
+repository, or that repository's base branch for the first leaf. Every pull request stays a
+draft until task-level validation of the whole run passes; promotion then follows each
+repository's stack order. The final report lists one stack per repository and one
+integration order that respects both the stacks and the cross-repository dependencies.
+
+**Recorded state.** A leaf block of a multi-repository run carries `repo:` before the git
+fields of `## Recorded state — required for resume and for restack`:
+
+```
+repo:         backend
+branch:       feat/watchlist-api
+base_branch:  dev
+base_commit:  <sha of the branch point in backend>
+commits:      <sha> test: cover watchlist ownership, <sha> feat: add watchlist endpoints
+pr:           none
+```
+
+On resume each recorded checkpoint is reconciled against its own repository. A missing
+branch, a recorded commit that is not on its branch, an unexpected tip or a checkpoint without
+`repo:` stops the run for explicit resolution; absence never proves a merge.

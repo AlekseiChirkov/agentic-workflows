@@ -55,7 +55,7 @@ Its subtasks (T-XX) each declare `working_dir:` pointing to the target service r
 cd acme-platform/
 /phase-discovery .ai/specs/01-auth-feature.md
 # → creates .ai/tasks/todo/task-01-auth-feature/ with T-XX dirs
-# → each T-XX/description.md has working_dir: ../../../../service-api (or similar)
+# → each T-XX/description.md has working_dir: ../../../../../service-api (or similar)
 # → plan.md shows Repo column: service-api | service-worker | (umbrella)
 
 /phase-execution .ai/tasks/todo/task-01-auth-feature/
@@ -67,7 +67,8 @@ cd acme-platform/
 **working_dir path standard:**
 Path is relative from the T-XX directory to the target service repo.
 Example: task at `.ai/tasks/todo/task-01/T-01/description.md`
-→ `working_dir: ../../../../service-api` resolves to `acme-platform/service-api/`
+→ `working_dir: ../../../../../service-api` resolves to `acme-platform/service-api/`
+(T-01 → task-01 → todo → tasks → .ai → `acme-platform/`).
 
 **Single-service tasks** still run inside the service repo directly:
 ```

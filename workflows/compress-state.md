@@ -42,7 +42,8 @@ and current phase status. Do not add scope or derive new decisions.
 
 The canonical Protected Sections Contract governs, including archive pointers
 (`→ archived to state-archive.md`), `atomic-tests:`, `tdd:` evidence, composite blocks,
-and the git fields including `base_commit:`. Never remove, rewrite, or summarize these
+the git fields including `base_commit:`, and the multi-repository `repo:` field and
+`## Repositories` section. Never remove, rewrite, or summarize these
 as a compression operation. Shorten prose inside a protected section only when that
 contract explicitly permits it.
 

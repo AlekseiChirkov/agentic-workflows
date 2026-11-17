@@ -120,6 +120,18 @@ use applies the `phase-discovery` bootstrap.
    | Type 3 | `Type`, `Slice`, `Repo`; all rows are leaves; Slice is capability name, or `—` for shared setup |
 
    Record the capability name in the `Slice` **column** of each Type 3 row.
+
+   When task `state.md` carries `## Repositories` (a multi-repository `/spec-run`), route
+   every leaf to exactly one declared repository: add the `Repo` column with that
+   repository's directory name on every row and write the matching `working_dir:`
+   (relative to the T-XX directory, for example `../../../../../backend`). `(umbrella)`
+   rows are not allowed. Split work that touches several repositories into one leaf per
+   repository — through Type 3 when its conditions hold, otherwise by repository — keep the
+   same spec requirement and criterion identifiers in each leaf's Acceptance Criteria, and
+   make the consuming leaf depend on the producing one. A composite and its children share
+   one repository. In `## Execution Strategy` add a line
+   `Cross-repository dependencies: <leaf> (<repository>) → <dependency> (<repository>), …`
+   (or `none`). Shared knowledge-base work is not a leaf; it stays an Orchestrator delta.
    Combine extensions for a mixed task. Child dependencies include inherited
    external dependencies and actual sibling prerequisites; references must resolve
    and remain acyclic. Outside `/spec-run`, execution follows dependencies; under

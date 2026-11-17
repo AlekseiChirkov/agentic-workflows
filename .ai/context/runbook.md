@@ -32,6 +32,11 @@ Notes:
 - `bash scripts/check-spec-draft.sh` pins the `/spec-draft` review contract (critic, round
   limit, rubric and threshold) in about 30 ms. It runs standalone, outside the frozen validator
   inventory, so run it after every change to `workflows/spec-draft.md`.
+- `python3 scripts/check-repo-set.py` runs the multi-repository `/spec-run` acceptance suite
+  (the read-only `scripts/repo-set.py` helper against disposable git repositories, plus the
+  instruction contract) in a few seconds. It is standalone, outside the frozen validator
+  inventory, so run it after every change to `scripts/repo-set.py`, `workflows/spec-run.md`,
+  `rules/git-flow.md → ## Multi-repository runs` or the `## Repositories` state format.
 - `--state-tool-only` runs `tests/state-tool.py` (the state tool's acceptance suite, about 30 s) through `scripts/validate-contracts.sh`; the default run includes it as `test_state_tool_acceptance`.
 - Optional model helpers use offline focused suites `--model-catalog-only`,
   `--model-selection-only` and `--model-plan-only` through `scripts/validate-contracts.sh`.
@@ -120,6 +125,9 @@ Follow `.ai/principles/coding.md → Changing a contract`. Additionally:
 3. For an existing codebase run `/onboard-legacy-project` once.
 4. Multi-repo: `scripts/setup-umbrella.sh` at the root first, then `scripts/setup-all-repos.sh` or
    `scripts/setup-new-project.sh` per service.
+   One shared spec in a root that is not a git repository runs across its repositories with
+   `/spec-run .ai/specs/<spec>.md --repo <directory>=<base-branch> …` from that root
+   (`rules/git-flow.md → ## Multi-repository runs`); start with `--dry-run`.
 5. Respect repository-owned tracking policy. New consumers keep `.ai/` ignored by default; existing tracked knowledge is preserved and is not a preflight failure.
 6. A consumer that tracks `.ai/` gets the two state-tool ignore entries by adding `.state-tool.lock` and `.state.md.*.tmp` to its `.gitignore` by hand, or by rerunning `scripts/setup-new-project.sh`, which appends both and skips its `.ai/` entry where files under `.ai/` are tracked.
 

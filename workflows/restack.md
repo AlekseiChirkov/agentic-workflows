@@ -2,9 +2,13 @@
 description: Repair a stacked branch series after part was merged — replay each remaining branch onto its new base using recorded branch points
 ---
 
-Invocation: `/restack <task-directory> [--onto <branch>] [--allow-pr]`
+Invocation: `/restack <task-directory> [--repo <directory>] [--onto <branch>] [--allow-pr]`
 Load `git-flow`. Only this workflow may rebase or force-push, and only branches recorded
 for this task. Resolve task paths from the project root; operate in its single repository.
+A multi-repository task (`state.md → ## Repositories`) needs `--repo <directory>`: operate
+only in `<project root>/<directory>`, only on blocks whose `repo:` names it, with that
+repository's recorded base branch as the default target; the other repositories' stacks are
+untouched. Without `--repo` on such a task → **stop** and list the recorded repositories.
 
 ## Guard
 

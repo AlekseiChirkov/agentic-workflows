@@ -59,7 +59,8 @@ The governing contract is the `tdd` rule; test style comes from `testing-standar
    umbrella when present, then `AI_DIR`.
    Preserve absolute task-artifact paths when running commands in `WORK_DIR`.
 
-2. Read `AI_DIR/context/runbook.md → ## Commands` and capture `test:` if available.
+2. Read the resolved runbook's `## Commands` (`AI_DIR/context/runbook.md`, or the umbrella
+   fallback of `phase-atomic-execution → ## Context Bootstrap`) and capture `test:` if available.
    Classify the test level before requiring a command. Missing tooling is never evidence
    for `none`; only the independent gate in Step 1 can justify that exemption.
 
@@ -168,7 +169,7 @@ Update the leaf block's `target_files:` as test files are created — not only a
 ## Step 4 — Observe RED
 
 1. Run the `test:` command from the runbook, scoped to the tests just written, from within
-   `WORK_DIR`.
+   `WORK_DIR` (from the umbrella root for an umbrella runbook).
 2. Record the actual output — which tests failed and with what error.
 3. Verify RED per the `tdd` rule — `## RED — what counts`:
    - **Every** new test fails.

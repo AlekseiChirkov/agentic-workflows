@@ -288,7 +288,10 @@ The following sections are contracts read by orchestrators and must never be rem
 - `## Decomposition` (including `decomposition: complete` marker)
 - `## Solution Design` (Invariants, Off-limits, Acceptance Criteria, Decision, Scope)
 - `## Model Selection` — preserve the complete checkpoint, evidence and digests until explicitly invalidated or replaced by bulk selection.
-- `## Subtask Progress`
+- `## Repositories` (multi-repository `/spec-run` only — the declared repository set and
+  `cross_repo_dependencies:`; canonical definition: `workflow-globals → ## Canonical Status Formats`)
+- `## Subtask Progress`, including the `repo:` field and the git fields `branch:` … `pr:` of
+  orchestrated leaf blocks
 - `state_receipts:` lines in `## Subtask Progress` blocks — tool-managed operation receipts written
   only by `scripts/state-tool.py`; never removed, edited, merged or summarized (canonical
   definition: `workflow-globals → ## Canonical Status Formats`)

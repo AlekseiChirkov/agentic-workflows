@@ -179,6 +179,7 @@ T-XX | <name> | atomic-tests: <status> | atomic-execution: <status> | atomic-val
   target_files: <comma-separated list of files modified, test files included — required, write even if empty>
   blocker: <none | description of blocker>
   notes: <key decisions or deviations — required, write even if empty>
+  repo: <participating repository directory name — multi-repository orchestrated mode only>
   branch: <branch name — orchestrated mode only>
   base_branch: <branch this one was cut from — orchestrated mode only>
   base_commit: <sha of the branch point — orchestrated mode only>
@@ -188,9 +189,28 @@ T-XX | <name> | atomic-tests: <status> | atomic-execution: <status> | atomic-val
 
 The five git fields are written only when the task runs under `/spec-run` (see the
 `orchestration` and `git-flow` rules). They are absent in ordinary manual runs, and readers
-must not require them. `base_commit` is written once, at branch creation, and never
+must not require them. `repo:` is written with them, at branch creation, only in a
+multi-repository run (`git-flow → ## Multi-repository runs`); a block without it belongs to
+the single repository of its task. `base_commit` is written once, at branch creation, and never
 recomputed — it is the only input that lets `/restack` replay a branch after its parent was
 squash-merged.
+
+**Task `state.md` → `## Repositories`** (multi-repository `/spec-run` only; placed after
+`## Phases`):
+```
+## Repositories
+- repo: backend | base_branch: dev
+- repo: frontend | base_branch: dev
+cross_repo_dependencies: T-03 (frontend) → T-01 (backend), T-04 (frontend) → T-02 (backend)
+```
+
+Repository set line: `- repo: <directory name under the project root> | base_branch: <local base branch>` — one line per participating repository, in declaration order; written once by `/phase-discovery` from the set `/spec-run` supplies, never edited by another workflow.
+
+`cross_repo_dependencies:` lists every `plan.md` dependency whose two leaves belong to
+different repositories, as `<leaf> (<repository>) → <dependency> (<repository>)`, or `none`;
+`/spec-run` writes it when it resolves the stacks and refreshes it after each plan delta.
+**Backward compatibility:** a task without `## Repositories` is a single-repository task;
+every reader keeps its existing behaviour for it.
 
 Status values for atomic-execution / atomic-validation: `not-started` | `in-progress` | `complete` | `blocked` | `skipped` | `failed`.
 
