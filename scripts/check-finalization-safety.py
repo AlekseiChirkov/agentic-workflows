@@ -238,6 +238,93 @@ class SafetyChecks(FIXTURE.FinalizationChecks):
         self.assertIs(CORE.DELETION_VERIFIER, CORE.no_exception_verifier)
         self.assertIs(CORE.LEASE_VERIFIER, CORE.journal_lease_verifier)
 
+    def test_real_remote_lease_rejects_changed_tip_and_exact_lease_deletes(self) -> None:
+        prior = self.prepared()
+        action = next(row['command'] for row in prior['actions'] if row['kind'] == 'remote-delete')
+        self.git(self.remote, 'update-ref', 'refs/heads/feat/delivery', self.base, self.tip)
+        rejected = subprocess.run(action, capture_output=True, text=True, env=self.environment())
+        self.assertNotEqual(0, rejected.returncode)
+        self.assertEqual(self.base, self.git(self.remote, 'rev-parse', 'refs/heads/feat/delivery'))
+        self.git(self.remote, 'update-ref', 'refs/heads/feat/delivery', self.tip, self.base)
+        deleted = subprocess.run(action, capture_output=True, text=True, env=self.environment())
+        self.assertEqual(0, deleted.returncode, deleted.stderr)
+        absent = subprocess.run(['git', '-C', str(self.remote), 'show-ref', '--verify', 'refs/heads/feat/delivery'],
+                                capture_output=True, env=self.environment())
+        self.assertNotEqual(0, absent.returncode)
+
+    def test_remote_rejection_after_local_cleanup_remains_recoverable_and_incomplete(self) -> None:
+        prior = self.prepared()
+        self.git(self.repo, 'branch', '-d', 'feat/delivery')
+        self.git(self.remote, 'config', 'receive.denyDeletes', 'true')
+        action = next(row['command'] for row in prior['actions'] if row['kind'] == 'remote-delete')
+        rejected = subprocess.run(action, capture_output=True, text=True, env=self.environment())
+        self.assertNotEqual(0, rejected.returncode)
+        recorded = self.checkpoint('record', prior)
+        self.assertEqual('recorded', recorded['status'], recorded)
+        self.assertEqual('incomplete', recorded['outcomes']['cleanup'])
+        self.assertFalse(recorded['complete'])
+        self.assertEqual(self.tip, self.git(self.remote, 'rev-parse', 'refs/heads/feat/delivery'))
+        self.assertTrue(Path(recorded['recovery'][0]['pack_path']).is_file())
+        self.git(self.remote, 'config', 'receive.denyDeletes', 'false')
+        completed = subprocess.run(action, capture_output=True, text=True, env=self.environment())
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertEqual('complete', self.checkpoint('record', recorded)['outcomes']['cleanup'])
+
+    def test_changed_origin_destination_does_not_inherit_remote_deletion_scope(self) -> None:
+        prior = self.prepared()
+        self.assert_allowed(self.action(prior, 'remote-delete'))
+        other = self.root / '.ai/unrelated-origin.git'
+        self.git(self.repo, 'init', '--bare', str(other))
+        self.git(self.repo, 'push', str(other), 'main', 'feat/delivery')
+        self.git(self.repo, 'remote', 'set-url', 'origin', str(other))
+        self.assert_guarded(self.action(prior, 'remote-delete'))
+
+    def test_changed_pushurl_does_not_inherit_remote_deletion_scope(self) -> None:
+        prior = self.prepared()
+        self.assert_allowed(self.action(prior, 'remote-delete'))
+        other = self.root / '.ai/unrelated-push-origin.git'
+        self.git(self.repo, 'init', '--bare', str(other))
+        self.git(self.repo, 'push', str(other), 'main', 'feat/delivery')
+        self.git(self.repo, 'config', 'remote.origin.pushurl', str(other))
+        self.assert_guarded(self.action(prior, 'remote-delete'))
+
+    def test_prepared_repository_binds_actual_observed_remote_transport_identity(self) -> None:
+        prior = self.prepared()
+        self.assertEqual({'name': 'origin', 'configured_fetch_urls': [str(self.remote)], 'configured_push_urls': [],
+                          'effective_fetch_urls': [str(self.remote)], 'effective_push_urls': [str(self.remote)]},
+                         prior['repositories'][0].get('remote_identity'))
+
+    def test_url_rewrites_cannot_retarget_the_original_remote_scope(self) -> None:
+        prior = self.prepared()
+        other = self.root / '.ai/rewritten-origin.git'
+        self.git(self.repo, 'init', '--bare', str(other))
+        self.git(self.repo, 'push', str(other), 'main', 'feat/delivery')
+        for setting in ('insteadOf', 'pushInsteadOf'):
+            with self.subTest(setting=setting):
+                key = 'url.' + str(other) + '.' + setting
+                self.git(self.repo, 'config', key, str(self.remote))
+                self.assert_guarded(self.action(prior, 'remote-delete'))
+                self.git(self.repo, 'config', '--unset', key)
+
+    def test_resume_preserves_original_remote_identity_instead_of_rebinding(self) -> None:
+        prior = self.prepared()
+        other = self.root / '.ai/replacement-origin.git'
+        self.git(self.repo, 'init', '--bare', str(other))
+        self.git(self.repo, 'push', str(other), 'main', 'feat/delivery')
+        self.git(other, 'symbolic-ref', 'HEAD', 'refs/heads/main')
+        original = self.journal_path.read_bytes()
+        self.git(self.repo, 'remote', 'set-url', 'origin', str(other))
+        self.blocked(self.checkpoint('prepare', prior), 'remote-identity-changed')
+        self.assertEqual(original, self.journal_path.read_bytes())
+
+    def test_canonical_policy_gives_only_the_scoped_exception_precedence(self) -> None:
+        policy = (SOURCE / 'rules/git-flow.md').read_text()
+        section = policy.split('## Finalization Git ownership\n', 1)[1].split('\n## ', 1)[0]
+        for term in ('takes precedence', 'journal-bound', 'recovery pack', 'SHA-256',
+                     'git branch -d', '--force-with-lease=', 'Restack verifier defaults'):
+            self.assertIn(term, section)
+        self.assertIn('Enforcement values for the safety rails: `hook: deny` | `hook: ask` | `hook: allow with restack journal` | `text only`.', policy)
+
 
 class StagingChecks(unittest.TestCase):
     def setUp(self) -> None:
