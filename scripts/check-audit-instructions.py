@@ -2890,7 +2890,7 @@ class VerifyCoverageAndInstalledTests(SharedVerifyCase):
             ("currency in a candidate", lambda value: value["candidates"][1].update(
                 reason="Worth 2 EUR."), "FO-001"),
             ("kilotokens in a section home", lambda value: value["files"][3]["sections"][2]
-             .update(proposed_home="rules/reference/12k-tokens.md"), "files[3]"),
+             .update(proposed_home="rules/reference/12ktokens.md"), "files[3]"),
         )
         for name, fault, fragment in cases:
             with self.subTest(case=name):
