@@ -635,6 +635,35 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertNotEqual((0, '', ''), (result.returncode, result.stdout, result.stderr),
                             'Two exact current task scopes cannot authorize a unique cleanup decision')
 
+    def test_existing_tracked_roadmap_and_named_delivery_notes_reconcile_exactly(self) -> None:
+        records = (('roadmap', '.ai/roadmap.md'), ('delivery-notes', '.ai/context/reporting-delivery.md'))
+        for kind, relative in records:
+            with self.subTest(path=relative):
+                if kind != 'roadmap':
+                    self.doCleanups()
+                    self.setUp()
+                original = '# Current delivery\n\nCurrent integration pending.\nFuture reporting remains planned.\n'
+                prior, path, before = self.knowledge_fixture(kind=kind, relative=relative, original=original)
+                after = original.replace('Current integration pending.', 'Current integration verified.').encode()
+                changed = self.knowledge_delta(prior, path, before, after)
+                self.assertEqual('recorded', changed['status'], changed)
+                self.assertIn(b'Future reporting remains planned.', path.read_bytes())
+                self.assertEqual('', self.git(self.repo, 'diff', '--cached', '--name-only'))
+                self.assertEqual(before, Path(next(row for row in changed['knowledge_files'] if row['path'] == relative)['snapshot_path']).read_bytes())
+
+    def test_roadmap_delivery_kinds_cannot_relabel_progress_or_protected_namespaces(self) -> None:
+        records = (('roadmap', '.ai/memory/progress.md'), ('delivery-notes', '.ai/memory/progress.md'),
+                   ('delivery-notes', '.ai/tasks/todo/task-delivery/report-delivery.md'),
+                   ('delivery-notes', '.ai/specs/report-delivery.md'),
+                   ('delivery-notes', '.ai/context/finalization/report-delivery.md'),
+                   ('delivery-notes', '.ai/context/history/report-delivery.md'),
+                   ('delivery-notes', 'config/report-delivery.md'))
+        for kind, relative in records:
+            with self.subTest(path=relative, kind=kind):
+                self.put_evidence(knowledge_inventory=[{'path': relative, 'kind': kind}])
+                result = self.call('prepare', args=('--authorize', '--expected-revision', 'absent'))
+                self.blocked(result, 'knowledge-change-invalid')
+
     def test_required_deployment_unknown_remains_independent(self) -> None:
         self.test_required_deployment_without_dated_revision_environment_evidence_blocks_finish()
 
