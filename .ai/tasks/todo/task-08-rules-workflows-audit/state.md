@@ -367,7 +367,7 @@ T-09 | Map, findings, amendments and report | atomic-tests: green | atomic-execu
   base_branch: docs/audit-workflows
   base_commit: 49a833a0021673b00284a4e8315698709276f040
   commits: 88ca140 docs(audit): map the migration, amend its specification and write the report, 494b4ee fix(audit): accept the arrow heading reference and amend the size check, 0add2fa fix(audit): make the bootstrap size and reference amendments consistent
-  pr: none
+  pr: #113 draft
          orchestrator 2026-11-17 (hand-off from the rules-and-adapters validation): reference-defect findings AUD-08-001/004/005/007 are owned to 11 only because owner 09 needs an amendment (REQ-29); spec 08 A-18 gives pre-existing reference defects to 09 and spec 11 consumes only proposal types, so decide here whether to re-own them to 09 with an amendment, and record the intake gap for non-proposal 11-owned findings (AUD-08-010, 018, 025 and any later ones) or ask the owner
          orchestrator 2026-11-17 (hand-off from the workflow assessment): map rows for the 42 workflows; reference defects AUD-08-033/035/036 owned to 11 can move to 09 with an amendment; candidate duplicate group by reading: the model-resolution protocol paraphrased at `rules/phase-atomic-execution.md:76-98`, `workflows/pe-execute.md:41-62` and `workflows/spec-run.md:181-205`
          tdd: integration — RED gate is the remaining `verify` diagnostics (task Assumptions); no test commit for this data subtask; test command `MISE_PYTHON_VERSION=3.12.16 python3 -I scripts/audit-instructions.py verify --root . --report docs/audits/2026-11-17-rules-workflows-audit.md`
@@ -403,6 +403,11 @@ T-10 | Index, knowledge and review line | atomic-tests: not-started | atomic-exe
   target_files: docs/README.md, scripts/README.md, .ai/context/runbook.md, .ai/memory/architecture.md, .ai/memory/state.md, .ai/memory/progress.md, docs/audits/<run_date>-rules-workflows-audit.md
   blocker: none
   notes:
+  branch: docs/index-rules-workflows-audit
+  base_branch: docs/audit-migration-map-and-report
+  base_commit: f0684d8053a6ca03731ac8254bf8916fe1b67050
+  commits:
+  pr: none
 
 
 ## Model Selection
