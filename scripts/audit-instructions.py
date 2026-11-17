@@ -1472,8 +1472,14 @@ def reject_constant(name: str) -> NoReturn:
 
 
 def parse_json(text: str) -> object:
-    return json.loads(text, object_pairs_hook=reject_duplicate_keys,
-                      parse_constant=reject_constant)
+    """Parse JSON text; the value must also be writable as UTF-8 (no unpaired surrogate)."""
+    value = json.loads(text, object_pairs_hook=reject_duplicate_keys,
+                       parse_constant=reject_constant)
+    try:
+        json.dumps(value, ensure_ascii=False).encode("utf-8")
+    except UnicodeEncodeError:
+        raise JsonRejected("a string holds an unpaired surrogate") from None
+    return value
 
 
 def display_name(path: Path, root: Path) -> str:
@@ -1498,7 +1504,7 @@ def load_document(path: Path, name: str, code: str) -> Document | Diagnostic:
     except json.JSONDecodeError as error:
         return Diagnostic(f"{code}-invalid", f"{name}:{error.lineno}",
                           f"not parseable JSON ({error.msg})")
-    except (JsonRejected, RecursionError) as error:
+    except (ValueError, RecursionError) as error:
         return Diagnostic(f"{code}-invalid", f"{name}:0", f"rejected JSON ({error})")
 
 
