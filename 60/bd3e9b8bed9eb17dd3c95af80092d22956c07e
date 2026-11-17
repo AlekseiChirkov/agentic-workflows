@@ -1,0 +1,27 @@
+.ai/adr/0025-task-24-post-merge-finalization.md
+  s_ba687a06b17902::t_85e0982f657272 18-19
+.ai/tasks/todo/task-24-task-finalization/T-02-finalization-safety/description.md
+  s_ba687a06b17902::t_2fd45d4eafc746 12,29-32
+.ai/tasks/todo/task-24-task-finalization/T-03-finalization-workflow/description.md
+  s_ba687a06b17902::t_8b33464fe627e4 12,29-33
+.ai/tasks/todo/task-24-task-finalization/plan.md
+  s_ba687a06b17902::t_52f721a5482a40 8
+.ai/tasks/todo/task-24-task-finalization/state.md
+  s_ba687a06b17902::t_73ea2fad371937 15,54,58-60,62-74,77,80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "60bd3e9b8bed9eb17dd3c95af80092d22956c07e",
+  "prompts": {},
+  "sessions": {
+    "s_ba687a06b17902": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e93f-54f4-7363-9037-6892b0ec2bc0",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
