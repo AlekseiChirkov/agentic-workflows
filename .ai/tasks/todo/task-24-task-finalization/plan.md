@@ -6,7 +6,7 @@
 |----|------|---------------------|------------|--------|
 | T-01 | Implement evidence, journal and lossless archival mechanics | tests → implement → review | — | reviewed |
 | T-02 | Enforce scoped cleanup and stage provider outputs | tests → implement → review | T-01 | reviewed |
-| T-03 | Connect finalization with shared workflow contracts | tests → implement → review | T-02 | not-started |
+| T-03 | Connect finalization with shared workflow contracts | tests → implement → review | T-02 | in-progress |
 
 ## Decomposition Decisions
 

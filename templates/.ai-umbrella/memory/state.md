@@ -15,7 +15,7 @@ Format:
 ### <task-name>
 - spec: .ai/specs/<NN>-<slug>.md
 - task: .ai/tasks/todo/<task-slug>/
-- phase: discovery | execution | validation | complete
+- phase: discovery | execution | validation | finalization | complete
 - status: in-progress | blocked | complete
 - repos: service-api, service-worker, ...
 - notes: <any relevant context>

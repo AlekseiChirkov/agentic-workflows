@@ -21,8 +21,11 @@ The review does not certify a fresh full suite or deployed installations.
 Runtime task closure is administrative. Warning-fixture, identity-scan and source-guard
 changes are integrated; concurrent acceptance execution, opt-in timing, an additional
 identity-output I/O correction and comparative performance acceptance remain undelivered.
-Deleted experimental branch names do not count as delivery. No task is currently active;
-07 was scheduled by the owner on 2026-11-13 (ADR-0021) and delivered on 2026-11-16 on stacked pull requests awaiting merge; the other roadmap items require their own implementation work.
+Deleted experimental branch names do not count as delivery. The dated review above remains
+historical evidence. The state tool was merged and archived on 2026-11-16, as recorded in
+[progress](../memory/progress.md). Current active work is listed in
+[task state](../memory/state.md); the rules/workflows audit remains separately scheduled
+and the post-merge closure implementation below does not advance other roadmap scope.
 
 ## Owner-scheduled post-merge closure
 

@@ -233,6 +233,8 @@ def fault(name: str, root: Path) -> None:
 
 
 def atomic_write(path: Path, data: bytes, root: Path, *, journal: bool = False) -> None:
+    require(not journal or len(data) <= 1024 * 1024, 'journal-too-large',
+            'Journal exceeds the shared 1 MiB helper/hook limit; previous revision is preserved')
     safe_path(path, root)
     descriptor, temporary_name = tempfile.mkstemp(prefix='.' + path.name + '.', suffix='.tmp', dir=path.parent)
     temporary = Path(temporary_name)

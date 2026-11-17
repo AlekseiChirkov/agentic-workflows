@@ -8,7 +8,7 @@ Recovery verification initializes/writes only disposable isolated temporary Git 
 
 CLI (one JSON object on stdout, exit 0 success / 1 blocked / 2 usage):
   phase-finalize.py inspect TARGET --root ROOT [--evidence JSON] [--dry-run]
-  phase-finalize.py prepare|record|knowledge|archive|finish TARGET --root ROOT
+  phase-finalize.py prepare|attempt|record|knowledge|archive|finish TARGET --root ROOT
       [--evidence JSON] --authorize --expected-revision absent|SHA256 [--dry-run]
 No implicit project root/repository discovery, project Git initialization, checkout, fetch, PR/history merge,
 push, branch deletion, reset, stash, clean, worktree removal or logging occurs.
@@ -29,6 +29,63 @@ is not completion. record rechecks each actual ref/checkout postcondition; comma
 exit codes or caller success flags never establish cleanup. Surviving remote refs
 remain incomplete. Local branch -d refusal MUST preserve that branch; never use -D.
 
+Internal attempt input: evidence.command_attempt is exactly {attempt_id, operation_id,
+checkpoint, repository, argv, exit_code, stdout, stderr, observed_at, provenance,
+source_tips}. operation_id is an exact planned action id (argv/repository must match)
+or validation/integration/recovery/verification/knowledge/audit/deployment/archival for
+an externally executed check. source_tips equals the journal's integration bindings.
+Checks may run at the physical project root or an exactly recorded repository path;
+planned Git actions retain their exact repository/argv scope. Other paths are rejected.
+Attempts are immutable; exact replay is a no-op and conflicting attempt ids block.
+attempt requires an existing authorized bound journal, lock and expected revision,
+but makes no Git/network observations and writes only the journal. Old hook receipts
+remain stale until normal fresh reconciliation republishes them. It records applied
+(exit zero), blocked or preserved, never verified. The operations mapping additionally
+uses pending/prepared/verified; only read-back postconditions can verify Git actions.
+Failed and recovered checks remain separate attempts; a later pass attestation retains
+the original failure and states the actual coverage and recovery limitations.
+The recorder may preserve a check before current semantic edits have been independently
+accepted. It still verifies original task/spec/knowledge snapshots and exact index/scope
+bindings; it grants no acceptance to those edited bytes. Normal record/archive/finish
+continue to require exact accepted current knowledge digests.
+Every new attested-kind check invalidates that kind's older pass; only an independently
+valid attestation dated strictly after its latest command attempt can recover it.
+Outputs up to 64 KiB remain strings. Larger stdout/stderr become exact UTF-8 immutable
+references {path,sha256,bytes,encoding:'utf-8'} under journal-dir/outputs/<sha>.utf8.
+Idempotent replay normalizes the same input strings to the same references. Every
+reconciliation/audit/attempt checks artifact integrity; interrupted unreferenced artifacts
+remain preserved. All journal writers refuse over 1 MiB before replacement, matching
+the hook's reader bound; no truncation or widening of other journal readers occurs.
+
+Optional evidence.knowledge_inventory is an array of {path,kind}, project-root-relative
+existing Markdown current records, bounded to 128. kind is current-record (architecture,
+current state/project_state, domain, runbook/environment/integrations or specs/README),
+progress (memory/progress.md), adr-index (adr/index.md), guidance (README/CLAUDE/AGENTS.md),
+roadmap (.ai/roadmap.md or .ai/memory/roadmap.md), or delivery-notes
+(.ai/context/<scope>-delivery.md with one safe filename component),
+under ROOT or a recorded repository. Prepare requires the existing clean tracked baseline
+and preserves immutable original bytes in knowledge snapshots. After all checkout/refresh
+postconditions pass, it binds clean Git index bytes, canonical entries and integration HEAD.
+Normal reconciliation may refresh metadata or a descendant integration generation only after
+fresh verification of that exact checkout and index entries identical to HEAD, with all
+stages zero. Original baselines/history remain retained; staged/unmerged/unowned/rewound
+generations block. No index or Git object writes occur. Offline attempt recording requires
+the existing exact baseline until normal reconciliation. A knowledge attestation may
+then supply file_changes:[{path,before_sha256,after_sha256}] with independent dated task,
+state and source provenance. Only inventoried exact bytes become tracked-dirty exceptions;
+staging, product/config/executable files, tasks/specs/history/ADR bodies and other paths
+remain forbidden. Progress is append-only; ADR indexes retain titles/links/history and may
+update current status cells or append pointers. Unresolved ADR semantic changes block and
+require their own authority; this helper never rewrites historical decisions. Repeated
+knowledge changes preserve prior deltas and cannot omit already bound changed paths.
+All inventoried current files, including unchanged ignored/untracked records, must equal
+their original or latest independently accepted digest; only exact journaled archive-link
+relocation is allowed. A new changed binding needs strictly newer independent evidence.
+Unsupported relevant knowledge layouts block closure rather than being silently skipped.
+If a clean owner commit changes an inventoried record together with integration source,
+internal knowledge first independently verifies that clean descendant source generation,
+then validates the exact delta against its observed tips, all in one journal transaction.
+
 Journal: ROOT/.ai/context/finalization/<stable-id>/journal.json, stable-id = sha256
 (absolute physical root + NUL + original task path relative to root). The journal
 stores original full SHA/ref/recovery commands, immutable original-state/spec/tree
@@ -48,6 +105,9 @@ Recovery gating: first prepare returns recovery-required with recovery_actions[]
 Each action has repository, pack_path/stdout_path, exact read-only pack-objects argv,
 stdin containing only original maximal full tips, restore_command, restore_stdin,
 and branch_recovery_commands. The caller writes stdout to the exact pack_path,
+first validating all existing path components and creating only the exact missing recovery
+parent under the stable journal. Use exclusive/no-clobber file creation; preserve any
+existing pack and any failed command/redirection attempt before a corrected retry.
 then reruns prepare with the returned revision. No deletion-authorizing receipt is
 published until every self-contained pack is verified. No --all or unrelated ref
 selection occurs. Verification runs Git init/index-pack/fsck ONLY in isolated /tmp
@@ -84,6 +144,11 @@ original identity; no branch/task names are guessed.
 Evidence JSON v1: schema_version=1, provenance object, pull_requests[],
 attestations[], optional delivery_records[]. Caller PR claims are not authoritative:
 canonical pr: none means no PR. #N draft/#N ready resolve via this repository's exact configured GitHub origin; explicit GitHub URLs must match that identity. Production re-reads gh pr view N --repo OWNER/REPO, verifies returned URL identity, and preserves the original pr audit string unchanged.
+SSH aliases use the GitHub CLI's exact ssh -G hostname translation followed by explicit
+canonical-URL gh repo view metadata. Journal repository.hosting_identity and the PR receipt
+bind successful origin-specific resolution to full remote_identity; the hook independently
+matches that hashed journal binding without SSH, gh or network calls. No alias binding in
+an older journal means no alias PR-only exception; no automatic migration exists.
 Rewritten history requires exact original head/ref, intended integration base,
 MERGED state, dated merge and reachable merge object. An ordinary closed PR or a
 merge only into a stack feature does not qualify. Ancestry checks all original
@@ -96,12 +161,15 @@ state_sha256 (original raw state hash or current raw hash), observed_at (dated I
 with timezone), result:'pass', provenance (named independent source), source_tips:
 {absolute repo: current integration full SHA}}. Verification additionally supplies
 commands:[{argv:[...],exit_code:0,stdout,stderr}], coverage, and optional
-reuse:{permitted:true,original_state_sha256,validated_tips:{repo: original SHA},
+reuse:{permitted:true,original_state_sha256,validated_tips:{repo: original task-branch SHA},
 limitations}. The helper never runs arbitrary receipt commands: external attestation
 trust is disclosed explicitly, not mislabeled as observed fresh test execution.
 Verification coverage must cover the changed surface; a reused prior result needs
-explicit prior-tip/state provenance and runtime/dependency limits. Knowledge/audit
-attestations attest semantic reconciliation/review; they never rewrite history.
+explicit prior-tip/state provenance and runtime/dependency limits. Same-invocation checks
+retained after metadata-only movement keep their actual command timestamps/source coverage;
+they need no prior-Validation reuse object. Completed reruns prefer persisted journal evidence;
+do not resubmit stale raw-state-bound input as fresh. Knowledge/audit attestations attest
+semantic reconciliation/review; they never rewrite history.
 Deployment additionally needs revision (one of current source tips), environment,
 and dated provenance. Caller checkpoint flags alone have no success semantics.
 A required deployment without evidence blocks finish; unknown optional deployment
@@ -118,9 +186,14 @@ reviewed plan/leaf/fix/composite progress and final verification. Recorded prior
 validation remains labeled prior evidence; finish additionally requires source-bound
 verification with honest fresh/reuse provenance. Future undiscovered spec phases
 keep the whole spec active even when all existing tasks have validated.
+Canonical ## Final Verification may contain ordinary dated narrative, with strict external
+successful verification commands, task/raw-state hash, source tips, date and coverage proof.
+Legacy Execution Report final PASS markers remain supported. No undocumented prose phrase
+is required for the canonical writer; a section/status alone is insufficient evidence.
 
 Test fault seams FINALIZATION_TEST_FAULT=before-journal-replace|after-journal-replace|
-after-task-rename only terminate a process under FINALIZATION_TEST_ROOT in /tmp;
+after-task-rename|after-spec-rename|after-pointer-update|after-moving-links|after-index-update
+only terminate a process under FINALIZATION_TEST_ROOT in /tmp;
 they cannot grant authorization or change evidence. Fixtures mutate disposable Git
 repositories directly; the helper writes Git objects only inside isolated temporary recovery verification storage.
 """
@@ -132,10 +205,15 @@ from pathlib import Path
 import re
 import sys
 
+sys.dont_write_bytecode = True
+
+from finalization_attempts import observe_operations, record_attempt, receipt_is_newer
 from finalization_archive import (apply_moving_links, apply_pointer_plans, identity, integrity, move_no_replace, moving_link_plans,
                                   pointer_plans, resolve, snapshot, spec_eligible)
 from finalization_evidence import assess, commit, evidence_file, git, remote_refs
 from finalization_recovery import check_verified, prepare_recovery, recovery_plan
+from finalization_knowledge import (capture as capture_knowledge, capture_indexes, changes as knowledge_changes,
+                                    index_observations, reconcile_indexes)
 from finalization_support import (Refusal, atomic_write, dated, digest, encoded, expect_revision,
                                   edit_current_state, fault, field, locked, manifest, normalized_state, now, read_json, require, safe_path, section, text)
 
@@ -211,8 +289,10 @@ def update_postconditions(journal: dict) -> None:
     if previous and without_time(previous) != without_time(fresh):
         journal.setdefault('action_history', []).append(previous)
     journal['action_receipts'] = previous if without_time(previous) == without_time(fresh) else fresh
+    observe_operations(journal, journal['action_receipts'])
     journal['outcomes']['cleanup'] = 'complete' if all(row['satisfied'] for row in journal['action_receipts'] if row['kind'].endswith('delete')) else 'incomplete'
     journal['outcomes']['checkout'] = 'complete' if all(row['satisfied'] for row in journal['action_receipts'] if row['kind'] in {'checkout', 'refresh'}) else 'incomplete'
+    capture_indexes(journal, git)
 
 
 def accept_attestations(journal: dict, evidence: dict, task: Path) -> None:
@@ -225,6 +305,9 @@ def accept_attestations(journal: dict, evidence: dict, task: Path) -> None:
         require(isinstance(row, dict), 'attestation-invalid', 'Attestation must be an object')
         kind = row.get('kind')
         require(kind in {'knowledge', 'audit', 'verification', 'deployment'}, 'attestation-invalid', 'Unknown attestation kind')
+        if dated(row.get('observed_at')) and not receipt_is_newer(journal, kind, row):
+            stale.append(str(kind) + ' evidence predates a recorded command/check attempt; a newly dated pass is required')
+            continue
         if row.get('source_tips') != expected:
             stale.append(str(kind) + ' source binding is stale; new verification/reconciliation evidence required')
             continue
@@ -314,6 +397,7 @@ def archive(journal: dict, path: Path, root: Path, task: Path, spec: Path) -> tu
         if spec != spec_destination:
             move_no_replace(spec, spec_destination, root)
             spec = spec_destination
+            fault('after-spec-rename', root)
         # Only this current-location pointer changes; original raw state is recoverable.
         state_path = task / 'state.md'
         value = text(state_path)
@@ -323,8 +407,11 @@ def archive(journal: dict, path: Path, root: Path, task: Path, spec: Path) -> tu
         updated = edit_current_state(value, spec=spec.relative_to(root).as_posix())
         if updated != value.encode():
             atomic_write(state_path, updated, root)
+        fault('after-pointer-update', root)
     apply_moving_links(root, journal, task, spec)
+    fault('after-moving-links', root)
     apply_pointer_plans(root, intent['current_links'])
+    fault('after-index-update', root)
     journal['spec_current'] = str(spec)
     journal['outcomes']['archival'] = 'complete'
     journal['outcomes']['spec_archival'] = intent['spec_status']
@@ -364,7 +451,12 @@ def response(command: str, status: str, root: Path, task: Path, spec: Path, path
     result.update(current)
     if journal:
         for key in ('repositories', 'actions', 'outcomes', 'manifest', 'snapshot_path', 'plan_digest', 'action_receipts',
-                    'validation_evidence', 'trust_limitations', 'attestations', 'action_history', 'recovery', 'recovery_actions'):
+                    'validation_evidence', 'trust_limitations', 'attestations', 'action_history', 'recovery', 'recovery_actions',
+                    'operations', 'command_attempts'):
+            if key in journal:
+                result[key] = journal[key]
+        for key in ('knowledge_files', 'knowledge_indexes', 'knowledge_indexes_original', 'knowledge_index_history',
+                    'knowledge_changes', 'knowledge_change_history'):
             if key in journal:
                 result[key] = journal[key]
         result['complete'] = journal.get('complete', False) if command == 'finish' else False
@@ -376,6 +468,24 @@ def response(command: str, status: str, root: Path, task: Path, spec: Path, path
     if receipts is not None:
         result['hook_receipts'] = receipts
     return result
+
+
+def reconcile_knowledge_input(command: str, dry_run: bool, root: Path, task: Path,
+                              spec: Path, journal: dict, evidence: dict, observations: dict) -> None:
+    if command != 'knowledge' or dry_run:
+        return
+    bound = {repo['path']: repo['integration']['tip'] for repo in journal['repositories']}
+    advanced = any(isinstance(row, dict) and row.get('kind') == 'knowledge' and 'file_changes' in row
+                   and row.get('source_tips') != bound for row in evidence.get('attestations', []))
+    if advanced:
+        # A clean owner commit can change an inventoried record and its source together.
+        # Observe the actual integration generation before accepting any caller delta;
+        # assess still uses only the old exact dirty-file allowances.
+        integrity(root, task, spec, journal, indexes=False, current_knowledge=False)
+        fresh = assess(root, task, spec, evidence, journal)
+        reconcile_indexes(journal, observations, fresh['repositories'], git)
+        journal.update({key: fresh[key] for key in ('repositories', 'actions', 'validation_evidence')})
+    knowledge_changes(journal, evidence, root, task)
 
 
 def execute(args: argparse.Namespace) -> dict:
@@ -396,11 +506,28 @@ def execute(args: argparse.Namespace) -> dict:
                 and len(adoption['provenance']) >= 8 and adoption.get('task_files') == manifest(task)
                 and adoption.get('spec_sha256') == digest(spec.read_bytes()),
                 'adoption-evidence-missing', 'Preexisting archives need explicit dated original-path/manifest/provenance evidence')
+    if args.command == 'attempt' and not args.dry_run:
+        require(args.authorize, 'authorization-required', 'An explicit invocation of phase-finalize for this task is required')
+        require(prior is not None, 'journal-missing', 'Run prepare before recording attempts')
+        with locked(path.with_name('journal.lock'), root):
+            expect_revision(path, args.expected_revision)
+            task, spec, path, journal = resolve(root, selected)
+            require(journal is not None, 'journal-missing', 'Authorized journal is unavailable')
+            integrity(root, task, spec, journal, current_knowledge=False)
+            record_attempt(journal, evidence.get('command_attempt'), path, root)
+            data = encoded(journal)
+            if path.read_bytes() != data:
+                atomic_write(path, data, root, journal=True)
+            return response(args.command, 'recorded', root, task, spec, path, {}, journal)
     if prior:
-        integrity(root, task, spec, prior)
+        observations = index_observations(prior, git)
+        reconcile_knowledge_input(args.command, args.dry_run, root, task, spec, prior, evidence, observations)
+        integrity(root, task, spec, prior, indexes=False)
         if prior['outcomes'].get('recovery') == 'verified':
             require(check_verified(prior, root, path), 'recovery-required', 'Recovery material is unavailable')
     current = assess(root, task, spec, evidence, prior)
+    if prior:
+        reconcile_indexes(prior, observations, current['repositories'], git)
     if args.command == 'inspect' or args.dry_run:
         observed = copy.deepcopy(prior) if prior else None
         if observed:
@@ -414,8 +541,12 @@ def execute(args: argparse.Namespace) -> dict:
         # Re-resolve and re-read under the lock; stale snapshots cannot authorize writes.
         task, spec, path, prior = resolve(root, selected)
         if prior:
-            integrity(root, task, spec, prior)
+            observations = index_observations(prior, git)
+            reconcile_knowledge_input(args.command, args.dry_run, root, task, spec, prior, evidence, observations)
+            integrity(root, task, spec, prior, indexes=False)
         current = assess(root, task, spec, evidence, prior)
+        if prior:
+            reconcile_indexes(prior, observations, current['repositories'], git)
         if args.command == 'prepare':
             if prior:
                 require(prior['authorization']['task_path'] == prior['task_original'], 'authorization-required', 'Journal scope authorization differs')
@@ -432,6 +563,8 @@ def execute(args: argparse.Namespace) -> dict:
                            'original_state_sha256': digest(normalized_state(text(task / 'state.md'))),
                            'authorization': {'invocation': 'phase-finalize', 'task_path': str(original_task), 'cleanup': True},
                            'created_at': now(), 'complete': False, **current}
+                journal['knowledge_files'] = capture_knowledge(root, path.parent,
+                    evidence.get('knowledge_inventory', []), journal['repositories'])
             if isinstance(adoption, dict) and task.parent.name == 'completed':
                 journal['adoption'] = adoption
                 journal['trust_limitations'] = ['Adopted preexisting archive: snapshots preserve bytes observed at adoption; pre-archive raw bytes and prior execution are not independently recoverable or verified.']
@@ -459,7 +592,7 @@ def execute(args: argparse.Namespace) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('command', choices=('inspect', 'prepare', 'record', 'knowledge', 'archive', 'finish'))
+    parser.add_argument('command', choices=('inspect', 'prepare', 'attempt', 'record', 'knowledge', 'archive', 'finish'))
     parser.add_argument('target')
     parser.add_argument('--root', required=True)
     parser.add_argument('--evidence')

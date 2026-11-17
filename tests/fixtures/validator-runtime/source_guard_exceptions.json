@@ -305,7 +305,7 @@
     "count": 1,
     "reason": "The relocated fixture executes the explicitly named copied helper.",
     "dependencies": {
-      "scripts/sync.sh": "968b8d585f47569251be91c1d6d443bb27bce17e1f92ac4697e5604c8dba1cef"
+      "scripts/sync.sh": "a65854df540b320988620ccac94299e16ee6a8e5e4792b89fc32cc9a68f9f123"
     }
   },
   {
@@ -329,7 +329,7 @@
     "count": 1,
     "reason": "The relocated fixture iterates over a fixed list of setup scripts.",
     "dependencies": {
-      "scripts/setup-new-project.sh": "8fbe42e3b031ef5af819376645c7727f27d55c85d8f76021e3f1435be4d56f99",
+      "scripts/setup-new-project.sh": "b4df6ddde97277b296d32480e785040e754ce72656624aadf986ef7a4237e018",
       "scripts/setup-umbrella.sh": "390e0aefd334c98c2f550e094d9e82764afe45eb9a49b66aaf6a007ebaae8d4a",
       "scripts/setup-all-repos.sh": "ddeb59cad58bb1bdb722b7920d398be95682010b7f4fc39676560e7f65c3df6f"
     }
@@ -355,7 +355,7 @@
     "count": 1,
     "reason": "The relocated fixture iterates over a fixed list of setup scripts.",
     "dependencies": {
-      "scripts/setup-new-project.sh": "8fbe42e3b031ef5af819376645c7727f27d55c85d8f76021e3f1435be4d56f99",
+      "scripts/setup-new-project.sh": "b4df6ddde97277b296d32480e785040e754ce72656624aadf986ef7a4237e018",
       "scripts/setup-umbrella.sh": "390e0aefd334c98c2f550e094d9e82764afe45eb9a49b66aaf6a007ebaae8d4a",
       "scripts/setup-all-repos.sh": "ddeb59cad58bb1bdb722b7920d398be95682010b7f4fc39676560e7f65c3df6f"
     }
@@ -3565,13 +3565,13 @@
     "inventory_sha256": "566bed33b9d04c1d19f791c35319a5e1554febd51e938bfb21b2f435cde56dae",
     "dependencies": {
       "docs/MODEL-CATALOG.md": "705c920c60218461404d3b76b6ef77f04b42f72b659800dec2cba2d5ef507ad4",
-      "rules/workflow-reference.md": "08c81786494f39665b4aebf495c705a21b4fd38294a995074a24d165730bd463",
-      "scripts/sync.sh": "968b8d585f47569251be91c1d6d443bb27bce17e1f92ac4697e5604c8dba1cef",
+      "rules/workflow-reference.md": "3bf500003458ea7ec0b9c1b0e6e09a16973461e0d6b09e38454a2379f487a046",
+      "scripts/sync.sh": "a65854df540b320988620ccac94299e16ee6a8e5e4792b89fc32cc9a68f9f123",
       "scripts/model-catalog.py": "dfe20c5cac2eefa8f03b4dbc90dbc107abd3635104102ec0e24e7ad5109d6bd4",
       "scripts/model_selection.py": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece",
       "scripts/model_plan.py": "283c7d1d0a4c37fd9f1f2405eb269cfa7e5bb32b8dd898c0b49e9b16d32231ff",
       "workflows/pd-select-model.md": "16a7239c47c97e0fc2c52a54a67017d45be9b12809bb010267555c3a3b6977d2",
-      "workflows/spec-run.md": "a7a5af2cbadf807d2c316dfe1887bdf9eacb50d9f83c242bd7e0fea939b3106c",
+      "workflows/spec-run.md": "29503074c6b4815be035e8404a10a63ff08025e7d24dc99d8d84441cf8db879a",
       "workflows/pe-execute.md": "5d4097666f7bd3bc1d343c10dd545db306b845cc74cba2ce21e43acf8d28316e",
       "workflows/phase-atomic-execution.md": "2891c7773cb73a2d25d3ef23e8ec6c3c003f98342cbea69e1288796178ad48f8"
     }
@@ -3587,13 +3587,13 @@
     "inventory_sha256": "566bed33b9d04c1d19f791c35319a5e1554febd51e938bfb21b2f435cde56dae",
     "dependencies": {
       "docs/MODEL-CATALOG.md": "705c920c60218461404d3b76b6ef77f04b42f72b659800dec2cba2d5ef507ad4",
-      "rules/workflow-reference.md": "08c81786494f39665b4aebf495c705a21b4fd38294a995074a24d165730bd463",
-      "scripts/sync.sh": "968b8d585f47569251be91c1d6d443bb27bce17e1f92ac4697e5604c8dba1cef",
+      "rules/workflow-reference.md": "3bf500003458ea7ec0b9c1b0e6e09a16973461e0d6b09e38454a2379f487a046",
+      "scripts/sync.sh": "a65854df540b320988620ccac94299e16ee6a8e5e4792b89fc32cc9a68f9f123",
       "scripts/model-catalog.py": "dfe20c5cac2eefa8f03b4dbc90dbc107abd3635104102ec0e24e7ad5109d6bd4",
       "scripts/model_selection.py": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece",
       "scripts/model_plan.py": "283c7d1d0a4c37fd9f1f2405eb269cfa7e5bb32b8dd898c0b49e9b16d32231ff",
       "workflows/pd-select-model.md": "16a7239c47c97e0fc2c52a54a67017d45be9b12809bb010267555c3a3b6977d2",
-      "workflows/spec-run.md": "a7a5af2cbadf807d2c316dfe1887bdf9eacb50d9f83c242bd7e0fea939b3106c",
+      "workflows/spec-run.md": "29503074c6b4815be035e8404a10a63ff08025e7d24dc99d8d84441cf8db879a",
       "workflows/pe-execute.md": "5d4097666f7bd3bc1d343c10dd545db306b845cc74cba2ce21e43acf8d28316e",
       "workflows/phase-atomic-execution.md": "2891c7773cb73a2d25d3ef23e8ec6c3c003f98342cbea69e1288796178ad48f8"
     }
@@ -4581,7 +4581,7 @@
     "count": 1,
     "reason": "The reviewed helper runs bash with an argument list from one of its three call sites, of two forms: the pinned task validator script on a disposable task fixture, the same script on a completed task directory of this project (read only), or -c with a script assembled from the contract validator's own result renderer, the helper functions one statement calls and that two-line statement, never the complete validator, run in a disposable tree holding copies of the two rule files and the state tool; the inherited test fault variable is removed, no shell is requested and a 60 second timeout applies.",
     "dependencies": {
-      "scripts/validate-task.sh": "66f8b6f55640551e32a53cca6cf342db51b8837e44bcfd6f12d6b3b7702ebcf1"
+      "scripts/validate-task.sh": "89beff0edbcbc2b116a9d8b462bc794d4944ac4d45d35101e0074f1f0480fb06"
     },
     "inventory_sha256": "566bed33b9d04c1d19f791c35319a5e1554febd51e938bfb21b2f435cde56dae"
   },
@@ -4594,7 +4594,7 @@
     "count": 1,
     "reason": "The reviewed helper runs one of its five fixed callers' argument lists: git check-ignore -q, with an optional --no-index, in this checkout (read only) on a literal task path or on the state.md paths found by a glob over this checkout's existing task directories, or without --no-index on a literal task path in a disposable project (read only); git init -q in a disposable project; git add -- on a literal fixture path in a disposable project; bash on the pinned project setup script in a disposable project with the stack prompt answered by stdin; or bash on the pinned umbrella setup script in a disposable directory; HOME and the XDG configuration, state and cache roots point into the test's temporary directory, the source root is this checkout (read only), inherited git variables, shell startup variables and test fault variables are removed, the running interpreter's directory leads PATH, no shell is requested and a 60 second timeout applies.",
     "dependencies": {
-      "scripts/setup-new-project.sh": "8fbe42e3b031ef5af819376645c7727f27d55c85d8f76021e3f1435be4d56f99",
+      "scripts/setup-new-project.sh": "b4df6ddde97277b296d32480e785040e754ce72656624aadf986ef7a4237e018",
       "scripts/setup-umbrella.sh": "390e0aefd334c98c2f550e094d9e82764afe45eb9a49b66aaf6a007ebaae8d4a"
     },
     "inventory_sha256": "566bed33b9d04c1d19f791c35319a5e1554febd51e938bfb21b2f435cde56dae"

@@ -17,7 +17,9 @@ separate blocked section.
 
 ## Done
 Completed tasks. `/pv-finalize` moves an entry here from `## Active Tasks` when validation
-completes with no deferred items.
+completes with no deferred items. Separately invoked `/phase-finalize` reconciles this entry
+and current links after integration; preserve prior Validation and report finalization outcomes
+from the stable journal without implying deployment or closing unfinished product scope.
 
 ## Deferred
 Tasks or items explicitly postponed, with reason.

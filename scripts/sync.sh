@@ -154,7 +154,7 @@ echo "  $(ls "$PRINCIPLES"/*.md | wc -l | tr -d ' ') principles → "$OUTPUT_ROO
 # Rules are contracts every workflow cites ("load the `tdd` rule", "follow
 # `phase-atomic-execution` rules"). Claude Code has no rules directory, so each rule is
 # deployed as a skill. The `rule-` prefix is a correctness requirement, not a style choice:
-# five basenames (phase-discovery, phase-execution, phase-validation,
+# six basenames (phase-discovery, phase-execution, phase-validation, phase-finalize,
 # phase-atomic-execution, phase-atomic-validation) exist in BOTH workflows/ and rules/, and
 # deploying rules under their bare names would overwrite those workflow skills.
 echo "[3c/5] Claude Code: rules as skills"

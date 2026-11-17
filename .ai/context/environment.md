@@ -57,10 +57,15 @@ source directory fails before project initialization. `scripts/log-step.sh path`
 the selected path and never creates the store; an empty log override uses `<root>/logs`.
 
 ## Host
-- Linux, bash, `jq` (required for run-log digests and `/retro`), `git`, `gh` (only for
-  `--allow-pr`), `shellcheck` optional.
+- Linux, bash, `jq` (required for run-log digests and `/retro`), `git`; `gh` is required
+  for authoritative finalization PR reads and for authorized PR publication.
+  `shellcheck` is optional. Finalization mechanics require Python 3.11+ and Linux
+  no-overwrite rename support; unavailable required mechanisms block mutations.
 - Development host: the maintainer's workstation.
-- Local Git history exists. The owner has authorized publication and merging of the reviewed changes while preserving existing history.
+- Local Git history exists. Publication authority is task-specific; the active
+  finalization implementation has no push, PR creation or merge authorization.
+- Isolated verification uses `PATH=/usr/bin:/bin` and `/usr/bin/python3` on this host.
+  Do not select an uninstalled mise version to run checks.
 
 ## Scrub note (2026-09-17)
 
@@ -68,3 +73,11 @@ Mutable repository content uses neutral placeholders and configured helper paths
 The public-hygiene validator scans tracked files with maintainer-local patterns; only the
 source specification is exempt. Local logs, machine settings, and Git internals are
 outside the manual sweep. The local checkout location remains private.
+
+## Isolated provider generation
+
+`scripts/sync.sh --from <source-tree> --stage <directory>` runs mandatory preflight
+and generates the normal Claude, Codex and Windsurf/Devin outputs beneath the
+selected empty directory. It does not install hooks, scan consumer projects or
+write live harness locations. These files are review artifacts, not installed
+consumer changes. The source checkout remains the implementation authority.

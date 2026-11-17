@@ -4,7 +4,7 @@ trigger: always_on
 
 # Workflow Global Principles
 
-These rules govern ALL phase workflows (`/phase-discovery`, `/phase-execution`, `/phase-validation` and their atomic counterparts) without exception.
+These rules govern ALL phase workflows (`/phase-discovery`, `/phase-execution`, `/phase-validation`, `/phase-finalize` and their atomic counterparts) without exception.
 
 **Context Bootstrap (mandatory for every phase invocation).** Before reading any codebase file or modifying any project file, load `.ai/` context from the phase-specific rules file:
 
@@ -13,6 +13,7 @@ These rules govern ALL phase workflows (`/phase-discovery`, `/phase-execution`, 
 | Discovery | `phase-discovery` | `rule-phase-discovery` | `/phase-discovery`, `/pd-analyze` |
 | Execution | `phase-execution` | `rule-phase-execution` | `/phase-execution`, `/pe-execute` |
 | Validation | `phase-validation` | `rule-phase-validation` | `/phase-validation`, `/pv-contract`, `/pv-review` |
+| Finalization | `phase-finalize` | `rule-phase-finalize` | `/phase-finalize` |
 | Atomic Execution | `phase-atomic-execution` | `rule-phase-atomic-execution` | `/phase-atomic-execution`, `/pae-tests`, `/pae-implement` |
 | Atomic Validation | `phase-atomic-validation` | `rule-phase-atomic-validation` | `/phase-atomic-validation`, `/pav-check` |
 
@@ -20,8 +21,8 @@ These rules govern ALL phase workflows (`/phase-discovery`, `/phase-execution`, 
 under `global_rules/` / `.windsurf/rules/` / `.devin/rules/`, addressed by its bare basename. On
 Claude Code and Codex there is no rules directory, so `scripts/sync.sh` deploys every `rules/*.md` as a
 skill under the `rule-` prefix — `workflow-globals` → `rule-workflow-globals`, `tdd` →
-`rule-tdd`. The prefix is mandatory: five basenames (`phase-discovery`, `phase-execution`,
-`phase-validation`, `phase-atomic-execution`, `phase-atomic-validation`) exist in both
+`rule-tdd`. The prefix is mandatory: six basenames (`phase-discovery`, `phase-execution`,
+`phase-validation`, `phase-finalize`, `phase-atomic-execution`, `phase-atomic-validation`) exist in both
 `workflows/` and `rules/`, and an unprefixed rule skill would overwrite the identically-named
 *workflow* skill. When a workflow says "load the `<name>` rule", resolve it to
 `rule-<name>` on Claude Code and Codex and to the bare basename on Windsurf and Devin.
@@ -53,7 +54,7 @@ and only `/context-pack` may write to it.
 
 ---
 
-**Never auto-advance between phases.** After completing a phase (`/phase-discovery`, `/phase-execution`, `/phase-validation`), STOP completely. Do NOT invoke the next phase command. Display the next command as plain text for the user to run manually. Phase transitions are initiated by the user, except `/phase-pipeline` and `/spec-run`, which advance only through the phases authorized by their invocation.
+**Never auto-advance between phases.** After completing a phase (`/phase-discovery`, `/phase-execution`, `/phase-validation`, `/phase-finalize`), STOP completely. Do NOT invoke the next phase command. Display the next command as plain text for the user to run manually. Phase transitions are initiated by the user, except `/phase-pipeline` and `/spec-run`, which advance only through the phases authorized by their invocation.
 
 **Continue, never restart.** Before any workflow, read state files. If progress exists — continue from stopping point. Never restart from scratch.
 
@@ -119,7 +120,7 @@ cycle and replaces nothing. Work that is genuinely not testable passes an explic
 recorded gate rather than skipping silently. Full contract → the **`tdd`** rule; test style →
 `testing-standards`. No autonomous mode — including `/phase-pipeline` — suspends it.
 
-**File updates after each phase.** After completing any phase, update relevant state/plan files and run `/compress-state --auto`. Only update files relevant to the completed phase. Current phase status must always be present in `state.md`.
+**File updates after each phase.** After completing any phase, update relevant state/plan files and run `/compress-state --auto`. Only update files relevant to the completed phase. Current phase status must always be present in `state.md`. Finalization preserves its bound task snapshots and protected history; its helper owns the additive phase marker and mechanical relocation instead of running `/compress-state` on those artifacts.
 
 **Direct child-workflow invocation for partial reruns.** To re-run a specific step, call its child workflow directly (for example `/pd-analyze`, `/pae-implement`). There is no `--step=N` flag. Each child workflow has a `## Guard` section that detects already-completed work and asks for explicit confirmation before overwriting.
 
@@ -166,9 +167,10 @@ flow: quick | full
 - discovery: not-started | in-progress | complete
 - execution: not-started | in-progress | complete
 - validation: not-started | in-progress | complete
+- finalization: not-started | in-progress | complete
 ```
 
-`flow:` is a top-of-file field (alongside `spec_path:`), set during Discovery by `/pd-analyze` and defaulting to `full`. It selects the tier — see `## Flow tiers` below and the `quick-flow` rule. `## Phases` is unchanged in both tiers. Multi-phase fields (`active_phase:`, `spec_phase_count:`) keep their existing position after `spec_path:`.
+`flow:` is a top-of-file field (alongside `spec_path:`), set during Discovery by `/pd-analyze` and defaulting to `full`. It selects the tier — see `## Flow tiers` below and the `quick-flow` rule. `## Phases` uses the same format in both tiers. Finalization is additive: a missing `finalization:` marker means `not-started` for every reader and never invalidates prior Validation. Multi-phase fields (`active_phase:`, `spec_phase_count:`) keep their existing position after `spec_path:`.
 
 **Parent `state.md` → `## Subtask Progress` (one block per T-XX):**
 
@@ -313,3 +315,45 @@ fix-task progress lives in `## Subtask Progress` like any other leaf.
 | `not-reached` | Execution finished without reaching this subtask |
 
 Extended examples, file-role rationale → `workflow-reference`.
+
+## Finalization
+
+`/phase-finalize <task-directory|spec-path> [--dry-run]` is a separately invoked phase.
+Ordinary invocation authorizes mandatory cleanup only for the resolved task's proven
+resources; no repeated cleanup approval, public children or additional flags exist.
+Neither `/phase-pipeline` nor `/spec-run` advances into it. Validation completion retains
+its existing meaning; task closure does not imply whole-product completion or deployment.
+
+Status values for finalization: `not-started` | `in-progress` | `complete`.
+Operation checkpoints for finalization: `pending` | `prepared` | `applied` | `verified` | `blocked` | `preserved`.
+
+The stable journal lives outside moving artifacts at
+`.ai/context/finalization/<stable-id>/journal.json`; the helper header defines its schema,
+identity, revision and evidence bindings. Keep validation, integration, checkout, cleanup,
+recovery, knowledge, verification, archival, audit and deployment outcomes independent.
+Immutable command attempts retain exact argv/exit/stdout/stderr, date and source provenance,
+including failures and successful retries. A zero exit or caller checkpoint cannot verify
+a postcondition. The supported internal recorder works from an authorized bound journal
+without Git/network observations; normal reconciliation rechecks facts and refreshes receipts.
+
+Required deterministic mechanics need Python 3.11+ and all finalization helper modules from
+the configured or independently verified source checkout. This narrow mutation prerequisite
+extends the optional-helper policy; missing evidence/helpers blocks finalization mutation.
+Optional tooling and logging failures remain nonblocking unless the project's own required
+verification depends on them. Dry-run writes no state, locks, outputs, Git data or telemetry.
+Preserve repository tracking policy: no staging, commits or metadata publication. Untracked
+consumer/umbrella state stays local. Deployment remains unverified without dated revision
+and environment proof; an explicitly required deployment blocks closure without that proof.
+
+Canonical `## Final Verification` records contain dated independent execution evidence and
+coverage, with exact task/state/source-bound successful receipts available to Finalization;
+no hidden prose marker is required. Legacy recorded final PASS evidence remains supported.
+New verification/knowledge/audit/deployment attempts invalidate older passes of the same
+kind; only a strictly newer valid independent attestation recovers them. Large command
+outputs remain exact immutable artifacts, and all journal writes honor the shared 1 MiB
+reader bound. Current knowledge changes require predeclared immutable originals, exact
+independently attested before/after hashes and an unchanged accepted-generation index;
+clean owner descendant integration advances may reconcile only through fresh read-only
+checkout/source and canonical stage-zero index proofs, preserving original baselines/history.
+No staging, unmerged index or unowned/rewound generation exception is granted; no broad dirty-tree
+exception exists. Schema authority remains the finalization helper header.
