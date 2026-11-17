@@ -686,6 +686,191 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertEqual({str(self.root / 'service'), str(self.root / 'client')},
                          {row['repository'] for row in recorded['actions']})
 
+    def ignored_knowledge_fixture(self) -> tuple[dict, Path, bytes]:
+        path = self.root / '.ai/memory/architecture.md'
+        original = b'# Architecture\n\nOriginal current record.\n'
+        path.write_bytes(original)
+        self.put_evidence(knowledge_inventory=[{'path': '.ai/memory/architecture.md', 'kind': 'current-record'}])
+        prior = self.attested(self.clean_actions(self.prepare()))
+        self.assertEqual('', self.git(self.repo, 'ls-files', str(path)))
+        return prior, path, original
+
+    def test_ignored_accepted_knowledge_drift_blocks_later_lifecycle_operations(self) -> None:
+        for operation in ('record', 'archive', 'finish'):
+            with self.subTest(operation=operation):
+                if operation != 'record':
+                    self.doCleanups()
+                    self.setUp()
+                prior, path, original = self.ignored_knowledge_fixture()
+                changed = self.knowledge_delta(prior, path, original, original + b'\nReviewed delivery.\n')
+                self.assertEqual('recorded', changed['status'], changed)
+                if operation == 'finish':
+                    changed = self.checkpoint('archive', changed)
+                    self.assertEqual('archived', changed['status'], changed)
+                path.write_bytes(b'# Architecture\n\nUnreviewed replacement.\n')
+                self.put_evidence()
+                before = Path(changed['journal_path']).read_bytes()
+                rejected = self.checkpoint(operation, changed)
+                self.blocked(rejected, 'knowledge-content-changed')
+                self.assertEqual(before, Path(changed['journal_path']).read_bytes())
+
+    def test_ignored_unchanged_inventory_drift_blocks_without_new_attestation(self) -> None:
+        prior, path, original = self.ignored_knowledge_fixture()
+        path.write_bytes(original + b'\nUnreviewed current claim.\n')
+        self.put_evidence()
+        self.blocked(self.checkpoint('archive', prior), 'knowledge-content-changed')
+        self.assertTrue(self.task.is_dir())
+        self.assertTrue(self.spec.is_file())
+
+    def test_newer_independent_knowledge_delta_rebinds_exact_bytes_and_preserves_history(self) -> None:
+        prior, path, original = self.ignored_knowledge_fixture()
+        first = self.knowledge_delta(prior, path, original, original + b'\nFirst reviewed change.\n')
+        self.assertEqual('recorded', first['status'], first)
+        old = json.loads(Path(first['journal_path']).read_bytes())
+        rows = json.loads(self.evidence.read_bytes())['attestations']
+        stale_date = next(row for row in rows if row['kind'] == 'knowledge')['observed_at']
+        updated = original + b'\nNew independently reviewed delivery.\n'
+        path.write_bytes(updated)
+        knowledge = next(row for row in rows if row['kind'] == 'knowledge')
+        knowledge['file_changes'][0]['after_sha256'] = hashlib.sha256(updated).hexdigest()
+        self.put_evidence(attestations=rows)
+        self.blocked(self.checkpoint('knowledge', first), 'knowledge-change-invalid')
+        knowledge['observed_at'] = datetime.now(timezone.utc).isoformat()
+        self.assertGreater(knowledge['observed_at'], stale_date)
+        self.put_evidence(attestations=rows)
+        rebound = self.checkpoint('knowledge', first)
+        self.assertEqual('recorded', rebound['status'], rebound)
+        self.assertEqual(old['knowledge_changes'], rebound['knowledge_change_history'][-1])
+        self.assertEqual(original, Path(rebound['knowledge_files'][0]['snapshot_path']).read_bytes())
+        self.assertEqual(hashlib.sha256(updated).hexdigest(), rebound['knowledge_changes'][0]['after_sha256'])
+        self.put_evidence()
+        archived = self.checkpoint('archive', rebound)
+        self.assertEqual('archived', archived['status'], archived)
+        self.assertTrue(self.checkpoint('finish', archived)['complete'])
+
+    def test_every_spec_phase_needs_unambiguous_positive_completion_evidence(self) -> None:
+        variants = ('', '- execution: complete\n',
+                    '- execution: complete\n- execution: complete\n- validation: complete\n')
+        for markers in variants:
+            with self.subTest(markers=markers):
+                if markers != variants[0]:
+                    self.doCleanups()
+                    self.setUp()
+                self.spec.write_text('# Delivery\n\n## Phase 1\nFirst component.\n## Phase 2\nSecond component.\n')
+                (self.task / 'state.md').write_text(self.state_text.replace('flow: full', 'active_phase: 2\nspec_phase_count: 2\nflow: full'))
+                other = self.root / '.ai/tasks/completed/task-first-phase'
+                other.mkdir(parents=True)
+                (other / 'state.md').write_text('spec_path: .ai/specs/delivery.md\nactive_phase: 1\nflow: full\n## Phases\n' + markers)
+                prior = self.attested(self.clean_actions(self.prepare()))
+                archived = self.checkpoint('archive', prior)
+                self.assertEqual('archived', archived['status'], archived)
+                self.assertTrue(self.spec.is_file(), 'Directory placement and phase number cannot prove completion')
+                self.assertEqual('phase-completion-unverified', archived['outcomes']['spec_archival'])
+                self.assertTrue((other / 'state.md').is_file())
+
+    def test_clean_owner_source_advance_refreshes_index_generation_and_requires_fresh_evidence(self) -> None:
+        prior, path, original = self.knowledge_fixture()
+        old = json.loads(Path(prior['journal_path']).read_bytes())['knowledge_indexes']
+        (self.repo / 'owner-addition').write_text('New independently owned source.\n')
+        self.git(self.repo, 'add', 'owner-addition')
+        self.git(self.repo, 'commit', '-m', 'feat: integrate independent source')
+        advanced = self.git(self.repo, 'rev-parse', 'HEAD')
+        self.put_evidence()
+        refreshed = self.checkpoint('record', prior)
+        self.assertEqual('recorded', refreshed['status'], refreshed)
+        self.assertEqual(advanced, refreshed['repositories'][0]['integration']['tip'])
+        self.assertEqual('unverified', refreshed['outcomes']['knowledge'])
+        self.assertEqual('unverified', refreshed['outcomes']['audit'])
+        self.assertEqual('unverified', refreshed['outcomes']['verification'])
+        self.assertFalse(refreshed['complete'])
+        stored = json.loads(Path(refreshed['journal_path']).read_bytes())
+        self.assertIn(old, stored['knowledge_index_history'])
+        self.assertEqual(advanced, stored['knowledge_indexes'][str(self.repo)]['head'])
+        self.assertEqual(original, path.read_bytes())
+        verified = self.attested(refreshed)
+        archived = self.checkpoint('archive', verified)
+        self.assertEqual('archived', archived['status'], archived)
+        self.assertTrue(self.checkpoint('finish', archived)['complete'])
+
+    def test_clean_index_metadata_refresh_is_read_only_and_staged_content_stays_blocked(self) -> None:
+        prior, _, _ = self.knowledge_fixture()
+        index_path = Path(self.git(self.repo, 'rev-parse', '--path-format=absolute', '--git-path', 'index'))
+        old = index_path.read_bytes()
+        baseline = self.repo / 'baseline'
+        info = baseline.stat()
+        os.utime(baseline, ns=(info.st_atime_ns, info.st_mtime_ns + 2000000000))
+        self.git(self.repo, 'update-index', '--refresh')
+        self.assertNotEqual(old, index_path.read_bytes(), 'Fixture must change raw index metadata only')
+        after_refresh = index_path.read_bytes()
+        self.put_evidence()
+        current = self.checkpoint('record', prior)
+        self.assertEqual('recorded', current['status'], current)
+        self.assertEqual(after_refresh, index_path.read_bytes(), 'Reconciliation must not write Git index/objects')
+        (self.repo / 'baseline').write_text('Unrelated staged replacement.\n')
+        self.git(self.repo, 'add', 'baseline')
+        self.blocked(self.checkpoint('record', current), 'knowledge-index-changed')
+
+    def test_index_reconciliation_rejects_unmerged_unowned_and_rewound_generations(self) -> None:
+        for case in ('unmerged', 'unowned', 'rewound'):
+            with self.subTest(case=case):
+                if case != 'unmerged':
+                    self.doCleanups()
+                    self.setUp()
+                if case == 'rewound':
+                    (self.repo / 'owner-addition').write_text('Later integrated source.\n')
+                    self.git(self.repo, 'add', 'owner-addition')
+                    self.git(self.repo, 'commit', '-m', 'feat: integrate later source')
+                prior, _, _ = self.knowledge_fixture()
+                if case == 'unmerged':
+                    blob = self.git(self.repo, 'rev-parse', 'HEAD:baseline')
+                    result = subprocess.run(['git', 'update-index', '--index-info'], cwd=self.repo,
+                                            input='0 ' + '0' * 40 + '\tbaseline\n' +
+                                            ''.join('100644 ' + blob + ' ' + str(stage) + '\tbaseline\n'
+                                                    for stage in (1, 2, 3)),
+                                            text=True, capture_output=True, env=self.environment())
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertTrue(self.git(self.repo, 'ls-files', '--unmerged'))
+                elif case == 'unowned':
+                    self.git(self.repo, 'checkout', '-b', 'unrelated-work')
+                else:
+                    self.git(self.repo, 'reset', '--hard', 'HEAD~2')
+                self.put_evidence()
+                rejected = self.checkpoint('record', prior)
+                self.assertEqual('blocked', rejected['status'], rejected)
+                self.assertFalse(rejected['complete'])
+
+    def test_inventoried_current_links_allow_only_exact_journaled_archive_relocation(self) -> None:
+        path = self.root / '.ai/memory/state.md'
+        before = path.read_bytes()
+        self.put_evidence(knowledge_inventory=[{'path': '.ai/memory/state.md', 'kind': 'current-record'}])
+        prior = self.attested(self.clean_actions(self.prepare()))
+        archived = self.checkpoint('archive', prior)
+        self.assertEqual('archived', archived['status'], archived)
+        relocated = path.read_bytes()
+        self.assertNotEqual(before, relocated)
+        current = self.checkpoint('record', archived)
+        self.assertEqual('recorded', current['status'], current)
+        path.write_bytes(relocated + b'\nUnreviewed current claim.\n')
+        self.put_evidence()
+        self.blocked(self.checkpoint('finish', current), 'knowledge-content-changed')
+        path.write_bytes(relocated)
+        self.assertTrue(self.checkpoint('finish', current)['complete'])
+
+    def test_dry_run_imports_create_no_bytecode_or_other_output_files(self) -> None:
+        import shutil
+        directory = self.root / '.ai/copied-helper'
+        directory.mkdir()
+        for source in [SOURCE / 'scripts/phase-finalize.py', *(SOURCE / 'scripts').glob('finalization_*.py')]:
+            shutil.copyfile(source, directory / source.name)
+        before = project_bytes(directory)
+        env = self.environment()
+        env.pop('PYTHONDONTWRITEBYTECODE', None)
+        result = subprocess.run(['/usr/bin/python3', str(directory / 'phase-finalize.py'), 'inspect',
+                                 str(self.task), '--root', str(self.root), '--evidence', str(self.evidence),
+                                 '--dry-run'], text=True, capture_output=True, env=env)
+        self.assertEqual('ready', json.loads(result.stdout)['status'], result.stderr)
+        self.assertEqual(before, project_bytes(directory), 'Dry-run must not emit import caches beside the helper')
+
     def test_required_deployment_unknown_remains_independent(self) -> None:
         self.test_required_deployment_without_dated_revision_environment_evidence_blocks_finish()
 
