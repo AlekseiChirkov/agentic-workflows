@@ -24,6 +24,10 @@ identity-output I/O correction and comparative performance acceptance remain und
 Deleted experimental branch names do not count as delivery. No task is currently active;
 07 was scheduled by the owner on 2026-11-13 (ADR-0021) and delivered on 2026-11-16 on stacked pull requests awaiting merge; the other roadmap items require their own implementation work.
 
+## Owner-scheduled post-merge closure
+
+On 2026-11-17 the owner approved [task finalization](24-task-finalization.md) as a separate development task, outside the earlier roadmap ordering. Implementation is local and in progress on the multi-repository support dependency. It does not advance unrelated roadmap scope or authorize deployment. Current execution evidence lives in [task state](../tasks/todo/task-24-task-finalization/state.md).
+
 ## Nine token optimization workstreams
 
 There are **nine feature-sized tasks: two expanded existing specs and seven new specs**.

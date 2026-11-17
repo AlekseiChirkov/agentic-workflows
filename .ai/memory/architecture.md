@@ -359,3 +359,7 @@ dependencies are recorded in the plan, the state and pull request bodies. `/rest
 `--repo`. Atomic workers whose repository has no local `.ai/` fall back to the umbrella
 runbook and run its commands from the umbrella root (`phase-atomic-execution → ## Context
 Bootstrap`). Acceptance: `python3 scripts/check-repo-set.py` (38 tests).
+
+## Post-merge task closure mechanics
+
+The in-development finalization coordinator (`scripts/phase-finalize.py`) returns explicit Git action plans and coordinates evidence, locked revision-checked journals and no-overwrite archival. `finalization_support.py` owns strict paths, atomic writes and protected-state normalization; `finalization_evidence.py` owns read-only Git/PR checks; `finalization_archive.py` owns manifests, original snapshots, location resolution and separately recorded Markdown link relocation. The phase and scoped hook authorization are not yet connected. Semantic knowledge, test and deployment verification remain externally attested with source provenance; these receipts are not fresh suite execution by the helper. See ADR-0025.
