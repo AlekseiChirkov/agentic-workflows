@@ -14,17 +14,22 @@ Usage:
 
 Exit codes:
   0  the inventory was written
-  2  usage error, root-invalid (no rules/ or workflows/ directory), root-unreadable,
+  2  usage error, root-invalid (no rules/ or workflows/ directory), root-unreadable
+     (a directory or file that cannot be read, or a file name that is not valid UTF-8),
      out-unwritable, or an interpreter older than Python 3.11; one `ERROR:` line on
-     standard error
+     standard error, and no --out file is written
 
 Read-only contract: the tool writes nothing but the --out file. It never follows a
 symbolic link, never executes or imports repository content and opens no network
 connection. The only programs it runs are the git read commands
 `rev-parse --verify HEAD`, `ls-files -z` and
 `status --porcelain=v1 -z --untracked-files=all`, with LC_ALL=C, GIT_OPTIONAL_LOCKS=0,
-no pager and no inherited GIT_* variables; a missing or failing git yields null or
-`unknown` values, never an error. Standard library only.
+no pager, no inherited GIT_* variables, the file-system monitor disabled and hooks
+pointed at an empty location, so no program named by the repository's configuration
+runs; a missing or failing git yields null or `unknown` values, never an error. The
+root is taken as the top level of its git work tree: `status` reports paths relative
+to that top level, so a root below it yields mismatched work-tree paths.
+Standard library only.
 """
 from __future__ import annotations
 
@@ -42,7 +47,7 @@ import re
 import stat
 import subprocess
 import tempfile
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -88,6 +93,8 @@ ZONE_BODY = "body"
 
 GIT_READ_ENVIRONMENT = {"LC_ALL": "C", "GIT_OPTIONAL_LOCKS": "0", "GIT_PAGER": "cat",
                         "PAGER": "cat"}
+# Configuration that would otherwise let git start a program the repository names.
+GIT_INERT_CONFIGURATION = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
 
 JsonObject = dict[str, object]
 
@@ -262,6 +269,7 @@ def entry_kind(path: Path) -> str:
 
 
 def is_real_directory(path: Path) -> bool:
+    """True for a directory that is not a link; a permission error propagates."""
     try:
         return stat.S_ISDIR(os.lstat(path).st_mode)
     except (FileNotFoundError, NotADirectoryError):
@@ -328,10 +336,15 @@ def reader_class_of(path: str) -> str | None:
     return None
 
 
+def raise_walk_error(error: OSError) -> NoReturn:
+    raise error
+
+
 def reader_paths(root: Path) -> dict[str, str]:
-    """Map every regular reader file to its class."""
+    """Map every regular reader file to its class; an unreadable directory is an error."""
     found: dict[str, str] = {}
-    for directory, dirnames, filenames in os.walk(root, followlinks=False):
+    for directory, dirnames, filenames in os.walk(root, onerror=raise_walk_error,
+                                                  followlinks=False):
         dirnames[:] = [name for name in dirnames if name not in SKIPPED_DIRECTORIES]
         base = Path(directory).relative_to(root).as_posix()
         for name in filenames:
@@ -408,6 +421,17 @@ def reader_entry(root: Path, path: str, reader_class: str) -> JsonObject:
             "lines": len(raw_lines(data)), "decoded": decode_strict(data) is not None}
 
 
+def require_utf8_paths(paths: Iterable[str]) -> None:
+    """Refuse a file name that cannot be written as a UTF-8 JSON string."""
+    for path in sorted(paths):
+        try:
+            path.encode("utf-8")
+        except UnicodeEncodeError:
+            escaped = path.encode("utf-8", "surrogateescape").decode("ascii", "backslashreplace")
+            raise ToolError("root-unreadable",
+                            f"a file name is not valid UTF-8: {escaped}") from None
+
+
 # ---------------------------------------------------------------------------
 # Git
 # ---------------------------------------------------------------------------
@@ -422,7 +446,8 @@ def git_environment() -> dict[str, str]:
 def run_git(root: Path, *arguments: str) -> bytes | None:
     """Run one git read command; None when git is missing or the command fails."""
     try:
-        result = subprocess.run(["git", "--no-pager", "-C", str(root), *arguments],
+        result = subprocess.run(["git", "--no-pager", *GIT_INERT_CONFIGURATION,
+                                 "-C", str(root), *arguments],
                                 stdin=subprocess.DEVNULL, capture_output=True,
                                 env=git_environment(), check=False)
     except OSError:
@@ -475,6 +500,7 @@ def worktree_state(root: Path, listed: frozenset[str]) -> JsonObject:
         return {"state": "unknown", "paths": []}
     paths = sorted({path for path in status_paths(output)
                     if counts_for_worktree(root, path, listed)})
+    require_utf8_paths(paths)
     return {"state": "dirty" if paths else "clean", "paths": paths}
 
 
@@ -497,9 +523,10 @@ def validate_root(root: Path) -> None:
 
 
 def build_inventory(root: Path) -> JsonObject:
-    tracked = tracked_paths(root)
     audited = audited_paths(root)
     readers_found = reader_paths(root)
+    require_utf8_paths([*audited, *readers_found])
+    tracked = tracked_paths(root)
     files = [file_entry(root, path, audited[path], tracked) for path in sorted(audited)]
     readers = [reader_entry(root, path, readers_found[path]) for path in sorted(readers_found)]
     listed = frozenset(audited) | frozenset(readers_found)
@@ -553,8 +580,8 @@ def write_atomically(target: Path, text: str) -> None:
 
 
 def run_extract(root: Path, out: Path) -> int:
-    validate_root(root)
     try:
+        validate_root(root)
         inventory = build_inventory(root)
     except OSError as error:
         raise ToolError("root-unreadable", f"cannot read the root ({error.strerror})") from error
