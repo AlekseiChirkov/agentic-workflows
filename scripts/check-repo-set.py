@@ -476,6 +476,35 @@ class RouteTests(HelperCase):
         self.assertIn(("T-03", "working-dir-mismatch"), {(f.get("leaf"), f["check"])
                                                           for f in doc["failures"]})
 
+    def test_dependency_on_a_composite_waits_for_its_integration_review(self) -> None:
+        self.two_repos()
+        text = COMPOSITE_PLAN.replace("| T-05b | Activity view | a → b | — | leaf | frontend |",
+                                      "| T-05b | Activity view | a → b | — | leaf | backend |")
+        text = text.replace("| T-01 | Watchlist API | model → endpoint | — | leaf | backend | not-started |",
+                            "| T-01 | Watchlist API | model → endpoint | — | leaf | backend | reviewed |")
+        text += "| T-06 | Activity screen | a → b | T-05 | leaf | frontend | not-started |\n"
+        text = text.replace("| T-05a | Activity API | a → b | — | leaf | backend | not-started |",
+                            "| T-05a | Activity API | a → b | — | leaf | backend | reviewed |")
+        text = text.replace("| T-05b | Activity view | a → b | — | leaf | backend | not-started |",
+                            "| T-05b | Activity view | a → b | — | leaf | backend | reviewed |")
+        plan = self.fx.write_plan(text=text)
+        for leaf, repo in (("T-01", "backend"), ("T-05a", "backend"), ("T-05b", "backend"),
+                           ("T-06", "frontend")):
+            directory = self.fx.task / f"{leaf}-part"
+            directory.mkdir()
+            (directory / "description.md").write_text(
+                DESCRIPTION.format(goal="part", working_dir=f"../../../../../{repo}"))
+        state = self.fx.write_state()
+        args = ["route", "--root", str(self.fx.root), "--plan", str(plan), "--state", str(state)]
+        code, doc = run_helper(self.fx, *args)
+        self.assertEqual(code, 0, doc)
+        self.assertEqual((doc["next"]["id"], doc["next"]["ready"]), ("T-06", False))
+        self.assertIn("T-05", doc["next"]["reason"])
+        plan.write_text(plan.read_text().replace("| composite | | not-started |",
+                                                 "| composite | | reviewed |"))
+        code, doc = run_helper(self.fx, *args)
+        self.assertEqual((doc["next"]["id"], doc["next"]["ready"]), ("T-06", True), doc)
+
     def test_composite_children_must_share_one_repository(self) -> None:
         self.two_repos()
         plan = self.fx.write_plan(text=COMPOSITE_PLAN)
