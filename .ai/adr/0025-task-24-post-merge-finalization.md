@@ -1,0 +1,19 @@
+# ADR-0025: Evidence-backed post-merge finalization
+
+## Status
+Accepted
+
+## Date
+2026-11-17
+
+## Decision
+Add a separately invoked finalization phase with mandatory cleanup and only a dry-run flag. Use deterministic safety helpers for evidence, recovery and archival; Git mutations remain explicit and hook-governed. Invocation authorizes only verified resources of the resolved task. Preserve prior validation semantics and original audit records. Extend Git ownership, current-location pointer edits and required local-helper usage narrowly. Staged sync generates provider outputs without live installation or unrelated project changes.
+
+## Context and Alternatives
+The owner chose one phase with helpers over instruction-led children. Markdown remains the workflow orchestrator; local mechanics are executable because deletion, interrupted writes and archival need behavioral guarantees. This extends the optional-helper restriction of ADR-0001 only for finalization mutations. The frozen validator inventory remains unchanged; new acceptance suites live in scripts and run from sync preflight.
+
+## Consequences
+Missing required evidence or helpers blocks mutation. Ordinary local deletion refusal leaves finalization incomplete. Deployment remains independently unverified unless established by dated evidence. Original Git/TDD/decision records remain unchanged; only current location pointers and mechanical links may be relocated with original snapshots retained. No automatic merge, publication or live consumer deployment is introduced.
+
+## Verification
+Pending test-first implementation, independent review, full contract validation and isolated staged synchronization.
