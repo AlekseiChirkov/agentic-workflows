@@ -973,6 +973,40 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertEqual('ready', json.loads(result.stdout)['status'], result.stderr)
         self.assertEqual(before, project_bytes(directory), 'Dry-run must not emit import caches beside the helper')
 
+    def test_normal_and_staged_rule_skills_preserve_provider_artifact_parity(self) -> None:
+        safety_spec = importlib.util.spec_from_file_location('deployment_parity_fixture', SOURCE / 'scripts/check-finalization-safety.py')
+        assert safety_spec is not None and safety_spec.loader is not None
+        safety = importlib.util.module_from_spec(safety_spec)
+        safety_spec.loader.exec_module(safety)
+        fixture = safety.StagingChecks('test_staging_generates_every_provider_without_live_writes_or_hook_install')
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        # Compare rendering with installation unavailable in both modes; only this
+        # disposable source copy changes, and its preflights remain instrumented.
+        (fixture.source / 'scripts/install-hooks.sh').unlink()
+        before = project_bytes(fixture.home)
+        staged = fixture.sync()
+        self.assertEqual(0, staged.returncode, staged.stdout + staged.stderr)
+        self.assertEqual(before, project_bytes(fixture.home), 'Stage mode must preserve the separate normal deployment tree')
+        stage_bytes = project_bytes(fixture.stage)
+        normal = subprocess.run(['bash', str(fixture.source / 'scripts/sync.sh'), '--from', str(fixture.source)],
+                                cwd=fixture.root, env=fixture.environment, capture_output=True, text=True, timeout=30)
+        self.assertEqual(0, normal.returncode, normal.stdout + normal.stderr)
+        self.assertEqual(['validator', *fixture.preflights] * 2, fixture.calls.read_text().splitlines())
+        self.assertEqual(stage_bytes, project_bytes(fixture.stage), 'Normal deployment must not mutate staged output')
+        for provider in ('.codeium', '.claude', '.codex'):
+            self.assertEqual(project_bytes(fixture.stage / provider), project_bytes(fixture.home / provider), provider)
+        for rule in (fixture.source / 'rules').glob('*.md'):
+            for provider in ('.claude', '.codex'):
+                deployed = fixture.home / provider / 'skills' / ('rule-' + rule.stem) / 'SKILL.md'
+                self.assertEqual(rule.read_bytes(), deployed.read_bytes())
+                workflow = fixture.source / 'workflows' / rule.name
+                if workflow.is_file():
+                    self.assertEqual(workflow.read_bytes(),
+                                     (fixture.home / provider / 'skills' / rule.stem / 'SKILL.md').read_bytes())
+        sentinel = fixture.home / 'projects/product/.devin/rules/sentinel'
+        self.assertEqual(b'preserve live project\n', sentinel.read_bytes())
+
     def test_required_deployment_unknown_remains_independent(self) -> None:
         self.test_required_deployment_without_dated_revision_environment_evidence_blocks_finish()
 
