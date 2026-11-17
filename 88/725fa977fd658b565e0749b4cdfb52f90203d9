@@ -1,0 +1,19 @@
+scripts/audit-instructions.py
+  s_c1db20832e04a2::t_50c81c8bed3c75 19-26,29-30,36-38,58,70,1425-2322,2345-2348,2356-2357
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "88725fa977fd658b565e0749b4cdfb52f90203d9",
+  "prompts": {},
+  "sessions": {
+    "s_c1db20832e04a2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e49e-5977-7671-990a-a6877ab75958",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
