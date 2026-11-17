@@ -3116,5 +3116,45 @@ class VerifyPinnedBehaviourTests(SharedVerifyCase):
         self.assert_reports(self.verify(), [("economics-claim", assessment_at("AUD-08-002"))])
 
 
+class VerifyParseLimitTests(SharedVerifyCase):
+    def test_oversized_integer_or_unpaired_surrogate_makes_the_file_invalid_at_line_zero(
+            self) -> None:
+        long_integer = "9" * 4301
+
+        def with_long_integer(text: str) -> str:
+            return text.replace("{", '{"zz": ' + long_integer + ", ", 1)
+
+        def assessment_with_surrogate() -> str:
+            value = valid_assessment(self.inventory)
+            value["coverage"].append({"path": "\ud800", "sha256": None, "status": "read",
+                                      "reader": ROLE})
+            return json.dumps(value)
+
+        def inventory_with_surrogate() -> str:
+            value = copy.deepcopy(self.inventory)
+            value["files"][0]["path"] = "rules/\ud800.md"
+            return json.dumps(value)
+
+        original = (self.fixture.root / INVENTORY_PATH).read_text(encoding="utf-8")
+        cases = (
+            ("assessment", "integer longer than the conversion limit",
+             with_long_integer(canonical(self.assessment)), None),
+            ("assessment", "unpaired surrogate", assessment_with_surrogate(), None),
+            ("inventory", "integer longer than the conversion limit", None,
+             with_long_integer(original)),
+            ("inventory", "unpaired surrogate", None, inventory_with_surrogate()),
+        )
+        for name, fault, assessment_text, inventory_text in cases:
+            with self.subTest(file=name, fault=fault):
+                restore = self.rewrite_inventory(inventory_text or original)
+                try:
+                    result = self.verify(text=assessment_text)
+                finally:
+                    restore()
+                self.assertNotIn("Traceback", result.stderr)
+                path = ASSESSMENT_PATH if name == "assessment" else INVENTORY_PATH
+                self.assert_reports(result, [(f"{name}-invalid", f"{path}:0")])
+
+
 if __name__ == "__main__":
     unittest.main()
