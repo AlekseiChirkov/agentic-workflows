@@ -19,7 +19,7 @@ phases — Discovery, Execution, Validation — with all progress persisted in t
 project's `.ai/tasks/…/state.md`, and every orchestrated run appends telemetry to a
 central log store that `/retro` reads.
 
-Current inventory: 42 workflows, 14 rules, 4 principles, 11 shell scripts and 33 Python
+Current inventory: 42 workflows, 14 rules, 4 principles, 11 shell scripts and 35 Python
 helpers under `scripts/`, with automated consistency and smoke checks.
 
 ## Components
