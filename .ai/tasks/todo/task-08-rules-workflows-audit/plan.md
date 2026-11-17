@@ -11,7 +11,7 @@
 | T-07 | Extraction and assessment of rules and adapters | clean extraction → assessment skeleton → read 14 rules → read adapters → loads → candidates and legacy → findings → verify | T-06 | reviewed | claude-opus-5-5 |  |
 | T-08 | Assessment of workflows | read orchestrators → read phase children → read utilities → loads → candidates → repetition review → findings → verify | T-07 | reviewed | claude-opus-5-5 |  |
 | T-09 | Map, findings, amendments and report | duplicate groups → defaults → map decisions → statement coverage → amendments → blocking flags → report and render → verify exits 0 | T-08 | reviewed | claude-opus-5-5 |  |
-| T-10 | Index, knowledge and review line | index line → script rows → runbook note → inventory sentence → memory entries → review line → verify, suite, validator → permitted-paths check | T-09 | done | claude-opus-5-5 |  |
+| T-10 | Index, knowledge and review line | index line → script rows → runbook note → inventory sentence → memory entries → review line → verify, suite, validator → permitted-paths check | T-09 | reviewed | claude-opus-5-5 |  |
 
 ## Execution Strategy
 
