@@ -131,6 +131,216 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertIn('prior', ' '.join(observed['trust_limitations']))
         self.assertEqual('unverified', observed['outcomes']['deployment'])
 
+    def test_new_failed_verification_invalidates_older_pass_until_fresh_attestation(self) -> None:
+        prior = self.attested(self.clean_actions(self.prepare()))
+        earlier = json.loads(self.evidence.read_bytes())['attestations']
+        failed = self.attempt(prior, attempt_id='later-check', operation_id='verification',
+                              argv=['python3', '-m', 'unittest', 'product_behavior'],
+                              exit_code=1, stderr='later teardown failed\n')
+        self.assertEqual('recorded', failed['status'], failed)
+        self.assertEqual('unverified', failed['outcomes']['verification'])
+        self.assertNotIn('verification', failed.get('attestations', {}))
+        self.put_evidence(attestations=earlier)
+        replayed = self.checkpoint('record', failed)
+        self.assertFalse(replayed['complete'])
+        self.assertNotEqual('attested', replayed.get('outcomes', {}).get('verification'))
+        revision = hashlib.sha256(Path(prior['journal_path']).read_bytes()).hexdigest()
+        current = dict(failed, revision=revision)
+        fresh = self.attested(current)
+        self.assertEqual('attested', fresh['outcomes']['verification'])
+        self.assertEqual('later teardown failed\n', fresh['command_attempts'][-1]['stderr'])
+
+    def knowledge_fixture(self, *, kind: str = 'current-record',
+                          relative: str = '.ai/memory/architecture.md',
+                          original: str = '# Architecture\n\nOriginal current record.\n') -> tuple[dict, Path, bytes]:
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(original)
+        self.git(self.repo, 'add', '-f', str(path))
+        self.git(self.repo, 'commit', '-m', 'docs: record current knowledge')
+        self.put_evidence(knowledge_inventory=[{'path': relative, 'kind': kind}])
+        prior = self.attested(self.clean_actions(self.prepare()))
+        return prior, path, original.encode()
+
+    def knowledge_delta(self, prior: dict, path: Path, original: bytes, updated: bytes) -> dict:
+        rows = json.loads(self.evidence.read_bytes())['attestations']
+        path.write_bytes(updated)
+        knowledge = next(row for row in rows if row['kind'] == 'knowledge')
+        knowledge['observed_at'] = datetime.now(timezone.utc).isoformat()
+        knowledge['file_changes'] = [{'path': path.relative_to(self.root).as_posix(),
+                                     'before_sha256': hashlib.sha256(original).hexdigest(),
+                                     'after_sha256': hashlib.sha256(updated).hexdigest()}]
+        self.put_evidence(attestations=rows)
+        return self.checkpoint('knowledge', prior)
+
+    def test_tracked_current_knowledge_uses_bound_before_after_changes_without_staging(self) -> None:
+        prior, path, original = self.knowledge_fixture()
+        updated = b'# Architecture\n\nVerified delivered current record.\n'
+        changed = self.knowledge_delta(prior, path, original, updated)
+        self.assertEqual('recorded', changed['status'], changed)
+        entry = next(row for row in changed['knowledge_files'] if row['path'] == '.ai/memory/architecture.md')
+        self.assertEqual(original, Path(entry['snapshot_path']).read_bytes())
+        self.assertEqual(hashlib.sha256(updated).hexdigest(), changed['knowledge_changes'][0]['after_sha256'])
+        self.assertEqual('', self.git(self.repo, 'diff', '--cached', '--name-only'))
+        archived = self.checkpoint('archive', changed)
+        self.assertEqual('archived', archived['status'], archived)
+        self.assertTrue(self.checkpoint('finish', archived)['complete'])
+        self.assertEqual(updated, path.read_bytes())
+
+    def test_knowledge_inventory_rejects_product_protected_and_executable_paths(self) -> None:
+        for relative, kind in (('product', 'current-record'), ('.ai/specs/delivery.md', 'current-record'),
+                               ('.ai/tasks/todo/task-delivery/state.md', 'current-record'),
+                               ('.ai/context/finalization/history.md', 'current-record'),
+                               ('.ai/adr/accepted-decision.md', 'current-record'),
+                               ('scripts/reconcile.py', 'current-record')):
+            with self.subTest(path=relative):
+                self.put_evidence(knowledge_inventory=[{'path': relative, 'kind': kind}])
+                result = self.call('prepare', args=('--authorize', '--expected-revision', 'absent'))
+                self.blocked(result, 'knowledge-change-invalid')
+
+    def test_knowledge_change_cannot_accept_unrelated_or_staged_edits(self) -> None:
+        prior, path, original = self.knowledge_fixture()
+        updated = b'# Architecture\n\nVerified current record.\n'
+        changed = self.knowledge_delta(prior, path, original, updated)
+        self.assertEqual('recorded', changed['status'], changed)
+        (self.repo / 'product').write_text('unrelated edit\n')
+        self.blocked(self.checkpoint('record', changed), 'worktree-dirty')
+        (self.repo / 'product').write_text('delivered\n')
+        self.git(self.repo, 'add', '-f', str(path))
+        self.blocked(self.checkpoint('record', changed), 'knowledge-index-changed')
+
+    def test_knowledge_change_needs_exact_snapshot_and_independent_source_binding(self) -> None:
+        prior, path, original = self.knowledge_fixture()
+        updated = b'# Architecture\n\nVerified current record.\n'
+        self.knowledge_delta(prior, path, original, updated)
+        rows = json.loads(self.evidence.read_bytes())['attestations']
+        knowledge = next(row for row in rows if row['kind'] == 'knowledge')
+        knowledge['file_changes'][0]['before_sha256'] = '0' * 64
+        self.put_evidence(attestations=rows)
+        self.blocked(self.checkpoint('knowledge', prior), 'knowledge-change-invalid')
+        knowledge['file_changes'][0]['before_sha256'] = hashlib.sha256(original).hexdigest()
+        knowledge['source_tips'] = {str(self.repo): self.base}
+        self.put_evidence(attestations=rows)
+        rejected = self.checkpoint('knowledge', prior)
+        self.assertEqual('blocked', rejected['status'], rejected)
+        self.assertFalse(rejected['complete'])
+
+    def test_progress_history_is_append_only_and_snapshot_is_immutable(self) -> None:
+        prior, path, original = self.knowledge_fixture(kind='progress', relative='.ai/memory/progress.md',
+                                                       original='# Progress\n\nHistorical delivery.\n')
+        self.blocked(self.knowledge_delta(prior, path, original, b'# Progress\n\nRewritten history.\n'),
+                     'knowledge-change-invalid')
+        appended = original + b'\n2026-11-17: Verified task closure; deployment remains unknown.\n'
+        changed = self.knowledge_delta(prior, path, original, appended)
+        self.assertEqual('recorded', changed['status'], changed)
+        entry = next(row for row in changed['knowledge_files'] if row['path'] == '.ai/memory/progress.md')
+        Path(entry['snapshot_path']).write_bytes(b'changed original snapshot\n')
+        self.blocked(self.checkpoint('record', changed), 'snapshot-conflict')
+
+    def test_failed_attested_checks_invalidate_matching_older_evidence(self) -> None:
+        for kind in ('knowledge', 'audit', 'deployment'):
+            with self.subTest(kind=kind):
+                if kind != 'knowledge':
+                    self.doCleanups()
+                    self.setUp()
+                prior = self.attested(self.clean_actions(self.prepare()))
+                rows = json.loads(self.evidence.read_bytes())['attestations']
+                deployment = dict(next(row for row in rows if row['kind'] == 'knowledge'), kind='deployment',
+                                  revision=prior['repositories'][0]['integration']['tip'], environment='isolated fixture')
+                rows = [row for row in rows if row['kind'] != 'deployment'] + [deployment]
+                self.put_evidence(attestations=rows)
+                prior = self.checkpoint('record', prior)
+                failed = self.attempt(prior, attempt_id='later-' + kind, operation_id=kind,
+                                      argv=['fixture-check', kind], exit_code=1, stderr=kind + ' check failed\n')
+                self.assertEqual('recorded', failed['status'], failed)
+                self.assertEqual('unverified', failed['outcomes'][kind])
+                self.assertNotIn(kind, failed.get('attestations', {}))
+                self.put_evidence(attestations=rows)
+                replayed = self.checkpoint('record', failed)
+                self.assertNotEqual('attested', replayed.get('outcomes', {}).get(kind))
+                actual = hashlib.sha256(Path(prior['journal_path']).read_bytes()).hexdigest()
+                prior = self.attested(dict(failed, revision=actual))
+
+    def final_verification_receipt(self) -> dict:
+        source_tip = self.git(self.repo, 'rev-parse', 'main')
+        output = self.git(self.repo, 'show', source_tip + ':product')
+        return {'kind': 'verification', 'task_path': str(self.task),
+                'state_sha256': hashlib.sha256((self.task / 'state.md').read_bytes()).hexdigest(),
+                'observed_at': datetime.now(timezone.utc).isoformat(), 'result': 'pass',
+                'provenance': 'independent executed final verification', 'source_tips': {str(self.repo): source_tip},
+                'commands': [{'argv': ['git', 'show', source_tip + ':product'], 'exit_code': 0,
+                              'stdout': output, 'stderr': ''}], 'coverage': 'Committed product after final repair.'}
+
+    def canonical_final_verification(self) -> None:
+        value = self.state_text.replace('## Execution Report\nFinal verification: PASS — isolated product behavior checks after the final change.\n',
+                                        '## Final Verification\nIndependent dated product checks after the final repair; exact receipts supplied.\n')
+        (self.task / 'state.md').write_text(value)
+
+    def test_canonical_final_verification_accepts_exact_independent_receipt_without_hidden_phrase(self) -> None:
+        self.canonical_final_verification()
+        self.put_evidence(attestations=[self.final_verification_receipt()])
+        result = self.call()
+        self.assertEqual('ready', result['status'], result)
+        self.assertFalse(result['validation_evidence']['fresh_tests'])
+        self.assertIn('receipt', result['validation_evidence']['source'])
+
+    def test_canonical_final_verification_rejects_missing_failed_or_unbound_receipt(self) -> None:
+        self.canonical_final_verification()
+        receipt = self.final_verification_receipt()
+        for change in ('missing', 'failed', 'state', 'source', 'undated', 'coverage'):
+            with self.subTest(change=change):
+                row = json.loads(json.dumps(receipt))
+                if change == 'failed': row['commands'][0]['exit_code'] = 1
+                if change == 'state': row['state_sha256'] = '0' * 64
+                if change == 'source': row['source_tips'] = {str(self.repo): self.base}
+                if change == 'undated': row['observed_at'] = ''
+                if change == 'coverage': row['coverage'] = ''
+                self.put_evidence(attestations=[] if change == 'missing' else [row])
+                self.assertEqual('blocked', self.call()['status'])
+
+    def test_large_cumulative_outputs_keep_exact_artifacts_and_readable_journal(self) -> None:
+        prior = self.prepare()
+        outputs = []
+        for number in range(3):
+            output = 'line: ' + ('évidence\n' * 160000) + str(number)
+            outputs.append(output.encode())
+            prior = self.attempt(prior, attempt_id='large-' + str(number), stdout=output,
+                                 stderr='retained failure ' + str(number))
+            self.assertEqual('recorded', prior['status'], prior)
+        journal_path = Path(prior['journal_path'])
+        self.assertLessEqual(journal_path.stat().st_size, 1024 * 1024)
+        for row, original in zip(prior['command_attempts'], outputs):
+            artifact = row['stdout']
+            self.assertIsInstance(artifact, dict, 'Large output must use an immutable exact-byte artifact')
+            self.assertEqual({'path', 'sha256', 'bytes', 'encoding'}, set(artifact))
+            self.assertEqual('utf-8', artifact['encoding'])
+            self.assertEqual(len(original), artifact['bytes'])
+            self.assertEqual(hashlib.sha256(original).hexdigest(), artifact['sha256'])
+            self.assertTrue(Path(artifact['path']).is_relative_to(journal_path.parent / 'outputs'))
+            self.assertEqual(original, Path(artifact['path']).read_bytes())
+        self.assertEqual('ready', self.call()['status'])
+        replay = self.checkpoint('attempt', prior)
+        self.assertEqual(prior['revision'], replay['revision'])
+        artifact_path = Path(prior['command_attempts'][0]['stdout']['path'])
+        artifact_path.write_bytes(b'changed output\n')
+        self.blocked(self.checkpoint('record', prior), 'output-artifact-changed')
+
+    def test_oversized_journal_refusal_preserves_previous_revision_for_all_writers(self) -> None:
+        prior = self.prepare()
+        path = Path(prior['journal_path'])
+        original = path.read_bytes()
+        result = self.attempt(prior, provenance='independent named source ' + 'x' * (1024 * 1024))
+        self.blocked(result, 'journal-too-large')
+        self.assertEqual(original, path.read_bytes())
+        support_spec = importlib.util.spec_from_file_location('workflow_support_bound', SOURCE / 'scripts/finalization_support.py')
+        assert support_spec is not None and support_spec.loader is not None
+        support = importlib.util.module_from_spec(support_spec)
+        support_spec.loader.exec_module(support)
+        with self.assertRaises(support.Refusal) as refused:
+            support.atomic_write(path, b'x' * (1024 * 1024 + 1), self.root, journal=True)
+        self.assertEqual('journal-too-large', refused.exception.check)
+        self.assertEqual(original, path.read_bytes())
+
     def test_checkpoint_vocabulary_and_new_journal_initial_operation_state(self) -> None:
         prior = self.prepare()
         self.assertIn('operations', prior)
@@ -142,7 +352,7 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertEqual('recorded', preserved['status'], preserved)
 
     def alias_fixture(self, *, returned_identity: str = 'fixture-org/product',
-                      resolved_host: str = 'github.com') -> Path:
+                      resolved_host: str = 'github.com', merged: str | None = None) -> Path:
         self.github_pr_fixture()
         remote = self.root / '.ai/fixture-origin.git'
         self.git(self.repo, 'remote', 'set-url', 'origin', 'git@github-personal:fixture-org/product.git')
@@ -152,6 +362,8 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         row = {'url': 'https://github.com/' + returned_identity + '/pull/142', 'state': 'CLOSED',
                'baseRefName': 'main', 'headRefName': 'feat/delivery', 'headRefOid': self.tip,
                'mergeCommit': None, 'mergedAt': None}
+        if merged is not None:
+            row.update(state='MERGED', mergeCommit={'oid': merged}, mergedAt=datetime.now(timezone.utc).isoformat())
         executable = tools / 'gh'
         executable.write_text('#!' + sys.executable + '\nimport json, sys\nfrom pathlib import Path\n'
                               + 'with Path(' + repr(str(log)) + ').open("a") as handle: handle.write(json.dumps(sys.argv[1:]) + "\\n")\n'
@@ -293,6 +505,51 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertFalse(any(row['kind'] == 'checkout' for row in result['actions']))
         self.assertEqual('incomplete', result['outcomes']['checkout'],
                          'An integration branch still awaiting FF refresh is not a completed checkout')
+
+    def test_outstanding_scope_in_any_completed_phase_keeps_whole_spec_active(self) -> None:
+        for heading in ('Deferred', 'Outstanding Scope'):
+            with self.subTest(heading=heading):
+                if heading != 'Deferred':
+                    self.doCleanups()
+                    self.setUp()
+                self.spec.write_text('# Delivery\n\n## Phase 1\nFirst component.\n## Phase 2\nSecond component.\n')
+                (self.task / 'state.md').write_text(self.state_text.replace('flow: full', 'active_phase: 2\nspec_phase_count: 2\nflow: full'))
+                other = self.root / '.ai/tasks/completed/task-first-phase'
+                other.mkdir(parents=True)
+                (other / 'state.md').write_text('spec_path: .ai/specs/delivery.md\nactive_phase: 1\n'
+                                                'flow: full\n## Phases\n- execution: complete\n- validation: complete\n'
+                                                + '## ' + heading + '\n- Required report export remains outstanding.\n')
+                prior = self.attested(self.clean_actions(self.prepare()))
+                archived = self.checkpoint('archive', prior)
+                self.assertEqual('archived', archived['status'], archived)
+                self.assertTrue(self.spec.is_file(), 'Unfinished sibling phase scope keeps the whole spec active')
+                self.assertEqual('unfinished-scope', archived['outcomes']['spec_archival'])
+                self.assertTrue((other / 'state.md').is_file())
+
+    def test_ssh_alias_merged_squash_receipt_authorizes_only_bound_hook_cleanup(self) -> None:
+        self.git(self.repo, 'reset', '--hard', self.base)
+        self.git(self.repo, 'cherry-pick', '--no-commit', 'feat/delivery')
+        self.git(self.repo, 'commit', '-m', 'feat: integrate squashed delivery')
+        merged = self.git(self.repo, 'rev-parse', 'HEAD')
+        self.alias_fixture(merged=merged)
+        (self.task / 'state.md').write_text(self.state_text.replace('## Solution Design', '  pr: #142 ready\n## Solution Design'))
+        prior = self.prepare()
+        self.assertEqual('pr', prior['repositories'][0]['candidates'][0]['integration_method'])
+        home = self.root / '.ai/hook-home'
+        config = home / '.config'
+        registry = config / 'orchestrail/projects'
+        registry.parent.mkdir(parents=True)
+        registry.write_text(str(self.repo) + '\n')
+        import shlex
+        action = next(row for row in prior['actions'] if row['kind'] == 'local-delete')
+        event = {'session_id': 'isolated-squash-alias', 'hook_event_name': 'PreToolUse',
+                 'tool_name': 'Bash', 'tool_input': {'command': shlex.join(action['command'])},
+                 'cwd': str(self.repo), 'permission_mode': 'default'}
+        env = dict(self.environment(), HOME=str(home), XDG_CONFIG_HOME=str(config))
+        result = subprocess.run([sys.executable, '-I', str(SOURCE / 'hooks/git_rails.py')],
+                                input=json.dumps(event), text=True, capture_output=True, env=env, timeout=10)
+        self.assertEqual((0, '', ''), (result.returncode, result.stdout, result.stderr),
+                         'A helper-verified origin-bound SSH alias merged receipt must pass the independent hook checks')
 
     def test_required_deployment_unknown_remains_independent(self) -> None:
         self.test_required_deployment_without_dated_revision_environment_evidence_blocks_finish()
