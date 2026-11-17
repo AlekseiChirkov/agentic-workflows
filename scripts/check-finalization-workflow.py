@@ -575,7 +575,7 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
                 self.spec = self.root / '.ai/specs/next.md'
                 self.spec.write_text('# Next delivery\n\n## Requirements\n- Preserve product scope.\n')
                 self.write_state()
-                (self.task / 'state.md').write_text(self.state_text.replace('branch: feat/delivery', 'branch: ' + branch))
+                (self.task / 'state.md').write_text(self.state_text.replace('spec_path: .ai/specs/delivery.md', 'spec_path: .ai/specs/next.md').replace('branch: feat/delivery', 'branch: ' + branch))
                 (self.task / 'plan.md').write_text('## Subtasks\n| ID | Name | Depends On | Status |\n|---|---|---|---|\n| T-01 | Deliver | — | reviewed |\n')
                 leaf = self.task / 'T-01-deliver'
                 leaf.mkdir()
