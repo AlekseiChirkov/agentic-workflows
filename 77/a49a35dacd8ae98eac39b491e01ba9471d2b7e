@@ -1,0 +1,19 @@
+scripts/check-finalization-safety.py
+  s_b9701c2ac0256e::t_d412b866ca09b8 1-335
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "77a49a35dacd8ae98eac39b491e01ba9471d2b7e",
+  "prompts": {},
+  "sessions": {
+    "s_b9701c2ac0256e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e8f8-f2bb-7480-9e26-3d84f4b0d798",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
