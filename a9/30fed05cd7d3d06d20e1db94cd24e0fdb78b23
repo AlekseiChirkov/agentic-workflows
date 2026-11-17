@@ -1,0 +1,33 @@
+.ai/adr/0025-task-24-post-merge-finalization.md
+  s_ba687a06b17902::t_0e185390c94cd2 1-19
+.ai/adr/index.md
+  s_ba687a06b17902::t_42d2ca156eb582 37
+.ai/specs/24-task-finalization.md
+  s_ba687a06b17902::t_ff3f1b387c775f 1-29
+.ai/tasks/todo/task-24-task-finalization/T-01-finalization-evidence/description.md
+  s_ba687a06b17902::t_01e9958b6e00f9 1-28
+.ai/tasks/todo/task-24-task-finalization/T-02-finalization-safety/description.md
+  s_ba687a06b17902::t_5d0908a61a65cb 1-28
+.ai/tasks/todo/task-24-task-finalization/T-03-finalization-workflow/description.md
+  s_ba687a06b17902::t_039feb21d401fe 1-28
+.ai/tasks/todo/task-24-task-finalization/plan.md
+  s_ba687a06b17902::t_08f934b64fc9f5 1-13
+.ai/tasks/todo/task-24-task-finalization/state.md
+  s_ba687a06b17902::t_05cd0442b0b02d 1-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a930fed05cd7d3d06d20e1db94cd24e0fdb78b23",
+  "prompts": {},
+  "sessions": {
+    "s_ba687a06b17902": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e93f-54f4-7363-9037-6892b0ec2bc0",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
