@@ -6,7 +6,7 @@ of every session. Updated after every phase transition.
 
 ## Active Tasks
 
-- [task-08-rules-workflows-audit](../tasks/todo/task-08-rules-workflows-audit/state.md) | phase: validation | status: in-progress | note: nine of ten leaves reviewed in draft PRs #105–#113 stacked on the multi-repository branch (draft #104); the closure leaf (index, knowledge, review line) is in independent review; task-level validation, spec-sync of spec 08 and promotion of the pull requests remain; resume with `/spec-run .ai/tasks/todo/task-08-rules-workflows-audit --allow-pr`
+- [task-08-rules-workflows-audit](../tasks/todo/task-08-rules-workflows-audit/state.md) | phase: validation | status: in-progress | note: all ten leaves reviewed, in draft PRs #105–#114 stacked on the multi-repository branch (draft #104); execution finalization, task-level validation, spec-sync of spec 08 and promotion of the pull requests remain; resume with `/spec-run .ai/tasks/todo/task-08-rules-workflows-audit --allow-pr`
 
 
 Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17; ADR-0017 moves 06 before 08/09): **00 (scrub) first** → 01 → 08 → 09 → 04 → 02 → 03 → 05 → 06 → 10 → 11 → 19 → 20 → 21 → 22 → 23 (21 and 23 split on 2026-11-16); 07 is scheduled outside this order (ADR-0021). Since the renumbering of 2026-11-16 (ADR-0023) the open specifications 08–23 are numbered in execution order; the complete order with prerequisites is the table in `specs/README.md`. The roadmap is in `specs/README.md`; each spec becomes a task via

@@ -4,7 +4,7 @@ flow: full
 
 ## Phases
 - discovery: complete
-- execution: in-progress
+- execution: complete
 - validation: not-started
 
 ## Task Analysis
@@ -419,8 +419,23 @@ T-10 | Index, knowledge and review line | atomic-tests: n-a | atomic-execution: 
   base_branch: docs/audit-migration-map-and-report
   base_commit: f0684d8053a6ca03731ac8254bf8916fe1b67050
   commits: 2c7655b docs(audit): index the audit report and record its independent review
-  pr: none
+  pr: #114 draft
 
+
+## Execution Report
+- T-01: reviewed — read-only `extract` of the deterministic inventory (audited set, readers, text model, git state); re-validated after one correction (unreadable roots, undecodable names, repository-configured git programs)
+- T-02: reviewed — reference edges (span and token grammar, heading resolution, statuses, contexts, load flag, defect predicate); arbiter ruling that token-grammar edges never carry the migration-grammar flag
+- T-03: reviewed — repeat-load, full-output, harness-name, legacy and duplicate-cluster candidates; owner decision during execution: home-directory prefixes in copied text written as `~/`
+- T-04: reviewed — `verify` for the assessment rules; re-validated after three corrections (unbounded recursion, uncaught parse errors, unescaped output; all output now passes one escaping boundary); one test input corrected because the specified pattern could not match it
+- T-05: reviewed — `verify` for the migration map, amendments and statement coverage; three deep-nesting expectations amended because the placeholders they relied on became typed records
+- T-06: reviewed — `render` and the report checks; five earlier expectations amended for the new report rules (arbiter rulings: whole-report economics scan, rules that need no valid input still run)
+- T-07: reviewed — clean extraction at `8d7e484` and assessment of the 14 rules and 5 adapters; re-validated after one correction (missed section defect, two wrong locations)
+- T-08: reviewed — assessment of the 42 workflows with the repetition review; re-validated after one correction (a false consequence, missed repeats)
+- T-09: reviewed — duplicate groups, migration map, statement coverage, seven amendments, reader defect findings, blocking flags and the report; re-validated twice (a misjudged heading reference, an amendment set left contradictory)
+- T-10: reviewed — index, script rows, runbook note, inventory count, memory entries and the review line; re-validated after one record correction
+
+Summary: 10 of 10 leaves reviewed; none blocked, deferred or not reached. Suite `scripts/check-audit-instructions.py`: 212 tests OK at `04ae554`; the complete contract validator at `04ae554`: 721 passed, 0 failed, 2 skipped; `verify --root . --report docs/audits/2026-11-17-rules-workflows-audit.md` silent at the stack tip.
+spec-run: proposals retained for post-delivery review; no application (10 Do Now items across T-01–T-06 and T-09, plus Do Later and Optional items, all pending).
 
 ## Model Selection
 selection: complete
