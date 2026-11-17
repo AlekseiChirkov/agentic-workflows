@@ -552,6 +552,39 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertEqual((0, '', ''), (result.returncode, result.stdout, result.stderr),
                          'A helper-verified origin-bound SSH alias merged receipt must pass the independent hook checks')
 
+    def test_ssh_alias_hook_accepts_helper_verified_canonical_identity_casing(self) -> None:
+        self.git(self.repo, 'reset', '--hard', self.base)
+        self.git(self.repo, 'cherry-pick', '--no-commit', 'feat/delivery')
+        self.git(self.repo, 'commit', '-m', 'feat: integrate squashed delivery')
+        merged = self.git(self.repo, 'rev-parse', 'HEAD')
+        self.alias_fixture(merged=merged)
+        configured = 'git@github-personal:Fixture-Org/Product.git'
+        self.git(self.repo, 'remote', 'set-url', 'origin', configured)
+        self.git(self.repo, 'config', 'url.' + (self.root / '.ai/fixture-origin.git').as_uri() + '.insteadOf', configured)
+        (self.task / 'state.md').write_text(self.state_text.replace('## Solution Design', '  pr: #142 ready\n## Solution Design'))
+        prior = self.prepare()
+        repository = prior['repositories'][0]
+        self.assertEqual('pr', repository['candidates'][0]['integration_method'])
+        self.assertEqual([configured], repository['remote_identity']['configured_fetch_urls'])
+        response = repository['hosting_identity']['resolution']['repository_response']
+        self.assertEqual('fixture-org/product', response['nameWithOwner'])
+        self.assertEqual('Fixture-Org/Product', repository['hosting_identity']['repository'])
+        home = self.root / '.ai/casing-hook-home'
+        config = home / '.config'
+        registry = config / 'orchestrail/projects'
+        registry.parent.mkdir(parents=True)
+        registry.write_text(str(self.repo) + '\n')
+        import shlex
+        action = next(row for row in prior['actions'] if row['kind'] == 'local-delete')
+        event = {'session_id': 'isolated-canonical-casing', 'hook_event_name': 'PreToolUse',
+                 'tool_name': 'Bash', 'tool_input': {'command': shlex.join(action['command'])},
+                 'cwd': str(self.repo), 'permission_mode': 'default'}
+        env = dict(self.environment(), HOME=str(home), XDG_CONFIG_HOME=str(config))
+        result = subprocess.run([sys.executable, '-I', str(SOURCE / 'hooks/git_rails.py')],
+                                input=json.dumps(event), text=True, capture_output=True, env=env, timeout=10)
+        self.assertEqual((0, '', ''), (result.returncode, result.stdout, result.stderr),
+                         'The independent reader must accept the same authoritative GitHub identity casing as the helper')
+
     def test_completed_receipts_do_not_veto_unique_current_task_generation(self) -> None:
         for branch in ('feat/next', 'feat/delivery', 'feat/transport'):
             with self.subTest(branch=branch):
