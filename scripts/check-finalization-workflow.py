@@ -357,6 +357,7 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         remote = self.root / '.ai/fixture-origin.git'
         self.git(self.repo, 'remote', 'set-url', 'origin', 'git@github-personal:fixture-org/product.git')
         self.git(self.repo, 'config', 'url.' + remote.as_uri() + '.insteadOf', 'git@github-personal:fixture-org/product.git')
+        self.git(self.repo, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main')
         tools = self.root / '.ai/fixture-tools'
         log = self.root / '.ai/alias-calls.jsonl'
         row = {'url': 'https://github.com/' + returned_identity + '/pull/142', 'state': 'CLOSED',
@@ -586,6 +587,7 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
                     self.git(self.repo, 'remote', 'add', 'origin', str(remote))
                     self.git(self.repo, 'push', 'origin', 'main', branch)
                     self.git(remote, 'symbolic-ref', 'HEAD', 'refs/heads/main')
+                    self.git(self.repo, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main')
                 current = self.prepare()
                 home = self.root / '.ai/generation-home'
                 config = home / '.config'
