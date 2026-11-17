@@ -1,0 +1,31 @@
+tests/fixtures/validator-runtime/source_guard.py
+  s_ba687a06b17902::t_e53ef6b1b2dc23 963
+tests/fixtures/validator-runtime/source_guard_exceptions.json
+  s_ba687a06b17902::t_b0463eb780d69e 308,3569,3591
+scripts/sync.sh
+  s_38327152c87351::t_6ef4ba9871791d 164-170,213-219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "db967b5057f00797ed0586e371c2a5822e1213a6",
+  "prompts": {},
+  "sessions": {
+    "s_38327152c87351": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1ea26-e1fa-7fb3-aa20-6500e618efbe",
+        "model": "unknown"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_ba687a06b17902": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e93f-54f4-7363-9037-6892b0ec2bc0",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
