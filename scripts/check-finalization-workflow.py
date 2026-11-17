@@ -833,6 +833,34 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertEqual('archived', archived['status'], archived)
         self.assertTrue(self.checkpoint('finish', archived)['complete'])
 
+    def test_offline_audit_attempt_preserves_execution_before_semantic_change_acceptance(self) -> None:
+        prior, path, original = self.knowledge_fixture()
+        rows = json.loads(self.evidence.read_bytes())['attestations']
+        updated = original + b'\nCurrent delivery awaiting independent audit acceptance.\n'
+        path.write_bytes(updated)
+        receipt_paths = list((self.repo / '.git/orchestrail-finalize').glob('*.json'))
+        receipt_bytes = {str(item): item.read_bytes() for item in receipt_paths}
+        result = self.attempt(prior, attempt_id='prearchive-audit', operation_id='audit',
+                              argv=['fixture-audit', str(path)], exit_code=0, checkpoint='applied',
+                              stdout='Current claims independently inspected.\n', stderr='')
+        self.assertEqual('recorded', result['status'], result)
+        self.assertEqual('unverified', result['outcomes']['audit'])
+        self.assertFalse(result['complete'])
+        self.assertEqual(receipt_bytes, {str(item): item.read_bytes() for item in receipt_paths})
+        self.assertEqual([], result.get('knowledge_changes', []))
+        self.put_evidence()
+        self.blocked(self.checkpoint('record', result), 'knowledge-content-changed')
+        for row in rows:
+            row['observed_at'] = datetime.now(timezone.utc).isoformat()
+        self.put_evidence(attestations=rows)
+        accepted = self.knowledge_delta(result, path, original, updated)
+        self.assertEqual('recorded', accepted['status'], accepted)
+        self.assertEqual('prearchive-audit', accepted['command_attempts'][-1]['attempt_id'])
+        self.assertEqual('Current claims independently inspected.\n', accepted['command_attempts'][-1]['stdout'])
+        archived = self.checkpoint('archive', accepted)
+        self.assertEqual('archived', archived['status'], archived)
+        self.assertTrue(self.checkpoint('finish', archived)['complete'])
+
     def test_clean_index_metadata_refresh_is_read_only_and_staged_content_stays_blocked(self) -> None:
         prior, _, _ = self.knowledge_fixture()
         index_path = Path(self.git(self.repo, 'rev-parse', '--path-format=absolute', '--git-path', 'index'))
