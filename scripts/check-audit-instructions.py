@@ -2991,5 +2991,130 @@ class VerifyTreeTests(VerifyAssertions):
                 self.assertNotIn("Traceback", result.stderr)
 
 
+DEEP_LEVELS = 2000
+
+
+def deeply_nested(innermost: object) -> object:
+    value = innermost
+    for _ in range(DEEP_LEVELS):
+        value = [value]
+    return value
+
+
+def compact(value: object) -> str:
+    """JSON text without indentation, which the standard encoder writes at any depth."""
+    return json.dumps(value, ensure_ascii=False) + "\n"
+
+
+def deep_directory(root: Path, top: str, levels: int) -> str:
+    """Create `levels` nested one-letter directories below `top`; return their relative path."""
+    relative = top
+    for _ in range(levels):
+        relative += "/d"
+        os.mkdir(root / relative)
+    return relative
+
+
+def remove_deep_directory(root: Path, relative: str) -> None:
+    """Remove a chain made by deep_directory from the bottom up, files first."""
+    while "/" in relative:
+        directory = root / relative
+        for child in os.listdir(directory):
+            if not (directory / child).is_dir():
+                os.unlink(directory / child)
+        os.rmdir(directory)
+        relative = relative.rsplit("/", 1)[0]
+
+
+class VerifyDepthTests(SharedVerifyCase):
+    def test_deeply_nested_assessment_values_are_scanned_without_a_traceback(self) -> None:
+        cases = (
+            ("statement coverage", lambda value: value["req21"].update(
+                statements=deeply_nested("Costs $5.")), "req21"),
+            ("amendment field", lambda value: value["amendments"][0].update(
+                current=deeply_nested("Costs $5.")), "AMD-08-01"),
+            ("map entry", lambda value: value["map"].append(deeply_nested("Costs $5.")),
+             "map[0]"),
+        )
+        for name, fault, fragment_text in cases:
+            with self.subTest(case=name):
+                value = valid_assessment(self.inventory)
+                fault(value)
+                result = self.verify(text=compact(value))
+                self.assertNotIn("Traceback", result.stderr)
+                self.assert_reports(result, [("economics-claim", assessment_at(fragment_text))])
+
+    def test_deeply_nested_values_without_amounts_are_silent(self) -> None:
+        self.assessment["req21"]["statements"] = deeply_nested([])
+        result = self.verify(text=compact(self.assessment))
+        self.assertNotIn("Traceback", result.stderr)
+        self.assert_silent(result)
+
+
+class VerifyDeepTreeTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+    verify = VerifyTreeTests.verify
+
+    def test_file_below_a_deep_directory_chain_is_inventory_stale_without_a_traceback(
+            self) -> None:
+        fixture, _ = self.build("deep")
+        directory = deep_directory(fixture.root, "rules", 1200)
+        try:
+            fixture.write(f"{directory}/x.md", "# X\n")
+            result = self.verify(fixture)
+        finally:
+            remove_deep_directory(fixture.root, directory)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assert_reports(result, [("inventory-stale", f"{directory}/x.md:0")])
+
+
+class VerifyPinnedBehaviourTests(SharedVerifyCase):
+    """Characterization cases that pin behaviour the earlier cases left unconstrained."""
+
+    def test_accepted_observation_must_be_minor_and_must_not_block(self) -> None:
+        with self.subTest(fault="major severity"):
+            self.finding("AUD-08-002").update(type="accepted-observation", owner="none",
+                                              severity="major")
+            self.assert_reports(self.verify(),
+                                [("finding-invalid", assessment_at("AUD-08-002"))])
+        with self.subTest(fault="blocking although the predicate holds"):
+            self.setUp()
+            self.finding("AUD-08-001").update(type="accepted-observation", owner="none",
+                                              severity="minor")
+            self.assert_reports(self.verify(),
+                                [("finding-invalid", assessment_at("AUD-08-001"))])
+
+    def test_euro_and_pound_amounts_are_economics_claims(self) -> None:
+        for text in ("Each repeat costs €5.", "Each repeat costs £ 3."):
+            with self.subTest(text=text):
+                self.setUp()
+                self.finding("AUD-08-002")["observation"] = text
+                self.assert_reports(self.verify(),
+                                    [("economics-claim", assessment_at("AUD-08-002"))])
+
+    def test_coverage_gap_finding_on_a_reader_does_not_block(self) -> None:
+        self.finding("AUD-08-002")["type"] = "coverage-gap"
+        self.assert_silent(self.verify())
+        self.finding("AUD-08-002")["blocks_09"] = True
+        self.assert_reports(self.verify(), [("finding-invalid", assessment_at("AUD-08-002"))])
+
+    def test_finding_evidence_must_be_a_path_a_path_line_or_an_amendment_id(self) -> None:
+        for item in ("docs/GUIDE.md line 1", "/abs/GUIDE.md", "../GUIDE.md", "AMD-8-1 x"):
+            with self.subTest(item=item):
+                self.setUp()
+                self.finding("AUD-08-002")["evidence"] = [f"{GUIDE}:1", item]
+                self.assert_reports(self.verify(),
+                                    [("finding-invalid", assessment_at("AUD-08-002"))])
+        self.setUp()
+        self.finding("AUD-08-002")["evidence"] = [f"{GUIDE}:1", GUIDE, "AMD-08-01"]
+        self.assert_silent(self.verify())
+
+    def test_two_amounts_in_one_string_give_one_economics_claim(self) -> None:
+        self.finding("AUD-08-002")["observation"] = "It costs $5 and saves 3,000 tokens."
+        self.assert_reports(self.verify(), [("economics-claim", assessment_at("AUD-08-002"))])
+
+
 if __name__ == "__main__":
     unittest.main()
