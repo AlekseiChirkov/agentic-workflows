@@ -1,0 +1,19 @@
+scripts/check-finalization-workflow.py
+  s_2bfd4ec38c8f13::t_b2ec35c90c9734 555-587
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4a6a27c58e442fa60fbc4d1edc353b6b3ad4a4f4",
+  "prompts": {},
+  "sessions": {
+    "s_2bfd4ec38c8f13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ac964bbe904db6216",
+        "model": "unknown"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
