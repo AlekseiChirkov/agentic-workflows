@@ -1,0 +1,37 @@
+.ai/memory/architecture.md
+  s_b9701c2ac0256e::t_6022c055e574cb 362-365
+.ai/memory/progress.md
+  s_ba687a06b17902::t_fcbac009f4088d 148-151
+.ai/memory/state.md
+  s_ba687a06b17902::t_276f6b463f9f20 9-10
+.ai/specs/README.md
+  s_b9701c2ac0256e::t_42a2b714a9ef56 27-30
+.ai/tasks/todo/task-24-task-finalization/plan.md
+  s_ba687a06b17902::t_80cfd90663900c 7
+.ai/tasks/todo/task-24-task-finalization/state.md
+  s_b9701c2ac0256e::t_5ddd9eb0b97156 36-38,40-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "77274994364ed23f7d11106e724f899af1c9cedf",
+  "prompts": {},
+  "sessions": {
+    "s_b9701c2ac0256e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e8f8-f2bb-7480-9e26-3d84f4b0d798",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_ba687a06b17902": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e93f-54f4-7363-9037-6892b0ec2bc0",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
