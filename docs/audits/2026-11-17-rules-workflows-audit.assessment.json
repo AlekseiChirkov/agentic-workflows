@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "inventory_digest": "a421bc3a038eee7600bdc7209b296acffa580f66f3dd934c34a19e54dbef8763",
+  "run_date": "2026-11-17",
+  "auditor": "Implementer",
+  "environment": {
+    "python": "Python 3.12.16",
+    "git": "git version 2.53.0"
+  },
+  "installed_access": "not-verified",
+  "files": [],
+  "coverage": [],
+  "loads": [],
+  "candidates": [],
+  "legacy": [],
+  "duplicate_groups": [],
+  "map": [],
+  "req21": {
+    "verdict": "not-covered",
+    "statements": []
+  },
+  "findings": [],
+  "amendments": [],
+  "installed": []
+}
