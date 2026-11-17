@@ -1,0 +1,19 @@
+scripts/check-audit-instructions.py
+  s_96afdcfd38c67e::t_d6c93a1ff98963 1529-1939
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f375b8dd67b708a9fc1d74e5cace1f0ee0b7ef75",
+  "prompts": {},
+  "sessions": {
+    "s_96afdcfd38c67e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f3ac193-9977-473b-b9f7-3df06f485ee7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
