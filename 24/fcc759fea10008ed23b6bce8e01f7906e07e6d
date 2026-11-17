@@ -1,0 +1,19 @@
+scripts/check-phase-finalize.py
+  s_ba687a06b17902::t_79309692540755 131-132,187-189,554,610-612,806-1019
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "24fcc759fea10008ed23b6bce8e01f7906e07e6d",
+  "prompts": {},
+  "sessions": {
+    "s_ba687a06b17902": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e93f-54f4-7363-9037-6892b0ec2bc0",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
