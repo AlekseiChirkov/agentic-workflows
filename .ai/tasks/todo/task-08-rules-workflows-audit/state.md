@@ -356,13 +356,18 @@ T-08 | Assessment of workflows | atomic-tests: green | atomic-execution: complet
   base_branch: docs/audit-rules-and-adapters
   base_commit: 14d541aa336e94d5188bc31a17b233df06e27410
   commits: 8dc73b1 docs(audit): assess the workflow files, af03564 fix(audit): correct the whole run-log load finding and add missed repeats
-  pr: none
+  pr: #112 draft
 
 T-09 | Map, findings, amendments and report | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: none
   target_files: docs/audits/<run_date>-rules-workflows-audit.assessment.json, docs/audits/<run_date>-rules-workflows-audit.md
   blocker: none
   notes: orchestrator 2026-11-17: at the extraction commit 445 `defect-unrecorded` diagnostics come from reader sources (not audited files); no description assigns them, and this leaf's goal ends with a silent `verify`, so they are recorded here in findings (a finding may list many edges); the 19 rule/adapter and 42 workflow `row-missing … no map row` lines and the statement-coverage record are also this leaf's
+  branch: docs/audit-migration-map-and-report
+  base_branch: docs/audit-workflows
+  base_commit: 49a833a0021673b00284a4e8315698709276f040
+  commits:
+  pr: none
          orchestrator 2026-11-17 (hand-off from the rules-and-adapters validation): reference-defect findings AUD-08-001/004/005/007 are owned to 11 only because owner 09 needs an amendment (REQ-29); spec 08 A-18 gives pre-existing reference defects to 09 and spec 11 consumes only proposal types, so decide here whether to re-own them to 09 with an amendment, and record the intake gap for non-proposal 11-owned findings (AUD-08-010, 018, 025 and any later ones) or ask the owner
          orchestrator 2026-11-17 (hand-off from the workflow assessment): map rows for the 42 workflows; reference defects AUD-08-033/035/036 owned to 11 can move to 09 with an amendment; candidate duplicate group by reading: the model-resolution protocol paraphrased at `rules/phase-atomic-execution.md:76-98`, `workflows/pe-execute.md:41-62` and `workflows/spec-run.md:181-205`
 
