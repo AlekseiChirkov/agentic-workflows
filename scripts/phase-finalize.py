@@ -2,14 +2,15 @@
 """Evidence-backed finalization mechanics (Python 3.11+, standard library).
 
 Public workflow: /phase-finalize TARGET [--dry-run]. This internal CLI is its
-required mechanics, not a Git policy bypass. It NEVER executes a Git mutation.
-Every Git mutation is returned as an argv array for explicit hook-governed execution.
+required mechanics, not a Git policy bypass. It never mutates project Git state.
+Project Git mutations are returned as argv arrays for explicit hook-governed execution.
+Recovery verification initializes/writes only disposable isolated temporary Git storage.
 
 CLI (one JSON object on stdout, exit 0 success / 1 blocked / 2 usage):
   phase-finalize.py inspect TARGET --root ROOT [--evidence JSON] [--dry-run]
   phase-finalize.py prepare|record|knowledge|archive|finish TARGET --root ROOT
       [--evidence JSON] --authorize --expected-revision absent|SHA256 [--dry-run]
-No implicit root/repository discovery, Git initialization, checkout, fetch, PR/history merge,
+No implicit project root/repository discovery, project Git initialization, checkout, fetch, PR/history merge,
 push, branch deletion, reset, stash, clean, worktree removal or logging occurs.
 Explicit safe checkout plans may include literal pull --ff-only on the recorded
 existing origin/integration upstream. No PR or history merge is permitted.
@@ -21,9 +22,9 @@ merge/lease proof. Missing local objects block; no automatic fetch occurs.
 JSON result schema v1: schema_version, command, status, failures[{check,reason}],
 resolution{task_path,spec_path,original_task_path}, id, journal_path, revision (sha256
 of actual journal bytes; 'absent' initially), plan_digest, repositories, actions,
-outcomes{validation,integration,checkout,cleanup,knowledge,archival,audit,deployment,
+outcomes{validation,integration,checkout,cleanup,recovery,knowledge,archival,audit,deployment,
 spec_archival?}, complete, validation_evidence, action_receipts and trust_limitations.
-Statuses: ready, prepared, recorded, archived, complete, blocked. A ready inspection
+Statuses: ready, recovery-required, prepared, recorded, archived, complete, blocked. A ready inspection
 is not completion. record rechecks each actual ref/checkout postcondition; command
 exit codes or caller success flags never establish cleanup. Surviving remote refs
 remain incomplete. Local branch -d refusal MUST preserve that branch; never use -D.
@@ -43,11 +44,31 @@ Original snapshots never change. Markdown relocation journals exact destination 
 only after required postconditions; deployment remains unverified unless required
 by '## Delivery Contract / deployment: required' and independently evidenced.
 
+Recovery gating: first prepare returns recovery-required with recovery_actions[].
+Each action has repository, pack_path/stdout_path, exact read-only pack-objects argv,
+stdin containing only original maximal full tips, restore_command, restore_stdin,
+and branch_recovery_commands. The caller writes stdout to the exact pack_path,
+then reruns prepare with the returned revision. No deletion-authorizing receipt is
+published until every self-contained pack is verified. No --all or unrelated ref
+selection occurs. Verification runs Git init/index-pack/fsck ONLY in isolated /tmp
+object storage (30-second subprocess bounds), without templates, global/system
+config, alternate objects, replacements, lazy fetch or network. Project Git objects,
+refs, index and worktree remain unchanged. Dry-run emits this plan without writes.
+Journal recovery[] records repository, immutable pack_path/sha256, original tips,
+closure_verified, verified_at, verification provenance, restore_command and explicit
+restore_stdin path plus original branch recreation commands. Existing corrupt or
+incomplete material is preserved and blocks authorization; it is never replaced by
+chmod/removal/regeneration. Every published receipt additionally includes its exact
+repository recovery record; hooks must check the journal-bound pack SHA before any
+deletion. Explicit restore uses index-pack --stdin --strict < PACK followed by the
+recorded branch command; original object existence alone is not durable recovery.
+
 Hook receipt v1: <git-common-dir>/orchestrail-finalize/<stable-id>.json, with exact
 fields schema_version=1, kind='task-finalization', id, task_path(original absolute),
 project_root, repository(absolute), common_dir, journal_path, journal_revision,
 plan_digest, authorization={invocation:'phase-finalize',task_path,cleanup:true},
-integration={branch,ref,tip}, candidates (same canonical candidate objects as journal).
+integration={branch,ref,tip}, candidates (same canonical candidate objects as journal),
+and recovery (the exact verified repository recovery record from the journal).
 Each candidate has leaf, branch, local_ref, original_tip, expected_tip, base_commit,
 original_commits, remote, remote_ref, expected_remote_tip, integration_method,
 pr, pr_receipt and recovery_command. plan_digest = sha256(canonical JSON bytes
@@ -62,7 +83,7 @@ original identity; no branch/task names are guessed.
 
 Evidence JSON v1: schema_version=1, provenance object, pull_requests[],
 attestations[], optional delivery_records[]. Caller PR claims are not authoritative:
-production re-reads the recorded https://github.com/OWNER/REPO/pull/N using gh pr view.
+canonical pr: none means no PR. #N draft/#N ready resolve via this repository's exact configured GitHub origin; explicit GitHub URLs must match that identity. Production re-reads gh pr view N --repo OWNER/REPO, verifies returned URL identity, and preserves the original pr audit string unchanged.
 Rewritten history requires exact original head/ref, intended integration base,
 MERGED state, dated merge and reachable merge object. An ordinary closed PR or a
 merge only into a stack feature does not qualify. Ancestry checks all original
@@ -101,7 +122,7 @@ keep the whole spec active even when all existing tasks have validated.
 Test fault seams FINALIZATION_TEST_FAULT=before-journal-replace|after-journal-replace|
 after-task-rename only terminate a process under FINALIZATION_TEST_ROOT in /tmp;
 they cannot grant authorization or change evidence. Fixtures mutate disposable Git
-repositories directly; the helper itself never does so.
+repositories directly; the helper writes Git objects only inside isolated temporary recovery verification storage.
 """
 from __future__ import annotations
 
@@ -114,6 +135,7 @@ import sys
 from finalization_archive import (apply_moving_links, apply_pointer_plans, identity, integrity, move_no_replace, moving_link_plans,
                                   pointer_plans, resolve, snapshot, spec_eligible)
 from finalization_evidence import assess, commit, evidence_file, git, remote_refs
+from finalization_recovery import check_verified, prepare_recovery, recovery_plan
 from finalization_support import (Refusal, atomic_write, dated, digest, encoded, expect_revision,
                                   edit_current_state, fault, field, locked, manifest, normalized_state, now, read_json, require, safe_path, section, text)
 
@@ -123,6 +145,9 @@ def plan_digest(document: dict) -> str:
 
 
 def publish(journal: dict, path: Path, root: Path) -> list[str]:
+    if journal['outcomes'].get('recovery') != 'verified':
+        return []
+    require(check_verified(journal, root, path), 'recovery-required', 'Verified self-contained recovery material is required before deletion receipts')
     revision = digest(path.read_bytes())
     receipts: list[str] = []
     for repository in journal['repositories']:
@@ -135,13 +160,16 @@ def publish(journal: dict, path: Path, root: Path) -> list[str]:
                    'repository': repository['path'], 'common_dir': str(common), 'journal_path': str(path),
                    'journal_revision': revision, 'plan_digest': journal['plan_digest'],
                    'authorization': journal['authorization'], 'integration': repository['integration'],
-                   'candidates': repository['candidates']}
+                   'candidates': repository['candidates'],
+                   'recovery': next(record for record in journal['recovery'] if record['repository'] == repository['path'])}
         atomic_write(destination, encoded(receipt), common)
         receipts.append(str(destination))
     return receipts
 
 
 def store(journal: dict, path: Path, root: Path) -> list[str]:
+    if journal['outcomes'].get('recovery') == 'verified':
+        require(check_verified(journal, root, path), 'recovery-required', 'Verified recovery material is unavailable')
     journal['plan_digest'] = plan_digest(journal)
     data = encoded(journal)
     if not path.exists() or path.read_bytes() != data:
@@ -273,6 +301,15 @@ def archive(journal: dict, path: Path, root: Path, task: Path, spec: Path) -> tu
         task = task_destination
         fault('after-task-rename', root)
     journal['task_current'] = str(task)
+    if intent['move_spec'] and spec != spec_destination:
+        eligible_now, reason_now = spec_eligible(root, task, spec, journal)
+        if not eligible_now:
+            # The task rename is durable progress; only downgrade the now-unsafe spec move.
+            intent['move_spec'] = False
+            intent['spec_status'] = reason_now
+            intent['current_links'] = pointer_plans(root, journal, task_destination, spec_destination, False)
+            intent['moving_links'] = moving_link_plans(root, journal, task, spec, task_destination, spec)
+            store(journal, path, root)
     if intent['move_spec']:
         if spec != spec_destination:
             move_no_replace(spec, spec_destination, root)
@@ -297,7 +334,7 @@ def archive(journal: dict, path: Path, root: Path, task: Path, spec: Path) -> tu
 
 def finish(journal: dict, root: Path, task: Path, spec: Path) -> None:
     required = {'validation': 'complete', 'integration': 'complete', 'checkout': 'complete', 'cleanup': 'complete',
-                'knowledge': 'attested', 'archival': 'complete', 'audit': 'attested', 'verification': 'attested'}
+                'knowledge': 'attested', 'archival': 'complete', 'audit': 'attested', 'verification': 'attested', 'recovery': 'verified'}
     require(all(journal['outcomes'].get(key) == value for key, value in required.items()),
             'required-operation-incomplete', 'Required finalization operations remain incomplete')
     contract = section(text(spec), '## Delivery Contract')
@@ -327,12 +364,15 @@ def response(command: str, status: str, root: Path, task: Path, spec: Path, path
     result.update(current)
     if journal:
         for key in ('repositories', 'actions', 'outcomes', 'manifest', 'snapshot_path', 'plan_digest', 'action_receipts',
-                    'validation_evidence', 'trust_limitations', 'attestations', 'action_history'):
+                    'validation_evidence', 'trust_limitations', 'attestations', 'action_history', 'recovery', 'recovery_actions'):
             if key in journal:
                 result[key] = journal[key]
         result['complete'] = journal.get('complete', False) if command == 'finish' else False
     else:
         result['plan_digest'] = plan_digest(current)
+    if 'recovery_actions' not in result:
+        result['recovery_actions'] = recovery_plan(path, result['repositories'])
+    result['outcomes'].setdefault('recovery', 'required')
     if receipts is not None:
         result['hook_receipts'] = receipts
     return result
@@ -358,6 +398,8 @@ def execute(args: argparse.Namespace) -> dict:
                 'adoption-evidence-missing', 'Preexisting archives need explicit dated original-path/manifest/provenance evidence')
     if prior:
         integrity(root, task, spec, prior)
+        if prior['outcomes'].get('recovery') == 'verified':
+            require(check_verified(prior, root, path), 'recovery-required', 'Recovery material is unavailable')
     current = assess(root, task, spec, evidence, prior)
     if args.command == 'inspect' or args.dry_run:
         observed = copy.deepcopy(prior) if prior else None
@@ -394,9 +436,11 @@ def execute(args: argparse.Namespace) -> dict:
                 journal['adoption'] = adoption
                 journal['trust_limitations'] = ['Adopted preexisting archive: snapshots preserve bytes observed at adoption; pre-archive raw bytes and prior execution are not independently recoverable or verified.']
             update_postconditions(journal)
+            recovered = prepare_recovery(journal, root, path)
             receipts = store(journal, path, root)
-            return response(args.command, 'prepared', root, task, spec, path, current, journal, receipts)
+            return response(args.command, 'prepared' if recovered else 'recovery-required', root, task, spec, path, current, journal, receipts)
         require(prior is not None, 'journal-missing', 'Run prepare before recording or archiving')
+        require(prior['outcomes'].get('recovery') == 'verified' and check_verified(prior, root, path), 'recovery-required', 'Create and verify the exact recovery pack plan before cleanup or archival')
         journal = prior
         journal.update({key: current[key] for key in ('repositories', 'actions', 'validation_evidence')})
         update_postconditions(journal)

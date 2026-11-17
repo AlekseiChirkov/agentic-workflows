@@ -31,7 +31,7 @@ def process(arguments: list[str], cwd: Path) -> subprocess.CompletedProcess[str]
 def git(repo: Path, *arguments: str, codes: tuple[int, ...] = (0,)) -> str:
     """This allowlist cannot perform Git mutations, including through aliases."""
     require(bool(arguments) and arguments[0] in {'rev-parse', 'show-ref', 'merge-base', 'status', 'worktree',
-            'symbolic-ref', 'config', 'ls-remote', 'remote', 'check-ref-format'}, 'internal-read-policy', 'Git mutation rejected')
+            'symbolic-ref', 'config', 'ls-remote', 'remote', 'check-ref-format', 'ls-tree', 'ls-files'}, 'internal-read-policy', 'Git mutation rejected')
     if arguments[0] == 'worktree':
         require(arguments[1:] == ('list', '--porcelain'), 'internal-read-policy', 'Only worktree listing is permitted')
     if arguments[0] == 'config':
@@ -211,19 +211,49 @@ def fixture_authority(root: Path, repo: Path, evidence: dict) -> bool:
             and git(repo, 'config', '--get', 'orchestrail.fixture', codes=(0, 1)) == 'true')
 
 
+def github_repository(repo: Path) -> str:
+    """Resolve canonical PR numbers only from this repository's configured origin."""
+    from urllib.parse import urlsplit
+    urls = git(repo, 'config', '--get-all', 'remote.origin.url', codes=(0, 1)).splitlines()
+    require(len(urls) == 1, 'pr-authority-unverified', 'A unique GitHub origin identity is required for PR evidence')
+    remote = urls[0]
+    scp = re.fullmatch(r'(?:[^@/:]+@)?github\.com:([^/]+)/([^/]+)', remote, re.I)
+    if scp:
+        owner, project = scp.groups()
+    else:
+        parsed = urlsplit(remote)
+        require(parsed.scheme in {'https', 'ssh'} and parsed.hostname == 'github.com' and not parsed.query and not parsed.fragment,
+                'pr-authority-unverified', 'Configured origin is not a supported GitHub repository identity')
+        parts = parsed.path.strip('/').split('/')
+        require(len(parts) == 2, 'pr-authority-unverified', 'Configured GitHub origin has no exact owner/repository identity')
+        owner, project = parts
+    if project.endswith('.git'):
+        project = project[:-4]
+    require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9-]*', owner) and re.fullmatch(r'[A-Za-z0-9_.-]+', project)
+            and project not in {'.', '..'}, 'pr-authority-unverified', 'Configured origin has an invalid GitHub identity')
+    return owner + '/' + project
+
+
 def pr_evidence(root: Path, repo: Path, candidate: dict, target: dict, evidence: dict, *, proof_required: bool = True) -> dict | None:
-    url = candidate.get('pr')
-    if not url:
+    original = candidate.get('pr')
+    if not original or original.strip().casefold() == 'none':
         return None
     if fixture_authority(root, repo, evidence):
-        rows = [item for item in evidence.get('pull_requests', []) if isinstance(item, dict) and item.get('url') == url]
+        rows = [item for item in evidence.get('pull_requests', []) if isinstance(item, dict) and item.get('url') == original]
         require(len(rows) == 1, 'pr-authority-unverified', 'A unique controlled fixture PR receipt is required')
         receipt = dict(rows[0])
         receipt['provenance'] = 'controlled-fixture; isolated repository only'
+        expected_url = original
     else:
-        require(re.fullmatch(r'https://github\.com/[^/]+/[^/]+/pull/[1-9][0-9]*', url),
-                'pr-authority-unverified', 'Caller PR data is not authoritative; a GitHub PR URL is required for a fresh read')
-        observed = process(['gh', 'pr', 'view', url, '--json', 'url,state,baseRefName,headRefName,headRefOid,mergeCommit,mergedAt'], repo)
+        identity = github_repository(repo)
+        numbered = re.fullmatch(r'#([1-9][0-9]*) (?:draft|ready)', original)
+        explicit = re.fullmatch(r'https://github\.com/([^/]+/[^/]+)/pull/([1-9][0-9]*)', original)
+        require(numbered is not None or explicit is not None, 'pr-authority-unverified', 'PR reference must be canonical #N draft/#N ready or a GitHub PR URL')
+        if explicit:
+            require(explicit.group(1).casefold() == identity.casefold(), 'pr-repository-mismatch', 'Recorded PR URL belongs to another repository')
+        number = numbered.group(1) if numbered else explicit.group(2)
+        expected_url = 'https://github.com/' + identity + '/pull/' + number
+        observed = process(['gh', 'pr', 'view', number, '--repo', identity, '--json', 'url,state,baseRefName,headRefName,headRefOid,mergeCommit,mergedAt'], repo)
         require(observed.returncode == 0, 'pr-authority-unverified', 'Authoritative PR read unavailable: ' + observed.stderr.strip())
         import json
         try:
@@ -231,16 +261,19 @@ def pr_evidence(root: Path, repo: Path, candidate: dict, target: dict, evidence:
         except ValueError as error:
             raise Refusal('pr-authority-unverified', 'Invalid GitHub PR response') from error
         require(isinstance(row, dict), 'pr-authority-unverified', 'Invalid GitHub PR response')
-        receipt = {'url': row.get('url'), 'repository': str(repo), 'head_ref': row.get('headRefName'),
-                   'head_sha': row.get('headRefOid'), 'base_ref': row.get('baseRefName'), 'state': row.get('state'),
+        require(isinstance(row.get('url'), str) and row['url'].casefold() == expected_url.casefold(),
+                'pr-repository-mismatch', 'Authoritative PR response belongs to another repository or number')
+        receipt = {'url': row.get('url'), 'repository': str(repo), 'repository_identity': identity,
+                   'head_ref': row.get('headRefName'), 'head_sha': row.get('headRefOid'),
+                   'base_ref': row.get('baseRefName'), 'state': row.get('state'),
                    'merge_commit': (row.get('mergeCommit') or {}).get('oid'), 'merged_at': row.get('mergedAt'),
-                   'provenance': 'fresh gh pr view against GitHub; caller fields ignored'}
-    require(receipt.get('url') == url and receipt.get('repository') == str(repo) and receipt.get('state') in {'OPEN', 'CLOSED', 'MERGED'}, 'pr-authority-unverified', 'PR outcome identity is invalid')
+                   'provenance': 'fresh repository-bound gh pr view against GitHub; original audit field preserved'}
+    require(str(receipt.get('url')).casefold() == expected_url.casefold() and receipt.get('repository') == str(repo)
+            and receipt.get('state') in {'OPEN', 'CLOSED', 'MERGED'}, 'pr-authority-unverified', 'PR outcome identity is invalid')
     if not proof_required:
         return receipt
-    require(receipt.get('repository') == str(repo) and receipt.get('head_ref') == candidate['branch']
-            and receipt.get('head_sha') == candidate['original_tip'] and receipt.get('base_ref') == target['branch']
-            and receipt.get('state') == 'MERGED' and dated(receipt.get('merged_at')),
+    require(receipt.get('head_ref') == candidate['branch'] and receipt.get('head_sha') == candidate['original_tip']
+            and receipt.get('base_ref') == target['branch'] and receipt.get('state') == 'MERGED' and dated(receipt.get('merged_at')),
             'integration-unverified', 'PR is not a matching merged delivery to the intended integration branch')
     merge = receipt.get('merge_commit')
     require(isinstance(merge, str) and SHA.fullmatch(merge) and commit(repo, merge) == merge
@@ -347,6 +380,21 @@ def dirty_paths(repo: Path) -> list[str]:
             paths.append(entries[index])
             index += 1
     return paths
+
+
+def checkout_collisions(repo: Path, target: str) -> list[str]:
+    """Include ignored files: Git switch otherwise overwrites them by default."""
+    prefix = ['git', '--no-replace-objects', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null']
+    target_result = process([*prefix, 'ls-tree', '-r', '--name-only', '-z', target], repo)
+    require(target_result.returncode == 0, 'git-read-failed', target_result.stderr)
+    targets = [name for name in target_result.stdout.split('\0') if name]
+    untracked: list[str] = []
+    for options in (['--others', '--exclude-standard'], ['--others', '--ignored', '--exclude-standard']):
+        listed = process([*prefix, 'ls-files', '-z', *options], repo)
+        require(listed.returncode == 0, 'git-read-failed', listed.stderr)
+        untracked.extend(name for name in listed.stdout.split('\0') if name)
+    return sorted({name for name in untracked for target_name in targets
+                   if name == target_name or name.startswith(target_name + '/') or target_name.startswith(name + '/')})
 
 
 def owned_metadata_change(root: Path, repo: Path, relative: str, journal: dict | None) -> bool:
@@ -489,7 +537,9 @@ def assess(root: Path, task: Path, spec: Path, evidence: dict, journal: dict | N
             for member in item['members']:
                 if member['pr']:
                     member_candidate = {**candidate, 'pr': member['pr'], 'original_tip': member['original_tip']}
-                    actual_receipts.append(pr_evidence(root, repo, member_candidate, target, evidence, proof_required=False))
+                    actual = pr_evidence(root, repo, member_candidate, target, evidence, proof_required=False)
+                    if actual is not None:
+                        actual_receipts.append(actual)
             candidate['pr_receipts'] = actual_receipts
             candidate['pr_receipt'] = actual_receipts[-1] if actual_receipts else None
             integrated = all(ancestor(repo, sha, integration_tip) for sha in original_commits)
@@ -502,10 +552,13 @@ def assess(root: Path, task: Path, spec: Path, evidence: dict, journal: dict | N
                 candidate['integration_method'] = 'pr'
             candidates.append(candidate)
         require(not dirty or (current == base and not refresh and all(owned_metadata_change(root, repo, name, journal) for name in dirty)), 'worktree-dirty', f'Unrelated tracked edits or unsafe checkout edits in {repo}')
+        if current != base or refresh:
+            collisions = checkout_collisions(repo, integration_tip)
+            require(not collisions, 'checkout-path-collision', 'Checkout would overwrite ignored/untracked files: ' + ', '.join(collisions))
         if current != base:
             require(current in {item['branch'] for item in candidates}, 'checkout-unowned', 'Current checkout is detached or unrelated; select the integration branch explicitly')
             actions.append({'id': entry['name'] + ':checkout', 'kind': 'checkout', 'repository': str(repo), 'branch': base,
-                            'expected_tip': integration_tip, 'command': ['git', '-C', str(repo), 'switch', base]})
+                            'expected_tip': integration_tip, 'command': ['git', '-C', str(repo), 'switch', '--no-overwrite-ignore', base]})
         elif journal:
             actions.extend({**action, 'expected_tip': integration_tip} for action in journal['actions'] if action['repository'] == str(repo) and action['kind'] == 'checkout')
         if refresh:

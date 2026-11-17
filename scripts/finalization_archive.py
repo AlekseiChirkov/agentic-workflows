@@ -305,7 +305,8 @@ def moving_link_plans(root: Path, journal: dict, task: Path, spec: Path,
     sources.append((spec, spec_destination, 'spec', 'spec.md'))
     for source, destination, kind, name in sources:
         before = text(source)
-        after = relocated_document(source, destination, before, root, task, task_destination, spec, spec_destination)
+        origin = Path(journal['task_original']) / name if kind == 'task' else Path(journal['spec_original'])
+        after = relocated_document(origin, destination, before, root, Path(journal['task_original']), task_destination, Path(journal['spec_original']), spec_destination)
         if after != before:
             result.append({'kind': kind, 'name': name, 'before_sha256': digest(before.encode()),
                            'after_sha256': digest(after.encode()), 'after_text': after})
