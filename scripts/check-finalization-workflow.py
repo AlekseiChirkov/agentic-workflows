@@ -551,6 +551,90 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertEqual((0, '', ''), (result.returncode, result.stdout, result.stderr),
                          'A helper-verified origin-bound SSH alias merged receipt must pass the independent hook checks')
 
+    def test_completed_receipts_do_not_veto_unique_current_task_generation(self) -> None:
+        for branch in ('feat/next', 'feat/delivery', 'feat/transport'):
+            with self.subTest(branch=branch):
+                if branch != 'feat/next':
+                    self.doCleanups()
+                    self.setUp()
+                first = self.attested(self.clean_actions(self.prepare()))
+                first = self.checkpoint('archive', first)
+                first = self.checkpoint('finish', first)
+                self.assertTrue(first['complete'])
+                old_receipt = Path(first['hook_receipts'][0])
+                old_bytes = old_receipt.read_bytes()
+                self.base = self.git(self.repo, 'rev-parse', 'HEAD')
+                self.git(self.repo, 'checkout', '-b', branch)
+                self.git(self.repo, 'commit', '--allow-empty', '-m', 'feat: deliver next behavior')
+                self.tip = self.git(self.repo, 'rev-parse', 'HEAD')
+                self.git(self.repo, 'checkout', 'main')
+                self.git(self.repo, 'merge', '--no-ff', branch, '-m', 'merge: integrate next behavior')
+                self.task = self.root / '.ai/tasks/todo/task-next'
+                self.task.mkdir(parents=True)
+                self.spec = self.root / '.ai/specs/next.md'
+                self.spec.write_text('# Next delivery\n\n## Requirements\n- Preserve product scope.\n')
+                self.write_state()
+                (self.task / 'state.md').write_text(self.state_text.replace('branch: feat/delivery', 'branch: ' + branch))
+                (self.task / 'plan.md').write_text('## Subtasks\n| ID | Name | Depends On | Status |\n|---|---|---|---|\n| T-01 | Deliver | — | reviewed |\n')
+                leaf = self.task / 'T-01-deliver'
+                leaf.mkdir()
+                (leaf / 'description.md').write_text('## Goal\nDeliver next behavior.\n')
+                self.put_evidence()
+                if branch == 'feat/transport':
+                    remote = self.root / '.ai/new-origin.git'
+                    self.git(self.repo, 'init', '--bare', str(remote))
+                    self.git(self.repo, 'remote', 'add', 'origin', str(remote))
+                    self.git(self.repo, 'push', 'origin', 'main', branch)
+                    self.git(remote, 'symbolic-ref', 'HEAD', 'refs/heads/main')
+                current = self.prepare()
+                home = self.root / '.ai/generation-home'
+                config = home / '.config'
+                registry = config / 'orchestrail/projects'
+                registry.parent.mkdir(parents=True)
+                registry.write_text(str(self.repo) + '\n')
+                import shlex
+                action = next(row for row in current['actions'] if row['kind'] == 'local-delete')
+                event = {'session_id': 'isolated-task-generations', 'hook_event_name': 'PreToolUse',
+                         'tool_name': 'Bash', 'tool_input': {'command': shlex.join(action['command'])},
+                         'cwd': str(self.repo), 'permission_mode': 'default'}
+                env = dict(self.environment(), HOME=str(home), XDG_CONFIG_HOME=str(config))
+                result = subprocess.run([sys.executable, '-I', str(SOURCE / 'hooks/git_rails.py')],
+                                        input=json.dumps(event), text=True, capture_output=True, env=env, timeout=10)
+                self.assertEqual((0, '', ''), (result.returncode, result.stdout, result.stderr),
+                                 'Valid older receipts are contextual nonmatches, including a reused branch name with a new full SHA')
+                self.assertEqual(old_bytes, old_receipt.read_bytes())
+                malformed = json.loads(old_bytes)
+                malformed['journal_revision'] = '0' * 64
+                old_receipt.write_text(json.dumps(malformed))
+                denied = subprocess.run([sys.executable, '-I', str(SOURCE / 'hooks/git_rails.py')],
+                                        input=json.dumps(event), text=True, capture_output=True, env=env, timeout=10)
+                self.assertNotEqual((0, '', ''), (denied.returncode, denied.stdout, denied.stderr),
+                                    'A malformed old binding must invalidate the scan rather than being skipped')
+                old_receipt.write_bytes(old_bytes)
+
+    def test_two_current_matching_task_receipts_remain_ambiguous(self) -> None:
+        first = self.prepare()
+        import shutil
+        duplicate = self.task.parent / 'task-overlapping'
+        shutil.copytree(self.task, duplicate)
+        self.task = duplicate
+        self.prepare()
+        home = self.root / '.ai/ambiguous-home'
+        config = home / '.config'
+        registry = config / 'orchestrail/projects'
+        registry.parent.mkdir(parents=True)
+        registry.write_text(str(self.repo) + '\n')
+        import shlex
+        action = next(row for row in first['actions'] if row['kind'] == 'local-delete')
+        event = {'session_id': 'isolated-ambiguous-generations', 'hook_event_name': 'PreToolUse',
+                 'tool_name': 'Bash', 'tool_input': {'command': shlex.join(action['command'])},
+                 'cwd': str(self.repo), 'permission_mode': 'default'}
+        env = dict(self.environment(), HOME=str(home), XDG_CONFIG_HOME=str(config))
+        result = subprocess.run([sys.executable, '-I', str(SOURCE / 'hooks/git_rails.py')],
+                                input=json.dumps(event), text=True, capture_output=True, env=env, timeout=10)
+        self.assertNotEqual((0, '', ''), (result.returncode, result.stdout, result.stderr),
+                            'Two exact current task scopes cannot authorize a unique cleanup decision')
+
     def test_required_deployment_unknown_remains_independent(self) -> None:
         self.test_required_deployment_without_dated_revision_environment_evidence_blocks_finish()
 
