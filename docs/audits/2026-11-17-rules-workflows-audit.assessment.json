@@ -8,18 +8,1818 @@
     "git": "git version 2.53.0"
   },
   "installed_access": "not-verified",
-  "files": [],
-  "coverage": [],
-  "loads": [],
-  "candidates": [],
-  "legacy": [],
+  "files": [
+    {
+      "path": "harness/claude/capabilities.md",
+      "sha256": "6ba22a6a9030fc23d7effae5c7da5895fc158c6d79bf914539819cd52dcdca0f",
+      "kinds": [
+        "adapter-config"
+      ],
+      "sections": null,
+      "evidence": [
+        "harness/claude/capabilities.md:3",
+        "harness/claude/capabilities.md:31",
+        "harness/claude/capabilities.md:69",
+        "scripts/sync.sh:62"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "harness/claude/hooks.json",
+      "sha256": "d1adf8bf70d513e328fd42719d2aa3b593019b9a7f82701052129bd434432c0a",
+      "kinds": [
+        "adapter-config"
+      ],
+      "sections": null,
+      "evidence": [
+        "harness/claude/hooks.json:3",
+        "harness/claude/hooks.json:13"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "harness/claude/permissions.json",
+      "sha256": "57a5c2f1e405d9271bf17dd1dda600b0cf33915cfa69f0fba323e10b269b8361",
+      "kinds": [
+        "adapter-config"
+      ],
+      "sections": null,
+      "evidence": [
+        "harness/claude/permissions.json:3"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "harness/codex/capabilities.md",
+      "sha256": "3c646d8e248e84f846900f785338a58104809201789b47da7279ee2971f16613",
+      "kinds": [
+        "adapter-config"
+      ],
+      "sections": null,
+      "evidence": [
+        "harness/codex/capabilities.md:3",
+        "harness/codex/capabilities.md:12"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/git-flow.md",
+      "sha256": "bee39142bf860cd3f114878433794ad1a7943ab9cba46ab32de73ba3e243ff9f",
+      "kinds": [
+        "contract",
+        "protocol"
+      ],
+      "sections": [
+        {
+          "heading": "(preamble)",
+          "kind": "contract",
+          "proposed_home": "rules/contract-git-flow.md"
+        },
+        {
+          "heading": "## Preflight (mandatory, before any branch is created)",
+          "kind": "protocol",
+          "proposed_home": "rules/contract-git-flow.md"
+        },
+        {
+          "heading": "## Branch model — the stack",
+          "kind": "contract",
+          "proposed_home": "rules/contract-git-flow.md"
+        },
+        {
+          "heading": "## Commits",
+          "kind": "contract",
+          "proposed_home": "rules/contract-git-flow.md"
+        },
+        {
+          "heading": "## Pull requests",
+          "kind": "contract",
+          "proposed_home": "rules/contract-git-flow.md"
+        },
+        {
+          "heading": "## Safety rails",
+          "kind": "contract",
+          "proposed_home": "rules/contract-git-flow.md"
+        },
+        {
+          "heading": "## Recorded state — required for resume and for restack",
+          "kind": "contract",
+          "proposed_home": "rules/contract-git-flow.md"
+        },
+        {
+          "heading": "## Multi-repository runs",
+          "kind": "contract",
+          "proposed_home": "rules/contract-git-flow.md"
+        }
+      ],
+      "evidence": [
+        "rules/git-flow.md:7",
+        "rules/git-flow.md:18",
+        "rules/git-flow.md:86",
+        "rules/git-flow.md:219",
+        "rules/git-flow.md:251"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/global-claude.md",
+      "sha256": "2b7aa608b14136b0d09041a7815bf615d1ee80d8983ab6c6e98d979be3bb3ee2",
+      "kinds": [
+        "always-on"
+      ],
+      "sections": null,
+      "evidence": [
+        "rules/global-claude.md:1",
+        "rules/global-claude.md:15",
+        "scripts/sync.sh:100"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/language.md",
+      "sha256": "d705b525c040aea368e0361500303f9ab2ca4e2acf117d794dbdfe965b9bf7ca",
+      "kinds": [
+        "contract"
+      ],
+      "sections": null,
+      "evidence": [
+        "rules/language.md:2",
+        "rules/language.md:9"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/orchestration.md",
+      "sha256": "dab28e6dcb0109636acd612970c8df1f6fb4e8e48feee3b70510f59bbcfcb3a8",
+      "kinds": [
+        "contract",
+        "protocol"
+      ],
+      "sections": [
+        {
+          "heading": "(preamble)",
+          "kind": "contract",
+          "proposed_home": "rules/contract-orchestration.md"
+        },
+        {
+          "heading": "## Roles",
+          "kind": "contract",
+          "proposed_home": "rules/contract-orchestration.md"
+        },
+        {
+          "heading": "## Shared-file discipline",
+          "kind": "contract",
+          "proposed_home": "rules/contract-orchestration.md"
+        },
+        {
+          "heading": "## Escalation protocol",
+          "kind": "protocol",
+          "proposed_home": "rules/contract-orchestration.md"
+        }
+      ],
+      "evidence": [
+        "rules/orchestration.md:7",
+        "rules/orchestration.md:22",
+        "rules/orchestration.md:99",
+        "rules/orchestration.md:139"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/phase-atomic-execution.md",
+      "sha256": "0337126eab8b8ca2559559c01af4d85faa7751882e69f4f0522cbf7650e88134",
+      "kinds": [
+        "bootstrap",
+        "procedure"
+      ],
+      "sections": [
+        {
+          "heading": "(preamble)",
+          "kind": "bootstrap",
+          "proposed_home": "rules/bootstrap-atomic-execution.md"
+        },
+        {
+          "heading": "## Context Bootstrap",
+          "kind": "bootstrap",
+          "proposed_home": "rules/bootstrap-atomic-execution.md"
+        },
+        {
+          "heading": "## Phase Behaviors",
+          "kind": "bootstrap",
+          "proposed_home": "rules/bootstrap-atomic-execution.md"
+        },
+        {
+          "heading": "## Blocker Reconciliation",
+          "kind": "procedure",
+          "proposed_home": "rules/procedure-blocker-reconciliation.md"
+        }
+      ],
+      "evidence": [
+        "rules/phase-atomic-execution.md:3",
+        "rules/phase-atomic-execution.md:28",
+        "rules/phase-atomic-execution.md:44",
+        "rules/phase-atomic-execution.md:55"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/phase-atomic-validation.md",
+      "sha256": "ed2ebe9186b4d8e24a4a09b920c3d2b1d79eadeb8e11aabc7ef2dfd43925ee76",
+      "kinds": [
+        "bootstrap"
+      ],
+      "sections": null,
+      "evidence": [
+        "rules/phase-atomic-validation.md:3",
+        "rules/phase-atomic-validation.md:25",
+        "rules/phase-atomic-validation.md:41"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/phase-discovery.md",
+      "sha256": "5ab2653bc316e8417cb0f9775104b0c3548b6c6192463c5122a04d54fd2fe5c3",
+      "kinds": [
+        "bootstrap",
+        "protocol"
+      ],
+      "sections": [
+        {
+          "heading": "(preamble)",
+          "kind": "bootstrap",
+          "proposed_home": "rules/bootstrap-discovery.md"
+        },
+        {
+          "heading": "## Context Bootstrap",
+          "kind": "bootstrap",
+          "proposed_home": "rules/bootstrap-discovery.md"
+        },
+        {
+          "heading": "## Codebase Reading Rules",
+          "kind": "protocol",
+          "proposed_home": "rules/protocol-discovery-conduct.md"
+        },
+        {
+          "heading": "## Decision Protocol",
+          "kind": "protocol",
+          "proposed_home": "rules/protocol-discovery-conduct.md"
+        }
+      ],
+      "evidence": [
+        "rules/phase-discovery.md:3",
+        "rules/phase-discovery.md:14",
+        "rules/phase-discovery.md:36",
+        "rules/phase-discovery.md:45"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/phase-execution.md",
+      "sha256": "91a05f24b2387239d4cb0b5891d9f0ceb9d51bcd9bee3f7517131414d33e41e1",
+      "kinds": [
+        "bootstrap"
+      ],
+      "sections": null,
+      "evidence": [
+        "rules/phase-execution.md:3",
+        "rules/phase-execution.md:14",
+        "rules/phase-execution.md:26"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/phase-validation.md",
+      "sha256": "662027dd264d4062ea2980a6b92296a7dd8863228f410b568f304f09f2d340bc",
+      "kinds": [
+        "bootstrap"
+      ],
+      "sections": null,
+      "evidence": [
+        "rules/phase-validation.md:3",
+        "rules/phase-validation.md:14",
+        "rules/phase-validation.md:26"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/quick-flow.md",
+      "sha256": "8f6accf9d9fe0fec8fcb4d42a74abd4f35f2ac98568836fa70913fdb995152f4",
+      "kinds": [
+        "contract",
+        "protocol",
+        "procedure",
+        "reference"
+      ],
+      "sections": [
+        {
+          "heading": "(preamble)",
+          "kind": "contract",
+          "proposed_home": "rules/contract-quick-flow.md"
+        },
+        {
+          "heading": "## The escalation gate",
+          "kind": "protocol",
+          "proposed_home": "rules/contract-quick-flow.md"
+        },
+        {
+          "heading": "## The quick path — what changes",
+          "kind": "contract",
+          "proposed_home": "rules/contract-quick-flow.md"
+        },
+        {
+          "heading": "## Setting the flow (Discovery)",
+          "kind": "procedure",
+          "proposed_home": "rules/contract-quick-flow.md"
+        },
+        {
+          "heading": "## Mid-flight escalation (quick → full)",
+          "kind": "procedure",
+          "proposed_home": "rules/contract-quick-flow.md"
+        },
+        {
+          "heading": "## Worked example A — rejected by the gate (export pipeline changes)",
+          "kind": "reference",
+          "proposed_home": "rules/reference/quick-flow-examples.md"
+        },
+        {
+          "heading": "## Worked example B — legitimately quick (log-level fix)",
+          "kind": "reference",
+          "proposed_home": "rules/reference/quick-flow-examples.md"
+        }
+      ],
+      "evidence": [
+        "rules/quick-flow.md:7",
+        "rules/quick-flow.md:29",
+        "rules/quick-flow.md:139",
+        "rules/quick-flow.md:156",
+        "rules/quick-flow.md:176"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/run-log.md",
+      "sha256": "cd147aaaf6d802f17d623fc92d470335058a372c57c06c2a7178250dbdefb89c",
+      "kinds": [
+        "contract",
+        "procedure",
+        "protocol"
+      ],
+      "sections": [
+        {
+          "heading": "(preamble)",
+          "kind": "contract",
+          "proposed_home": "rules/contract-run-log.md"
+        },
+        {
+          "heading": "## The one rule that outranks the rest",
+          "kind": "contract",
+          "proposed_home": "rules/contract-run-log.md"
+        },
+        {
+          "heading": "## Contract version",
+          "kind": "contract",
+          "proposed_home": "rules/contract-run-log.md"
+        },
+        {
+          "heading": "## Where the log lives",
+          "kind": "contract",
+          "proposed_home": "rules/contract-run-log.md"
+        },
+        {
+          "heading": "## How a pipeline logs",
+          "kind": "procedure",
+          "proposed_home": "rules/contract-run-log.md"
+        },
+        {
+          "heading": "## Workflow coverage and routing",
+          "kind": "protocol",
+          "proposed_home": "rules/contract-run-log.md"
+        },
+        {
+          "heading": "## Field vocabulary",
+          "kind": "contract",
+          "proposed_home": "rules/contract-run-log.md"
+        },
+        {
+          "heading": "## Validation and writes",
+          "kind": "contract",
+          "proposed_home": "rules/contract-run-log.md"
+        },
+        {
+          "heading": "## Correlated hook intervals",
+          "kind": "contract",
+          "proposed_home": "rules/contract-run-log.md"
+        },
+        {
+          "heading": "## Native hook adapter",
+          "kind": "contract",
+          "proposed_home": "rules/contract-run-log.md"
+        },
+        {
+          "heading": "## Read-only lint",
+          "kind": "contract",
+          "proposed_home": "rules/contract-run-log.md"
+        },
+        {
+          "heading": "## What must never enter the log",
+          "kind": "contract",
+          "proposed_home": "rules/contract-run-log.md"
+        },
+        {
+          "heading": "## Relationship to the existing state files",
+          "kind": "contract",
+          "proposed_home": "rules/contract-run-log.md"
+        }
+      ],
+      "evidence": [
+        "rules/run-log.md:7",
+        "rules/run-log.md:60",
+        "rules/run-log.md:148",
+        "rules/run-log.md:186",
+        "rules/run-log.md:375"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/tdd.md",
+      "sha256": "f5592a9d2d52e98650ca852da98c21732dcc06621a20a82c0dba65f386664225",
+      "kinds": [
+        "contract",
+        "protocol",
+        "procedure",
+        "reference"
+      ],
+      "sections": [
+        {
+          "heading": "(preamble)",
+          "kind": "contract",
+          "proposed_home": "rules/contract-tdd.md"
+        },
+        {
+          "heading": "## Where the step sits",
+          "kind": "contract",
+          "proposed_home": "rules/contract-tdd.md"
+        },
+        {
+          "heading": "## The three states",
+          "kind": "contract",
+          "proposed_home": "rules/contract-tdd.md"
+        },
+        {
+          "heading": "## Test-level gate",
+          "kind": "protocol",
+          "proposed_home": "rules/contract-tdd.md"
+        },
+        {
+          "heading": "## RED — what counts",
+          "kind": "contract",
+          "proposed_home": "rules/contract-tdd.md"
+        },
+        {
+          "heading": "## Characterization mode — behaviour-preserving work",
+          "kind": "procedure",
+          "proposed_home": "rules/contract-tdd.md"
+        },
+        {
+          "heading": "## GREEN — what implementation may and may not do",
+          "kind": "contract",
+          "proposed_home": "rules/contract-tdd.md"
+        },
+        {
+          "heading": "## Interaction with existing mechanisms",
+          "kind": "contract",
+          "proposed_home": "rules/contract-tdd.md"
+        },
+        {
+          "heading": "## Why the order matters",
+          "kind": "reference",
+          "proposed_home": "rules/contract-tdd.md"
+        }
+      ],
+      "evidence": [
+        "rules/tdd.md:7",
+        "rules/tdd.md:57",
+        "rules/tdd.md:132",
+        "rules/tdd.md:219"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/workflow-globals.md",
+      "sha256": "14a1bc2dd813c41b0659cd7d6a546665efce38744d053e569878475344d0fd97",
+      "kinds": [
+        "contract",
+        "protocol"
+      ],
+      "sections": [
+        {
+          "heading": "(preamble)",
+          "kind": "contract",
+          "proposed_home": "rules/contract-phases.md"
+        },
+        {
+          "heading": "## Context Pack",
+          "kind": "contract",
+          "proposed_home": "rules/contract-phases.md"
+        },
+        {
+          "heading": "## Flow tiers (quick | full)",
+          "kind": "contract",
+          "proposed_home": "rules/contract-phases.md"
+        },
+        {
+          "heading": "## Canonical Status Formats",
+          "kind": "contract",
+          "proposed_home": "rules/contract-phases.md"
+        }
+      ],
+      "evidence": [
+        "rules/workflow-globals.md:7",
+        "rules/workflow-globals.md:60",
+        "rules/workflow-globals.md:98",
+        "rules/workflow-globals.md:158"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "rules/workflow-reference.md",
+      "sha256": "08c81786494f39665b4aebf495c705a21b4fd38294a995074a24d165730bd463",
+      "kinds": [
+        "contract",
+        "protocol",
+        "procedure",
+        "reference"
+      ],
+      "sections": [
+        {
+          "heading": "(preamble)",
+          "kind": "contract",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## File Responsibility",
+          "kind": "contract",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## Description Amendment",
+          "kind": "procedure",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## Parent `plan.md` Table Format",
+          "kind": "contract",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## Parent `state.md` — `## Subtask Progress` Format",
+          "kind": "contract",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## Status Lifecycle Notes",
+          "kind": "contract",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## Key State-File Markers",
+          "kind": "contract",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## Reference Tables (moved from workflow-globals)",
+          "kind": "reference",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## Status Translation Table",
+          "kind": "contract",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## Protected Sections Contract",
+          "kind": "contract",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## Multi-Phase Spec Rules",
+          "kind": "contract",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## .ai/memory/state.md Entry Format",
+          "kind": "contract",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## .ai/project_state.md Update Rules",
+          "kind": "contract",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## Autonomous Decision Protocol",
+          "kind": "protocol",
+          "proposed_home": "rules/protocol-autonomous-decision.md"
+        },
+        {
+          "heading": "## Autonomous Subtask Classifier",
+          "kind": "protocol",
+          "proposed_home": "rules/protocol-subtask-classifier.md"
+        },
+        {
+          "heading": "## Decomposition Rules",
+          "kind": "protocol",
+          "proposed_home": "rules/protocol-subtask-classifier.md"
+        },
+        {
+          "heading": "## Legacy tasks",
+          "kind": "reference",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## Project .ai/ Contract",
+          "kind": "contract",
+          "proposed_home": "rules/contract-state-files.md"
+        },
+        {
+          "heading": "## File Location Reference",
+          "kind": "reference",
+          "proposed_home": "rules/contract-state-files.md"
+        }
+      ],
+      "evidence": [
+        "rules/workflow-reference.md:8",
+        "rules/workflow-reference.md:73",
+        "rules/workflow-reference.md:423",
+        "rules/workflow-reference.md:487",
+        "rules/workflow-reference.md:584",
+        "rules/workflow-reference.md:619"
+      ],
+      "repetition": null
+    },
+    {
+      "path": "templates/codex-global-AGENTS.md",
+      "sha256": "0d6649fdc87a0f0ae70b990ba957e5fe85b80148afab197ddb699e02aea39b95",
+      "kinds": [
+        "always-on"
+      ],
+      "sections": null,
+      "evidence": [
+        "templates/codex-global-AGENTS.md:1",
+        "templates/codex-global-AGENTS.md:3",
+        "scripts/sync.sh:157"
+      ],
+      "repetition": null
+    }
+  ],
+  "coverage": [
+    {
+      "path": "harness/claude/capabilities.md",
+      "sha256": "6ba22a6a9030fc23d7effae5c7da5895fc158c6d79bf914539819cd52dcdca0f",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "harness/claude/hooks.json",
+      "sha256": "d1adf8bf70d513e328fd42719d2aa3b593019b9a7f82701052129bd434432c0a",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "harness/claude/permissions.json",
+      "sha256": "57a5c2f1e405d9271bf17dd1dda600b0cf33915cfa69f0fba323e10b269b8361",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "harness/codex/capabilities.md",
+      "sha256": "3c646d8e248e84f846900f785338a58104809201789b47da7279ee2971f16613",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/git-flow.md",
+      "sha256": "bee39142bf860cd3f114878433794ad1a7943ab9cba46ab32de73ba3e243ff9f",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/global-claude.md",
+      "sha256": "2b7aa608b14136b0d09041a7815bf615d1ee80d8983ab6c6e98d979be3bb3ee2",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/language.md",
+      "sha256": "d705b525c040aea368e0361500303f9ab2ca4e2acf117d794dbdfe965b9bf7ca",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/orchestration.md",
+      "sha256": "dab28e6dcb0109636acd612970c8df1f6fb4e8e48feee3b70510f59bbcfcb3a8",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/phase-atomic-execution.md",
+      "sha256": "0337126eab8b8ca2559559c01af4d85faa7751882e69f4f0522cbf7650e88134",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/phase-atomic-validation.md",
+      "sha256": "ed2ebe9186b4d8e24a4a09b920c3d2b1d79eadeb8e11aabc7ef2dfd43925ee76",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/phase-discovery.md",
+      "sha256": "5ab2653bc316e8417cb0f9775104b0c3548b6c6192463c5122a04d54fd2fe5c3",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/phase-execution.md",
+      "sha256": "91a05f24b2387239d4cb0b5891d9f0ceb9d51bcd9bee3f7517131414d33e41e1",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/phase-validation.md",
+      "sha256": "662027dd264d4062ea2980a6b92296a7dd8863228f410b568f304f09f2d340bc",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/quick-flow.md",
+      "sha256": "8f6accf9d9fe0fec8fcb4d42a74abd4f35f2ac98568836fa70913fdb995152f4",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/run-log.md",
+      "sha256": "cd147aaaf6d802f17d623fc92d470335058a372c57c06c2a7178250dbdefb89c",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/tdd.md",
+      "sha256": "f5592a9d2d52e98650ca852da98c21732dcc06621a20a82c0dba65f386664225",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/workflow-globals.md",
+      "sha256": "14a1bc2dd813c41b0659cd7d6a546665efce38744d053e569878475344d0fd97",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "rules/workflow-reference.md",
+      "sha256": "08c81786494f39665b4aebf495c705a21b4fd38294a995074a24d165730bd463",
+      "status": "read",
+      "reader": "Implementer"
+    },
+    {
+      "path": "templates/codex-global-AGENTS.md",
+      "sha256": "0d6649fdc87a0f0ae70b990ba957e5fe85b80148afab197ddb699e02aea39b95",
+      "status": "read",
+      "reader": "Implementer"
+    }
+  ],
+  "loads": [
+    {
+      "source": "rules/phase-atomic-execution.md",
+      "line": 55,
+      "column": 117,
+      "mode": "conditional",
+      "condition": "only when a leaf's `atomic-execution: blocked` is met on entry; the span names the workflow that reads the block, and nothing is loaded (AUD-08-025)"
+    },
+    {
+      "source": "rules/run-log.md",
+      "line": 86,
+      "column": 11,
+      "mode": "conditional",
+      "condition": "only when a pipeline resumes in a later session; the line says how /retro reads two runs of one task, and nothing is loaded (AUD-08-025)"
+    },
+    {
+      "source": "rules/run-log.md",
+      "line": 582,
+      "column": 19,
+      "mode": "conditional",
+      "condition": "only in /retro after a run; the line names /retro as the only reader of the log, and no pipeline loads it (AUD-08-025)"
+    },
+    {
+      "source": "rules/tdd.md",
+      "line": 39,
+      "column": 19,
+      "mode": "conditional",
+      "condition": "only when a leaf block lacks the `atomic-tests:` field; the span names the writer of the status, and nothing is loaded (AUD-08-025)"
+    },
+    {
+      "source": "rules/workflow-globals.md",
+      "line": 32,
+      "column": 5,
+      "mode": "mandatory",
+      "condition": null
+    },
+    {
+      "source": "rules/workflow-globals.md",
+      "line": 36,
+      "column": 99,
+      "mode": "conditional",
+      "condition": "only when a child workflow runs without its parent orchestrator; the span is the example child, and the load is the full bootstrap (AUD-08-025)"
+    },
+    {
+      "source": "rules/workflow-globals.md",
+      "line": 36,
+      "column": 120,
+      "mode": "conditional",
+      "condition": "only when a child workflow runs without its parent orchestrator; the span is the example parent, and the load is the full bootstrap (AUD-08-025)"
+    },
+    {
+      "source": "rules/workflow-globals.md",
+      "line": 44,
+      "column": 46,
+      "mode": "conditional",
+      "condition": "only when the pack was confirmed fresh against its own manifest in the same session; the span names the pack file, not the workflow (AUD-08-006)"
+    },
+    {
+      "source": "rules/workflow-reference.md",
+      "line": 227,
+      "column": 116,
+      "mode": "conditional",
+      "condition": "only when a leaf block lacks the `atomic-tests:` field; the span names the rule that holds the semantics, and nothing is loaded (AUD-08-025)"
+    },
+    {
+      "source": "rules/workflow-reference.md",
+      "line": 247,
+      "column": 50,
+      "mode": "conditional",
+      "condition": "only at the step that writes `## Improvement Proposals (T-XX)`; the span names its writer, and nothing is loaded (AUD-08-025)"
+    },
+    {
+      "source": "rules/workflow-reference.md",
+      "line": 247,
+      "column": 74,
+      "mode": "conditional",
+      "condition": "only at /pe-finalize step 5, which reads `## Improvement Proposals (T-XX)`; the span names that reader, and nothing is loaded (AUD-08-025)"
+    },
+    {
+      "source": "rules/workflow-reference.md",
+      "line": 282,
+      "column": 113,
+      "mode": "conditional",
+      "condition": "only when /compress-state or another workflow edits a protected section; the span names a workflow bound by the contract, and nothing is loaded (AUD-08-025)"
+    },
+    {
+      "source": "rules/workflow-reference.md",
+      "line": 311,
+      "column": 49,
+      "mode": "conditional",
+      "condition": "only at the step that writes `## Improvement Proposals (T-XX)`; the span names its writer, and nothing is loaded (AUD-08-025)"
+    },
+    {
+      "source": "rules/workflow-reference.md",
+      "line": 311,
+      "column": 73,
+      "mode": "conditional",
+      "condition": "only after the execution phase, when /pe-finalize reads `## Improvement Proposals (T-XX)`; the span names that reader, and nothing is loaded (AUD-08-025)"
+    }
+  ],
+  "candidates": [
+    {
+      "id": "HN-001",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Claude Code capability record names its own harness: it declares what that harness supports and branches no workflow behaviour on a name"
+    },
+    {
+      "id": "HN-002",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Claude Code capability record names its own harness: it declares what that harness supports and branches no workflow behaviour on a name"
+    },
+    {
+      "id": "HN-003",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Claude Code capability record names its own harness: it declares what that harness supports and branches no workflow behaviour on a name"
+    },
+    {
+      "id": "HN-004",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Claude Code capability record names its own harness: it declares what that harness supports and branches no workflow behaviour on a name"
+    },
+    {
+      "id": "HN-005",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Claude Code capability record names its own harness: it declares what that harness supports and branches no workflow behaviour on a name"
+    },
+    {
+      "id": "HN-006",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Claude Code capability record names its own harness: it declares what that harness supports and branches no workflow behaviour on a name"
+    },
+    {
+      "id": "HN-007",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Claude Code capability record names its own harness: it declares what that harness supports and branches no workflow behaviour on a name"
+    },
+    {
+      "id": "HN-008",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Claude Code capability record names its own harness: it declares what that harness supports and branches no workflow behaviour on a name"
+    },
+    {
+      "id": "HN-009",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Claude Code capability record names its own harness: it declares what that harness supports and branches no workflow behaviour on a name"
+    },
+    {
+      "id": "HN-010",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Claude Code capability record names its own harness: it declares what that harness supports and branches no workflow behaviour on a name"
+    },
+    {
+      "id": "HN-011",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Codex capability record names its own harness: it declares what that harness lacks and branches no workflow behaviour on a name"
+    },
+    {
+      "id": "HN-012",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Codex capability record names its own harness: it declares what that harness lacks and branches no workflow behaviour on a name"
+    },
+    {
+      "id": "HN-013",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Codex capability record names its own harness: it declares what that harness lacks and branches no workflow behaviour on a name"
+    },
+    {
+      "id": "HN-014",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "The Enforcement column describes the hook where a harness runs it, and rules/git-flow.md:206-207 applies the whole table as text for a harness without the hook, so behaviour follows the hook capability, not the name"
+    },
+    {
+      "id": "HN-015",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "The step is reached only after the git-rails hook denies with owner-approval-unavailable, which only a harness declaring git-rails can produce (harness/claude/capabilities.md:31-32, harness/codex/capabilities.md:12); the harness name only illustrates how the owner runs the command"
+    },
+    {
+      "id": "HN-016",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Claude Code always-on body names its own harness and its own instruction file; the naming migration maps the file to harness/claude/always-on.md"
+    },
+    {
+      "id": "HN-017",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Claude Code always-on body names its own harness and its own instruction file; the naming migration maps the file to harness/claude/always-on.md"
+    },
+    {
+      "id": "HN-018",
+      "disposition": "finding",
+      "finding": "AUD-08-021",
+      "reason": null
+    },
+    {
+      "id": "HN-019",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "claude-stop-v1 is the profile a capability record declares (harness/claude/capabilities.md:3-4), and coverage is chosen from the declared capability and installation result (rules/run-log.md:118-123)"
+    },
+    {
+      "id": "HN-020",
+      "disposition": "finding",
+      "finding": "AUD-08-016",
+      "reason": null
+    },
+    {
+      "id": "HN-021",
+      "disposition": "finding",
+      "finding": "AUD-08-016",
+      "reason": null
+    },
+    {
+      "id": "HN-022",
+      "disposition": "finding",
+      "finding": "AUD-08-016",
+      "reason": null
+    },
+    {
+      "id": "HN-023",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The line names the always-on file each harness reads on every session, an adapter fact; no workflow step branches on it"
+    },
+    {
+      "id": "HN-024",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The line names the always-on file each harness reads on every session, an adapter fact; no workflow step branches on it"
+    },
+    {
+      "id": "HN-025",
+      "disposition": "guarded",
+      "finding": null,
+      "reason": "The column headers key plan cells by provider; a request is authorized only by observed support, and provider names are explicitly not proof of support (rules/workflow-reference.md:158-165)"
+    },
+    {
+      "id": "HN-026",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Codex always-on template names its own harness and its own instruction file; the naming migration maps the file to harness/codex/always-on.md"
+    },
+    {
+      "id": "HN-027",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Codex always-on template names its own harness and its own instruction file; the naming migration maps the file to harness/codex/always-on.md"
+    },
+    {
+      "id": "HN-028",
+      "disposition": "not-applicable",
+      "finding": null,
+      "reason": "The Codex always-on template names its own harness and its own instruction file; the naming migration maps the file to harness/codex/always-on.md"
+    }
+  ],
+  "legacy": [
+    {
+      "source": "rules/workflow-globals.md",
+      "line": 11,
+      "column": 22,
+      "role": "active-behavior",
+      "note": "column header of the rule-resolution table for Windsurf and Devin (AUD-08-015)"
+    },
+    {
+      "source": "rules/workflow-globals.md",
+      "line": 11,
+      "column": 33,
+      "role": "active-behavior",
+      "note": "column header of the rule-resolution table for Windsurf and Devin (AUD-08-015)"
+    },
+    {
+      "source": "rules/workflow-globals.md",
+      "line": 19,
+      "column": 61,
+      "role": "active-behavior",
+      "note": "instructs how a rule reference resolves on Windsurf and Devin (AUD-08-015)"
+    },
+    {
+      "source": "rules/workflow-globals.md",
+      "line": 19,
+      "column": 74,
+      "role": "active-behavior",
+      "note": "instructs how a rule reference resolves on Windsurf and Devin (AUD-08-015)"
+    },
+    {
+      "source": "rules/workflow-globals.md",
+      "line": 20,
+      "column": 26,
+      "role": "active-behavior",
+      "note": "names the Windsurf and Devin rule directories that the resolution reads (AUD-08-015)"
+    },
+    {
+      "source": "rules/workflow-globals.md",
+      "line": 20,
+      "column": 47,
+      "role": "active-behavior",
+      "note": "names the Windsurf and Devin rule directories that the resolution reads (AUD-08-015)"
+    },
+    {
+      "source": "rules/workflow-globals.md",
+      "line": 27,
+      "column": 67,
+      "role": "active-behavior",
+      "note": "instructs to resolve a rule to its bare basename on Windsurf and Devin (AUD-08-015)"
+    },
+    {
+      "source": "rules/workflow-globals.md",
+      "line": 27,
+      "column": 80,
+      "role": "active-behavior",
+      "note": "instructs to resolve a rule to its bare basename on Windsurf and Devin (AUD-08-015)"
+    }
+  ],
   "duplicate_groups": [],
   "map": [],
   "req21": {
     "verdict": "not-covered",
     "statements": []
   },
-  "findings": [],
+  "findings": [
+    {
+      "id": "AUD-08-001",
+      "type": "reference-defect",
+      "severity": "minor",
+      "source": "rules/git-flow.md",
+      "section": "## Recorded state — required for resume and for restack",
+      "sha256": "bee39142bf860cd3f114878433794ad1a7943ab9cba46ab32de73ba3e243ff9f",
+      "lines": [
+        279,
+        280
+      ],
+      "observation": "Two section references omit the `##` marker of their target heading: `workflow-globals → Canonical Status Formats` and `workflow-reference → Protected Sections Contract`. Both targets exist as level-2 headings, so a reader finds them, but the cross-reference syntax requires the marker and the naming migration's executable-reference grammar does not read the unmarked form.",
+      "consequence": "No grammar-based check or rewrite sees these references, so a renamed or split target leaves them stale without a diagnostic.",
+      "owner": "11",
+      "closure": "Both spans carry the marker of the target heading (`## Canonical Status Formats`, `## Protected Sections Contract`), or the finding is re-owned to 09 with an amendment that gives the naming migration the obligation.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/git-flow.md:279",
+        "rules/git-flow.md:280",
+        "rules/workflow-globals.md:156",
+        "rules/workflow-reference.md:280",
+        ".ai/principles/coding.md:46"
+      ],
+      "edges": [
+        {
+          "source": "rules/git-flow.md",
+          "line": 279,
+          "column": 1
+        },
+        {
+          "source": "rules/git-flow.md",
+          "line": 280,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-002",
+      "type": "ambiguous-name",
+      "severity": "minor",
+      "source": "rules/phase-atomic-validation.md",
+      "section": "## Context Bootstrap",
+      "sha256": "ed2ebe9186b4d8e24a4a09b920c3d2b1d79eadeb8e11aabc7ef2dfd43925ee76",
+      "lines": [
+        21
+      ],
+      "observation": "`phase-atomic-execution → ## Context Bootstrap` names a stem that is both a rule and a workflow, and both files have a `## Context Bootstrap` heading. The intended target is the rule, whose bootstrap holds the runbook resolution with the umbrella fallback.",
+      "consequence": "A reader or tool cannot tell from the reference which file is meant; the shared stem resolves only by reading the surrounding prose.",
+      "owner": "09",
+      "closure": "The reference names a stem that is unique after the naming migration (the rule's new bootstrap name).",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/phase-atomic-validation.md:21",
+        "rules/phase-atomic-execution.md:21",
+        "workflows/phase-atomic-execution.md:20",
+        "rules/workflow-globals.md:23"
+      ],
+      "edges": [
+        {
+          "source": "rules/phase-atomic-validation.md",
+          "line": 21,
+          "column": 27
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-003",
+      "type": "ambiguous-name",
+      "severity": "minor",
+      "source": "rules/phase-discovery.md",
+      "section": "## Decision Protocol",
+      "sha256": "5ab2653bc316e8417cb0f9775104b0c3548b6c6192463c5122a04d54fd2fe5c3",
+      "lines": [
+        46
+      ],
+      "observation": "`/phase-discovery → ## Execution Modes` names a stem shared by the rule and the workflow. Only the workflow has the heading, and the prose adds \"the workflow, not this rules file\" to disambiguate.",
+      "consequence": "The reference depends on a prose note to resolve; the rule-side candidate is a missing heading.",
+      "owner": "09",
+      "closure": "The reference names the workflow by a stem that no rule shares after the naming migration.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/phase-discovery.md:46",
+        "workflows/phase-discovery.md:11"
+      ],
+      "edges": [
+        {
+          "source": "rules/phase-discovery.md",
+          "line": 46,
+          "column": 20
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-004",
+      "type": "reference-defect",
+      "severity": "major",
+      "source": "rules/quick-flow.md",
+      "section": "(file)",
+      "sha256": "8f6accf9d9fe0fec8fcb4d42a74abd4f35f2ac98568836fa70913fdb995152f4",
+      "lines": [
+        21,
+        22,
+        125,
+        126
+      ],
+      "observation": "Lines 21 and 22 cite `workflow-globals → Never auto-advance between phases` and `workflow-globals → Test-first execution`; neither is a heading of rules/workflow-globals.md, both are bold paragraph labels of its preamble (:56, :114). Lines 125-126 split `workflow-globals → Canonical Status Formats` across a line break, so no span forms and no tool reads it.",
+      "consequence": "The references cannot be resolved or loaded as sections, and the split one escapes every reference check.",
+      "owner": "11",
+      "closure": "Each reference names an existing heading in the marked form on one line, or the cited paragraphs become headings; alternatively the finding is re-owned to 09 with an amendment.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/quick-flow.md:21",
+        "rules/quick-flow.md:22",
+        "rules/quick-flow.md:125",
+        "rules/workflow-globals.md:56",
+        "rules/workflow-globals.md:114",
+        "rules/workflow-globals.md:156"
+      ],
+      "edges": [
+        {
+          "source": "rules/quick-flow.md",
+          "line": 21,
+          "column": 27
+        },
+        {
+          "source": "rules/quick-flow.md",
+          "line": 22,
+          "column": 48
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-005",
+      "type": "reference-defect",
+      "severity": "minor",
+      "source": "rules/tdd.md",
+      "section": "(file)",
+      "sha256": "f5592a9d2d52e98650ca852da98c21732dcc06621a20a82c0dba65f386664225",
+      "lines": [
+        35,
+        201
+      ],
+      "observation": "Two section references omit the `##` marker: `workflow-globals → Canonical Status Formats` (:35) and `quick-flow → The quick path` (:201), the second also a bare prefix of the heading `## The quick path — what changes`.",
+      "consequence": "The references escape grammar-based checks and rewriting; with the marker added, the second would resolve only through the accepted ` — ` prefix form.",
+      "owner": "11",
+      "closure": "Both spans name their headings in the marked form, or the finding is re-owned to 09 with an amendment.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/tdd.md:35",
+        "rules/tdd.md:201",
+        "rules/quick-flow.md:61",
+        "rules/workflow-globals.md:156"
+      ],
+      "edges": [
+        {
+          "source": "rules/tdd.md",
+          "line": 35,
+          "column": 1
+        },
+        {
+          "source": "rules/tdd.md",
+          "line": 201,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-006",
+      "type": "accepted-observation",
+      "severity": "minor",
+      "source": "rules/workflow-globals.md",
+      "section": "## Context Pack",
+      "sha256": "14a1bc2dd813c41b0659cd7d6a546665efce38744d053e569878475344d0fd97",
+      "lines": [
+        44
+      ],
+      "observation": "The span `.ai/context-pack.md` names the pack file a consumer project generates, not workflows/context-pack.md; the md-name match on its last path component resolves to the workflow and sets the md suffix flag. Read in context the text is correct and needs no change.",
+      "consequence": "None for the instruction; the edge and its load entry are detection artifacts.",
+      "owner": "none",
+      "closure": "No change; the edge stays recorded as correct on reading.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/workflow-globals.md:44",
+        "workflows/context-pack.md:1"
+      ],
+      "edges": [
+        {
+          "source": "rules/workflow-globals.md",
+          "line": 44,
+          "column": 46
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-007",
+      "type": "reference-defect",
+      "severity": "minor",
+      "source": "rules/workflow-globals.md",
+      "section": "## Flow tiers (quick | full)",
+      "sha256": "14a1bc2dd813c41b0659cd7d6a546665efce38744d053e569878475344d0fd97",
+      "lines": [
+        139,
+        140
+      ],
+      "observation": "`quick-flow →` and `## Mid-flight escalation` are split across a line break, so no span forms. Joined, the reference would still not resolve: the heading is `## Mid-flight escalation (quick → full)`, a parenthesised suffix the heading grammar does not accept, and its text contains ` → `, which a section reference cannot cite.",
+      "consequence": "No reader or check sees the reference, and the target heading cannot be cited in the cross-reference syntax as written.",
+      "owner": "11",
+      "closure": "The reference sits on one line and names a citable heading, which may require renaming the target heading.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/workflow-globals.md:139",
+        "rules/quick-flow.md:137"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-008",
+      "type": "mixed-kind",
+      "severity": "minor",
+      "source": "rules/phase-atomic-execution.md",
+      "section": "## Blocker Reconciliation",
+      "sha256": "0337126eab8b8ca2559559c01af4d85faa7751882e69f4f0522cbf7650e88134",
+      "lines": [
+        8,
+        44,
+        53
+      ],
+      "observation": "The file holds a bootstrap (`## Context Bootstrap`, `## Phase Behaviors`, :8-51) and a procedure triggered by `atomic-execution: blocked` on entry (`## Blocker Reconciliation`, :53-71). The reading agrees with the naming migration's section map, which moves the procedure to its own rule.",
+      "consequence": "Every caller of the bootstrap loads the reconciliation procedure even when no subtask is blocked.",
+      "owner": "09",
+      "closure": "The section map's split of this file is carried out, or amended with a recorded reason.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/phase-atomic-execution.md:8",
+        "rules/phase-atomic-execution.md:44",
+        "rules/phase-atomic-execution.md:55"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-009",
+      "type": "mixed-kind",
+      "severity": "minor",
+      "source": "rules/phase-discovery.md",
+      "section": "## Decision Protocol",
+      "sha256": "5ab2653bc316e8417cb0f9775104b0c3548b6c6192463c5122a04d54fd2fe5c3",
+      "lines": [
+        8,
+        36,
+        43
+      ],
+      "observation": "The file holds a bootstrap (`## Context Bootstrap`, :8-34) and two conduct sections: `## Codebase Reading Rules` (:36-41: scope, budget, record and stop criteria for reading) and `## Decision Protocol` (:43-64: how ambiguities are resolved in each mode). The reading agrees with the naming migration's section map (bootstrap and discovery conduct protocol).",
+      "consequence": "The conduct rules load with the bootstrap list although they apply at decision points later in Discovery.",
+      "owner": "09",
+      "closure": "The section map's split is carried out, or amended with a recorded reason; the statement coverage of the two conduct sections decides whether the autonomous decision protocol can receive them.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/phase-discovery.md:14",
+        "rules/phase-discovery.md:39",
+        "rules/phase-discovery.md:45"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-010",
+      "type": "mixed-kind",
+      "severity": "minor",
+      "source": "rules/quick-flow.md",
+      "section": "## Worked example A — rejected by the gate (export pipeline changes)",
+      "sha256": "8f6accf9d9fe0fec8fcb4d42a74abd4f35f2ac98568836fa70913fdb995152f4",
+      "lines": [
+        39,
+        40,
+        156,
+        176
+      ],
+      "observation": "The always-on contract carries two worked examples (:156-202) and a pointer to an incident that the file does not explain (:39-40, repeated in rules/workflow-globals.md:140-141). Both explain rather than oblige; the gate (:27-57), the quick path (:61-114) and the escalation (:137-152) stay reachable without them.",
+      "consequence": "Every session that loads the rule reads the examples, and the incident pointer cannot be followed from the rule.",
+      "owner": "11",
+      "closure": "The worked examples move to a reference file that is not loaded by default, and the incident pointer is either explained or removed from the contract text.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/quick-flow.md:40",
+        "rules/quick-flow.md:156",
+        "rules/quick-flow.md:176",
+        "rules/workflow-globals.md:140"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-011",
+      "type": "mixed-kind",
+      "severity": "minor",
+      "source": "rules/tdd.md",
+      "section": "## Characterization mode — behaviour-preserving work",
+      "sha256": "f5592a9d2d52e98650ca852da98c21732dcc06621a20a82c0dba65f386664225",
+      "lines": [
+        54,
+        104,
+        132,
+        219
+      ],
+      "observation": "The contract holds a decision protocol (`## Test-level gate`, :54-82), a procedure triggered by behaviour-preserving work (`### The procedure`, :132-151) and a rationale section (`## Why the order matters`, :219-226). The gate and the procedure are invoked from `/pae-tests` and from the quick path, so they stay with the contract; the rationale is short.",
+      "consequence": "The target name `contract-tdd` will hold sections of three other kinds.",
+      "owner": "09",
+      "closure": "The map records the kept sections under the contract with a reason, or splits the gate and procedure through an amendment.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/tdd.md:56",
+        "rules/tdd.md:121",
+        "rules/tdd.md:221"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-012",
+      "type": "mixed-kind",
+      "severity": "minor",
+      "source": "rules/run-log.md",
+      "section": "## Workflow coverage and routing",
+      "sha256": "cd147aaaf6d802f17d623fc92d470335058a372c57c06c2a7178250dbdefb89c",
+      "lines": [
+        58,
+        116,
+        148
+      ],
+      "observation": "The contract holds the three-call logging procedure every pipeline follows (`## How a pipeline logs`, :58-112) and a decision table for each checkpoint boundary (`## Workflow coverage and routing`, :116-184).",
+      "consequence": "The target name `contract-run-log` will hold a procedure and a protocol section.",
+      "owner": "09",
+      "closure": "The map keeps the sections in the contract with a recorded reason, or splits them through an amendment.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/run-log.md:60",
+        "rules/run-log.md:118",
+        "rules/run-log.md:148"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-013",
+      "type": "conditional-context",
+      "severity": "major",
+      "source": "rules/run-log.md",
+      "section": "## Native hook adapter",
+      "sha256": "cd147aaaf6d802f17d623fc92d470335058a372c57c06c2a7178250dbdefb89c",
+      "lines": [
+        280,
+        304,
+        375,
+        523
+      ],
+      "observation": "The always-on rule carries the internal contracts of the helper and the hook adapter: argument validation and writes (:280-302), correlated interval arithmetic (:304-373), native transcript parsing and private ownership states (:375-521) and lint output (:523-560). They bind scripts/log-step.sh and hooks/log-step-hook.sh; the workflow agent acts on the three calls (:58-112) and the routing table (:116-184), and the adapter part applies only where a capability record declares `hooks: yes`.",
+      "consequence": "Every session that loads the rule reads implementation detail it cannot act on, including a harness-specific session variable (:393) on harnesses without hooks.",
+      "owner": "11",
+      "closure": "The helper and adapter internals are classified as reference or conditional context, loaded only for work on the helper or where hooks are declared, and the agent-facing calls and routing table stay in the always-loaded contract.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/run-log.md:280",
+        "rules/run-log.md:304",
+        "rules/run-log.md:375",
+        "rules/run-log.md:393",
+        "rules/run-log.md:523",
+        "harness/claude/capabilities.md:3",
+        "harness/codex/capabilities.md:3"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-014",
+      "type": "mixed-kind",
+      "severity": "minor",
+      "source": "rules/workflow-globals.md",
+      "section": "(preamble)",
+      "sha256": "14a1bc2dd813c41b0659cd7d6a546665efce38744d053e569878475344d0fd97",
+      "lines": [
+        19,
+        60,
+        98
+      ],
+      "observation": "The preamble of the always-on contract embeds a decision protocol (\"Wait for user decisions\", :60, and the trust mechanism, :98-102) and an environment lookup (rule resolution per harness, :19-33) among cross-workflow obligations.",
+      "consequence": "The protocol parts have no heading of their own, so they cannot be cited or loaded as sections.",
+      "owner": "09",
+      "closure": "The map records where the embedded protocol and lookup go, with headings that can be cited, or keeps them with a recorded reason.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/workflow-globals.md:19",
+        "rules/workflow-globals.md:60",
+        "rules/workflow-globals.md:98"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-015",
+      "type": "legacy-mention",
+      "severity": "minor",
+      "source": "rules/workflow-globals.md",
+      "section": "(preamble)",
+      "sha256": "14a1bc2dd813c41b0659cd7d6a546665efce38744d053e569878475344d0fd97",
+      "lines": [
+        11,
+        19,
+        20,
+        27
+      ],
+      "observation": "The preamble instructs how a rule reference resolves on Windsurf and Devin (rules directories and bare basenames) next to the skill resolution of the two current harnesses; the mentions are active behaviour, not history.",
+      "consequence": "The contract keeps a resolution path for environments the naming migration retires.",
+      "owner": "09",
+      "closure": "The Windsurf and Devin resolution is removed or marked historical when the naming migration retires those environments.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/workflow-globals.md:11",
+        "rules/workflow-globals.md:19",
+        "rules/workflow-globals.md:20",
+        "rules/workflow-globals.md:27"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-016",
+      "type": "naming",
+      "severity": "minor",
+      "source": "rules/workflow-globals.md",
+      "section": "(preamble)",
+      "sha256": "14a1bc2dd813c41b0659cd7d6a546665efce38744d053e569878475344d0fd97",
+      "lines": [
+        11,
+        21,
+        22,
+        27
+      ],
+      "observation": "The rule-resolution instruction chooses between a bare basename and the `rule-` skill prefix by harness name (\"On Claude Code and Codex\", \"on Windsurf and Devin\") rather than by a declared capability such as rules delivered as skills.",
+      "consequence": "A further harness has no defined resolution until the text names it.",
+      "owner": "09",
+      "closure": "The resolution is stated by capability, with the harness facts in the capability records.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/workflow-globals.md:21",
+        "rules/workflow-globals.md:27",
+        "scripts/sync.sh:125",
+        "scripts/sync.sh:169"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-017",
+      "type": "mixed-kind",
+      "severity": "minor",
+      "source": "rules/workflow-reference.md",
+      "section": "(file)",
+      "sha256": "08c81786494f39665b4aebf495c705a21b4fd38294a995074a24d165730bd463",
+      "lines": [
+        66,
+        487,
+        530,
+        584,
+        619
+      ],
+      "observation": "Besides contracts and the two decision protocols that the section map already separates, the file holds a procedure (`## Description Amendment`, :66-91; the composite promotion steps inside the classifier, :530-544) and reference material (`## Legacy tasks`, :584-586, which names one consumer's old directories; `## File Location Reference`, :619-634).",
+      "consequence": "The target `contract-state-files` will hold a procedure and reference sections that are not needed to act.",
+      "owner": "09",
+      "closure": "The map records where the procedure and reference sections go, or keeps them with a recorded reason.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/workflow-reference.md:73",
+        "rules/workflow-reference.md:537",
+        "rules/workflow-reference.md:586",
+        "rules/workflow-reference.md:621"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-018",
+      "type": "other",
+      "severity": "major",
+      "source": "rules/workflow-reference.md",
+      "section": "(file)",
+      "sha256": "08c81786494f39665b4aebf495c705a21b4fd38294a995074a24d165730bd463",
+      "lines": [
+        259,
+        261,
+        344,
+        346,
+        358,
+        373
+      ],
+      "observation": "Lines 346-373 (composite protected lines, protected `plan.md` items and protected fields) continue the list of `## Protected Sections Contract` (:280-323) but sit under `## Multi-Phase Spec Rules` (:325), after a rule line at :344. `## Reference Tables (moved from workflow-globals)` (:259) is an empty section followed directly by `## Status Translation Table` (:261).",
+      "consequence": "A section-level load or move of `## Protected Sections Contract` omits the protected fields, and one of `## Multi-Phase Spec Rules` carries them.",
+      "owner": "11",
+      "closure": "The protected lines sit under the protected-sections heading and the empty heading is removed or given content, before any section-level loading or split of the file.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/workflow-reference.md:259",
+        "rules/workflow-reference.md:280",
+        "rules/workflow-reference.md:325",
+        "rules/workflow-reference.md:346",
+        "rules/workflow-reference.md:358"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-019",
+      "type": "mixed-kind",
+      "severity": "minor",
+      "source": "rules/orchestration.md",
+      "section": "## Escalation protocol",
+      "sha256": "dab28e6dcb0109636acd612970c8df1f6fb4e8e48feee3b70510f59bbcfcb3a8",
+      "lines": [
+        137,
+        141,
+        181
+      ],
+      "observation": "The contract of roles and shared files ends with a decision protocol: class A and class B routing and the conditions that always stop the run (:137-191). It is cohesive with the roles it routes between.",
+      "consequence": "The target name `contract-orchestration` will hold a protocol section.",
+      "owner": "09",
+      "closure": "The map keeps the protocol in the contract with a recorded reason, or splits it through an amendment.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/orchestration.md:139",
+        "rules/orchestration.md:181"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-020",
+      "type": "mixed-kind",
+      "severity": "minor",
+      "source": "rules/git-flow.md",
+      "section": "## Preflight (mandatory, before any branch is created)",
+      "sha256": "bee39142bf860cd3f114878433794ad1a7943ab9cba46ab32de73ba3e243ff9f",
+      "lines": [
+        16,
+        251
+      ],
+      "observation": "The contract holds a start gate (`## Preflight`, :16-37: refuse unless every check holds) and the owner approval protocol inside `## Safety rails` (:251-268).",
+      "consequence": "The target name `contract-git-flow` will hold two decision protocols.",
+      "owner": "09",
+      "closure": "The map keeps both in the contract with a recorded reason, or splits them through an amendment.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/git-flow.md:18",
+        "rules/git-flow.md:253"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-021",
+      "type": "naming",
+      "severity": "minor",
+      "source": "rules/language.md",
+      "section": "(preamble)",
+      "sha256": "d705b525c040aea368e0361500303f9ab2ca4e2acf117d794dbdfe965b9bf7ca",
+      "lines": [
+        20,
+        21
+      ],
+      "observation": "Lines 20-21 are written as comments but are Markdown level-1 headings, and :21 points to one harness's personal instruction file in a rule deployed to every harness.",
+      "consequence": "Every harness reads a heading that is not a heading and an instruction that names only one harness's file.",
+      "owner": "09",
+      "closure": "The lines become prose that names the per-harness personal instruction file by capability or adapter, or move to the harness adapters.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/language.md:20",
+        "rules/language.md:21"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-022",
+      "type": "other",
+      "severity": "major",
+      "source": "rules/global-claude.md",
+      "section": "## AST-GREP STRUCTURAL SEARCH POLICY",
+      "sha256": "2b7aa608b14136b0d09041a7815bf615d1ee80d8983ab6c6e98d979be3bb3ee2",
+      "lines": [
+        120,
+        121,
+        123
+      ],
+      "observation": "The always-on body names one host (\"On this Linux host\") and gives two absolute home-directory paths of one machine for the ast-grep program and its configuration. The file is copied as the global instructions of every installation.",
+      "consequence": "Other installations receive paths that do not exist for them, and the repository publishes a personal home path.",
+      "owner": "owner",
+      "closure": "The owner replaces the machine-specific lines with a portable instruction or a per-installation value, or records that the file is personal and not shipped.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/global-claude.md:120",
+        "rules/global-claude.md:121",
+        "rules/global-claude.md:123",
+        "scripts/sync.sh:100"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-023",
+      "type": "other",
+      "severity": "major",
+      "source": "templates/codex-global-AGENTS.md",
+      "section": "## AST-GREP STRUCTURAL SEARCH POLICY",
+      "sha256": "0d6649fdc87a0f0ae70b990ba957e5fe85b80148afab197ddb699e02aea39b95",
+      "lines": [
+        51,
+        52,
+        54
+      ],
+      "observation": "The Codex always-on template names one host (\"On this Linux host\") and gives two absolute home-directory paths of one machine for the ast-grep program and its configuration. The template is copied as the global instructions of every installation.",
+      "consequence": "Other installations receive paths that do not exist for them, and the repository publishes a personal home path.",
+      "owner": "owner",
+      "closure": "The owner replaces the machine-specific lines with a portable instruction or a per-installation value, or records that the template is personal and not shipped.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "templates/codex-global-AGENTS.md:51",
+        "templates/codex-global-AGENTS.md:52",
+        "templates/codex-global-AGENTS.md:54",
+        "scripts/sync.sh:157"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-024",
+      "type": "conditional-context",
+      "severity": "minor",
+      "source": "harness/claude/capabilities.md",
+      "section": "## git-rails",
+      "sha256": "6ba22a6a9030fc23d7effae5c7da5895fc158c6d79bf914539819cd52dcdca0f",
+      "lines": [
+        29,
+        69
+      ],
+      "observation": "The git-rails record (:29-90), including twenty residual-risk rows (:69-90), is appended to the always-on file delivered into every session. Workflows act on the Enforcement values of rules/git-flow.md:219-243; the risk table informs the owner and is cited only as the place where unseen commands are listed (rules/git-flow.md:249).",
+      "consequence": "Every session reads the full risk register although no workflow step acts on it.",
+      "owner": "11",
+      "closure": "The residual-risk register is delivered as reference context and the always-on part keeps the capability lines a workflow decides on.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "harness/claude/capabilities.md:29",
+        "harness/claude/capabilities.md:69",
+        "scripts/sync.sh:62",
+        "rules/git-flow.md:249"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-025",
+      "type": "other",
+      "severity": "minor",
+      "source": "rules/workflow-reference.md",
+      "section": "(file)",
+      "sha256": "08c81786494f39665b4aebf495c705a21b4fd38294a995074a24d165730bd463",
+      "lines": [
+        227,
+        247,
+        282,
+        311
+      ],
+      "observation": "Load-line detection marks spans on lines whose verb describes another reader, not a load: here :227 (\"read it as not-started\"), :247 and :311 (\"read by /pe-finalize\") and :282 (\"read by orchestrators\"); likewise rules/tdd.md:39, rules/run-log.md:86 and :582, rules/phase-atomic-execution.md:55 and rules/workflow-globals.md:36. Of the fourteen load edges in rule and adapter files only rules/workflow-globals.md:32 and :44 describe a load of the target, and :44 resolves to the wrong file (AUD-08-006).",
+      "consequence": "A load count taken from the detector overstates the loads of the rules, and the real bootstrap loads, written as table rows of `.ai/` paths, are not counted.",
+      "owner": "11",
+      "closure": "The textual load detection distinguishes a load instruction from a description of another reader, or the load inventory is taken from declared loads.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/workflow-reference.md:227",
+        "rules/workflow-reference.md:247",
+        "rules/workflow-reference.md:282",
+        "rules/tdd.md:39",
+        "rules/run-log.md:86",
+        "rules/run-log.md:582",
+        "rules/phase-atomic-execution.md:55",
+        "rules/workflow-globals.md:36",
+        "rules/workflow-globals.md:32",
+        "rules/phase-atomic-execution.md:30"
+      ],
+      "edges": []
+    }
+  ],
   "amendments": [],
   "installed": []
 }
