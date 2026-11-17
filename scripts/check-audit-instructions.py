@@ -17,10 +17,12 @@ Requires Python 3.11+ and, for the git cases, git.
 from __future__ import annotations
 
 import ast
+import copy
 import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1980,6 +1982,1013 @@ class HomePathRewriteTests(CandidateCase):
 
         self.assertEqual(inventory["full_output"],
                          [line_candidate("FO", 1, "rules/r-paths.md", 1, kept)])
+
+
+AUDIT_DATE = "2026-01-02"
+REPORT_PATH = f"docs/audits/{AUDIT_DATE}-rules-workflows-audit.md"
+INVENTORY_PATH = f"docs/audits/{AUDIT_DATE}-rules-workflows-audit.inventory.json"
+ASSESSMENT_PATH = f"docs/audits/{AUDIT_DATE}-rules-workflows-audit.assessment.json"
+ROLE = "Implementer"
+ALPHA = "rules/alpha-flow.md"
+DELTA = "rules/delta-rule.md"
+BETA = "workflows/beta-step.md"
+GAMMA = "workflows/gamma-run.md"
+CAPS = "harness/x/caps.json"
+LINK = "harness/x/link.json"
+BLOB = "harness/x/blob.bin"
+GUIDE = "docs/GUIDE.md"
+SHARED_SENTENCE = "Every change keeps the recorded state on disk for later readers."
+
+VERIFY_FILES: dict[str, str | bytes] = {
+    ALPHA: ("---\ntrigger: always_on\n---\n# Alpha flow\n\nIntro line.\n\n## Contract\n\n"
+            f"{SHARED_SENTENCE}\nPaste the full test output into the report.\n\n## Example\n\n"
+            "Windsurf users read the old directory.\nCodex reads this rule as a skill.\n"),
+    DELTA: f"# Delta rule\n\n{SHARED_SENTENCE}\n",
+    BETA: ("---\ndescription: Beta step — checks the flow\n---\n# Beta step\n\n"
+           "Invocation: `/beta-step`\n\nLoad the `alpha-flow` rule.\n"
+           "See `alpha-flow → ## Missing`.\nAlso `/zz-none`.\n"),
+    GAMMA: ("# Gamma run\n\nInvocation: `/gamma-run`\n\n"
+            "Load the `alpha-flow` rule when the flow is active.\nRun `/beta-step`.\n"),
+    CAPS: '{"name": "x"}\n',
+    BLOB: b"\xff\xfe\n",
+    GUIDE: "See rules/zz-gone.md for history.\n",
+}
+VERIFY_LINKS = {LINK: "caps.json"}
+VERIFY_KINDS = {
+    ALPHA: ["contract", "reference"], DELTA: ["contract"], BETA: ["workflow"],
+    GAMMA: ["workflow"], CAPS: ["adapter-config"], LINK: ["adapter-config"],
+    BLOB: ["adapter-config"],
+}
+VERIFY_SECTIONS = {
+    ALPHA: [
+        {"heading": "(preamble)", "kind": "contract", "proposed_home": ALPHA},
+        {"heading": "## Contract", "kind": "contract", "proposed_home": ALPHA},
+        {"heading": "## Example", "kind": "reference", "proposed_home": "rules/reference/alpha.md"},
+    ],
+}
+LOAD_CONDITIONS = {(GAMMA, 5): "when the flow is active"}
+ALWAYS_SECTIONED = ("rules/phase-atomic-execution.md", "rules/phase-discovery.md")
+
+
+def assessment_at(fragment: str) -> str:
+    return f"{ASSESSMENT_PATH}#{fragment}"
+
+
+def inventory_at(fragment: str) -> str:
+    return f"{INVENTORY_PATH}#{fragment}"
+
+
+def build_verify_fixture(base: Path, extra: dict[str, str | bytes] | None = None,
+                         use_git: bool = True,
+                         before_extract: Callable[[FixtureRoot], None] | None = None
+                         ) -> tuple[FixtureRoot, dict]:
+    """Write the verify fixture root, commit it when asked, and extract its inventory."""
+    fixture = FixtureRoot(base)
+    for path, content in {**VERIFY_FILES, **(extra or {})}.items():
+        fixture.write(path, content)
+    for path, target in VERIFY_LINKS.items():
+        (fixture.root / path).symlink_to(target)
+    if use_git:
+        fixture.commit_all()
+    if before_extract is not None:
+        before_extract(fixture)
+    fixture.write(REPORT_PATH, f"# Rules and workflows audit — {AUDIT_DATE}\n")
+    out = fixture.root / INVENTORY_PATH
+    result = run_tool(["extract", "--root", str(fixture.root), "--out", str(out)],
+                      fixture.env, base)
+    if result.returncode != 0:
+        raise AssertionError(f"extract failed: {result.stderr!r}")
+    return fixture, parse_inventory(out.read_text(encoding="utf-8"))
+
+
+def inventory_entry(inventory: dict, path: str) -> dict:
+    found = [entry for entry in inventory["files"] + inventory["readers"]
+             if entry["path"] == path]
+    if len(found) != 1:
+        raise AssertionError(f"{path} is not one inventory entry")
+    return found[0]
+
+
+def edge_ref(inventory: dict, source: str, line: int) -> dict:
+    found = [item for item in inventory["edges"]
+             if item["source"] == source and item["line"] == line]
+    if len(found) != 1:
+        raise AssertionError(f"no single edge at {source}:{line}")
+    return {"source": source, "line": line, "column": found[0]["column"]}
+
+
+def empty_repetition() -> dict:
+    return {"report": [], "checkpoint": [], "review": []}
+
+
+def files_row(entry: dict) -> dict:
+    path = entry["path"]
+    invocable = path.startswith("workflows/") and bool(entry["invocation_lines"])
+    return {"path": path, "sha256": entry["sha256"],
+            "kinds": list(VERIFY_KINDS.get(path, ["contract"])),
+            "sections": copy.deepcopy(VERIFY_SECTIONS.get(path)),
+            "evidence": [f"{path}:1"],
+            "repetition": empty_repetition() if invocable else None}
+
+
+def coverage_row(entry: dict) -> dict:
+    if entry["entry"] != "file":
+        status = "not-a-file"
+    else:
+        status = "read" if entry["encoding"] == "utf-8" else "unavailable"
+    return {"path": entry["path"], "sha256": entry["sha256"], "status": status,
+            "reader": ROLE}
+
+
+def load_row(edge_entry: dict) -> dict:
+    condition = LOAD_CONDITIONS.get((edge_entry["source"], edge_entry["line"]))
+    return {"source": edge_entry["source"], "line": edge_entry["line"],
+            "column": edge_entry["column"],
+            "mode": "conditional" if condition else "mandatory", "condition": condition}
+
+
+def candidate_rows(inventory: dict) -> list[dict]:
+    rows = [{"id": item["id"], "disposition": "finding", "finding": "AUD-08-003",
+             "reason": None} for item in inventory["repeat_loads"]]
+    rows += [{"id": item["id"], "disposition": "not-applicable", "finding": None,
+              "reason": "The line names a report field."} for item in inventory["full_output"]]
+    rows += [{"id": item["id"], "disposition": "guarded", "finding": None,
+              "reason": "The harness is named as an example only."}
+             for item in inventory["harness_names"]]
+    return rows
+
+
+def group_rows(inventory: dict) -> list[dict]:
+    return [{"id": f"DG-{number:03d}", "clusters": [item["id"]], "locations": [],
+             "normative_source": {"path": DELTA, "section": "(preamble)"},
+             "condition_differences": "None.", "disposition": "intentional",
+             "owner": "none", "finding": None,
+             "rationale": "Both rules restate the shared state rule."}
+            for number, item in enumerate(inventory["duplicate_clusters"], start=1)]
+
+
+def finding_row(inventory: dict, number: int, kind: str, severity: str, source: str,
+                section: str, lines: list[int], owner: str, blocks: bool,
+                evidence: list[str], edges: list[dict] | None = None) -> dict:
+    return {"id": f"AUD-08-{number:03d}", "type": kind, "severity": severity,
+            "source": source, "section": section,
+            "sha256": inventory_entry(inventory, source)["sha256"], "lines": lines,
+            "observation": "Observed on reading.", "consequence": "Readers are misled.",
+            "owner": owner, "closure": "The cited lines are corrected.", "blocks_09": blocks,
+            "status": "open", "evidence": evidence, "edges": edges or []}
+
+
+def finding_rows(inventory: dict) -> list[dict]:
+    return [
+        finding_row(inventory, 1, "reference-defect", "major", BETA, "(preamble)", [9, 10],
+                    "09", True, [f"{BETA}:9", f"{BETA}:10"],
+                    [edge_ref(inventory, BETA, 9), edge_ref(inventory, BETA, 10)]),
+        finding_row(inventory, 2, "reference-defect", "minor", GUIDE, "Guide", [1], "11",
+                    False, [f"{GUIDE}:1"], [edge_ref(inventory, GUIDE, 1)]),
+        finding_row(inventory, 3, "load-repeat", "minor", GAMMA, "(preamble)", [5], "12",
+                    False, [f"{GAMMA}:5", f"{BETA}:8"]),
+        finding_row(inventory, 4, "report-repeat", "minor", GAMMA, "(preamble)", [6], "11",
+                    False, [f"{GAMMA}:6"]),
+        finding_row(inventory, 5, "coverage-gap", "major", BLOB, "(file)", [1], "owner",
+                    True, [BLOB]),
+    ]
+
+
+def amendment_rows() -> list[dict]:
+    return [{"id": "AMD-08-01", "target": "REQ-01", "change": "editorial",
+             "current": "Current text.", "proposed": "Proposed text.",
+             "reason": "The reference names a heading that does not exist.",
+             "evidence": ["AUD-08-001"], "affected": [], "depends_on": [],
+             "requires_adr": False, "disposition": "proposed"}]
+
+
+def valid_assessment(inventory: dict) -> dict:
+    """A fully valid assessment of the verify fixture; map and req21 are placeholders."""
+    audited = {entry["path"] for entry in inventory["files"]}
+    files = [files_row(entry) for entry in inventory["files"]]
+    for row in files:
+        if row["path"] == GAMMA:
+            row["repetition"]["report"] = ["AUD-08-004"]
+    return {
+        "schema_version": 1,
+        "inventory_digest": inventory["inventory_digest"],
+        "run_date": AUDIT_DATE,
+        "auditor": ROLE,
+        "environment": {"python": "Python 3.12.16", "git": "git version 2.43.0"},
+        "installed_access": "not-verified",
+        "files": files,
+        "coverage": [coverage_row(entry) for entry in inventory["files"]],
+        "loads": [load_row(item) for item in inventory["edges"]
+                  if item["load"] and item["source"] in audited],
+        "candidates": candidate_rows(inventory),
+        "legacy": [{"source": item["source"], "line": item["line"], "column": item["column"],
+                    "role": "example", "note": "Names a former harness."}
+                   for item in inventory["legacy_mentions"]],
+        "duplicate_groups": group_rows(inventory),
+        "map": [],
+        "req21": {"verdict": "covered", "statements": []},
+        "findings": finding_rows(inventory),
+        "amendments": amendment_rows(),
+        "installed": [],
+    }
+
+
+DIAGNOSTIC_RE = re.compile(
+    r"(?P<code>[a-z0-9]+(?:-[a-z0-9]+)*) (?P<location>\S+) (?P<message>\S.*)")
+
+
+def diagnostic_pairs(result: subprocess.CompletedProcess[str]) -> list[tuple[str, str]]:
+    pairs: list[tuple[str, str]] = []
+    for line in result.stdout.splitlines():
+        found = DIAGNOSTIC_RE.fullmatch(line)
+        if found is None:
+            raise AssertionError(f"not a `<code> <location> <message>` line: {line!r}")
+        pairs.append((found["code"], found["location"]))
+    return pairs
+
+
+def row_index(rows: list[dict], key: str, value: object) -> int:
+    matches = [index for index, row in enumerate(rows) if row.get(key) == value]
+    if len(matches) != 1:
+        raise AssertionError(f"no single row with {key}={value!r}")
+    return matches[0]
+
+
+class VerifyAssertions(unittest.TestCase):
+    maxDiff = None
+
+    def assert_silent(self, result: subprocess.CompletedProcess[str]) -> None:
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, "", ""))
+
+    def assert_reports(self, result: subprocess.CompletedProcess[str],
+                       expected: list[tuple[str, str]]) -> None:
+        self.assertEqual(result.returncode, 1,
+                         f"stdout={result.stdout!r} stderr={result.stderr!r}")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(sorted(diagnostic_pairs(result)), sorted(expected))
+
+    def assert_codes(self, result: subprocess.CompletedProcess[str], code: str,
+                     location_prefix: str) -> None:
+        self.assertEqual(result.returncode, 1,
+                         f"stdout={result.stdout!r} stderr={result.stderr!r}")
+        pairs = diagnostic_pairs(result)
+        self.assertTrue(pairs)
+        for found_code, location in pairs:
+            self.assertEqual(found_code, code, result.stdout)
+            self.assertTrue(location.startswith(location_prefix), result.stdout)
+
+
+class SharedVerifyCase(VerifyAssertions):
+    """Cases that vary only the assessment of one committed and extracted fixture root."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.temp = tempfile.TemporaryDirectory(prefix="audit-verify-")
+        try:
+            cls.fixture, cls.inventory = build_verify_fixture(Path(cls.temp.name))
+        except BaseException:
+            cls.temp.cleanup()
+            raise
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.temp.cleanup()
+
+    def setUp(self) -> None:
+        self.assessment = valid_assessment(self.inventory)
+
+    def verify(self, *extra: str, text: str | None = None) -> subprocess.CompletedProcess[str]:
+        target = self.fixture.root / ASSESSMENT_PATH
+        target.write_text(text if text is not None else canonical(self.assessment),
+                          encoding="utf-8")
+        return self.run_verify(*extra)
+
+    def run_verify(self, *extra: str) -> subprocess.CompletedProcess[str]:
+        return run_tool(["verify", "--root", str(self.fixture.root), "--report",
+                         str(self.fixture.root / REPORT_PATH), *extra],
+                        self.fixture.env, self.fixture.base)
+
+    def index(self, key: str, path: str) -> int:
+        return row_index(self.assessment[key], "path", path)
+
+    def row(self, key: str, path: str) -> dict:
+        return self.assessment[key][self.index(key, path)]
+
+    def finding(self, finding_id: str) -> dict:
+        return self.assessment["findings"][row_index(self.assessment["findings"], "id",
+                                                     finding_id)]
+
+    def candidate(self, candidate_id: str) -> dict:
+        return self.assessment["candidates"][row_index(self.assessment["candidates"], "id",
+                                                       candidate_id)]
+
+    def rewrite_inventory(self, text: str) -> Callable[[], None]:
+        path = self.fixture.root / INVENTORY_PATH
+        original = path.read_bytes()
+        path.write_text(text, encoding="utf-8")
+        return lambda: path.write_bytes(original)
+
+
+def canonical(value: object) -> str:
+    return json.dumps(value, ensure_ascii=False, indent=2) + "\n"
+
+
+class VerifyValidFixtureTests(SharedVerifyCase):
+    def test_valid_inventory_and_assessment_pair_yields_no_diagnostic_and_exit_zero(
+            self) -> None:
+        inventory = self.inventory
+        self.assertEqual([item["id"] for item in inventory["repeat_loads"]], ["RL-001"])
+        self.assertEqual([item["id"] for item in inventory["full_output"]], ["FO-001"])
+        self.assertEqual([item["id"] for item in inventory["harness_names"]], ["HN-001"])
+        self.assertEqual([item["id"] for item in inventory["duplicate_clusters"]], ["DUP-001"])
+        self.assertEqual(len(inventory["legacy_mentions"]), 1)
+        self.assertEqual(len(self.assessment["loads"]), 2)
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+        self.assert_silent(self.verify())
+
+    def test_strict_verify_of_an_unchanged_extraction_is_silent(self) -> None:
+        self.assert_silent(self.verify("--strict"))
+
+    def test_verify_changes_no_file_with_or_without_diagnostics(self) -> None:
+        faulty = valid_assessment(self.inventory)
+        faulty["findings"][0]["owner"] = "15"
+        faulty["installed"] = [{"path": ALPHA, "location": "/x", "source_sha256": "0",
+                                "installed_sha256": "0"}]
+        for name, text in (("valid", canonical(self.assessment)),
+                           ("faulty", canonical(faulty)), ("unparseable", "{")):
+            with self.subTest(assessment=name):
+                (self.fixture.root / ASSESSMENT_PATH).write_text(text, encoding="utf-8")
+                before = tree_digests(self.fixture.base)
+                self.run_verify()
+                self.run_verify("--strict")
+                self.assertEqual(tree_digests(self.fixture.base), before)
+                self.assertEqual(self.run_verify().returncode, 0 if name == "valid" else 1)
+
+
+class VerifyOutputTests(SharedVerifyCase):
+    def test_diagnostics_are_code_location_message_lines_ordered_by_code_then_location(
+            self) -> None:
+        self.assessment["inventory_digest"] = "f" * 64
+        self.assessment["files"].pop(self.index("files", DELTA))
+        self.finding("AUD-08-002")["observation"] = "It saves 3,000 tokens."
+        self.finding("AUD-08-001")["edges"] = []
+
+        result = self.verify()
+
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(diagnostic_pairs(result), [
+            ("defect-unrecorded", f"{BETA}:10"),
+            ("defect-unrecorded", f"{BETA}:9"),
+            ("digest-mismatch", assessment_at("inventory_digest")),
+            ("economics-claim", assessment_at("AUD-08-002")),
+            ("row-missing", f"{DELTA}:0"),
+        ])
+
+    def test_locations_are_relative_to_the_root_and_hold_no_absolute_path(self) -> None:
+        self.assessment["inventory_digest"] = "f" * 64
+        result = self.verify()
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn(str(self.fixture.base), result.stdout)
+        self.assertNotIn("/home/", result.stdout)
+        self.assertNotIn("/tmp", result.stdout)
+
+
+class VerifyFileFrameTests(SharedVerifyCase):
+    def test_missing_inventory_or_assessment_is_reported_with_exit_one(self) -> None:
+        inventory_file = self.fixture.root / INVENTORY_PATH
+        assessment_file = self.fixture.root / ASSESSMENT_PATH
+        original = inventory_file.read_bytes()
+        try:
+            self.verify()
+            assessment_file.unlink()
+            result = self.run_verify()
+            self.assert_reports(result, [("assessment-missing", f"{ASSESSMENT_PATH}:0")])
+            inventory_file.unlink()
+            result = self.run_verify()
+            self.assert_reports(result, [("assessment-missing", f"{ASSESSMENT_PATH}:0"),
+                                         ("inventory-missing", f"{INVENTORY_PATH}:0")])
+            self.assert_reports(self.verify(), [("inventory-missing", f"{INVENTORY_PATH}:0")])
+        finally:
+            inventory_file.write_bytes(original)
+
+    def test_unparseable_json_and_duplicate_keys_are_invalid_files(self) -> None:
+        with self.subTest(file="assessment", fault="unparseable"):
+            self.assert_codes(self.verify(text="{\n"), "assessment-invalid",
+                              f"{ASSESSMENT_PATH}:")
+        with self.subTest(file="assessment", fault="duplicate key"):
+            text = canonical(self.assessment).replace(
+                '"schema_version": 1,', '"schema_version": 1,\n  "schema_version": 1,', 1)
+            self.assert_codes(self.verify(text=text), "assessment-invalid",
+                              f"{ASSESSMENT_PATH}")
+        original = (self.fixture.root / INVENTORY_PATH).read_text(encoding="utf-8")
+        for fault, text in (("unparseable", original[:40]),
+                            ("duplicate key", original.replace(
+                                '"schema_version": 1,',
+                                '"schema_version": 1,\n  "schema_version": 1,', 1))):
+            with self.subTest(file="inventory", fault=fault):
+                restore = self.rewrite_inventory(text)
+                try:
+                    self.assert_codes(self.verify(), "inventory-invalid", f"{INVENTORY_PATH}")
+                finally:
+                    restore()
+
+    def test_inventory_schema_violations_are_inventory_invalid(self) -> None:
+        def unknown_key(value: dict) -> None:
+            value["extra"] = []
+
+        def missing_key(value: dict) -> None:
+            del value["readers"]
+
+        def bad_enum(value: dict) -> None:
+            value["files"][0]["set"] = "secondary"
+
+        def duplicate_path(value: dict) -> None:
+            value["files"].append(copy.deepcopy(value["files"][0]))
+
+        def bad_type(value: dict) -> None:
+            value["edges"] = {}
+
+        for fault in (unknown_key, missing_key, bad_enum, duplicate_path, bad_type):
+            with self.subTest(fault=fault.__name__):
+                value = copy.deepcopy(self.inventory)
+                fault(value)
+                restore = self.rewrite_inventory(canonical(value))
+                try:
+                    self.assert_codes(self.verify(), "inventory-invalid", f"{INVENTORY_PATH}")
+                finally:
+                    restore()
+
+    def test_unknown_and_missing_keys_are_assessment_invalid_at_the_key(self) -> None:
+        self.assessment["extra"] = True
+        self.assert_reports(self.verify(), [("assessment-invalid", assessment_at("extra"))])
+        self.setUp()
+        del self.assessment["legacy"]
+        self.assert_reports(self.verify(), [("assessment-invalid", assessment_at("legacy"))])
+
+    def test_key_order_of_the_assessment_does_not_matter(self) -> None:
+        reordered = dict(reversed(list(self.assessment.items())))
+        self.assert_silent(self.verify(text=canonical(reordered)))
+
+    def test_duplicate_finding_id_is_assessment_invalid(self) -> None:
+        self.assessment["findings"].append(copy.deepcopy(self.finding("AUD-08-002")))
+        self.assert_reports(self.verify(),
+                            [("assessment-invalid", assessment_at("AUD-08-002"))])
+
+    def test_schema_types_and_enum_values_are_assessment_invalid(self) -> None:
+        def top_level_list(value: dict) -> object:
+            return []
+
+        def schema_version(value: dict) -> object:
+            value["schema_version"] = 2
+            return value
+
+        def installed_access(value: dict) -> object:
+            value["installed_access"] = "maybe"
+            return value
+
+        def run_date(value: dict) -> object:
+            value["run_date"] = "2026-02-30"
+            return value
+
+        def findings_not_list(value: dict) -> object:
+            value["findings"] = "none"
+            return value
+
+        def empty_kinds(value: dict) -> object:
+            value["files"][0]["kinds"] = []
+            return value
+
+        def unknown_kind(value: dict) -> object:
+            value["files"][0]["kinds"] = ["category"]
+            return value
+
+        def coverage_status(value: dict) -> object:
+            value["coverage"][0]["status"] = "skimmed"
+            return value
+
+        def reader_label(value: dict) -> object:
+            value["coverage"][0]["reader"] = "the reader"
+            return value
+
+        def finding_missing_key(value: dict) -> object:
+            del value["findings"][0]["closure"]
+            return value
+
+        def files_row_not_object(value: dict) -> object:
+            value["files"][0] = "rules/alpha-flow.md"
+            return value
+
+        def candidate_disposition(value: dict) -> object:
+            value["candidates"][0]["disposition"] = "ignored"
+            return value
+
+        def legacy_role(value: dict) -> object:
+            value["legacy"][0]["role"] = "decorative"
+            return value
+
+        def group_disposition(value: dict) -> object:
+            value["duplicate_groups"][0]["disposition"] = "merge"
+            return value
+
+        def load_mode(value: dict) -> object:
+            value["loads"][0]["mode"] = "sometimes"
+            return value
+
+        def files_evidence(value: dict) -> object:
+            value["files"][0]["evidence"] = []
+            return value
+
+        for fault in (top_level_list, schema_version, installed_access, run_date,
+                      findings_not_list, empty_kinds, unknown_kind, coverage_status,
+                      reader_label, finding_missing_key, files_row_not_object,
+                      candidate_disposition, legacy_role, group_disposition, load_mode,
+                      files_evidence):
+            with self.subTest(fault=fault.__name__):
+                value = fault(valid_assessment(self.inventory))
+                self.assert_codes(self.verify(text=canonical(value)), "assessment-invalid",
+                                  f"{ASSESSMENT_PATH}")
+
+    def test_assessment_digest_unequal_to_the_inventory_is_digest_mismatch(self) -> None:
+        self.assessment["inventory_digest"] = "f" * 64
+        self.assert_reports(self.verify(),
+                            [("digest-mismatch", assessment_at("inventory_digest"))])
+
+
+class VerifyRowTests(SharedVerifyCase):
+    def test_audited_path_without_a_files_or_coverage_row_is_row_missing(self) -> None:
+        self.assessment["files"].pop(self.index("files", DELTA))
+        self.assert_reports(self.verify(), [("row-missing", f"{DELTA}:0")])
+        self.setUp()
+        self.assessment["coverage"].pop(self.index("coverage", CAPS))
+        self.assert_reports(self.verify(), [("row-missing", f"{CAPS}:0")])
+
+    def test_row_for_a_path_outside_the_audited_set_is_row_extra(self) -> None:
+        extra = coverage_row({"path": "rules/zz-extra.md", "entry": "file",
+                              "encoding": "utf-8", "sha256": "0" * 64})
+        self.assessment["coverage"].append(extra)
+        position = len(self.assessment["coverage"]) - 1
+        self.assert_reports(self.verify(), [("row-extra", assessment_at(f"coverage[{position}]"))])
+
+    def test_second_row_for_one_path_is_row_duplicate(self) -> None:
+        self.assessment["files"].append(copy.deepcopy(self.row("files", DELTA)))
+        position = len(self.assessment["files"]) - 1
+        self.assert_reports(self.verify(),
+                            [("row-duplicate", assessment_at(f"files[{position}]"))])
+
+    def test_row_digest_unequal_to_the_inventory_is_assessment_stale(self) -> None:
+        self.row("files", DELTA)["sha256"] = "0" * 64
+        self.row("coverage", ALPHA)["sha256"] = "0" * 64
+        self.row("coverage", LINK)["sha256"] = "0" * 64
+        self.assert_reports(self.verify(), [
+            ("assessment-stale", assessment_at(f"files[{self.index('files', DELTA)}]")),
+            ("assessment-stale", assessment_at(f"coverage[{self.index('coverage', ALPHA)}]")),
+            ("assessment-stale", assessment_at(f"coverage[{self.index('coverage', LINK)}]")),
+        ])
+
+    def test_two_kind_rule_with_sections_covering_two_of_three_is_sections_incomplete(
+            self) -> None:
+        location = assessment_at(f"files[{self.index('files', ALPHA)}]")
+        sections = self.row("files", ALPHA)["sections"]
+        variants = {
+            "two of three": sections[:2],
+            "null": None,
+            "repeated": sections + [copy.deepcopy(sections[0])],
+            "unknown heading": sections[:2] + [{"heading": "## Elsewhere", "kind": "reference",
+                                                "proposed_home": ALPHA}],
+        }
+        for name, value in variants.items():
+            with self.subTest(sections=name):
+                self.setUp()
+                self.row("files", ALPHA)["sections"] = copy.deepcopy(value)
+                self.assert_reports(self.verify(), [("sections-incomplete", location)])
+
+
+class VerifyItemTests(SharedVerifyCase):
+    def test_load_edge_without_entry_and_entry_naming_no_load_edge_are_load_unclassified(
+            self) -> None:
+        self.assessment["loads"] = [row for row in self.assessment["loads"]
+                                    if row["source"] != BETA]
+        self.assert_reports(self.verify(), [("load-unclassified", f"{BETA}:8")])
+        self.setUp()
+        stray = edge_ref(self.inventory, BETA, 9)
+        self.assessment["loads"].append({**stray, "mode": "mandatory", "condition": None})
+        position = len(self.assessment["loads"]) - 1
+        self.assert_reports(self.verify(),
+                            [("load-unclassified", assessment_at(f"loads[{position}]"))])
+
+    def test_load_condition_must_match_its_mode(self) -> None:
+        gamma = row_index(self.assessment["loads"], "source", GAMMA)
+        beta = row_index(self.assessment["loads"], "source", BETA)
+        self.assessment["loads"][gamma]["condition"] = None
+        self.assessment["loads"][beta]["condition"] = "when asked"
+        self.assert_reports(self.verify(), [
+            ("load-unclassified", assessment_at(f"loads[{gamma}]")),
+            ("load-unclassified", assessment_at(f"loads[{beta}]")),
+        ])
+
+    def test_candidate_without_entry_finding_or_reason_is_candidate_undisposed(self) -> None:
+        with self.subTest(fault="no entry"):
+            self.assessment["candidates"] = [row for row in self.assessment["candidates"]
+                                             if row["id"] != "RL-001"]
+            self.assert_reports(self.verify(),
+                                [("candidate-undisposed", inventory_at("RL-001"))])
+        with self.subTest(fault="finding disposition without finding"):
+            self.setUp()
+            self.candidate("RL-001")["finding"] = None
+            self.assert_reports(self.verify(),
+                                [("candidate-undisposed", assessment_at("RL-001"))])
+        with self.subTest(fault="empty reason"):
+            self.setUp()
+            self.candidate("FO-001")["reason"] = ""
+            self.assert_reports(self.verify(),
+                                [("candidate-undisposed", assessment_at("FO-001"))])
+
+    def test_candidate_naming_a_finding_of_the_wrong_type_is_candidate_undisposed(
+            self) -> None:
+        with self.subTest(candidate="RL"):
+            self.candidate("RL-001")["finding"] = "AUD-08-002"
+            self.assert_reports(self.verify(),
+                                [("candidate-undisposed", assessment_at("RL-001"))])
+        with self.subTest(candidate="HN"):
+            self.setUp()
+            self.candidate("HN-001").update(disposition="finding", finding="AUD-08-003",
+                                            reason=None)
+            self.assert_reports(self.verify(),
+                                [("candidate-undisposed", assessment_at("HN-001"))])
+        with self.subTest(candidate="HN naming"):
+            self.setUp()
+            self.finding("AUD-08-002")["type"] = "naming"
+            self.candidate("HN-001").update(disposition="finding", finding="AUD-08-002",
+                                            reason=None)
+            self.assert_silent(self.verify())
+
+    def test_legacy_mention_without_entry_is_legacy_role_missing(self) -> None:
+        self.assessment["legacy"] = []
+        self.assert_reports(self.verify(), [("legacy-role-missing", f"{ALPHA}:15")])
+
+    def test_invocable_workflow_with_null_repetition_is_repetition_invalid(self) -> None:
+        self.row("files", BETA)["repetition"] = None
+        self.assert_reports(self.verify(), [
+            ("repetition-invalid", assessment_at(f"files[{self.index('files', BETA)}]"))])
+
+    def test_repetition_on_a_file_without_invocation_is_repetition_invalid(self) -> None:
+        self.row("files", DELTA)["repetition"] = empty_repetition()
+        self.assert_reports(self.verify(), [
+            ("repetition-invalid", assessment_at(f"files[{self.index('files', DELTA)}]"))])
+
+    def test_repetition_id_naming_a_full_output_finding_is_repetition_invalid(self) -> None:
+        location = assessment_at(f"files[{self.index('files', GAMMA)}]")
+        with self.subTest(fault="full-output finding"):
+            self.finding("AUD-08-004")["type"] = "full-output"
+            self.assert_reports(self.verify(), [("repetition-invalid", location)])
+        with self.subTest(fault="unknown id"):
+            self.setUp()
+            self.row("files", GAMMA)["repetition"]["review"] = ["AUD-08-099"]
+            self.assert_reports(self.verify(), [("repetition-invalid", location)])
+
+
+class VerifyGroupTests(SharedVerifyCase):
+    def test_cluster_in_no_group_is_duplicate_ungrouped(self) -> None:
+        self.assessment["duplicate_groups"] = []
+        self.assert_reports(self.verify(), [("duplicate-ungrouped", inventory_at("DUP-001"))])
+
+    def test_cluster_in_two_groups_is_duplicate_multigrouped(self) -> None:
+        second = copy.deepcopy(self.assessment["duplicate_groups"][0])
+        second["id"] = "DG-002"
+        self.assessment["duplicate_groups"].append(second)
+        self.assert_reports(self.verify(),
+                            [("duplicate-multigrouped", inventory_at("DUP-001"))])
+
+    def test_contradiction_group_without_finding_is_group_invalid(self) -> None:
+        self.assessment["duplicate_groups"][0].update(disposition="contradiction",
+                                                      owner="owner", finding=None)
+        self.assert_reports(self.verify(), [("group-invalid", assessment_at("DG-001"))])
+
+    def test_group_owner_finding_rationale_and_locations_follow_the_group_rules(
+            self) -> None:
+        def consolidate_owned_by_owner(group: dict) -> None:
+            group.update(disposition="consolidate", owner="owner", finding="AUD-08-002")
+
+        def intentional_with_owner(group: dict) -> None:
+            group["owner"] = "11"
+
+        def consolidate_without_finding(group: dict) -> None:
+            group.update(disposition="consolidate", owner="11", finding=None)
+
+        def empty_rationale(group: dict) -> None:
+            group["rationale"] = ""
+
+        def single_location(group: dict) -> None:
+            group.update(clusters=[], locations=[{"path": DELTA, "line_start": 3,
+                                                  "line_end": 3}])
+
+        def location_beyond_the_file(group: dict) -> None:
+            group["locations"] = [{"path": DELTA, "line_start": 3, "line_end": 9}]
+
+        def condition_specific_without_conditions(group: dict) -> None:
+            group.update(disposition="condition-specific", condition_differences="")
+
+        for fault in (consolidate_owned_by_owner, intentional_with_owner,
+                      consolidate_without_finding, empty_rationale, single_location,
+                      location_beyond_the_file, condition_specific_without_conditions):
+            with self.subTest(fault=fault.__name__):
+                self.setUp()
+                fault(self.assessment["duplicate_groups"][0])
+                expected = [("group-invalid", assessment_at("DG-001"))]
+                if fault is single_location:
+                    expected.append(("duplicate-ungrouped", inventory_at("DUP-001")))
+                self.assert_reports(self.verify(), expected)
+
+    def test_valid_consolidation_and_read_detected_locations_are_accepted(self) -> None:
+        self.finding("AUD-08-002")["type"] = "duplicate"
+        self.assessment["duplicate_groups"][0].update(
+            disposition="consolidate", owner="09", finding="AUD-08-002",
+            locations=[{"path": ALPHA, "line_start": 15, "line_end": 16}])
+        self.assert_silent(self.verify())
+
+
+class VerifyFindingTests(SharedVerifyCase):
+    def test_control_defect_edge_named_by_no_finding_is_defect_unrecorded(self) -> None:
+        finding = self.finding("AUD-08-001")
+        finding["edges"] = [item for item in finding["edges"] if item["line"] != 9]
+        self.assert_reports(self.verify(), [("defect-unrecorded", f"{BETA}:9")])
+
+    def test_proposal_finding_owned_by_the_naming_migration_is_finding_invalid(self) -> None:
+        self.finding("AUD-08-003")["owner"] = "09"
+        self.assert_reports(self.verify(), [("finding-invalid", assessment_at("AUD-08-003"))])
+
+    def test_migration_owned_finding_on_an_edge_outside_its_grammar_needs_an_amendment(
+            self) -> None:
+        self.finding("AUD-08-002")["owner"] = "09"
+        self.assert_reports(self.verify(), [("finding-invalid", assessment_at("AUD-08-002"))])
+        self.setUp()
+        self.finding("AUD-08-002").update(owner="09",
+                                          evidence=[f"{GUIDE}:1", "AMD-08-01"])
+        self.assert_silent(self.verify())
+
+    def test_blocks_09_must_equal_the_blocking_predicate(self) -> None:
+        with self.subTest(fault="cited by an amendment but not blocking"):
+            self.finding("AUD-08-001")["blocks_09"] = False
+            self.assert_reports(self.verify(),
+                                [("finding-invalid", assessment_at("AUD-08-001"))])
+        with self.subTest(fault="minor finding blocking without justification"):
+            self.setUp()
+            self.finding("AUD-08-002")["blocks_09"] = True
+            self.assert_reports(self.verify(),
+                                [("finding-invalid", assessment_at("AUD-08-002"))])
+        with self.subTest(fault="coverage gap on an audited source not blocking"):
+            self.setUp()
+            self.finding("AUD-08-005")["blocks_09"] = False
+            self.assert_reports(self.verify(),
+                                [("finding-invalid", assessment_at("AUD-08-005"))])
+        with self.subTest(fault="contradiction not blocking"):
+            self.setUp()
+            self.finding("AUD-08-002").update(type="contradiction", owner="owner")
+            self.assert_reports(self.verify(),
+                                [("finding-invalid", assessment_at("AUD-08-002"))])
+
+    def test_finding_value_rules_each_raise_finding_invalid(self) -> None:
+        faults: tuple[tuple[str, str, Callable[[dict], None]], ...] = (
+            ("blocker severity without blocking", "AUD-08-002",
+             lambda finding: finding.update(severity="blocker")),
+            ("status outside the set", "AUD-08-002",
+             lambda finding: finding.update(status="closed")),
+            ("line beyond the source", "AUD-08-002",
+             lambda finding: finding.update(lines=[1, 2])),
+            ("line zero", "AUD-08-002", lambda finding: finding.update(lines=[0])),
+            ("section unknown for an audited source", "AUD-08-004",
+             lambda finding: finding.update(section="## Nowhere")),
+            ("source outside the inventory", "AUD-08-004",
+             lambda finding: finding.update(source="docs/zz-none.md")),
+            ("empty evidence", "AUD-08-002", lambda finding: finding.update(evidence=[])),
+            ("accepted observation with an owner", "AUD-08-002",
+             lambda finding: finding.update(type="accepted-observation", owner="11")),
+            ("edge that is not a defect", "AUD-08-002",
+             lambda finding: finding["edges"].append(edge_ref(self.inventory, BETA, 8))),
+            ("edge that does not exist", "AUD-08-002",
+             lambda finding: finding["edges"].append(
+                 edge_ref(self.inventory, GUIDE, 1) | {"column": 0})),
+            ("contradiction owned by the migration", "AUD-08-002",
+             lambda finding: finding.update(type="contradiction", owner="09",
+                                            blocks_09=True)),
+        )
+        for name, finding_id, fault in faults:
+            with self.subTest(fault=name):
+                self.setUp()
+                fault(self.finding(finding_id))
+                self.assert_reports(self.verify(),
+                                    [("finding-invalid", assessment_at(finding_id))])
+
+    def test_finding_severity_or_type_outside_its_set_is_assessment_invalid_once(
+            self) -> None:
+        for key, value in (("severity", "critical"), ("type", "typo")):
+            with self.subTest(key=key):
+                self.setUp()
+                self.finding("AUD-08-002")[key] = value
+                self.assert_reports(self.verify(),
+                                    [("assessment-invalid", assessment_at("AUD-08-002"))])
+
+    def test_accepted_observation_and_historical_fixed_findings_are_accepted(self) -> None:
+        self.finding("AUD-08-002").update(type="accepted-observation", owner="none")
+        self.finding("AUD-08-004")["status"] = "historical-fixed"
+        self.assert_silent(self.verify())
+
+    def test_finding_digest_unequal_to_its_source_is_finding_stale(self) -> None:
+        self.finding("AUD-08-002")["sha256"] = "0" * 64
+        self.assert_reports(self.verify(), [("finding-stale", assessment_at("AUD-08-002"))])
+
+    def test_unknown_ids_cited_by_findings_candidates_and_groups_are_reference_unknown(
+            self) -> None:
+        def finding_cites_missing_amendment(value: dict) -> str:
+            value["findings"][2]["evidence"].append("AMD-08-07")
+            return "AUD-08-003"
+
+        def candidate_cites_missing_finding(value: dict) -> str:
+            value["candidates"][0]["finding"] = "AUD-08-099"
+            return "RL-001"
+
+        def candidate_entry_for_missing_candidate(value: dict) -> str:
+            value["candidates"].append({"id": "FO-009", "disposition": "not-applicable",
+                                        "finding": None, "reason": "Not a candidate."})
+            return "FO-009"
+
+        def group_cites_missing_cluster(value: dict) -> str:
+            value["duplicate_groups"][0]["clusters"].append("DUP-009")
+            return "DG-001"
+
+        def group_cites_missing_finding(value: dict) -> str:
+            value["duplicate_groups"][0]["finding"] = "AUD-08-099"
+            return "DG-001"
+
+        for fault in (finding_cites_missing_amendment, candidate_cites_missing_finding,
+                      candidate_entry_for_missing_candidate, group_cites_missing_cluster,
+                      group_cites_missing_finding):
+            with self.subTest(fault=fault.__name__):
+                value = valid_assessment(self.inventory)
+                fragment = fault(value)
+                self.assert_reports(self.verify(text=canonical(value)),
+                                    [("reference-unknown", assessment_at(fragment))])
+
+
+class VerifyCoverageAndInstalledTests(SharedVerifyCase):
+    def test_unavailable_coverage_without_a_coverage_gap_finding_is_inconsistent(
+            self) -> None:
+        self.assessment["findings"] = [item for item in self.assessment["findings"]
+                                       if item["id"] != "AUD-08-005"]
+        self.assert_reports(self.verify(), [
+            ("coverage-inconsistent", assessment_at(f"coverage[{self.index('coverage', BLOB)}]"))])
+
+    def test_changed_coverage_without_a_coverage_gap_finding_is_inconsistent(self) -> None:
+        self.row("coverage", DELTA)["status"] = "changed"
+        self.assert_reports(self.verify(), [
+            ("coverage-inconsistent", assessment_at(f"coverage[{self.index('coverage', DELTA)}]"))])
+
+    def test_not_a_file_status_must_match_the_entry_kind(self) -> None:
+        with self.subTest(fault="not-a-file on a regular file"):
+            self.row("coverage", CAPS)["status"] = "not-a-file"
+            self.assert_reports(self.verify(), [
+                ("coverage-inconsistent",
+                 assessment_at(f"coverage[{self.index('coverage', CAPS)}]"))])
+        with self.subTest(fault="symbolic link read"):
+            self.setUp()
+            self.row("coverage", LINK)["status"] = "read"
+            self.assert_reports(self.verify(), [
+                ("coverage-inconsistent",
+                 assessment_at(f"coverage[{self.index('coverage', LINK)}]"))])
+
+    def test_installed_entries_follow_the_installed_access_rules(self) -> None:
+        digest = inventory_entry(self.inventory, ALPHA)["sha256"]
+        entry = {"path": ALPHA, "location": "~/.harness/skills/rule-alpha-flow/SKILL.md",
+                 "source_sha256": digest, "installed_sha256": "0" * 64}
+        with self.subTest(fault="entries while not verified"):
+            self.assessment["installed"] = [copy.deepcopy(entry)]
+            self.assert_reports(self.verify(), [("installed-invalid", assessment_at("installed"))])
+        with self.subTest(fault="location outside the home directory"):
+            self.setUp()
+            self.assessment.update(installed_access="verified",
+                                   installed=[entry | {"location": "/opt/skills/SKILL.md"}])
+            self.assert_reports(self.verify(),
+                                [("installed-invalid", assessment_at("installed[0]"))])
+        with self.subTest(fault="source digest unequal to the inventory"):
+            self.setUp()
+            self.assessment.update(installed_access="verified",
+                                   installed=[entry | {"source_sha256": "0" * 64}])
+            self.assert_reports(self.verify(),
+                                [("installed-invalid", assessment_at("installed[0]"))])
+        with self.subTest(fault="none: verified comparison"):
+            self.setUp()
+            self.assessment.update(installed_access="verified", installed=[entry])
+            self.assert_silent(self.verify())
+
+    def test_token_and_money_strings_anywhere_in_the_assessment_are_economics_claims(
+            self) -> None:
+        cases = (
+            ("tokens in a finding", lambda value: value["findings"][1].update(
+                observation="The split saves 3,000 tokens per run."), "AUD-08-002"),
+            ("money in a group", lambda value: value["duplicate_groups"][0].update(
+                rationale="Each repeat costs $5 a month."), "DG-001"),
+            ("currency in a candidate", lambda value: value["candidates"][1].update(
+                reason="Worth 2 EUR."), "FO-001"),
+            ("kilotokens in a section home", lambda value: value["files"][3]["sections"][2]
+             .update(proposed_home="rules/reference/12k-tokens.md"), "files[3]"),
+        )
+        for name, fault, fragment in cases:
+            with self.subTest(case=name):
+                value = valid_assessment(self.inventory)
+                fault(value)
+                self.assert_reports(self.verify(text=canonical(value)),
+                                    [("economics-claim", assessment_at(fragment))])
+
+
+class VerifyTreeTests(VerifyAssertions):
+    """Cases that change the fixture tree or its git state, each on its own root."""
+
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory(prefix="audit-verify-tree-")
+        self.base = Path(self.temp.name)
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def build(self, name: str, **options: object) -> tuple[FixtureRoot, dict]:
+        base = self.base / name
+        base.mkdir()
+        fixture, inventory = build_verify_fixture(base, **options)
+        (fixture.root / ASSESSMENT_PATH).write_text(canonical(valid_assessment(inventory)),
+                                                    encoding="utf-8")
+        return fixture, inventory
+
+    def verify(self, fixture: FixtureRoot, *extra: str,
+               report: str | None = None) -> subprocess.CompletedProcess[str]:
+        return run_tool(["verify", "--root", str(fixture.root), "--report",
+                         report if report is not None else str(fixture.root / REPORT_PATH),
+                         *extra], fixture.env, fixture.base)
+
+    def test_changed_added_and_removed_audited_files_are_inventory_stale(self) -> None:
+        fixture, _ = self.build("changed")
+        fixture.write(DELTA, "# Delta rule\n\nChanged.\n")
+        self.assert_reports(self.verify(fixture), [("inventory-stale", f"{DELTA}:0")])
+        fixture, _ = self.build("added")
+        fixture.write("rules/new-rule.md", "# New rule\n")
+        self.assert_reports(self.verify(fixture),
+                            [("inventory-stale", "rules/new-rule.md:0")])
+        fixture, _ = self.build("removed")
+        (fixture.root / DELTA).unlink()
+        self.assert_reports(self.verify(fixture), [("inventory-stale", f"{DELTA}:0")])
+
+    def test_changed_reader_is_stale_only_under_strict(self) -> None:
+        fixture, _ = self.build("reader")
+        fixture.write(GUIDE, "See rules/zz-gone.md for history.\nMore text.\n")
+        self.assert_silent(self.verify(fixture))
+        self.assert_codes(self.verify(fixture, "--strict"), "inventory-stale",
+                          f"{INVENTORY_PATH}:")
+
+    def test_dirty_or_unknown_work_tree_is_worktree_dirty(self) -> None:
+        fixture, inventory = self.build(
+            "dirty", before_extract=lambda root: root.write("docs/NEW.md", "New.\n"))
+        self.assertEqual(inventory["worktree"]["state"], "dirty")
+        self.assert_reports(self.verify(fixture), [("worktree-dirty", inventory_at("worktree"))])
+        fixture, inventory = self.build("unknown", use_git=False)
+        self.assertEqual(inventory["worktree"]["state"], "unknown")
+        self.assert_reports(self.verify(fixture), [("worktree-dirty", inventory_at("worktree"))])
+
+    def test_rows_of_the_two_always_sectioned_rules_need_sections(self) -> None:
+        extra = {path: "# Rule\n\n## Only\n\nText.\n" for path in ALWAYS_SECTIONED}
+        fixture, inventory = self.build("always", extra=extra)
+        assessment = valid_assessment(inventory)
+        (fixture.root / ASSESSMENT_PATH).write_text(canonical(assessment), encoding="utf-8")
+        expected = [("sections-incomplete",
+                     assessment_at(f"files[{row_index(assessment['files'], 'path', path)}]"))
+                    for path in ALWAYS_SECTIONED]
+        self.assert_reports(self.verify(fixture), expected)
+        for path in ALWAYS_SECTIONED:
+            assessment["files"][row_index(assessment["files"], "path", path)]["sections"] = [
+                {"heading": "(preamble)", "kind": "contract", "proposed_home": path},
+                {"heading": "## Only", "kind": "contract", "proposed_home": path}]
+        (fixture.root / ASSESSMENT_PATH).write_text(canonical(assessment), encoding="utf-8")
+        self.assert_silent(self.verify(fixture))
+
+    def test_usage_errors_and_an_invalid_root_exit_two_with_one_error_line(self) -> None:
+        fixture, _ = self.build("usage")
+        self.assert_silent(self.verify(fixture))
+        cases = {
+            "no report": ["verify", "--root", str(fixture.root)],
+            "report not markdown": ["verify", "--root", str(fixture.root), "--report",
+                                    str(fixture.root / "docs/audits/report.txt")],
+            "unknown option": ["verify", "--root", str(fixture.root), "--report",
+                               str(fixture.root / REPORT_PATH), "--fast"],
+            "root without rules": ["verify", "--root", str(fixture.base / "missing"),
+                                   "--report", str(fixture.root / REPORT_PATH)],
+        }
+        for name, arguments in cases.items():
+            with self.subTest(case=name):
+                result = run_tool(arguments, fixture.env, fixture.base)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(result.stdout, "")
+                lines = result.stderr.strip().splitlines()
+                self.assertEqual(len(lines), 1, lines)
+                self.assertTrue(lines[0].startswith("ERROR: "), lines[0])
+                self.assertNotIn("Traceback", result.stderr)
 
 
 if __name__ == "__main__":
