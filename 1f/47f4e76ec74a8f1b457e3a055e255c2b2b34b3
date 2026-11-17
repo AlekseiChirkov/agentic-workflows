@@ -1,0 +1,19 @@
+scripts/check-audit-instructions.py
+  s_31d11eaa54c06c::t_75eb8087216c96 794-873
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1f47f4e76ec74a8f1b457e3a055e255c2b2b34b3",
+  "prompts": {},
+  "sessions": {
+    "s_31d11eaa54c06c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a29bbfcc606b7e0be",
+        "model": "unknown"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
