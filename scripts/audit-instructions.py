@@ -20,9 +20,13 @@ Usage:
       Check the inventory and the assessment whose paths replace the `.md` of FILE with
       `.inventory.json` and `.assessment.json`: their schemas, the audited files of the
       root against the inventory (with --strict, a fresh extraction against its bytes),
-      the work-tree state, and every per-item rule of the assessment. Prints one
-      `<code> <location> <message>` line per violation in string order of code and
-      location. A location is `<path>:<line>` (`0` for a whole file) or
+      the work-tree state, and every per-item rule of the assessment, including the
+      migration map, its deviation from the recorded migration defaults, the amendments
+      against the single `.ai/specs/09-*.md` file (read as strict UTF-8 without following a
+      symbolic link) and the statement coverage of the statement units of
+      `## Codebase Reading Rules` and `## Decision Protocol` in rules/phase-discovery.md.
+      Prints one `<code> <location> <message>` line per violation in string order of
+      code and location. A location is `<path>:<line>` (`0` for a whole file) or
       `<json file>#<id, key or key[index]>`, with paths relative to the root.
 
 Exit codes:
@@ -1609,6 +1613,13 @@ ROLE = matching(ROLE_LABEL_RE)
 LINE_REF = record({"source": is_str, "line": is_int, "column": is_int})
 SPAN = record({"path": is_str, "line_start": is_int, "line_end": is_int})
 AUDIT_ID = matching(re.compile(r"AUD-08-\d{3}"))
+AMENDMENT_ID = matching(AMENDMENT_ID_RE)
+MAP_DECISIONS = ("keep", "rename", "move", "split", "merge")
+MAP_TARGET = record({"path": is_repository_path, "sections": nullable(list_of(is_str)),
+                     "merge_reason": nullable(is_str)})
+DEFAULT_TARGET = record({"path": is_repository_path, "sections": nullable(list_of(is_str))})
+STATEMENT = record({"source": is_str, "text": is_str,
+                    "covered_by": nullable(matching(EVIDENCE_LINE_RE))})
 
 
 @dataclass(frozen=True)
@@ -1701,15 +1712,24 @@ ASSESSMENT_SCHEMA: Schema = {
         "disposition": one_of("consolidate", "intentional", "condition-specific",
                               "contradiction"),
         "owner": is_str, "finding": nullable(is_str), "rationale": is_str}), "id"),
-    "map": is_list,
-    "req21": is_object,
+    "map": ListSchema(record({
+        "source": is_str, "decision": one_of(*MAP_DECISIONS), "targets": list_of(MAP_TARGET),
+        "spec09_default": nullable(list_of(DEFAULT_TARGET)),
+        "spec09_optional": list_of(is_repository_path), "amendment": nullable(AMENDMENT_ID)})),
+    "req21": record({"verdict": one_of("covered", "not-covered"),
+                     "statements": list_of(STATEMENT)}),
     "findings": ListSchema(record({
         "id": AUDIT_ID, "type": one_of(*FINDING_OWNERS),
         "severity": one_of("blocker", "major", "minor"), "source": is_str, "section": is_str,
         "sha256": nullable(DIGEST), "lines": list_of(is_int), "observation": is_str,
         "consequence": is_str, "owner": is_str, "closure": is_str, "blocks_09": is_bool,
         "status": is_str, "evidence": list_of(is_str), "edges": list_of(LINE_REF)}), "id"),
-    "amendments": ListSchema(is_object),
+    "amendments": ListSchema(record({
+        "id": AMENDMENT_ID, "target": is_str,
+        "change": one_of("semantic", "editorial", "relocation"), "current": nullable(is_str),
+        "proposed": is_str, "reason": is_str, "evidence": list_of(is_str),
+        "affected": list_of(is_str), "depends_on": list_of(AMENDMENT_ID),
+        "requires_adr": is_bool, "disposition": one_of("proposed")}), "id"),
     "installed": ListSchema(record({
         "path": is_str, "location": is_str, "source_sha256": is_str,
         "installed_sha256": is_str})),
@@ -1854,6 +1874,8 @@ class Verification:
     amendment_ids: frozenset[str]
     cited: frozenset[str]
     defects: dict[tuple[str, int, int], JsonObject]
+    migration: MigrationText | None
+    units: frozenset[int]
 
     @property
     def inv(self) -> JsonObject:
@@ -1886,7 +1908,8 @@ def amendment_lookups(assessment: JsonObject) -> tuple[frozenset[str], frozenset
     return cast(frozenset[str], ids), cast(frozenset[str], cited)
 
 
-def verification(inventory: Document, assessment: Document) -> Verification:
+def verification(inventory: Document, assessment: Document, migration: MigrationText | None,
+                 units: frozenset[int]) -> Verification:
     inv, doc = cast(JsonObject, inventory.value), cast(JsonObject, assessment.value)
     ids, cited = amendment_lookups(doc)
     return Verification(
@@ -1896,14 +1919,16 @@ def verification(inventory: Document, assessment: Document) -> Verification:
         findings={str(entry["id"]): entry for entry in objects(doc["findings"])},
         amendment_ids=ids, cited=cited,
         defects={edge_key(edge): edge for edge in objects(inv["edges"])
-                 if is_defect_edge(edge)})
+                 if is_defect_edge(edge)},
+        migration=migration, units=units)
 
 
-def first_rows(check: Verification, key: str) -> dict[str, tuple[int, JsonObject]]:
-    """The first row of `key` for each audited path, with its index."""
+def first_rows(check: Verification, key: str, field: str = "path"
+               ) -> dict[str, tuple[int, JsonObject]]:
+    """The first row of `key` for each audited path named by `field`, with its index."""
     found: dict[str, tuple[int, JsonObject]] = {}
     for index, row in enumerate(check.rows(key)):
-        path = str(row["path"])
+        path = str(row[field])
         if path in check.files and path not in found:
             found[path] = (index, row)
     return found
@@ -1923,11 +1948,14 @@ def digest_rule(check: Verification) -> Iterator[Diagnostic]:
                          "differs from the inventory's inventory_digest")
 
 
+ROW_KEYS = (("files", "path"), ("coverage", "path"), ("map", "source"))
+
+
 def row_rules(check: Verification) -> Iterator[Diagnostic]:
-    for key in ("files", "coverage"):
+    for key, field in ROW_KEYS:
         seen: set[str] = set()
         for index, row in enumerate(check.rows(key)):
-            path, location = str(row["path"]), check.at(f"{key}[{index}]")
+            path, location = str(row[field]), check.at(f"{key}[{index}]")
             if path not in check.files:
                 yield Diagnostic("row-extra", location, f"{path} is not an audited path")
             elif path in seen:
@@ -2250,6 +2278,440 @@ def installed_rules(check: Verification) -> Iterator[Diagnostic]:
             yield Diagnostic("installed-invalid", check.at(f"installed[{index}]"), message)
 
 
+# ---------------------------------------------------------------------------
+# Verify: the migration specification and the statement units of the discovery rule
+# ---------------------------------------------------------------------------
+
+SPEC09_DIRECTORY = ".ai/specs"
+SPEC09_NAME_RE = re.compile(r"09-.*\.md", re.DOTALL)
+SPEC09_ANY = f"{SPEC09_DIRECTORY}/09-*.md"
+SPEC09_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]+")
+DISCOVERY_RULE = "rules/phase-discovery.md"
+COVERAGE_SECTIONS = ("## Codebase Reading Rules", "## Decision Protocol")
+LIST_ITEM_RE = re.compile(r"\s*([-*+]|\d+[.)])\s")
+
+
+@dataclass(frozen=True)
+class MigrationText:
+    """The migration specification: its text, whole tokens, `###` headings and table rows."""
+
+    text: str
+    tokens: frozenset[str]
+    notes: frozenset[str]
+    table_rows: tuple[str, ...]
+
+
+def migration_text(text: str) -> MigrationText:
+    lines = [matching_text(line) for line in text.split("\n")]
+    return MigrationText(text, frozenset(SPEC09_TOKEN_RE.findall(text)),
+                         frozenset(line[4:] for line in lines if line.startswith("### ")),
+                         tuple(line for line in lines if line.startswith("| ")))
+
+
+def spec09_matches(root: Path) -> list[str]:
+    """Names of the non-directory entries of the specification directory that match
+    `09-*.md`; raises ValueError when that directory is absent, a link or unreadable."""
+    directory = root / SPEC09_DIRECTORY
+    try:
+        if not is_real_directory(directory):
+            raise ValueError("the specification directory is absent or a symbolic link")
+        with os.scandir(directory) as iterator:
+            return sorted(entry.name for entry in iterator
+                          if SPEC09_NAME_RE.fullmatch(entry.name)
+                          and not entry.is_dir(follow_symlinks=False))
+    except OSError as error:
+        raise ValueError(f"the specification directory cannot be listed ({error.strerror})"
+                         ) from None
+
+
+def read_spec09(path: Path) -> str:
+    """The strict UTF-8 text of a regular file; raises ValueError naming why it is unusable."""
+    try:
+        if entry_kind(path) == "symlink":
+            raise ValueError("is a symbolic link and is not followed")
+        data = read_regular_file(path)
+    except OSError as error:
+        raise ValueError(f"cannot be read ({error.strerror})") from None
+    except ToolError:
+        raise ValueError("is not a regular file") from None
+    text = decode_strict(data)
+    if text is None:
+        raise ValueError("is not valid UTF-8")
+    return text
+
+
+def load_migration(root: Path) -> tuple[MigrationText | None, list[Diagnostic]]:
+    """The single migration specification under the root, or one spec09-unavailable."""
+    try:
+        names = spec09_matches(root)
+    except ValueError as error:
+        return None, [Diagnostic("spec09-unavailable", f"{SPEC09_ANY}:0", str(error))]
+    if len(names) != 1:
+        reason = "no file matches" if not names else f"{len(names)} files match"
+        return None, [Diagnostic("spec09-unavailable", f"{SPEC09_ANY}:0", reason)]
+    relative = f"{SPEC09_DIRECTORY}/{names[0]}"
+    try:
+        return migration_text(read_spec09(root / relative)), []
+    except ValueError as error:
+        return None, [Diagnostic("spec09-unavailable", f"{relative}:0", f"the file {error}")]
+
+
+def section_units(lines: Sequence[Line]) -> set[int]:
+    """Unit start lines of one section body: list items, table rows other than the
+    separator, fence openings (a fenced block is one unit) and the first non-blank line
+    after a blank line or after the heading."""
+    starts: set[int] = set()
+    fence: str | None = None
+    after_blank = True
+    for line in lines:
+        text = line.text
+        if fence is not None:
+            fence = None if closes_fence(text, fence) else fence
+            continue
+        if not text.strip():
+            after_blank = True
+            continue
+        opening = FENCE_OPEN_RE.match(text)
+        row = text.strip()
+        is_row = row.startswith("|") and TABLE_SEPARATOR_RE.fullmatch(row) is None
+        if after_blank or opening or is_row or LIST_ITEM_RE.match(text):
+            starts.add(line.number)
+        fence = opening.group(1) if opening else None
+        after_blank = False
+    return starts
+
+
+def statement_units(model: TextModel) -> frozenset[int]:
+    """Unit start lines of the two coverage sections of the discovery rule."""
+    level_two = [heading for heading in model.headings if heading.level == 2]
+    units: set[int] = set()
+    for index, heading in enumerate(level_two):
+        if heading.text in COVERAGE_SECTIONS:
+            end = level_two[index + 1].line - 1 if index + 1 < len(level_two) else len(model.lines)
+            units |= section_units(model.lines[heading.line:end])
+    return frozenset(units)
+
+
+def discovery_units(root: Path) -> frozenset[int]:
+    """Statement units of the discovery rule in the root; none when it is absent, not a
+    regular file, or not decodable text."""
+    path = root / DISCOVERY_RULE
+    try:
+        if entry_kind(path) != "file":
+            return frozenset()
+    except (FileNotFoundError, NotADirectoryError):
+        return frozenset()
+    data = read_regular_file(path)
+    if encoding_of(data)[1] is None:
+        return frozenset()
+    return statement_units(build_text_model(data))
+
+
+# ---------------------------------------------------------------------------
+# Verify: the migration map
+# ---------------------------------------------------------------------------
+
+KIND_PREFIXES = ("bootstrap-", "contract-", "protocol-", "procedure-")
+CONDUCT_RULE = "rules/protocol-discovery-conduct.md"
+AUTONOMOUS_RULE = "rules/protocol-autonomous-decision.md"
+
+
+def mapped_rows(check: Verification) -> dict[str, tuple[int, JsonObject]]:
+    return first_rows(check, "map", "source")
+
+
+def targets_of(row: JsonObject) -> list[JsonObject]:
+    return objects(row["targets"])
+
+
+def target_owners(check: Verification) -> dict[str, set[str]]:
+    """Every target path of the checked entries with the sources that name it."""
+    owners: dict[str, set[str]] = {}
+    for source, (_, row) in mapped_rows(check).items():
+        for target in targets_of(row):
+            owners.setdefault(str(target["path"]), set()).add(source)
+    return owners
+
+
+def source_headings(check: Verification, source: str) -> list[str]:
+    return [str(item["heading"]) for item in objects(check.files[source]["sections"])]
+
+
+def parent_of(path: str) -> str:
+    return path.rpartition("/")[0]
+
+
+def decision_fits(source: str, row: JsonObject, owners: Mapping[str, set[str]]) -> bool:
+    paths = [str(target["path"]) for target in targets_of(row)]
+    decision, single = row["decision"], len(paths) == 1
+    if decision == "keep":
+        return single and paths[0] == source
+    if decision == "rename":
+        return single and parent_of(paths[0]) == parent_of(source) and paths[0] != source
+    if decision == "move":
+        return single and parent_of(paths[0]) != parent_of(source)
+    if decision == "split":
+        return len(paths) >= 2
+    return single and len(owners.get(paths[0], ())) > 1
+
+
+def shape_faults(check: Verification, source: str, row: JsonObject,
+                 owners: Mapping[str, set[str]]) -> list[str]:
+    targets = targets_of(row)
+    if not targets:
+        return ["the entry has no target"]
+    paths = [str(target["path"]) for target in targets]
+    faults = [] if decision_fits(source, row, owners) else [
+        f"the targets do not have the shape of a {row['decision']} decision"]
+    if len(set(paths)) != len(paths):
+        faults.append("a target path is listed twice")
+    headings = set(source_headings(check, source))
+    for target in targets:
+        reason, listed = target["merge_reason"], target["sections"]
+        if isinstance(reason, str) and not reason.strip():
+            faults.append(f"the merge_reason of {target['path']} is blank")
+        if row["decision"] != "split" and isinstance(listed, list) and not set(listed) <= headings:
+            faults.append(f"the sections of {target['path']} are not headings of the source")
+    return faults
+
+
+def shape_rules(check: Verification) -> Iterator[Diagnostic]:
+    owners = target_owners(check)
+    for source, (index, row) in mapped_rows(check).items():
+        for message in shape_faults(check, source, row, owners):
+            yield Diagnostic("map-invalid", check.at(f"map[{index}]"), message)
+
+
+def split_rules(check: Verification) -> Iterator[Diagnostic]:
+    for source, (index, row) in mapped_rows(check).items():
+        if row["decision"] != "split":
+            continue
+        listed = sorted(str(heading) for target in targets_of(row)
+                        if isinstance(target["sections"], list) for heading in target["sections"])
+        if listed != sorted(source_headings(check, source)):
+            yield Diagnostic("split-sections-incomplete", check.at(f"map[{index}]"),
+                             "the targets do not hold every section of the source exactly once")
+
+
+def collision_rules(check: Verification) -> Iterator[Diagnostic]:
+    owners = target_owners(check)
+    for source, (index, row) in mapped_rows(check).items():
+        for target in targets_of(row):
+            path = str(target["path"])
+            if len(owners[path]) > 1 and target["merge_reason"] is None:
+                yield Diagnostic("map-collision", check.at(f"map[{index}]"),
+                                 f"{path} is shared and has no merge_reason here")
+
+
+def installed_name(path: str) -> str | None:
+    """`rule-<stem>` for a top-level rule, `<stem>` for a top-level workflow, else None."""
+    rule = RULE_FILE_RE.fullmatch(path)
+    if rule is not None:
+        return f"rule-{rule.group(1)}"
+    workflow = WORKFLOW_FILE_RE.fullmatch(path)
+    return workflow.group(1) if workflow is not None else None
+
+
+def entry_target_rule(check: Verification, code: str, faulty: Mapping[str, str]
+                      ) -> Iterator[Diagnostic]:
+    """One diagnostic per checked entry and distinct target path listed in `faulty`."""
+    for _, (index, row) in mapped_rows(check).items():
+        for path in sorted({str(target["path"]) for target in targets_of(row)}):
+            if path in faulty:
+                yield Diagnostic(code, check.at(f"map[{index}]"), faulty[path])
+
+
+def installed_name_rules(check: Verification) -> Iterator[Diagnostic]:
+    folded: dict[str, set[str]] = {}
+    for path in target_owners(check):
+        name = installed_name(path)
+        if name is not None:
+            folded.setdefault(name.casefold(), set()).add(path)
+    faulty = {path: f"the installed name of {path} equals that of "
+                    f"{', '.join(sorted(paths - {path}))} under casefolding"
+              for paths in folded.values() if len(paths) > 1 for path in paths}
+    yield from entry_target_rule(check, "installed-name-collision", faulty)
+
+
+def stem_rules(check: Verification) -> Iterator[Diagnostic]:
+    paths = target_owners(check)
+    rules = {match.group(1) for path in paths if (match := RULE_FILE_RE.fullmatch(path))}
+    workflows = {match.group(1) for path in paths if (match := WORKFLOW_FILE_RE.fullmatch(path))}
+    faulty: dict[str, str] = {}
+    for stem in rules & workflows:
+        for path in (f"rules/{stem}.md", f"workflows/{stem}.md"):
+            faulty[path] = f"the stem {stem} is both a rule and a workflow"
+    yield from entry_target_rule(check, "stem-overlap", faulty)
+
+
+def prefix_rules(check: Verification) -> Iterator[Diagnostic]:
+    faulty = {path: f"the rule {path} has no kind prefix" for path in target_owners(check)
+              if (match := RULE_FILE_RE.fullmatch(path))
+              and not match.group(1).startswith(KIND_PREFIXES)}
+    yield from entry_target_rule(check, "kind-prefix-invalid", faulty)
+
+
+# ---------------------------------------------------------------------------
+# Verify: deviation from the migration defaults
+# ---------------------------------------------------------------------------
+
+def compared_targets(check: Verification, source: str, row: JsonObject) -> list[JsonObject]:
+    """The targets, with the autonomous-decision rule read as the conduct rule it replaces
+    when the discovery rule's statements are covered."""
+    targets = targets_of(row)
+    defaults = {str(item["path"]) for item in objects(row["spec09_default"])}
+    paths = {str(target["path"]) for target in targets}
+    if (source == DISCOVERY_RULE and check.doc["req21"]["verdict"] == "covered"
+            and CONDUCT_RULE in defaults and CONDUCT_RULE not in paths):
+        return [target | {"path": CONDUCT_RULE} if target["path"] == AUTONOMOUS_RULE else target
+                for target in targets]
+    return targets
+
+
+def deviates(check: Verification, source: str, row: JsonObject) -> bool:
+    if row["spec09_default"] is None:
+        return True
+    defaults = objects(row["spec09_default"])
+    targets = compared_targets(check, source, row)
+    default_paths = {str(item["path"]) for item in defaults}
+    target_paths = {str(item["path"]) for item in targets}
+    optional = {str(path) for path in cast(list[str], row["spec09_optional"])}
+    if not default_paths <= target_paths or not target_paths - default_paths <= optional:
+        return True
+    return any(listed_sections(targets, str(default["path"])) != sorted(default["sections"])
+               for default in defaults if default["sections"] is not None)
+
+
+def listed_sections(targets: Sequence[JsonObject], path: str) -> list[str]:
+    """The sections that the targets with one path list together, in sorted order."""
+    return sorted(str(heading) for target in targets
+                  if target["path"] == path and isinstance(target["sections"], list)
+                  for heading in target["sections"])
+
+
+def deviation_rules(check: Verification) -> Iterator[Diagnostic]:
+    for source, (index, row) in mapped_rows(check).items():
+        amendment, location = row["amendment"], check.at(f"map[{index}]")
+        known = amendment in check.amendment_ids
+        if amendment is not None and not known:
+            yield Diagnostic("reference-unknown", location, f"amendment {amendment} does not exist")
+        if not known and deviates(check, source, row):
+            yield Diagnostic("deviation-unamended", location,
+                             "the targets deviate from the migration default without an amendment")
+
+
+# ---------------------------------------------------------------------------
+# Verify: amendments
+# ---------------------------------------------------------------------------
+
+NEW_TARGETS = ("new-REQ", "new-AC")
+IDENTIFIER_TARGET_RE = re.compile(r"(REQ|AC|DM|A|Q)-\d+")
+CRITERION_ID_RE = re.compile(r"AC-\d+")
+FINDING_ID_RE = re.compile(r"AUD-08-\d{3}")
+NOTES_PREFIX = "Notes:"
+TERMINOLOGY_PREFIX = "Terminology:"
+
+
+def target_exists(migration: MigrationText, target: str) -> bool:
+    """Whether a target satisfies one of the amendment target forms against the text."""
+    if IDENTIFIER_TARGET_RE.fullmatch(target):
+        return target in migration.tokens
+    if target.startswith(NOTES_PREFIX):
+        heading = target[len(NOTES_PREFIX):]
+        return bool(heading) and heading in migration.notes
+    if target.startswith(TERMINOLOGY_PREFIX):
+        term = target[len(TERMINOLOGY_PREFIX):]
+        return bool(term) and any(row.startswith(f"| {term} |") for row in migration.table_rows)
+    return False
+
+
+def current_faults(migration: MigrationText | None, row: JsonObject) -> list[str]:
+    current = row["current"]
+    if row["target"] in NEW_TARGETS:
+        return [] if current is None else ["a new requirement or criterion has no current text"]
+    if current is None:
+        return ["current is null for an existing target"]
+    if migration is not None and current not in migration.text:
+        return ["current is not the exact text of the migration specification"]
+    return []
+
+
+def amendment_faults(migration: MigrationText | None, row: JsonObject) -> list[str]:
+    evidence = cast(list[str], row["evidence"])
+    faults = [] if evidence else ["evidence is empty"]
+    faults += [f'evidence "{item}" is not a finding id or path:line' for item in evidence
+               if not (FINDING_ID_RE.fullmatch(item) or EVIDENCE_LINE_RE.fullmatch(item))]
+    faults += current_faults(migration, row)
+    faults += [f"{key} is blank" for key in ("proposed", "reason") if not str(row[key]).strip()]
+    faults += [f'affected "{item}" is not an acceptance criterion id'
+               for item in cast(list[str], row["affected"]) if not CRITERION_ID_RE.fullmatch(item)]
+    return faults
+
+
+def target_faults(migration: MigrationText, row: JsonObject) -> list[str]:
+    target = str(row["target"])
+    faults = [] if target in NEW_TARGETS or target_exists(migration, target) else [
+        f'target "{target}" is not found in the migration specification']
+    faults += [f"affected {item} is not a whole token of the migration specification"
+               for item in cast(list[str], row["affected"])
+               if CRITERION_ID_RE.fullmatch(item) and item not in migration.tokens]
+    return faults
+
+
+def amendment_references(check: Verification, row: JsonObject) -> list[str]:
+    missing = [f"finding {item} does not exist" for item in cast(list[str], row["evidence"])
+               if FINDING_ID_RE.fullmatch(item) and item not in check.findings]
+    return missing + [f"amendment {item} does not exist"
+                      for item in cast(list[str], row["depends_on"])
+                      if item not in check.amendment_ids]
+
+
+def amendment_rules(check: Verification) -> Iterator[Diagnostic]:
+    for row in check.rows("amendments"):
+        location = check.at(str(row["id"]))
+        for message in amendment_faults(check.migration, row):
+            yield Diagnostic("amendment-invalid", location, message)
+        if check.migration is not None:
+            for message in target_faults(check.migration, row):
+                yield Diagnostic("amendment-target-unknown", location, message)
+        for message in amendment_references(check, row):
+            yield Diagnostic("reference-unknown", location, message)
+
+
+# ---------------------------------------------------------------------------
+# Verify: statement coverage of the discovery rule
+# ---------------------------------------------------------------------------
+
+STATEMENT_SOURCE_RE = re.compile(re.escape(DISCOVERY_RULE) + r":([1-9]\d{0,8})")
+
+
+def statement_line(source: str) -> int | None:
+    found = STATEMENT_SOURCE_RE.fullmatch(source)
+    return int(found.group(1)) if found is not None else None
+
+
+def statement_rules(check: Verification) -> Iterator[Diagnostic]:
+    record = cast(JsonObject, check.doc["req21"])
+    statements = objects(record["statements"])
+    seen: set[int] = set()
+    for index, item in enumerate(statements):
+        line, location = statement_line(str(item["source"])), check.at(f"req21.statements[{index}]")
+        if line is None or line not in check.units:
+            yield Diagnostic("req21-invalid", location,
+                             f"{item['source']} is not a statement unit of the two sections")
+        elif line in seen:
+            yield Diagnostic("req21-invalid", location, f"{item['source']} is listed twice")
+        if line is not None:
+            seen.add(line)
+    for line in sorted(check.units - seen):
+        yield Diagnostic("req21-invalid", f"{DISCOVERY_RULE}:{line}",
+                         "the statement unit has no statement")
+    covered = all(item["covered_by"] is not None for item in statements)
+    if (record["verdict"] == "covered") != covered:
+        yield Diagnostic("req21-invalid", check.at("req21"),
+                         "the verdict contradicts the covered_by values")
+
+
 def strings_in(value: object) -> Iterator[str]:
     """Every string in a JSON value in document order, walked with an explicit stack."""
     pending = [value]
@@ -2285,7 +2747,9 @@ def economics_rules(check: Verification) -> Iterator[Diagnostic]:
 ASSESSMENT_RULES: tuple[Callable[[Verification], Iterable[Diagnostic]], ...] = (
     digest_rule, row_rules, stale_row_rules, section_rules, repetition_rules, load_rules,
     candidate_rules, legacy_rules, group_rules, finding_rules, defect_rules, coverage_rules,
-    installed_rules, economics_rules,
+    installed_rules, shape_rules, split_rules, collision_rules, installed_name_rules,
+    stem_rules, prefix_rules, deviation_rules, amendment_rules, statement_rules,
+    economics_rules,
 )
 
 
@@ -2311,13 +2775,14 @@ def verify_diagnostics(root: Path, report: Path, strict: bool) -> list[Diagnosti
     assessment, problems = checked_document(
         load_document(paths[1], display_name(paths[1], root), "assessment"),
         ASSESSMENT_SCHEMA, "assessment-invalid")
-    found += problems
+    migration, unavailable = load_migration(root)
+    found += problems + unavailable
     if inventory is not None:
         found += worktree_diagnostics(inventory) + stale_diagnostics(root, inventory)
         if strict:
             found += strict_diagnostics(root, inventory)
     if inventory is not None and assessment is not None:
-        check = verification(inventory, assessment)
+        check = verification(inventory, assessment, migration, discovery_units(root))
         found += [item for rule in ASSESSMENT_RULES for item in rule(check)]
     return found
 
