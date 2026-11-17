@@ -301,16 +301,27 @@ def read_regular_file(path: Path) -> bytes:
         return handle.read()
 
 
-def tree_below(root: Path, top: str) -> Iterator[tuple[str, bool]]:
-    """Yield every entry below `top` with whether it is a real directory; links stay unfollowed."""
+def sorted_children(root: Path, top: str) -> list[tuple[str, bool]]:
+    """The entries directly below `top` in name order, with whether each is a real directory."""
     with os.scandir(root / top) as iterator:
         children = sorted(iterator, key=lambda child: child.name)
-    for child in children:
-        relative = f"{top}/{child.name}"
-        is_directory = child.is_dir(follow_symlinks=False)
-        yield relative, is_directory
-        if is_directory:
-            yield from tree_below(root, relative)
+    return [(f"{top}/{child.name}", child.is_dir(follow_symlinks=False)) for child in children]
+
+
+def tree_below(root: Path, top: str) -> Iterator[tuple[str, bool]]:
+    """Yield every entry below `top` depth first in name order; links stay unfollowed.
+
+    The walk keeps its own stack, so directory depth is not limited by recursion.
+    """
+    pending = [iter(sorted_children(root, top))]
+    while pending:
+        entry = next(pending[-1], None)
+        if entry is None:
+            pending.pop()
+            continue
+        yield entry
+        if entry[1]:
+            pending.append(iter(sorted_children(root, entry[0])))
 
 
 def audited_paths(root: Path) -> tuple[dict[str, str], frozenset[str]]:
@@ -2238,14 +2249,16 @@ def installed_rules(check: Verification) -> Iterator[Diagnostic]:
 
 
 def strings_in(value: object) -> Iterator[str]:
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, dict):
-        for item in value.values():
-            yield from strings_in(item)
-    elif isinstance(value, list):
-        for item in value:
-            yield from strings_in(item)
+    """Every string in a JSON value in document order, walked with an explicit stack."""
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, str):
+            yield item
+        elif isinstance(item, dict):
+            pending.extend(reversed(list(item.values())))
+        elif isinstance(item, list):
+            pending.extend(reversed(item))
 
 
 def economic_claims(location: str, value: object) -> Iterator[Diagnostic]:
