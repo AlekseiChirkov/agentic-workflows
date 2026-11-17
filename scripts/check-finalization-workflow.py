@@ -284,6 +284,16 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertEqual(sorted(ranks), ranks,
                          'Every integration checkout/refresh must precede any cleanup; remote deletion precedes local deletion')
 
+    def test_pending_refresh_on_integration_checkout_is_incomplete(self) -> None:
+        self.test_local_integration_behind_live_remote_gets_safe_refresh_plan()
+        self.git(self.repo, 'checkout', 'main')
+        result = self.call()
+        self.assertEqual('ready', result['status'], result)
+        self.assertTrue(any(row['kind'] == 'refresh' for row in result['actions']))
+        self.assertFalse(any(row['kind'] == 'checkout' for row in result['actions']))
+        self.assertEqual('incomplete', result['outcomes']['checkout'],
+                         'An integration branch still awaiting FF refresh is not a completed checkout')
+
     def test_required_deployment_unknown_remains_independent(self) -> None:
         self.test_required_deployment_without_dated_revision_environment_evidence_blocks_finish()
 
