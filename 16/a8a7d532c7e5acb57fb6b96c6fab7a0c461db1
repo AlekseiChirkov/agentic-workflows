@@ -1,0 +1,25 @@
+scripts/finalization_archive.py
+  s_ba687a06b17902::t_2ddcc22bfad41d 1-322
+scripts/finalization_evidence.py
+  s_ba687a06b17902::t_25568046df2403 1-533
+scripts/finalization_support.py
+  s_ba687a06b17902::t_334d6a4547c500 1-272
+scripts/phase-finalize.py
+  s_ba687a06b17902::t_e62add0504d313 1-439
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "16a8a7d532c7e5acb57fb6b96c6fab7a0c461db1",
+  "prompts": {},
+  "sessions": {
+    "s_ba687a06b17902": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e93f-54f4-7363-9037-6892b0ec2bc0",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
