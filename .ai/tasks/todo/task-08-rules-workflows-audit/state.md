@@ -377,3 +377,24 @@ adr: not triggered — the specification already fixes the contract and states t
 ### Optional
 - P4: match the stop marker case-insensitively and outside spans (V4)
 - P5: state in DM-6 that full-output, harness-name, legacy and call detection read only `utf-8` audited files (V5)
+
+## Improvement Proposals (T-04)
+
+### Do Now
+- P1: add boundary tests that kill the surviving mutants — a backslash in a copied string printed as `\x5c`, U+2028 and U+0085 in a copied string escaped, a `root-unreadable` `ERROR:` line for a file name holding a line break kept on one line, and a direct `write_lines` case on an `ascii` stream escaping a non-encodable character (V13)
+- P2: state the output escape convention in the module docstring of `scripts/audit-instructions.py` — control, surrogate, line-separator and non-encodable characters and the backslash as `\xNN`, `\uNNNN` or `\UNNNNNNNN`, and a space inside a code or location as `\x20` (V17)
+
+### Do Later
+- P3: spec-sync — define the character set of locations and messages and record the escape convention as the output grammar of `verify` and the `ERROR:` line (V2, V11)
+- P4: spec-sync — state whether a relative `--report` resolves against the current directory or `--root` (V4)
+- P5: spec-sync — state whether checks of the assessment alone (economics, installed under `not-verified`, finding status and severity) run while the inventory is missing or invalid (V5)
+- P6: spec-sync — decide whether plain `verify` reports a non-file audited entry that changes kind (`symlink` to `other`), which today only `--strict` reports (V6)
+- P7: spec-sync — define symbolic links for the inventory and assessment files: display name and reading a linked file outside the root (V8)
+- P8: spec-sync — decide whether finding evidence `path:line` must name a repository path (today `/abs/GUIDE.md:1` is accepted, `/abs/GUIDE.md` rejected)
+- P9: spec-sync — record that the reader walk `os.walk` is recursive on Python 3.11, so a reader directory chain deeper than the recursion limit can still raise there, or require an iterative walk
+- P10: spec-sync — decide whether `--help` is allowed to print usage and exit 0, or must be a usage error with exit 2 (V15)
+- P11: spec-sync — decide the exit for a failing standard output (`/dev/full`, a closed pipe), today 120 from the interpreter (V16)
+
+### Optional
+- P12: escape every Unicode space separator (Zs) inside a location, not only U+0020, with a test (V12)
+- P13: escape a quote inside a quoted message value, or drop the quotes, so the value's end is unambiguous (V14)
