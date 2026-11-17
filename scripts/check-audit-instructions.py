@@ -3156,5 +3156,113 @@ class VerifyParseLimitTests(SharedVerifyCase):
                 self.assert_reports(result, [(f"{name}-invalid", f"{path}:0")])
 
 
+def run_tool_bytes(arguments: list[bytes], env: dict[str, str], cwd: Path
+                   ) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run([os.fsencode(sys.executable), b"-I", os.fsencode(TOOL), *arguments],
+                          cwd=cwd, env=env, capture_output=True, timeout=60)
+
+
+def output_lines(data: bytes) -> list[str]:
+    """Decode tool output strictly as UTF-8 and split it into lines."""
+    try:
+        return data.decode("utf-8").splitlines()
+    except UnicodeDecodeError as error:
+        raise AssertionError(f"the output is not valid UTF-8: {data!r}") from error
+
+
+def locale_available(name: str) -> bool:
+    """Whether the C library knows a locale; the process locale is restored afterwards."""
+    import locale
+    saved = locale.setlocale(locale.LC_CTYPE)
+    try:
+        locale.setlocale(locale.LC_CTYPE, name)
+    except locale.Error:
+        return False
+    finally:
+        locale.setlocale(locale.LC_CTYPE, saved)
+    return True
+
+
+class VerifyOutputBoundaryTests(SharedVerifyCase):
+    def test_duplicate_key_with_an_unpaired_surrogate_is_one_invalid_line(self) -> None:
+        injected = '{"\\ud800": 1, "\\ud800": 2, '
+        original = (self.fixture.root / INVENTORY_PATH).read_text(encoding="utf-8")
+        cases = (("assessment", canonical(self.assessment).replace("{", injected, 1), original),
+                 ("inventory", None, original.replace("{", injected, 1)))
+        for name, assessment_text, inventory_text in cases:
+            with self.subTest(file=name):
+                restore = self.rewrite_inventory(inventory_text)
+                try:
+                    (self.fixture.root / ASSESSMENT_PATH).write_text(
+                        assessment_text or canonical(self.assessment), encoding="utf-8")
+                    result = run_tool_bytes(
+                        [b"verify", b"--root", os.fsencode(self.fixture.root), b"--report",
+                         os.fsencode(self.fixture.root / REPORT_PATH)],
+                        self.fixture.env, self.fixture.base)
+                finally:
+                    restore()
+                self.assertNotIn(b"Traceback", result.stderr)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                lines = output_lines(result.stdout)
+                path = ASSESSMENT_PATH if name == "assessment" else INVENTORY_PATH
+                self.assertEqual(len(lines), 1, lines)
+                self.assertTrue(lines[0].startswith(f"{name}-invalid {path}:0 "), lines)
+
+    def test_line_break_in_a_copied_string_stays_on_one_output_line(self) -> None:
+        extra = coverage_row({"path": "rules/a b\nc.md", "entry": "file", "encoding": "utf-8",
+                              "sha256": "0" * 64})
+        self.assessment["coverage"].append(extra)
+        position = len(self.assessment["coverage"]) - 1
+        result = self.verify()
+        self.assertEqual(len(result.stdout.splitlines()), 1, result.stdout)
+        self.assert_reports(result, [("row-extra", assessment_at(f"coverage[{position}]"))])
+        self.assertNotIn("\n", result.stdout.rstrip("\n"))
+
+
+class VerifyOutputBoundaryTreeTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+    verify = VerifyTreeTests.verify
+
+    def test_report_path_with_a_byte_that_is_not_utf8_is_escaped_in_every_locale(
+            self) -> None:
+        fixture, _ = self.build("bytes")
+        report = os.fsencode(fixture.root / "docs/audits") + b"/\xff-x.md"
+        for locale_name in ("C", "C.UTF-8", "en_US.UTF-8"):
+            with self.subTest(locale=locale_name):
+                if not locale_available(locale_name):
+                    self.skipTest(f"the locale {locale_name} is not installed")
+                env = dict(fixture.env, LC_ALL=locale_name)
+                result = run_tool_bytes([b"verify", b"--root", os.fsencode(fixture.root),
+                                         b"--report", report], env, fixture.base)
+                self.assertNotIn(b"Traceback", result.stderr)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(sorted(output_lines(result.stdout)), [
+                    "assessment-missing docs/audits/\\udcff-x.assessment.json:0 "
+                    "the file does not exist",
+                    "inventory-missing docs/audits/\\udcff-x.inventory.json:0 "
+                    "the file does not exist",
+                ])
+
+    def test_space_and_line_break_in_an_audited_path_are_escaped_in_its_location(
+            self) -> None:
+        fixture, _ = self.build("newline")
+        fixture.write("rules/a b\nc.md", "# A\n")
+        result = self.verify(fixture)
+        self.assertEqual(len(result.stdout.splitlines()), 1, result.stdout)
+        self.assert_reports(result, [("inventory-stale", "rules/a\\x20b\\x0ac.md:0")])
+
+    def test_error_line_with_a_line_break_in_an_argument_stays_one_line(self) -> None:
+        fixture, _ = self.build("argument")
+        result = run_tool(["verify", "--root", str(fixture.root), "--report",
+                           str(fixture.root / REPORT_PATH), "extra\nargument"],
+                          fixture.env, fixture.base)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        lines = result.stderr.splitlines()
+        self.assertEqual(len(lines), 1, lines)
+        self.assertTrue(lines[0].startswith("ERROR: "), lines)
+
+
 if __name__ == "__main__":
     unittest.main()
