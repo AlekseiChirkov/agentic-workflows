@@ -1,0 +1,19 @@
+scripts/check-finalization-workflow.py
+  s_ba687a06b17902::t_57ae020968512d 836-863
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5e6eae74ec1d0e5ef9bba896f3dd8b1786e3f623",
+  "prompts": {},
+  "sessions": {
+    "s_ba687a06b17902": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e93f-54f4-7363-9037-6892b0ec2bc0",
+        "model": "unknown"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
