@@ -63,11 +63,12 @@ import re
 import stat
 import subprocess
 import tempfile
+import unicodedata
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NoReturn, cast
+from typing import NoReturn, TextIO, cast
 
 SCHEMA_VERSION = 1
 METHOD_VERSION = "08-extract-1"
@@ -473,9 +474,8 @@ def require_utf8_paths(paths: Iterable[str]) -> None:
         try:
             path.encode("utf-8")
         except UnicodeEncodeError:
-            escaped = path.encode("utf-8", "surrogateescape").decode("ascii", "backslashreplace")
             raise ToolError("root-unreadable",
-                            f"a file name is not valid UTF-8: {escaped}") from None
+                            f"a file name is not valid UTF-8: {path}") from None
 
 
 # ---------------------------------------------------------------------------
@@ -1463,7 +1463,7 @@ def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> JsonObject:
     keys = [key for key, _ in pairs]
     duplicates = sorted({key for key in keys if keys.count(key) > 1})
     if duplicates:
-        raise JsonRejected(f"duplicate key {json.dumps(duplicates[0], ensure_ascii=False)}")
+        raise JsonRejected(f'duplicate key "{duplicates[0]}"')
     return dict(pairs)
 
 
@@ -1716,11 +1716,6 @@ ASSESSMENT_SCHEMA: Schema = {
 }
 
 
-def fragment(text: str) -> str:
-    """A location fragment that keeps a diagnostic line free of spaces and line breaks."""
-    return text if SAFE_FRAGMENT_RE.fullmatch(text) else json.dumps(text).replace(" ", "\\u0020")
-
-
 def entry_location(key: str, index: int, entry: object) -> str:
     """The id of an entry that has a well-formed one, otherwise `<key>[<index>]`."""
     identifier = entry.get("id") if isinstance(entry, dict) else None
@@ -1742,7 +1737,8 @@ def list_diagnostics(name: str, code: str, key: str, value: object, schema: List
         elif schema.unique is not None:
             identity = json.dumps(cast(JsonObject, entry)[schema.unique])
             if identity in seen:
-                yield Diagnostic(code, location, f"duplicate {schema.unique} {identity}")
+                value = cast(JsonObject, entry)[schema.unique]
+                yield Diagnostic(code, location, f'duplicate {schema.unique} "{value}"')
             seen.add(identity)
 
 
@@ -1751,7 +1747,7 @@ def schema_diagnostics(document: Document, schema: Schema, code: str) -> list[Di
     value = document.value
     if not isinstance(value, dict):
         return [Diagnostic(code, f"{document.name}:0", "the top level is not a JSON object")]
-    found = [Diagnostic(code, f"{document.name}#{fragment(key)}", "unknown key")
+    found = [Diagnostic(code, f"{document.name}#{key}", "unknown key")
              for key in value if key not in schema]
     for key, check in schema.items():
         location = f"{document.name}#{key}"
@@ -2154,7 +2150,7 @@ def ownership_faults(check: Verification, finding: JsonObject) -> list[str]:
     if kind == "accepted-observation" and (finding["severity"] != "minor" or finding["blocks_09"]):
         faults.append("an accepted observation is minor and does not block")
     if finding["status"] not in ("open", "historical-fixed"):
-        faults.append(f"status {json.dumps(finding['status'])} is not open or historical-fixed")
+        faults.append(f"status \"{finding['status']}\" is not open or historical-fixed")
     return faults
 
 
@@ -2167,14 +2163,14 @@ def source_faults(check: Verification, finding: JsonObject) -> list[str]:
     faults = [f"line {line} lies outside the source" for line in cast(list[int], finding["lines"])
               if not 1 <= line <= limit]
     if not section_valid(check, source, str(finding["section"])):
-        faults.append(f"section {json.dumps(finding['section'])} is not a section of the source")
+        faults.append(f"section \"{finding['section']}\" is not a section of the source")
     return faults
 
 
 def evidence_faults(finding: JsonObject) -> list[str]:
     evidence = cast(list[str], finding["evidence"])
     faults = [] if evidence else ["evidence is empty"]
-    faults += [f"evidence {json.dumps(item)} is not path:line, a path or an amendment id"
+    faults += [f"evidence \"{item}\" is not path:line, a path or an amendment id"
                for item in evidence if not (EVIDENCE_LINE_RE.fullmatch(item)
                                             or AMENDMENT_ID_RE.fullmatch(item)
                                             or is_repository_path(item))]
@@ -2272,8 +2268,8 @@ def economic_claims(location: str, value: object) -> Iterator[Diagnostic]:
         for pattern in ECONOMICS_PATTERNS:
             found = pattern.search(text)
             if found is not None:
-                amount = json.dumps(found.group(0), ensure_ascii=False)
-                yield Diagnostic("economics-claim", location, f"names an amount: {amount}")
+                yield Diagnostic("economics-claim", location,
+                                 f'names an amount: "{found.group(0)}"')
                 break
 
 
@@ -2334,9 +2330,68 @@ def run_verify(root: Path, report: Path, strict: bool) -> int:
         diagnostics = sorted(verify_diagnostics(root, report, strict))
     except OSError as error:
         raise ToolError("root-unreadable", f"cannot read the root ({error.strerror})") from error
-    sys.stdout.write("".join(f"{item.code} {item.location} {item.message}\n"
-                             for item in diagnostics))
+    write_lines(sys.stdout, [diagnostic_line(item) for item in diagnostics])
     return 1 if diagnostics else 0
+
+
+# ---------------------------------------------------------------------------
+# Output boundary
+# ---------------------------------------------------------------------------
+
+LINE_BREAKING_CATEGORIES = frozenset({"Cc", "Cs", "Zl", "Zp"})
+
+
+def escaped_character(character: str) -> str:
+    code = ord(character)
+    if code < 0x100:
+        return f"\\x{code:02x}"
+    return f"\\u{code:04x}" if code < 0x10000 else f"\\U{code:08x}"
+
+
+def encodable(character: str, encoding: str) -> bool:
+    try:
+        character.encode(encoding)
+    except (UnicodeEncodeError, LookupError):
+        return False
+    return True
+
+
+def needs_escape(character: str, encoding: str, in_location: bool) -> bool:
+    """Backslash, control, surrogate and separator characters, and what the stream cannot hold."""
+    if character == "\\" or (in_location and character == " "):
+        return True
+    return (unicodedata.category(character) in LINE_BREAKING_CATEGORIES
+            or not encodable(character, encoding))
+
+
+def output_text(text: str, encoding: str, in_location: bool = False) -> str:
+    """Text that encodes on the stream, holds no line break and, in a location, no space."""
+    return "".join(escaped_character(character)
+                   if needs_escape(character, encoding, in_location) else character
+                   for character in text)
+
+
+def stream_encoding(stream: TextIO) -> str:
+    return getattr(stream, "encoding", None) or "ascii"
+
+
+def diagnostic_line(item: Diagnostic) -> tuple[str, str, str]:
+    return item.code, item.location, item.message
+
+
+def write_lines(stream: TextIO, lines: Sequence[str | tuple[str, str, str]]) -> None:
+    """Write each line escaped: an error line as text, a diagnostic as code, location, message."""
+    encoding = stream_encoding(stream)
+    rendered: list[str] = []
+    for line in lines:
+        if isinstance(line, tuple):
+            code, location, message = line
+            rendered.append(" ".join((output_text(code, encoding, True),
+                                      output_text(location, encoding, True),
+                                      output_text(message, encoding))))
+        else:
+            rendered.append(output_text(line, encoding))
+    stream.write("".join(f"{line}\n" for line in rendered))
 
 
 # ---------------------------------------------------------------------------
@@ -2376,9 +2431,9 @@ def main(argv: Sequence[str]) -> int:
             return run_verify(root, arguments.report, arguments.strict)
         return run_extract(root, arguments.out)
     except UsageError as error:
-        sys.stderr.write(f"ERROR: usage: {error}\n")
+        write_lines(sys.stderr, [f"ERROR: usage: {error}"])
     except ToolError as error:
-        sys.stderr.write(f"ERROR: {error}\n")
+        write_lines(sys.stderr, [f"ERROR: {error}"])
     return 2
 
 
