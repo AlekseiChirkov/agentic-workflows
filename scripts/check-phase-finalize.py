@@ -274,7 +274,7 @@ T-01 | Deliver product | atomic-tests: green | atomic-execution: complete | atom
         self.blocked(self.call(), 'branch-in-worktree')
 
     def test_protected_candidate_cannot_be_deleted(self) -> None:
-        self.git(self.repo, 'config', 'orchestrail.protectedBranches', 'feat/delivery')
+        self.git(self.repo, 'config', 'orchestrail.protectedBranch', 'feat/delivery')
         self.blocked(self.call(), 'branch-protected')
 
     def test_prepare_requires_explicit_invocation_authorization(self) -> None:
@@ -543,6 +543,7 @@ T-01 | Deliver product | atomic-tests: green | atomic-execution: complete | atom
         second_block = f'T-02 | Client | atomic-tests: green | atomic-execution: complete | atomic-validation: complete\n  repo: client\n  branch: feat/client\n  base_branch: main\n  base_commit: {base}\n  commits: {tip} feat: deliver client\n  blocker: none\n  notes: reviewed\n'
         state = state.replace('## Solution Design', second_block + '## Solution Design')
         (self.task / 'state.md').write_text(state)
+        (self.task / 'plan.md').write_text('## Subtasks\n| ID | Name | Depends On | Status |\n|---|---|---|---|\n| T-01 | Deliver | — | reviewed |\n| T-02 | Client | T-01 | reviewed |\n')
         self.blocked(self.call(), 'integration-unverified')
         self.git(second, 'merge', '--no-ff', 'feat/client', '-m', 'merge: integrate client')
         result = self.call()
