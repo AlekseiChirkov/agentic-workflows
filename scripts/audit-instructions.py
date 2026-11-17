@@ -9,8 +9,11 @@ Usage:
   python3 -I scripts/audit-instructions.py extract [--root DIR] --out FILE
       Write the inventory (audited files with their text structure, readers, git state,
       a digest over both lists, and every reference edge from a decoded audited file or
-      reader to audited files, with its form, context, status, flags and targets) as
-      canonical JSON to FILE. FILE is written to a temporary file in its own directory
+      reader to audited files, with its form, context, status, flags and targets; then
+      the candidates: loads repeated by a workflow and a workflow it calls, full-output
+      and harness-name lines, legacy-integration mentions and verbatim duplicate text
+      units; text copied from audited files writes `/home/<name>/` and `/Users/<name>/`
+      as `~/`) as canonical JSON to FILE. FILE is written to a temporary file in its own directory
       and moved into place. `is_defect_edge` is the defect predicate over one edge.
       --root defaults to the parent of the scripts/ directory that holds this file.
 
@@ -990,6 +993,267 @@ def is_defect_edge(edge: Mapping[str, object]) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Candidates: repeated loads through workflow calls
+# ---------------------------------------------------------------------------
+
+CALL_VERB_RE = re.compile(r"\b(run|runs|invoke|invokes|call|calls|execute|executes|delegate|"
+                          r"delegates|spawn|spawns)\b", re.IGNORECASE)
+NEGATION_RE = re.compile(r"\b(not|never|no)\b|n't\b", re.IGNORECASE)
+CLAUSE_DELIMITERS = ".;:,—→()"
+STOP_MARKER = "**stop**"
+CALL_CONTEXTS = frozenset({"span", "text"})
+
+
+@dataclass(frozen=True)
+class MarkdownFile:
+    """A decoded audited Markdown file with its text model."""
+
+    path: str
+    model: TextModel
+
+
+def markdown_files(audited: Sequence[AuditedFile]) -> list[MarkdownFile]:
+    """Audited `.md` files whose encoding is `utf-8`, in path order."""
+    return [MarkdownFile(item.path, build_text_model(item.data))
+            for item in sorted(audited, key=lambda found: found.path)
+            if item.path.endswith(".md") and item.data is not None
+            and encoding_of(item.data)[0] == "utf-8"]
+
+
+def without_spans(text: str) -> str:
+    """The line with every span, backticks included, replaced by spaces of equal length."""
+    characters = list(text)
+    for span in spans_of(text):
+        characters[span.open:span.close + 1] = [" "] * (span.close + 1 - span.open)
+    return "".join(characters)
+
+
+def call_clause(text: str, column: int) -> str:
+    """The span-free text after the last clause delimiter before `column`, up to it."""
+    before = without_spans(text)[:column]
+    start = max(before.rfind(delimiter) for delimiter in CLAUSE_DELIMITERS) + 1
+    return before[start:]
+
+
+def is_call(text: str, column: int) -> bool:
+    """A call verb in the clause, no negation before it, and no earlier stop marker."""
+    if STOP_MARKER in text[:column]:
+        return False
+    clause = call_clause(text, column)
+    verb = CALL_VERB_RE.search(clause)
+    return verb is not None and NEGATION_RE.search(clause[:verb.start()]) is None
+
+
+def invocable_workflows(files: Sequence[MarkdownFile]) -> dict[str, MarkdownFile]:
+    """Top-level workflows with at least one `Invocation:` line, by path."""
+    return {item.path: item for item in files
+            if WORKFLOW_FILE_RE.fullmatch(item.path) and invocation_line_count(item.model) > 0}
+
+
+def target_paths(edge: Mapping[str, object]) -> list[str]:
+    targets = edge["targets"]
+    return [str(target["path"]) for target in targets] if isinstance(targets, list) else []
+
+
+def is_call_edge(edge: Mapping[str, object], callers: Mapping[str, MarkdownFile]) -> bool:
+    """A resolved span or text command from an invocable workflow to another workflow."""
+    caller = callers.get(str(edge["source"]))
+    if (caller is None or edge["form"] != "command" or edge["status"] != "resolved"
+            or edge["context"] not in CALL_CONTEXTS or caller.path in target_paths(edge)):
+        return False
+    text = caller.model.lines[int(str(edge["line"])) - 1].text
+    return is_call(text, int(str(edge["column"])))
+
+
+def call_pairs(edges: Sequence[JsonObject], callers: Mapping[str, MarkdownFile]
+               ) -> set[tuple[str, str]]:
+    return {(str(edge["source"]), callee) for edge in edges if is_call_edge(edge, callers)
+            for callee in target_paths(edge)}
+
+
+def single_target_loads(edges: Sequence[JsonObject]) -> dict[str, set[str]]:
+    """The targets each source loads through load edges that have exactly one target."""
+    loads: dict[str, set[str]] = {}
+    for edge in edges:
+        targets = target_paths(edge)
+        if edge["load"] is True and len(targets) == 1:
+            loads.setdefault(str(edge["source"]), set()).add(targets[0])
+    return loads
+
+
+def repeat_loads(files: Sequence[MarkdownFile], edges: Sequence[JsonObject]
+                 ) -> list[JsonObject]:
+    """One entry per call pair and target both workflows load, ordered and numbered."""
+    loads = single_target_loads(edges)
+    rows = [(caller, callee, target)
+            for caller, callee in call_pairs(edges, invocable_workflows(files))
+            for target in loads.get(caller, set()) & loads.get(callee, set())]
+    return [{"id": f"RL-{number:03d}", "caller": caller, "callee": callee, "target": target}
+            for number, (caller, callee, target) in enumerate(sorted(rows), start=1)]
+
+
+# ---------------------------------------------------------------------------
+# Candidates: full-output and harness-name lines, legacy mentions
+# ---------------------------------------------------------------------------
+
+FULL_WORD_RE = re.compile(r"\b(full|entire|complete|whole|verbatim|raw|unabridged)\b",
+                          re.IGNORECASE)
+OUTPUT_WORD_RE = re.compile(r"\b(outputs?|logs?|diffs?|transcripts?|stdout|stderr)\b",
+                            re.IGNORECASE)
+HARNESS_NAME_RE = re.compile(r"\b(claude code|claude|codex)\b", re.IGNORECASE)
+LEGACY_TERM_RE = re.compile(r"windsurf|codeium|\bdevin\b", re.IGNORECASE)
+LEGACY_SUFFIXES = (".md", ".json")
+CANDIDATE_TEXT_LIMIT = 160
+# A home directory prefix `/home/<name>/` or `/Users/<name>/` that starts a path.
+HOME_PREFIX_RE = re.compile(r"(?<![\w./~-])/(?:home|Users)/[^/\s]+/")
+
+
+def home_relative(text: str) -> str:
+    """Text copied from an audited file, with home directory prefixes written as `~/`."""
+    return HOME_PREFIX_RE.sub("~/", text)
+
+
+def candidate_text(text: str) -> str:
+    """The line made home-relative, whitespace runs collapsed, cut to the text limit."""
+    return " ".join(home_relative(text).split())[:CANDIDATE_TEXT_LIMIT]
+
+
+def is_full_output_line(text: str) -> bool:
+    return FULL_WORD_RE.search(text) is not None and OUTPUT_WORD_RE.search(text) is not None
+
+
+def is_harness_name_line(text: str) -> bool:
+    return HARNESS_NAME_RE.search(text) is not None
+
+
+def line_candidates(files: Sequence[MarkdownFile], prefix: str,
+                    matches: Callable[[str], bool]) -> list[JsonObject]:
+    """Matching lines outside fences and front matter, numbered in path then line order."""
+    found = [(item.path, line) for item in files for line in item.model.lines
+             if line.zone == ZONE_BODY and matches(line.text)]
+    return [{"id": f"{prefix}-{number:03d}", "source": path, "line": line.number,
+             "text": candidate_text(line.text)}
+            for number, (path, line) in enumerate(found, start=1)]
+
+
+def legacy_mentions(audited: Sequence[AuditedFile]) -> list[JsonObject]:
+    """Every legacy term in decoded audited Markdown and JSON files, fences included."""
+    mentions: list[JsonObject] = []
+    for item in sorted(audited, key=lambda found: found.path):
+        if (not item.path.endswith(LEGACY_SUFFIXES) or item.data is None
+                or encoding_of(item.data)[0] != "utf-8"):
+            continue
+        for number, raw in enumerate(raw_lines(item.data), start=1):
+            text = matching_text(raw.decode("utf-8"))
+            mentions += [{"source": item.path, "line": number, "column": found.start(),
+                          "term": found.group(0).lower(), "text": candidate_text(text)}
+                         for found in LEGACY_TERM_RE.finditer(text)]
+    return mentions
+
+
+# ---------------------------------------------------------------------------
+# Candidates: verbatim duplicate clusters
+# ---------------------------------------------------------------------------
+
+TABLE_SEPARATOR_RE = re.compile(r"\|[-:| ]+\|")
+LINE_PREFIX_RE = re.compile(r"\s*>?\s*(?:[-*+] |\d+[.)] )?")
+SENTENCE_END = (".", "!", "?")
+MINIMUM_UNIT_WORDS = 8
+
+Word = tuple[str, int]
+
+
+@dataclass(frozen=True)
+class Unit:
+    """One text unit: its text, location and reading order within the audited set."""
+
+    text: str
+    path: str
+    line_start: int
+    line_end: int
+    order: int
+
+
+def sentences(words: Sequence[Word]) -> list[list[Word]]:
+    """Split a paragraph's words after each word that ends a sentence."""
+    found: list[list[Word]] = [[]]
+    for word in words:
+        found[-1].append(word)
+        if word[0].endswith(SENTENCE_END):
+            found.append([])
+    return [sentence for sentence in found if sentence]
+
+
+def paragraph_text(text: str) -> str:
+    """A paragraph line without a leading quote marker, indentation and list marker."""
+    prefix = LINE_PREFIX_RE.match(text)
+    return text[prefix.end():] if prefix is not None else text
+
+
+def unit_lines(model: TextModel) -> Iterator[tuple[str, list[Word]]]:
+    """Yield table rows and paragraphs as words with line numbers, in line order."""
+    heading_lines = {heading.line for heading in model.headings}
+    paragraph: list[Word] = []
+    for line in model.lines:
+        text = line.text
+        in_paragraph = (line.zone == ZONE_BODY and line.number not in heading_lines
+                        and text.strip() != "" and not text.startswith("|"))
+        if in_paragraph:
+            paragraph += [(word, line.number)
+                          for word in home_relative(paragraph_text(text)).split()]
+            continue
+        if paragraph:
+            yield "paragraph", paragraph
+            paragraph = []
+        if (line.zone == ZONE_BODY and text.startswith("|")
+                and TABLE_SEPARATOR_RE.fullmatch(text) is None):
+            yield "row", [(word, line.number) for word in home_relative(text).split()]
+    if paragraph:
+        yield "paragraph", paragraph
+
+
+def text_units(files: Sequence[MarkdownFile]) -> list[Unit]:
+    """Every unit of at least the minimum word count, in path then reading order."""
+    units: list[Unit] = []
+    for item in files:
+        for kind, words in unit_lines(item.model):
+            for piece in ([words] if kind == "row" else sentences(words)):
+                if len(piece) >= MINIMUM_UNIT_WORDS:
+                    units.append(Unit(" ".join(word for word, _ in piece), item.path,
+                                      piece[0][1], piece[-1][1], len(units)))
+    return units
+
+
+def member_key(unit: Unit) -> tuple[str, int, int, int]:
+    return unit.path, unit.line_start, unit.line_end, unit.order
+
+
+def duplicate_clusters(files: Sequence[MarkdownFile]) -> list[JsonObject]:
+    """Units equal in two or more places, ordered by first member and numbered."""
+    groups: dict[str, list[Unit]] = {}
+    for unit in text_units(files):
+        groups.setdefault(unit.text, []).append(unit)
+    clusters = sorted((sorted(members, key=member_key) for members in groups.values()
+                       if len(members) > 1), key=lambda members: member_key(members[0]))
+    return [{"id": f"DUP-{number:03d}", "sha256": sha256_hex(members[0].text.encode("utf-8")),
+             "words": len(members[0].text.split()), "text": members[0].text,
+             "members": [{"path": unit.path, "line_start": unit.line_start,
+                          "line_end": unit.line_end} for unit in members]}
+            for number, members in enumerate(clusters, start=1)]
+
+
+def candidate_lists(audited: Sequence[AuditedFile], edges: Sequence[JsonObject]
+                    ) -> JsonObject:
+    """The five candidate lists in inventory key order."""
+    files = markdown_files(audited)
+    return {"repeat_loads": repeat_loads(files, edges),
+            "full_output": line_candidates(files, "FO", is_full_output_line),
+            "harness_names": line_candidates(files, "HN", is_harness_name_line),
+            "legacy_mentions": legacy_mentions(audited),
+            "duplicate_clusters": duplicate_clusters(files)}
+
+
+# ---------------------------------------------------------------------------
 # Git
 # ---------------------------------------------------------------------------
 
@@ -1101,11 +1365,7 @@ def build_inventory(root: Path) -> JsonObject:
         "files": files,
         "readers": readers,
         "edges": edges,
-        "repeat_loads": [],
-        "full_output": [],
-        "harness_names": [],
-        "legacy_mentions": [],
-        "duplicate_clusters": [],
+        **candidate_lists(audited_files, edges),
     }
 
 
