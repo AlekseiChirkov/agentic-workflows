@@ -16,16 +16,26 @@ Usage:
       as `~/`) as canonical JSON to FILE. FILE is written to a temporary file in its own directory
       and moved into place. `is_defect_edge` is the defect predicate over one edge.
       --root defaults to the parent of the scripts/ directory that holds this file.
+  python3 -I scripts/audit-instructions.py verify [--root DIR] --report FILE [--strict]
+      Check the inventory and the assessment whose paths replace the `.md` of FILE with
+      `.inventory.json` and `.assessment.json`: their schemas, the audited files of the
+      root against the inventory (with --strict, a fresh extraction against its bytes),
+      the work-tree state, and every per-item rule of the assessment. Prints one
+      `<code> <location> <message>` line per violation in string order of code and
+      location. A location is `<path>:<line>` (`0` for a whole file) or
+      `<json file>#<id, key or key[index]>`, with paths relative to the root.
 
 Exit codes:
-  0  the inventory was written
+  0  extract: the inventory was written; verify: no diagnostic
+  1  verify: at least one diagnostic was printed
   2  usage error, root-invalid (no rules/ or workflows/ directory), root-unreadable
      (a directory or file that cannot be read, or a file name that is not valid UTF-8),
      out-unwritable, or an interpreter older than Python 3.11; one `ERROR:` line on
      standard error, and no --out file is written
 
-Read-only contract: the tool writes nothing but the --out file. It never follows a
-symbolic link, never executes or imports repository content and opens no network
+Read-only contract: the tool writes nothing but the --out file, and verify writes
+nothing. It never follows a symbolic link of the audited tree, never executes or
+imports repository content and opens no network
 connection. The only programs it runs are the git read commands
 `rev-parse --verify HEAD`, `ls-files -z` and
 `status --porcelain=v1 -z --untracked-files=all`, with LC_ALL=C, GIT_OPTIONAL_LOCKS=0,
@@ -45,6 +55,7 @@ if sys.version_info < (3, 11):
     raise SystemExit(2)
 
 import argparse
+import datetime
 import hashlib
 import json
 import os
@@ -56,7 +67,7 @@ from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NoReturn
+from typing import NoReturn, cast
 
 SCHEMA_VERSION = 1
 METHOD_VERSION = "08-extract-1"
@@ -1412,6 +1423,904 @@ def run_extract(root: Path, out: Path) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Verify: diagnostics and document loading
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, order=True)
+class Diagnostic:
+    """One violation, printed as `<code> <location> <message>`."""
+
+    code: str
+    location: str
+    message: str
+
+
+@dataclass(frozen=True)
+class Document:
+    """A JSON file named by its root-relative (or base) name, with its text once parsed."""
+
+    name: str
+    value: object
+    text: str
+
+
+class JsonRejected(ValueError):
+    """A JSON text with a duplicate key or a non-standard constant."""
+
+
+def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> JsonObject:
+    keys = [key for key, _ in pairs]
+    duplicates = sorted({key for key in keys if keys.count(key) > 1})
+    if duplicates:
+        raise JsonRejected(f"duplicate key {json.dumps(duplicates[0], ensure_ascii=False)}")
+    return dict(pairs)
+
+
+def reject_constant(name: str) -> NoReturn:
+    raise JsonRejected(f"non-standard constant {name}")
+
+
+def parse_json(text: str) -> object:
+    return json.loads(text, object_pairs_hook=reject_duplicate_keys,
+                      parse_constant=reject_constant)
+
+
+def display_name(path: Path, root: Path) -> str:
+    """The path relative to the root, or its base name when it lies outside the root."""
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return path.name
+
+
+def load_document(path: Path, name: str, code: str) -> Document | Diagnostic:
+    """Read and parse one JSON file; a missing or unparseable file is one diagnostic."""
+    try:
+        text = path.read_bytes().decode("utf-8")
+    except (FileNotFoundError, NotADirectoryError):
+        return Diagnostic(f"{code}-missing", f"{name}:0", "the file does not exist")
+    except (OSError, UnicodeDecodeError) as error:
+        reason = error.strerror if isinstance(error, OSError) else "not valid UTF-8"
+        return Diagnostic(f"{code}-invalid", f"{name}:0", f"cannot be read ({reason})")
+    try:
+        return Document(name, parse_json(text), text)
+    except json.JSONDecodeError as error:
+        return Diagnostic(f"{code}-invalid", f"{name}:{error.lineno}",
+                          f"not parseable JSON ({error.msg})")
+    except (JsonRejected, RecursionError) as error:
+        return Diagnostic(f"{code}-invalid", f"{name}:0", f"rejected JSON ({error})")
+
+
+# ---------------------------------------------------------------------------
+# Verify: structural schemas
+# ---------------------------------------------------------------------------
+
+Check = Callable[[object], bool]
+
+HEX_DIGEST_RE = re.compile(r"[0-9a-f]{64}")
+ROLE_LABEL_RE = re.compile(r"[A-Za-z][A-Za-z0-9-]*")
+SAFE_FRAGMENT_RE = re.compile(r"[A-Za-z0-9_.-]+")
+EVIDENCE_LINE_RE = re.compile(r"[^\s:]+:\d+")
+AMENDMENT_ID_RE = re.compile(r"AMD-08-\d{2}")
+KINDS = ("bootstrap", "contract", "protocol", "procedure", "always-on", "workflow",
+         "reference", "adapter-config")
+PROPOSAL_TYPES = ("load-repeat", "conditional-context", "report-repeat", "checkpoint-repeat",
+                  "review-repeat", "full-output")
+REFERENCE_TYPES = ("reference-defect", "ambiguous-name", "mixed-kind", "naming",
+                   "legacy-mention", "duplicate")
+FINDING_OWNERS: dict[str, frozenset[str]] = {
+    **{name: frozenset({"11", "12", "13", "15", "14"}) for name in PROPOSAL_TYPES},
+    **{name: frozenset({"09", "11"}) for name in REFERENCE_TYPES},
+    "contradiction": frozenset({"owner"}),
+    "coverage-gap": frozenset({"09", "11", "12", "13", "15", "14", "owner"}),
+    "other": frozenset({"09", "11", "12", "13", "15", "14", "owner"}),
+    "accepted-observation": frozenset({"none"}),
+}
+EDGE_STATUSES = ("resolved", "resolved-prefix", "heading-unmarked", "missing-heading",
+                 "missing-target", "missing-path", "unknown-command", "glob-empty",
+                 "ambiguous-stem")
+EDGE_FORMS = ("command", "section-ref", "rule-name", "path", "glob", "bare-name", "md-name",
+              "skill-name")
+EDGE_CONTEXTS = ("front-matter", "fence", "span", "text", "check-description", "comment")
+
+
+def is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def is_str(value: object) -> bool:
+    return isinstance(value, str)
+
+
+def is_bool(value: object) -> bool:
+    return isinstance(value, bool)
+
+
+def is_object(value: object) -> bool:
+    return isinstance(value, dict)
+
+
+def is_list(value: object) -> bool:
+    return isinstance(value, list)
+
+
+def nullable(check: Check) -> Check:
+    return lambda value: value is None or check(value)
+
+
+def one_of(*values: str) -> Check:
+    return lambda value: isinstance(value, str) and value in values
+
+
+def matching(pattern: re.Pattern[str]) -> Check:
+    return lambda value: isinstance(value, str) and pattern.fullmatch(value) is not None
+
+
+def list_of(check: Check, non_empty: bool = False, unique: bool = False) -> Check:
+    def checked(value: object) -> bool:
+        if not isinstance(value, list) or (non_empty and not value):
+            return False
+        if unique and len({json.dumps(item) for item in value}) != len(value):
+            return False
+        return all(check(item) for item in value)
+    return checked
+
+
+def record(fields: Mapping[str, Check]) -> Check:
+    return lambda value: (isinstance(value, dict) and set(value) == set(fields)
+                          and all(check(value[key]) for key, check in fields.items()))
+
+
+def is_date(value: object) -> bool:
+    if not isinstance(value, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) is None:
+        return False
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
+def is_repository_path(value: object) -> bool:
+    return (isinstance(value, str) and bool(value) and not value.startswith("/")
+            and not any(part in ("", ".", "..") for part in value.split("/"))
+            and not any(character.isspace() for character in value))
+
+
+DIGEST = matching(HEX_DIGEST_RE)
+ROLE = matching(ROLE_LABEL_RE)
+LINE_REF = record({"source": is_str, "line": is_int, "column": is_int})
+SPAN = record({"path": is_str, "line_start": is_int, "line_end": is_int})
+AUDIT_ID = matching(re.compile(r"AUD-08-\d{3}"))
+
+
+@dataclass(frozen=True)
+class ListSchema:
+    """A list whose rows each satisfy `row`; `unique` names a field that may not repeat."""
+
+    row: Check
+    unique: str | None = None
+
+
+Schema = Mapping[str, "Check | ListSchema"]
+
+INVENTORY_SCHEMA: Schema = {
+    "schema_version": lambda value: is_int(value) and value == SCHEMA_VERSION,
+    "method_version": lambda value: value == METHOD_VERSION,
+    "source_revision": nullable(is_str),
+    "worktree": record({"state": one_of("clean", "dirty", "unknown"),
+                        "paths": list_of(is_str)}),
+    "inventory_digest": DIGEST,
+    "files": ListSchema(record({
+        "path": is_str, "set": one_of("primary", "adapter"),
+        "entry": one_of("file", "symlink", "other"), "tracked": nullable(is_bool),
+        "sha256": nullable(DIGEST), "bytes": nullable(is_int), "lines": nullable(is_int),
+        "encoding": nullable(one_of("utf-8", "invalid", "control-character")),
+        "words": nullable(is_int), "front_matter": nullable(is_object),
+        "invocation_lines": nullable(is_int),
+        "sections": list_of(record({"heading": is_str, "line": is_int, "words": is_int,
+                                    "bytes": is_int}))}), "path"),
+    "readers": ListSchema(record({
+        "path": is_str, "class": one_of("active", "frozen", "planning", "history"),
+        "sha256": DIGEST, "lines": is_int, "decoded": is_bool}), "path"),
+    "edges": ListSchema(record({
+        "source": is_str, "class": one_of("active", "frozen", "planning", "history"),
+        "line": is_int, "column": is_int, "context": one_of(*EDGE_CONTEXTS),
+        "form": one_of(*EDGE_FORMS), "raw": is_str, "load": is_bool, "md_suffix": is_bool,
+        "in_spec09_grammar": is_bool, "status": one_of(*EDGE_STATUSES),
+        "targets": list_of(record({"path": is_str, "heading_status": nullable(one_of(
+            "resolved", "resolved-prefix", "heading-unmarked", "missing-heading"))}))})),
+    "repeat_loads": ListSchema(record({
+        "id": matching(re.compile(r"RL-\d{3}")), "caller": is_str, "callee": is_str,
+        "target": is_str}), "id"),
+    "full_output": ListSchema(record({
+        "id": matching(re.compile(r"FO-\d{3}")), "source": is_str, "line": is_int,
+        "text": is_str}), "id"),
+    "harness_names": ListSchema(record({
+        "id": matching(re.compile(r"HN-\d{3}")), "source": is_str, "line": is_int,
+        "text": is_str}), "id"),
+    "legacy_mentions": ListSchema(record({
+        "source": is_str, "line": is_int, "column": is_int, "term": is_str, "text": is_str})),
+    "duplicate_clusters": ListSchema(record({
+        "id": matching(re.compile(r"DUP-\d{3}")), "sha256": DIGEST, "words": is_int,
+        "text": is_str, "members": list_of(SPAN)}), "id"),
+}
+
+ASSESSMENT_SCHEMA: Schema = {
+    "schema_version": lambda value: is_int(value) and value == SCHEMA_VERSION,
+    "inventory_digest": DIGEST,
+    "run_date": is_date,
+    "auditor": ROLE,
+    "environment": record({"python": is_str, "git": is_str}),
+    "installed_access": one_of("not-verified", "verified"),
+    "files": ListSchema(record({
+        "path": is_str, "sha256": nullable(DIGEST),
+        "kinds": list_of(one_of(*KINDS), non_empty=True, unique=True),
+        "sections": nullable(list_of(record({"heading": is_str, "kind": one_of(*KINDS),
+                                             "proposed_home": is_repository_path}))),
+        "evidence": list_of(matching(EVIDENCE_LINE_RE), non_empty=True),
+        "repetition": nullable(record({"report": list_of(is_str),
+                                       "checkpoint": list_of(is_str),
+                                       "review": list_of(is_str)}))})),
+    "coverage": ListSchema(record({
+        "path": is_str, "sha256": nullable(DIGEST),
+        "status": one_of("read", "unavailable", "changed", "not-a-file"), "reader": ROLE})),
+    "loads": ListSchema(record({
+        "source": is_str, "line": is_int, "column": is_int,
+        "mode": one_of("mandatory", "conditional"), "condition": nullable(is_str)})),
+    "candidates": ListSchema(record({
+        "id": matching(re.compile(r"(RL|FO|HN)-\d{3}")),
+        "disposition": one_of("finding", "guarded", "not-applicable"),
+        "finding": nullable(is_str), "reason": nullable(is_str)}), "id"),
+    "legacy": ListSchema(record({
+        "source": is_str, "line": is_int, "column": is_int,
+        "role": one_of("active-behavior", "legacy-detection", "historical", "example"),
+        "note": is_str})),
+    "duplicate_groups": ListSchema(record({
+        "id": matching(re.compile(r"DG-\d{3}")), "clusters": list_of(is_str),
+        "locations": list_of(SPAN),
+        "normative_source": record({"path": is_str, "section": is_str}),
+        "condition_differences": is_str,
+        "disposition": one_of("consolidate", "intentional", "condition-specific",
+                              "contradiction"),
+        "owner": is_str, "finding": nullable(is_str), "rationale": is_str}), "id"),
+    "map": is_list,
+    "req21": is_object,
+    "findings": ListSchema(record({
+        "id": AUDIT_ID, "type": one_of(*FINDING_OWNERS),
+        "severity": one_of("blocker", "major", "minor"), "source": is_str, "section": is_str,
+        "sha256": nullable(DIGEST), "lines": list_of(is_int), "observation": is_str,
+        "consequence": is_str, "owner": is_str, "closure": is_str, "blocks_09": is_bool,
+        "status": is_str, "evidence": list_of(is_str), "edges": list_of(LINE_REF)}), "id"),
+    "amendments": ListSchema(is_object),
+    "installed": ListSchema(record({
+        "path": is_str, "location": is_str, "source_sha256": is_str,
+        "installed_sha256": is_str})),
+}
+
+
+def fragment(text: str) -> str:
+    """A location fragment that keeps a diagnostic line free of spaces and line breaks."""
+    return text if SAFE_FRAGMENT_RE.fullmatch(text) else json.dumps(text).replace(" ", "\\u0020")
+
+
+def entry_location(key: str, index: int, entry: object) -> str:
+    """The id of an entry that has a well-formed one, otherwise `<key>[<index>]`."""
+    identifier = entry.get("id") if isinstance(entry, dict) else None
+    if isinstance(identifier, str) and SAFE_FRAGMENT_RE.fullmatch(identifier):
+        return identifier
+    return f"{key}[{index}]"
+
+
+def list_diagnostics(name: str, code: str, key: str, value: object, schema: ListSchema
+                     ) -> Iterator[Diagnostic]:
+    if not isinstance(value, list):
+        yield Diagnostic(code, f"{name}#{key}", "is not a list")
+        return
+    seen: set[str] = set()
+    for index, entry in enumerate(value):
+        location = f"{name}#{entry_location(key, index, entry)}"
+        if not schema.row(entry):
+            yield Diagnostic(code, location, f"{key} entry breaks its schema")
+        elif schema.unique is not None:
+            identity = json.dumps(cast(JsonObject, entry)[schema.unique])
+            if identity in seen:
+                yield Diagnostic(code, location, f"duplicate {schema.unique} {identity}")
+            seen.add(identity)
+
+
+def schema_diagnostics(document: Document, schema: Schema, code: str) -> list[Diagnostic]:
+    """Unknown, missing and malformed keys, malformed rows and repeated ids of a document."""
+    value = document.value
+    if not isinstance(value, dict):
+        return [Diagnostic(code, f"{document.name}:0", "the top level is not a JSON object")]
+    found = [Diagnostic(code, f"{document.name}#{fragment(key)}", "unknown key")
+             for key in value if key not in schema]
+    for key, check in schema.items():
+        location = f"{document.name}#{key}"
+        if key not in value:
+            found.append(Diagnostic(code, location, "missing key"))
+        elif isinstance(check, ListSchema):
+            found.extend(list_diagnostics(document.name, code, key, value[key], check))
+        elif not check(value[key]):
+            found.append(Diagnostic(code, location, "value breaks its schema"))
+    return found
+
+
+# ---------------------------------------------------------------------------
+# Verify: the inventory against the root
+# ---------------------------------------------------------------------------
+
+def objects(value: object) -> list[JsonObject]:
+    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def number(value: object) -> int:
+    return value if isinstance(value, int) else 0
+
+
+def edge_key(item: Mapping[str, object]) -> tuple[str, int, int]:
+    return str(item["source"]), number(item["line"]), number(item["column"])
+
+
+def worktree_diagnostics(inventory: Document) -> list[Diagnostic]:
+    state = cast(JsonObject, cast(JsonObject, inventory.value)["worktree"])["state"]
+    if state == "clean":
+        return []
+    return [Diagnostic("worktree-dirty", f"{inventory.name}#worktree",
+                       f"the inventory was extracted from a {state} work tree")]
+
+
+def audited_digests(root: Path) -> dict[str, str | None]:
+    """The audited paths on disk now, with the digest of each regular file."""
+    audited, _ = audited_paths(root)
+    require_utf8_paths(audited)
+    return {path: sha256_hex(read_regular_file(root / path))
+            if entry_kind(root / path) == "file" else None for path in audited}
+
+
+def stale_diagnostics(root: Path, inventory: Document) -> list[Diagnostic]:
+    recorded = {str(entry["path"]): entry["sha256"]
+                for entry in objects(cast(JsonObject, inventory.value)["files"])}
+    current = audited_digests(root)
+    found: list[Diagnostic] = []
+    for path in sorted(recorded.keys() | current.keys()):
+        if path not in current:
+            found.append(Diagnostic("inventory-stale", f"{path}:0", "removed from the root"))
+        elif path not in recorded:
+            found.append(Diagnostic("inventory-stale", f"{path}:0", "added to the root"))
+        elif current[path] != recorded[path]:
+            found.append(Diagnostic("inventory-stale", f"{path}:0", "changed in the root"))
+    return found
+
+
+def first_difference(left: str, right: str) -> int:
+    """The 1-based number of the first line on which two texts differ."""
+    left_lines, right_lines = left.splitlines(), right.splitlines()
+    for line, (one, other) in enumerate(zip(left_lines, right_lines), start=1):
+        if one != other:
+            return line
+    return min(len(left_lines), len(right_lines)) + 1
+
+
+def strict_diagnostics(root: Path, inventory: Document) -> list[Diagnostic]:
+    fresh = canonical_json(build_inventory(root))
+    if fresh == inventory.text:
+        return []
+    line = first_difference(fresh, inventory.text)
+    return [Diagnostic("inventory-stale", f"{inventory.name}:{line}",
+                       "a fresh extraction differs from the inventory")]
+
+
+# ---------------------------------------------------------------------------
+# Verify: the assessment against the inventory
+# ---------------------------------------------------------------------------
+
+ALWAYS_SECTIONED = frozenset({"rules/phase-atomic-execution.md", "rules/phase-discovery.md"})
+REPETITION_TYPES = (("report", "report-repeat"), ("checkpoint", "checkpoint-repeat"),
+                    ("review", "review-repeat"))
+CANDIDATE_TYPES = (("repeat_loads", PROPOSAL_TYPES), ("full_output", PROPOSAL_TYPES),
+                   ("harness_names", ("naming",)))
+GROUP_OWNERS: dict[str, frozenset[str]] = {"consolidate": frozenset({"11", "09"}),
+                                            "contradiction": frozenset({"owner"})}
+NO_OWNER = frozenset({"none"})
+GAP_STATUSES = ("unavailable", "changed")
+ECONOMICS_PATTERNS = (re.compile(r"(?i)\b\d[\d,.]*\s*k?\s*tokens?\b"),
+                      re.compile(r"[$€£]\s?\d"), re.compile(r"\b(USD|EUR)\b"))
+
+
+@dataclass(frozen=True)
+class Verification:
+    """A schema-valid inventory and assessment with the lookups the rules share."""
+
+    inventory: Document
+    assessment: Document
+    files: dict[str, JsonObject]
+    readers: dict[str, JsonObject]
+    findings: dict[str, JsonObject]
+    amendment_ids: frozenset[str]
+    cited: frozenset[str]
+    defects: dict[tuple[str, int, int], JsonObject]
+
+    @property
+    def inv(self) -> JsonObject:
+        return cast(JsonObject, self.inventory.value)
+
+    @property
+    def doc(self) -> JsonObject:
+        return cast(JsonObject, self.assessment.value)
+
+    def at(self, fragment_text: str) -> str:
+        return f"{self.assessment.name}#{fragment_text}"
+
+    def inventory_at(self, fragment_text: str) -> str:
+        return f"{self.inventory.name}#{fragment_text}"
+
+    def entry(self, path: str) -> JsonObject | None:
+        return self.files.get(path) or self.readers.get(path)
+
+    def rows(self, key: str) -> list[JsonObject]:
+        return objects(self.doc[key])
+
+
+def amendment_lookups(assessment: JsonObject) -> tuple[frozenset[str], frozenset[str]]:
+    """Amendment ids and every string their `evidence` lists hold."""
+    amendments = objects(assessment["amendments"])
+    ids = frozenset(item["id"] for item in amendments if isinstance(item.get("id"), str))
+    cited = frozenset(entry for item in amendments
+                      for entry in (item.get("evidence") if isinstance(item.get("evidence"), list)
+                                    else []) if isinstance(entry, str))
+    return cast(frozenset[str], ids), cast(frozenset[str], cited)
+
+
+def verification(inventory: Document, assessment: Document) -> Verification:
+    inv, doc = cast(JsonObject, inventory.value), cast(JsonObject, assessment.value)
+    ids, cited = amendment_lookups(doc)
+    return Verification(
+        inventory, assessment,
+        files={str(entry["path"]): entry for entry in objects(inv["files"])},
+        readers={str(entry["path"]): entry for entry in objects(inv["readers"])},
+        findings={str(entry["id"]): entry for entry in objects(doc["findings"])},
+        amendment_ids=ids, cited=cited,
+        defects={edge_key(edge): edge for edge in objects(inv["edges"])
+                 if is_defect_edge(edge)})
+
+
+def first_rows(check: Verification, key: str) -> dict[str, tuple[int, JsonObject]]:
+    """The first row of `key` for each audited path, with its index."""
+    found: dict[str, tuple[int, JsonObject]] = {}
+    for index, row in enumerate(check.rows(key)):
+        path = str(row["path"])
+        if path in check.files and path not in found:
+            found[path] = (index, row)
+    return found
+
+
+def section_valid(check: Verification, path: str, section: str) -> bool:
+    """A heading of an audited source or `(file)`; any non-blank text for a reader."""
+    if path in check.files:
+        headings = {str(item["heading"]) for item in objects(check.files[path]["sections"])}
+        return section == "(file)" or section in headings
+    return path in check.readers and bool(section.strip())
+
+
+def digest_rule(check: Verification) -> Iterator[Diagnostic]:
+    if check.doc["inventory_digest"] != check.inv["inventory_digest"]:
+        yield Diagnostic("digest-mismatch", check.at("inventory_digest"),
+                         "differs from the inventory's inventory_digest")
+
+
+def row_rules(check: Verification) -> Iterator[Diagnostic]:
+    for key in ("files", "coverage"):
+        seen: set[str] = set()
+        for index, row in enumerate(check.rows(key)):
+            path, location = str(row["path"]), check.at(f"{key}[{index}]")
+            if path not in check.files:
+                yield Diagnostic("row-extra", location, f"{path} is not an audited path")
+            elif path in seen:
+                yield Diagnostic("row-duplicate", location, f"second {key} row for {path}")
+            seen.add(path)
+        for path in check.files:
+            if path not in seen:
+                yield Diagnostic("row-missing", f"{path}:0", f"no {key} row")
+
+
+def stale_row_rules(check: Verification) -> Iterator[Diagnostic]:
+    for key in ("files", "coverage"):
+        for path, (index, row) in first_rows(check, key).items():
+            if row["sha256"] != check.files[path]["sha256"]:
+                yield Diagnostic("assessment-stale", check.at(f"{key}[{index}]"),
+                                 f"sha256 of {path} differs from the inventory")
+
+
+def section_rules(check: Verification) -> Iterator[Diagnostic]:
+    for path, (index, row) in first_rows(check, "files").items():
+        expected = sorted(str(item["heading"]) for item in objects(check.files[path]["sections"]))
+        sections = row["sections"]
+        location = check.at(f"files[{index}]")
+        if sections is None:
+            if len(cast(list[str], row["kinds"])) > 1 or path in ALWAYS_SECTIONED:
+                yield Diagnostic("sections-incomplete", location, "sections are required")
+        elif sorted(str(item["heading"]) for item in objects(sections)) != expected:
+            yield Diagnostic("sections-incomplete", location,
+                             "sections do not cover each section of the file once")
+
+
+def repetition_ids(check: Verification, location: str, repetition: JsonObject
+                   ) -> Iterator[Diagnostic]:
+    for key, kind in REPETITION_TYPES:
+        for finding_id in cast(list[str], repetition[key]):
+            finding = check.findings.get(finding_id)
+            if finding is None or finding["type"] != kind:
+                yield Diagnostic("repetition-invalid", location,
+                                 f"{key} id {finding_id} is not a {kind} finding")
+
+
+def repetition_rules(check: Verification) -> Iterator[Diagnostic]:
+    for path, (index, row) in first_rows(check, "files").items():
+        location = check.at(f"files[{index}]")
+        invocable = (WORKFLOW_FILE_RE.fullmatch(path) is not None
+                     and number(check.files[path]["invocation_lines"]) > 0)
+        repetition = row["repetition"]
+        if invocable and repetition is None:
+            yield Diagnostic("repetition-invalid", location,
+                             "a workflow with an Invocation: line needs repetition")
+        elif not invocable and repetition is not None:
+            yield Diagnostic("repetition-invalid", location,
+                             "only a workflow with an Invocation: line has repetition")
+        if isinstance(repetition, dict):
+            yield from repetition_ids(check, location, repetition)
+
+
+def condition_matches(row: JsonObject) -> bool:
+    condition = row["condition"]
+    if row["mode"] == "conditional":
+        return isinstance(condition, str) and bool(condition.strip())
+    return condition is None
+
+
+def load_rules(check: Verification) -> Iterator[Diagnostic]:
+    load_edges = {edge_key(edge) for edge in objects(check.inv["edges"])
+                  if edge["load"] is True and edge["source"] in check.files}
+    seen: set[tuple[str, int, int]] = set()
+    for index, row in enumerate(check.rows("loads")):
+        location, key = check.at(f"loads[{index}]"), edge_key(row)
+        if key not in load_edges:
+            yield Diagnostic("load-unclassified", location, "names no load edge")
+        elif key in seen:
+            yield Diagnostic("load-unclassified", location, "second entry for one load edge")
+        seen.add(key)
+        if not condition_matches(row):
+            yield Diagnostic("load-unclassified", location,
+                             "a condition is required exactly for a conditional load")
+    for source, line, column in sorted(load_edges - seen):
+        yield Diagnostic("load-unclassified", f"{source}:{line}",
+                         f"the load edge at column {column} has no loads entry")
+
+
+def candidate_types(check: Verification) -> dict[str, tuple[str, ...]]:
+    return {str(item["id"]): types for key, types in CANDIDATE_TYPES
+            for item in objects(check.inv[key])}
+
+
+def disposition_rules(check: Verification, location: str, row: JsonObject,
+                      types: tuple[str, ...]) -> Iterator[Diagnostic]:
+    finding_id = row["finding"]
+    if finding_id is not None and finding_id not in check.findings:
+        yield Diagnostic("reference-unknown", location, f"finding {finding_id} does not exist")
+    elif row["disposition"] == "finding" and finding_id is None:
+        yield Diagnostic("candidate-undisposed", location, "a finding disposition names none")
+    elif row["disposition"] == "finding" and check.findings[str(finding_id)]["type"] not in types:
+        yield Diagnostic("candidate-undisposed", location,
+                         f"finding {finding_id} has a type this candidate does not take")
+    elif row["disposition"] != "finding" and not str(row["reason"] or "").strip():
+        yield Diagnostic("candidate-undisposed", location, "the disposition needs a reason")
+
+
+def candidate_rules(check: Verification) -> Iterator[Diagnostic]:
+    types = candidate_types(check)
+    seen: set[str] = set()
+    for row in check.rows("candidates"):
+        candidate_id = str(row["id"])
+        seen.add(candidate_id)
+        if candidate_id not in types:
+            yield Diagnostic("reference-unknown", check.at(candidate_id),
+                             "no such candidate in the inventory")
+        else:
+            yield from disposition_rules(check, check.at(candidate_id), row,
+                                         types[candidate_id])
+    for candidate_id in types:
+        if candidate_id not in seen:
+            yield Diagnostic("candidate-undisposed", check.inventory_at(candidate_id),
+                             "no candidates entry")
+
+
+def legacy_rules(check: Verification) -> Iterator[Diagnostic]:
+    mentions = {edge_key(item) for item in objects(check.inv["legacy_mentions"])}
+    seen: set[tuple[str, int, int]] = set()
+    for index, row in enumerate(check.rows("legacy")):
+        key = edge_key(row)
+        if key not in mentions or key in seen:
+            yield Diagnostic("legacy-role-missing", check.at(f"legacy[{index}]"),
+                             "names no mention, or a mention that already has a role")
+        seen.add(key)
+    for source, line, column in sorted(mentions - seen):
+        yield Diagnostic("legacy-role-missing", f"{source}:{line}",
+                         f"the mention at column {column} has no legacy entry")
+
+
+def span_fits(check: Verification, span: JsonObject) -> bool:
+    entry = check.entry(str(span["path"]))
+    start, end = number(span["line_start"]), number(span["line_end"])
+    return entry is not None and 1 <= start <= end <= number(entry["lines"])
+
+
+def group_locations(row: JsonObject, clusters: Mapping[str, JsonObject]
+                    ) -> set[tuple[str, int, int]]:
+    """Distinct locations of a group: members of its known clusters and read-detected ones."""
+    spans = [member for cluster_id in cast(list[str], row["clusters"])
+             if cluster_id in clusters for member in objects(clusters[cluster_id]["members"])]
+    spans += objects(row["locations"])
+    return {(str(span["path"]), number(span["line_start"]), number(span["line_end"]))
+            for span in spans}
+
+
+def group_role_faults(row: JsonObject) -> list[str]:
+    disposition = str(row["disposition"])
+    faults: list[str] = []
+    if row["owner"] not in GROUP_OWNERS.get(disposition, NO_OWNER):
+        faults.append(f"owner {row['owner']} is not allowed for {disposition}")
+    if disposition in GROUP_OWNERS and row["finding"] is None:
+        faults.append(f"a {disposition} group needs a finding")
+    if not str(row["rationale"]).strip():
+        faults.append("the rationale is empty")
+    if disposition == "condition-specific" and not str(row["condition_differences"]).strip():
+        faults.append("a condition-specific group needs its condition differences")
+    return faults
+
+
+def group_location_faults(check: Verification, row: JsonObject,
+                          clusters: Mapping[str, JsonObject]) -> list[str]:
+    faults = [f"location {span['path']}:{span['line_start']}-{span['line_end']} lies outside "
+              "its file" for span in objects(row["locations"]) if not span_fits(check, span)]
+    if len(group_locations(row, clusters)) < 2:
+        faults.append("a group needs at least two locations")
+    source = cast(JsonObject, row["normative_source"])
+    if not section_valid(check, str(source["path"]), str(source["section"])):
+        faults.append("the normative source names no inventory path and section")
+    return faults
+
+
+def group_references(check: Verification, row: JsonObject,
+                     clusters: Mapping[str, JsonObject]) -> Iterator[Diagnostic]:
+    location = check.at(str(row["id"]))
+    for cluster_id in cast(list[str], row["clusters"]):
+        if cluster_id not in clusters:
+            yield Diagnostic("reference-unknown", location, f"cluster {cluster_id} does not exist")
+    if row["finding"] is not None and row["finding"] not in check.findings:
+        yield Diagnostic("reference-unknown", location, f"finding {row['finding']} does not exist")
+
+
+def group_rules(check: Verification) -> Iterator[Diagnostic]:
+    clusters = {str(item["id"]): item for item in objects(check.inv["duplicate_clusters"])}
+    membership: dict[str, set[str]] = {cluster_id: set() for cluster_id in clusters}
+    for row in check.rows("duplicate_groups"):
+        yield from group_references(check, row, clusters)
+        for message in group_role_faults(row) + group_location_faults(check, row, clusters):
+            yield Diagnostic("group-invalid", check.at(str(row["id"])), message)
+        for cluster_id in cast(list[str], row["clusters"]):
+            membership.get(cluster_id, set()).add(str(row["id"]))
+    for cluster_id, groups in membership.items():
+        if not groups:
+            yield Diagnostic("duplicate-ungrouped", check.inventory_at(cluster_id), "in no group")
+        elif len(groups) > 1:
+            yield Diagnostic("duplicate-multigrouped", check.inventory_at(cluster_id),
+                             f"in groups {', '.join(sorted(groups))}")
+
+
+def blocks_spec09(check: Verification, finding: JsonObject) -> bool:
+    """The blocking predicate: cited by an amendment, a contradiction, or an audited gap."""
+    kind = finding["type"]
+    return (finding["id"] in check.cited or kind == "contradiction"
+            or (kind == "coverage-gap" and finding["source"] in check.files))
+
+
+def ownership_faults(check: Verification, finding: JsonObject) -> list[str]:
+    kind, owner = str(finding["type"]), finding["owner"]
+    faults: list[str] = []
+    if owner not in FINDING_OWNERS[kind]:
+        faults.append(f"owner {owner} is not allowed for {kind}")
+    if finding["blocks_09"] != blocks_spec09(check, finding):
+        faults.append("blocks_09 differs from the blocking predicate")
+    if finding["severity"] == "blocker" and finding["blocks_09"] is not True:
+        faults.append("severity blocker needs blocks_09 true")
+    if kind == "accepted-observation" and (finding["severity"] != "minor" or finding["blocks_09"]):
+        faults.append("an accepted observation is minor and does not block")
+    if finding["status"] not in ("open", "historical-fixed"):
+        faults.append(f"status {json.dumps(finding['status'])} is not open or historical-fixed")
+    return faults
+
+
+def source_faults(check: Verification, finding: JsonObject) -> list[str]:
+    source = str(finding["source"])
+    entry = check.entry(source)
+    if entry is None:
+        return [f"source {source} is not an inventory path"]
+    limit = number(entry["lines"])
+    faults = [f"line {line} lies outside the source" for line in cast(list[int], finding["lines"])
+              if not 1 <= line <= limit]
+    if not section_valid(check, source, str(finding["section"])):
+        faults.append(f"section {json.dumps(finding['section'])} is not a section of the source")
+    return faults
+
+
+def evidence_faults(finding: JsonObject) -> list[str]:
+    evidence = cast(list[str], finding["evidence"])
+    faults = [] if evidence else ["evidence is empty"]
+    faults += [f"evidence {json.dumps(item)} is not path:line, a path or an amendment id"
+               for item in evidence if not (EVIDENCE_LINE_RE.fullmatch(item)
+                                            or AMENDMENT_ID_RE.fullmatch(item)
+                                            or is_repository_path(item))]
+    return faults
+
+
+def edge_faults(check: Verification, finding: JsonObject) -> list[str]:
+    keys = [edge_key(ref) for ref in objects(finding["edges"])]
+    faults = [f"edge {source}:{line}:{column} is not a defect edge"
+              for source, line, column in keys if (source, line, column) not in check.defects]
+    outside = any(check.defects[key]["in_spec09_grammar"] is False
+                  for key in keys if key in check.defects)
+    migration_owned = finding["owner"] == "09" and "09" in FINDING_OWNERS[str(finding["type"])]
+    cites_amendment = any(AMENDMENT_ID_RE.fullmatch(item)
+                          for item in cast(list[str], finding["evidence"]))
+    if migration_owned and outside and not cites_amendment:
+        faults.append("a 09-owned finding on an edge outside the migration grammar cites "
+                      "no amendment in its evidence")
+    return faults
+
+
+def finding_rules(check: Verification) -> Iterator[Diagnostic]:
+    for finding_id, finding in check.findings.items():
+        location = check.at(finding_id)
+        for message in (ownership_faults(check, finding) + source_faults(check, finding)
+                        + evidence_faults(finding) + edge_faults(check, finding)):
+            yield Diagnostic("finding-invalid", location, message)
+        entry = check.entry(str(finding["source"]))
+        if entry is not None and finding["sha256"] != entry["sha256"]:
+            yield Diagnostic("finding-stale", location, "sha256 differs from its source")
+        for item in cast(list[str], finding["evidence"]):
+            if AMENDMENT_ID_RE.fullmatch(item) and item not in check.amendment_ids:
+                yield Diagnostic("reference-unknown", location, f"amendment {item} does not exist")
+
+
+def defect_rules(check: Verification) -> Iterator[Diagnostic]:
+    named = {edge_key(ref) for finding in check.findings.values()
+             for ref in objects(finding["edges"])}
+    for (source, line, column), edge in sorted(check.defects.items()):
+        if (source, line, column) not in named:
+            yield Diagnostic("defect-unrecorded", f"{source}:{line}",
+                             f"the {edge['status']} edge at column {column} is in no finding")
+
+
+def coverage_rules(check: Verification) -> Iterator[Diagnostic]:
+    gaps = {str(finding["source"]) for finding in check.findings.values()
+            if finding["type"] == "coverage-gap"}
+    for path, (index, row) in first_rows(check, "coverage").items():
+        is_file, status = check.files[path]["entry"] == "file", row["status"]
+        location = check.at(f"coverage[{index}]")
+        if is_file and status == "not-a-file":
+            yield Diagnostic("coverage-inconsistent", location, "not-a-file for a regular file")
+        elif not is_file and status != "not-a-file":
+            yield Diagnostic("coverage-inconsistent", location, "a non-file needs not-a-file")
+        if status in GAP_STATUSES and path not in gaps:
+            yield Diagnostic("coverage-inconsistent", location,
+                             f"{status} needs a coverage-gap finding on {path}")
+
+
+def installed_faults(check: Verification, row: JsonObject) -> list[str]:
+    faults = [] if str(row["location"]).startswith("~/") else ["the location does not start ~/"]
+    entry = check.files.get(str(row["path"]))
+    if entry is None:
+        faults.append(f"{row['path']} is not an audited path")
+    elif row["source_sha256"] != entry["sha256"]:
+        faults.append("source_sha256 differs from the inventory")
+    return faults
+
+
+def installed_rules(check: Verification) -> Iterator[Diagnostic]:
+    entries = check.rows("installed")
+    if check.doc["installed_access"] == "not-verified" and entries:
+        yield Diagnostic("installed-invalid", check.at("installed"),
+                         "entries are listed although installed_access is not-verified")
+    for index, row in enumerate(entries):
+        for message in installed_faults(check, row):
+            yield Diagnostic("installed-invalid", check.at(f"installed[{index}]"), message)
+
+
+def strings_in(value: object) -> Iterator[str]:
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from strings_in(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from strings_in(item)
+
+
+def economic_claims(location: str, value: object) -> Iterator[Diagnostic]:
+    for text in strings_in(value):
+        for pattern in ECONOMICS_PATTERNS:
+            found = pattern.search(text)
+            if found is not None:
+                amount = json.dumps(found.group(0), ensure_ascii=False)
+                yield Diagnostic("economics-claim", location, f"names an amount: {amount}")
+                break
+
+
+def economics_rules(check: Verification) -> Iterator[Diagnostic]:
+    for key, value in check.doc.items():
+        if isinstance(value, list):
+            for index, item in enumerate(value):
+                yield from economic_claims(check.at(entry_location(key, index, item)), item)
+        else:
+            yield from economic_claims(check.at(key), value)
+
+
+ASSESSMENT_RULES: tuple[Callable[[Verification], Iterable[Diagnostic]], ...] = (
+    digest_rule, row_rules, stale_row_rules, section_rules, repetition_rules, load_rules,
+    candidate_rules, legacy_rules, group_rules, finding_rules, defect_rules, coverage_rules,
+    installed_rules, economics_rules,
+)
+
+
+# ---------------------------------------------------------------------------
+# Verify: command
+# ---------------------------------------------------------------------------
+
+def checked_document(document: Document | Diagnostic, schema: Schema, code: str
+                     ) -> tuple[Document | None, list[Diagnostic]]:
+    """The document when it parsed and meets its schema, and every diagnostic found."""
+    if isinstance(document, Diagnostic):
+        return None, [document]
+    problems = schema_diagnostics(document, schema, code)
+    return (None if problems else document), problems
+
+
+def verify_diagnostics(root: Path, report: Path, strict: bool) -> list[Diagnostic]:
+    stem = str(report)[:-len(".md")]
+    paths = [Path(stem + suffix) for suffix in (".inventory.json", ".assessment.json")]
+    inventory, found = checked_document(
+        load_document(paths[0], display_name(paths[0], root), "inventory"),
+        INVENTORY_SCHEMA, "inventory-invalid")
+    assessment, problems = checked_document(
+        load_document(paths[1], display_name(paths[1], root), "assessment"),
+        ASSESSMENT_SCHEMA, "assessment-invalid")
+    found += problems
+    if inventory is not None:
+        found += worktree_diagnostics(inventory) + stale_diagnostics(root, inventory)
+        if strict:
+            found += strict_diagnostics(root, inventory)
+    if inventory is not None and assessment is not None:
+        check = verification(inventory, assessment)
+        found += [item for rule in ASSESSMENT_RULES for item in rule(check)]
+    return found
+
+
+def run_verify(root: Path, report: Path, strict: bool) -> int:
+    if report.suffix != ".md":
+        raise UsageError("--report must name the report's .md file")
+    try:
+        validate_root(root)
+        diagnostics = sorted(verify_diagnostics(root, report, strict))
+    except OSError as error:
+        raise ToolError("root-unreadable", f"cannot read the root ({error.strerror})") from error
+    sys.stdout.write("".join(f"{item.code} {item.location} {item.message}\n"
+                             for item in diagnostics))
+    return 1 if diagnostics else 0
+
+
+# ---------------------------------------------------------------------------
 # Command line
 # ---------------------------------------------------------------------------
 
@@ -1433,6 +2342,10 @@ def argument_parser() -> UsageParser:
     extract = commands.add_parser("extract", help="write the inventory")
     extract.add_argument("--root", type=Path, default=None)
     extract.add_argument("--out", type=Path, required=True)
+    verify = commands.add_parser("verify", help="check the inventory and the assessment")
+    verify.add_argument("--root", type=Path, default=None)
+    verify.add_argument("--report", type=Path, required=True)
+    verify.add_argument("--strict", action="store_true")
     return parser
 
 
@@ -1440,6 +2353,8 @@ def main(argv: Sequence[str]) -> int:
     try:
         arguments = argument_parser().parse_args(list(argv))
         root = arguments.root if arguments.root is not None else default_root()
+        if arguments.command == "verify":
+            return run_verify(root, arguments.report, arguments.strict)
         return run_extract(root, arguments.out)
     except UsageError as error:
         sys.stderr.write(f"ERROR: usage: {error}\n")
