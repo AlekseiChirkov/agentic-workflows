@@ -1,0 +1,135 @@
+.ai/context/environment.md
+  s_ba687a06b17902::t_17831d519352ab 60-63,65-68,76-83
+.ai/context/runbook.md
+  s_ba687a06b17902::t_61b2f117989f09 16-19,30-34,153-180
+.ai/memory/architecture.md
+  s_ba687a06b17902::t_650f251667769e 17-21,23,28,31,43,52,56,83,185,367
+.ai/principles/domain.md
+  s_ba687a06b17902::t_b6a6f424d4bb75 17-18
+.ai/specs/README.md
+  s_ba687a06b17902::t_3e703f9bac3d06 24-28
+.ai/tasks/completed/task-01-git-source-of-truth/state.md
+  s_9ffcb74080ebec::t_00f8ce3a99bf9d 182,204
+.ai/tasks/todo/task-24-task-finalization/T-03-finalization-workflow/description.md
+  s_ba687a06b17902::t_29b0c4f4e302e8 34-40
+.ai/tasks/todo/task-24-task-finalization/plan.md
+  s_ba687a06b17902::t_20c0d177abe74f 9
+.ai/tasks/todo/task-24-task-finalization/state.md
+  s_ba687a06b17902::t_9b8b8bdc060688 72,76-78,80-86,88-121
+README.md
+  s_ba687a06b17902::t_efb5b0d2bea918 14
+docs/README.md
+  s_ba687a06b17902::t_39363b9d743f49 8-9
+docs/SPEC-RUN-QUICKSTART.md
+  s_ba687a06b17902::t_7ced8e6c53b554 229-252
+docs/USAGE.md
+  s_ba687a06b17902::t_c2ff39cd1a61a3 4-5,123,272,308,478-507,514-515,538,549,612,711-721,801,822,846,889-894
+harness/claude/capabilities.md
+  s_96afdcfd38c67e::t_42f2d44d03a284 91-101
+rules/global-claude.md
+  s_ba687a06b17902::t_8103e40245a2ec 125-134
+rules/orchestration.md
+  s_ba687a06b17902::t_fa59d0200b430f 192-201
+rules/phase-finalize.md
+  s_9ffcb74080ebec::t_930dbfabe04df8 1-43
+rules/run-log.md
+  s_ba687a06b17902::t_7f3e4efe8a7ebe 12
+rules/workflow-reference.md
+  s_ba687a06b17902::t_340fceb1fbee7d 15,32-36,325,330-337,395,417-420
+scripts/README.md
+  s_ba687a06b17902::t_b700f1f65ec9a5 54-209
+scripts/finalization_evidence.py
+  s_278ba03ecb3542::t_2346358ae35bed 13-14,195-228,249-250,252-256,259,261-262,265,270,275-306,320,339,512,673-674,677-686,688
+scripts/phase-finalize.py
+  s_96afdcfd38c67e::t_2655725aa84331 11,32-88,108-110,147-151,164,168-172,189-192,195-196,208-210,215-216,292,295,308-310,400,410,412,414,454-459,473-490,509-521,523-525,529-530,544-546,548-549,566-567,595
+scripts/sync.sh
+  s_ba687a06b17902::t_19568d42ba40e3 157
+scripts/validate-task.sh
+  s_ba687a06b17902::t_88bda0cda61fda 82-96
+templates/.ai-umbrella/README.md
+  s_ba687a06b17902::t_9f5cd4e295e2ac 94-102
+templates/.ai-umbrella/memory/state.md
+  s_ba687a06b17902::t_1635460412b1ee 18
+templates/.ai/README.md
+  s_ba687a06b17902::t_c46da841d27172 50-58
+templates/.ai/context/runbook.md
+  s_ba687a06b17902::t_7c2646d1b9b935 22-31
+templates/.ai/memory/state.md
+  s_ba687a06b17902::t_0706fb2189ed5c 20-22
+templates/codex-global-AGENTS.md
+  s_ba687a06b17902::t_de41431d55d7b8 56-65
+tests/fixtures/validator-runtime/source_guard.py
+  s_ba687a06b17902::t_2c73f2d5899ddf 963
+tests/fixtures/validator-runtime/source_guard_exceptions.json
+  s_ba687a06b17902::t_ce90bb81c85d85 308,332,358,3568-3569,3574,3590-3591,3596,4584,4597
+workflows/PIPELINE.md
+  s_ba687a06b17902::t_1dc112a49b1628 8-9,21,95-112,215-216
+workflows/phase-finalize.md
+  s_96afdcfd38c67e::t_a8eebab2cfc1df 1-213
+workflows/phase-pipeline.md
+  s_ba687a06b17902::t_15d3d5fa0f63d4 162-165
+workflows/pv-finalize.md
+  s_ba687a06b17902::t_e72e89d2c74f93 54-60,217-220
+workflows/spec-run.md
+  s_ba687a06b17902::t_405777959caa4e 495-498
+rules/workflow-globals.md
+  s_38327152c87351::t_63ccdb13871e12 7,16,24-25,57,123,170,173,318-359
+scripts/finalization_archive.py
+  s_38327152c87351::t_3c30dfe1930d53 10-12,129-132,195-200,206-208
+scripts/finalization_attempts.py
+  s_38327152c87351::t_c4f4bb0ab40295 1-93
+scripts/finalization_knowledge.py
+  s_38327152c87351::t_a77dc57d796811 1-201
+scripts/finalization_outputs.py
+  s_38327152c87351::t_d681ab9931d38a 1-54
+scripts/finalization_support.py
+  s_38327152c87351::t_43a1b58266b0a9 236-237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "01200f2b4d03f8c8c5b2e041c0ee78168b36a0bd",
+  "prompts": {},
+  "sessions": {
+    "s_278ba03ecb3542": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b86a39bc-9ebb-4a01-bae9-032e37c984ce",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_38327152c87351": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1ea26-e1fa-7fb3-aa20-6500e618efbe",
+        "model": "unknown"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_96afdcfd38c67e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f3ac193-9977-473b-b9f7-3df06f485ee7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_9ffcb74080ebec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc38276e-d819-4acd-ac7b-a035ad8deb45",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_ba687a06b17902": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e93f-54f4-7363-9037-6892b0ec2bc0",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
