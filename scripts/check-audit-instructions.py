@@ -791,5 +791,85 @@ class StandaloneTests(ToolCase):
             self.assertNotIn("audit-instructions", text, script)
 
 
+class UnreadableRootTests(ToolCase):
+    def setUp(self) -> None:
+        super().setUp()
+        if os.geteuid() == 0:
+            self.skipTest("permission bits do not restrict the superuser")
+
+    def assert_root_unreadable(self, result: subprocess.CompletedProcess[str],
+                               out: Path) -> str:
+        line = self.assert_single_error_line(result)
+        self.assertTrue(line.startswith("ERROR: root-unreadable: "), line)
+        self.assertNotIn(str(self.base), result.stderr)
+        self.assertFalse(out.exists())
+        return line
+
+    def test_root_that_cannot_be_searched_is_reported_as_unreadable(self) -> None:
+        self.fx.minimal()
+        out = self.base / "inventory.json"
+        os.chmod(self.fx.root, 0)
+        try:
+            result = self.run_extract(out=out)
+        finally:
+            os.chmod(self.fx.root, 0o755)
+
+        self.assert_root_unreadable(result, out)
+
+    def test_unreadable_directory_among_readers_is_reported_instead_of_skipped(self) -> None:
+        self.fx.minimal()
+        self.fx.write("docs/b.md", "# Readable\n")
+        self.fx.write("docs/sub/a.md", "# Hidden\n")
+        out = self.base / "inventory.json"
+        os.chmod(self.fx.root / "docs" / "sub", 0)
+        try:
+            result = self.run_extract(out=out)
+        finally:
+            os.chmod(self.fx.root / "docs" / "sub", 0o755)
+
+        self.assert_root_unreadable(result, out)
+
+    def test_file_name_that_is_not_utf8_is_refused_without_writing(self) -> None:
+        self.fx.minimal()
+        for directory in ("rules", "docs"):
+            with self.subTest(directory=directory):
+                (self.fx.root / directory).mkdir(exist_ok=True)
+                name = os.fsencode(self.fx.root / directory) + b"/bad-\xff.md"
+                with open(name, "wb") as handle:
+                    handle.write(b"# Bad name\n")
+                out = self.base / f"{directory}-inventory.json"
+                try:
+                    result = self.run_extract(out=out)
+                finally:
+                    os.unlink(name)
+
+                line = self.assert_root_unreadable(result, out)
+                self.assertIn("UTF-8", line)
+
+
+class GitIsolationTests(ToolCase):
+    def setUp(self) -> None:
+        super().setUp()
+        if REAL_GIT is None:
+            self.skipTest("git is not installed")
+
+    def test_repository_configured_fsmonitor_program_is_never_run(self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        marker = self.base / "fsmonitor-ran"
+        monitor = self.base / "fsmonitor.sh"
+        monitor.write_text(f"#!/bin/sh\ntouch '{marker}'\nexit 1\n", encoding="utf-8")
+        monitor.chmod(0o755)
+        self.fx.git("config", "core.fsmonitor", str(monitor))
+        self.fx.write("rules/alpha-flow.md", "# Alpha flow changed\n")
+        marker.unlink(missing_ok=True)
+
+        inventory = self.extract()
+
+        self.assertFalse(marker.exists(), "git ran the repository's fsmonitor program")
+        self.assertEqual(inventory["worktree"], {"state": "dirty",
+                                                 "paths": ["rules/alpha-flow.md"]})
+
+
 if __name__ == "__main__":
     unittest.main()
