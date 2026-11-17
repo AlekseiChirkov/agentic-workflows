@@ -567,7 +567,7 @@
         },
         {
           "heading": "## Parent `plan.md` Table Format",
-          "kind": "contract",
+          "kind": "protocol",
           "proposed_home": "rules/contract-state-files.md"
         },
         {
@@ -1230,7 +1230,7 @@
         125,
         126
       ],
-      "observation": "Lines 21 and 22 cite `workflow-globals → Never auto-advance between phases` and `workflow-globals → Test-first execution`; neither is a heading of rules/workflow-globals.md, both are bold paragraph labels of its preamble (:56, :114). Lines 125-126 split `workflow-globals → Canonical Status Formats` across a line break, so no span forms and no tool reads it.",
+      "observation": "Lines 21 and 22 cite `workflow-globals → Never auto-advance between phases` and `workflow-globals → Test-first execution`; neither is a heading of rules/workflow-globals.md, both are bold paragraph labels inside its `## Context Pack` section (:56, :114). Lines 125-126 split `workflow-globals → Canonical Status Formats` across a line break, so no span forms and no tool reads it.",
       "consequence": "The references cannot be resolved or loaded as sections, and the split one escapes every reference check.",
       "owner": "11",
       "closure": "Each reference names an existing heading in the marked form on one line, or the cited paragraphs become headings; alternatively the finding is re-owned to 09 with an amendment.",
@@ -1507,14 +1507,14 @@
       "type": "mixed-kind",
       "severity": "minor",
       "source": "rules/workflow-globals.md",
-      "section": "(preamble)",
+      "section": "(file)",
       "sha256": "14a1bc2dd813c41b0659cd7d6a546665efce38744d053e569878475344d0fd97",
       "lines": [
         19,
         60,
         98
       ],
-      "observation": "The preamble of the always-on contract embeds a decision protocol (\"Wait for user decisions\", :60, and the trust mechanism, :98-102) and an environment lookup (rule resolution per harness, :19-33) among cross-workflow obligations.",
+      "observation": "The always-on contract embeds a decision protocol among cross-workflow obligations inside `## Context Pack` (\"Wait for user decisions\", :60, and the trust mechanism, :98-102) and an environment lookup in the preamble (rule resolution per harness, :19-33).",
       "consequence": "The protocol parts have no heading of their own, so they cannot be cited or loaded as sections.",
       "owner": "09",
       "closure": "The map records where the embedded protocol and lookup go, with headings that can be cited, or keeps them with a recorded reason.",
@@ -1816,6 +1816,136 @@
         "rules/workflow-globals.md:36",
         "rules/workflow-globals.md:32",
         "rules/phase-atomic-execution.md:30"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-026",
+      "type": "other",
+      "severity": "major",
+      "source": "rules/workflow-globals.md",
+      "section": "## Context Pack",
+      "sha256": "14a1bc2dd813c41b0659cd7d6a546665efce38744d053e569878475344d0fd97",
+      "lines": [
+        39,
+        40,
+        56,
+        58,
+        60,
+        62,
+        114
+      ],
+      "observation": "`## Context Pack` (:40) follows the last preamble line (:39) without a blank line and opens one section that runs to :127. Besides the optional pack it holds the global phase principles: never auto-advance (:56), continue never restart (:58), wait for user decisions (:60), the registry of workflow-declared mode overrides (:62-85), the `--batch` meaning (:87-94), the trust mechanism (:98-102), orchestrated mode (:106-112) and test-first execution (:114-120). The registry has no heading of its own although workflows/pav-propose.md:12 cites it as `workflow-globals → Workflow-declared mode overrides`.",
+      "consequence": "A section-level load or move of `## Context Pack` carries the core phase contract, a load of the principles without it is impossible, and the cited registry cannot be resolved as a section.",
+      "owner": "11",
+      "closure": "The principles stand under headings of their own (the mode-override registry among them) before any section-level loading or split of the file, and `## Context Pack` holds only the pack.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/workflow-globals.md:39",
+        "rules/workflow-globals.md:40",
+        "rules/workflow-globals.md:56",
+        "rules/workflow-globals.md:62",
+        "rules/workflow-globals.md:114",
+        "workflows/pav-propose.md:12"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-027",
+      "type": "mixed-kind",
+      "severity": "minor",
+      "source": "rules/quick-flow.md",
+      "section": "## The escalation gate",
+      "sha256": "8f6accf9d9fe0fec8fcb4d42a74abd4f35f2ac98568836fa70913fdb995152f4",
+      "lines": [
+        27,
+        118,
+        137
+      ],
+      "observation": "Besides the worked examples (AUD-08-010) the contract holds a decision protocol (`## The escalation gate`, :27-57: four conditions decide quick or full) and two procedures (`## Setting the flow (Discovery)`, :118-133, run by /pd-analyze; `## Mid-flight escalation (quick → full)`, :137-152, triggered by a breach).",
+      "consequence": "The target name `contract-quick-flow` will hold a protocol and two procedure sections.",
+      "owner": "09",
+      "closure": "The map keeps the gate and the procedures in the contract with a recorded reason, or splits them through an amendment.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/quick-flow.md:29",
+        "rules/quick-flow.md:120",
+        "rules/quick-flow.md:139"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-028",
+      "type": "conditional-context",
+      "severity": "minor",
+      "source": "rules/workflow-reference.md",
+      "section": "## Parent `plan.md` Table Format",
+      "sha256": "08c81786494f39665b4aebf495c705a21b4fd38294a995074a24d165730bd463",
+      "lines": [
+        97,
+        99,
+        131,
+        156,
+        190
+      ],
+      "observation": "Most of the section (:97-188) is the model-resolution protocol and the catalog guidance preflight procedure (:99-129); the table format itself is :190-203. Both apply only when a plan uses model columns or a model-specific request is made, but they load with every use of the state-file contract.",
+      "consequence": "Every workflow that loads the state-file reference reads the model-selection protocol even when no model column or request exists.",
+      "owner": "11",
+      "closure": "The model-resolution protocol and preflight are loaded only when model columns or a model-specific request are present, and the table format stays with the state-file contract.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/workflow-reference.md:97",
+        "rules/workflow-reference.md:99",
+        "rules/workflow-reference.md:131",
+        "rules/workflow-reference.md:156",
+        "rules/workflow-reference.md:190"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-029",
+      "type": "other",
+      "severity": "minor",
+      "source": "templates/codex-global-AGENTS.md",
+      "section": "(preamble)",
+      "sha256": "0d6649fdc87a0f0ae70b990ba957e5fe85b80148afab197ddb699e02aea39b95",
+      "lines": [
+        2,
+        3
+      ],
+      "observation": "Lines 2-3 are written as comments (a managed-file notice and a note on how the harness merges the file) but are Markdown level-1 headings; line 1 is the title.",
+      "consequence": "The always-on body delivered to every session carries two headings that are not headings.",
+      "owner": "09",
+      "closure": "The notices become prose or a comment form that Markdown does not read as a heading when the file moves to the Codex adapter.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "templates/codex-global-AGENTS.md:2",
+        "templates/codex-global-AGENTS.md:3"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-030",
+      "type": "other",
+      "severity": "minor",
+      "source": "rules/global-claude.md",
+      "section": "(preamble)",
+      "sha256": "2b7aa608b14136b0d09041a7815bf615d1ee80d8983ab6c6e98d979be3bb3ee2",
+      "lines": [
+        2
+      ],
+      "observation": "Line 2 is written as a comment (the scope of the standards) but is a Markdown level-1 heading; line 1 is the title.",
+      "consequence": "The always-on body delivered to every session carries a heading that is not a heading.",
+      "owner": "09",
+      "closure": "The scope note becomes prose when the file moves to the Claude Code adapter.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/global-claude.md:2"
       ],
       "edges": []
     }
