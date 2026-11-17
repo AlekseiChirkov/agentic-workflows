@@ -305,7 +305,7 @@
     "count": 1,
     "reason": "The relocated fixture executes the explicitly named copied helper.",
     "dependencies": {
-      "scripts/sync.sh": "a65854df540b320988620ccac94299e16ee6a8e5e4792b89fc32cc9a68f9f123"
+      "scripts/sync.sh": "b40d1ddb561e721872cc0c7e15bd99b2f0d8e44a8a46a8ccf28385ec11a099bd"
     }
   },
   {
@@ -3566,7 +3566,7 @@
     "dependencies": {
       "docs/MODEL-CATALOG.md": "705c920c60218461404d3b76b6ef77f04b42f72b659800dec2cba2d5ef507ad4",
       "rules/workflow-reference.md": "3bf500003458ea7ec0b9c1b0e6e09a16973461e0d6b09e38454a2379f487a046",
-      "scripts/sync.sh": "a65854df540b320988620ccac94299e16ee6a8e5e4792b89fc32cc9a68f9f123",
+      "scripts/sync.sh": "b40d1ddb561e721872cc0c7e15bd99b2f0d8e44a8a46a8ccf28385ec11a099bd",
       "scripts/model-catalog.py": "dfe20c5cac2eefa8f03b4dbc90dbc107abd3635104102ec0e24e7ad5109d6bd4",
       "scripts/model_selection.py": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece",
       "scripts/model_plan.py": "283c7d1d0a4c37fd9f1f2405eb269cfa7e5bb32b8dd898c0b49e9b16d32231ff",
@@ -3588,7 +3588,7 @@
     "dependencies": {
       "docs/MODEL-CATALOG.md": "705c920c60218461404d3b76b6ef77f04b42f72b659800dec2cba2d5ef507ad4",
       "rules/workflow-reference.md": "3bf500003458ea7ec0b9c1b0e6e09a16973461e0d6b09e38454a2379f487a046",
-      "scripts/sync.sh": "a65854df540b320988620ccac94299e16ee6a8e5e4792b89fc32cc9a68f9f123",
+      "scripts/sync.sh": "b40d1ddb561e721872cc0c7e15bd99b2f0d8e44a8a46a8ccf28385ec11a099bd",
       "scripts/model-catalog.py": "dfe20c5cac2eefa8f03b4dbc90dbc107abd3635104102ec0e24e7ad5109d6bd4",
       "scripts/model_selection.py": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece",
       "scripts/model_plan.py": "283c7d1d0a4c37fd9f1f2405eb269cfa7e5bb32b8dd898c0b49e9b16d32231ff",

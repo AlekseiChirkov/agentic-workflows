@@ -161,8 +161,13 @@ echo "[3c/5] Claude Code: rules as skills"
 for file in "$RULES"/*.md; do
   name=$(basename "$file" .md)
   skill_name="rule-${name}"
-  mkdir -p "$OUTPUT_ROOT"/.claude/skills/$skill_name
-  cp "$file" "$OUTPUT_ROOT"/.claude/skills/$skill_name/SKILL.md
+  if [ -n "$STAGE_ROOT" ]; then
+    mkdir -p "$OUTPUT_ROOT"/.claude/skills/$skill_name
+    cp "$file" "$OUTPUT_ROOT"/.claude/skills/$skill_name/SKILL.md
+  else
+    mkdir -p ~/.claude/skills/$skill_name
+    cp "$file" ~/.claude/skills/$skill_name/SKILL.md
+  fi
   echo "  deployed: $skill_name"
 done
 echo "  $(ls "$RULES"/*.md | wc -l | tr -d ' ') rules → "$OUTPUT_ROOT"/.claude/skills/rule-*/"
@@ -205,8 +210,13 @@ echo "[4d/5] Codex: rules as skills"
 for file in "$RULES"/*.md; do
   name=$(basename "$file" .md)
   skill_name="rule-${name}"
-  mkdir -p "$OUTPUT_ROOT"/.codex/skills/$skill_name
-  cp "$file" "$OUTPUT_ROOT"/.codex/skills/$skill_name/SKILL.md
+  if [ -n "$STAGE_ROOT" ]; then
+    mkdir -p "$OUTPUT_ROOT"/.codex/skills/$skill_name
+    cp "$file" "$OUTPUT_ROOT"/.codex/skills/$skill_name/SKILL.md
+  else
+    mkdir -p ~/.codex/skills/$skill_name
+    cp "$file" ~/.codex/skills/$skill_name/SKILL.md
+  fi
   echo "  deployed: $skill_name"
 done
 echo "  $(ls "$RULES"/*.md | wc -l | tr -d ' ') rules → "$OUTPUT_ROOT"/.codex/skills/rule-*/"
