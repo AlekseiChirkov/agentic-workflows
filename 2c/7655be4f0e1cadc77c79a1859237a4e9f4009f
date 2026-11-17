@@ -1,0 +1,39 @@
+.ai/context/runbook.md
+  s_ba687a06b17902::t_d03bce338002e9 40-47
+.ai/memory/architecture.md
+  s_96afdcfd38c67e::t_a3a47cc1081646 22
+.ai/memory/progress.md
+  s_96afdcfd38c67e::t_1b346bcd86db39 149
+.ai/memory/state.md
+  s_96afdcfd38c67e::t_472fb1b86dbac4 9,19
+docs/README.md
+  s_ba687a06b17902::t_719648cd6b1478 15
+docs/audits/2026-11-17-rules-workflows-audit.md
+  s_ba687a06b17902::t_d963de121ca966 1665
+scripts/README.md
+  s_ba687a06b17902::t_4ff9c2eebbbf14 24-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2c7655be4f0e1cadc77c79a1859237a4e9f4009f",
+  "prompts": {},
+  "sessions": {
+    "s_96afdcfd38c67e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f3ac193-9977-473b-b9f7-3df06f485ee7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_ba687a06b17902": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e93f-54f4-7363-9037-6892b0ec2bc0",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
