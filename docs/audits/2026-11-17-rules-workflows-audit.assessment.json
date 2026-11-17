@@ -811,7 +811,9 @@
         "workflows/pae-implement.md:16"
       ],
       "repetition": {
-        "report": [],
+        "report": [
+          "AUD-08-059"
+        ],
         "checkpoint": [],
         "review": []
       }
@@ -830,7 +832,8 @@
       ],
       "repetition": {
         "report": [
-          "AUD-08-042"
+          "AUD-08-042",
+          "AUD-08-059"
         ],
         "checkpoint": [],
         "review": []
@@ -1073,7 +1076,9 @@
         "workflows/phase-atomic-validation.md:19"
       ],
       "repetition": {
-        "report": [],
+        "report": [
+          "AUD-08-044"
+        ],
         "checkpoint": [],
         "review": []
       }
@@ -2659,9 +2664,9 @@
     },
     {
       "id": "RL-003",
-      "disposition": "guarded",
-      "finding": null,
-      "reason": "The composite check bootstraps for the composite's own `working_dir:` (phase-composite-validation.md:18-21), which can be another repository than the closing leaf's; the rule reuses sources only for the same resolved project (rules/phase-atomic-validation.md:10-12)"
+      "disposition": "finding",
+      "finding": "AUD-08-053",
+      "reason": null
     },
     {
       "id": "RL-004",
@@ -4075,19 +4080,24 @@
         18
       ],
       "observation": "Three orchestrators instruct to follow the `run-log` rule in full (phase-execution.md:18, phase-validation.md:19, spec-run.md:63); /bugfix follows the whole rule at :30. The rule has 585 lines, while a prompt-logged boundary needs `## Workflow coverage and routing` (rules/run-log.md:116), which /phase-discovery and /phase-pipeline cite as their only section (phase-discovery.md:135, phase-pipeline.md:19).",
-      "consequence": "Every Execution, Validation and orchestrated run loads the native hook adapter, lint and legacy normalization sections it does not use; AUD-08-013 records the rule side of the same cost.",
+      "consequence": "Per workflow: /phase-execution and /phase-validation cite only the routing section (phase-execution.md:21, phase-validation.md:22) and /bugfix cites none, so each of their runs loads the native hook adapter, read-only lint and legacy normalization sections (rules/run-log.md:375, :523, :254) without using them. /spec-run does use the native hook adapter: it dispatches through the hook adapter (spec-run.md:286-301) and cites `### Dispatch and native evidence` (:331) besides routing (:80, :288, :335, :377), so for it only the read-only lint and legacy normalization sections go unused. AUD-08-013 records the rule side of the same cost.",
       "owner": "11",
-      "closure": "The three orchestrators and /bugfix name the sections they use, as /phase-discovery does, and load the rest only when the condition that needs it holds.",
+      "closure": "/phase-execution, /phase-validation and /bugfix name the sections they use, as /phase-discovery does; /spec-run names its routing and dispatch sections instead of the whole rule; the rest loads only when the condition that needs it holds.",
       "blocks_09": false,
       "status": "open",
       "evidence": [
         "workflows/phase-execution.md:18",
+        "workflows/phase-execution.md:21",
         "workflows/phase-validation.md:19",
+        "workflows/phase-validation.md:22",
         "workflows/spec-run.md:63",
+        "workflows/spec-run.md:286",
+        "workflows/spec-run.md:331",
         "workflows/bugfix.md:30",
         "workflows/phase-discovery.md:135",
         "workflows/phase-pipeline.md:19",
-        "rules/run-log.md:116"
+        "rules/run-log.md:116",
+        "rules/run-log.md:375"
       ],
       "edges": []
     },
@@ -4102,10 +4112,10 @@
         125,
         126
       ],
-      "observation": "The tripwire loads the whole `workflow-reference` rule (634 lines) to use the Autonomous Subtask Classifier (rules/workflow-reference.md:487-548), at the start and again at the midpoint of every leaf. /pav-close (:32), /pe-finalize (:27) and /pv-finalize (:30) likewise load the whole rule for the status translation table or the memory entry format.",
+      "observation": "The tripwire loads the whole `workflow-reference` rule (634 lines) to use the Autonomous Subtask Classifier (rules/workflow-reference.md:487-548), at the start and again at the midpoint of every leaf. /pav-close (:32), /pe-finalize (:27) and /pv-finalize (:30) likewise load the whole rule for the status translation table, the memory entry format or the project-state update rules.",
       "consequence": "Every leaf loads the state-file contract, the decision protocol and the model resolution protocol to evaluate one classifier section; AUD-08-018 and AUD-08-028 record the rule side.",
       "owner": "11",
-      "closure": "Each of these workflows loads only the section it uses by its marked heading (`workflow-reference → ## Autonomous Subtask Classifier`, `## Status Translation Table`, `## .ai/memory/state.md Entry Format`).",
+      "closure": "Each of these workflows loads only the section it uses by its marked heading (`workflow-reference → ## Autonomous Subtask Classifier`, `## Status Translation Table`, `## .ai/memory/state.md Entry Format`, `## .ai/project_state.md Update Rules`).",
       "blocks_09": false,
       "status": "open",
       "evidence": [
@@ -4113,10 +4123,12 @@
         "workflows/pae-implement.md:126",
         "workflows/pav-close.md:32",
         "workflows/pe-finalize.md:27",
+        "workflows/pe-finalize.md:28",
         "workflows/pv-finalize.md:30",
         "rules/workflow-reference.md:487",
         "rules/workflow-reference.md:261",
-        "rules/workflow-reference.md:377"
+        "rules/workflow-reference.md:377",
+        "rules/workflow-reference.md:408"
       ],
       "edges": []
     },
@@ -4212,10 +4224,10 @@
         100,
         101
       ],
-      "observation": "/phase-execution reports completed and skipped work, verification and paths and displays `Execution complete. Run /phase-validation <task-directory> to start validation.` (:100-101) right after /pe-finalize reported outcomes, verification and paths and displayed the same line (pe-finalize.md:106-107). /phase-validation repeats /pv-finalize's report the same way (phase-validation.md:105; pv-finalize.md:204-205). /phase-discovery avoids this by letting /pd-finalize supply the single final report (phase-discovery.md:178).",
-      "consequence": "Every Execution and Validation phase ends with two reports of the same outcome.",
+      "observation": "/phase-execution reports completed and skipped work, verification and paths and displays `Execution complete. Run /phase-validation <task-directory> to start validation.` (:100-101) right after /pe-finalize reported outcomes, verification and paths and displayed the same line (pe-finalize.md:106-107). /phase-validation repeats /pv-finalize's report the same way (phase-validation.md:105; pv-finalize.md:204-205), and /phase-atomic-validation reports the final verdict and status (phase-atomic-validation.md:85) right after /pav-close reported the closure and status (pav-close.md:70). /phase-discovery avoids this by letting /pd-finalize supply the single final report (phase-discovery.md:178).",
+      "consequence": "Every Execution and Validation phase, and every atomic validation cycle, ends with two reports of the same outcome.",
       "owner": "11",
-      "closure": "Both orchestrators reuse their finalizer's report, as /phase-discovery does, and add only the run-closing facts they own.",
+      "closure": "The three orchestrators reuse their last child's report, as /phase-discovery does, and add only the run-closing facts they own.",
       "blocks_09": false,
       "status": "open",
       "evidence": [
@@ -4225,6 +4237,8 @@
         "workflows/pe-finalize.md:107",
         "workflows/phase-validation.md:105",
         "workflows/pv-finalize.md:204",
+        "workflows/phase-atomic-validation.md:85",
+        "workflows/pav-close.md:70",
         "workflows/phase-discovery.md:178"
       ],
       "edges": []
@@ -4239,8 +4253,8 @@
       "lines": [
         72
       ],
-      "observation": "Each leaf compresses the same parent state three times in one Execution: /pae-finalize after execution (pae-finalize.md:62), /pav-close after validation (pav-close.md:51) and /pe-execute right after the leaf is reviewed (:72), with no write between the last two. A composite check (phase-composite-validation.md:85), each fix cycle (pv-execute-fixes.md:43) and the orchestrated loop (spec-run.md:403) add further passes.",
-      "consequence": "Each pass reads the whole state and audits it against the protected-sections contract, so the cost grows with the number of leaves while the second and third pass of a leaf find nothing new.",
+      "observation": "Each leaf compresses the same parent state three times in one Execution: /pae-finalize after execution (pae-finalize.md:62), /pav-close after validation (pav-close.md:51) and /pe-execute right after the leaf is reviewed (:72). The /pav-close pass follows the writes of /pav-check, /pav-propose and its own status update; the /pe-execute pass follows no write since that pass. A composite check (phase-composite-validation.md:85), each fix cycle (pv-execute-fixes.md:43) and the orchestrated loop (spec-run.md:403) add further passes.",
+      "consequence": "Each pass reads the whole state and audits it against the protected-sections contract, so the cost grows with the number of leaves; the /pe-execute pass audits a state the /pav-close pass has just compressed, and the other two each follow only the few lines one step wrote.",
       "owner": "13",
       "closure": "One compression checkpoint per leaf cycle, owned by one workflow, with the others returning to it.",
       "blocks_09": false,
@@ -4418,8 +4432,8 @@
         22,
         23
       ],
-      "observation": "/pe-finalize runs the `phase-execution` Context Bootstrap \"including standalone runs\", that is under /phase-execution as well, which ran it at phase-execution.md:53. /pv-create-fixes (:29) and /pv-finalize (:29) do the same under /phase-validation (:54). Unlike the atomic phase rules, the phase-execution and phase-validation rules have no reuse clause (rules/phase-execution.md:10-12, rules/phase-validation.md:10-12), so the seven bootstrap sources load again.",
-      "consequence": "Every Execution and Validation reloads the whole knowledge-base bootstrap inside the session that already holds it.",
+      "observation": "/pe-finalize runs the `phase-execution` Context Bootstrap \"including standalone runs\", that is under /phase-execution as well, which ran it at phase-execution.md:53. /pv-create-fixes (:29) and /pv-finalize (:29) do the same under /phase-validation (:54). Unlike the atomic phase rules, the phase-execution and phase-validation rules have no reuse clause (rules/phase-execution.md:10-12, rules/phase-validation.md:10-12). The global rules answer both ways: the standalone sentence says to run the full bootstrap and never assume pre-loaded context, while the next sentence reuses unchanged context within one parent invocation (rules/workflow-globals.md:35-36). Read literally, the step text reloads the seven bootstrap sources under its parent.",
+      "consequence": "Whether every Execution and Validation reloads the knowledge-base bootstrap inside the session that already holds it depends on which global sentence the agent applies; the step text, which says to bootstrap in both modes, points to the reload.",
       "owner": "12",
       "closure": "The three steps bootstrap only when invoked standalone, as /pe-execute does (pe-execute.md:23-24), or the two phase rules gain the reuse clause of the atomic rules.",
       "blocks_09": false,
@@ -4432,7 +4446,9 @@
         "workflows/phase-validation.md:54",
         "rules/phase-execution.md:10",
         "rules/phase-validation.md:10",
-        "workflows/pe-execute.md:23"
+        "workflows/pe-execute.md:23",
+        "rules/workflow-globals.md:35",
+        "rules/workflow-globals.md:36"
       ],
       "edges": []
     },
@@ -4447,7 +4463,7 @@
         23,
         24
       ],
-      "observation": "Children load their phase rule unconditionally while limiting the full bootstrap to standalone runs (pe-execute.md:23-24, pav-check.md:24-25, pv-contract.md:22-23, pv-review.md:27-28, pv-execute-fixes.md:26-27), or run the bootstrap in both modes where the rule's reuse clause keeps the sources (pav-close.md:26, pav-propose.md:18). Their parents loaded the same rule (phase-execution.md:53, phase-atomic-validation.md:21, phase-validation.md:54).",
+      "observation": "Children load their phase rule unconditionally while limiting the full bootstrap to standalone runs (pe-execute.md:23-24, pav-check.md:24-25, pv-contract.md:22-23, pv-review.md:27-28, pv-execute-fixes.md:26-27), or run the bootstrap in both modes where the rule's reuse clause keeps the sources (pav-close.md:26, pav-propose.md:18, and phase-composite-validation.md:18 when /pav-close calls it). Their callers loaded the same rule (phase-execution.md:53, phase-atomic-validation.md:21, phase-validation.md:54, pav-close.md:26). The atomic-validation reuse clause keeps current sources for the same resolved project (rules/phase-atomic-validation.md:10-14), so a composite in another `working_dir:` loads its own sources legitimately; in every case the repeat is the rule text.",
       "consequence": "The rule text is loaded again by each step of a phase; the general reuse rule (rules/workflow-globals.md:35-36) is not restated where the load is written.",
       "owner": "12",
       "closure": "The load sentence of each child is conditional on the rule not being loaded in the session.",
@@ -4461,6 +4477,8 @@
         "workflows/pv-contract.md:22",
         "workflows/pv-review.md:27",
         "workflows/pv-execute-fixes.md:26",
+        "workflows/phase-composite-validation.md:18",
+        "rules/phase-atomic-validation.md:10",
         "rules/workflow-globals.md:35"
       ],
       "edges": []
@@ -4591,6 +4609,30 @@
         "workflows/pv-create-fixes.md:50",
         "workflows/phase-validation.md:12",
         "workflows/phase-validation.md:90"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-059",
+      "type": "report-repeat",
+      "severity": "minor",
+      "source": "workflows/pae-tests.md",
+      "section": "## Pre-check",
+      "sha256": "2c5ab47354ecc64b5ac08223fd1f5439d4edb655f08530799a2670fd741a5438",
+      "lines": [
+        54
+      ],
+      "observation": "/pae-tests and /pae-implement each report the resolved WORK_DIR before continuing (pae-tests.md:54, pae-implement.md:51) and then load the `phase-atomic-execution` rule, whose bootstrap reports `WORK_DIR=<path>, AI_DIR=<path>` again (rules/phase-atomic-execution.md:26) and lists the loaded files (:28). AUD-08-051 records the repeated load; this finding records the repeated report.",
+      "consequence": "Each of the two steps prints the same working-directory resolution twice, and a leaf cycle prints it four times.",
+      "owner": "11",
+      "closure": "The working directory is reported once per leaf, either by the step or by the rule bootstrap it loads.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/pae-tests.md:54",
+        "workflows/pae-implement.md:51",
+        "rules/phase-atomic-execution.md:26",
+        "rules/phase-atomic-execution.md:28"
       ],
       "edges": []
     }
