@@ -6504,7 +6504,7 @@
       "observation": "The text that moves into the atomic-execution bootstrap rule has 443 words by the migration's word count: the preamble (front matter and title, :1-7) 29, `## Context Bootstrap` (:8-43) 287 and `## Phase Behaviors` (:44-52) 127. The naming migration lets only `## Phase Behaviors` text overflow (spec 09 REQ-19), yet the preamble and `## Context Bootstrap` alone have 316 words; even with a one-word description, no title and only the citing line under `## Phase Behaviors` the rule would hold 302 words. The migration's own measurement at its parent snapshot (about 393 words, DM-10 → Overflow rules) predates the multi-repository runbook resolution at :21-25.",
       "consequence": "The bootstrap target cannot satisfy the 300-word limit and its check (spec 09 REQ-19, REQ-32, AC-11) without deleting or rewording load instructions that the section map moves verbatim (DM-12).",
       "owner": "09",
-      "closure": "The migration specification states how a bootstrap whose own context section exceeds the limit is delivered and checked (AMD-08-03, AMD-08-04); nothing in the section is deleted.",
+      "closure": "The migration specification states how a bootstrap whose own context section exceeds the limit is delivered, recorded and checked (AMD-08-03, AMD-08-04, AMD-08-06, AMD-08-07); nothing in the section is deleted.",
       "blocks_09": true,
       "status": "open",
       "evidence": [
@@ -6517,7 +6517,9 @@
         ".ai/specs/09-model-only-harnesses-and-rule-naming.md:913",
         ".ai/specs/09-model-only-harnesses-and-rule-naming.md:374",
         "AMD-08-03",
-        "AMD-08-04"
+        "AMD-08-04",
+        "AMD-08-06",
+        "AMD-08-07"
       ],
       "edges": []
     },
@@ -9036,7 +9038,8 @@
       ],
       "affected": [],
       "depends_on": [
-        "AMD-08-01"
+        "AMD-08-01",
+        "AMD-08-05"
       ],
       "requires_adr": false,
       "disposition": "proposed"
@@ -9045,19 +9048,24 @@
       "id": "AMD-08-03",
       "target": "REQ-19",
       "change": "semantic",
-      "current": "IF the moved text exceeds 300 words, THEN the excess `## Phase Behaviors`\n  text SHALL move to the overflow rule DM-10 names for that phase, cited from\n  `## Phase Behaviors`, and SHALL never be deleted.",
-      "proposed": "IF the moved text exceeds 300 words, THEN the excess `## Phase Behaviors` text SHALL move to the overflow rule DM-10 names for that phase, cited from `## Phase Behaviors`, and SHALL never be deleted; IF the front matter, the moved `## Context Bootstrap` section and the citing line already exceed 300 words, THEN THE bootstrap rule SHALL keep that section whole, SHALL move all other `## Phase Behaviors` text to the overflow rule, and SHALL be listed with its measured word count and this reason in DM-20 as a size exception.",
-      "reason": "At the audited revision the atomic-execution bootstrap cannot meet the limit by overflow alone (AUD-08-063): its preamble and `## Context Bootstrap` already have 316 words, and DM-12 moves that section verbatim. Without a rule for this case the delivery either fails AC-11 or deletes or rewords load instructions, which REQ-19 forbids. Alternatives left to the owner: shorten the section under spec 11's obligation map before this migration, or move the path resolution that the atomic-validation bootstrap repeats (duplicate group DG-004) into a procedure rule; both change text that DM-12 moves verbatim. The checker side of the exception is AMD-08-04.",
+      "current": "EACH bootstrap rule SHALL contain, after its front matter and one optional H1,\n  exactly the two `## ` sections `## Context Bootstrap` then `## Phase Behaviors` and at most\n  300 words (DM-19); IF the moved text exceeds 300 words, THEN the excess `## Phase Behaviors`\n  text SHALL move to the overflow rule DM-10 names for that phase, cited from\n  `## Phase Behaviors`, and SHALL never be deleted.",
+      "proposed": "EACH bootstrap rule SHALL contain, after its front matter and one optional H1, exactly the two `## ` sections `## Context Bootstrap` then `## Phase Behaviors` and at most 300 words (DM-19), unless DM-20 → Bootstrap size exceptions lists it; IF the moved text exceeds 300 words, THEN the excess `## Phase Behaviors` text SHALL move to the overflow rule DM-10 names for that phase, cited from `## Phase Behaviors`, and SHALL never be deleted; IF the front matter, the moved `## Context Bootstrap` section and the citing line alone exceed 300 words, THEN THE bootstrap rule SHALL keep that section whole, SHALL move all other `## Phase Behaviors` text to the overflow rule, and SHALL be listed in DM-20 → Bootstrap size exceptions with its word count and that reason.",
+      "reason": "At the audited revision the atomic-execution bootstrap cannot meet the limit by overflow alone (AUD-08-063): its preamble and `## Context Bootstrap` already have 316 words, and DM-12 moves that section verbatim, so the current REQ-19 can be met only by deleting or rewording load instructions, which it forbids. This amendment states the exception; AMD-08-04 (checker), AMD-08-06 (the DM-20 table it refers to) and AMD-08-07 (AC-11) carry it into the other normative places, and the set is consistent only when all four are accepted. Three further statements of the limit are not amendment targets and are left for the reconciliation of the specification: the Non-Functional Requirements row `Bootstrap rule` (spec 09:1196), the Edge Cases row `Bootstrap over 300 words after the move` (:1244) and the Risks row `Bootstrap rules exceed 300 words after the move` (:1563). DM-10's measurement of about 393 words (:850) is out of date (443 words at the audited revision) but states no rule. Alternatives left to the owner: shorten the section under spec 11's obligation map before this migration, or move the path resolution that the atomic-validation bootstrap repeats (duplicate group DG-004) into a procedure rule; both change text that DM-12 moves verbatim.",
       "evidence": [
         "AUD-08-063",
         "rules/phase-atomic-execution.md:8",
         ".ai/specs/09-model-only-harnesses-and-rule-naming.md:319",
-        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:848"
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:848",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1196",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1244",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1563"
       ],
       "affected": [
         "AC-11"
       ],
-      "depends_on": [],
+      "depends_on": [
+        "AMD-08-06"
+      ],
       "requires_adr": false,
       "disposition": "proposed"
     },
@@ -9066,8 +9074,8 @@
       "target": "REQ-32",
       "change": "semantic",
       "current": "THE checker SHALL reject a bootstrap rule over 300 words or with any `## `\n  section other than the two of REQ-19, counting words by DM-19 (same rule as specs 11 and 19).",
-      "proposed": "THE checker SHALL reject a bootstrap rule over 300 words or with any `## ` section other than the two of REQ-19, counting words by DM-19 (same rule as specs 11 and 19), except that a bootstrap rule listed in DM-20 as a size exception under REQ-19 is not rejected for its word count when its count equals the listed one.",
-      "reason": "AMD-08-03 lets a bootstrap rule exceed 300 words when its own context section already does (AUD-08-063); without the matching exception here the checker rejects the rule that REQ-19 then requires, and AC-11 cannot pass. Tying the exception to the listed count keeps any later growth visible.",
+      "proposed": "THE checker SHALL reject a bootstrap rule over 300 words or with any `## ` section other than the two of REQ-19, counting words by DM-19 (same rule as specs 11 and 19), except that a bootstrap rule listed in DM-20 → Bootstrap size exceptions is not rejected for its word count while its count equals the listed `Words` value.",
+      "reason": "AMD-08-03 requires a bootstrap rule over 300 words when its own context section already exceeds the limit (AUD-08-063); without the matching exception here the checker rejects that rule. Tying the exception to the listed count keeps any later growth visible.",
       "evidence": [
         "AUD-08-063",
         ".ai/specs/09-model-only-harnesses-and-rule-naming.md:374"
@@ -9076,7 +9084,76 @@
         "AC-11"
       ],
       "depends_on": [
-        "AMD-08-03"
+        "AMD-08-03",
+        "AMD-08-06"
+      ],
+      "requires_adr": false,
+      "disposition": "proposed"
+    },
+    {
+      "id": "AMD-08-05",
+      "target": "DM-20",
+      "change": "semantic",
+      "current": "- `## Pre-existing reference defects` — `| Path:line | Reference | Fix |`: dangling references\n  and missing headings the checker finds on the parent tree, fixed by this delivery.",
+      "proposed": "- `## Pre-existing reference defects` — `| Path:line | Reference | Fix |`: dangling references and missing headings the checker finds on the parent tree, and the reference defects 08's accepted report records with owner 09 outside the DM-16 grammar, fixed by this delivery.",
+      "reason": "AMD-08-01 lists defects in this table that the checker does not find; without this change the table's description excludes them.",
+      "evidence": [
+        "AUD-08-001",
+        "AUD-08-004",
+        "AUD-08-005",
+        "AUD-08-007",
+        "AUD-08-033",
+        "AUD-08-035",
+        "AUD-08-036",
+        "AUD-08-062",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1028"
+      ],
+      "affected": [
+        "AC-39"
+      ],
+      "depends_on": [
+        "AMD-08-01"
+      ],
+      "requires_adr": false,
+      "disposition": "proposed"
+    },
+    {
+      "id": "AMD-08-06",
+      "target": "DM-20",
+      "change": "semantic",
+      "current": "- `## Retained old names` — `| Path | Line text | Reason |` (DM-17).",
+      "proposed": "- `## Retained old names` — `| Path | Line text | Reason |` (DM-17).\n- `## Bootstrap size exceptions` — `| Rule | Words | Reason |`: one row per bootstrap rule that REQ-19 lets exceed 300 words, with its word count by DM-19 at the delivery commit and the reason that its front matter, `## Context Bootstrap` section and citing line alone exceed the limit; no other rule is listed.",
+      "reason": "AMD-08-03, AMD-08-04 and AMD-08-07 refer to a listed size exception and its word count; the record has no table for them (AUD-08-063).",
+      "evidence": [
+        "AUD-08-063",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1027"
+      ],
+      "affected": [
+        "AC-11",
+        "AC-39"
+      ],
+      "depends_on": [],
+      "requires_adr": false,
+      "disposition": "proposed"
+    },
+    {
+      "id": "AMD-08-07",
+      "target": "AC-11",
+      "change": "semantic",
+      "current": "**AC-11** (REQ-19, REQ-32) — Given the delivered bootstrap rules, then each has ≤ 300 words\n  and only the two sections; and fixtures with 301 words, or with a third `## ` section, each\n  yield one finding.",
+      "proposed": "**AC-11** (REQ-19, REQ-32) — Given the delivered bootstrap rules, then each has only the two sections and either ≤ 300 words or exactly the word count of its row in DM-20 → Bootstrap size exceptions, and for every listed rule the front matter, `## Context Bootstrap` section and citing line alone exceed 300 words; and fixtures with 301 words, or with a third `## ` section, each yield one finding, while a 316-word fixture listed with 316 words yields none and the same fixture listed with 315 words yields one.",
+      "reason": "Under AMD-08-03 the atomic-execution bootstrap must exceed 300 words (AUD-08-063), so the current criterion cannot pass on the delivered tree; this restates it for the exception and keeps the 301-word and third-section fixtures.",
+      "evidence": [
+        "AUD-08-063",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1311"
+      ],
+      "affected": [
+        "AC-11"
+      ],
+      "depends_on": [
+        "AMD-08-03",
+        "AMD-08-04",
+        "AMD-08-06"
       ],
       "requires_adr": false,
       "disposition": "proposed"
