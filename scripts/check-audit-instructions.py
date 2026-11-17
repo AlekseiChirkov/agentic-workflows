@@ -1526,5 +1526,416 @@ class DefectPredicateTests(EdgeCase):
                                     for index, (_, raw, defect) in enumerate(cases)})
 
 
+# ---------------------------------------------------------------------------
+# Candidates, legacy mentions and duplicate clusters
+# ---------------------------------------------------------------------------
+
+REPEAT_LOAD_KEYS = ["id", "caller", "callee", "target"]
+LINE_CANDIDATE_KEYS = ["id", "source", "line", "text"]
+LEGACY_KEYS = ["source", "line", "column", "term", "text"]
+CLUSTER_KEYS = ["id", "sha256", "words", "text", "members"]
+MEMBER_KEYS = ["path", "line_start", "line_end"]
+CANDIDATE_LIST_KEYS = ["repeat_loads", "full_output", "harness_names", "legacy_mentions",
+                       "duplicate_clusters"]
+LOAD_R_ONE = "Load the `r-one` rule."
+
+
+def workflow_path(stem: str) -> str:
+    return f"workflows/{stem}.md"
+
+
+def repeat_load(number: int, caller: str, callee: str, target: str = R_ONE) -> dict:
+    return {"id": f"RL-{number:03d}", "caller": workflow_path(caller),
+            "callee": workflow_path(callee), "target": target}
+
+
+def collapsed(text: str) -> str:
+    return " ".join(text.split())
+
+
+def line_candidate(prefix: str, number: int, source: str, line: int, text: str) -> dict:
+    return {"id": f"{prefix}-{number:03d}", "source": source, "line": line,
+            "text": collapsed(text)[:160]}
+
+
+def legacy_mention(source: str, line: int, text: str, term_text: str, nth: int = 0) -> dict:
+    column = -1
+    for _ in range(nth + 1):
+        column = text.index(term_text, column + 1)
+    return {"source": source, "line": line, "column": column, "term": term_text.lower(),
+            "text": collapsed(text)[:160]}
+
+
+def cluster(number: int, text: str, members: Sequence[tuple[str, int, int]]) -> dict:
+    return {"id": f"DUP-{number:03d}", "sha256": sha256(text.encode("utf-8")),
+            "words": len(text.split()), "text": text,
+            "members": [{"path": path, "line_start": start, "line_end": end}
+                        for path, start, end in members]}
+
+
+class CandidateCase(ToolCase):
+    """Cases that write small workflow and rule trees and read the candidate lists."""
+
+    maxDiff = None
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.make_node_directories(self.fx)
+
+    @staticmethod
+    def make_node_directories(fixture: FixtureRoot) -> None:
+        for name in ("rules", "workflows"):
+            (fixture.root / name).mkdir(exist_ok=True)
+
+    def write_lines(self, path: str, lines: Sequence[str],
+                    fixture: FixtureRoot | None = None) -> Sequence[str]:
+        (fixture or self.fx).write(path, "".join(line + "\n" for line in lines))
+        return lines
+
+    def write_workflow(self, stem: str, lines: Sequence[str],
+                       fixture: FixtureRoot | None = None, invocable: bool = True) -> None:
+        header = [f"# {stem}"] + ([f"Invocation: `/{stem}`"] if invocable else [])
+        self.write_lines(workflow_path(stem), header + list(lines), fixture)
+
+    def fresh_fixture(self, name: str) -> FixtureRoot:
+        base = self.base / name
+        base.mkdir()
+        fixture = FixtureRoot(base)
+        self.make_node_directories(fixture)
+        return fixture
+
+    def extract_fixture(self, fixture: FixtureRoot) -> dict:
+        out = fixture.base / "inventory.json"
+        result = self.run_extract(out=out, root=fixture.root, env=fixture.env)
+        self.assertEqual(result.returncode, 0,
+                         f"extract failed: stdout={result.stdout!r} stderr={result.stderr!r}")
+        return parse_inventory(out.read_text(encoding="utf-8"))
+
+    def build_call_graph(self, fixture: FixtureRoot | None = None) -> None:
+        (fixture or self.fx).write(R_ONE, "# R one\n")
+        self.write_workflow("w-root", [LOAD_R_ONE, "Run `/w-child`.", "see `/w-a`",
+                                       "Do not run `/w-b`", "**stop**: run `/w-a` first"],
+                            fixture)
+        self.write_workflow("w-child", [LOAD_R_ONE], fixture)
+        self.write_workflow("w-a", [LOAD_R_ONE, "Run `/w-b` next."], fixture)
+        self.write_workflow("w-b", [LOAD_R_ONE, "Then run `/w-a`."], fixture)
+        self.write_workflow("HUB", [LOAD_R_ONE, "Run `/w-root`, then run `/w-child`."],
+                            fixture, invocable=False)
+
+
+class RepeatLoadTests(CandidateCase):
+    NOT_CALLS = [
+        "see `/w-child`",
+        "Do not run `/w-child`",
+        "**stop**: run `/w-child` first",
+        "Don't run `/w-child` here.",
+        "Never call `/w-child` directly.",
+        "Run the checks → see `/w-child`.",
+        "Run the checks — see `/w-child`.",
+        "Run the checks (see `/w-child`).",
+        "Run the checks; the result names `/w-child`.",
+        "Running `/w-child` is optional.",
+    ]
+    CALLS = [
+        "If no file remains, run `/w-child`.",
+        "Run `/w-child`. It does not ask.",
+        "Run /w-child now.",
+        "Run `a.b` with `/w-child`.",
+        "Run `/w-child`; **stop** after it.",
+        "Invoke the step: then delegate to `/w-child`.",
+        "Run it and never skip `/w-child`.",
+        "CALLS `/w-child` once.",
+    ]
+
+    def test_calls_between_invocable_workflows_that_share_a_load_are_repeat_loads(
+            self) -> None:
+        self.build_call_graph()
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["repeat_loads"], [
+            repeat_load(1, "w-a", "w-b"),
+            repeat_load(2, "w-b", "w-a"),
+            repeat_load(3, "w-root", "w-child"),
+        ])
+
+    def test_only_a_call_verb_without_earlier_negation_or_stop_marker_makes_a_call(
+            self) -> None:
+        control = repeat_load(1, "w-ctl", "w-child")
+        cases = [(line, False) for line in self.NOT_CALLS]
+        cases += [(line, True) for line in self.CALLS]
+        for index, (line, is_call) in enumerate(cases):
+            with self.subTest(line=line):
+                fixture = self.fresh_fixture(f"case-{index}")
+                fixture.write(R_ONE, "# R one\n")
+                self.write_workflow("w-root", [LOAD_R_ONE, line], fixture)
+                self.write_workflow("w-child", [LOAD_R_ONE], fixture)
+                self.write_workflow("w-ctl", [LOAD_R_ONE, "Run `/w-child`."], fixture)
+
+                inventory = self.extract_fixture(fixture)
+
+                expected = [control]
+                if is_call:
+                    expected.append(repeat_load(2, "w-root", "w-child"))
+                self.assertEqual(inventory["repeat_loads"], expected)
+
+    def test_each_shared_single_target_load_of_a_call_pair_is_one_candidate(self) -> None:
+        for path in ("rules/r-one.md", "rules/r-two.md", "rules/r-three.md",
+                     "rules/shared-step.md", "workflows/shared-step.md"):
+            self.fx.write(path, "# Node\n")
+        self.write_workflow("w-p", [
+            "Load the `r-two` rule.",
+            "Load the `r-one` rule and the `r-three` rule.",
+            "Read `shared-step` first.",
+            "Run `/w-q`.",
+            "Then run `/w-q` again.",
+        ])
+        self.write_workflow("w-q", ["Load the `r-one` rule and the `r-two` rule.",
+                                    "Read `shared-step` too."])
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["repeat_loads"], [
+            repeat_load(1, "w-p", "w-q", "rules/r-one.md"),
+            repeat_load(2, "w-p", "w-q", "rules/r-two.md"),
+        ])
+
+    def test_commands_that_are_not_workflow_calls_add_no_candidates(self) -> None:
+        self.fx.write(R_ONE, "# R one\n")
+        self.write_lines("rules/r-caller.md", [LOAD_R_ONE, "Run `/w-q`."])
+        self.write_lines(workflow_path("w-p"), [
+            "---",
+            "description: Utility — run `/w-q` first",
+            "---",
+            "# w-p",
+            "Invocation: `/w-p`",
+            LOAD_R_ONE,
+            "```",
+            "Run `/w-q`.",
+            "```",
+            "Run `/w-p` again.",
+            "Run `/zz-gone` now.",
+            "See `/w-q` for details.",
+        ])
+        self.write_workflow("w-q", [LOAD_R_ONE, "Compare with /w-p."])
+        self.write_workflow("w-x", [LOAD_R_ONE, "Run `/w-y`."])
+        self.write_workflow("w-y", [LOAD_R_ONE])
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["repeat_loads"], [repeat_load(1, "w-x", "w-y")])
+
+
+class LineCandidateTests(CandidateCase):
+    def test_full_output_and_harness_name_lines_of_audited_markdown_are_candidates(
+            self) -> None:
+        source = workflow_path("w-text")
+        lines = self.write_lines(source, [
+            "---",
+            "description: Paste the full output to Codex",
+            "---",
+            "# W text",
+            "paste the full test output",
+            "Ask Codex first.",
+            "```",
+            "full log from codex",
+            "```",
+            "Nothing to flag here.",
+        ])
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["full_output"],
+                         [line_candidate("FO", 1, source, 5, lines[4])])
+        self.assertEqual(inventory["harness_names"],
+                         [line_candidate("HN", 1, source, 6, lines[5])])
+
+    def test_candidate_lines_are_numbered_by_source_and_line_with_collapsed_and_cut_text(
+            self) -> None:
+        long_line = "Keep  the\tfull output " + " ".join(["abcdefghi"] * 20)
+        harness = self.write_lines("harness/h/always-on.md", ["Show the raw stdout to claude."])
+        rule = self.write_lines("rules/r-b.md", ["# R b", "The whole diff goes to Claude Code.",
+                                                 long_line])
+        flow = self.write_lines(workflow_path("w-a"), [
+            "# W a", "Keep  the\tfull output here.", "The fullness of output is fine.",
+            "codexes and claudette stay quiet.",
+        ])
+        self.fx.write("harness/h/config.json", '{"note": "full output for codex"}\n')
+        self.fx.write("docs/GUIDE.md", "Full output goes to Codex.\n")
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["full_output"], [
+            line_candidate("FO", 1, "harness/h/always-on.md", 1, harness[0]),
+            line_candidate("FO", 2, "rules/r-b.md", 2, rule[1]),
+            line_candidate("FO", 3, "rules/r-b.md", 3, rule[2]),
+            line_candidate("FO", 4, workflow_path("w-a"), 2, flow[1]),
+        ])
+        self.assertEqual(len(inventory["full_output"][2]["text"]), 160)
+        self.assertEqual(inventory["harness_names"], [
+            line_candidate("HN", 1, "harness/h/always-on.md", 1, harness[0]),
+            line_candidate("HN", 2, "rules/r-b.md", 2, rule[1]),
+        ])
+
+
+class LegacyMentionTests(CandidateCase):
+    def test_legacy_terms_in_a_rule_yield_two_mentions_and_not_a_longer_devin_word(
+            self) -> None:
+        source = "rules/r-legacy.md"
+        lines = self.write_lines(source, ["# R legacy",
+                                          "Use Windsurf with `.devin/` but not devinly."])
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["legacy_mentions"], [
+            legacy_mention(source, 2, lines[1], "Windsurf"),
+            legacy_mention(source, 2, lines[1], "devin"),
+        ])
+
+    def test_legacy_mentions_cover_whole_audited_markdown_and_json_files_only(self) -> None:
+        config = '{"tool": "Devin", "x": "devin-cli"}'
+        self.fx.write("harness/h/config.json", config + "\n")
+        self.fx.write("harness/h/run.sh", "windsurf\n")
+        self.fx.write("docs/GUIDE.md", "Windsurf\n")
+        zone = self.write_lines("rules/r-zone.md", [
+            "---", "trigger: always_on (Windsurf semantics)", "---", "# Zone", "```",
+            "windsurfing  with CODEIUM", "```",
+        ])
+        template = self.write_lines("templates/codex-global-AGENTS.md", ["Codeium and devin."])
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["legacy_mentions"], [
+            legacy_mention("harness/h/config.json", 1, config, "Devin"),
+            legacy_mention("harness/h/config.json", 1, config, "devin"),
+            legacy_mention("rules/r-zone.md", 2, zone[1], "Windsurf"),
+            legacy_mention("rules/r-zone.md", 6, zone[5], "windsurf"),
+            legacy_mention("rules/r-zone.md", 6, zone[5], "CODEIUM"),
+            legacy_mention("templates/codex-global-AGENTS.md", 1, template[0], "Codeium"),
+            legacy_mention("templates/codex-global-AGENTS.md", 1, template[0], "devin"),
+        ])
+
+
+class DuplicateClusterTests(CandidateCase):
+    EIGHT = "Every audited file keeps exactly one map row."
+    SEVEN = "Every reader keeps exactly one class label."
+
+    def test_sentence_of_eight_words_shared_by_two_rules_is_one_cluster_and_seven_none(
+            self) -> None:
+        self.write_lines("rules/r-a.md", ["# R a", "", "Intro text for a. " + self.EIGHT, "",
+                                          self.SEVEN])
+        self.write_lines("rules/r-b.md", ["# R b", "", self.EIGHT + " Closing words for b.", "",
+                                          self.SEVEN])
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["duplicate_clusters"], [
+            cluster(1, self.EIGHT, [("rules/r-a.md", 3, 3), ("rules/r-b.md", 3, 3)]),
+        ])
+
+    def test_quote_indentation_and_list_markers_are_stripped_and_lines_joined(self) -> None:
+        self.write_lines("rules/r-c.md", ["> - Every audited file keeps",
+                                          ">   exactly one map row."])
+        self.write_lines(workflow_path("w-d"),
+                         ["1. Every   audited file keeps exactly one map row."])
+        self.write_lines(workflow_path("w-e"), ["Intro line.", "", "    + Every audited file",
+                                                "      keeps exactly one map row."])
+        self.write_lines(workflow_path("w-f"), ["2) Every audited file keeps exactly one map row."])
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["duplicate_clusters"], [
+            cluster(1, self.EIGHT, [("rules/r-c.md", 1, 2), (workflow_path("w-d"), 1, 1),
+                                    (workflow_path("w-e"), 3, 4),
+                                    (workflow_path("w-f"), 1, 1)]),
+        ])
+
+    def test_paragraphs_split_into_sentences_after_terminal_punctuation(self) -> None:
+        alpha = "Alpha sentence names eight plain words right here!"
+        beta = "Beta sentence keeps version 3.5 intact as written?"
+        gamma = "Gamma sentence ends without any punctuation mark at all"
+        delta = "Delta sentence closes with a plain full stop."
+        self.write_lines("rules/r-s.md", ["# R s", "", f"{alpha} {beta}", f"{delta} {gamma}"])
+        self.write_lines(workflow_path("w-s"), [gamma, "", delta, "", beta, "", alpha])
+
+        inventory = self.extract()
+
+        flow = workflow_path("w-s")
+        self.assertEqual(inventory["duplicate_clusters"], [
+            cluster(1, alpha, [("rules/r-s.md", 3, 3), (flow, 7, 7)]),
+            cluster(2, beta, [("rules/r-s.md", 3, 3), (flow, 5, 5)]),
+            cluster(3, delta, [("rules/r-s.md", 4, 4), (flow, 3, 3)]),
+            cluster(4, gamma, [("rules/r-s.md", 4, 4), (flow, 1, 1)]),
+        ])
+
+    def test_unit_repeated_in_one_file_and_cluster_order_follow_first_member(self) -> None:
+        zeta = "Zeta rule repeats this sentence twice in one file."
+        alpha = "Alpha rule shares this sentence with one workflow file."
+        self.write_lines("rules/r-m.md", [zeta, "", alpha, "", zeta])
+        self.write_lines(workflow_path("w-m"), [alpha])
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["duplicate_clusters"], [
+            cluster(1, zeta, [("rules/r-m.md", 1, 1), ("rules/r-m.md", 5, 5)]),
+            cluster(2, alpha, [("rules/r-m.md", 3, 3), (workflow_path("w-m"), 1, 1)]),
+        ])
+
+    def test_headings_separators_fences_front_matter_and_other_files_give_no_units(
+            self) -> None:
+        table_row = "| First part. Second part | third cell |"
+        lines = [
+            "---", "description: Every front matter line keeps one map row now.", "---",
+            "## Every audited file keeps exactly one map row here", "", table_row,
+            "| --- | --- | --- | --- |", "", "```",
+            "Every fenced line keeps exactly one map row now.", "```",
+        ]
+        self.write_lines("rules/x-one.md", lines)
+        self.write_lines("rules/x-two.md", lines)
+        other = "Every other file keeps exactly one map row now.\n"
+        for path in ("docs/A.md", "docs/B.md", "harness/h/a.txt", "harness/h/b.txt"):
+            self.fx.write(path, other)
+        for path in ("rules/bad-a.md", "rules/bad-b.md"):
+            self.fx.write(path, other.encode("utf-8") + b"\xff\n")
+        for path in ("rules/ctl-a.md", "rules/ctl-b.md"):
+            self.fx.write(path, other + "\x1e\n")
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["duplicate_clusters"], [
+            cluster(1, table_row, [("rules/x-one.md", 6, 6), ("rules/x-two.md", 6, 6)]),
+        ])
+
+
+class CandidateInventoryTests(CandidateCase):
+    def test_candidate_lists_have_documented_keys_and_repeat_runs_are_byte_identical(
+            self) -> None:
+        self.build_call_graph()
+        self.write_lines("rules/r-text.md", [
+            "paste the full test output", "Ask Codex first.", "Use Windsurf here.",
+            DuplicateClusterTests.EIGHT,
+        ])
+        self.write_lines("rules/r-copy.md", [DuplicateClusterTests.EIGHT])
+        first, second = self.base / "first.json", self.base / "second.json"
+
+        inventory = self.extract(out=first)
+        self.extract(out=second)
+
+        self.assertEqual(first.read_bytes(), second.read_bytes())
+        self.assertNotIn(str(self.base), first.read_text(encoding="utf-8"))
+        self.assertEqual(list(inventory)[-5:], CANDIDATE_LIST_KEYS)
+        expected_keys = {"repeat_loads": REPEAT_LOAD_KEYS, "full_output": LINE_CANDIDATE_KEYS,
+                         "harness_names": LINE_CANDIDATE_KEYS, "legacy_mentions": LEGACY_KEYS,
+                         "duplicate_clusters": CLUSTER_KEYS}
+        for key, keys in expected_keys.items():
+            with self.subTest(list=key):
+                self.assertNotEqual(inventory[key], [])
+                for entry in inventory[key]:
+                    self.assertEqual(list(entry), keys)
+        for entry in inventory["duplicate_clusters"]:
+            for found in entry["members"]:
+                self.assertEqual(list(found), MEMBER_KEYS)
+
+
 if __name__ == "__main__":
     unittest.main()
