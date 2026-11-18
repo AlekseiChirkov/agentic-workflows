@@ -15,5 +15,7 @@ The owner chose one phase with helpers over instruction-led children. Markdown r
 ## Consequences
 Missing required evidence or helpers blocks mutation. Ordinary local deletion refusal leaves finalization incomplete. Deployment remains independently unverified unless established by dated evidence. Original Git/TDD/decision records remain unchanged; only current location pointers and mechanical links may be relocated with original snapshots retained. No automatic merge, publication or live consumer deployment is introduced. Before deletion authorization, self-contained recovery packs preserve original Git objects independently of branch reachability and garbage collection; explicit commands create the files, and isolated object-store verification checks their immutable digests, original tips and closure.
 
+The Git-policy exception is a separately anchored canonical section with explicit precedence over fallback deletion/lease rows; the existing four-value Enforcement table vocabulary and restack semantics remain unchanged. This distinguishes delivered post-integration cleanup from the separately planned temporary-child exception without mislabeling enforcement.
+
 ## Verification
 Pending test-first implementation, independent review, full contract validation and isolated staged synchronization.

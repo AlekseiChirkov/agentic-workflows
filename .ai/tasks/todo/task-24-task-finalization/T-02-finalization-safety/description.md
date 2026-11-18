@@ -9,7 +9,7 @@ Enforce scoped cleanup and stage provider outputs.
 ## Scope
 - In scope: Finalization receipt verifier and deletion/lease gating without weakening restack or other rails; isolated sync staging with no hooks or project scans, mandatory acceptance preflight and provider parity fixtures.
 - Out of scope: paused audit, live consumer deployment, product work and PR merging.
-- Target files: hooks/git_rails.py, scripts/sync.sh, scripts/setup-new-project.sh, scripts/check-finalization-safety.py
+- Target files: scripts/finalization_evidence.py, rules/git-flow.md, hooks/git_rails.py, scripts/sync.sh, scripts/setup-new-project.sh, scripts/check-finalization-safety.py
 
 ## Steps
 1. Load repository bootstrap and relevant contracts.
@@ -26,3 +26,7 @@ Enforce scoped cleanup and stage provider outputs.
 ## Test Plan
 - Level: integration and contract; smoke for instruction contracts.
 - Run dedicated scripts/check-*.py acceptance checks against temporary repositories and controlled receipts; run existing focused checks, then required full validation and staged sync at task completion.
+
+## Description Amendments
+- 2026-11-17: Move the narrow canonical Git ownership/receipt exception into this leaf before or together with hook implementation. This changes implementation ordering only; the approved permission scope is unchanged. Remaining shared readers and documentation stay in the following leaf.
+- 2026-11-17: Include the narrow evidence-module interface addition that binds configured and effective fetch/push transport identity across prepare, resume and deletion. This closes the existing approved repository-identity guarantee without adding public options or expanding cleanup authorization.
