@@ -1,0 +1,21 @@
+.ai/tasks/todo/task-08-rules-workflows-audit/state.md
+  s_96afdcfd38c67e::t_4884e613c43bd0 613,619,641-642
+scripts/check-audit-instructions.py
+  s_96afdcfd38c67e::t_6d6a0bb79af70a 7325-7353
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "da1fa207e503e2f72b1e0f327b3e78d66c3ff20b",
+  "prompts": {},
+  "sessions": {
+    "s_96afdcfd38c67e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f3ac193-9977-473b-b9f7-3df06f485ee7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
