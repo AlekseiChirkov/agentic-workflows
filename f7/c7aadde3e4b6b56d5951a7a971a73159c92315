@@ -1,0 +1,29 @@
+.ai/context/runbook.md
+  s_96afdcfd38c67e::t_45c655d453c540 56-61
+.ai/tasks/todo/task-08-rules-workflows-audit/state.md
+  s_96afdcfd38c67e::t_22040cef4fa32d 558,564-565,577-580
+scripts/README.md
+  s_96afdcfd38c67e::t_43cbd87b5511f5 26
+scripts/audit-git-matrix/Dockerfile
+  s_96afdcfd38c67e::t_40f3f96a5ede3b 1-31
+scripts/audit-git-matrix/run.sh
+  s_96afdcfd38c67e::t_1fabbc093e853f 1-74
+scripts/audit-instructions.py
+  s_96afdcfd38c67e::t_385dc9df33e099 86-93,97-99,109-116,235,237-239,1297-1311,1315-1335,1484-1486,1488-1489,1504-1506,1532-1570,1613-1615,1620-1621,1715-1719
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f7c7aadde3e4b6b56d5951a7a971a73159c92315",
+  "prompts": {},
+  "sessions": {
+    "s_96afdcfd38c67e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f3ac193-9977-473b-b9f7-3df06f485ee7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
