@@ -11,6 +11,7 @@ Versions below 1.0.0 are unstable and may change without compatibility guarantee
 - Discovery, test-first implementation, independent validation, and reviewable delivery.
 - Reusable project instructions, setup scripts, and persistent project knowledge.
 - Workflow and rule deployment across supported coding assistants.
+- Separately invoked `/phase-finalize` for evidence-backed post-merge task closure.
 
 `scripts/sync.sh` writes skills under `~/.claude` and `~/.codex`, and overwrites
 `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` on each run.

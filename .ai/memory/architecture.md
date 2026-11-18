@@ -14,20 +14,21 @@ Windsurf/Devin) reads and follows. Small local helpers provide validation, deplo
 and telemetry, including the Python installer engine. The repository is the single source of truth;
 `scripts/sync.sh` copies it into each harness's global configuration, and
 `scripts/setup-new-project.sh` seeds a target project with a `CLAUDE.md`/`AGENTS.md`, rule
-copies, skill symlinks, and a `.ai/` knowledge base. A task then moves through three
-phases — Discovery, Execution, Validation — with all progress persisted in the target
-project's `.ai/tasks/…/state.md`, and every orchestrated run appends telemetry to a
-central log store that `/retro` reads.
+copies, skill symlinks, and a `.ai/` knowledge base. Development runs through
+Discovery, Execution and Validation. After owner-controlled integration, a separately
+invoked Finalization closes the selected task with safe cleanup and archival. Progress
+is persisted in the target project's `.ai/tasks/…/state.md`; ordinary runs attempt
+best-effort telemetry to the central store that `/retro` reads, while dry-run emits none.
 
-Current inventory: 42 workflows, 14 rules, 4 principles, 11 shell scripts and 33 Python
+Current inventory: 43 workflows, 15 rules, 4 principles, 11 shell scripts and 46 Python
 helpers under `scripts/`, with automated consistency and smoke checks.
 
 ## Components
 
-### Layer 1 — `rules/` (always-on contracts, 14 files)
+### Layer 1 — `rules/` (always-on contracts, 15 files)
 Policies every workflow obeys. Deployed as Windsurf/Devin global rules, and — because
 Claude Code and Codex have no rules directory — as skills under the mandatory `rule-`
-prefix (five basenames collide with workflows). Key files:
+prefix (six basenames collide with workflows). Key files:
 
 | File | Owns |
 |---|---|
@@ -39,7 +40,7 @@ prefix (five basenames collide with workflows). Key files:
 | `quick-flow.md` | four-condition gate, what quick skips and still mandates, mid-flight promotion |
 | `run-log.md` | log store, three `scripts/log-step.sh` calls, field vocabulary, never-block rule, canonical per-boundary capability/evidence routing and receipt-confirmed suppression; unobserved prompt boundaries remain approximate |
 | `language.md` | English in every project file |
-| `phase-*.md` (5) | per-phase Context Bootstrap (which `.ai/` files to load and in what order), Blocker Reconciliation |
+| `phase-*.md` (6) | per-phase Context Bootstrap (which `.ai/` files to load and in what order), Blocker Reconciliation |
 | `global-claude.md` | the content of `~/.claude/CLAUDE.md` — always-on essentials for Claude Code |
 
 ### Layer 2 — `principles/` (engineering standards, 4 files)
@@ -48,10 +49,11 @@ Domain-quality rules, Python/FastAPI/GCP-centric. Deployed as Windsurf global ru
 as `principle-*` skills. `testing-standards` owns test *style*; `rules/tdd.md` owns test
 *process*.
 
-### Layer 3 — `workflows/` (slash commands, 42 files)
+### Layer 3 — `workflows/` (slash commands, 43 files)
 
 ```
 Orchestrators        phase-discovery  phase-execution  phase-validation  phase-pipeline
+Post-integration     phase-finalize (separate invocation, no public children)
 Atomic orchestrators phase-atomic-execution  phase-atomic-validation  phase-composite-validation
 Discovery children   pd-analyze → pd-decompose → (pd-select-model) → pd-design → pd-finalize → pd-archive
 Execution children   pe-execute → pe-finalize
@@ -78,7 +80,7 @@ root), `AGENTS.md` (Codex, per project), `codex-global-AGENTS.md` (→ `~/.codex
 |---|---|
 | `scripts/validate-contracts.sh` | Consistency and smoke checks across layers 1–3, including bidirectional canonical JSON-table/runtime contract comparison (`--run-log-contract-only`); includes an optional tracked-file public-hygiene scanner using local patterns (`--hygiene-only`, `--root`, `--denylist`); run by `scripts/sync.sh`; any failure blocks deploy |
 | `scripts/validate-task.sh` | applies the same contracts to one task directory's artifacts; run by `/pd-finalize` and `/pe-finalize` |
-| `scripts/sync.sh` | validate → copy to Windsurf, Claude Code, Codex → walk every project with `.devin/` and refresh its rule copies and skill symlinks |
+| `scripts/sync.sh` | Mandatory full and finalization preflight → generate Windsurf, Claude Code and Codex outputs; normal mode then installs and refreshes projects with `.devin/`; `--stage <directory>` generates isolated artifacts without hook installation or consumer scans |
 | `scripts/setup-new-project.sh` | seed a project (auto-detects umbrella `../.ai/`) |
 | `scripts/setup-umbrella.sh`, `scripts/setup-all-repos.sh` | multi-repo initialization |
 | `scripts/link-skills.sh` | workaround: symlink global skills into a project's `.claude/skills/` |
@@ -180,7 +182,7 @@ scripts/log-step.sh ──▶ logs/runs/*.jsonl ──▶ read-only lint ──�
   (`AGENTS.md`, skills), Windsurf / Devin Desktop (global workflows and rules).
   Model and worker requestability must be observed from the active session; harness
   names and logging declarations alone do not establish support.
-- Tools invoked by workflows: `git`, `gh` (PRs, only with `--allow-pr`), `jq`
+- Tools invoked by workflows: `git`, `gh` (authoritative finalization PR reads; publication only with its own authorization), `jq`
   (`scripts/log-step.sh` digests, `/retro`), `bash`, a web search capability (explicit model-catalog refresh only).
 - Script source defaults resolve to the repository root, the parent of `scripts/`. `ORCHESTRAIL_HOME` overrides source selection; `scripts/sync.sh --from` takes precedence. Setup helpers normalize and propagate the selected root to children. `ORCHESTRAIL_LOG_ROOT` overrides the repository-root `logs/` directory. Documentation paths are placeholders.
 
@@ -359,3 +361,7 @@ dependencies are recorded in the plan, the state and pull request bodies. `/rest
 `--repo`. Atomic workers whose repository has no local `.ai/` fall back to the umbrella
 runbook and run its commands from the umbrella root (`phase-atomic-execution → ## Context
 Bootstrap`). Acceptance: `python3 scripts/check-repo-set.py` (38 tests).
+
+## Post-merge task closure mechanics
+
+The finalization coordinator (`scripts/phase-finalize.py`) returns explicit Git action plans and coordinates evidence, locked revision-checked journals and no-overwrite archival. `finalization_support.py` owns strict paths, atomic writes and protected-state normalization; `finalization_evidence.py` owns read-only Git/PR checks; `finalization_archive.py` owns manifests, original snapshots, location resolution and separately recorded Markdown link relocation. Scoped hook authorization now checks the journal, exact action, mutable refs/protection/worktrees, immutable recovery pack and configured/effective remote transport. The single public phase owns sequence and semantic reconciliation; shared readers preserve the existing development endpoints and treat its additive marker independently. `finalization_attempts.py` records immutable failed/recovered command evidence offline, without issuing new deletion receipts. Per-operation checkpoints distinguish execution attempts from verified postconditions. `finalization_knowledge.py` captures typed current-record inventory before edits and accepts exact independently attested changes without staging or relaxing unrelated dirty-tree checks. `finalization_outputs.py` preserves large exact UTF-8 command output in immutable digest-bound artifacts; every authoritative journal write is bounded before replacement to remain readable by helpers and hooks. The standalone acceptance suites are mandatory sync preflight, outside the frozen validator inventory. Semantic knowledge, test and deployment verification remain externally attested with source provenance; these receipts are not fresh suite execution by the helper. See ADR-0025.

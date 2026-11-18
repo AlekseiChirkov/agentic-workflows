@@ -19,3 +19,13 @@ build:     <command to build>                   e.g. docker build -t app . (opti
 ## Procedures
 One subsection per procedure: name, when to use, prerequisites, steps,
 verification.
+
+### Post-merge task finalization
+
+Use `/phase-finalize <task-directory|spec-path> [--dry-run]` after owner integration.
+Record required checks and any permitted prior-evidence reuse with source revisions and
+coverage/runtime limits. Retain failed checks and recovered teardown attempts. State any
+required deployment explicitly in the spec Delivery Contract; proof needs a dated source
+revision and environment. Missing proof is unverified, never inferred from task closure.
+Keep recovery material and stable journals under `.ai/context/finalization/` according to
+repository tracking policy. Do not commit untracked consumer or umbrella state by default.

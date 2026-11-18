@@ -27,8 +27,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import unicodedata
 import unittest
+from collections import Counter
 from collections.abc import Callable, Sequence
+from contextlib import suppress
 from pathlib import Path
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
@@ -2119,7 +2122,7 @@ def files_row(entry: dict) -> dict:
     return {"path": path, "sha256": entry["sha256"],
             "kinds": list(VERIFY_KINDS.get(path, ["contract"])),
             "sections": copy.deepcopy(VERIFY_SECTIONS.get(path)),
-            "evidence": [f"{path}:1"],
+            "evidence": [f"{path}:1" if entry["lines"] is not None else f"{CAPS}:1"],
             "repetition": empty_repetition() if invocable else None}
 
 
@@ -2334,11 +2337,15 @@ class SharedVerifyCase(VerifyAssertions):
 
     def setUp(self) -> None:
         self.assessment = valid_assessment(self.inventory)
+        (self.fixture.root / ASSESSMENT_PATH).write_text(canonical(self.assessment),
+                                                         encoding="utf-8")
+        refresh_report(self.fixture)
 
     def verify(self, *extra: str, text: str | None = None) -> subprocess.CompletedProcess[str]:
         target = self.fixture.root / ASSESSMENT_PATH
         target.write_text(text if text is not None else canonical(self.assessment),
                           encoding="utf-8")
+        refresh_report(self.fixture)
         return self.run_verify(*extra)
 
     def run_verify(self, *extra: str) -> subprocess.CompletedProcess[str]:
@@ -2419,6 +2426,7 @@ class VerifyOutputTests(SharedVerifyCase):
             ("defect-unrecorded", f"{BETA}:9"),
             ("digest-mismatch", assessment_at("inventory_digest")),
             ("economics-claim", assessment_at("AUD-08-002")),
+            *report_claims(self.fixture),
             ("row-missing", f"{DELTA}:0"),
         ])
 
@@ -2975,7 +2983,8 @@ class VerifyCoverageAndInstalledTests(SharedVerifyCase):
                 value = valid_assessment(self.inventory)
                 fault(value)
                 self.assert_reports(self.verify(text=canonical(value)),
-                                    [("economics-claim", assessment_at(fragment))])
+                                    [("economics-claim", assessment_at(fragment))]
+                                    + report_claims(self.fixture))
 
 
 class VerifyTreeTests(VerifyAssertions):
@@ -2998,6 +3007,8 @@ class VerifyTreeTests(VerifyAssertions):
 
     def verify(self, fixture: FixtureRoot, *extra: str,
                report: str | None = None) -> subprocess.CompletedProcess[str]:
+        if report is None:
+            refresh_report(fixture)
         return run_tool(["verify", "--root", str(fixture.root), "--report",
                          report if report is not None else str(fixture.root / REPORT_PATH),
                          *extra], fixture.env, fixture.base)
@@ -3170,7 +3181,8 @@ class VerifyPinnedBehaviourTests(SharedVerifyCase):
                 self.setUp()
                 self.finding("AUD-08-002")["observation"] = text
                 self.assert_reports(self.verify(),
-                                    [("economics-claim", assessment_at("AUD-08-002"))])
+                                    [("economics-claim", assessment_at("AUD-08-002"))]
+                                    + report_claims(self.fixture))
 
     def test_coverage_gap_finding_on_a_reader_does_not_block(self) -> None:
         self.finding("AUD-08-002")["type"] = "coverage-gap"
@@ -3191,7 +3203,8 @@ class VerifyPinnedBehaviourTests(SharedVerifyCase):
 
     def test_two_amounts_in_one_string_give_one_economics_claim(self) -> None:
         self.finding("AUD-08-002")["observation"] = "It costs $5 and saves 3,000 tokens."
-        self.assert_reports(self.verify(), [("economics-claim", assessment_at("AUD-08-002"))])
+        self.assert_reports(self.verify(), [("economics-claim", assessment_at("AUD-08-002"))]
+                            + report_claims(self.fixture))
 
 
 class VerifyParseLimitTests(SharedVerifyCase):
@@ -3321,6 +3334,7 @@ class VerifyOutputBoundaryTreeTests(VerifyAssertions):
                     "the file does not exist",
                     "inventory-missing docs/audits/\\udcff-x.inventory.json:0 "
                     "the file does not exist",
+                    "report-missing docs/audits/\\udcff-x.md:0 the file does not exist",
                 ])
 
     def test_space_and_line_break_in_an_audited_path_are_escaped_in_its_location(
@@ -3966,6 +3980,2073 @@ class VerifyMigrationSpecificationTests(VerifyAssertions):
         self.assertNotIn("Traceback", result.stderr)
         self.assert_reports(result, [("amendment-target-unknown",
                                       assessment_at("AMD-08-02"))])
+
+
+# ---------------------------------------------------------------------------
+# Rendered report region and report checks
+# ---------------------------------------------------------------------------
+
+REPORT_BEGIN = "<!-- audit:generated:begin -->"
+REPORT_END = "<!-- audit:generated:end -->"
+EMPTY_REGION = f"{REPORT_BEGIN}\n{REPORT_END}\n"
+REPORT_TITLE = f"# Rules and workflows audit — {AUDIT_DATE}\n"
+SUBSECTIONS = (
+    "Passport", "Inventory", "Sections", "References", "Loads", "Repeated loads",
+    "Full-output candidates", "Harness-name candidates", "Repetition review",
+    "Legacy mentions", "Duplicates", "Migration map", "Validator and test impact",
+    "Spec 09 inputs", "Findings", "Amendments to spec 09", "Read coverage",
+    "Installed comparison",
+)
+LINE_BREAK_CATEGORIES = frozenset({"Cc", "Zl", "Zp"})
+EDGE_STATUS_ORDER = ("resolved", "resolved-prefix", "heading-unmarked", "missing-heading",
+                     "missing-target", "missing-path", "unknown-command", "glob-empty",
+                     "ambiguous-stem")
+READER_CLASS_ORDER = ("active", "frozen", "planning", "history")
+GAP_STATUSES = ("unavailable", "changed")
+VALIDATOR = "scripts/validate-contracts.sh"
+IMPACT_CONTEXTS = ("text", "check-description", "comment")
+SCOPE_LINE = (
+    "primary {primary} (`rules/`, `workflows/`); adapter {adapter} (`harness/`, "
+    "`templates/codex-global-AGENTS.md`); readers {readers} (active {active}, "
+    "frozen {frozen}, planning {planning}, history {history}); excluded "
+    "`docs/audits/*-rules-workflows-audit.md`, "
+    "`docs/audits/*-rules-workflows-audit.inventory.json`, "
+    "`docs/audits/*-rules-workflows-audit.assessment.json`, "
+    "`scripts/audit-instructions.py`, `scripts/check-audit-instructions.py`; skipped "
+    "`.git/`, `logs/`, `output/`, `__pycache__/`, `*.pyc`")
+HEADERS = {
+    "Inventory": ["Path", "Set", "Entry", "Tracked", "Words", "Bytes", "Kinds", "Coverage",
+                  "Decision", "Findings"],
+    "Sections": ["Path", "Section", "Line", "Words", "Bytes", "Kind", "Proposed home"],
+    "References": ["Class", *EDGE_STATUS_ORDER],
+    "Defect edges": ["Source:line:column", "Raw", "Form", "Context", "Status", "Candidates",
+                     "Findings"],
+    "Loads": ["Source:line", "Targets", "Mode", "Condition"],
+    "Repeated loads": ["ID", "Caller", "Callee", "Target", "Disposition", "Finding"],
+    "Full-output candidates": ["ID", "Source:line", "Text", "Disposition", "Finding"],
+    "Harness-name candidates": ["ID", "Source:line", "Text", "Disposition", "Finding"],
+    "Repetition review": ["Workflow", "Report findings", "Checkpoint findings",
+                          "Review findings"],
+    "Legacy mentions": ["Source:line", "Term", "Role", "Note"],
+    "Duplicates": ["Group", "Clusters", "Locations", "Normative source",
+                   "Condition differences", "Disposition", "Owner", "Finding"],
+    "Migration map": ["Source", "Decision", "Targets", "Spec 09 default", "Deviation",
+                      "Amendment"],
+    "Validator and test impact": ["Source", "Decision", "Validator text",
+                                  "Validator check-description", "Validator comment",
+                                  "Other tests", "Frozen", "Hooks", "Other active"],
+    "Spec 09 inputs": ["Source", "Decision", "Targets", "Amendment"],
+    "Statements": ["Statement", "Text", "Covered by"],
+    "Findings": ["ID", "Type", "Severity", "Source", "Section", "Owner", "Blocks 09", "Status",
+                 "Observation", "Closure"],
+    "Amendments to spec 09": ["ID", "Target", "Change", "Proposed", "Reason", "Evidence",
+                              "Affected", "Depends on", "Requires ADR", "Disposition"],
+    "Read coverage": ["Path", "Status", "SHA-256", "Reader"],
+    "Installed comparison": ["Path", "Location", "Source SHA-256", "Installed SHA-256",
+                             "Match"],
+}
+DIAGNOSTIC_CODES = (
+    "inventory-missing", "assessment-missing", "report-missing", "inventory-invalid",
+    "assessment-invalid", "report-name-date", "inventory-stale", "worktree-dirty",
+    "digest-mismatch", "row-missing", "row-extra", "row-duplicate", "assessment-stale",
+    "sections-incomplete", "load-unclassified", "candidate-undisposed", "repetition-invalid",
+    "legacy-role-missing", "duplicate-ungrouped", "duplicate-multigrouped", "group-invalid",
+    "defect-unrecorded", "finding-invalid", "finding-stale", "reference-unknown",
+    "map-invalid", "split-sections-incomplete", "map-collision", "installed-name-collision",
+    "stem-overlap", "kind-prefix-invalid", "deviation-unamended", "spec09-unavailable",
+    "amendment-invalid", "amendment-target-unknown", "req21-invalid", "coverage-inconsistent",
+    "report-layout", "review-commit-unknown", "report-generated-mismatch", "blocker-unlisted",
+    "economics-claim", "installed-invalid",
+    "evidence-unresolved", "blocker-extra",
+)
+UNKNOWN_COMMIT = "1" * 40
+OTHER_DATE = "2026-01-03"
+OVERSIZED_REPORT_BYTES = 1 << 30
+IMPACT_SOURCE = "rules/a-b.md"
+IMPACT_FILES: dict[str, str | bytes] = {
+    IMPACT_SOURCE: "# A b\n",
+    VALIDATOR: ("#!/bin/bash\n# The comment names rules/a-b.md and again rules/a-b.md.\n"
+                'check "rules/a-b.md exists" '
+                '"$(test -f rules/a-b.md && echo pass || echo missing)"\n'),
+    "tests/t.py": 'PATH = "rules/a-b.md"\n',
+    "tests/fixtures/validator-runtime/case.txt": "rules/a-b.md\n",
+    "hooks/h.sh": "# rules/a-b.md rules/a-b.md rules/a-b.md\n",
+    "docs/NOTE.md": "rules/a-b.md\n" * 4,
+    ".ai/memory/state.md": "rules/a-b.md\n",
+}
+REPORT_AMOUNT_PATTERNS = (re.compile(r"(?i)\b\d[\d,.]*\s*k?\s*tokens?\b"),
+                          re.compile(r"[$€£]\s?\d"), re.compile(r"\b(USD|EUR)\b"))
+_TOOL_MODULES: list[object] = []
+
+
+def report_text(region: str = EMPTY_REGION, blockers: Sequence[str] = (),
+                run_date: str = AUDIT_DATE, review: str = "Reviewed: pending",
+                acceptance: str = "Accepted: pending",
+                summary: str = "Every audited file was read once.",
+                method: str = "The inventory was extracted at a clean commit.") -> str:
+    """A report in the documented layout around the given generated region."""
+    listed = "".join(f"- {item}\n" for item in blockers) or "None.\n"
+    return (f"# Rules and workflows audit — {run_date}\n\n## Summary\n\n{summary}\n\n"
+            f"## Method\n\n{method}\n\n{region}\n## Blockers for spec 09\n\n{listed}\n"
+            f"## Independent review\n\n{review}\n\n## Acceptance\n\n{acceptance}\n")
+
+
+def blocking_ids(assessment: object) -> list[str]:
+    """Ids of the findings with `blocks_09: true` in a parsed assessment."""
+    findings = assessment.get("findings") if isinstance(assessment, dict) else None
+    if not isinstance(findings, list):
+        return []
+    return sorted(item["id"] for item in findings if isinstance(item, dict)
+                  and item.get("blocks_09") is True and isinstance(item.get("id"), str))
+
+
+def run_render(fixture: FixtureRoot, *extra: str, report: Path | None = None
+               ) -> subprocess.CompletedProcess[str]:
+    target = report if report is not None else fixture.root / REPORT_PATH
+    return run_tool(["render", "--root", str(fixture.root), "--report", str(target), *extra],
+                    fixture.env, fixture.base)
+
+
+def refresh_report(fixture: FixtureRoot) -> None:
+    """Rewrite the report around the assessment on disk (its run date in the title, its
+    blocking findings listed, pending review and acceptance) and fill the generated region
+    with `render --write`. When the inputs break their schema the rendering fails and the
+    region stays empty."""
+    try:
+        assessment = json.loads((fixture.root / ASSESSMENT_PATH).read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        assessment = None
+    run_date = assessment.get("run_date") if isinstance(assessment, dict) else None
+    fixture.write(REPORT_PATH, report_text(
+        blockers=blocking_ids(assessment),
+        run_date=run_date if isinstance(run_date, str) else AUDIT_DATE))
+    run_render(fixture, "--write")
+
+
+def report_claims(fixture: FixtureRoot) -> list[tuple[str, str]]:
+    """One economics claim per line of the fixture report, generated region included,
+    that names a token count or a monetary amount by the documented patterns."""
+    text = (fixture.root / REPORT_PATH).read_text(encoding="utf-8")
+    return [("economics-claim", f"{REPORT_PATH}:{number}")
+            for number, line in enumerate(text.split("\n"), start=1)
+            if any(pattern.search(line) for pattern in REPORT_AMOUNT_PATTERNS)]
+
+
+def tool_module() -> object:
+    if not _TOOL_MODULES:
+        _TOOL_MODULES.append(load_tool_module())
+    return _TOOL_MODULES[0]
+
+
+def cell(value: object) -> str:
+    """Documented cell text: `-` for null, true or false, `none` for an empty list, list
+    items joined by commas, `|` escaped and every line-breaking or control character a
+    space."""
+    if value is None:
+        return "-"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, list):
+        return ", ".join(cell(item) for item in value) if value else "none"
+    text = "".join(" " if unicodedata.category(character) in LINE_BREAK_CATEGORIES
+                   else character for character in str(value))
+    return text.replace("|", "\\|")
+
+
+def md_row(cells: Sequence[str]) -> str:
+    return "| " + " | ".join(cells) + " |"
+
+
+def md_table(header: Sequence[str], rows: Sequence[Sequence[object]] = ()) -> list[str]:
+    return [md_row(header), "|" + "---|" * len(header),
+            *(md_row([cell(value) for value in row]) for row in rows)]
+
+
+def first_with(rows: object, **fields: object) -> dict | None:
+    for row in rows if isinstance(rows, list) else []:
+        if isinstance(row, dict) and all(row.get(key) == value for key, value in fields.items()):
+            return row
+    return None
+
+
+def target_text(target: dict) -> str:
+    sections = target["sections"]
+    return target["path"] if sections is None else f"{target['path']} [{', '.join(sections)}]"
+
+
+def targets_text(targets: list[dict] | None) -> str | None:
+    if targets is None:
+        return None
+    return "; ".join(target_text(item) for item in targets) or "none"
+
+
+def passport_body(inventory: dict, assessment: dict) -> list[str]:
+    gaps = sum(1 for row in assessment["coverage"] if row["status"] in GAP_STATUSES)
+    findings = assessment["findings"]
+    opened = sum(1 for item in findings if item["status"] == "open")
+    blocking = sum(1 for item in findings if item["blocks_09"] is True)
+    sets = Counter(entry["set"] for entry in inventory["files"])
+    classes = Counter(entry["class"] for entry in inventory["readers"])
+    scope = SCOPE_LINE.format(primary=sets["primary"], adapter=sets["adapter"],
+                              readers=len(inventory["readers"]),
+                              **{name: classes[name] for name in READER_CLASS_ORDER})
+    environment = "; ".join(cell(value) for value in assessment["environment"].values())
+    return [
+        f"- source_revision: {cell(inventory['source_revision'])}",
+        f"- worktree: {cell(inventory['worktree']['state'])}",
+        f"- inventory_digest: {cell(inventory['inventory_digest'])}",
+        f"- method_version: {cell(inventory['method_version'])}",
+        f"- scope: {scope}",
+        f"- installed_access: {cell(assessment['installed_access'])}",
+        "- read_coverage: " + ("complete" if not gaps else f"partial ({gaps} gaps)"),
+        f"- findings: {len(findings)} total, {opened} open, {blocking} blocking spec 09",
+        f"- run_date: {cell(assessment['run_date'])}",
+        f"- environment: {environment}",
+    ]
+
+
+def inventory_body(inventory: dict, assessment: dict) -> list[str]:
+    rows = []
+    for entry in inventory["files"]:
+        path = entry["path"]
+        files_row = first_with(assessment["files"], path=path)
+        coverage = first_with(assessment["coverage"], path=path)
+        mapped = first_with(assessment["map"], source=path)
+        rows.append([path, entry["set"], entry["entry"], entry["tracked"], entry["words"],
+                     entry["bytes"], files_row["kinds"] if files_row else None,
+                     coverage["status"] if coverage else None,
+                     mapped["decision"] if mapped else None,
+                     sorted(item["id"] for item in assessment["findings"]
+                            if item["source"] == path)])
+    return md_table(HEADERS["Inventory"], rows)
+
+
+def sections_body(inventory: dict, assessment: dict) -> list[str]:
+    rows = []
+    for entry in inventory["files"]:
+        files_row = first_with(assessment["files"], path=entry["path"])
+        listed = files_row["sections"] if files_row else None
+        for section in entry["sections"]:
+            match = first_with(listed, heading=section["heading"])
+            rows.append([entry["path"], section["heading"], section["line"], section["words"],
+                         section["bytes"], match["kind"] if match else None,
+                         match["proposed_home"] if match else None])
+    return md_table(HEADERS["Sections"], rows)
+
+
+def naming_findings(assessment: dict, edge_entry: dict) -> list[str]:
+    key = {"source": edge_entry["source"], "line": edge_entry["line"],
+           "column": edge_entry["column"]}
+    return sorted(item["id"] for item in assessment["findings"] if key in item["edges"])
+
+
+def references_body(inventory: dict, assessment: dict) -> list[str]:
+    counts = Counter((item["class"], item["status"]) for item in inventory["edges"])
+    count_rows = [[name, *(counts[(name, status)] for status in EDGE_STATUS_ORDER)]
+                  for name in READER_CLASS_ORDER]
+    is_defect = tool_module().is_defect_edge
+    defect_rows = [[f"{item['source']}:{item['line']}:{item['column']}", item["raw"],
+                    item["form"], item["context"], item["status"],
+                    [target["path"] + (f" ({target['heading_status']})"
+                                       if target["heading_status"] else "")
+                     for target in item["targets"]],
+                    naming_findings(assessment, item)]
+                   for item in inventory["edges"] if is_defect(item)]
+    return (md_table(HEADERS["References"], count_rows) + [""]
+            + md_table(HEADERS["Defect edges"], defect_rows))
+
+
+def loads_body(inventory: dict, assessment: dict) -> list[str]:
+    audited = {entry["path"] for entry in inventory["files"]}
+    rows = []
+    for item in inventory["edges"]:
+        if item["load"] and item["source"] in audited:
+            row = first_with(assessment["loads"], source=item["source"], line=item["line"],
+                             column=item["column"])
+            rows.append([f"{item['source']}:{item['line']}",
+                         [target["path"] for target in item["targets"]],
+                         row["mode"] if row else None, row["condition"] if row else None])
+    return md_table(HEADERS["Loads"], rows)
+
+
+def disposition_of(assessment: dict, identifier: str) -> list[object]:
+    row = first_with(assessment["candidates"], id=identifier)
+    return [row["disposition"], row["finding"]] if row else [None, None]
+
+
+def candidate_bodies(inventory: dict, assessment: dict) -> dict[str, list[str]]:
+    repeated = [[item["id"], item["caller"], item["callee"], item["target"],
+                 *disposition_of(assessment, item["id"])] for item in inventory["repeat_loads"]]
+    bodies = {"Repeated loads": md_table(HEADERS["Repeated loads"], repeated)}
+    for name, key in (("Full-output candidates", "full_output"),
+                      ("Harness-name candidates", "harness_names")):
+        bodies[name] = md_table(HEADERS[name], [
+            [item["id"], f"{item['source']}:{item['line']}", item["text"],
+             *disposition_of(assessment, item["id"])] for item in inventory[key]])
+    return bodies
+
+
+def repetition_body(inventory: dict, assessment: dict) -> list[str]:
+    rows = []
+    for entry in inventory["files"]:
+        if re.fullmatch(r"workflows/[^/]+\.md", entry["path"]) and (entry["invocation_lines"]
+                                                                     or 0) > 0:
+            files_row = first_with(assessment["files"], path=entry["path"])
+            repetition = files_row["repetition"] if files_row else None
+            rows.append([entry["path"], *((repetition[key] if repetition else None)
+                                          for key in ("report", "checkpoint", "review"))])
+    return md_table(HEADERS["Repetition review"], rows)
+
+
+def legacy_body(inventory: dict, assessment: dict) -> list[str]:
+    rows = []
+    for item in inventory["legacy_mentions"]:
+        row = first_with(assessment["legacy"], source=item["source"], line=item["line"],
+                         column=item["column"])
+        rows.append([f"{item['source']}:{item['line']}", item["term"],
+                     row["role"] if row else None, row["note"] if row else None])
+    return md_table(HEADERS["Legacy mentions"], rows)
+
+
+def duplicates_body(inventory: dict, assessment: dict) -> list[str]:
+    clusters = {item["id"]: item for item in inventory["duplicate_clusters"]}
+    rows = []
+    for group in sorted(assessment["duplicate_groups"], key=lambda item: item["id"]):
+        spans = [member for identifier in group["clusters"] if identifier in clusters
+                 for member in clusters[identifier]["members"]] + group["locations"]
+        normative = group["normative_source"]
+        rows.append([group["id"], group["clusters"],
+                     [f"{span['path']}:{span['line_start']}-{span['line_end']}"
+                      for span in spans],
+                     f"{normative['path']} → {normative['section']}",
+                     group["condition_differences"], group["disposition"], group["owner"],
+                     group["finding"]])
+    return md_table(HEADERS["Duplicates"], rows)
+
+
+def mapped_in_order(assessment: dict) -> list[dict]:
+    return sorted(assessment["map"], key=lambda item: item["source"])
+
+
+def map_body(assessment: dict, deviating: Sequence[str]) -> list[str]:
+    return md_table(HEADERS["Migration map"], [
+        [row["source"], row["decision"], targets_text(row["targets"]),
+         targets_text(row["spec09_default"]), "yes" if row["source"] in deviating else "no",
+         row["amendment"]] for row in mapped_in_order(assessment)])
+
+
+def impact_counts(inventory: dict, source: str) -> list[int]:
+    """Edges that name the source, grouped as validator contexts, other tests, frozen,
+    hooks and other active edge sources; planning and history edges are not counted."""
+    counts = Counter()
+    for item in inventory["edges"]:
+        if source not in [target["path"] for target in item["targets"]]:
+            continue
+        if item["source"] == VALIDATOR:
+            counts[item["context"]] += 1
+        elif item["class"] == "frozen":
+            counts["frozen"] += 1
+        elif item["class"] == "active" and item["source"].startswith("tests/"):
+            counts["tests"] += 1
+        elif item["class"] == "active" and item["source"].startswith("hooks/"):
+            counts["hooks"] += 1
+        elif item["class"] == "active":
+            counts["active"] += 1
+    return [counts[name] for name in (*IMPACT_CONTEXTS, "tests", "frozen", "hooks", "active")]
+
+
+def impact_body(inventory: dict, assessment: dict) -> list[str]:
+    return md_table(HEADERS["Validator and test impact"], [
+        [row["source"], row["decision"], *impact_counts(inventory, row["source"])]
+        for row in mapped_in_order(assessment) if row["decision"] != "keep"])
+
+
+def spec09_body(assessment: dict) -> list[str]:
+    nulls = [[row["source"], row["decision"], targets_text(row["targets"]), row["amendment"]]
+             for row in mapped_in_order(assessment) if row["spec09_default"] is None]
+    record = assessment["req21"]
+    return (md_table(HEADERS["Spec 09 inputs"], nulls)
+            + ["", f"req21 verdict: {cell(record['verdict'])}", ""]
+            + md_table(HEADERS["Statements"], [[item["source"], item["text"], item["covered_by"]]
+                                               for item in record["statements"]]))
+
+
+def findings_body(assessment: dict) -> list[str]:
+    return md_table(HEADERS["Findings"], [
+        [item["id"], item["type"], item["severity"], item["source"], item["section"],
+         item["owner"], item["blocks_09"], item["status"], item["observation"], item["closure"]]
+        for item in sorted(assessment["findings"], key=lambda row: row["id"])])
+
+
+def amendments_body(assessment: dict) -> list[str]:
+    return md_table(HEADERS["Amendments to spec 09"], [
+        [item["id"], item["target"], item["change"], item["proposed"], item["reason"],
+         item["evidence"], item["affected"], item["depends_on"], item["requires_adr"],
+         item["disposition"]]
+        for item in sorted(assessment["amendments"], key=lambda row: row["id"])])
+
+
+def coverage_body(assessment: dict) -> list[str]:
+    return md_table(HEADERS["Read coverage"], [
+        [item["path"], item["status"], item["sha256"], item["reader"]]
+        for item in sorted(assessment["coverage"], key=lambda row: row["path"])])
+
+
+def installed_body(assessment: dict) -> list[str]:
+    if assessment["installed_access"] == "not-verified":
+        return ["Not verified."]
+    return md_table(HEADERS["Installed comparison"], [
+        [item["path"], item["location"], item["source_sha256"], item["installed_sha256"],
+         "yes" if item["source_sha256"] == item["installed_sha256"] else "no"]
+        for item in sorted(assessment["installed"], key=lambda row: row["path"])])
+
+
+def expected_bodies(inventory: dict, assessment: dict, deviating: Sequence[str] = ()
+                    ) -> dict[str, list[str]]:
+    """The documented body of every subsection, computed independently of the tool."""
+    return {
+        "Passport": passport_body(inventory, assessment),
+        "Inventory": inventory_body(inventory, assessment),
+        "Sections": sections_body(inventory, assessment),
+        "References": references_body(inventory, assessment),
+        "Loads": loads_body(inventory, assessment),
+        **candidate_bodies(inventory, assessment),
+        "Repetition review": repetition_body(inventory, assessment),
+        "Legacy mentions": legacy_body(inventory, assessment),
+        "Duplicates": duplicates_body(inventory, assessment),
+        "Migration map": map_body(assessment, deviating),
+        "Validator and test impact": impact_body(inventory, assessment),
+        "Spec 09 inputs": spec09_body(assessment),
+        "Findings": findings_body(assessment),
+        "Amendments to spec 09": amendments_body(assessment),
+        "Read coverage": coverage_body(assessment),
+        "Installed comparison": installed_body(assessment),
+    }
+
+
+def expected_region(inventory: dict, assessment: dict, deviating: Sequence[str] = ()) -> str:
+    """Begin marker, blank line, each `### <name>` with a blank line, its body and a blank
+    line, then the end marker; every line ends with LF."""
+    bodies = expected_bodies(inventory, assessment, deviating)
+    lines = [REPORT_BEGIN, ""]
+    for name in SUBSECTIONS:
+        lines += [f"### {name}", "", *bodies[name], ""]
+    lines.append(REPORT_END)
+    return "".join(f"{line}\n" for line in lines)
+
+
+def region_bodies(region: str) -> dict[str, list[str]]:
+    """The body lines of each `###` subsection without the blank lines around them."""
+    bodies: dict[str, list[str]] = {}
+    current: list[str] | None = None
+    for line in region.split("\n"):
+        if line.startswith("### "):
+            current = bodies.setdefault(line[4:], [])
+        elif current is not None and line != REPORT_END:
+            current.append(line)
+    for lines in bodies.values():
+        while lines and not lines[0]:
+            lines.pop(0)
+        while lines and not lines[-1]:
+            lines.pop()
+    return bodies
+
+
+def line_number(text: str, line: str, occurrence: int = 0) -> int:
+    """The 1-based number of the given occurrence of a whole line in the text."""
+    numbers = [number for number, found in enumerate(text.split("\n"), start=1)
+               if found == line]
+    if len(numbers) <= occurrence:
+        raise AssertionError(f"the line {line!r} is not in the text")
+    return numbers[occurrence]
+
+
+def file_snapshot(root: Path) -> dict[Path, bytes]:
+    """The bytes of every regular file below root, outside `.git`."""
+    found: dict[Path, bytes] = {}
+    for directory, dirnames, filenames in os.walk(root):
+        dirnames[:] = [name for name in dirnames if name != ".git"]
+        for name in filenames:
+            path = Path(directory) / name
+            if not path.is_symlink():
+                found[path] = path.read_bytes()
+    return found
+
+
+def restore_snapshot(root: Path, snapshot: dict[Path, bytes]) -> None:
+    for path in file_snapshot(root):
+        if path not in snapshot:
+            path.unlink()
+    for path, data in snapshot.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.is_file() or path.read_bytes() != data:
+            path.write_bytes(data)
+
+
+class RenderCase(SharedVerifyCase):
+    """Cases that render or verify the report of the valid pair."""
+
+    def write_assessment(self) -> None:
+        (self.fixture.root / ASSESSMENT_PATH).write_text(canonical(self.assessment),
+                                                         encoding="utf-8")
+
+    def render(self, *extra: str, report: Path | None = None
+               ) -> subprocess.CompletedProcess[str]:
+        self.write_assessment()
+        return run_render(self.fixture, *extra, report=report)
+
+    def region(self) -> str:
+        result = self.render()
+        self.assertEqual((result.returncode, result.stderr), (0, ""), result.stdout)
+        return result.stdout
+
+    def bodies(self) -> dict[str, list[str]]:
+        return region_bodies(self.region())
+
+    def report_file(self) -> Path:
+        return self.fixture.root / REPORT_PATH
+
+    def audits_listing(self) -> list[str]:
+        return sorted(os.listdir(self.report_file().parent))
+
+    def head(self) -> str:
+        return self.fixture.git("rev-parse", "HEAD")
+
+    def valid_report(self, **changes: object) -> str:
+        changes.setdefault("blockers", blocking_ids(self.assessment))
+        return report_text(region=self.region(), **changes)
+
+    def verify_report(self, text: str | bytes) -> subprocess.CompletedProcess[str]:
+        self.write_assessment()
+        self.fixture.write(REPORT_PATH, text)
+        return self.run_verify()
+
+
+class RenderRegionTests(RenderCase):
+    def test_region_holds_both_markers_and_the_eighteen_subsections_in_order(self) -> None:
+        region = self.region()
+        lines = region.split("\n")
+        self.assertEqual(lines[0], REPORT_BEGIN)
+        self.assertEqual(lines[-2:], [REPORT_END, ""])
+        self.assertEqual([line[4:] for line in lines if line.startswith("### ")],
+                         list(SUBSECTIONS))
+
+    def test_valid_pair_renders_exactly_the_documented_region(self) -> None:
+        self.assertEqual(self.region(), expected_region(self.inventory, self.assessment))
+
+    def test_rendering_is_byte_identical_across_runs_and_names_no_absolute_path(self) -> None:
+        first, second = self.render(), self.render()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(first.stdout, second.stdout)
+        for absolute in (str(self.fixture.base), "/home/", "/Users/", "/tmp"):
+            self.assertNotIn(absolute, first.stdout)
+
+    def test_passport_states_partial_read_coverage_with_its_gap_count(self) -> None:
+        body = self.bodies()["Passport"]
+        self.assertEqual(body, passport_body(self.inventory, self.assessment))
+        self.assertIn("- read_coverage: partial (1 gaps)", body)
+        self.assertIn("- findings: 5 total, 5 open, 2 blocking spec 09", body)
+        self.assertIn(f"- source_revision: {self.inventory['source_revision']}", body)
+        self.assertIn("- installed_access: not-verified", body)
+        for statuses, expected in (({BLOB: "read"}, "- read_coverage: complete"),
+                                   ({DELTA: "changed"}, "- read_coverage: partial (2 gaps)")):
+            with self.subTest(statuses=statuses):
+                self.assessment = valid_assessment(self.inventory)
+                for path, status in statuses.items():
+                    self.row("coverage", path)["status"] = status
+                self.finding("AUD-08-002")["status"] = "historical-fixed"
+                body = self.bodies()["Passport"]
+                self.assertIn(expected, body)
+                self.assertIn("- findings: 5 total, 4 open, 2 blocking spec 09", body)
+
+    def test_inventory_and_sections_tables_follow_path_and_line_order(self) -> None:
+        bodies = self.bodies()
+        self.assertEqual(bodies["Inventory"], inventory_body(self.inventory, self.assessment))
+        self.assertIn(md_row([LINK, "adapter", "symlink", "true", "-", "-", "adapter-config",
+                              "not-a-file", "keep", "none"]), bodies["Inventory"])
+        gamma = [line for line in bodies["Inventory"] if line.startswith(f"| {GAMMA} |")]
+        self.assertEqual(len(gamma), 1)
+        self.assertTrue(gamma[0].endswith(" | AUD-08-003, AUD-08-004 |"), gamma[0])
+        self.assertEqual(bodies["Sections"], sections_body(self.inventory, self.assessment))
+        example = inventory_entry(self.inventory, ALPHA)["sections"][2]
+        self.assertIn(md_row([ALPHA, "## Example", str(example["line"]), str(example["words"]),
+                              str(example["bytes"]), "reference", "rules/reference/alpha.md"]),
+                      bodies["Sections"])
+        delta = inventory_entry(self.inventory, DELTA)["sections"][0]
+        self.assertIn(md_row([DELTA, "(preamble)", str(delta["line"]), str(delta["words"]),
+                              str(delta["bytes"]), "-", "-"]), bodies["Sections"])
+
+    def test_references_count_edges_by_class_and_status_and_list_every_defect_edge(
+            self) -> None:
+        body = self.bodies()["References"]
+        self.assertEqual(body, references_body(self.inventory, self.assessment))
+        separator = body.index("")
+        self.assertEqual(body[0], md_row(HEADERS["References"]))
+        self.assertEqual([line.split(" | ")[0] for line in body[2:separator]],
+                         [f"| {name}" for name in READER_CLASS_ORDER])
+        defects = body[separator + 3:]
+        self.assertEqual(len(defects), 3, defects)
+        column = edge_ref(self.inventory, BETA, 9)["column"]
+        self.assertIn(md_row([f"{BETA}:9:{column}", "alpha-flow → ## Missing", "section-ref",
+                              "span", "missing-heading", f"{ALPHA} (missing-heading)",
+                              "AUD-08-001"]), defects)
+
+    def test_loads_candidates_repetition_and_legacy_tables(self) -> None:
+        bodies = self.bodies()
+        expected = expected_bodies(self.inventory, self.assessment)
+        for name in ("Loads", "Repeated loads", "Full-output candidates",
+                     "Harness-name candidates", "Repetition review", "Legacy mentions"):
+            with self.subTest(subsection=name):
+                self.assertEqual(bodies[name], expected[name])
+        self.assertIn(md_row([f"{GAMMA}:5", ALPHA, "conditional", "when the flow is active"]),
+                      bodies["Loads"])
+        self.assertIn(md_row([f"{BETA}:8", ALPHA, "mandatory", "-"]), bodies["Loads"])
+        self.assertEqual(bodies["Repeated loads"][2:], [
+            md_row(["RL-001", GAMMA, BETA, ALPHA, "finding", "AUD-08-003"])])
+        self.assertEqual(bodies["Repetition review"][2:], [
+            md_row([BETA, "none", "none", "none"]),
+            md_row([GAMMA, "AUD-08-004", "none", "none"])])
+
+    def test_duplicate_groups_list_cluster_members_and_read_detected_locations(self) -> None:
+        group = self.assessment["duplicate_groups"][0]
+        group["locations"] = [{"path": GUIDE, "line_start": 1, "line_end": 1}]
+        body = self.bodies()["Duplicates"]
+        self.assertEqual(body, duplicates_body(self.inventory, self.assessment))
+        members = self.inventory["duplicate_clusters"][0]["members"]
+        locations = ", ".join([f"{item['path']}:{item['line_start']}-{item['line_end']}"
+                               for item in members] + [f"{GUIDE}:1-1"])
+        self.assertEqual(body[2:], [md_row([
+            "DG-001", "DUP-001", locations, f"{DELTA} → (preamble)", "None.", "intentional",
+            "none", "-"])])
+
+    def test_migration_map_shows_targets_with_sections_default_and_computed_deviation(
+            self) -> None:
+        body = self.bodies()["Migration map"]
+        self.assertEqual(body, map_body(self.assessment, ()))
+        split = ("rules/bootstrap-discovery.md [(preamble)]; rules/protocol-discovery-conduct.md "
+                 "[## Codebase Reading Rules, ## Decision Protocol, ## Other]")
+        self.assertIn(md_row([PHASE_DISCOVERY, "split",
+                              f"{split}; rules/reference/discovery-examples.md", split, "no",
+                              "-"]), body)
+        delta = self.assessment["map"][row_index(self.assessment["map"], "source", DELTA)]
+        delta.update(spec09_default=None, amendment="AMD-08-01")
+        alpha = self.assessment["map"][row_index(self.assessment["map"], "source", ALPHA)]
+        alpha["targets"] = [map_target("rules/contract-alpha-other.md")]
+        alpha["amendment"] = "AMD-08-01"
+        bodies = self.bodies()
+        self.assertEqual(bodies["Migration map"], map_body(self.assessment, (ALPHA, DELTA)))
+        self.assertIn(md_row([DELTA, "rename", "rules/contract-delta-rule.md", "-", "yes",
+                              "AMD-08-01"]), bodies["Migration map"])
+        self.assertEqual(bodies["Spec 09 inputs"][2], md_row([
+            DELTA, "rename", "rules/contract-delta-rule.md", "AMD-08-01"]))
+
+    def test_spec09_inputs_list_null_default_entries_and_the_statement_coverage(self) -> None:
+        body = self.bodies()["Spec 09 inputs"]
+        self.assertEqual(body, md_table(HEADERS["Spec 09 inputs"]) + [
+            "", "req21 verdict: covered", ""] + md_table(HEADERS["Statements"], [
+                [f"{PHASE_DISCOVERY}:{line}", "A statement of the rule.", f"{ALPHA}:9"]
+                for line in STATEMENT_UNIT_LINES]))
+        self.assessment["req21"]["verdict"] = "not-covered"
+        self.assessment["req21"]["statements"][0]["covered_by"] = None
+        body = self.bodies()["Spec 09 inputs"]
+        self.assertEqual(body, spec09_body(self.assessment))
+        self.assertIn("req21 verdict: not-covered", body)
+        self.assertIn(md_row([f"{PHASE_DISCOVERY}:7", "A statement of the rule.", "-"]), body)
+
+    def test_findings_amendments_and_read_coverage_are_ordered_by_id_and_path(self) -> None:
+        self.assessment["findings"].reverse()
+        self.assessment["coverage"].reverse()
+        bodies = self.bodies()
+        self.assertEqual(bodies["Findings"], findings_body(self.assessment))
+        self.assertEqual([line.split(" | ")[0] for line in bodies["Findings"][2:]],
+                         [f"| AUD-08-00{number}" for number in range(1, 6)])
+        self.assertIn(md_row(["AUD-08-001", "reference-defect", "major", BETA, "(preamble)",
+                              "09", "true", "open", "Observed on reading.",
+                              "The cited lines are corrected."]), bodies["Findings"])
+        self.assertEqual(bodies["Amendments to spec 09"][2:], [md_row([
+            "AMD-08-01", "REQ-21", "editorial", "Proposed text.",
+            "The reference names a heading that does not exist.", "AUD-08-001", "AC-05",
+            "none", "false", "proposed"])])
+        self.assertEqual(bodies["Read coverage"], coverage_body(self.assessment))
+        self.assertEqual([line.split(" | ")[0] for line in bodies["Read coverage"][2:]],
+                         [f"| {path}" for path in sorted(item["path"] for item in
+                                                         self.assessment["coverage"])])
+
+    def test_installed_comparison_is_not_verified_or_lists_each_copy_with_its_match(
+            self) -> None:
+        self.assertEqual(self.bodies()["Installed comparison"], ["Not verified."])
+        self.assessment["installed_access"] = "verified"
+        self.assertEqual(self.bodies()["Installed comparison"],
+                         md_table(HEADERS["Installed comparison"]))
+        digest = inventory_entry(self.inventory, DELTA)["sha256"]
+        self.assessment["installed"] = [
+            {"path": DELTA, "location": "~/.claude/skills/rule-delta-rule/SKILL.md",
+             "source_sha256": digest, "installed_sha256": "0" * 64},
+            {"path": ALPHA, "location": "~/.claude/skills/rule-alpha-flow/SKILL.md",
+             "source_sha256": digest, "installed_sha256": digest},
+        ]
+        body = self.bodies()["Installed comparison"]
+        self.assertEqual(body, installed_body(self.assessment))
+        self.assertEqual([line.split(" | ")[0] for line in body[2:]], [f"| {ALPHA}",
+                                                                      f"| {DELTA}"])
+        self.assertTrue(body[2].endswith(" | yes |") and body[3].endswith(" | no |"), body)
+
+    def test_cells_escape_pipes_and_replace_line_breaks_with_spaces(self) -> None:
+        self.finding("AUD-08-002")["observation"] = "a|b\nc\r\nd e\x85f\tg"
+        self.assessment["legacy"][0]["note"] = "x | y\n## Not a heading"
+        self.assessment["environment"]["python"] = "Python 3.12\nsecond"
+        region = self.region()
+        bodies = region_bodies(region)
+        self.assertEqual(region, expected_region(self.inventory, self.assessment))
+        self.assertIn("a\\|b c  d e f g", bodies["Findings"][3])
+        self.assertTrue(bodies["Legacy mentions"][2].endswith(" | x \\| y ## Not a heading |"))
+        self.assertIn("- environment: Python 3.12 second; git version 2.43.0",
+                      bodies["Passport"])
+        self.assertEqual(len(bodies["Findings"]), 7)
+        self.assertEqual([line for line in region.split("\n") if line.startswith("## ")], [])
+
+    def test_empty_tables_keep_their_header_and_separator_rows(self) -> None:
+        for key in ("findings", "amendments", "duplicate_groups", "candidates", "legacy",
+                    "loads"):
+            self.assessment[key] = []
+        for row in self.assessment["files"]:
+            if row["repetition"] is not None:
+                row["repetition"] = empty_repetition()
+        bodies = self.bodies()
+        for name in ("Findings", "Amendments to spec 09", "Duplicates"):
+            with self.subTest(subsection=name):
+                self.assertEqual(bodies[name], md_table(HEADERS[name]))
+        self.assertEqual(bodies["Repeated loads"][2:], [
+            md_row(["RL-001", GAMMA, BETA, ALPHA, "-", "-"])])
+        self.assertEqual(bodies["Repetition review"][2:], [
+            md_row([BETA, "none", "none", "none"]), md_row([GAMMA, "none", "none", "none"])])
+        self.assertIn(md_row([f"{GAMMA}:5", ALPHA, "-", "-"]), bodies["Loads"])
+        self.assertIn("- findings: 0 total, 0 open, 0 blocking spec 09", bodies["Passport"])
+
+
+class RenderCommandTests(RenderCase):
+    def test_render_without_write_prints_the_region_reads_no_report_and_writes_nothing(
+            self) -> None:
+        self.write_assessment()
+        self.report_file().unlink()
+        before = tree_digests(self.fixture.base)
+        result = run_render(self.fixture)
+        self.assertEqual((result.returncode, result.stderr), (0, ""))
+        self.assertEqual(result.stdout, expected_region(self.inventory, self.assessment))
+        self.assertEqual(tree_digests(self.fixture.base), before)
+
+    def test_inputs_that_break_their_schema_exit_one_with_diagnostics_and_no_region(
+            self) -> None:
+        del self.assessment["installed"]
+        report_before = self.report_file().read_bytes()
+        for extra in ((), ("--write",)):
+            with self.subTest(arguments=extra):
+                result = self.render(*extra)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertNotIn(REPORT_BEGIN, result.stdout)
+                self.assertEqual(diagnostic_pairs(result),
+                                 [("assessment-invalid", assessment_at("installed"))])
+                self.assertEqual(self.report_file().read_bytes(), report_before)
+        self.assessment = valid_assessment(self.inventory)
+        inventory_file = self.fixture.root / INVENTORY_PATH
+        original = inventory_file.read_bytes()
+        inventory_file.unlink()
+        try:
+            result = self.render()
+        finally:
+            inventory_file.write_bytes(original)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(diagnostic_pairs(result), [("inventory-missing", f"{INVENTORY_PATH}:0")])
+
+    def test_usage_errors_exit_two_with_one_error_line(self) -> None:
+        self.assertEqual(self.render().returncode, 0)
+        root, report = str(self.fixture.root), str(self.report_file())
+        cases = {
+            "no report": ["render", "--root", root],
+            "report not markdown": ["render", "--root", root, "--report",
+                                    str(self.fixture.root / "docs/audits/report.txt")],
+            "unknown option": ["render", "--root", root, "--report", report, "--fast"],
+            "argument with a line break": ["render", "--root", root, "--report", report,
+                                           "extra\nargument"],
+        }
+        for name, arguments in cases.items():
+            with self.subTest(case=name):
+                before = self.report_file().read_bytes()
+                result = run_tool(arguments, self.fixture.env, self.fixture.base)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(result.stdout, "")
+                lines = result.stderr.splitlines()
+                self.assertEqual(len(lines), 1, lines)
+                self.assertTrue(lines[0].startswith("ERROR: "), lines)
+                self.assertEqual(self.report_file().read_bytes(), before)
+
+    def test_region_is_utf8_in_every_locale_and_equals_the_written_region(self) -> None:
+        self.finding("AUD-08-002")["observation"] = "Naïve façade — ünïcode"
+        self.write_assessment()
+        self.fixture.write(REPORT_PATH, report_text(blockers=blocking_ids(self.assessment)))
+        written = self.render("--write")
+        self.assertEqual((written.returncode, written.stdout, written.stderr), (0, "", ""))
+        text = self.report_file().read_text(encoding="utf-8")
+        region = text[text.index(REPORT_BEGIN):text.index(REPORT_END) + len(REPORT_END) + 1]
+        for locale_name in ("C", "C.UTF-8", "en_US.UTF-8"):
+            with self.subTest(locale=locale_name):
+                if not locale_available(locale_name):
+                    self.skipTest(f"the locale {locale_name} is not installed")
+                result = run_tool_bytes(
+                    [b"render", b"--root", os.fsencode(self.fixture.root), b"--report",
+                     os.fsencode(self.report_file())],
+                    dict(self.fixture.env, LC_ALL=locale_name), self.fixture.base)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, region.encode("utf-8"))
+
+
+class RenderWriteTests(RenderCase):
+    def test_render_write_replaces_only_the_region_and_a_second_run_changes_nothing(
+            self) -> None:
+        stale = f"{REPORT_BEGIN}\n### Passport\n\nstale line\n{REPORT_END}\n"
+        hand = report_text(region=stale, blockers=blocking_ids(self.assessment),
+                           summary="Hand-written | summary.\n\nSecond paragraph.",
+                           review=f"Reviewed: Validator {OTHER_DATE} pass {self.head()}")
+        self.write_assessment()
+        self.fixture.write(REPORT_PATH, hand)
+        before = tree_digests(self.fixture.base)
+        result = run_render(self.fixture, "--write")
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, "", ""))
+        text = self.report_file().read_text(encoding="utf-8")
+        prefix, suffix = hand.split(stale)
+        self.assertEqual(text, prefix + expected_region(self.inventory, self.assessment) + suffix)
+        after = tree_digests(self.fixture.base)
+        changed = {path for path in before.keys() | after.keys()
+                   if before.get(path) != after.get(path)}
+        self.assertEqual(changed, {f"root/{REPORT_PATH}"})
+        again = run_render(self.fixture, "--write")
+        self.assertEqual((again.returncode, again.stdout, again.stderr), (0, "", ""))
+        self.assertEqual(tree_digests(self.fixture.base), after)
+        self.assert_silent(self.run_verify())
+
+    def assert_refused(self, result: subprocess.CompletedProcess[str], code: str,
+                       before: bytes | None, listing: list[str]) -> None:
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(result.stdout, "")
+        lines = result.stderr.splitlines()
+        self.assertEqual(len(lines), 1, lines)
+        self.assertTrue(lines[0].startswith(f"ERROR: {code}: "), lines)
+        if before is not None:
+            self.assertEqual(self.report_file().read_bytes(), before)
+        self.assertEqual(self.audits_listing(), listing)
+
+    def test_render_write_without_one_marker_pair_exits_two_and_leaves_the_file_unchanged(
+            self) -> None:
+        region = f"{REPORT_BEGIN}\n{REPORT_END}\n"
+        cases = {
+            "no markers": report_text(region=""),
+            "begin marker only": report_text(region=f"{REPORT_BEGIN}\n"),
+            "end marker only": report_text(region=f"{REPORT_END}\n"),
+            "begin marker repeated": report_text(region=f"{REPORT_BEGIN}\n{region}"),
+            "end marker repeated": report_text(region=f"{region}{REPORT_END}\n"),
+            "markers reversed": report_text(region=f"{REPORT_END}\n{REPORT_BEGIN}\n"),
+            "markers with trailing spaces": report_text(
+                region=f"{REPORT_BEGIN} \n{REPORT_END} \n"),
+            "marker inside a fence": report_text(
+                method=f"```\n{REPORT_BEGIN}\n```", region=region),
+        }
+        self.write_assessment()
+        for name, text in cases.items():
+            with self.subTest(case=name):
+                self.fixture.write(REPORT_PATH, text)
+                before, listing = self.report_file().read_bytes(), self.audits_listing()
+                self.assert_refused(run_render(self.fixture, "--write"), "report-markers",
+                                    before, listing)
+
+    def test_render_write_refuses_a_report_it_cannot_read_without_writing(self) -> None:
+        report = self.report_file()
+        valid = report.read_bytes()
+
+        def oversized() -> None:
+            report.unlink()
+            with open(report, "wb") as handle:
+                handle.truncate(OVERSIZED_REPORT_BYTES)
+
+        def linked() -> None:
+            report.unlink()
+            (report.parent / "linked-target.txt").write_bytes(valid)
+            report.symlink_to("linked-target.txt")
+
+        cases: dict[str, Callable[[], object]] = {
+            "missing": report.unlink,
+            "directory": lambda: (report.unlink(), report.mkdir()),
+            "symbolic link": linked,
+            "byte that is not UTF-8": lambda: report.write_bytes(valid + b"\xff\n"),
+            "encoded surrogate": lambda: report.write_bytes(valid + b"\xed\xa0\x80\n"),
+            "larger than the size limit": oversized,
+        }
+        self.write_assessment()
+        for name, change in cases.items():
+            with self.subTest(case=name):
+                change()
+                listing = self.audits_listing()
+                before = report.read_bytes() if report.is_file() and name not in (
+                    "larger than the size limit", "symbolic link") else None
+                try:
+                    self.assert_refused(run_render(self.fixture, "--write"),
+                                        "report-unreadable", before, listing)
+                    if name == "symbolic link":
+                        self.assertTrue(report.is_symlink())
+                        self.assertEqual((report.parent / "linked-target.txt").read_bytes(),
+                                         valid)
+                finally:
+                    if report.is_symlink() or report.is_file():
+                        report.unlink()
+                    elif report.is_dir():
+                        report.rmdir()
+                    with suppress(FileNotFoundError):
+                        (report.parent / "linked-target.txt").unlink()
+                    report.write_bytes(valid)
+
+    def test_render_write_into_a_directory_without_write_permission_leaves_no_file(
+            self) -> None:
+        if os.geteuid() == 0:
+            self.skipTest("permissions do not restrict the superuser")
+        self.write_assessment()
+        self.fixture.write(REPORT_PATH, report_text(blockers=blocking_ids(self.assessment)))
+        directory = self.report_file().parent
+        before, listing = self.report_file().read_bytes(), self.audits_listing()
+        directory.chmod(0o555)
+        try:
+            result = run_render(self.fixture, "--write")
+        finally:
+            directory.chmod(0o755)
+        self.assert_refused(result, "report-unwritable", before, listing)
+
+
+class VerifyReportTests(RenderCase):
+    def test_report_in_the_documented_layout_is_silent_and_an_absent_report_is_missing(
+            self) -> None:
+        head = self.head()
+        fenced = ("Commands run:\n\n```\n# Rules and workflows audit — x\n## Summary\n"
+                  "### Passport\n```")
+        cases = {
+            "pending review": {},
+            "passing review": {"review": f"Reviewed: Validator {OTHER_DATE} pass {head}"},
+            "failing review": {"review": f"Reviewed: Peer-Validator-2 {OTHER_DATE} fail {head}"},
+            "owner acceptance": {"acceptance": f"Accepted: owner {OTHER_DATE}"},
+            "headings inside a fence": {"method": fenced},
+            "extra listed ids": {"blockers": ["AUD-08-001 (AMD-08-01)", "AUD-08-005"]},
+            "subsection headings in hand-written text": {
+                "summary": "### Scope\n\nEvery audited file was read once.",
+                "method": "### Commands\n\nThe inventory was extracted."},
+        }
+        for name, changes in cases.items():
+            with self.subTest(case=name):
+                self.assert_silent(self.verify_report(self.valid_report(**changes)))
+        self.report_file().unlink()
+        self.assert_reports(self.run_verify(), [("report-missing", f"{REPORT_PATH}:0")])
+
+    def test_layout_faults_are_report_layout(self) -> None:
+        head = self.head()
+        valid = self.valid_report()
+        summary = "## Summary\n\nEvery audited file was read once.\n\n"
+        method = "## Method\n\nThe inventory was extracted at a clean commit.\n\n"
+        begin, end = f"{REPORT_BEGIN}\n", f"{REPORT_END}\n"
+
+        def review(line: str) -> str:
+            return valid.replace("Reviewed: pending\n", f"{line}\n", 1)
+
+        def acceptance(line: str) -> str:
+            return valid.replace("Accepted: pending\n", f"{line}\n", 1)
+
+        cases = {
+            "title missing": valid.replace(REPORT_TITLE, "", 1),
+            "title with another date": valid.replace(
+                REPORT_TITLE, f"# Rules and workflows audit — {OTHER_DATE}\n", 1),
+            "title not on the first line": "\n" + valid,
+            "second level-one heading": valid.replace(method, "# Extra\n\n" + method, 1),
+            "summary heading missing": valid.replace("## Summary\n", "", 1),
+            "method before summary": valid.replace(summary + method, method + summary, 1),
+            "repeated summary heading": valid.replace(method, method + "## Summary\n\n", 1),
+            "unknown level-two heading": valid + "\n## Notes\n\nLater text.\n",
+            "blockers heading missing": valid.replace("## Blockers for spec 09\n", "", 1),
+            "begin marker repeated": valid.replace(method, method + begin, 1),
+            "end marker repeated": valid.replace(end, end + end, 1),
+            "end marker missing": valid.replace(end, "", 1),
+            "markers reversed": valid.replace(begin, "\0", 1).replace(end, begin, 1)
+                                     .replace("\0", end, 1),
+            "begin marker with a trailing space": valid.replace(begin, f"{REPORT_BEGIN} \n", 1),
+            "region before the method heading": valid.replace(method, "", 1).replace(
+                "## Blockers for spec 09\n", method + "## Blockers for spec 09\n", 1),
+            "review line missing": review(""),
+            "review line repeated": review("Reviewed: pending\nReviewed: pending"),
+            "text beside the review line": review("Reviewed: pending\nLooks fine."),
+            "review without role": review(f"Reviewed: {OTHER_DATE} pass {head}"),
+            "role starting with a digit": review(f"Reviewed: 9validator {OTHER_DATE} pass {head}"),
+            "role with an underscore": review(f"Reviewed: Valid_ator {OTHER_DATE} pass {head}"),
+            "review date not in the calendar": review(
+                f"Reviewed: Validator 2026-02-30 pass {head}"),
+            "review date without padding": review(f"Reviewed: Validator 2026-1-03 pass {head}"),
+            "review verdict outside pass and fail": review(
+                f"Reviewed: Validator {OTHER_DATE} passed {head}"),
+            "review commit in upper case": review(
+                f"Reviewed: Validator {OTHER_DATE} pass {head.upper()}"),
+            "review commit too short": review(f"Reviewed: Validator {OTHER_DATE} pass {head[:39]}"),
+            "review with trailing text": review(
+                f"Reviewed: Validator {OTHER_DATE} pass {head} later"),
+            "acceptance by another role": acceptance(f"Accepted: Validator {OTHER_DATE}"),
+            "acceptance date not in the calendar": acceptance("Accepted: owner 2026-13-01"),
+            "acceptance without a date": acceptance("Accepted: owner"),
+            "acceptance line repeated": acceptance("Accepted: pending\nAccepted: pending"),
+            "acceptance line missing": acceptance(""),
+        }
+        for name, text in cases.items():
+            with self.subTest(case=name):
+                self.assertNotEqual(text, valid)
+                result = self.verify_report(text)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assert_codes(result, "report-layout", f"{REPORT_PATH}:")
+        result = self.verify_report(valid.replace(method, method + begin, 1))
+        self.assert_reports(result, [("report-layout", f"{REPORT_PATH}:12")])
+
+    def test_report_that_cannot_be_read_as_text_is_report_layout_at_line_zero(self) -> None:
+        report = self.report_file()
+        valid = self.valid_report().encode("utf-8")
+
+        def oversized() -> None:
+            with open(report, "wb") as handle:
+                handle.truncate(OVERSIZED_REPORT_BYTES)
+
+        def linked() -> None:
+            (report.parent / "linked-target.txt").write_bytes(valid)
+            report.symlink_to("linked-target.txt")
+
+        cases: dict[str, Callable[[], object]] = {
+            "byte that is not UTF-8": lambda: report.write_bytes(valid + b"\xff\n"),
+            "encoded surrogate": lambda: report.write_bytes(valid + b"\xed\xa0\x80\n"),
+            "directory": report.mkdir,
+            "symbolic link": linked,
+            "larger than the size limit": oversized,
+        }
+        self.write_assessment()
+        for name, change in cases.items():
+            with self.subTest(case=name):
+                report.unlink()
+                change()
+                try:
+                    result = self.run_verify()
+                finally:
+                    if report.is_dir() and not report.is_symlink():
+                        report.rmdir()
+                    else:
+                        report.unlink()
+                    with suppress(FileNotFoundError):
+                        (report.parent / "linked-target.txt").unlink()
+                    report.write_bytes(valid)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assert_reports(result, [("report-layout", f"{REPORT_PATH}:0")])
+
+    def test_review_commit_absent_from_the_repository_is_review_commit_unknown(self) -> None:
+        tree = self.fixture.git("rev-parse", "HEAD^{tree}")
+        for name, commit in (("unknown commit", UNKNOWN_COMMIT), ("tree object", tree)):
+            with self.subTest(case=name):
+                line = f"Reviewed: Validator {OTHER_DATE} pass {commit}"
+                text = self.valid_report(review=line)
+                self.assert_reports(self.verify_report(text), [
+                    ("review-commit-unknown", f"{REPORT_PATH}:{line_number(text, line)}")])
+        self.assert_silent(self.verify_report(self.valid_report(
+            review=f"Reviewed: Validator {OTHER_DATE} pass {self.head()}")))
+
+    def test_file_name_date_unequal_to_the_run_date_is_report_name_date(self) -> None:
+        text = self.valid_report()
+        directory = self.report_file().parent
+        for stem in (f"{OTHER_DATE}-rules-workflows-audit", "final-rules-workflows-audit"):
+            with self.subTest(stem=stem):
+                for suffix in (".inventory.json", ".assessment.json"):
+                    shutil.copyfile(self.fixture.root / (REPORT_PATH[:-3] + suffix),
+                                    directory / (stem + suffix))
+                (directory / f"{stem}.md").write_text(text, encoding="utf-8")
+                try:
+                    result = run_tool(["verify", "--root", str(self.fixture.root), "--report",
+                                       str(directory / f"{stem}.md")],
+                                      self.fixture.env, self.fixture.base)
+                finally:
+                    for suffix in (".md", ".inventory.json", ".assessment.json"):
+                        (directory / (stem + suffix)).unlink()
+                self.assert_reports(result, [("report-name-date",
+                                              f"docs/audits/{stem}.md:0")])
+
+    def test_blocking_finding_missing_from_the_blockers_section_is_blocker_unlisted(
+            self) -> None:
+        heading = "## Blockers for spec 09"
+        cases = {
+            "one id left out": {"blockers": ["AUD-08-001"]},
+            "id named only in the summary": {"blockers": ["AUD-08-001"],
+                                             "summary": "AUD-08-005 is a blocker."},
+            "id inside a longer token": {"blockers": ["AUD-08-001", "AUD-08-0050"]},
+        }
+        for name, changes in cases.items():
+            with self.subTest(case=name):
+                text = self.valid_report(**changes)
+                self.assert_reports(self.verify_report(text), [
+                    ("blocker-unlisted", f"{REPORT_PATH}:{line_number(text, heading)}")])
+        text = self.valid_report(blockers=[])
+        location = f"{REPORT_PATH}:{line_number(text, heading)}"
+        self.assert_reports(self.verify_report(text), [
+            ("blocker-unlisted", location), ("blocker-unlisted", location),
+            ("report-layout", f"{REPORT_PATH}:{line_number(text, 'None.')}")])
+
+    def test_changed_generated_region_is_report_generated_mismatch_at_its_first_line(
+            self) -> None:
+        text = self.valid_report()
+        run_date_line = f"- run_date: {AUDIT_DATE}"
+        edited = text.replace(run_date_line, f"- run_date: {OTHER_DATE}", 1)
+        self.assert_reports(self.verify_report(edited), [
+            ("report-generated-mismatch",
+             f"{REPORT_PATH}:{line_number(text, run_date_line)}")])
+        dropped = text.replace("Not verified.\n", "", 1)
+        self.assert_reports(self.verify_report(dropped), [
+            ("report-generated-mismatch",
+             f"{REPORT_PATH}:{line_number(text, 'Not verified.')}")])
+        stale = self.valid_report()
+        self.finding("AUD-08-002")["observation"] = "Observed again on reading."
+        fresh = self.valid_report()
+        first = next(number for number, (old, new) in enumerate(
+            zip(stale.split("\n"), fresh.split("\n")), start=1) if old != new)
+        self.assert_reports(self.verify_report(stale), [
+            ("report-generated-mismatch", f"{REPORT_PATH}:{first}")])
+
+    def test_amounts_anywhere_in_the_report_are_economics_claims(self) -> None:
+        text = self.valid_report(summary="The change saves 3,000 tokens.",
+                                 method="One run costs $5 in total.")
+        self.assert_reports(self.verify_report(text), [
+            ("economics-claim", f"{REPORT_PATH}:5"), ("economics-claim", f"{REPORT_PATH}:9")])
+        self.finding("AUD-08-002")["observation"] = "It saves 3,000 tokens."
+        text = self.valid_report()
+        rows = [number for number, line in enumerate(text.split("\n"), start=1)
+                if "It saves 3,000 tokens." in line]
+        self.assertEqual(len(rows), 1)
+        self.assert_reports(self.verify_report(text), [
+            ("economics-claim", assessment_at("AUD-08-002")),
+            ("economics-claim", f"{REPORT_PATH}:{rows[0]}")])
+
+    def test_report_rules_that_need_no_valid_input_run_when_an_input_breaks_its_schema(
+            self) -> None:
+        valid = self.valid_report()
+        method = "## Method\n\nThe inventory was extracted at a clean commit.\n\n"
+        review = f"Reviewed: Validator {OTHER_DATE} pass {UNKNOWN_COMMIT}"
+        reviewed = valid.replace("Reviewed: pending", review, 1)
+        stale = f"{REPORT_BEGIN}\n### Passport\n\nstale line\n{REPORT_END}\n"
+        cases: dict[str, tuple[str | None, set[tuple[str, str]]]] = {
+            "report absent": (None, {("report-missing", f"{REPORT_PATH}:0")}),
+            "marker repeated": (valid.replace(method, method + f"{REPORT_BEGIN}\n", 1),
+                                {("report-layout", f"{REPORT_PATH}:12")}),
+            "unknown review commit": (reviewed, {
+                ("review-commit-unknown", f"{REPORT_PATH}:{line_number(reviewed, review)}")}),
+            "amount in the summary": (report_text(summary="It saves 3,000 tokens."),
+                                      {("economics-claim", f"{REPORT_PATH}:5")}),
+            "rules that need the inputs": (report_text(region=stale, run_date=OTHER_DATE),
+                                           set()),
+        }
+        for name, (text, expected) in cases.items():
+            with self.subTest(case=name, broken="assessment"):
+                if text is None:
+                    self.report_file().unlink()
+                else:
+                    self.fixture.write(REPORT_PATH, text)
+                (self.fixture.root / ASSESSMENT_PATH).write_text("{\n", encoding="utf-8")
+                result = self.run_verify()
+                self.assertNotIn("Traceback", result.stderr)
+                pairs = diagnostic_pairs(result)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn("assessment-invalid", {code for code, _ in pairs})
+                self.assertEqual({pair for pair in pairs if pair[0] != "assessment-invalid"},
+                                 expected)
+        text = report_text(region=stale, blockers=["AUD-08-001"])
+        self.write_assessment()
+        self.fixture.write(REPORT_PATH, text)
+        inventory_file = self.fixture.root / INVENTORY_PATH
+        original = inventory_file.read_bytes()
+        inventory_file.unlink()
+        try:
+            result = self.run_verify()
+        finally:
+            inventory_file.write_bytes(original)
+        self.assert_reports(result, [
+            ("blocker-unlisted",
+             f"{REPORT_PATH}:{line_number(text, '## Blockers for spec 09')}"),
+            ("inventory-missing", f"{INVENTORY_PATH}:0")])
+
+
+class VerifyReportTreeTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+
+    def test_review_commit_in_a_root_without_git_is_review_commit_unknown(self) -> None:
+        fixture, inventory = self.build("without-git", use_git=False)
+        assessment = valid_assessment(inventory)
+        rendered = run_render(fixture)
+        self.assertEqual(rendered.returncode, 0, rendered.stderr)
+        line = f"Reviewed: Validator {OTHER_DATE} pass {UNKNOWN_COMMIT}"
+        for review, expected in (
+                ("Reviewed: pending", []),
+                (line, [("review-commit-unknown", f"{REPORT_PATH}:{{line}}")])):
+            with self.subTest(review=review):
+                text = report_text(region=rendered.stdout, blockers=blocking_ids(assessment),
+                                   review=review)
+                fixture.write(REPORT_PATH, text)
+                result = run_tool(["verify", "--root", str(fixture.root), "--report",
+                                   str(fixture.root / REPORT_PATH)], fixture.env, fixture.base)
+                self.assert_reports(result, [("worktree-dirty", inventory_at("worktree"))] + [
+                    (code, location.format(line=line_number(text, review)))
+                    for code, location in expected])
+
+
+class ValidatorImpactTests(VerifyAssertions):
+    def test_impact_row_counts_edges_by_validator_context_tests_frozen_hooks_and_active(
+            self) -> None:
+        with tempfile.TemporaryDirectory(prefix="audit-impact-") as name:
+            fixture, inventory = build_verify_fixture(Path(name), extra=IMPACT_FILES)
+            assessment = valid_assessment(inventory)
+            (fixture.root / ASSESSMENT_PATH).write_text(canonical(assessment), encoding="utf-8")
+            result = run_render(fixture)
+        self.assertEqual((result.returncode, result.stderr), (0, ""), result.stdout)
+        body = region_bodies(result.stdout)["Validator and test impact"]
+        self.assertEqual(body, impact_body(inventory, assessment))
+        self.assertIn(md_row([IMPACT_SOURCE, "rename", "1", "1", "2", "1", "1", "3", "4"]), body)
+        self.assertEqual([line.split(" | ")[0][2:] for line in body[2:]],
+                         sorted(row["source"] for row in assessment["map"]
+                                if row["decision"] != "keep"))
+
+
+class DiagnosticCompletenessTests(RenderCase):
+    def assessment_case(self, change: Callable[[dict], object]
+                        ) -> subprocess.CompletedProcess[str]:
+        change(self.assessment)
+        return self.verify()
+
+    def map_case(self, source: str, decision: str, targets: list[dict]
+                 ) -> subprocess.CompletedProcess[str]:
+        row = self.assessment["map"][row_index(self.assessment["map"], "source", source)]
+        row.update(decision=decision, targets=targets, spec09_default=default_of(targets),
+                   spec09_optional=[])
+        return self.verify()
+
+    def unlink_case(self, relative: str) -> subprocess.CompletedProcess[str]:
+        (self.fixture.root / relative).unlink()
+        return self.run_verify()
+
+    def inventory_case(self, text: str) -> subprocess.CompletedProcess[str]:
+        (self.fixture.root / INVENTORY_PATH).write_text(text, encoding="utf-8")
+        return self.verify()
+
+    def renamed_report_case(self) -> subprocess.CompletedProcess[str]:
+        directory, stem = self.report_file().parent, f"{OTHER_DATE}-rules-workflows-audit"
+        for suffix in (".md", ".inventory.json", ".assessment.json"):
+            shutil.copyfile(self.fixture.root / (REPORT_PATH[:-3] + suffix),
+                            directory / (stem + suffix))
+        return run_tool(["verify", "--root", str(self.fixture.root), "--report",
+                         str(directory / f"{stem}.md")], self.fixture.env, self.fixture.base)
+
+    def report_case(self, change: Callable[[str], str] = lambda region: region,
+                    **fields: object) -> subprocess.CompletedProcess[str]:
+        fields.setdefault("blockers", blocking_ids(self.assessment))
+        return self.verify_report(report_text(region=change(self.region()), **fields))
+
+    def code_cases(self) -> dict[str, Callable[[], subprocess.CompletedProcess[str]]]:
+        a = self.assessment_case
+        dirty = copy.deepcopy(self.inventory)
+        dirty["worktree"] = {"state": "dirty", "paths": [DELTA]}
+
+        def files(path: str) -> Callable[[dict], dict]:
+            return lambda value: value["files"][row_index(value["files"], "path", path)]
+
+        def finding(identifier: str) -> Callable[[dict], dict]:
+            return lambda value: value["findings"][row_index(value["findings"], "id",
+                                                             identifier)]
+
+        def split_short(value: dict) -> None:
+            row = value["map"][row_index(value["map"], "source", PHASE_DISCOVERY)]
+            row["targets"][1]["sections"].pop()
+
+        def group_twice(value: dict) -> None:
+            value["duplicate_groups"].append(dict(value["duplicate_groups"][0], id="DG-002"))
+
+        return {
+            "inventory-missing": lambda: self.unlink_case(INVENTORY_PATH),
+            "assessment-missing": lambda: self.unlink_case(ASSESSMENT_PATH),
+            "report-missing": lambda: self.unlink_case(REPORT_PATH),
+            "inventory-invalid": lambda: self.inventory_case("{\n"),
+            "assessment-invalid": lambda: self.verify(text="{\n"),
+            "report-name-date": self.renamed_report_case,
+            "inventory-stale": lambda: (self.fixture.write(DELTA, "# Delta rule\n\nChanged.\n"),
+                                        self.verify())[1],
+            "worktree-dirty": lambda: self.inventory_case(canonical(dirty)),
+            "digest-mismatch": lambda: a(lambda v: v.update(inventory_digest="f" * 64)),
+            "row-missing": lambda: a(lambda v: v["files"].remove(files(DELTA)(v))),
+            "row-extra": lambda: a(lambda v: v["files"].append(
+                dict(files(DELTA)(v), path="rules/zz-extra.md"))),
+            "row-duplicate": lambda: a(lambda v: v["files"].append(
+                copy.deepcopy(files(DELTA)(v)))),
+            "assessment-stale": lambda: a(lambda v: files(DELTA)(v).update(sha256="0" * 64)),
+            "sections-incomplete": lambda: a(lambda v: files(ALPHA)(v)["sections"].pop()),
+            "load-unclassified": lambda: a(lambda v: v["loads"].pop(0)),
+            "candidate-undisposed": lambda: a(lambda v: v["candidates"].pop(
+                row_index(v["candidates"], "id", "FO-001"))),
+            "repetition-invalid": lambda: a(lambda v: files(BETA)(v).update(repetition=None)),
+            "legacy-role-missing": lambda: a(lambda v: v["legacy"].clear()),
+            "duplicate-ungrouped": lambda: a(lambda v: v["duplicate_groups"].clear()),
+            "duplicate-multigrouped": lambda: a(group_twice),
+            "group-invalid": lambda: a(lambda v: v["duplicate_groups"][0].update(
+                disposition="contradiction", owner="owner", finding=None)),
+            "defect-unrecorded": lambda: a(lambda v: finding("AUD-08-002")(v).update(edges=[])),
+            "finding-invalid": lambda: a(lambda v: finding("AUD-08-003")(v).update(owner="09")),
+            "finding-stale": lambda: a(lambda v: finding("AUD-08-003")(v).update(
+                sha256="0" * 64)),
+            "reference-unknown": lambda: a(lambda v: v["candidates"][row_index(
+                v["candidates"], "id", "RL-001")].update(finding="AUD-08-099")),
+            "map-invalid": lambda: self.map_case(ALPHA, "keep", [
+                map_target("rules/contract-alpha-flow.md")]),
+            "split-sections-incomplete": lambda: a(split_short),
+            "map-collision": lambda: self.map_case(DELTA, "rename", [
+                map_target("rules/contract-alpha-flow.md")]),
+            "installed-name-collision": lambda: self.map_case(DELTA, "rename", [
+                map_target("rules/contract-Alpha-flow.md")]),
+            "stem-overlap": lambda: self.map_case(BETA, "rename", [
+                map_target("workflows/contract-alpha-flow.md")]),
+            "kind-prefix-invalid": lambda: self.map_case(DELTA, "rename", [
+                map_target("rules/plain-delta.md")]),
+            "deviation-unamended": lambda: a(lambda v: v["map"][row_index(
+                v["map"], "source", DELTA)].update(spec09_default=None)),
+            "spec09-unavailable": lambda: ((self.fixture.root / SPEC09_PATH).unlink(),
+                                           self.verify())[1],
+            "amendment-invalid": lambda: a(lambda v: v["amendments"][0].update(evidence=[])),
+            "amendment-target-unknown": lambda: a(lambda v: v["amendments"][0].update(
+                target="REQ-99")),
+            "req21-invalid": lambda: a(lambda v: v["req21"]["statements"].pop()),
+            "coverage-inconsistent": lambda: a(lambda v: finding("AUD-08-005")(v).update(
+                type="other")),
+            "report-layout": lambda: self.report_case(lambda region: REPORT_BEGIN + "\n"
+                                                      + region),
+            "review-commit-unknown": lambda: self.report_case(
+                review=f"Reviewed: Validator {OTHER_DATE} pass {UNKNOWN_COMMIT}"),
+            "report-generated-mismatch": lambda: self.report_case(lambda region: region.replace(
+                f"- run_date: {AUDIT_DATE}", f"- run_date: {OTHER_DATE}")),
+            "blocker-unlisted": lambda: self.report_case(blockers=["AUD-08-001"]),
+            "blocker-extra": lambda: self.report_case(
+                blockers=blocking_ids(self.assessment) + ["AUD-08-003"]),
+            "evidence-unresolved": lambda: a(lambda v: files(DELTA)(v).update(
+                evidence=["rules/zz-unknown.md:1"])),
+            "economics-claim": lambda: a(lambda v: finding("AUD-08-002")(v).update(
+                observation="It saves 3,000 tokens.")),
+            "installed-invalid": lambda: a(lambda v: v["installed"].append({
+                "path": ALPHA, "location": "~/.claude/skills/rule-alpha-flow/SKILL.md",
+                "source_sha256": "0" * 64, "installed_sha256": "0" * 64})),
+        }
+
+    def test_every_diagnostic_code_has_a_producing_case_and_the_valid_fixture_is_silent(
+            self) -> None:
+        self.assert_silent(self.verify())
+        snapshot = file_snapshot(self.fixture.root)
+        cases = self.code_cases()
+        self.assertEqual(sorted(cases), sorted(DIAGNOSTIC_CODES))
+        produced: set[str] = set()
+        for code in DIAGNOSTIC_CODES:
+            with self.subTest(code=code):
+                self.assessment = valid_assessment(self.inventory)
+                try:
+                    result = cases[code]()
+                finally:
+                    restore_snapshot(self.fixture.root, snapshot)
+                self.assertNotIn("Traceback", result.stderr)
+                codes = {found for found, _ in diagnostic_pairs(result)}
+                self.assertIn(code, codes, result.stdout)
+                produced.add(code)
+        self.assertEqual(sorted(produced), sorted(DIAGNOSTIC_CODES))
+        self.assessment = valid_assessment(self.inventory)
+        self.assert_silent(self.verify())
+
+
+# ---------------------------------------------------------------------------
+# Git read isolation: attribute filters, lazy fetching and rename detection
+# ---------------------------------------------------------------------------
+
+def installed_git_version() -> tuple[int, int]:
+    """Major and minor version of the git on PATH; (0, 0) when it cannot be read."""
+    if REAL_GIT is None:
+        return (0, 0)
+    result = subprocess.run([REAL_GIT, "--version"], capture_output=True, text=True,
+                            check=False)
+    found = re.search(r"(\d+)\.(\d+)", result.stdout)
+    return (int(found.group(1)), int(found.group(2))) if found else (0, 0)
+
+
+def require_git(case: unittest.TestCase, minimum: tuple[int, int], reason: str) -> None:
+    if REAL_GIT is None:
+        case.skipTest("git is not installed")
+    if installed_git_version() < minimum:
+        case.skipTest(f"git {minimum[0]}.{minimum[1]} or later is needed {reason}")
+
+
+def marker_program(path: Path, marker: Path, body: str) -> Path:
+    """An executable shell program that creates the marker file and then runs body."""
+    path.write_text(f"#!/bin/sh\ntouch '{marker}'\n{body}\n", encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
+def make_stat_stale(path: Path) -> None:
+    """Move the modification time so that git must hash the unchanged content again."""
+    info = path.stat()
+    os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns + 100 * 10**9))
+
+
+class AttributeFilterIsolationTests(ToolCase):
+    """A filter driver selected by attributes never runs, and the work tree still reads
+    correctly: a file whose content is unchanged stays clean, a changed file is dirty."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        require_git(self, (2, 41), "to read attributes from a fixed tree")
+        self.marker = self.base / "filter-ran"
+
+    def clean_filter(self) -> str:
+        return str(marker_program(self.base / "clean-filter.sh", self.marker, "cat"))
+
+    def process_filter(self) -> str:
+        return str(marker_program(self.base / "process-filter.sh", self.marker, "exit 1"))
+
+    def extract_without_marker(self) -> dict:
+        self.marker.unlink(missing_ok=True)
+        inventory = self.extract()
+        self.assertFalse(self.marker.exists(), "git ran a filter program")
+        return inventory
+
+    def test_clean_filter_of_the_repository_selected_by_committed_attributes_never_runs(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.write(".gitattributes", "*.md filter=alpha\n")
+        self.fx.commit_all()
+        self.fx.git("config", "filter.alpha.clean", self.clean_filter())
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        self.fx.write("workflows/beta-step.md", "# Beta step changed\n")
+
+        inventory = self.extract_without_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "dirty",
+                                                 "paths": ["workflows/beta-step.md"]})
+
+    def test_process_filter_of_the_global_configuration_selected_by_attributes_never_runs(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.write(".gitattributes", "*.md filter=beta\n")
+        self.fx.commit_all()
+        (self.fx.home / ".gitconfig").write_text(
+            f'[filter "beta"]\n\tprocess = {self.process_filter()}\n', encoding="utf-8")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        make_stat_stale(self.fx.root / "workflows/beta-step.md")
+
+        inventory = self.extract_without_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_filter_selected_by_the_global_attributes_file_never_runs(self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        self.fx.git("config", "filter.gamma.clean", self.clean_filter())
+        attributes = self.fx.home / ".config" / "git" / "attributes"
+        attributes.parent.mkdir(parents=True, exist_ok=True)
+        attributes.write_text("*.md filter=gamma\n", encoding="utf-8")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+
+        inventory = self.extract_without_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_filter_selected_by_the_repository_information_attributes_never_runs(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        self.fx.git("config", "filter.delta.clean", self.clean_filter())
+        (self.fx.root / ".git" / "info").mkdir(exist_ok=True)
+        (self.fx.root / ".git" / "info" / "attributes").write_text(
+            "[attr]tracked-text filter=delta\n*.md tracked-text\n", encoding="utf-8")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        self.fx.write("workflows/beta-step.md", "# Beta step changed\n")
+
+        inventory = self.extract_without_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "dirty",
+                                                 "paths": ["workflows/beta-step.md"]})
+
+
+class AttributeFilterVerifyTests(VerifyAssertions):
+    def setUp(self) -> None:
+        require_git(self, (2, 41), "to read attributes from a fixed tree")
+        self.temp = tempfile.TemporaryDirectory(prefix="audit-verify-filter-")
+        self.base = Path(self.temp.name)
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def test_strict_verify_runs_no_attribute_selected_filter_and_stays_silent(self) -> None:
+        attributes = "rules/*.md filter=alpha\nworkflows/*.md filter=beta\n"
+        fixture, inventory = build_verify_fixture(self.base,
+                                                  extra={".gitattributes": attributes})
+        (fixture.root / ASSESSMENT_PATH).write_text(canonical(valid_assessment(inventory)),
+                                                    encoding="utf-8")
+        refresh_report(fixture)
+        marker = self.base / "filter-ran"
+        clean = marker_program(self.base / "clean-filter.sh", marker, "cat")
+        process = marker_program(self.base / "process-filter.sh", marker, "exit 1")
+        fixture.git("config", "filter.alpha.clean", str(clean))
+        (fixture.home / ".gitconfig").write_text(
+            f'[filter "beta"]\n\tprocess = {process}\n', encoding="utf-8")
+        make_stat_stale(fixture.root / ALPHA)
+        make_stat_stale(fixture.root / BETA)
+        marker.unlink(missing_ok=True)
+
+        result = run_tool(["verify", "--root", str(fixture.root), "--report",
+                           str(fixture.root / REPORT_PATH), "--strict"],
+                          fixture.env, fixture.base)
+
+        self.assertFalse(marker.exists(), "git ran a filter program")
+        self.assert_silent(result)
+
+
+OLD_FLOW = "rules/old-flow.md"
+OLD_FLOW_TEXT = "# Old flow\n\nThe first step reads the state.\nThe second step writes it.\n"
+NEW_FLOW = "rules/new-flow.md"
+
+
+class PartialCloneIsolationTests(ToolCase):
+    """In a partial clone whose promisor remote is a local repository, no git read fetches a
+    missing object: the remote's upload program, which creates a marker, never starts."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        require_git(self, (2, 45), "to leave an object of a partial clone missing")
+        self.marker = self.base / "fetch-ran"
+        self.fx.minimal()
+        self.fx.write(OLD_FLOW, OLD_FLOW_TEXT)
+        self.fx.commit_all()
+        self.fx.git("config", "uploadpack.allowFilter", "true")
+        self.fx.git("config", "uploadpack.allowAnySHA1InWant", "true")
+        self.clone = self.base / "clone"
+
+    def clone_git(self, *args: str, env: dict[str, str] | None = None
+                  ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run([str(REAL_GIT), "-C", str(self.clone), *args],
+                              env=env if env is not None else self.fx.env, text=True,
+                              capture_output=True, check=False)
+
+    def make_clone(self, *options: str) -> None:
+        result = subprocess.run([str(REAL_GIT), "clone", "-q", "--filter=blob:none", *options,
+                                 f"file://{self.fx.root}", str(self.clone)],
+                                cwd=self.base, env=self.fx.env, text=True,
+                                capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def watch_fetches(self) -> None:
+        upload = marker_program(self.base / "upload-pack.sh", self.marker,
+                                f"exec '{REAL_GIT}' upload-pack \"$@\"")
+        self.assertEqual(self.clone_git("config", "remote.origin.uploadpack",
+                                        str(upload)).returncode, 0)
+        self.marker.unlink(missing_ok=True)
+
+    def test_status_fetches_no_missing_object_and_still_lists_the_staged_change(
+            self) -> None:
+        self.make_clone("--no-checkout")
+        for args in (("read-tree", "HEAD"), ("checkout", "--", "rules/alpha-flow.md",
+                                             "workflows/beta-step.md")):
+            result = self.clone_git(*args)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        old_blob = self.clone_git("rev-parse", f"HEAD:{OLD_FLOW}").stdout.strip()
+        offline = {**self.fx.env, "GIT_NO_LAZY_FETCH": "1"}
+        self.assertNotEqual(self.clone_git("cat-file", "-e", old_blob, env=offline).returncode,
+                            0, "the clone must lack the blob of the renamed file")
+        (self.clone / NEW_FLOW).write_text(OLD_FLOW_TEXT + "The third step reports.\n",
+                                           encoding="utf-8")
+        for args in (("add", NEW_FLOW), ("update-index", "--force-remove", OLD_FLOW)):
+            result = self.clone_git(*args)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.watch_fetches()
+
+        out = self.base / "inventory.json"
+        result = self.run_extract(out=out, root=self.clone)
+
+        self.assertFalse(self.marker.exists(), "git fetched a missing object")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        inventory = parse_inventory(out.read_text(encoding="utf-8"))
+        self.assertEqual(inventory["worktree"], {"state": "dirty",
+                                                 "paths": [NEW_FLOW, OLD_FLOW]})
+
+    def test_review_commit_lookup_fetches_nothing_and_reports_the_unknown_commit(
+            self) -> None:
+        self.make_clone()
+        self.watch_fetches()
+        review = f"Reviewed: Validator {OTHER_DATE} pass {UNKNOWN_COMMIT}"
+        text = report_text(review=review)
+        (self.clone / REPORT_PATH).parent.mkdir(parents=True, exist_ok=True)
+        (self.clone / REPORT_PATH).write_text(text, encoding="utf-8")
+
+        result = run_tool(["verify", "--root", str(self.clone), "--report",
+                           str(self.clone / REPORT_PATH)], self.fx.env, self.base)
+
+        self.assertFalse(self.marker.exists(), "git fetched a missing object")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn(("review-commit-unknown", f"{REPORT_PATH}:{line_number(text, review)}"),
+                      diagnostic_pairs(result))
+
+
+GIT_CALL_SHAPES = {
+    "rev-parse": ["--verify", "HEAD"],
+    "ls-files": ["-z"],
+    "status": ["--porcelain=v1", "-z", "--untracked-files=all"],
+}
+
+
+class GitReadSettingsTests(ToolCase):
+    def setUp(self) -> None:
+        super().setUp()
+        if REAL_GIT is None:
+            self.skipTest("git is not installed")
+
+    def recorded_calls(self, log: Path) -> list[tuple[str, list[str], list[str]]]:
+        """Each call as its lazy-fetch setting, its global options and its subcommand."""
+        calls: list[tuple[str, list[str], list[str]]] = []
+        lazy, arguments = "", []
+        for line in log.read_text(encoding="utf-8").splitlines():
+            if line.startswith("lazy="):
+                lazy, arguments = line[len("lazy="):], []
+            elif line.startswith("arg="):
+                arguments.append(line[len("arg="):])
+            elif line == "end":
+                index = 0
+                while index < len(arguments) and arguments[index] in {"--no-pager", "-c", "-C"}:
+                    index += 1 if arguments[index] == "--no-pager" else 2
+                calls.append((lazy, arguments[:index], arguments[index:]))
+        return calls
+
+    def test_git_reads_disable_lazy_fetching_and_renames_by_settings_older_git_ignores(
+            self) -> None:
+        self.fx.minimal()
+        head = self.fx.commit_all()
+        log = self.base / "git-calls.log"
+        wrapper_bin = self.base / "wrapper-bin"
+        wrapper_bin.mkdir()
+        wrapper = wrapper_bin / "git"
+        wrapper.write_text(
+            "#!/bin/sh\n{\n  printf 'lazy=%s\\n' \"${GIT_NO_LAZY_FETCH-}\"\n"
+            "  for argument in \"$@\"; do printf 'arg=%s\\n' \"$argument\"; done\n"
+            f"  printf 'end\\n'\n}} >> '{log}'\nexec '{REAL_GIT}' \"$@\"\n", encoding="utf-8")
+        wrapper.chmod(0o755)
+        env = {**self.fx.env, "PATH": f"{wrapper_bin}{os.pathsep}{self.fx.env['PATH']}"}
+        review = f"Reviewed: Validator {OTHER_DATE} pass {head}"
+        self.fx.write(REPORT_PATH, report_text(review=review))
+
+        inventory = self.extract(env=env)
+        verified = run_tool(["verify", "--root", str(self.fx.root), "--report",
+                             str(self.fx.root / REPORT_PATH)], env, self.base)
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+        self.assertNotIn("review-commit-unknown", {code for code, _ in
+                                                   diagnostic_pairs(verified)})
+        calls = self.recorded_calls(log)
+        shapes = {**GIT_CALL_SHAPES, "cat-file": ["-e", f"{head}^{{commit}}"]}
+        self.assertEqual(sorted({command[0] for _, _, command in calls}), sorted(shapes))
+        for lazy, options, command in calls:
+            with self.subTest(command=command[0]):
+                self.assertEqual(lazy, "1", "lazy fetching is not disabled")
+                self.assertEqual(command[1:], shapes[command[0]],
+                                 "a subcommand option that older git may reject")
+                if command[0] == "status":
+                    self.assertIn("status.renames=false", options, "status detects renames")
+
+
+class GitIsolationDocstringTests(unittest.TestCase):
+    def test_module_docstring_states_the_git_isolation_and_the_git_versions_it_needs(
+            self) -> None:
+        docstring = ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8")))
+        self.assertIsNotNone(docstring)
+        text = " ".join(str(docstring).split())
+        self.assertNotIn("so no program named by the repository's configuration runs", text)
+        for phrase in ("lazy fetching", "rename detection", "filter", "git 2.41",
+                       "git 2.45"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+
+class GitRepositoryShapeTests(ToolCase):
+    """Repository shapes that git reads without trouble keep the work tree readable, and the
+    git reads still run no filter in them."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        require_git(self, (2, 41), "to read attributes from a fixed tree")
+        self.marker = self.base / "filter-ran"
+
+    def clean_filter(self) -> str:
+        return str(marker_program(self.base / "clean-filter.sh", self.marker, "cat"))
+
+    def information_attributes(self, data: bytes) -> None:
+        info = self.fx.root / ".git" / "info"
+        info.mkdir(exist_ok=True)
+        (info / "attributes").write_bytes(data)
+
+    def test_repository_with_sha256_object_names_reads_its_work_tree_and_runs_no_filter(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.write(".gitattributes", "*.md filter=alpha\n")
+        self.fx.git("init", "-q", "-b", "main", "--object-format=sha256")
+        self.fx.git("add", "-A")
+        self.fx.git("commit", "-q", "-m", "chore: fixture")
+        head = self.fx.git("rev-parse", "HEAD")
+        self.fx.git("config", "filter.alpha.clean", self.clean_filter())
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        self.marker.unlink(missing_ok=True)
+
+        inventory = self.extract()
+
+        self.assertFalse(self.marker.exists(), "git ran a filter program")
+        self.assertEqual(len(head), 64)
+        self.assertEqual(inventory["source_revision"], head)
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_git_file_with_an_embedded_nul_is_read_up_to_the_nul_as_git_reads_it(
+            self) -> None:
+        self.fx.minimal()
+        head = self.fx.commit_all()
+        os.rename(self.fx.root / ".git", self.base / "real-git")
+        (self.fx.root / ".git").write_bytes(b"gitdir: ../real-git\x00ignored\n")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+
+        result = self.run_extract()
+
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        inventory = parse_inventory((self.base / "inventory.json").read_text(encoding="utf-8"))
+        self.assertEqual(inventory["source_revision"], head)
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_first_in_first_out_entry_named_git_is_never_opened(self) -> None:
+        self.fx.minimal()
+        os.mkfifo(self.fx.root / ".git")
+        out = self.base / "inventory.json"
+        try:
+            result = subprocess.run(
+                [sys.executable, "-I", str(TOOL), "extract", "--root", str(self.fx.root),
+                 "--out", str(out)], cwd=self.base, env=self.fx.env, text=True,
+                capture_output=True, timeout=20)
+        except subprocess.TimeoutExpired:
+            self.fail("extract blocked on a first-in first-out entry named .git")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        inventory = parse_inventory(out.read_text(encoding="utf-8"))
+        self.assertIsNone(inventory["source_revision"])
+        self.assertEqual(inventory["worktree"], {"state": "unknown", "paths": []})
+
+    def test_information_attribute_line_longer_than_git_reads_keeps_the_tree_readable(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        self.information_attributes(b"x.md filter=" + b"q" * 200_000 + b"\n")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_many_information_attribute_filters_keep_the_tree_readable(self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        self.information_attributes("".join(f"x{number}.md filter=f{number}\n"
+                                            for number in range(40_000)).encode("ascii"))
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_filter_name_with_a_no_break_space_is_blanked_as_git_reads_the_name(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        name = "a b"
+        self.information_attributes(f"*.md filter={name}\n".encode("utf-8"))
+        (self.fx.home / ".gitconfig").write_text(
+            f'[filter "{name}"]\n\tclean = {self.clean_filter()}\n', encoding="utf-8")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        self.marker.unlink(missing_ok=True)
+
+        inventory = self.extract()
+
+        self.assertFalse(self.marker.exists(), "git ran a filter program")
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+
+class GitIsolationLimitsDocstringTests(unittest.TestCase):
+    def test_module_docstring_names_the_cases_the_git_isolation_leaves_open(self) -> None:
+        docstring = ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8")))
+        text = " ".join(str(docstring).split())
+        for phrase in ("git 2.31", "submodule", "info/attributes", "top level", "SHA-256"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+
+# ---------------------------------------------------------------------------
+# The blockers section in both directions, evidence resolution, audit-scope notes
+# ---------------------------------------------------------------------------
+
+BLOCKERS_HEADING = "## Blockers for spec 09"
+BLOCKERS_BODY_RE = re.compile(r"(## Blockers for spec 09\n\n)(.*?)(\n## Independent review\n)",
+                              re.DOTALL)
+UNDECODED_READER = "docs/RAW.txt"
+UNDECODED_READER_BYTES = b"\xff\xfe first\nsecond\nthird\n"
+RUNBOOK = SOURCE_ROOT / ".ai" / "context" / "runbook.md"
+LATER_TREE_CODES = ("inventory-stale", "review-commit-unknown", "spec09-unavailable",
+                    "req21-invalid", "amendment-invalid", "amendment-target-unknown")
+AUDIT_SPECIFIC_CONSTANTS = ("ALWAYS_SECTIONED", "DISCOVERY_RULE")
+
+
+def with_blockers_body(text: str, body: str) -> str:
+    """The report text with the body of its blockers section replaced."""
+    replaced, count = BLOCKERS_BODY_RE.subn(
+        lambda found: found.group(1) + body + found.group(3), text, count=1)
+    if count != 1:
+        raise AssertionError("the report has no blockers section to replace")
+    return replaced
+
+
+class VerifyBlockersSectionTests(RenderCase):
+    def unblock_every_finding(self) -> None:
+        """Make the valid assessment one in which no finding blocks: the amendment cites a
+        line instead of a finding, and the unreadable file is read and its finding becomes
+        an observation of type other."""
+        self.assessment["amendments"][0]["evidence"] = [f"{BETA}:9"]
+        self.finding("AUD-08-001")["blocks_09"] = False
+        self.finding("AUD-08-005").update(type="other", blocks_09=False)
+        self.row("coverage", BLOB)["status"] = "read"
+
+    def test_listed_id_of_a_finding_that_does_not_block_or_does_not_exist_is_blocker_extra(
+            self) -> None:
+        blocking = ["AUD-08-001", "AUD-08-005"]
+        cases: dict[str, tuple[list[str], list[str]]] = {
+            "finding that does not block": (blocking + ["AUD-08-003"], ["- AUD-08-003"]),
+            "id that names no finding": (blocking + ["AUD-08-099"], ["- AUD-08-099"]),
+            "amendment id beside a finding that does not block": (
+                blocking + ["AUD-08-004 (AMD-08-01)"], ["- AUD-08-004 (AMD-08-01)"]),
+            "id twice on one line and again on another line": (
+                blocking + ["AUD-08-003 and again AUD-08-003", "AUD-08-003 once more"],
+                ["- AUD-08-003 and again AUD-08-003", "- AUD-08-003 once more"]),
+            "amendment ids beside the blocking findings only": (
+                ["AUD-08-001 (AMD-08-01)", "AUD-08-005 (AMD-08-99)"], []),
+            "id inside a longer token": (blocking + ["AUD-08-0030"], []),
+        }
+        for name, (blockers, lines) in cases.items():
+            with self.subTest(case=name):
+                self.assessment = valid_assessment(self.inventory)
+                text = self.valid_report(blockers=blockers)
+                expected = [("blocker-extra", f"{REPORT_PATH}:{line_number(text, line)}")
+                            for line in lines]
+                result = self.verify_report(text)
+                if expected:
+                    self.assert_reports(result, expected)
+                else:
+                    self.assert_silent(result)
+
+    def test_blockers_section_breaking_the_none_rule_is_report_layout(self) -> None:
+        nothing_blocks = {
+            "None. alone": ("None.\n", None),
+            "empty section": ("", BLOCKERS_HEADING),
+            "prose instead of None.": ("No finding blocks the migration.\n", BLOCKERS_HEADING),
+            "None. followed by prose": ("None.\n\nSee the summary.\n", BLOCKERS_HEADING),
+        }
+        for name, (body, line) in nothing_blocks.items():
+            with self.subTest(case=name, blocking="none"):
+                self.assessment = valid_assessment(self.inventory)
+                self.unblock_every_finding()
+                text = with_blockers_body(self.valid_report(), body)
+                result = self.verify_report(text)
+                if line is None:
+                    self.assert_silent(result)
+                else:
+                    self.assert_reports(result, [
+                        ("report-layout", f"{REPORT_PATH}:{line_number(text, line)}")])
+        with self.subTest(case="None. beside the blocking findings"):
+            self.assessment = valid_assessment(self.inventory)
+            text = with_blockers_body(self.valid_report(),
+                                      "- AUD-08-001\n- AUD-08-005\n\nNone.\n")
+            self.assert_reports(self.verify_report(text), [
+                ("report-layout", f"{REPORT_PATH}:{line_number(text, 'None.')}")])
+        with self.subTest(case="None. alone while findings block"):
+            self.assessment = valid_assessment(self.inventory)
+            text = self.valid_report(blockers=[])
+            heading = f"{REPORT_PATH}:{line_number(text, BLOCKERS_HEADING)}"
+            self.assert_reports(self.verify_report(text), [
+                ("blocker-unlisted", heading), ("blocker-unlisted", heading),
+                ("report-layout", f"{REPORT_PATH}:{line_number(text, 'None.')}")])
+
+
+class VerifyEvidenceResolutionTests(SharedVerifyCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.temp = tempfile.TemporaryDirectory(prefix="audit-evidence-")
+        try:
+            cls.fixture, cls.inventory = build_verify_fixture(
+                Path(cls.temp.name), extra={UNDECODED_READER: UNDECODED_READER_BYTES})
+        except BaseException:
+            cls.temp.cleanup()
+            raise
+
+    def resolvable_assessment(self) -> dict:
+        """The valid assessment with the symbolic link's evidence citing a line of its
+        target, since the link itself has no line count."""
+        assessment = valid_assessment(self.inventory)
+        assessment["files"][row_index(assessment["files"], "path", LINK)]["evidence"] = [
+            f"{CAPS}:1"]
+        return assessment
+
+    def lines_of(self, path: str) -> int:
+        return int(inventory_entry(self.inventory, path)["lines"])
+
+    def evidence_cases(self, cases: dict[str, tuple[str, str, list[str], int]]) -> None:
+        """Each case replaces the evidence of one files row (by path), finding or amendment
+        (by id) and expects that many evidence-unresolved diagnostics at that row."""
+        for name, (key, identifier, evidence, count) in cases.items():
+            with self.subTest(case=name):
+                self.assessment = self.resolvable_assessment()
+                field = "path" if key == "files" else "id"
+                index = row_index(self.assessment[key], field, identifier)
+                self.assessment[key][index]["evidence"] = evidence
+                location = assessment_at(f"files[{index}]" if key == "files" else identifier)
+                result = self.verify()
+                if count:
+                    self.assert_reports(result, [("evidence-unresolved", location)] * count)
+                else:
+                    self.assert_silent(result)
+
+    def test_line_evidence_that_names_no_inventory_path_or_a_line_outside_it_is_unresolved(
+            self) -> None:
+        beta, guide = self.lines_of(BETA), self.lines_of(GUIDE)
+        self.evidence_cases({
+            "unknown path in a files row": ("files", DELTA, ["rules/zz-unknown.md:1"], 1),
+            "line past the count of an audited file": (
+                "findings", "AUD-08-003", [f"{GAMMA}:5", f"{BETA}:{beta + 1}"], 1),
+            "line zero": ("findings", "AUD-08-004", [f"{GAMMA}:0"], 1),
+            "line past the count of a reader": (
+                "findings", "AUD-08-002", [f"{GUIDE}:{guide + 1}"], 1),
+            "line on an entry without a line count": ("files", LINK, [f"{LINK}:1"], 1),
+            "unknown path in an amendment": (
+                "amendments", "AMD-08-01", ["AUD-08-001", "docs/zz-gone.md:2"], 1),
+            "two unresolved items in one finding": (
+                "findings", "AUD-08-004", ["rules/zz-unknown.md:1", f"{GAMMA}:99"], 2),
+            "last line of an audited file": ("files", BETA, [f"{BETA}:{beta}"], 0),
+            "line of a reader that is not decoded": (
+                "findings", "AUD-08-002",
+                [f"{GUIDE}:1", f"{UNDECODED_READER}:{self.lines_of(UNDECODED_READER)}"], 0),
+            "reader line in an amendment": (
+                "amendments", "AMD-08-01", ["AUD-08-001", f"{SPEC09_PATH}:1"], 0),
+        })
+
+    def test_range_evidence_resolves_only_within_the_line_count_of_its_entry(self) -> None:
+        gamma = self.lines_of(GAMMA)
+        self.evidence_cases({
+            "reversed range": ("findings", "AUD-08-004", [f"{GAMMA}:6-5"], 1),
+            "range past the count": ("findings", "AUD-08-004", [f"{GAMMA}:5-{gamma + 1}"], 1),
+            "range starting at zero": ("findings", "AUD-08-004", [f"{GAMMA}:0-2"], 1),
+            "range on an unknown path": ("findings", "AUD-08-004", ["rules/zz-unknown.md:1-2"],
+                                         1),
+            "range on an entry without a line count": (
+                "findings", "AUD-08-004", [f"{GAMMA}:6", f"{LINK}:1-1"], 1),
+            "range ending at the count": ("findings", "AUD-08-004", [f"{GAMMA}:1-{gamma}"], 0),
+            "range of one line": ("findings", "AUD-08-004", [f"{GAMMA}:6-6"], 0),
+        })
+
+    def test_bare_evidence_path_that_names_no_inventory_path_is_unresolved(self) -> None:
+        self.evidence_cases({
+            "unknown bare path": ("findings", "AUD-08-005", [BLOB, "harness/x/zz-gone.bin"], 1),
+            "bare audited and reader paths": (
+                "findings", "AUD-08-005", [BLOB, GUIDE, UNDECODED_READER, LINK], 0),
+        })
+
+
+class AuditScopeNoteTests(unittest.TestCase):
+    def test_runbook_limits_the_silent_verify_to_the_delivery_commit_and_names_later_codes(
+            self) -> None:
+        text = RUNBOOK.read_text(encoding="utf-8")
+        bullets = [" ".join(item.split()) for item in re.split(r"\n(?=- )", text)
+                   if "audit-instructions.py verify" in item]
+        self.assertEqual(len(bullets), 1, "the runbook has no single note on the audit verify")
+        note = bullets[0]
+        self.assertNotIn("must print nothing for a delivered audit", note)
+        self.assertIn("delivery commit", note)
+        for code in LATER_TREE_CODES:
+            with self.subTest(code=code):
+                self.assertIn(code, note)
+
+    def test_constants_of_this_audit_rule_set_are_marked_as_specific_to_this_audit(
+            self) -> None:
+        lines = TOOL.read_text(encoding="utf-8").split("\n")
+        for name in AUDIT_SPECIFIC_CONSTANTS:
+            with self.subTest(constant=name):
+                starts = [index for index, line in enumerate(lines)
+                          if line.startswith(f"{name} = ")]
+                self.assertEqual(len(starts), 1, f"{name} is not assigned once")
+                comments: list[str] = []
+                index = starts[0] - 1
+                while index >= 0 and lines[index].startswith("#"):
+                    comments.insert(0, lines[index].lstrip("# "))
+                    index -= 1
+                self.assertIn("specific to this audit", " ".join(comments).lower())
+
+OVERLONG_DIGITS = 4301
+
+
+class VerifyEvidenceResolutionLimitTests(SharedVerifyCase):
+    def evidence_case(self, key: str, identifier: str, evidence: list[str]
+                      ) -> tuple[subprocess.CompletedProcess[str], str]:
+        """Verify the valid assessment with the evidence of one files row (by path),
+        finding or amendment (by id) replaced; return the result and that row's location."""
+        self.assessment = valid_assessment(self.inventory)
+        field = "path" if key == "files" else "id"
+        index = row_index(self.assessment[key], field, identifier)
+        self.assessment[key][index]["evidence"] = evidence
+        location = assessment_at(f"files[{index}]" if key == "files" else identifier)
+        return self.verify(), location
+
+    def test_line_number_too_long_to_convert_is_a_line_outside_its_entry(self) -> None:
+        long_number = "9" * OVERLONG_DIGITS
+        cases = {
+            "files row line": ("files", DELTA, [f"{DELTA}:{long_number}"]),
+            "finding range end": ("findings", "AUD-08-003",
+                                  [f"{GAMMA}:5", f"{GAMMA}:1-{long_number}"]),
+            "finding range start": ("findings", "AUD-08-004", [f"{GAMMA}:{long_number}-6"]),
+            "amendment line": ("amendments", "AMD-08-01",
+                               ["AUD-08-001", f"{BETA}:{'1' * 5000}"]),
+            "ten-digit line": ("findings", "AUD-08-004", [f"{GAMMA}:1234567890"]),
+        }
+        for name, (key, identifier, evidence) in cases.items():
+            with self.subTest(case=name):
+                result, location = self.evidence_case(key, identifier, evidence)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assert_reports(result, [("evidence-unresolved", location)])
+
+    def test_finding_id_in_the_evidence_of_a_finding_is_a_bare_path_that_is_unresolved(
+            self) -> None:
+        cases: dict[str, tuple[str, str, list[str], list[str]]] = {
+            "unknown finding id beside a line and an amendment id": (
+                "findings", "AUD-08-002", [f"{GUIDE}:1", "AMD-08-01", "AUD-08-999"],
+                ["evidence-unresolved"]),
+            "existing finding id": ("findings", "AUD-08-002", [f"{GUIDE}:1", "AUD-08-001"],
+                                    ["evidence-unresolved"]),
+            "unknown amendment id in a finding": (
+                "findings", "AUD-08-002", [f"{GUIDE}:1", "AMD-08-99"], ["reference-unknown"]),
+            "unknown finding id in an amendment": (
+                "amendments", "AMD-08-01", ["AUD-08-001", "AUD-08-099"], ["reference-unknown"]),
+        }
+        for name, (key, identifier, evidence, codes) in cases.items():
+            with self.subTest(case=name):
+                result, location = self.evidence_case(key, identifier, evidence)
+                self.assert_reports(result, [(code, location) for code in codes])
 
 if __name__ == "__main__":
     unittest.main()
