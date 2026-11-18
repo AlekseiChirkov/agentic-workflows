@@ -1,0 +1,314 @@
+spec_path: .ai/specs/24-task-finalization.md
+flow: full
+
+## Phases
+- discovery: complete
+- execution: complete
+- validation: complete
+- finalization: not-started
+
+## Task Analysis
+Owner supplied and approved the complete design; requirements are retained in the source specification.
+
+### Assumptions
+- Source dependency remains unmerged; implementation starts at its pinned tip without paused audit changes.
+- No --allow-pr authorization: all delivery stays local; no push or GitHub mutation.
+- Read-only monitoring later observed unrelated audit edits in the original checkout; preserve them without importing or reverting them. The isolated worktree remains based on the pinned dependency.
+
+## Decomposition
+decomposition: complete
+
+## Model Selection
+selection: complete
+Session-default workers; no model or effort override requested. Actual model identity and effort are not independently observed. Preliminary provider recommendations are inapplicable to this explicit default-worker request.
+
+## Solution Design
+### Decision
+One phase, deterministic evidence/journal/archive helper, explicit Git commands, narrow hook authorization, staged sync. Owner-approved plan of 2026-11-17.
+### Scope
+One validated development task, all recorded repositories, mandatory cleanup.
+### Invariants
+- No uncertain deletion, no lost protected history, no implicit deployment, no live test mutations.
+### Off-limits
+- Paused audit, consumer installations, PR merging and protected/base publication.
+### Acceptance Criteria
+- The source specification AC-01 through AC-06 apply.
+
+## Subtask Progress
+T-01 | Implement evidence, journal and lossless archival mechanics | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: DoD satisfied — independent repair/recovery validation passed
+  target_files: scripts/check-phase-finalize.py, scripts/phase-finalize.py, scripts/finalization_support.py, scripts/finalization_evidence.py, scripts/finalization_archive.py, scripts/finalization_recovery.py
+  blocker: none
+  notes: tdd: integration — real disposable repositories and state/archive boundaries; tdd: red digest — 42 cases in scripts/check-phase-finalize.py, sha256 0b3483d1e1ec0f9ad34049d87130bb4179d911e60454883daff09e24f16bc64b; 42 expected assertion failures, no fixture/import errors; preimplementation test review strengthened supporting validation evidence and allowed current-pointer relocation.
+  notes: tdd: test amended — correct protective fixture to canonical orchestrail.protectedBranch and add the missing reviewed multi-repository plan row; assertions and test identities unchanged. Amended set sha256 c054be992a838e99c36c8183ff0ccd745ea30afa67ee3145fcc53dc142c3cb0f; 42 expected failures observed again before the coordinator implementation.
+  notes: tdd: test amended — supporting attestations now include executed source assertions, source tips, review provenance and explicit dependency/runtime limitations; six expected attestation-invalid errors exposed the missing fixture provenance. Additional regression cases extend the original frozen set without weakening it. Link regressions were added after their implementation and a temporary link-planning disable produced three expected failures; this replay is recorded separately and is not claimed as original test-first evidence. Original RED outputs and additional regression outputs are retained outside the project in /tmp/finalization-*.txt.
+  notes: focused GREEN — 64 tests passed in 16.064s; existing repository-set suite 38 passed in 4.551s; Python syntax and function annotations passed. Final test SHA256 87a0e27682344ef656fc949bd130c38d762ee4bc66e585680d7820ac94bb9ba9. No full validator or staged sync yet.
+  notes: independent validation — 64 focused cases passed (22.044s), 38 repository-set cases passed (2.885s); syntax/whitespace passed, ShellCheck unavailable. Critical: ignored-file collision can be overwritten by plain switch. Important: resumed archive trusts stale spec eligibility; canonical pr: none and numbered PR forms are incompatible. Fixes require new observed RED tests before repair.
+  notes: recovery audit — original SHA/command text alone does not retain rewritten Git objects after garbage collection. Required repair adds verified self-contained recovery packs before deletion receipts; generation remains explicit and verification uses isolated temporary object storage.
+  notes: repair RED — eight independent validation regressions failed as expected in 3.212s, without fixture errors. tdd: test amended — exact checkout argv gains --no-overwrite-ignore because the original plain-switch expectation conflicts with the reproduced unrelated-file preservation invariant; test identity and behavior assertions remain. Recovery-pack regressions are pending before the repair test-only commit.
+  notes: combined repair RED — 13 new behavior tests plus the narrowed existing checkout expectation produced 14 expected assertion failures in 5.176s, no errors; implementation unchanged. Test-only commit 24fcc759fea10008ed23b6bce8e01f7906e07e6d; SHA256 2ee13135b0de223f691783cacd1843a03f8ecba5d7bc578bbb8ff1a58972ae24; total 77 cases. tdd: test amended — prepare/adoption fixtures execute real caller recovery-pack plans when required; canonical PR fixtures use controlled gh and local URL-rewritten bare remotes, without network.
+  notes: repair GREEN — 77 tests passed in 34.544s; 38 existing repository-set checks passed in 3.283s; syntax and annotations passed for six files. Frozen test digest unchanged. Repair commit 0aa6a9f276338ba5eb12181d2021fc6ceda46a12; independent recheck dispatched.
+  notes: independent repair PASS — 77 tests passed in 30.546s; all three prior defects independently rechecked; syntax and whitespace passed; no tests removed and frozen repair digest unchanged. pav-propose --batch: zero proposals. Only this mechanics leaf is reviewed; task-level validation remains pending.
+  branch: feat/task-finalization
+  base_branch: feat/multi-repository-spec-run
+  base_commit: 488edb11b37c3028b720d7de06cfe64cf7fe30c1
+  commits: a930fed05cd7d3d06d20e1db94cd24e0fdb78b23, 16589db73254606caeb15bebe81912c462d91131, 5df81f8516c48cbfffe627461e65bd9399212ab0, 36334993beecff0917cbee25839a83f86964eb66, 16a8a7d532c7e5acb57fb6b96c6fab7a0c461db1, 77274994364ed23f7d11106e724f899af1c9cedf, 24fcc759fea10008ed23b6bce8e01f7906e07e6d, 0aa6a9f276338ba5eb12181d2021fc6ceda46a12, 55568223cd7c07b6aa05053d4bb5cae6852e6b49
+  pr: none
+  notes: implementation commits — 5df81f8516c48cbfffe627461e65bd9399212ab0, 36334993beecff0917cbee25839a83f86964eb66, 16a8a7d532c7e5acb57fb6b96c6fab7a0c461db1; exact local object identities; no publication authorized.
+
+T-02 | Enforce scoped cleanup and stage provider outputs | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: DoD satisfied — independent safety and staging validation passed
+  target_files: scripts/check-finalization-safety.py, scripts/finalization_evidence.py, rules/git-flow.md, hooks/git_rails.py, scripts/sync.sh, scripts/setup-new-project.sh
+  blocker: none
+  branch: feat/task-closure-safety
+  notes: sequencing amendment — canonical narrow Git ownership/receipt exception is implemented with hooks in this leaf, preserving definition-before-reader order. Remaining contract readers stay in the next leaf; approved behavior and authorization unchanged.
+  notes: interface correction — observed origin transport identity must be journaled and unchanged on resume; name origin and matching SHA alone cannot authorize deletion after a URL/pushurl/rewrite change. Focused regressions precede the evidence-module addition.
+  notes: additional coverage — original 15 safety cases passed in 5.622s. Three characterized behaviors passed: actual stale/exact remote lease, denyDeletes failure after local cleanup with safe resume, canonical policy precedence. Five transport tests then produced six expected failures in 2.367s before helper/interface repair; SHA256 bde3ee8786dd845b138855b56d06af775d8d201cf225c5f949f0d554f2a67d62; test-only commit c4c48ac2c7edf2833f07700e35e38d02181cd05d; total 23 cases.
+  notes: focused GREEN — 23 safety/staging tests passed in 12.261s; 77 core regressions passed in 37.898s; shell/Python/whitespace checks passed. Existing rails ran 2336 cases in 303.937s with three degraded-PATH Python-shim failures; exact failing method passed all subcases with system Python in 2.609s. Full fresh validator remains pending. Source commit 17d2cede8e3941553dd3535e077a07d9c16256ba; independent review dispatched.
+  notes: runtime verification correction — an explicit mise version mistakenly started a Python download; that specific session and descendants were terminated after observed partial progress, no completed installation observed and no global cleanup performed. Use verified system Python for final checks, without further installation.
+  notes: tdd: red digest — original 15-case set SHA256 6c93adbe0eafbcb96655b535390ac846ffc5e97777791311ca10849876b45bc3, test-only commit 77a49a35dacd8ae98eac39b491e01ba9471d2b7e; 11 expected assertion failures in 10.171s. Expanded 23-case set SHA256 bde3ee8786dd845b138855b56d06af775d8d201cf225c5f949f0d554f2a67d62, test-only commit c4c48ac2c7edf2833f07700e35e38d02181cd05d; five transport tests produced six expected failures in 2.367s, with three separately passing Git/policy characterizations.
+  notes: independent PASS — safety/staging 23 passed in 14.499s; core 77 passed in 36.132s; syntax/annotations/whitespace passed; frozen digests and canonical RED notes verified, no tests weakened. pav-propose --batch: zero proposals. Full fresh validator and actual staged synchronization remain pending.
+  base_branch: feat/task-finalization
+  base_commit: 55568223cd7c07b6aa05053d4bb5cae6852e6b49
+  commits: 77a49a35dacd8ae98eac39b491e01ba9471d2b7e, c4c48ac2c7edf2833f07700e35e38d02181cd05d, 17d2cede8e3941553dd3535e077a07d9c16256ba, 60bd3e9b8bed9eb17dd3c95af80092d22956c07e
+  pr: none
+  notes: tdd: integration/contract — 15 disposable hook/staging tests observed 11 expected assertion failures in 10.171s, implementation unchanged; SHA256 6c93adbe0eafbcb96655b535390ac846ffc5e97777791311ca10849876b45bc3. Pre-freeze review corrected the protection fixture key and narrowed checkout expectations to preserve generic policy instead of introducing unrelated restrictions. Test-only commit recorded before GREEN.
+
+T-03 | Connect finalization with shared workflow contracts | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  last_action: DoD satisfied — independent scenario/contract review and complete staged preflight passed
+  target_files: scripts/check-finalization-workflow.py, workflows/phase-finalize.md, rules/phase-finalize.md, scripts/phase-finalize.py, scripts/finalization_attempts.py, scripts/finalization_knowledge.py, scripts/finalization_outputs.py, scripts/finalization_evidence.py, scripts/finalization_archive.py, scripts/validate-task.sh, shared workflow contracts, provider templates and documentation
+  blocker: none
+  branch: feat/task-closure-workflow
+  base_branch: feat/task-closure-safety
+  base_commit: 60bd3e9b8bed9eb17dd3c95af80092d22956c07e
+  commits: 0736b8f627e39fa7a0869628e05b91bf0b099f65, f8dffc660c4421e8308e8dd2b80ebaafe2ea0048, 05b83a3d475415996cf1392e2543845103e41e8b, 43556513c24599fda182bc4230a105e9b3bff08d, a6e345f33c98fe8d5027712a9881f4ccd51cb8f8, dbc038b25ff0b71416e0c50ded84efb7c89b0f66, 98a6ca351712e8fd0304aedbb3ecf8d4fbcfed9a, 80d051f8142537bb9169a1a2c3bc032c81142ffc, eaa4e8d5314a6b5f10810edc2c1d3e686411f0cd, 110d5b490c606dda29a382d5dc94c65fae03151c, eac1687f56524b02185027790a712465c49dcd11, 5e6eae74ec1d0e5ef9bba896f3dd8b1786e3f623, 4a6a27c58e442fa60fbc4d1edc353b6b3ad4a4f4, 01200f2b4d03f8c8c5b2e041c0ee78168b36a0bd, 0cebf96b2327718103006c23b02f3e63ec6cb4b6, db967b5057f00797ed0586e371c2a5822e1213a6, 9e5b062a22cf919d39d86f1e7c38d62ac9d4fd23
+  pr: none
+  notes: tdd: red digest — 23 cases in scripts/check-finalization-workflow.py, SHA256 78b96fafe3b87ca15cf40b44acf7962b8586055f44ee5f3fc4c11563b5df97dc; 19 expected assertion failures in 18.117s, no errors. Test-only commit 0736b8f627e39fa7a0869628e05b91bf0b099f65 precedes product edits.
+  notes: pre-freeze fixture correction — primary GitHub CLI source confirms explicit repository arguments do not translate SSH aliases; controlled ssh -G translation followed by explicit canonical repository lookup replaces the invalid raw-alias argument expectation. No live network fixtures.
+  notes: contract audit — postconditions/action_history exist, but current helper has no supported failed-command recorder; nonzero verification is rejected and blocked responses are not persisted. Implement the approved checkpoint vocabulary and immutable attempt history before claiming full journal conformance; preserve recovered errors and do not hand-edit the journal.
+  notes: cross-file ordering review — the helper currently interleaves cleanup before later repositories refresh and lists local deletion before remote deletion. Add an independently observed failing multi-repository ordering regression before the narrow repair; all safe checkout refreshes must precede cleanup across the complete recorded set.
+  notes: ordering RED — added one behavior regression, all original 23 tests preserved; expanded 24-case SHA256 232f1869acf1e5341d9bd71a683ba0aef79a938345cf1f7cdaaf668ce1b3e64b. Worker observed one expected failure in 0.606s; coordinator independently reproduced it in 0.999s. Test-only commit f8dffc660c4421e8308e8dd2b80ebaafe2ea0048 precedes the final-plan ordering repair.
+  notes: refresh-reporting RED — added one regression, all prior 24 tests preserved; expanded 25-case SHA256 908690a579c59298832306570257fe65a64d5ff82f48818099ce132cb6ca2fbf. Worker observed one expected failure in 0.401s, coordinator independently reproduced in 0.527s; test-only commit 05b83a3d475415996cf1392e2543845103e41e8b precedes the truthful incomplete refresh outcome repair.
+  notes: intermediate GREEN — frozen 25-case workflow suite passed in 22.160s; five instruction-contract checks passed in 0.257s. This is before the newly reproduced metadata/attestation/legacy-validation repairs, not final source certification.
+  notes: independent forward blocker — documented full Validation records with dated Final Verification prose and source-bound successful commands are rejected by an undocumented Execution Report phrase. Raw fixture preserved outside the project; no journal/archive mutations occurred and dry-run byte inventory was unchanged. Reader/writer alignment requires new strict positive/negative tests.
+  notes: tracked-knowledge blocker — after cleanup, changing only tracked current architecture makes knowledge reconciliation fail worktree-dirty. Repair requires predeclared captured current-record inventory and exact independently attested before/after changes, with an unchanged index and protected-history/source exclusions; broad dirty-tree permission is forbidden.
+  notes: attestation honesty repair — a newly failed required check must invalidate an older passing receipt of that operation until a newer valid source-bound pass exists. Preserve failed and recovered attempts rather than overwriting them.
+  notes: independent cross-file review — three required fixes: completed earlier-phase Deferred/Outstanding Scope must retain the whole spec; helper SSH-alias PR-only evidence needs the same exact canonical hosting/transport binding in the independent hook reader; accumulated exact command outputs must not exceed authoritative journal/helper/hook read limits. Reviewer used disposable reproductions only and performed no source writes or full suite. Repairs require preserved-test RED before implementation.
+  notes: combined contract-repair RED — 13 additional tests (38 total), 20 expected assertion failures in 38.335s, no errors; SHA256 3a6940e3046f520824f750496d0f9a67856301939c247ee34cef722c2ded280c; test-only commit 43556513c24599fda182bc4230a105e9b3bff08d. All original 25 tests/assertions retained; supporting alias fixture adds optional merged parameter with unchanged default. Coordinator reviewed the full delta and bounded failure log before authorizing repairs.
+  notes: external checkout observation — original checkout later became clean on feat/instruction-audit-report-render at 242303d4de01929493d35b55e4787d306934abc1. Only read-only status/tip checks were performed there; its independently advancing audit history is not imported into this pinned implementation stack.
+  notes: independent cross-task lifecycle reproduction — after a fully completed first finalization, its valid stale receipt blocks a second task's otherwise valid cleanup in the same common directory, both distinct and reused branch names. Removing only that old receipt changes hook ask to allow. Required repair separates unusable bindings from valid contextual nonmatches without weakening ambiguity/tip checks or existing restack scanning; new RED precedes repair.
+  notes: lifecycle RED — two added tests, 40 total; three expected contextual-generation assertion failures in 10.729s, no errors, while overlapping current receipts remain denied. SHA256 e54c56f5bd8deac04b1ecfc527849061d865fb027dbc2c1d6c7d572f0e36d191; test-only commit a6e345f33c98fe8d5027712a9881f4ccd51cb8f8 precedes the contextual/static separation repair.
+  notes: ownership triage — nested services/backend layouts are outside the existing direct-child repository-set contract and are rejected before journal writes. Independent direct-child fixtures authorize exact deletion under umbrella-only, child-only and combined registration. No ancestor-root trust broadening or scope change is justified.
+  notes: current-record layout RED — two additional tests, 42 total; existing tracked roadmap and scope-named delivery notes produced two expected failures in 3.832s, no errors, while protected namespace/progress reclassification negatives passed. SHA256 8c89e17fd374a959ab0f4f3de9623e6bf31faa86ddd7102e1aa25085979b6956; test-only commit dbc038b25ff0b71416e0c50ded84efb7c89b0f66 precedes the typed layout repair.
+  notes: forward evaluation resumed — original canonical Validation prose and documented verification attestation now pass read-only inspection unchanged; two-repository normal delivery is ready, cleanup still incomplete and recovery required. The controlled remote refusal is restored for actual execution; no final success claimed yet.
+  notes: tdd: test amended — known local origin/HEAD was missing from SSH and transport fixtures; the original failures hit default-protection discovery before the intended PR proof. Corrected setup preserves all assertions; SHA256 ab7ee78c981b9c8acdb44bec1baf35aef1f1457b99a00511c623e315e7cb91e6, commit 98a6ca351712e8fd0304aedbb3ecf8d4fbcfed9a. Immutable pre-fix hook replay produced four failures in two tests (11.417s), recorded as replay rather than original chronological RED. Subsequent lifecycle review found its new-task pointer still named the already archived first spec; that supporting fixture correction and meaningful replay remain pending.
+  notes: actual forward cleanup — real controlled API remote denial exit 1 was immutably recorded; after owner clears denial, API retry, client leased remote deletion and both ordinary local branch deletions succeeded. Fresh postconditions show checkout/cleanup complete and recovery verified; verification, knowledge, archive and final audit remain in progress. Recovery output parent was initially absent, causing a recorded pre-Git shell-redirection failure; explicit parent creation recovered it without overwriting a pack.
+  notes: tdd: test amended — lifecycle second-task spec_path now points at its own next.md rather than the archived first spec; assertions unchanged. SHA256 f5d558a28287c887506247d15b387692dcaf24568d21dd9b5083ee123fcb954d, commit 80d051f8142537bb9169a1a2c3bc032c81142ffc. Corrected immutable pre-fix hook replay reaches the actual allow-versus-ask assertion in all three generation subcases (one test, three failures, 12.208s); earlier lifecycle failures were prerequisite fixture failures, not proof of that hook path.
+  notes: fixed-source GREEN — all 42 workflow cases passed in 123.860s before the newly discovered umbrella audit-attempt scope amendment. Core 77 had passed in 50.961s before these later repairs; final combined focused/independent/full checks remain pending.
+  notes: forward audit scope blocker — real project-wide pre-archive audit passes, but the command recorder rejects its physical non-Git umbrella root as repository scope. Add supported check-only project-root scope while preserving exact participating-repository binding for Git actions and rejecting unrelated paths; preserve the original input and journal revision, never initialize umbrella Git or relabel the audit as one child.
+  notes: umbrella check RED — one added test, 43 total; expected attempt-invalid versus recorded failure in 2.458s, no errors; SHA256 cc705d0791c71beb9b79a2eed2f7609c30ce8cf96dbb4d4c30fa6f1475a255fa, test-only commit eaa4e8d5314a6b5f10810edc2c1d3e686411f0cd. Planned Git actions remain repository/argv exact and unrelated paths are rejected.
+  notes: independent new-module review — three required fixes reproduced: current ignored knowledge can drift after its accepted before/after proof yet still finish; earlier completed-directory phases lacking explicit completion markers still allow whole-spec archival; a clean newer integration commit changes frozen raw index bytes and cannot reconcile despite an empty staged diff. Require exact current inventory integrity, explicit positive previous-phase evidence, and source-generation-bound clean index reconciliation with fresh attestations. Original candidate tips and staged/unrelated-work guards stay unchanged; new RED precedes repairs.
+  notes: integrity/source-generation RED — nine new tests, 52 total; 12 expected assertion failures in 30.461s, no errors; SHA256 fbad2b7f1bbea13615747e52b16b791a1f55ef341ee39c10f0820d7ed015001d, test-only commit 110d5b490c606dda29a382d5dc94c65fae03151c. Tests reproduce ignored current-record drift, stale rebind dates, missing/duplicate prior-phase proof, clean source/index metadata reconciliation and cold dry-run bytecode creation. Existing exact-pointer drift was already blocked later; its stronger inventory error is separately identified as characterization, alongside passing unmerged/unowned/rewound safety cases.
+  notes: intermediate whole-skill completion — independent fixture archived task/spec, passed actual post-archive audit, persisted complete marker and reran via original task path with byte-identical journal revision using persisted evidence. Optional replay of an old raw-state-bound audit input after finish's marker change is rejected; canonical journal-only repeat succeeds. Same-invocation checks retain their original timestamps after metadata-only archival; prior-Validation reuse metadata is a distinct contract. Final-source forward rerun remains required after current integrity repairs.
+  notes: intermediate focused GREEN — 52 workflow cases passed in 140.711s, core 77 in 78.101s and safety 23 in 23.688s. These results precede one newly reproduced clean committed knowledge/source-generation ordering blocker and are not final certification. Independent reviewer found that correct new-source knowledge evidence is checked against the prior journal generation before reconciliation; require an observed new regression and narrow source-binding repair without weakening current digest/index/ownership protections.
+  notes: committed knowledge generation RED — one new regression, 53 total; one expected knowledge-change-invalid assertion failure in 2.144s, no errors; SHA256 f917dd8007da2690fa07b4789abb4b380f251398b15e42d270572c49ea72ad13, test-only commit eac1687. Forged tips must preserve the prior journal; only independently observed clean descendant source can bind the new semantic proof.
+  notes: final forward recorder blocker — after authorized inventoried umbrella knowledge edits, an actual successful pre-archive audit cannot be recorded before semantic acceptance because offline attempt enforces the old current digest. Fixture and raw outputs remain unchanged outside the project; no archive/finish occurred. Require independent recorder review and a new observed regression before a narrow evidence-recording repair; this must not accept knowledge or refresh mutation receipts.
+  notes: preacceptance audit recorder RED — one added regression, 54 total; one expected knowledge-content-changed assertion failure in 1.897s, no errors; SHA256 e591b171c49c96b5f68dda88243726d24ec7b3b51678ee75060265378f4b1078, test-only commit 5e6eae7. Independent review confirms attempt-only semantic integrity relaxation is consistent with immutable evidence recording; it grants no knowledge acceptance, new receipt or verified audit. Subsequent record/archive/finish must still reject unexplained drift.
+  notes: repair targets GREEN — four committed-knowledge/source-generation cases passed in 20.912s; four preacceptance audit recorder cases passed in 9.456s. Independent own-fixture reproduction confirms actual descendant binding/index history and forged-tip refusal, exact offline failed audit recording during Git unavailability, unchanged mutation receipts and strict normal-record drift refusal. Full final focused/guard/validator gates remain pending.
+  notes: final forward PASS — independently constructed two-repository fixture completed real normal cleanup with controlled remote refusal/retry, exact preserved audit attempt after recorder repair, immutable recovery, semantic knowledge acceptance, task/spec archival and actual post-archive audit. finish complete:true; original-path journal-only repeat retained SHA256 ac65f539e5de38cadf8b591cb6ff5f1b0e28ab9a1f7510c959379e81548b786b. Genuinely cold final-byte dry-run changed no project/source bytes, mtimes, directories or caches. Report /tmp/finalization-forward-final-report.md; evidence /tmp/finalization-forward-final-summary.json; equality hashes /tmp/finalization-forward-final-source-provenance.json. Earlier cleanup used the separately pinned pre-recorder-repair snapshot; final knowledge/archive/finish/repeat used final runtime bytes. No owner-advance, live hooks/GitHub or deployment tested here; those safety claims belong to the focused matrix, deployment remains unverified and missing telemetry did not block.
+  notes: final stable focused GREEN — all 54 workflow cases passed in 154.843s and all 77 core cases in 77.972s; exact frozen digests unchanged. Shared task structure check passed 19, failed 0, skipped 2 while Validation remained pending. Safety, independent full focused reruns, source-guard maintenance and real staged full preflight are pending.
+  notes: hosting reader identity RED — one additional regression, 55 total; helper accepts the authoritative GitHub repository casing while the independent hook incorrectly asks on equivalent canonical casing. One intended failure in 2.795s, no errors; SHA256 29cce0a1fe96ca6c939c87e791b93f914eb4e182d3cc30c3583695243cf5fc21, test-only commit 4a6a27c. Repair must mirror only the existing helper string identity comparison, preserving other-host/repository/URL mismatch refusal and exact authority bindings.
+  notes: reviewed guard maintenance — exactly 11 existing dependency SHA replacements across seven classified records, plus the embedded manifest pin; all 339 records, keys/order/contexts/reasons/counts and frozen inventory remain unchanged. Independent diff review confirms every new SHA matches actual source. Inventory SHA256 566bed33b9d04c1d19f791c35319a5e1554febd51e938bfb21b2f435cde56dae; manifest e0e05ba9a315a1da223d91fd779eda57928174a38418f260a48ee215d1e70407. Main guard passed; contract 6, regression 25, dynamic 4, external 5, oracle 23 and registration 1 cases passed. Recheck hashes after the hook-only casing repair; no broad exemptions or oracle changes.
+  notes: final implementation GREEN — 55 workflow cases passed in 147.047s and final hook safety 23 in 22.898s; the helper-only core 77 passed in 77.972s at unchanged helper dependencies. Casing-targeted four cases passed in 6.459s; independent static review confirms identical helper/hook full-string identity rules, with other-host/repository/URL mismatches still rejected. No final full validator or staged generation has run yet; independent 155-case rerun remains pending.
+  notes: independent final focused PASS on clean source 01200f2b4d03f8c8c5b2e041c0ee78168b36a0bd — core 77/73.179s, safety 23/23.494s, workflow 55/148.780s; all exit 0, frozen tests and original assertions preserved. Independent source/grammar/API review found no remaining required finding on that snapshot. Actual execution uses Python 3.14.4, Git 2.53.0, Bash 5.3.9; Python 3.11 grammar/API compatibility checked statically only.
+  notes: required full preflight failure — real staged sync on clean 01200f2 started 2026-11-17T17:22:07Z. Four frozen DEPLOY checks require the real normal-mode literal tilde Claude/Codex rule copy paths; generic OUTPUT_ROOT staging refactor hides them from the existing oracle. Log /tmp/orchestrail-finalization-staged-sync-01200f2.log preserves all observed results. The exact verified process group was deliberately terminated after these failures (session exit 143); no completed full-suite result or provider generation is claimed, and stage destination was not created. Repair uses actual normal/staged command branches without reassigning HOME, weakening gates or inserting fake matching comments; existing frozen failures are the RED evidence. Required full preflight must restart fresh after review.
+  notes: deployment compatibility characterization — one additive isolated normal/staged full-provider parity case passed before repair in 3.787s and was frozen in test-only commit 0cebf96; 56 workflow cases, SHA256 9d64968b13569220864157293ae1ef41552edcb3875037af4b3f9ee71e3f46dc. This is GREEN characterization of existing runtime behavior, not manufactured RED; four original committed DEPLOY failures remain the repair RED evidence. All earlier tests/assertions preserved.
+  notes: deployment compatibility focused GREEN — two actual normal/stage rule-copy command branches restore the four original frozen DEPLOY checks unchanged; all four now pass. Safety 23 passed in 24.320s and added provider parity passed in 3.620s. No HOME reassignment, fake marker or gate change. Only three existing sync dependency SHAs and embedded guard pin refreshed after review; inventory, contexts/counts/reasons unchanged. Sourceguard follow-up, independent targeted recheck and fresh complete staged preflight remain pending.
+  notes: compatibility guard follow-up PASS — main guard and focused 6/25/4/5/23/1 cases passed after exactly three sync dependency hashes and embedded manifest pin changed. Inventory remains 566bed33b9d04c1d19f791c35319a5e1554febd51e938bfb21b2f435cde56dae; final sync b40d1ddb561e721872cc0c7e15bd99b2f0d8e44a8a46a8ccf28385ec11a099bd, manifest f05db2e86e5fde524ae139b6c8754e75ae900ca2c85a46fafc9daa5f60f6296a, guard ec9a1e6544284dfdf6a2f4ee6c7a0b0fd7840cd0ac772653e9da4b11803ed073. Independent static review confirms actual isolated mode branches and unchanged contexts/counts/reasons/inventory; independent execution and fresh full staged preflight pending.
+  notes: second required full preflight failure — fresh clean db967b5057f00797ed0586e371c2a5822e1213a6 started 2026-11-17T17:37:03Z. Original four DEPLOY gates, public identity checks, instruction/model suites and full Git-rails acceptance passed. test_user_hook_installation_acceptance then errored twice (78 tests, 106.417s): its private sync fixture stubs only the old validator and now recursively runs newly mandatory acceptance suites beyond timeout 25. Raw log /tmp/orchestrail-finalization-staged-sync-db967b5.log retained. Only its verified process group was deliberately stopped (exit 143); no completed full result or provider generation claimed.
+  notes: tdd: test amended — pending narrow installation-fixture correction under rules/tdd.md GREEN179–183 and approved isolated-preflight scope, confirmed by independent Arbiter with citations to tests/hook-install.sh135–143, source spec AC-06 and ADR-0025. Preserve all 78 names/cases/assertions and timeout25; extend its already-private validation stubs to exactly the three mandatory suite filenames, retaining real production preflight and separate missing/failing-suite tests. Existing tests/validator-runtime-oracle.py approved resource overlay allows reviewed references/dependencies/observations and digest pins for this path; compressed baseline, result/expression/focused registries, approved path list, oracle logic and assertions must remain unchanged. Inspect all sync fixture callers before fresh full restart; no broad bypass or timeout increase.
+  notes: fixture amendment oracle follow-up — hook 78 passed in 62.437s and safety 23 in 23.591s; main guard and focused 6/25/4/5 passed. Oracle 23 then failed three assertions in 43.965s, preserved at /tmp/finalization-hook-fixture-oracle.log. Exact inventory comparison identifies only two unchanged locks observations relocated from lines 612/650 to 614/652 in the same approved hook resource. Authorize one additional observations/locks dataset with original before and relocated after, plus exact dependent pins; all 345 assertion AST calls, 78 test bodies, timeout 25, frozen compressed baseline, registry, approved paths and oracle logic remain unchanged. This records the previously omitted observation kind, without broadening production permission or bypassing any gate. Fresh oracle and independent review remain required.
+  notes: bounded fixture correction GREEN — worker hook 78/62.437s, safety 23/23.591s, main guard and focused 6/25/4/5, oracle 23/64.747s, final pin-dependent guard/allowlist and syntax/whitespace passed. All 78 test methods and 345 assertion calls remain byte-equivalent ASTs, timeout 25 unchanged; production sync/three suites, frozen compressed baseline and oracle logic unchanged. Seven exact hook resource datasets preserve original before values; manifest updates only 137 existing inventory fingerprints and six existing contexts. Amendment bce36ca6889af4f094abd36aa5300a47e3259a76d1121074b38e4423e380f5b2; final manifest 538f4785161b9ff07b3142f034d4310fcab83563717512eff8efd2d5d494b50d; normalized inventory cc5215ad24f85d026ee7f16046fe0fdceb843f83392f719820d4ed1eb6026241. Oracle passed before restoration of original semantically identical JSON formatting; final guard/allowlist passed afterward with identical normalized inventory. Machine proof: /tmp/finalization-hook-fixture-final-bounds-proof.json. Independent fresh hook 78 passed in 65.086s; independent safety and fresh complete staged preflight remain pending.
+  notes: independent bounded fixture PASS — safety/provider 23 passed in 26.140s after independent hook 78/65.086s; final static audit verifies all assertions, original before values, seven exact datasets, final pins, frozen baseline and production gate preservation. No remaining required finding or optional proposal. Prior full runs remain failed/stopped; fresh complete staged preflight is required on the following clean source commit.
+  notes: final complete staged preflight PASS — clean source 9e5b062a22cf919d39d86f1e7c38d62ac9d4fd23, started 2026-11-17T18:25:35Z, completed before 2026-11-17T18:56:29Z, exit 0. Full existing validator: 725 passed, 0 failed, 2 optional private-pattern skips. Fresh mandatory acceptance: core 77/77 in 77.534s, safety 23/23 in 24.681s, workflow 56/56 in 153.735s. Supported staged sync generated 188 files under /tmp/orchestrail-finalization-stage, without live installation. Raw log /tmp/orchestrail-finalization-staged-sync-9e5b062.log, SHA256 c566ceb232e9ce6749556b43d3c54be0fab9e72a157f27a27e009f465807e1ab. An independently launched validator in the canonical checkout overlapped; this run launched no competing heavy checks and claims no exclusive-resource/performance result. Prior two deliberately stopped failed runs and recovered errors remain above.
+  notes: contract presentation amendment — add Markdown bullet markers to the three existing Solution Design normative sentences, retaining their exact wording and meaning so canonical validation readers can verify them. No requirement, invariant or off-limits weakening. Compression audit retains every original Git/TDD/decision/history note because it is needed for audit; no lossy compression applied.
+
+## Execution Report
+
+Implemented one separately invoked post-merge phase, deterministic evidence/journal/archive mechanics, scoped independent Git-rails receipts and isolated provider synchronization. All three leaves are independently reviewed. This local development task is ready for owner-controlled integration, with its pinned multi-repository dependency retained; it has no published PR or merge evidence and is not itself finalized or archived.
+
+Canonical changes include `workflows/phase-finalize.md`, `rules/phase-finalize.md`, the coordinator and seven adjacent `finalization_*.py` modules, three standalone acceptance suites, scoped hooks/Git policy, additive shared status/protection/bootstrap/logging contracts, parent handoffs, setup/sync explicit lists, templates, operating guides and current knowledge. Generated outputs are isolated under `/tmp/orchestrail-finalization-stage`; installed consumer copies were not edited.
+
+## Contract Check
+
+### Invariants
+| Invariant | Status |
+|-----------|--------|
+| No uncertain deletion, no lost protected history, no implicit deployment, no live test mutations. | PASS: exact evidence/ref/lease/protection checks, immutable recovery and no-overwrite archive tests plus independent forward scenario; all destructive operations used disposable local repositories. |
+
+### Acceptance Criteria
+| Criterion | Status |
+|-----------|--------|
+| The source specification AC-01 through AC-06 apply. | PASS: all six criteria mapped below; full validator and 156 fresh standalone cases passed on the clean source. |
+
+### Off-limits
+| Constraint | Status |
+|------------|--------|
+| Paused audit, consumer installations, PR merging and protected/base publication. | PASS: separate worktree at the pinned dependency; only isolated staged outputs; no PR/push/merge/deployment or changes to InvestAI. Independent canonical checkout work was observed read-only and excluded. |
+
+### Source criterion evidence
+| Criterion | Verified coverage |
+|-----------|-------------------|
+| AC-01 | Normal/stack/intermediate target/multiple repositories, authoritative rewritten-history and closed-unmerged/missing-ref cases in core/workflow suites; independent real two-repository merge scenario. |
+| AC-02 | Changed local/remote tips, dirty/diverged trees, protected/unrelated branches, worktrees, unique commits, missing authorization, independent scoped hooks and actual stale/exact remote lease. |
+| AC-03 | Partial remote refusal/retry, immutable recovery packs, journal CAS/locking and interruption checkpoints, archive collisions, old paths and byte-identical completed repeat; independent forward fixture. |
+| AC-04 | Manifests/empty directories/original snapshots, protected fields and requirements, mechanical relative-link repair, traversal/symlink refusal and strict whole multi-phase eligibility. |
+| AC-05 | Typed tracked/untracked umbrella knowledge, unrelated scope preservation, deployment unknown/required evidence, optional tooling/logging failure, source-bound fresh/reused/failed receipts and exact output preservation. |
+| AC-06 | Full original rails/installation/runtime gates, independent hook safety and normal/staged parity fixtures; complete supported staged sync and read-only generated parity audit. |
+
+## Code Review
+
+### Findings
+(none)
+
+### Summary
+PASS: zero remaining critical, important or optional findings. Separate validators reviewed each leaf, original RED test integrity, source/reader contracts, safety/recovery boundaries and the complete skill through a realistic forward run. Earlier defects and their repairs remain in the append-only subtask notes. The final bounded installation-fixture amendment received independent static review and fresh hook 78/78 plus safety 23/23 execution. Python 3.11 grammar/API compatibility was reviewed statically; actual execution used system Python 3.14.4, Git 2.53.0 and Bash 5.3.9.
+
+## Issue List
+
+### Approved
+(none)
+
+### Deferred
+(none)
+
+All review defects discovered during the leaf implementation cycles were repaired and independently rechecked before task-level closure. There are no unresolved approved fixes; preserved earlier failed/recovered runs are evidence, not hidden passing results.
+
+## Fix-Tasks
+fixes-created: complete
+fixes-count: 0
+Created: none
+
+## Deferred
+(none)
+
+## Knowledge Reconciliation
+
+Updated current architecture/module inventory, environment/runbook, scope index, task memory, append-only progress and accepted ADR verification. Existing architecture principles remain applicable and are unchanged; ADR-0025 records the narrow required-helper and Git-ownership extensions. `.ai/project_state.md` is absent and explicitly skipped. The scope roadmap is `.ai/specs/README.md`; no separate roadmap or delivery-note file was invented. This Execution Report provides the task's delivery record. Earlier audit/roadmap work remains unfinished and unchanged. Source knowledge is tracked by this repository's policy; consumer umbrella state stays local.
+
+## Spec Sync
+sync: complete
+synced_at: 2026-11-18T00:56:29+06:00
+deltas: 0 (implemented-differently: 0, not-implemented: 0, implemented-beyond: 0)
+spec: .ai/specs/24-task-finalization.md
+
+Reconciled under the verified `/pv-finalize` completion context after all independent contract/review/fix prerequisites and actual final checks passed. All 12 requirements and six criteria retain their original text and identifiers. Completion metadata describes validated implementation only; it does not prove merge, cleanup, archival or deployment. The accepted decision is reused, not replaced.
+
+## Final Verification
+
+Date: 2026-11-18 (Asia/Bishkek); underlying run timestamps are UTC above.
+Independent verifier: separate finalization contract/safety validators and a separately constructed whole-workflow forward fixture; no implementation self-review substituted for their verdicts.
+Source revision: `9e5b062a22cf919d39d86f1e7c38d62ac9d4fd23`, clean before and after the actual full staged run. Subsequent closure edits affect shared `.ai/` metadata only; all executable, workflow, rule, template and generated-source bytes remain the tested bytes.
+
+| Actual command/check | Result and provenance |
+|----------------------|-----------------------|
+| `PATH=/usr/bin:/bin bash scripts/sync.sh --from /tmp/orchestrail-task-finalization --stage /tmp/orchestrail-finalization-stage` | Exit 0; complete existing validator 725 passed / 0 failed / 2 optional private-pattern skips, then fresh core 77 / safety 23 / workflow 56 passed, then 188 generated files. Exact raw log and digest above. |
+| Independent core/safety/workflow on clean `01200f2` | 77/23/55 passed, followed by independent changed-sync and new-parity checks on `db967b5`; final staged run freshly executes all 156 on the final source. Earlier results are not presented as fresh final-source execution. |
+| Independent final fixture correction | Hook 78 in 65.086s and safety 23 in 26.140s passed; all original assertions/timeout and frozen inventory/oracle logic preserved. |
+| Independent whole-workflow forward fixture | Real two-repository normal delivery, actual remote denial/retry, original offline audit output retained, recovery/knowledge/archive/final audit complete; old-path repeat byte-identical and genuinely cold dry-run unchanged. Report `/tmp/finalization-forward-final-report.md`; exact source provenance `/tmp/finalization-forward-final-source-provenance.json`. |
+
+Coverage limits: controlled PR fixtures replace live GitHub; no live provider/hooks install, production deployment, migration or source publication. ShellCheck unavailable; actual Python 3.11 execution unavailable (static compatibility only). Semantic knowledge and command/deployment receipts remain externally attested, bound by the helper rather than independently executed by it. Dated environment/revision evidence is required for deployment claims; this task's deployment is unverified. Finalization cannot bypass ordinary local `branch -d` refusal and remains incomplete in that case.
+
+Owner follow-ups: integrate the dependency and this local stack through the normal reviewed process; choose live synchronization separately; invoke `/phase-finalize` for this task only after its intended integration is proven. No unresolved implementation scope remains, and this record claims no merge, branch cleanup, archival or product-wide completion.
+
+### Generated parity
+Independent exhaustive read-only audit passed for all 188 regular files against pinned source `9e5b062a22cf919d39d86f1e7c38d62ac9d4fd23`: 43 Windsurf workflows plus 19 rules/principles, 62 skills each for Claude and Codex, and two global instruction files. No missing/extra/symlink output; six workflow/rule name collisions remain separate. Global instructions contain exactly the canonical prefix, single capability appendix and honest unavailable-installation result. All four setup/sync explicit context lists contain exactly 14 project rules, including phase-finalize. Proof `/tmp/orchestrail-finalization-independent-parity.json`; report `/tmp/orchestrail-finalization-independent-parity.txt`. This verifies isolated export, not live installation.
+
+### Metadata audit
+Final metadata-only checks passed: `bash scripts/validate-task.sh .ai/tasks/todo/task-24-task-finalization` reports 23 passed, 0 failed, 0 skipped. Direct read-only `finalization_evidence.validation` accepts the canonical full-flow contract with `fresh_tests: false` and `requires_final_receipt: true`; it creates no journal or Git mutation and does not replace future source-bound post-integration evidence. Exact comparison against the validated source retains all 66 original notes, original branch/base/PR fields and append-only commit lists. Requirement-section SHA256 remains 720fc9f35e45d744ecc80798e853344cc23f2a1d38ef9534f802b262dff208a5; criterion-section SHA256 remains 3a0005b8dba222685042c9f7f7f3333d213be650a66e2349dc8fa316ddd1d821. Only seven shared `.ai/` records changed after full validation; tested product/provider-source bytes remain unchanged.
+
+Independent final metadata review passed with its own 23/0/0 task check and read-only prerequisite-reader check; proof `/tmp/orchestrail-finalization-independent-metadata-audit.json`. No remaining required findings or proposals.
+
+## Delivery Inventory
+
+Canonical changed files relative to the pinned dependency (all retained in this isolated local stack):
+
+```text
+.ai/adr/0025-task-24-post-merge-finalization.md
+.ai/adr/index.md
+.ai/context/environment.md
+.ai/context/runbook.md
+.ai/memory/architecture.md
+.ai/memory/progress.md
+.ai/memory/state.md
+.ai/principles/domain.md
+.ai/specs/24-task-finalization.md
+.ai/specs/README.md
+.ai/tasks/completed/task-01-git-source-of-truth/state.md
+.ai/tasks/todo/task-24-task-finalization/T-01-finalization-evidence/description.md
+.ai/tasks/todo/task-24-task-finalization/T-02-finalization-safety/description.md
+.ai/tasks/todo/task-24-task-finalization/T-03-finalization-workflow/description.md
+.ai/tasks/todo/task-24-task-finalization/plan.md
+.ai/tasks/todo/task-24-task-finalization/state.md
+README.md
+docs/README.md
+docs/SPEC-RUN-QUICKSTART.md
+docs/USAGE.md
+harness/claude/capabilities.md
+hooks/git_rails.py
+rules/git-flow.md
+rules/global-claude.md
+rules/orchestration.md
+rules/phase-finalize.md
+rules/run-log.md
+rules/workflow-globals.md
+rules/workflow-reference.md
+scripts/README.md
+scripts/check-finalization-safety.py
+scripts/check-finalization-workflow.py
+scripts/check-phase-finalize.py
+scripts/finalization_archive.py
+scripts/finalization_attempts.py
+scripts/finalization_evidence.py
+scripts/finalization_knowledge.py
+scripts/finalization_outputs.py
+scripts/finalization_recovery.py
+scripts/finalization_support.py
+scripts/phase-finalize.py
+scripts/setup-new-project.sh
+scripts/sync.sh
+scripts/validate-task.sh
+templates/.ai-umbrella/README.md
+templates/.ai-umbrella/memory/state.md
+templates/.ai/README.md
+templates/.ai/context/runbook.md
+templates/.ai/memory/state.md
+templates/codex-global-AGENTS.md
+tests/fixtures/validator-runtime/inventory-amendment.json
+tests/fixtures/validator-runtime/source_guard.py
+tests/fixtures/validator-runtime/source_guard_exceptions.json
+tests/hook-install.sh
+tests/validator-runtime-oracle.py
+workflows/PIPELINE.md
+workflows/phase-finalize.md
+workflows/phase-pipeline.md
+workflows/pv-finalize.md
+workflows/spec-run.md
+```
+
+Generated outputs: `/tmp/orchestrail-finalization-stage/.claude/skills/` and `.codex/skills/` each contain 62 generated skills; `.codeium/windsurf/global_workflows/` contains 43 workflows and `global_rules/` contains 19 rules/principles. The stage also contains the generated global `.claude/CLAUDE.md` and `.codex/AGENTS.md`. All 188 files were independently verified; none was installed into the real consumer directories.
+
+## Owner-authorized Integration — 2026-11-18
+
+The owner explicitly requested merge into main and a repository update. These dated facts supersede the earlier local-only status and pending integration follow-ups; they do not rewrite the earlier validation snapshot. Four ordinary no-fast-forward local merges delivered the pinned dependency and reviewed implementation in order to `main`. No PR merge receipt is claimed: these are actual Git merge commits, with independently checked exact second parents and ancestry.
+
+| Source branch | Original source tip | Merge into main | Recorded merge time |
+|---------------|---------------------|-----------------|---------------------|
+| `feat/multi-repository-spec-run` | `488edb11b37c3028b720d7de06cfe64cf7fe30c1` | `f330eb4e042b6bb15bbbfa6333469eda01e05480` | 2026-11-18T06:19:15+06:00 |
+| `feat/task-finalization` | `55568223cd7c07b6aa05053d4bb5cae6852e6b49` | `fa249232b2da26c53aa01548a9fd7f20efec6304` | 2026-11-18T06:19:17+06:00 |
+| `feat/task-closure-safety` | `60bd3e9b8bed9eb17dd3c95af80092d22956c07e` | `3730119033a2d84c68e66bedc7ce838f8e23b3e8` | 2026-11-18T06:19:20+06:00 |
+| `feat/task-closure-workflow` | `8e5726720a6825a31e2ff9b8299f0e81c5a966b4` | `75168ca13b891c7c874c1ed23d7ca05bf337f144` | 2026-11-18T06:19:22+06:00 |
+
+The resulting integration source tip is `75168ca13b891c7c874c1ed23d7ca05bf337f144`; its complete Git tree equals validated final delivery `8e5726720a6825a31e2ff9b8299f0e81c5a966b4`. No conflict resolution or new source code was introduced. Fresh post-merge execution ran repository-set 38, core 77, safety 23 and workflow 56 cases: all 194 passed, exit 0. Exact suite durations: 38/8.273s, 77/113.193s, 23/26.648s, 56/193.557s. Log `/tmp/orchestrail-main-integration-checks-75168ca.log`, SHA256 `41524d77cdf83f20226061e1ca7446ad78772662c8427f4d78376031adb4a16c`; observation 2026-11-18T00:27:08.994073+00:00. Actual runtime remains system Python 3.14.4 and Git 2.53.0. The earlier complete 725/0/2 validator result remains explicitly prior-source evidence; it was not relabeled as a freshly rerun full suite.
+
+Current knowledge changes after this check are metadata only. The owner authorized an ordinary fast-forward publication to `origin/main`; its actual post-push tip must be verified from the remote. The unrelated audit branch remains exactly `201a30cfb8403f0965cc2678939cf694dee99960`, including its unpublished local commit. Task branch cleanup, archival and live consumer installation were not requested by this merge operation and were not performed; the finalization marker remains not-started, and deployment remains unverified.

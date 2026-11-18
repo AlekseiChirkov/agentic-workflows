@@ -13,8 +13,10 @@ build:     bash scripts/sync.sh --from "$(pwd)"
 Notes:
 - `test:` is the `smoke`-level validating tool for this repository. A new contract check
   that fails before a change and passes after it is the RED test (`rules/tdd.md`).
-- `build:` deploys to the current machine's harness directories; there is no build
-  artifact. Use `scripts/sync.sh --from <dir>` when working on a copy outside the canonical path.
+- `build:` deploys to the current machine's harness directories. To produce reviewable
+  provider artifacts without installing them, use
+  `scripts/sync.sh --from <source-tree> --stage <empty-directory>`.
+  Staging runs the required preflight and never refreshes consumer projects.
 - `scripts/validate-task.sh <task-dir>` checks one task's artifacts; run it manually when working
   on a task under `.ai/tasks/`.
 - Focused hook suites use `scripts/validate-contracts.sh --hook-adapter-only`,
@@ -25,10 +27,11 @@ Notes:
   fingerprinted unchanged baseline functions; it has no AST-Grep runtime dependency.
 - `--git-rails-only` runs `tests/git-rails.sh`: the decision core and the hook entrypoint `hooks/git-rails.sh` end to end, in disposable repositories with isolated HOME/XDG and a Python-free PATH for the fast-path cases; about 3.5 min. The full validator takes about 34–52 min (longer under memory pressure); run it with nothing else in parallel, since under memory pressure a concurrent run can be killed because a contract-version fixture re-runs it on a copy (the separate validator-runtime specification addresses this). The git-rails hook uses bash; head, tr and sed only for its fast path (without them the core decides alone); Python 3.11+ for relevant commands.
 - The registered git-rails entrypoint runs from this checkout and blocks on failure. Before checking out a revision without `hooks/git-rails.sh`, or before an earlier installer touches the receipt, run `bash scripts/install-hooks.sh uninstall` from the current checkout; otherwise every Bash call in every project is blocked until uninstall. Earlier installers refuse a receipt that holds PreToolUse or permission state.
-- When `python3` resolves to a mise shim with no configured version, isolated-PATH fixtures
-  cannot start Python (`No version is set for shim: python3`) and the usage export,
-  git-rails and hook-install suites fail. Run the validator and sync with an explicit
-  version, e.g. `MISE_PYTHON_VERSION=3.12.16 bash scripts/sync.sh --from "$(pwd)"`.
+- When `python3` resolves to a mise shim without a configured installed version,
+  isolated-PATH fixtures cannot start Python and several suites fail. Use a
+  verified system interpreter, e.g. `PATH=/usr/bin:/bin bash scripts/sync.sh
+  --from <source-tree> --stage <empty-directory>`. Selecting an unknown mise
+  version can start an installation; it is not required for verification.
 - `bash scripts/check-spec-draft.sh` pins the `/spec-draft` review contract (critic, round
   limit, rubric and threshold) in about 30 ms. It runs standalone, outside the frozen validator
   inventory, so run it after every change to `workflows/spec-draft.md`.
@@ -160,3 +163,31 @@ Follow `.ai/principles/coding.md → Changing a contract`. Additionally:
 3. Re-run the same phase command; Guards will find the resume point.
 4. Under `/spec-run`, Step 0 reconciles recorded branches against git; if a branch tip
    moved, decide by hand whether to reset the recorded `commits:` or the branch.
+
+### Verify finalization changes without deploying
+1. Run `/usr/bin/python3 scripts/check-phase-finalize.py`,
+   `/usr/bin/python3 scripts/check-finalization-safety.py` and
+   `/usr/bin/python3 scripts/check-finalization-workflow.py` sequentially.
+   These standalone suites remain outside the frozen validator inventory; sync
+   requires all three in addition to its complete existing preflight.
+2. Complete independent scenario and cross-file contract review. Preserve actual
+   failed attempts and recovered errors; a later pass does not erase them.
+3. Follow the nested source-guard maintenance procedure in
+   `tests/fixtures/validator-runtime/README.md` when reviewed dependencies change.
+   Never expand its exceptions without inspecting the affected callsites.
+4. Run `PATH=/usr/bin:/bin bash scripts/sync.sh --from <source-tree>
+   --stage <empty-directory>` with no competing heavy checks. This performs the
+   mandatory full validator and generates all provider artifacts.
+5. Compare staged workflows, prefixed rules, principles and capability-appended
+   global instructions with their canonical source. Retain the source revision,
+   actual results and optional-tool limitations in task evidence.
+
+### Close a merged consumer task
+Use `/phase-finalize <task-directory|spec-path> --dry-run` for a read-only plan,
+then the same invocation without `--dry-run` for the entire finalization.
+Cleanup is mandatory and the ordinary invocation authorizes only the resolved
+task's proven resources. Rerun the same command after resolving a blocker; the
+versioned journal resumes unfinished work, including an original path after
+archival. Finalization never merges PRs, commits knowledge or authorizes deployment.
+Keep untracked umbrella knowledge local; never stage it in a participating child
+repository. Missing required deployment evidence leaves task closure incomplete.
