@@ -38,8 +38,9 @@ Usage:
       generated-region markers in order, one review and one acceptance line in their
       grammars), that the reviewed commit exists (`cat-file`), amounts in its lines
       outside its generated region (the region holds assessment strings, checked at
-      their source, and text copied verbatim from the inventory), and, when the JSON files meet their schemas, its file-name date and title date
-      against run_date, the blockers heading in both directions (every blocking finding
+      their source as stored and as a cell displays them, and text copied verbatim from
+      the inventory), and, when the JSON files meet their schemas, its file-name date and
+      title date against run_date, the blockers heading in both directions (every blocking finding
       is listed, every listed finding id names a blocking finding, and the section is
       exactly `None.` when nothing blocks and holds no `None.` beside a blocking finding),
       and the generated region against fresh render output. The report is read as
@@ -3219,14 +3220,32 @@ def strings_in(value: object) -> Iterator[str]:
             pending.extend(reversed(item))
 
 
-def economic_claims(location: str, value: object) -> Iterator[Diagnostic]:
-    for text in strings_in(value):
+def cell_form(text: str) -> str:
+    """The text as a report cell displays it: every line-breaking or control character a
+    space."""
+    return "".join(" " if unicodedata.category(character) in CELL_BREAKING_CATEGORIES
+                   else character for character in text)
+
+
+def first_amount(text: str) -> re.Match[str] | None:
+    """The first amount the text names as stored, otherwise as its report cell displays
+    it."""
+    for form in (text, cell_form(text)):
         for pattern in ECONOMICS_PATTERNS:
-            found = pattern.search(text)
+            found = pattern.search(form)
             if found is not None:
-                yield Diagnostic("economics-claim", location,
-                                 f"names an amount: {quoted(found.group(0))}")
-                break
+                return found
+    return None
+
+
+def economic_claims(location: str, value: object) -> Iterator[Diagnostic]:
+    """One claim per string that names an amount as stored or as its report cell
+    displays it, since the generated region is not scanned itself."""
+    for text in strings_in(value):
+        found = first_amount(text)
+        if found is not None:
+            yield Diagnostic("economics-claim", location,
+                             f"names an amount: {quoted(found.group(0))}")
 
 
 def economics_rules(check: Verification) -> Iterator[Diagnostic]:
@@ -3371,9 +3390,7 @@ def cell(value: object) -> str:
         return "true" if value else "false"
     if isinstance(value, list):
         return ", ".join(cell(item) for item in value) if value else "none"
-    text = "".join(" " if unicodedata.category(character) in CELL_BREAKING_CATEGORIES
-                   else character for character in str(value))
-    return PIPE_RE.sub(lambda found: found.group(1) * 2 + "\\|", text)
+    return PIPE_RE.sub(lambda found: found.group(1) * 2 + "\\|", cell_form(str(value)))
 
 
 def table_row(cells: Sequence[str]) -> str:
