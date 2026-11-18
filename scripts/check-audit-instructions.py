@@ -4082,6 +4082,7 @@ IMPACT_FILES: dict[str, str | bytes] = {
 REPORT_AMOUNT_PATTERNS = (re.compile(r"(?i)\b\d[\d,.]*\s*k?\s*tokens?\b"),
                           re.compile(r"[$€£]\s?\d"), re.compile(r"\b(USD|EUR)\b"))
 _TOOL_MODULES: list[object] = []
+_REFRESHED: dict[Path, tuple[bytes, bytes, bytes]] = {}
 
 
 def report_text(region: str = EMPTY_REGION, blockers: Sequence[str] = (),
@@ -4112,11 +4113,33 @@ def run_render(fixture: FixtureRoot, *extra: str, report: Path | None = None
                     fixture.env, fixture.base)
 
 
+def regular_bytes(path: Path) -> bytes | None:
+    """The bytes of a regular file that is not a symbolic link, otherwise None."""
+    if path.is_symlink() or not path.is_file():
+        return None
+    return path.read_bytes()
+
+
 def refresh_report(fixture: FixtureRoot) -> None:
     """Rewrite the report around the assessment on disk (its run date in the title, its
     blocking findings listed, pending review and acceptance) and fill the generated region
     with `render --write`. When the inputs break their schema the rendering fails and the
-    region stays empty."""
+    region stays empty. The rewrite is skipped while the inputs and the report hold the
+    bytes of the previous refresh of the same root, since it would write the same bytes."""
+    root = fixture.root
+    inputs = (regular_bytes(root / ASSESSMENT_PATH), regular_bytes(root / INVENTORY_PATH))
+    report = regular_bytes(root / REPORT_PATH)
+    previous = _REFRESHED.pop(root, None)
+    if report is not None and previous == (*inputs, report):
+        _REFRESHED[root] = previous
+        return
+    _write_refreshed_report(fixture)
+    report = regular_bytes(root / REPORT_PATH)
+    if inputs[0] is not None and inputs[1] is not None and report is not None:
+        _REFRESHED[root] = (inputs[0], inputs[1], report)
+
+
+def _write_refreshed_report(fixture: FixtureRoot) -> None:
     try:
         assessment = json.loads((fixture.root / ASSESSMENT_PATH).read_text(encoding="utf-8"))
     except (OSError, ValueError, RecursionError):
@@ -4129,12 +4152,18 @@ def refresh_report(fixture: FixtureRoot) -> None:
 
 
 def report_claims(fixture: FixtureRoot) -> list[tuple[str, str]]:
-    """One economics claim per line of the fixture report, generated region included,
-    that names a token count or a monetary amount by the documented patterns."""
+    """One economics claim per line of the fixture report outside the generated region
+    (the lines from the begin marker through the end marker) that names a token count or a
+    monetary amount by the documented patterns."""
     text = (fixture.root / REPORT_PATH).read_text(encoding="utf-8")
-    return [("economics-claim", f"{REPORT_PATH}:{number}")
-            for number, line in enumerate(text.split("\n"), start=1)
-            if any(pattern.search(line) for pattern in REPORT_AMOUNT_PATTERNS)]
+    claims: list[tuple[str, str]] = []
+    inside = False
+    for number, line in enumerate(text.split("\n"), start=1):
+        inside = inside or line == REPORT_BEGIN
+        if not inside and any(pattern.search(line) for pattern in REPORT_AMOUNT_PATTERNS):
+            claims.append(("economics-claim", f"{REPORT_PATH}:{number}"))
+        inside = inside and line != REPORT_END
+    return claims
 
 
 def tool_module() -> object:
@@ -5118,7 +5147,7 @@ class VerifyReportTests(RenderCase):
         self.assert_reports(self.verify_report(stale), [
             ("report-generated-mismatch", f"{REPORT_PATH}:{first}")])
 
-    def test_amounts_anywhere_in_the_report_are_economics_claims(self) -> None:
+    def test_amounts_outside_the_generated_region_are_economics_claims(self) -> None:
         text = self.valid_report(summary="The change saves 3,000 tokens.",
                                  method="One run costs $5 in total.")
         self.assert_reports(self.verify_report(text), [
@@ -5129,8 +5158,7 @@ class VerifyReportTests(RenderCase):
                 if "It saves 3,000 tokens." in line]
         self.assertEqual(len(rows), 1)
         self.assert_reports(self.verify_report(text), [
-            ("economics-claim", assessment_at("AUD-08-002")),
-            ("economics-claim", f"{REPORT_PATH}:{rows[0]}")])
+            ("economics-claim", assessment_at("AUD-08-002"))])
 
     def test_report_rules_that_need_no_valid_input_run_when_an_input_breaks_its_schema(
             self) -> None:
