@@ -68,21 +68,32 @@ no pager, no inherited GIT_* variables, the file-system monitor disabled and hoo
 pointed at an empty location; a missing or failing git yields null or `unknown`
 values, never an error. Every git read also runs with lazy fetching disabled
 (GIT_NO_LAZY_FETCH, git 2.45 or later) and rename detection off (status.renames,
-git 2.18 or later), reads attributes from the empty tree instead of the committed and
-work-tree .gitattributes files (GIT_ATTR_SOURCE, git 2.40 or later), reads neither the
-user's nor the system's attributes file, and gives every filter driver that the
-repository's info/attributes file names an empty clean and process program. With git
-2.45 or later, therefore, no attribute-selected clean or process filter runs and no
-object missing from a partial clone is fetched. Each of these settings is one that an
-older git ignores rather than rejects, so it still answers, with less isolation: with
-git older than 2.40 a filter selected by a .gitattributes file of the tree can still
-run, and with git older than 2.45 `status` or `cat-file` in a partial clone can still
-fetch a missing object from its promisor remote. Because no attribute applies, a file
-whose stored form differs from its work-tree form through attributes (text, eol,
-ident, working-tree-encoding or a filter) can read as changed when git hashes it
-again. The
-root is taken as the top level of its git work tree: `status` reports paths relative
-to that top level, so a root below it yields mismatched work-tree paths.
+git 2.18 or later), and reads neither the user's nor the system's attributes file. The
+root is taken as the top level of its git work tree, and its `.git` directory or file
+locates the repository: when its configuration names the SHA-1 or the SHA-256 object
+format, git reads attributes from that format's empty tree instead of the committed and
+work-tree .gitattributes files (GIT_ATTR_SOURCE, git 2.41 or later), and every filter
+driver that the repository's info/attributes file names, within git's own limits of
+2048 bytes a line and 100 MiB a file, is given an empty clean and process program
+(GIT_CONFIG_COUNT, git 2.31 or later). With git 2.45 or later and a root that is that
+top level, therefore, no attribute-selected clean or process filter of the repository
+runs and no object missing from a partial clone is fetched. Each of these settings is
+one that an older git ignores rather than rejects, so it still answers, with less
+isolation. The cases left open are exactly these: with git older than 2.41 a filter
+selected by a .gitattributes file of the tree can still run, and with git older than
+2.31 one named by info/attributes; with git older than 2.45 `status` or `cat-file` in a
+partial clone can still fetch a missing object from its promisor remote; a filter named
+by a submodule's own info/attributes file can run when `status` inspects that
+submodule; only the first 1000 names of info/attributes in name order, at most 64 KiB
+of names, are blanked; a root without its own `.git` (a directory below the top
+level, or a link to one) gets neither the empty attribute source nor the blanked names;
+and a repository whose configuration cannot be read or names another object format
+gets no empty attribute source. Because the attributes of the tree, the user and the
+system do not apply, a file whose stored form differs from its work-tree form through
+attributes (text, eol, ident, working-tree-encoding or a filter) can read as changed
+when git hashes it again. Below the top level `status` also
+reports paths relative to that top level, so such a root yields mismatched work-tree
+paths.
 Standard library only.
 """
 from __future__ import annotations
@@ -148,12 +159,15 @@ ZONE_FRONT_MATTER = "front-matter"
 ZONE_FENCE = "fence"
 ZONE_BODY = "body"
 
-EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+# The empty tree of each object format, keyed by the value of extensions.objectFormat.
+EMPTY_TREES = {"sha1": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+               "sha256": "6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321"}
 # Every setting below is one that a git too old to know it ignores instead of rejecting,
-# so an older git still answers; only the guarantee the setting adds is lost.
+# so an older git still answers; only the guarantee the setting adds is lost. The
+# attribute source (GIT_ATTR_SOURCE) is added per repository, because its empty tree
+# depends on the object format.
 GIT_READ_ENVIRONMENT = {"LC_ALL": "C", "GIT_OPTIONAL_LOCKS": "0", "GIT_PAGER": "cat",
-                        "PAGER": "cat", "GIT_NO_LAZY_FETCH": "1",
-                        "GIT_ATTR_SOURCE": EMPTY_TREE, "GIT_ATTR_NOSYSTEM": "1"}
+                        "PAGER": "cat", "GIT_NO_LAZY_FETCH": "1", "GIT_ATTR_NOSYSTEM": "1"}
 # Configuration that would otherwise let git start a program the repository names, read
 # attributes that select a filter driver, or need an object a partial clone lacks.
 GIT_INERT_CONFIGURATION = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null",
@@ -162,7 +176,19 @@ GIT_INERT_CONFIGURATION = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/
 # Settings that make a filter driver run nothing, applied to each driver that the
 # repository's info/attributes file names, because git reads that file in any case.
 BLANK_FILTER_SETTINGS = (("clean", ""), ("process", ""), ("required", "false"))
-FILTER_ATTRIBUTE_RE = re.compile(r"(?<!\S)filter=([^\s\x00]+)")
+# git separates attribute tokens by space, tab, CR and LF only.
+FILTER_ATTRIBUTE_RE = re.compile(r"(?<![^ \t\r\n])filter=([^ \t\r\n\x00]+)")
+# git ignores an attributes line of 2048 bytes or more and an attributes file of 100 MiB
+# or more; a line of exactly 2048 bytes is still read here, which only blanks more.
+ATTRIBUTE_LINE_LIMIT = 2048
+ATTRIBUTE_FILE_LIMIT = 100 * 1024 * 1024
+# Bounds on the blanked names that keep the environment of every git read small.
+BLANKED_NAME_LIMIT = 1000
+BLANKED_BYTES_LIMIT = 64 * 1024
+# Bound on the `.git` file, `commondir` and the repository configuration read here.
+GIT_METADATA_LIMIT = 1024 * 1024
+CONFIG_SECTION_RE = re.compile(r'\[\s*([A-Za-z0-9.-]+)\s*("(?:[^"\\]|\\.)*")?\s*\]')
+CONFIG_ENTRY_RE = re.compile(r"([A-Za-z][A-Za-z0-9-]*)\s*(?:=\s*(.*))?")
 
 JsonObject = dict[str, object]
 
@@ -1330,37 +1356,114 @@ def candidate_lists(audited: Sequence[AuditedFile], edges: Sequence[JsonObject]
 # Git
 # ---------------------------------------------------------------------------
 
+def read_git_metadata(path: Path, limit: int) -> bytes | None:
+    """A regular file of fewer than limit bytes, links followed as git follows them; None
+    when it is absent, not a regular file, too large or unreadable. A first-in first-out
+    entry is never waited on."""
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    except (OSError, ValueError):
+        return None
+    with os.fdopen(descriptor, "rb") as handle:
+        try:
+            info = os.fstat(handle.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_size >= limit:
+                return None
+            return handle.read(limit)
+        except OSError:
+            return None
+
+
+def metadata_text(data: bytes) -> str:
+    """The text git takes from a one-line metadata file: up to a NUL, without trailing
+    white space."""
+    return data.split(b"\0", 1)[0].decode("utf-8", "surrogateescape").rstrip()
+
+
 def git_common_directory(root: Path) -> Path | None:
-    """The repository directory that holds info/ for the root's `.git` directory or file;
-    None when there is none or it cannot be read."""
+    """The repository directory that holds info/ and the configuration for the root's
+    `.git` directory or file; None when there is none or it cannot be read."""
     dot_git = root / ".git"
     try:
-        if dot_git.is_dir():
-            git_directory = dot_git
-        else:
-            text = dot_git.read_text(encoding="utf-8")
-            if not text.startswith("gitdir: "):
-                return None
-            git_directory = root / text[len("gitdir: "):].strip()
-        common = git_directory / "commondir"
-        if common.is_file():
-            return git_directory / common.read_text(encoding="utf-8").strip()
-        return git_directory
-    except (OSError, UnicodeDecodeError):
+        is_directory = stat.S_ISDIR(os.stat(dot_git).st_mode)
+    except (OSError, ValueError):
         return None
+    if is_directory:
+        git_directory = dot_git
+    else:
+        data = read_git_metadata(dot_git, GIT_METADATA_LIMIT)
+        if data is None or not data.startswith(b"gitdir: "):
+            return None
+        target = metadata_text(data[len(b"gitdir: "):])
+        if not target:
+            return None
+        git_directory = root / target
+    common = read_git_metadata(git_directory / "commondir", GIT_METADATA_LIMIT)
+    target = metadata_text(common) if common is not None else ""
+    return git_directory / target if target else git_directory
 
 
-def information_attribute_filters(root: Path) -> list[str]:
-    """Every filter driver name that the repository's info/attributes file sets, macros
-    included; empty when the file is absent or cannot be read."""
-    common = git_common_directory(root)
-    if common is None:
+def config_value(text: str) -> str:
+    """A configuration value without its quotes and its trailing comment."""
+    kept: list[str] = []
+    quoted = False
+    for character in text:
+        if character == '"':
+            quoted = not quoted
+        elif character in "#;" and not quoted:
+            break
+        else:
+            kept.append(character)
+    return "".join(kept).strip()
+
+
+def object_format(common: Path) -> str | None:
+    """The repository's extensions.objectFormat, `sha1` when it is unset or there is no
+    configuration file; None when the configuration cannot be read or names a format
+    without a known empty tree."""
+    config = common / "config"
+    if not os.path.lexists(config):
+        return "sha1"
+    data = read_git_metadata(config, GIT_METADATA_LIMIT)
+    if data is None:
+        return None
+    value = "sha1"
+    section: str | None = None
+    for raw in data.decode("utf-8", "surrogateescape").splitlines():
+        line = raw.strip()
+        header = CONFIG_SECTION_RE.match(line)
+        if header is not None:
+            section = header.group(1).lower() if header.group(2) is None else None
+            line = line[header.end():].strip()
+        if section != "extensions" or not line or line[0] in "#;":
+            continue
+        entry = CONFIG_ENTRY_RE.fullmatch(line)
+        if entry is not None and entry.group(1).lower() == "objectformat":
+            value = config_value(entry.group(2) or "")
+    return value if value in EMPTY_TREES else None
+
+
+def information_attribute_filters(common: Path) -> list[str]:
+    """The filter driver names that the repository's info/attributes file sets, macros
+    included, read within git's own line and file limits and kept within the blanking
+    bounds in name order; empty when the file is absent or cannot be read."""
+    data = read_git_metadata(common / "info" / "attributes", ATTRIBUTE_FILE_LIMIT)
+    if data is None:
         return []
-    try:
-        text = (common / "info" / "attributes").read_bytes().decode("utf-8", "surrogateescape")
-    except OSError:
-        return []
-    return sorted({found.group(1) for found in FILTER_ATTRIBUTE_RE.finditer(text)})
+    names: set[str] = set()
+    for line in data.split(b"\n"):
+        if len(line.rstrip(b"\r")) <= ATTRIBUTE_LINE_LIMIT:
+            text = line.decode("utf-8", "surrogateescape")
+            names.update(found.group(1) for found in FILTER_ATTRIBUTE_RE.finditer(text))
+    kept: list[str] = []
+    used = 0
+    for name in sorted(names):
+        size = len(os.fsencode(name))
+        if len(kept) == BLANKED_NAME_LIMIT or used + size > BLANKED_BYTES_LIMIT:
+            break
+        kept.append(name)
+        used += size
+    return kept
 
 
 def blank_filter_environment(names: Sequence[str]) -> dict[str, str]:
@@ -1381,7 +1484,12 @@ def git_environment(root: Path) -> dict[str, str]:
     environment = {key: value for key, value in os.environ.items()
                    if not key.startswith("GIT_")}
     environment.update(GIT_READ_ENVIRONMENT)
-    environment.update(blank_filter_environment(information_attribute_filters(root)))
+    common = git_common_directory(root)
+    if common is not None:
+        found_format = object_format(common)
+        if found_format is not None:
+            environment["GIT_ATTR_SOURCE"] = EMPTY_TREES[found_format]
+        environment.update(blank_filter_environment(information_attribute_filters(common)))
     return environment
 
 
