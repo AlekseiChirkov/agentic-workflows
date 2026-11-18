@@ -667,16 +667,20 @@ T-18 | Feat: state tool memory consistency warning (proposals) | atomic-tests: n
   blocker: none
   notes: source and decisions in `T-18-feat-state-tool-memory-consistency-warning/description.md`
 
-T-19 | Fix: separator pattern shadowing (reconciliation finding) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+T-19 | Fix: separator pattern shadowing (reconciliation finding) | atomic-tests: red | atomic-execution: not-started | atomic-validation: not-started
   branch: fix/audit-separator-pattern
   base_branch: docs/sync-audit-specifications
   base_commit: f71d7a4b11e4f56fc3d028d94fc0bec164546f09
   commits:
   pr: none
-  last_action: created 2026-11-18 from the spec 08 reconciliation finding Q-06 (a)
-  target_files:
+  last_action: RED reached — 2 failing tests written (integration), 5 failing tests/subtests, plus 2 terminology pins passing before the change; previous: created 2026-11-18 from the spec 08 reconciliation finding Q-06 (a)
+  target_files: scripts/check-audit-instructions.py, scripts/audit-instructions.py
   blocker: none
   notes: source and decision in `T-19-fix-separator-pattern-shadowing/description.md`
+         tdd: integration — 4 new tests in 3 classes (the tool as a subprocess on synthetic fixture roots), 2 red and 2 pins; AC coverage 3/3 (criterion 1 by the tests below; criterion 2 by the test-file diff, additions only; criterion 3 by the full suite and the delivery gate); test command `MISE_PYTHON_VERSION=3.12.16 python3 -I scripts/check-audit-instructions.py`
+         tdd: red digest — duplicate units → SeparatorRowWithoutDashesTests.test_separator_row_with_empty_or_colon_only_cells_is_not_a_unit (`| | | | | | | | |`, `| : | : | : | : |`, colon cells with tabs, empty cells with tabs and trailing spaces; guard: the content row is the only cluster); statement units → StatementUnitSeparatorTests.test_separator_row_with_empty_or_colon_only_cells_starts_no_statement_unit (`| | |`, `|:|:|`, `|\t|\t|`, `| :\t| :\t|` under `## Codebase Reading Rules`; units 5 and 7 only, a statement at 6 is `req21-invalid`); terminology pins → TerminologySeparatorTests.test_terminology_table_needs_dashes_in_its_separator_row (`| | |`, `|:|:|` second row → `amendment-target-unknown`), .test_terminology_separator_with_alignment_colons_keeps_the_table (`|:---|---:|`, `| :---: | --- |` → silent)
+         tdd: red observed 2026-11-18 — Python 3.12.16, 4 tests in 10.4 s, 5 failing tests/subtests, 0 errors: the four dashless rows form four extra duplicate clusters (DUP-001 `| | | | | | | | |` at lines 3 and 6, DUP-002, DUP-003, plus the content row); each dashless separator gives `req21-invalid rules/phase-discovery.md:6 the statement unit has no statement`; both terminology pins pass (the stricter pattern already applies there), recorded as pins per the description
+         tdd: earlier tests — test-file diff at RED: 67 added lines appended before the main guard, no line removed or changed; frozen-test conflict: none
 
 ## Execution Report
 - T-01: reviewed — read-only `extract` of the deterministic inventory (audited set, readers, text model, git state); re-validated after one correction (unreadable roots, undecodable names, repository-configured git programs)

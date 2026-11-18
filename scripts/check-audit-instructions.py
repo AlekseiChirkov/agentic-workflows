@@ -7322,5 +7322,72 @@ class ReportEconomicsRegionTests(VerifyAssertions):
                     self.assert_silent(result)
 
 
+# ---------------------------------------------------------------------------
+# Separator rows without dashes, and the stricter terminology table separator
+# ---------------------------------------------------------------------------
+
+DASHLESS_SEPARATORS = ("| | |", "|:|:|", "|\t|\t|", "| :\t| :\t|")
+
+
+class SeparatorRowWithoutDashesTests(CandidateCase):
+    def test_separator_row_with_empty_or_colon_only_cells_is_not_a_unit(self) -> None:
+        content_row = "| Every audited file | keeps one row | here |"
+        lines = ["# S", "", "| | | | | | | | |", "| : | : | : | : |",
+                 "|:\t|:\t|:\t|:\t|:\t|:\t|:\t|:\t|", "|\t|\t|\t|\t|\t|\t|\t|\t|  ",
+                 content_row]
+        for path in ("rules/u-one.md", "rules/u-two.md"):
+            self.write_lines(path, lines)
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["duplicate_clusters"], [
+            cluster(1, " ".join(content_row.split()),
+                    [("rules/u-one.md", 7, 7), ("rules/u-two.md", 7, 7)]),
+        ])
+
+
+class StatementUnitSeparatorTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+    verify = VerifyTreeTests.verify
+    discovery_root = VerifyStatementUnitTests.discovery_root
+    verify_statements = VerifyStatementUnitTests.verify_statements
+
+    def test_separator_row_with_empty_or_colon_only_cells_starts_no_statement_unit(
+            self) -> None:
+        for index, separator in enumerate(DASHLESS_SEPARATORS):
+            with self.subTest(separator=repr(separator)):
+                fixture, assessment = self.discovery_root(
+                    f"dashless{index}", "# Phase discovery\n\n## Codebase Reading Rules\n\n"
+                    f"| Rule | Meaning |\n{separator}\n| Read once | Every file |\n")
+                self.assert_silent(self.verify_statements(fixture, assessment, [5, 7]))
+                self.assert_reports(self.verify_statements(fixture, assessment, [5, 7, 6]),
+                                    [("req21-invalid", assessment_at("req21.statements[2]"))])
+
+
+class TerminologySeparatorTests(MigrationMapCase):
+    write_spec = VerifyAmendmentFormTests.write_spec
+
+    def test_terminology_table_needs_dashes_in_its_separator_row(self) -> None:
+        for separator in ("| | |", "|:|:|"):
+            with self.subTest(separator=separator):
+                self.setUp()
+                self.write_spec(SPEC09_TEXT.replace("|---|---|", separator))
+                amendment = self.add_amendment(target="Terminology:Kind prefix",
+                                               current="| Kind prefix | The first stem component |")
+                self.assert_reports(self.verify(), [("amendment-target-unknown",
+                                                     assessment_at(amendment))])
+
+    def test_terminology_separator_with_alignment_colons_keeps_the_table(self) -> None:
+        for separator in ("|:---|---:|", "| :---: | --- |"):
+            with self.subTest(separator=separator):
+                self.setUp()
+                self.write_spec(SPEC09_TEXT.replace("|---|---|", separator))
+                self.add_amendment(target="Terminology:Kind prefix",
+                                   current="| Kind prefix | The first stem component |")
+                self.assert_silent(self.verify())
+
+
 if __name__ == "__main__":
     unittest.main()
