@@ -1,0 +1,23 @@
+.ai/memory/architecture.md
+  s_96afdcfd38c67e::t_5344fdf3a60f19 303-308
+docs/USAGE.md
+  s_96afdcfd38c67e::t_5b929ec2f95d3c 986-997
+scripts/state-tool.py
+  s_96afdcfd38c67e::t_41a2001de8ebae 49-54,243-245,247-248,250,1801-1804,1833-1834,1862-1863,1865-1866
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c2980b2fec1ca239a3d13e231d1058ca64ae21d7",
+  "prompts": {},
+  "sessions": {
+    "s_96afdcfd38c67e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f3ac193-9977-473b-b9f7-3df06f485ee7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
