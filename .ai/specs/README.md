@@ -21,12 +21,15 @@ The review does not certify a fresh full suite or deployed installations.
 Runtime task closure is administrative. Warning-fixture, identity-scan and source-guard
 changes are integrated; concurrent acceptance execution, opt-in timing, an additional
 identity-output I/O correction and comparative performance acceptance remain undelivered.
-Deleted experimental branch names do not count as delivery. No task is currently active;
-07 was scheduled by the owner on 2026-11-13 (ADR-0021) and delivered on 2026-11-16 on stacked pull requests awaiting merge; the other roadmap items require their own implementation work.
+Deleted experimental branch names do not count as delivery. The dated review above remains
+historical evidence. The state tool was merged and archived on 2026-11-16, as recorded in
+[progress](../memory/progress.md). Current active work is listed in
+[task state](../memory/state.md); the rules/workflows audit remains separately scheduled
+and the post-merge closure implementation below does not advance other roadmap scope.
 
 ## Owner-scheduled post-merge closure
 
-On 2026-11-17 the owner approved [task finalization](24-task-finalization.md) as a separate development task, outside the earlier roadmap ordering. Implementation is local and in progress on the multi-repository support dependency. It does not advance unrelated roadmap scope or authorize deployment. Current execution evidence lives in [task state](../tasks/todo/task-24-task-finalization/state.md).
+On 2026-11-17 the owner approved [task finalization](24-task-finalization.md) as a separate development task, outside the earlier roadmap ordering. Implementation was independently validated locally on 2026-11-18 on the pinned multi-repository support dependency: full validator 725/0/2 and all 156 finalization acceptance tests passed; staged provider outputs were generated in isolation. Integration, live synchronization and this task's own finalization remain owner-controlled follow-ups. It does not advance unrelated roadmap scope or authorize deployment. Current execution evidence lives in [task state](../tasks/todo/task-24-task-finalization/state.md).
 
 ## Nine token optimization workstreams
 

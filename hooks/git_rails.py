@@ -3188,7 +3188,7 @@ def finalization_transport(invocation: Invocation, context: Context) -> dict:
     return {'name': 'origin', **values}
 
 
-def finalization_pr(candidate: dict, integration: dict, invocation: Invocation, context: Context) -> bool:
+def finalization_pr(candidate: dict, integration: dict, invocation: Invocation, context: Context, repository: dict) -> bool:
     """A journal-bound authoritative merged PR must identify the exact original delivery."""
     receipt = candidate.get('pr_receipt')
     if not isinstance(receipt, dict):
@@ -3196,11 +3196,38 @@ def finalization_pr(candidate: dict, integration: dict, invocation: Invocation, 
     url = receipt.get('url')
     origin = finalization_git(['config', '--get', 'remote.origin.url'], invocation, context)
     identity = re.fullmatch(r'(?:https://github\.com/|git@github\.com:)([^/]+/[^/]+?)(?:\.git)?', origin.stdout.strip())
-    if identity is None or not isinstance(url, str):
+    canonical = identity[1] if identity else None
+    if identity is None:
+        binding = repository.get('hosting_identity')
+        configured = origin.stdout.strip()
+        alias = re.fullmatch(r'(?:[^@/:]+@)?([A-Za-z0-9][A-Za-z0-9.-]*):([^/]+/[^/]+?)(?:\.git)?', configured)
+        if alias is None:
+            parsed = urllib.parse.urlsplit(configured)
+            if parsed.scheme == 'ssh' and parsed.hostname and not parsed.query and not parsed.fragment:
+                alias = re.fullmatch(r'([A-Za-z0-9][A-Za-z0-9.-]*):([^/]+/[^/]+?)(?:\.git)?',
+                                     parsed.hostname + ':' + parsed.path.lstrip('/'))
+        if alias is None or not isinstance(binding, dict) or receipt.get('hosting_identity') != binding:
+            return False
+        canonical = alias[2]
+        resolution = binding.get('resolution', {})
+        metadata = resolution.get('repository_response', {})
+        if not (binding.get('host') == 'github.com' and binding.get('configured_origin') == configured
+                and binding.get('repository') == canonical and binding.get('remote_identity') == repository.get('remote_identity')
+                and resolution.get('kind') == 'ssh-alias' and resolution.get('ssh_argv') == ['ssh', '-G', alias[1]]
+                and type(resolution.get('ssh_exit_code')) is int and resolution['ssh_exit_code'] == 0
+                and resolution.get('resolved_hostname') in {'github.com', 'ssh.github.com'}
+                and resolution.get('repository_argv') == ['gh', 'repo', 'view', 'https://github.com/' + canonical, '--json', 'url,nameWithOwner']
+                and type(resolution.get('repository_exit_code')) is int and resolution['repository_exit_code'] == 0
+                and isinstance(metadata, dict) and isinstance(metadata.get('url'), str)
+                and metadata['url'].casefold() == ('https://github.com/' + canonical).casefold()
+                and isinstance(metadata.get('nameWithOwner'), str) and metadata['nameWithOwner'].casefold() == canonical.casefold()
+                and isinstance(resolution.get('provenance'), str) and resolution['provenance']):
+            return False
+    if canonical is None or not isinstance(url, str):
         return False
     match = re.fullmatch(r'https://github\.com/([^/]+/[^/]+)/pull/[1-9][0-9]*', url)
     merged_at = datetime.fromisoformat(str(receipt.get('merged_at')).replace('Z', '+00:00'))
-    return bool(origin.returncode == 0 and match and match[1].casefold() == identity[1].casefold()
+    return bool(origin.returncode == 0 and match and match[1].casefold() == canonical.casefold()
                 and receipt.get('repository') == invocation.repository and receipt.get('state') == 'MERGED'
                 and receipt.get('head_ref') == candidate['branch'] and receipt.get('head_sha') == candidate['original_tip']
                 and receipt.get('base_ref') == integration['branch'] and merged_at.tzinfo is not None
@@ -3240,18 +3267,20 @@ def finalization_bound(path: str, name: str, kind: str, invocation: Invocation, 
     finalization_require(len(repositories) == 1)
     repository = repositories[0]
     finalization_require(repository['common_dir'] == receipt['common_dir'] and repository['integration'] == receipt['integration']
-                         and repository['candidates'] == receipt['candidates'] and repository['candidates']
-                         and repository.get('remote_identity') == finalization_transport(invocation, context))
+                         and repository['candidates'] == receipt['candidates'] and repository['candidates'])
+    transport = repository.get('remote_identity')
+    transport_fields = {'name', 'configured_fetch_urls', 'configured_push_urls', 'effective_fetch_urls', 'effective_push_urls'}
+    finalization_require(isinstance(transport, dict) and set(transport) == transport_fields and transport['name'] == 'origin')
+    for field in transport_fields - {'name'}:
+        finalization_require(isinstance(transport[field], list) and len(transport[field]) <= 1
+                             and all(isinstance(url, str) and url and not url.startswith('-')
+                                     and re.match(r'^[A-Za-z][A-Za-z0-9+.-]*::', url) is None for url in transport[field]))
+    finalization_require(transport['effective_fetch_urls'] == transport['effective_push_urls']
+                         and (bool(transport['configured_fetch_urls']) == bool(transport['effective_fetch_urls']))
+                         and (not transport['configured_push_urls'] or transport['configured_fetch_urls']))
     integration = repository['integration']
     finalization_require(valid_branch_name(integration['branch']) and integration['ref'] == BRANCH_PREFIX + integration['branch']
-                         and finalization_sha(integration['tip'])
-                         and branch_tip(integration['branch'], invocation, context) == integration['tip']
-                         and current_branch(invocation, context) == integration['ref'])
-    patterns = local_protected_branches(invocation, context)
-    finalization_require(patterns is not None)
-    worktrees = finalization_git(['worktree', 'list', '--porcelain'], invocation, context)
-    dirty = finalization_git(['status', '--porcelain', '--untracked-files=no'], invocation, context)
-    finalization_require(worktrees.returncode == 0 and dirty.returncode == 0 and not dirty.stdout.strip())
+                         and finalization_sha(integration['tip']))
     candidates = repository['candidates']
     finalization_require(len({row['branch'] for row in candidates}) == len(candidates))
     for candidate in candidates:
@@ -3259,18 +3288,10 @@ def finalization_bound(path: str, name: str, kind: str, invocation: Invocation, 
         finalization_require(valid_branch_name(branch) and branch != integration['branch']
                              and candidate['local_ref'] == BRANCH_PREFIX + branch and finalization_sha(original)
                              and candidate['expected_tip'] == original
-                             and not is_protected(candidate['local_ref'], (*patterns, integration['branch']))
-                             and 'branch ' + candidate['local_ref'] not in worktrees.stdout.splitlines()
-                             and branch_tip(branch, invocation, context) in (None, original)
                              and finalization_sha(candidate['base_commit'])
                              and isinstance(candidate['original_commits'], list) and candidate['original_commits']
                              and candidate['original_commits'][-1] == original
-                             and all(finalization_sha(sha) for sha in candidate['original_commits'])
-                             and all(finalization_ancestor(candidate['base_commit'], sha, invocation, context)
-                                     for sha in candidate['original_commits']))
-        ancestry = all(finalization_ancestor(sha, integration['tip'], invocation, context)
-                       for sha in candidate['original_commits'])
-        finalization_require(ancestry or finalization_pr(candidate, integration, invocation, context))
+                             and all(finalization_sha(sha) for sha in candidate['original_commits']))
     recovery = [row for row in journal['recovery'] if row['repository'] == invocation.repository]
     finalization_require(len(recovery) == 1 and receipt['recovery'] == recovery[0])
     finalization_pack(recovery[0], journal_path, str(invocation.repository),
@@ -3278,6 +3299,32 @@ def finalization_bound(path: str, name: str, kind: str, invocation: Invocation, 
     finalization_require(recovery[0]['branch_recovery_commands'] == [row['recovery_command'] for row in candidates]
                          and all(row['recovery_command'] == ['git', '-C', invocation.repository, 'branch', row['branch'], row['original_tip']]
                                  for row in candidates))
+    # Every loaded binding and recovery pack is validated above. A valid older
+    # generation is a contextual nonmatch, not a malformed journal that vetoes
+    # another task. Never suppress binding/schema/hash/recovery errors here.
+    if (repository.get('remote_identity') != finalization_transport(invocation, context)
+            or branch_tip(integration['branch'], invocation, context) != integration['tip']
+            or current_branch(invocation, context) != integration['ref']):
+        return False
+    patterns = local_protected_branches(invocation, context)
+    finalization_require(patterns is not None)
+    worktrees = finalization_git(['worktree', 'list', '--porcelain'], invocation, context)
+    dirty = finalization_git(['status', '--porcelain', '--untracked-files=no'], invocation, context)
+    finalization_require(worktrees.returncode == 0 and dirty.returncode == 0)
+    if dirty.stdout.strip():
+        return False
+    for candidate in candidates:
+        branch, original = candidate['branch'], candidate['original_tip']
+        if (is_protected(candidate['local_ref'], (*patterns, integration['branch']))
+                or 'branch ' + candidate['local_ref'] in worktrees.stdout.splitlines()
+                or branch_tip(branch, invocation, context) not in (None, original)
+                or not all(finalization_ancestor(candidate['base_commit'], sha, invocation, context)
+                           for sha in candidate['original_commits'])):
+            return False
+        ancestry = all(finalization_ancestor(sha, integration['tip'], invocation, context)
+                       for sha in candidate['original_commits'])
+        if not (ancestry or finalization_pr(candidate, integration, invocation, context, repository)):
+            return False
     matching: list[dict] = []
     for candidate in candidates:
         branch, original = candidate['branch'], candidate['original_tip']

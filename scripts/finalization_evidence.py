@@ -10,6 +10,8 @@ import subprocess
 import tempfile
 
 from finalization_support import Refusal, dated, digest, field, manifest, normalized_state, read_json, require, safe_path, section, text, visible_lines
+from finalization_knowledge import owns as owns_knowledge
+from finalization_attempts import receipt_is_newer
 
 SHA = re.compile(r'^[0-9a-f]{40}(?:[0-9a-f]{24})?$')
 BRANCH = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._/\-]*$')
@@ -190,8 +192,40 @@ def validation(state: str, task: Path) -> dict:
         require(inline and re.search(r'^Review:\s*complete', inline, re.M) and 'unresolved' not in inline.casefold(),
                 'approved-fix-unresolved', 'Quick approved inline fixes require independent resolution evidence')
     report = section(state, '## Execution Report')
-    require(re.search(r'Final verification:\s*PASS\b', report), 'validation-evidence-missing', 'Final verification after the last change is not recorded')
-    return {'flow': flow, 'source': 'recorded task contract/review/TDD evidence; no tests rerun', 'fresh_tests': False}
+    legacy = bool(re.search(r'Final verification:\s*PASS\b', report))
+    require(legacy or section(state, '## Final Verification'), 'validation-evidence-missing', 'Final verification after the last change is not recorded')
+    return {'flow': flow, 'source': 'recorded task contract/review/TDD evidence; no tests rerun',
+            'fresh_tests': False, 'requires_final_receipt': not legacy}
+
+
+def final_receipt(row: dict, root: Path, task: Path, repositories: list[dict], journal: dict | None) -> bool:
+    """Accept canonical verification only with exact dated independent execution evidence."""
+    expected = {repo['path']: repo['integration']['tip'] for repo in repositories}
+    hashes = {digest((task / 'state.md').read_bytes())}
+    if journal:
+        hashes.add(digest((Path(journal['snapshot_path']) / 'task/state.md').read_bytes()))
+    commands = row.get('commands')
+    if not (row.get('kind') == 'verification' and row.get('result') == 'pass'
+            and row.get('task_path') in {str(task), (journal or {}).get('task_original')}
+            and row.get('state_sha256') in hashes and row.get('source_tips') == expected
+            and receipt_is_newer(journal, 'verification', row)
+            and isinstance(row.get('provenance'), str) and len(row['provenance'].strip()) >= 8
+            and isinstance(row.get('coverage'), str) and row['coverage'].strip()
+            and isinstance(commands, list) and commands):
+        return False
+    if not all(isinstance(command, dict) and isinstance(command.get('argv'), list) and command['argv']
+               and all(isinstance(word, str) for word in command['argv']) and type(command.get('exit_code')) is int
+               and command['exit_code'] == 0 and isinstance(command.get('stdout'), str) and isinstance(command.get('stderr'), str)
+               for command in commands):
+        return False
+    reuse = row.get('reuse')
+    if reuse is not None:
+        original_hash = digest((Path(journal['snapshot_path']) / 'task/state.md').read_bytes()) if journal else digest((task / 'state.md').read_bytes())
+        original_tips = {repo['path']: repo['candidates'][-1]['original_tip'] for repo in repositories}
+        return (isinstance(reuse, dict) and reuse.get('permitted') is True
+                and reuse.get('original_state_sha256') == original_hash and reuse.get('validated_tips') == original_tips
+                and isinstance(reuse.get('limitations'), str) and len(reuse['limitations']) >= 12)
+    return True
 
 
 def evidence_file(path: Path | None) -> dict:
@@ -212,27 +246,64 @@ def fixture_authority(root: Path, repo: Path, evidence: dict) -> bool:
             and git(repo, 'config', '--get', 'orchestrail.fixture', codes=(0, 1)) == 'true')
 
 
-def github_repository(repo: Path) -> str:
-    """Resolve canonical PR numbers only from this repository's configured origin."""
+def github_repository(repo: Path) -> tuple[str, dict]:
+    """Bind PR identity to origin, using the GitHub CLI's SSH translation mechanism."""
     from urllib.parse import urlsplit
-    urls = git(repo, 'config', '--get-all', 'remote.origin.url', codes=(0, 1)).splitlines()
+    import json
+    require(not os.environ.get('GH_REPO') and not os.environ.get('GH_HOST'),
+            'pr-authority-unverified', 'Repository/host environment overrides cannot select PR authority')
+    transport = remote_identity(repo)
+    urls = transport['configured_fetch_urls']
     require(len(urls) == 1, 'pr-authority-unverified', 'A unique GitHub origin identity is required for PR evidence')
     remote = urls[0]
-    scp = re.fullmatch(r'(?:[^@/:]+@)?github\.com:([^/]+)/([^/]+)', remote, re.I)
+    scp = re.fullmatch(r'(?:[^@/:]+@)?([^/:]+):([^/]+)/([^/]+)', remote)
     if scp:
-        owner, project = scp.groups()
+        host, owner, project = scp.groups()
+        scheme = 'ssh'
     else:
         parsed = urlsplit(remote)
-        require(parsed.scheme in {'https', 'ssh'} and parsed.hostname == 'github.com' and not parsed.query and not parsed.fragment,
+        require(parsed.scheme in {'https', 'ssh'} and parsed.hostname and not parsed.query and not parsed.fragment,
                 'pr-authority-unverified', 'Configured origin is not a supported GitHub repository identity')
         parts = parsed.path.strip('/').split('/')
         require(len(parts) == 2, 'pr-authority-unverified', 'Configured GitHub origin has no exact owner/repository identity')
         owner, project = parts
+        host, scheme = parsed.hostname, parsed.scheme
     if project.endswith('.git'):
         project = project[:-4]
     require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9-]*', owner) and re.fullmatch(r'[A-Za-z0-9_.-]+', project)
             and project not in {'.', '..'}, 'pr-authority-unverified', 'Configured origin has an invalid GitHub identity')
-    return owner + '/' + project
+    require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]{0,252}', host),
+            'pr-authority-unverified', 'Configured SSH host is not a safe hostname')
+    identity = owner + '/' + project
+    resolution: dict = {'kind': 'literal-origin'}
+    if host.casefold() != 'github.com':
+        require(scheme == 'ssh', 'pr-authority-unverified', 'Configured origin is not hosted on GitHub')
+        # cli/go-gh pkg/ssh/ssh.go uses ssh -G, then normalizes ssh.github.com.
+        translated = process(['ssh', '-G', host], repo)
+        hosts = re.findall(r'^hostname\s+(\S+)\s*$', translated.stdout, re.M)
+        require(translated.returncode == 0 and len(hosts) == 1
+                and hosts[0].casefold() in {'github.com', 'ssh.github.com'},
+                'pr-authority-unverified', 'SSH alias has no authoritative GitHub hostname translation')
+        # An explicit canonical URL avoids gh's upstream/default-remote selection.
+        observed = process(['gh', 'repo', 'view', 'https://github.com/' + identity,
+                            '--json', 'url,nameWithOwner'], repo)
+        require(observed.returncode == 0, 'pr-authority-unverified', 'Repository authority read is unavailable')
+        try:
+            row = json.loads(observed.stdout)
+        except ValueError as error:
+            raise Refusal('pr-authority-unverified', 'Invalid GitHub repository identity response') from error
+        require(isinstance(row, dict) and isinstance(row.get('url'), str)
+                and row['url'].casefold() == ('https://github.com/' + identity).casefold()
+                and isinstance(row.get('nameWithOwner'), str) and row['nameWithOwner'].casefold() == identity.casefold(),
+                'pr-repository-mismatch', 'Repository authority response differs from the configured origin')
+        resolution = {'kind': 'ssh-alias', 'ssh_argv': ['ssh', '-G', host], 'ssh_exit_code': translated.returncode,
+                      'resolved_hostname': hosts[0].casefold(), 'repository_argv': ['gh', 'repo', 'view',
+                      'https://github.com/' + identity, '--json', 'url,nameWithOwner'],
+                      'repository_exit_code': observed.returncode, 'repository_response': row,
+                      'provenance': 'fresh exact-origin SSH translation and explicit canonical repository authority'}
+    require(remote_identity(repo) == transport, 'remote-identity-changed', 'Origin changed during repository authority resolution')
+    return identity, {'host': 'github.com', 'repository': identity, 'configured_origin': remote,
+                      'remote_identity': transport, 'resolution': resolution}
 
 
 def pr_evidence(root: Path, repo: Path, candidate: dict, target: dict, evidence: dict, *, proof_required: bool = True) -> dict | None:
@@ -246,7 +317,7 @@ def pr_evidence(root: Path, repo: Path, candidate: dict, target: dict, evidence:
         receipt['provenance'] = 'controlled-fixture; isolated repository only'
         expected_url = original
     else:
-        identity = github_repository(repo)
+        identity, hosting = github_repository(repo)
         numbered = re.fullmatch(r'#([1-9][0-9]*) (?:draft|ready)', original)
         explicit = re.fullmatch(r'https://github\.com/([^/]+/[^/]+)/pull/([1-9][0-9]*)', original)
         require(numbered is not None or explicit is not None, 'pr-authority-unverified', 'PR reference must be canonical #N draft/#N ready or a GitHub PR URL')
@@ -265,6 +336,7 @@ def pr_evidence(root: Path, repo: Path, candidate: dict, target: dict, evidence:
         require(isinstance(row.get('url'), str) and row['url'].casefold() == expected_url.casefold(),
                 'pr-repository-mismatch', 'Authoritative PR response belongs to another repository or number')
         receipt = {'url': row.get('url'), 'repository': str(repo), 'repository_identity': identity,
+                   'hosting_identity': hosting,
                    'head_ref': row.get('headRefName'), 'head_sha': row.get('headRefOid'),
                    'base_ref': row.get('baseRefName'), 'state': row.get('state'),
                    'merge_commit': (row.get('mergeCommit') or {}).get('oid'), 'merged_at': row.get('mergedAt'),
@@ -437,7 +509,7 @@ def owned_metadata_change(root: Path, repo: Path, relative: str, journal: dict |
     for plan in journal.get('archive_intent', {}).get('current_links', []):
         if path == root / plan['path'] and path.is_file():
             return digest(path.read_bytes()) in {plan['before_sha256'], plan['after_sha256']}
-    return False
+    return owns_knowledge(root, path, journal)
 
 
 def assess(root: Path, task: Path, spec: Path, evidence: dict, journal: dict | None = None) -> dict:
@@ -598,9 +670,21 @@ def assess(root: Path, task: Path, spec: Path, evidence: dict, journal: dict | N
                                 'command': ['git', '-C', str(repo), 'push', '--force-with-lease=' + candidate['remote_ref'] + ':' + candidate['expected_remote_tip'], 'origin', ':' + candidate['remote_ref']]})
         repositories.append({'name': entry['name'], 'path': str(repo), 'common_dir': str(common), 'integration': target,
                              'remote_identity': transport,
+                             'hosting_identity': next((receipt['hosting_identity'] for candidate in candidates
+                                  for receipt in candidate['pr_receipts'] if 'hosting_identity' in receipt), None),
                              'protected': protected, 'current_branch': current, 'remote_evidence': 'live ls-remote' if remote_configured else 'origin not configured',
                              'candidates': candidates})
+    # Reach every integration checkout first, then retain local recovery refs until
+    # their matching remote cleanup has been attempted. Stable order preserves each
+    # repository's checkout-before-refresh dependency and its candidate order.
+    priority = {'checkout': 0, 'refresh': 0, 'remote-delete': 1, 'local-delete': 2}
+    actions.sort(key=lambda action: priority[action['kind']])
+    if validation_info.pop('requires_final_receipt', False):
+        rows = evidence.get('attestations', []) + list((journal or {}).get('attestations', {}).values())
+        require(any(isinstance(row, dict) and final_receipt(row, root, task, repositories, journal) for row in rows),
+                'validation-evidence-missing', 'Canonical Final Verification requires dated task/state/source-bound successful command receipts and coverage')
+        validation_info['source'] = 'recorded contract/review/TDD and independent source-bound final verification receipt; no tests rerun'
     return {'repositories': repositories, 'actions': actions, 'validation_evidence': validation_info,
-            'outcomes': {'validation': 'complete', 'integration': 'complete', 'checkout': 'complete' if not any(a['kind'] == 'checkout' for a in actions) else 'incomplete',
+            'outcomes': {'validation': 'complete', 'integration': 'complete', 'checkout': 'complete' if not any(a['kind'] in {'checkout', 'refresh'} for a in actions) else 'incomplete',
                          'cleanup': 'incomplete' if any(a['kind'].endswith('delete') for a in actions) else 'complete', 'knowledge': 'unverified', 'archival': 'incomplete',
                          'audit': 'unverified', 'deployment': 'unverified'}}

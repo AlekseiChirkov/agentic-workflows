@@ -14,7 +14,8 @@ appears in a rule.
 | **Principle** | An engineering standard in `principles/`; deployed as a global rule and a `principle-<name>` skill. |
 | **Spec** | The immutable task statement, `.ai/specs/<NN>-<slug>.md`; H1 title required; only `/spec-sync` may edit it after Discovery starts. |
 | **Task directory** | `.ai/tasks/todo/task-<NN>-<slug>/` holding `state.md`, `plan.md`, `state-archive.md`, and `T-XX-<slug>/description.md` per subtask. |
-| **Phase** | Discovery, Execution, or Validation. Each is a separate command; transitions are human-initiated except under `/phase-pipeline` and `/spec-run`. |
+| **Phase** | Discovery, Execution, Validation, or separately invoked post-merge Finalization. Existing autonomous parents advance only through Validation; transitions into Finalization remain owner-initiated. |
+| **Finalization** | Evidence-backed closure of one validated development task after integration, with mandatory safe cleanup, current knowledge reconciliation and lossless archival; it does not close the whole product or imply deployment. |
 | **Atomic cycle** | The per-subtask sequence: atomic execution (`pae-tests` → `pae-implement` → `pae-finalize`) then atomic validation (`pav-check` → `pav-propose` → `pav-close`). |
 | **Leaf** | A subtask with no children; the unit that runs an atomic cycle. |
 | **Composite (Type 2)** | A subtask owning leaf children `T-XXa…`; has integration-level Acceptance Criteria checked by `/phase-composite-validation`; never nested (depth-2 cap). |

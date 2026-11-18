@@ -7,7 +7,9 @@ import os
 from pathlib import Path
 import re
 
-from finalization_support import Refusal, atomic_write, digest, encoded, field, fsync_dir, manifest, normalized_state, read_json, require, safe_path, text
+from finalization_support import Refusal, atomic_write, digest, encoded, field, fsync_dir, manifest, normalized_state, read_json, require, safe_path, section, text
+from finalization_knowledge import integrity as knowledge_integrity
+from finalization_outputs import integrity as outputs_integrity
 
 
 def identity(root: Path, original_task: Path) -> str:
@@ -124,7 +126,10 @@ def snapshot(root: Path, task: Path, spec: Path, directory: Path) -> dict:
     return {'task_files': task_files, 'task_directories': task_directories, 'spec_sha256': digest(spec.read_bytes())}
 
 
-def integrity(root: Path, task: Path, spec: Path, journal: dict) -> None:
+def integrity(root: Path, task: Path, spec: Path, journal: dict, *, indexes: bool = True,
+              current_knowledge: bool = True) -> None:
+    knowledge_integrity(root, journal, indexes=indexes, current=current_knowledge)
+    outputs_integrity(root, journal)
     recovery = safe_path(Path(journal['snapshot_path']), root)
     original = journal['manifest']['task_files']
     actual = manifest(task)
@@ -187,11 +192,20 @@ def spec_eligible(root: Path, task: Path, spec: Path, journal: dict) -> tuple[bo
                 return False, 'active-other-phases'
             if active:
                 require(active.isdigit(), 'spec-phase-invalid', 'Invalid recorded active phase')
+            phases_section = section(state, '## Phases')
+            for marker in ('execution', 'validation'):
+                recorded = re.findall(r'^- ' + marker + r':\s*(.*?)\s*$', phases_section, re.M)
+                if recorded != ['complete']:
+                    return False, 'phase-completion-unverified'
+            if active:
                 completed_phases.add(int(active))
             if re.search(r'^- (?:execution|validation): (?!complete\s*$)', state, re.M):
                 return False, 'active-other-phases'
             if re.search(r'^\s*\|.*\|\s*(?:deferred|blocked|not-reached)\s*\|', text(state_path.parent / 'plan.md') if (state_path.parent / 'plan.md').exists() else '', re.M):
                 return False, 'unfinished-scope'
+            for heading in ('## Deferred', '## Outstanding Scope'):
+                if section_nonempty(state, heading):
+                    return False, 'unfinished-scope'
     if phases and not phases <= completed_phases:
         return False, 'active-other-phases'
     # Explicit outstanding requirements remain product scope, even with validation complete.
