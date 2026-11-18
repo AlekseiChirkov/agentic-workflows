@@ -46,11 +46,12 @@ listed in stale_temp_files and are never read as state or deleted. get and valid
 the project memory file .ai/memory/state.md under the root and add the warning
 memory-state-mismatch when a line under its ## Active Tasks or ## Done heading that names the
 task directory claims a number of reviewed leaves ("all ten leaves reviewed", "9 of 10 leaves
-reviewed") other than the leaf blocks whose atomic-validation is complete, or a pull request
-range #A–#B holding the pr of a leaf whose atomic-validation is not complete (numbers no leaf
-records are ignored); the file is read only when it is a regular file reached without a
-symbolic link, of at most 1 MiB of UTF-8, otherwise nothing is compared, and the warning never
-changes the exit code. For tests only,
+reviewed"; a number after a dash, a letter or another number word is no claim) other than the
+leaf blocks whose atomic-validation is complete, or a pull request range #A–#B holding any pr
+number of a leaf whose atomic-validation is not complete (numbers no leaf records are
+ignored); the file is read only when it is a regular file reached without a symbolic link, of
+at most 1 MiB of UTF-8, on a platform that can refuse links, otherwise nothing is compared,
+and the warning never changes the exit code. For tests only,
 STATE_TOOL_TEST_FAULT set to kill-before-replace or kill-after-replace kills the tool after
 its temporary file is synced or after the rename, and pause-before-recheck pauses it before
 the recheck until the file named by STATE_TOOL_TEST_RESUME exists (at most 10 s); any other
@@ -239,11 +240,14 @@ try:
         ("one two three four five six seven eight nine ten eleven twelve thirteen fourteen "
          "fifteen sixteen seventeen eighteen nineteen twenty").split(), 1)}
     CLAIM_NUMBER = r"([0-9]{1,9}|" + "|".join(NUMBER_WORDS) + r")"
-    # A count claim starts after neither a hyphen nor a word character: "twenty-one" is no "one".
-    REVIEWED_CLAIM = re.compile(r"(?<![A-Za-z0-9_-])(all )?" + CLAIM_NUMBER + r"(?: of "
+    # A count claim starts after neither a dash nor a word character, nor after a number word and
+    # a space: "twenty-one", "twenty–one" and "twenty one" are no "one".
+    REVIEWED_CLAIM = re.compile(r"(?<![A-Za-z0-9_–-])(all )?" + CLAIM_NUMBER + r"(?: of "
                                 + CLAIM_NUMBER + r")? leaves reviewed\b", re.IGNORECASE)
+    AFTER_NUMBER_WORD = re.compile(r"(?<![A-Za-z])(?:" + "|".join(NUMBER_WORDS) + r") $",
+                                   re.IGNORECASE)
     PR_RANGE = re.compile(r"#([0-9]{1,9})[–-]#?([0-9]{1,9})(?![0-9])")
-    LEAF_PR = re.compile(r"\s*#([0-9]{1,9})(?![0-9])")
+    LEAF_PR = re.compile(r"#([0-9]{1,9})(?![0-9])")
 
 
     class ToolError(Exception):
@@ -1794,12 +1798,11 @@ try:
         MEMORY_LIMIT_BYTES of UTF-8 reached without a symbolic link. Each directory below the root
         is opened relative to its parent without following a link, so a link swapped in while the
         path is walked is refused as well; no open blocks."""
-        directory_flags = (os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
-                           | getattr(os, "O_NOFOLLOW", 0))
-        file_flags = (os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        if os.open not in os.supports_dir_fd or not hasattr(os, "O_NOFOLLOW"):
+            return None  # Without both, a link on the path cannot be refused.
+        directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | os.O_NOFOLLOW
+        file_flags = (os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0)
                       | getattr(os, "O_BINARY", 0))
-        if os.open not in os.supports_dir_fd:
-            return None
         directories: list[int] = []
         try:
             directories.append(os.open(root, directory_flags))
@@ -1827,7 +1830,8 @@ try:
     def memory_entries(text: str, directory: str) -> list[str]:
         """Lines under the active and done task headings that name the task directory as a whole
         path word."""
-        names = re.compile(r"(?<![A-Za-z0-9_.-])" + re.escape(directory) + r"(?![A-Za-z0-9_-])")
+        names = re.compile(r"(?<![A-Za-z0-9_.-])" + re.escape(directory)
+                           + r"(?![A-Za-z0-9_.-])")
         entries = []
         registry = False
         for line in text.split("\n"):
@@ -1855,10 +1859,11 @@ try:
                 reviewed.append(block)
                 continue
             for group in block.groups:
-                match = LEAF_PR.match(group.value) if group.name == "pr" else None
-                if match:
-                    pending.add(int(match.group(1)))
+                if group.name == "pr":
+                    pending.update(int(number) for number in LEAF_PR.findall(group.value))
         for match in REVIEWED_CLAIM.finditer(entry):
+            if AFTER_NUMBER_WORD.search(entry, 0, match.start()):
+                continue
             everything, claimed, total = match.groups()
             if (claim_number(claimed) != len(reviewed)
                     or (everything and len(reviewed) != len(leaves))
