@@ -5998,5 +5998,55 @@ class AuditScopeNoteTests(unittest.TestCase):
                     index -= 1
                 self.assertIn("specific to this audit", " ".join(comments).lower())
 
+OVERLONG_DIGITS = 4301
+
+
+class VerifyEvidenceResolutionLimitTests(SharedVerifyCase):
+    def evidence_case(self, key: str, identifier: str, evidence: list[str]
+                      ) -> tuple[subprocess.CompletedProcess[str], str]:
+        """Verify the valid assessment with the evidence of one files row (by path),
+        finding or amendment (by id) replaced; return the result and that row's location."""
+        self.assessment = valid_assessment(self.inventory)
+        field = "path" if key == "files" else "id"
+        index = row_index(self.assessment[key], field, identifier)
+        self.assessment[key][index]["evidence"] = evidence
+        location = assessment_at(f"files[{index}]" if key == "files" else identifier)
+        return self.verify(), location
+
+    def test_line_number_too_long_to_convert_is_a_line_outside_its_entry(self) -> None:
+        long_number = "9" * OVERLONG_DIGITS
+        cases = {
+            "files row line": ("files", DELTA, [f"{DELTA}:{long_number}"]),
+            "finding range end": ("findings", "AUD-08-003",
+                                  [f"{GAMMA}:5", f"{GAMMA}:1-{long_number}"]),
+            "finding range start": ("findings", "AUD-08-004", [f"{GAMMA}:{long_number}-6"]),
+            "amendment line": ("amendments", "AMD-08-01",
+                               ["AUD-08-001", f"{BETA}:{'1' * 5000}"]),
+            "ten-digit line": ("findings", "AUD-08-004", [f"{GAMMA}:1234567890"]),
+        }
+        for name, (key, identifier, evidence) in cases.items():
+            with self.subTest(case=name):
+                result, location = self.evidence_case(key, identifier, evidence)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assert_reports(result, [("evidence-unresolved", location)])
+
+    def test_finding_id_in_the_evidence_of_a_finding_is_a_bare_path_that_is_unresolved(
+            self) -> None:
+        cases: dict[str, tuple[str, str, list[str], list[str]]] = {
+            "unknown finding id beside a line and an amendment id": (
+                "findings", "AUD-08-002", [f"{GUIDE}:1", "AMD-08-01", "AUD-08-999"],
+                ["evidence-unresolved"]),
+            "existing finding id": ("findings", "AUD-08-002", [f"{GUIDE}:1", "AUD-08-001"],
+                                    ["evidence-unresolved"]),
+            "unknown amendment id in a finding": (
+                "findings", "AUD-08-002", [f"{GUIDE}:1", "AMD-08-99"], ["reference-unknown"]),
+            "unknown finding id in an amendment": (
+                "amendments", "AMD-08-01", ["AUD-08-001", "AUD-08-099"], ["reference-unknown"]),
+        }
+        for name, (key, identifier, evidence, codes) in cases.items():
+            with self.subTest(case=name):
+                result, location = self.evidence_case(key, identifier, evidence)
+                self.assert_reports(result, [(code, location) for code in codes])
+
 if __name__ == "__main__":
     unittest.main()
