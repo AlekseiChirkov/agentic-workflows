@@ -5,7 +5,7 @@ flow: full
 ## Phases
 - discovery: complete
 - execution: complete
-- validation: complete
+- validation: in-progress
 
 ## Task Analysis
 
@@ -404,7 +404,7 @@ T-10 | Index, knowledge and review line | atomic-tests: n-a | atomic-execution: 
   target_files: docs/README.md, scripts/README.md, .ai/context/runbook.md, .ai/memory/architecture.md, .ai/memory/state.md, .ai/memory/progress.md, docs/audits/<run_date>-rules-workflows-audit.md
   blocker: none
   notes:
-         tdd: none — unit: no function or module changes, the edits are Markdown lines in two indexes, the runbook, the memory files and the report's review line; integration: `verify` accepts `Reviewed: pending` and a pass line alike, so no run of the tool against the report fails before the change; contract: no validator check or schema reads these index, runbook, memory or review lines, and the spec forbids registering one; smoke: the delivery adds no runnable path or command, only text naming existing ones, so no smoke check can fail before the change and pass after it
+         tdd: none — unit: no function or module changes, the edits are Markdown lines in two indexes, the runbook, the memory files and the report's review line; integration: `verify` accepts `Reviewed: pending` and a pass line alike, so no run of the tool against the report fails before the change; contract: no validator check or schema checks the content of these index, runbook, memory or review lines, and the spec forbids registering one; smoke: the delivery adds no runnable path or command, only text naming existing ones, so no smoke check can fail before the change and pass after it
          deviation: the description planned smoke and integration, but no check at either level can fail before these edits; the result was verified instead by `verify --root . --report docs/audits/2026-11-17-rules-workflows-audit.md` exiting 0 with empty output, the standalone suite (212 tests OK) and the validator (721 passed, 0 failed, 2 skipped) at 04ae554, and the permitted-paths list against `488edb1`
          review verdict (from the T-09 block): pav-check DONE, independent Validator, second re-validation 2026-11-18, at 0add2fa; `git cat-file -e 0add2fad3323fc427546b94d62f07e0951d013a5^{commit}` exit 0; line matches DM-8 (`<role>` `Validator` fits `^[A-Za-z][A-Za-z0-9-]*$`, valid date, `pass`, 40-hex); `## Acceptance` keeps `Accepted: pending`; only the `Reviewed:` line of the report changed (outside the generated region)
          edits: docs/README.md — one line at the top of ``## Audits (`audits/`)``; scripts/README.md — rows for `audit-instructions.py` and `check-audit-instructions.py` (purpose, standalone use, outside the validator inventory); .ai/context/runbook.md → ## Commands — one note naming both commands; no pipeline identifier, `.ai/` path or absolute path in the product documents
@@ -510,6 +510,47 @@ T-12 | Fix: review follow-ups (blockers, evidence, runbook) | atomic-tests: gree
   commits: c2d6cc8 test(audit): require a two-way blockers check and resolvable evidence, fd61ad2 fix(audit): check the blockers list both ways and resolve evidence, fcba812 test(audit): bound evidence line numbers and reject finding ids as evidence, 4bbc47d fix(audit): bound evidence line numbers and resolve finding ids as paths
   pr: #116 ready
 
+
+T-13 | Fix: extraction edge cases (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  branch: fix/audit-extraction-edge-cases
+  base_branch: main
+  base_commit: 09fba91e313d5d6c905b997efd2d54cf1b251f39
+  commits:
+  pr: none
+  last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
+  target_files:
+  blocker: none
+  notes: source and decisions in `T-13-fix-extraction-edge-cases/description.md`
+
+T-14 | Fix: git isolation follow-ups and version matrix (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
+  target_files:
+  blocker: none
+  notes: source and decisions in `T-14-fix-git-isolation-follow-ups/description.md`
+
+T-15 | Fix: verify input and form rules (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
+  target_files:
+  blocker: none
+  notes: source and decisions in `T-15-fix-verify-input-and-form-rules/description.md`
+
+T-16 | Fix: output boundary and render (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
+  target_files:
+  blocker: none
+  notes: source and decisions in `T-16-fix-output-boundary-and-render/description.md`
+
+T-17 | Fix: audit output corrections and fresh review (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
+  target_files:
+  blocker: none
+  notes: source and decisions in `T-17-fix-audit-output-corrections/description.md`
+
+T-18 | Feat: state tool memory consistency warning (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
+  target_files:
+  blocker: none
+  notes: source and decisions in `T-18-feat-state-tool-memory-consistency-warning/description.md`
 
 ## Execution Report
 - T-01: reviewed — read-only `extract` of the deterministic inventory (audited set, readers, text model, git state); re-validated after one correction (unreadable roots, undecodable names, repository-configured git programs)
@@ -621,14 +662,18 @@ Split recorded automatically under the orchestrated-run override: critical and i
 
 ## Fix-Tasks
 fixes-created: complete
-fixes-count: 2
-Created: T-11-fix-git-read-isolation, T-12-fix-review-follow-ups
+fixes-count: 8
+Created: T-11-fix-git-read-isolation, T-12-fix-review-follow-ups, T-13-fix-extraction-edge-cases, T-14-fix-git-isolation-follow-ups, T-15-fix-verify-input-and-form-rules, T-16-fix-output-boundary-and-render, T-17-fix-audit-output-corrections, T-18-feat-state-tool-memory-consistency-warning
 
 ### Fix Classification
 | Issue | Severity | Gate 1 | Gate 2 | Gate 3 | Gate 4 | Grouping | Branch |
 |-------|----------|--------|--------|--------|--------|----------|--------|
 | #2 Git reads can fetch from the network or run filter programs | important | pass | pass | pass | pass | dedicated | T-11-fix-git-read-isolation |
 | #4, #5, #7 Runbook guarantee, two-way blockers check, evidence resolution | optional | pass | pass | pass | pass | grouped | T-12-fix-review-follow-ups |
+
+| Proposals T-01…T-12 (owner order 2026-11-18) | optional | pass | pass | pass | pass | grouped by area | T-13 … T-18 (stacked on main 09fba91) |
+
+Proposal follow-ups (2026-11-18): after merging PRs #105–#116 into main (09fba91) the owner ordered "apply all proposals now", extended spec 11's intake to every owner-11 finding (AUD-08-065) and accepted the report. A read-only planning pass classified every retained proposal: already delivered or superseded (T-01 P2, T-03 P2, T-04 P8, T-05 P3 code, T-07 Do Later 1–2, T-11 Optional 3, T-12 Optional 3 and 5, T-12 Do Later 1 DM-9 part), moot (T-10 Optional 1 and 3), the rest grouped into T-13–T-18; spec-text decisions (T-01 P4, P6; T-02 P2, P3, P5, P6; T-03 P5; T-04 P3–P5, P10; T-05 P3, P6; T-06 P2, P3, P5) are applied by `/spec-sync` of spec 08 after T-18 as D-05; T-09 Do Later (spec 09 restatement) is applied with the accepted amendments by `/spec-sync` of spec 09; T-10 Optional 2 and T-12 Do Later 1 criterion wording are orchestrator record edits. Three proposals named an owner choice; under the order to apply all, the recommended option was taken and recorded: T-06 P4 option (a) skip the generated region in the report economics scan; T-09 Do Later option (a) apply after acceptance; T-10 Do Later option (a) free-text heuristic. Delivery gate for every subtask: `verify` and `verify --strict` silent at 8d7e484 with the new tool and outputs overlaid; plain `verify` on the current tree prints exactly the 14 recorded `inventory-stale` lines.
 
 Gate notes: #2 is the only code fix, so it is dedicated; it touches the tool and its suite. #4, #5 and #7 (approved later by the owner) touch the same tool, its suite and the runbook note, so they form one group. Issues #1 and #3 are a specification record and a shared-file remedy applied by the orchestrator and have no fix-task.
 

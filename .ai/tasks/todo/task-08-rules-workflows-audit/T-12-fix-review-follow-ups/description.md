@@ -31,7 +31,7 @@
 - A listed finding id that is unknown or not blocking yields `blocker-extra` at its report line; a blockers section that breaks the `None.` rule yields `report-layout`; the delivered report yields neither.
 - An evidence item that does not resolve against the inventory's paths and line counts yields `evidence-unresolved`; every evidence item of the delivered assessment resolves.
 - The runbook note limits the silent-`verify` guarantee to the delivery commit and names the diagnostics a later tree may print; the module marks the two audit-specific constants.
-- `python3 -I scripts/check-audit-instructions.py` exits 0 with the earlier 228 tests unchanged except the list of diagnostic codes, which gains exactly the two new codes, and `verify --root . --report docs/audits/2026-11-17-rules-workflows-audit.md` exits 0 with empty output.
+- `python3 -I scripts/check-audit-instructions.py` exits 0 with the earlier 228 tests unchanged except the list of diagnostic codes, which gains exactly the two new codes, and the three amendments recorded in `notes:` (the "extra listed ids" case, the exact list of the blockers-unlisted case, the link evidence of `files_row`), and `verify --root . --report docs/audits/2026-11-17-rules-workflows-audit.md` exits 0 with empty output.
 
 ## Test Plan
 - **Level:** integration
