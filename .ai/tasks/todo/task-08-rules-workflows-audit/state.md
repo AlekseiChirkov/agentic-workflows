@@ -5,7 +5,7 @@ flow: full
 ## Phases
 - discovery: complete
 - execution: complete
-- validation: not-started
+- validation: in-progress
 
 ## Task Analysis
 
@@ -28,6 +28,7 @@ flow: full
 - Data-contract names that embed specification numbers (`blocks_09`, `in_spec09_grammar`, `spec09_default`, `spec09-unavailable`, `AUD-08-NNN`, `08-extract-1`) → used verbatim in the tool and outputs because the specification fixes them; comments, docstrings and test names state rules in words without requirement, criterion or specification labels (source: spec DM-1, DM-4, DM-7, DM-9; owner ruling of 2026-11-13 on specification labels in product code; P8).
 - Stack base → the stack is built on `feat/multi-repository-spec-run` (draft PR #104 into `main`, tip `488edb1`), not on `main`, so the audit covers the multi-repository changes to rules and workflows; that PR merges first. The permitted-changes check of the delivery is computed against `488edb1`, not `main` (source: user, 2026-11-17).
 - Absolute home paths in copied text → the tool rewrites `/home/<name>/` and `/Users/<name>/` to `~/` in every text it copies from audited files (full-output, harness-name and legacy `text`, duplicate unit text) before hashing, so outputs satisfy REQ-25/AC-22 and clusters stay intact; `method_version` stays `08-extract-1` because no output was ever produced under the unamended rule; DM-6 is amended by `/spec-sync` in Validation; the assessment records an `other` finding owned by `owner` for the absolute paths in `rules/global-claude.md` and `templates/codex-global-AGENTS.md` (source: user, 2026-11-17, question raised by T-03 during Execution).
+- Absolute paths other than home paths → REQ-25 and the Off-limits line "No absolute path … in any output or fixture" are narrowed to machine-specific home paths (`/home/<name>/`, `/Users/<name>/`); system paths copied verbatim from audited files (DM-6) and placeholder absolute paths in test fixtures (AC-27 needs one) are allowed; recorded by `/spec-sync` in task-level validation, with no code or output change (source: user, 2026-11-18, contract-check critical-failure gate).
 
 ## Open Questions (batch)
 None
@@ -436,6 +437,39 @@ T-10 | Index, knowledge and review line | atomic-tests: n-a | atomic-execution: 
 
 Summary: 10 of 10 leaves reviewed; none blocked, deferred or not reached. Suite `scripts/check-audit-instructions.py`: 212 tests OK at `04ae554`; the complete contract validator at `04ae554`: 721 passed, 0 failed, 2 skipped; `verify --root . --report docs/audits/2026-11-17-rules-workflows-audit.md` silent at the stack tip.
 spec-run: proposals retained for post-delivery review; no application (10 Do Now items across T-01–T-06 and T-09, plus Do Later and Optional items, all pending).
+
+## Contract Check
+
+### Invariants
+| Invariant | Status |
+|-----------|--------|
+| The tool writes only the `extract --out` file or the generated region under `render --write`, each by atomic replacement | PASS: the only write path is `write_atomically` (scripts/audit-instructions.py:1433-1454: mkstemp beside the target, fsync, os.replace, temporary file removed on failure), used by `run_extract` (:1463) and by render --write; verify writes nothing |
+| Two extractions of the same bytes and git state are byte-identical | PASS: fresh `extract` in a detached worktree of 8d7e484 equals the delivered inventory byte for byte (sha256 1bea9019…e183f9a); `verify --strict` there exits 0 |
+| Symbolic links are recorded and never followed; repository content is never executed or imported by the tool | PASS: lstat-based entry kinds and directory test (:305-319), O_NOFOLLOW reads (:324, :3250), `os.walk(followlinks=False)` (:406), `is_dir(follow_symlinks=False)` (:335); the only subprocess is `git` with an argument list, no shell, inherited GIT_* variables dropped, fsmonitor off and hooks redirected (:1315-1324); no importlib, exec or eval |
+| The assessment has one writer at a time, and every audited path has exactly one row in `files`, `coverage` and `map` | PASS: 61/61/61 entries, equal to the inventory's 61 audited paths with no duplicates (recomputed independently); verify silent on row-missing, row-extra and row-duplicate; the leaves wrote the assessment in sequence (T-07, then T-08, then T-09) |
+| Nothing obligatory is proposed for deletion; changes to the naming-migration specification exist only as amendments | PASS: map decisions are only keep, rename, split and move; the 7 amendments only extend or qualify text (AMD-08-01..07); `.ai/specs/09-*` is not in the delivery diff |
+| `bash scripts/validate-contracts.sh` stays at zero failures | PASS: 721 passed, 0 failed, 2 skipped at 04ae554; 04ae554..7c777af changes only wording in `.ai/memory/state.md` and task records |
+
+### Acceptance Criteria
+| Criterion | Status |
+|-----------|--------|
+| `python3 -I scripts/check-audit-instructions.py` exits 0, with at least one case per edge form, per status and per diagnostic code | PASS: 212 tests OK at 04ae554 (suite unchanged since); every one of the 43 DM-9 codes and every edge status occurs in the suite |
+| `verify --root . --report docs/audits/2026-11-17-rules-workflows-audit.md` exits 0 with empty output at the delivery commit | PASS: re-run at 7c777af, exit 0, empty |
+| A fresh extraction on a checkout of the inventory's `source_revision` equals the delivered inventory byte for byte | PASS: worktree at 8d7e484, `cmp` identical; `verify --strict` exit 0 |
+| The report holds `Reviewed: <role> <date> pass <commit>` and `Accepted: pending`, and names every blocking finding under its blockers heading | PASS: `Reviewed: Validator 2026-11-18 pass 0add2fa…` and `Accepted: pending`; all 9 `blocks_09: true` ids (AUD-08-001, 004, 005, 007, 033, 035, 036, 062, 063) are listed under the blockers heading |
+| Every changed path of the delivery is in the permitted-changes list, and the grep of the validator and sync prints nothing | PASS: `git diff --name-only 488edb1..HEAD` gives 13 paths, all in REQ-11 (base 488edb1 by the user's decision of 2026-11-17; the literal `merge-base main` form waits for PR #104); grep empty |
+| `bash scripts/validate-contracts.sh` reports zero failures | PASS: 721/0/2 at 04ae554 |
+| The index, script table, runbook note, inventory sentence and the two memory entries are present as the specification states | PASS: docs/README.md links the report under ``## Audits (`audits/`)``; scripts/README.md has one row per script; runbook `## Commands` note names both commands; architecture.md states 11 shell scripts and 35 Python helpers, equal to `ls scripts/*.sh` / `ls scripts/*.py`; `.ai/memory/state.md` Done entry and `.ai/memory/progress.md` 2026-11-18 entry both link the report |
+
+### Off-limits
+| Constraint | Status |
+|------------|--------|
+| `rules/`, `workflows/`, `harness/`, `templates/`, `principles/`, `hooks/`, `tests/`, `scripts/validate-contracts.sh`, `scripts/sync.sh`, every other existing script, every specification file | PASS: none appears in `git diff --name-only 488edb1..HEAD` |
+| `scripts/sync.sh`, installers, workflows and models are never run to produce the inventory | PASS: the tool's only subprocess is the git read commands; the inventory is reproduced by `extract` alone |
+| Installed copies under the user's home are never read or changed by the tool | PASS: the tool resolves no home or installed path; `installed_access: not-verified`, `installed: []` |
+| No absolute path and no former repository name in any output or fixture | FAIL: the former name and `/home/`, `/Users/` are absent from the outputs, but the inventory keeps `/usr/bin/sg` (inventory.json:146234, DUP-021 text) and a bare `/tmp` raw at :13736, :82407, :83245, :92683; the suite's fixtures hold `/home/someone/…`, `/Users/someone/…` (check-audit-instructions.py:1947-1951, 1978-1980), `/opt/skills/SKILL.md` (:2955) and `/abs/GUIDE.md` (:3194). Known (T-03 V2, V6; report Method) and accepted only by the orchestrator; the owner's decision of 2026-11-17 covers home prefixes only. AC-27 itself requires a non-`~/` location fixture, and DM-6 requires verbatim copied text, so the fix is a /spec-sync narrowing of REQ-25 and this line (T-03 P2), not a code change |
+
+### Critical Failures Decision: continue — owner decision 2026-11-18: the absolute-path Off-limits line and REQ-25 are narrowed by `/spec-sync` to machine-specific home paths; system paths copied verbatim from audited files and placeholder fixture paths are allowed; no code or output change
 
 ## Model Selection
 selection: complete
