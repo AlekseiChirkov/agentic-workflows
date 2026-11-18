@@ -508,7 +508,7 @@ T-12 | Fix: review follow-ups (blockers, evidence, runbook) | atomic-tests: gree
   base_branch: fix/audit-git-read-isolation
   base_commit: 5a7e2dcca8e4691dd28696e166010a8517e6323b
   commits: c2d6cc8 test(audit): require a two-way blockers check and resolvable evidence, fd61ad2 fix(audit): check the blockers list both ways and resolve evidence, fcba812 test(audit): bound evidence line numbers and reject finding ids as evidence, 4bbc47d fix(audit): bound evidence line numbers and resolve finding ids as paths
-  pr: none
+  pr: #116 draft
 
 
 ## Execution Report
@@ -569,6 +569,9 @@ spec-run: proposals retained for post-delivery review; no application (10 Do Now
 5. scripts/audit-instructions.py:3432-3443 — `blocker_rules` checks only that every `blocks_09: true` id appears under `## Blockers for spec 09`. It does not flag a listed id that no longer blocks, nor a section without `None.` when nothing blocks (DM-8: "names every finding with `blocks_09: true`, or `None.`"). Scenario: the owner rejects AMD-08-03/04/06/07, AUD-08-063 flips to `blocks_09: false`, the hand-written list still names it, and `verify` stays silent, so spec 09 is told a finding blocks it when it does not. Severity: optional.
 6. docs/audits/2026-11-17-rules-workflows-audit.inventory.json:82829 — the planning edge raw `rules/reference/12ktokens.md` (copied from this task's own state file) matches the DM-9 token pattern. REQ-03 forbids token counts in the inventory too, but `economics-claim` scans only the report and the assessment, so `verify` cannot see it. It is disclosed in the report's Method section (:171-173) and is a file name, not a claim. Closure: record the verbatim-copy exemption in the same /spec-sync as finding 1. Severity: optional.
 7. scripts/audit-instructions.py:2235-2242, :2676-2685 (and the `files[].evidence` schema) — `path:line` evidence is checked only for format, not for an existing path or a line in range. The report's Method claim of "current `path:line` evidence" (:143-144) is therefore not machine-verified. Re-checked by this review: all 595 items resolve at 8d7e484. Scenario: a later assessment edit cites `rules/tdd.md:999` and `verify` stays silent. Severity: optional.
+
+### Re-check after the follow-up fix (2026-11-18)
+Findings 4, 5 and 7 are fixed by T-12 (PR #116, independently re-validated DONE at 4bbc47d): the runbook limits the silent `verify` to the delivery commit and the two audit-specific constants are marked (4); `verify` reports a listed non-blocking or unknown finding as `blocker-extra` and enforces the `None.` rule (5); well-formed evidence is resolved against the inventory (`evidence-unresolved`), and all 632 delivered evidence items resolve (7). Finding 6 was closed by `/spec-sync` (D-03). The delivered outputs are unchanged and `verify` stays silent; no new contract item is affected.
 
 ### Summary
 7 findings: 1 critical (the contract item carried over with the owner's continue decision; only its /spec-sync record is pending), 2 important (git calls can fetch from the network or run filter programs despite the offline contract; contradictory task-08 entries and PR range in `.ai/memory/state.md`), 4 optional. Cross-layer: `extract`, `verify --strict` and `render` share one inventory builder and one region renderer, and a fresh extraction at 8d7e484 is byte-identical. The report's hand-written numbers, all 61 spec 09 defaults, the 9 blocking findings and all 595 evidence citations were recomputed from the JSON files and the audited revision, and match. Security: no shell, no import or exec of repository content, links not followed for the audited tree, the report or the spec file; the remaining gap is the git subprocess (finding 2). Maintainability: the 3,707-line tool is layered by banner sections of plain functions as the design decided; one-off audit constants limit reuse (finding 4). The 5,363-line suite has 212 tests in 61 classes, no mocks and only environment-dependent skips; recorded test amendments are test-side corrections. No test-integrity finding.
@@ -641,7 +644,7 @@ prs: #105–#115 promoted from draft to ready in stack order; #104 (the stack ba
 
 ## Spec Sync
 sync: complete
-synced_at: 2026-11-18T07:58:35+06:00
+synced_at: 2026-11-18T07:58:35+06:00; re-synced 2026-11-18 after T-12 (D-04: DM-8 two-way blockers rule, DM-9 `blocker-extra` and `evidence-unresolved`, AC-10 extended; Q-05 gains the T-12 Do Later proposals)
 deltas: 8 (implemented-differently: 4, not-implemented: 0, implemented-beyond: 4)
 spec: .ai/specs/08-rules-workflows-audit.md
 applied: DM-6 home rewrite (D-01, user 2026-11-17); REQ-25 narrowed to machine-specific home paths with the verbatim-copy and fixture allowances (D-03, user 2026-11-18); REQ-03 copied-file-name clarification (D-03, Issue List [6]); AC-02 delivery annotation for base 488edb1 (D-02, user 2026-11-17)
