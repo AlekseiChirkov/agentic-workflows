@@ -1677,8 +1677,8 @@ accepts or rejects that amendment:
 
 ## Independent review
 
-Reviewed: Validator 2026-11-18 pass 0add2fad3323fc427546b94d62f07e0951d013a5
+Reviewed: Validator 2026-11-18 pass ce560658c93d2a3e39cb4ff34448dfe9e5ffbb9b
 
 ## Acceptance
 
-Accepted: pending
+Accepted: owner 2026-11-18
