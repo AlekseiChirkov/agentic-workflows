@@ -122,3 +122,13 @@ replace unless explicitly stated. Local principles must note what they override 
 - Pass the shared configuration explicitly:
   --config /home/scareface/Documents/projects/.config/ast-grep/sgconfig.yml
 - Prefer source directories and exclude generated directories with --globs when searching broadly.
+
+## Post-merge task closure
+
+Use `/phase-finalize <task-directory|spec-path> [--dry-run]` only by separate invocation
+after owner integration. Ordinary invocation authorizes mandatory proven task cleanup;
+load `rule-phase-finalize`, `rule-workflow-globals` and `rule-git-flow` before operations.
+Required finalization helpers fail closed on missing evidence; dry-run writes nothing.
+Preserve original Git/TDD/history and repository tracking policy. Current integration,
+cleanup, archival and deployment remain independent outcomes; deployment needs dated
+revision/environment proof. Existing delivery parents only suggest this phase.

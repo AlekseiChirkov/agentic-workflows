@@ -23,15 +23,22 @@ Usage:
       the work-tree state, and every per-item rule of the assessment, including the
       migration map, its deviation from the recorded migration defaults, the amendments
       against the single `.ai/specs/09-*.md` file (read as strict UTF-8 without following a
-      symbolic link) and the statement coverage of the statement units of
-      `## Codebase Reading Rules` and `## Decision Protocol` in rules/phase-discovery.md.
+      symbolic link), the statement coverage of the statement units of
+      `## Codebase Reading Rules` and `## Decision Protocol` in rules/phase-discovery.md,
+      and every well-formed evidence item of the files rows, findings and amendments: a
+      `path:line` item, or in a finding a `path:start-end` item, names an inventory path
+      whose line count holds the lines, and a bare path in a finding names an inventory
+      path (amendment ids and malformed items are left to their own rules, and a line
+      number too long for any line count lies outside the entry).
       Then the report FILE itself: its layout (title, the five `##` headings and the
       generated-region markers in order, one review and one acceptance line in their
       grammars), that the reviewed commit exists (`cat-file`), amounts anywhere in it,
       and, when the JSON files meet their schemas, its file-name date and title date
-      against run_date, every blocking finding under its blockers heading, and the
-      generated region against fresh render output. The report is read as strict UTF-8,
-      at most 64 MiB, without following a symbolic link.
+      against run_date, the blockers heading in both directions (every blocking finding
+      is listed, every listed finding id names a blocking finding, and the section is
+      exactly `None.` when nothing blocks and holds no `None.` beside a blocking finding),
+      and the generated region against fresh render output. The report is read as
+      strict UTF-8, at most 64 MiB, without following a symbolic link.
       Prints one `<code> <location> <message>` line per violation in string order of
       code and location. A location is `<path>:<line>` (`0` for a whole file) or
       `<json file>#<id, key or key[index]>`, with paths relative to the root.
@@ -60,15 +67,40 @@ Read-only contract: the tool writes nothing but the --out file and, under
 render --write, the generated region of the report; verify writes nothing. It
 never follows a symbolic link of the audited tree, never executes or
 imports repository content and opens no network
-connection. The only programs it runs are the git read commands
+connection itself. The only programs it runs are the git read commands
 `rev-parse --verify HEAD`, `ls-files -z` and
 `status --porcelain=v1 -z --untracked-files=all` and, in verify,
 `cat-file -e <sha>^{commit}`, with LC_ALL=C, GIT_OPTIONAL_LOCKS=0,
 no pager, no inherited GIT_* variables, the file-system monitor disabled and hooks
-pointed at an empty location, so no program named by the repository's configuration
-runs; a missing or failing git yields null or `unknown` values, never an error. The
-root is taken as the top level of its git work tree: `status` reports paths relative
-to that top level, so a root below it yields mismatched work-tree paths.
+pointed at an empty location; a missing or failing git yields null or `unknown`
+values, never an error. Every git read also runs with lazy fetching disabled
+(GIT_NO_LAZY_FETCH, git 2.45 or later) and rename detection off (status.renames,
+git 2.18 or later), and reads neither the user's nor the system's attributes file. The
+root is taken as the top level of its git work tree, and its `.git` directory or file
+locates the repository: when its configuration names the SHA-1 or the SHA-256 object
+format, git reads attributes from that format's empty tree instead of the committed and
+work-tree .gitattributes files (GIT_ATTR_SOURCE, git 2.41 or later), and every filter
+driver that the repository's info/attributes file names, within git's own limits of
+2048 bytes a line and 100 MiB a file, is given an empty clean and process program
+(GIT_CONFIG_COUNT, git 2.31 or later). With git 2.45 or later and a root that is that
+top level, therefore, no attribute-selected clean or process filter of the repository
+runs and no object missing from a partial clone is fetched. Each of these settings is
+one that an older git ignores rather than rejects, so it still answers, with less
+isolation. The cases left open are exactly these: with git older than 2.41 a filter
+selected by a .gitattributes file of the tree can still run, and with git older than
+2.31 one named by info/attributes; with git older than 2.45 `status` or `cat-file` in a
+partial clone can still fetch a missing object from its promisor remote; a filter named
+by a submodule's own info/attributes file can run when `status` inspects that
+submodule; only the first 1000 names of info/attributes in name order, at most 64 KiB
+of names, are blanked; a root without its own `.git` (a directory below the top
+level, or a link to one) gets neither the empty attribute source nor the blanked names;
+and a repository whose configuration cannot be read or names another object format
+gets no empty attribute source. Because the attributes of the tree, the user and the
+system do not apply, a file whose stored form differs from its work-tree form through
+attributes (text, eol, ident, working-tree-encoding or a filter) can read as changed
+when git hashes it again. Below the top level `status` also
+reports paths relative to that top level, so such a root yields mismatched work-tree
+paths.
 Standard library only.
 """
 from __future__ import annotations
@@ -134,10 +166,36 @@ ZONE_FRONT_MATTER = "front-matter"
 ZONE_FENCE = "fence"
 ZONE_BODY = "body"
 
+# The empty tree of each object format, keyed by the value of extensions.objectFormat.
+EMPTY_TREES = {"sha1": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+               "sha256": "6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321"}
+# Every setting below is one that a git too old to know it ignores instead of rejecting,
+# so an older git still answers; only the guarantee the setting adds is lost. The
+# attribute source (GIT_ATTR_SOURCE) is added per repository, because its empty tree
+# depends on the object format.
 GIT_READ_ENVIRONMENT = {"LC_ALL": "C", "GIT_OPTIONAL_LOCKS": "0", "GIT_PAGER": "cat",
-                        "PAGER": "cat"}
-# Configuration that would otherwise let git start a program the repository names.
-GIT_INERT_CONFIGURATION = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
+                        "PAGER": "cat", "GIT_NO_LAZY_FETCH": "1", "GIT_ATTR_NOSYSTEM": "1"}
+# Configuration that would otherwise let git start a program the repository names, read
+# attributes that select a filter driver, or need an object a partial clone lacks.
+GIT_INERT_CONFIGURATION = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null",
+                           "-c", "core.attributesFile=/dev/null",
+                           "-c", "status.renames=false")
+# Settings that make a filter driver run nothing, applied to each driver that the
+# repository's info/attributes file names, because git reads that file in any case.
+BLANK_FILTER_SETTINGS = (("clean", ""), ("process", ""), ("required", "false"))
+# git separates attribute tokens by space, tab, CR and LF only.
+FILTER_ATTRIBUTE_RE = re.compile(r"(?<![^ \t\r\n])filter=([^ \t\r\n\x00]+)")
+# git ignores an attributes line of 2048 bytes or more and an attributes file of 100 MiB
+# or more; a line of exactly 2048 bytes is still read here, which only blanks more.
+ATTRIBUTE_LINE_LIMIT = 2048
+ATTRIBUTE_FILE_LIMIT = 100 * 1024 * 1024
+# Bounds on the blanked names that keep the environment of every git read small.
+BLANKED_NAME_LIMIT = 1000
+BLANKED_BYTES_LIMIT = 64 * 1024
+# Bound on the `.git` file, `commondir` and the repository configuration read here.
+GIT_METADATA_LIMIT = 1024 * 1024
+CONFIG_SECTION_RE = re.compile(r'\[\s*([A-Za-z0-9.-]+)\s*("(?:[^"\\]|\\.)*")?\s*\]')
+CONFIG_ENTRY_RE = re.compile(r"([A-Za-z][A-Za-z0-9-]*)\s*(?:=\s*(.*))?")
 
 JsonObject = dict[str, object]
 
@@ -1305,10 +1363,140 @@ def candidate_lists(audited: Sequence[AuditedFile], edges: Sequence[JsonObject]
 # Git
 # ---------------------------------------------------------------------------
 
-def git_environment() -> dict[str, str]:
+def read_git_metadata(path: Path, limit: int) -> bytes | None:
+    """A regular file of fewer than limit bytes, links followed as git follows them; None
+    when it is absent, not a regular file, too large or unreadable. A first-in first-out
+    entry is never waited on."""
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    except (OSError, ValueError):
+        return None
+    with os.fdopen(descriptor, "rb") as handle:
+        try:
+            info = os.fstat(handle.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_size >= limit:
+                return None
+            return handle.read(limit)
+        except OSError:
+            return None
+
+
+def metadata_text(data: bytes) -> str:
+    """The text git takes from a one-line metadata file: up to a NUL, without trailing
+    white space."""
+    return data.split(b"\0", 1)[0].decode("utf-8", "surrogateescape").rstrip()
+
+
+def git_common_directory(root: Path) -> Path | None:
+    """The repository directory that holds info/ and the configuration for the root's
+    `.git` directory or file; None when there is none or it cannot be read."""
+    dot_git = root / ".git"
+    try:
+        is_directory = stat.S_ISDIR(os.stat(dot_git).st_mode)
+    except (OSError, ValueError):
+        return None
+    if is_directory:
+        git_directory = dot_git
+    else:
+        data = read_git_metadata(dot_git, GIT_METADATA_LIMIT)
+        if data is None or not data.startswith(b"gitdir: "):
+            return None
+        target = metadata_text(data[len(b"gitdir: "):])
+        if not target:
+            return None
+        git_directory = root / target
+    common = read_git_metadata(git_directory / "commondir", GIT_METADATA_LIMIT)
+    target = metadata_text(common) if common is not None else ""
+    return git_directory / target if target else git_directory
+
+
+def config_value(text: str) -> str:
+    """A configuration value without its quotes and its trailing comment."""
+    kept: list[str] = []
+    quoted = False
+    for character in text:
+        if character == '"':
+            quoted = not quoted
+        elif character in "#;" and not quoted:
+            break
+        else:
+            kept.append(character)
+    return "".join(kept).strip()
+
+
+def object_format(common: Path) -> str | None:
+    """The repository's extensions.objectFormat, `sha1` when it is unset or there is no
+    configuration file; None when the configuration cannot be read or names a format
+    without a known empty tree."""
+    config = common / "config"
+    if not os.path.lexists(config):
+        return "sha1"
+    data = read_git_metadata(config, GIT_METADATA_LIMIT)
+    if data is None:
+        return None
+    value = "sha1"
+    section: str | None = None
+    for raw in data.decode("utf-8", "surrogateescape").splitlines():
+        line = raw.strip()
+        header = CONFIG_SECTION_RE.match(line)
+        if header is not None:
+            section = header.group(1).lower() if header.group(2) is None else None
+            line = line[header.end():].strip()
+        if section != "extensions" or not line or line[0] in "#;":
+            continue
+        entry = CONFIG_ENTRY_RE.fullmatch(line)
+        if entry is not None and entry.group(1).lower() == "objectformat":
+            value = config_value(entry.group(2) or "")
+    return value if value in EMPTY_TREES else None
+
+
+def information_attribute_filters(common: Path) -> list[str]:
+    """The filter driver names that the repository's info/attributes file sets, macros
+    included, read within git's own line and file limits and kept within the blanking
+    bounds in name order; empty when the file is absent or cannot be read."""
+    data = read_git_metadata(common / "info" / "attributes", ATTRIBUTE_FILE_LIMIT)
+    if data is None:
+        return []
+    names: set[str] = set()
+    for line in data.split(b"\n"):
+        if len(line.rstrip(b"\r")) <= ATTRIBUTE_LINE_LIMIT:
+            text = line.decode("utf-8", "surrogateescape")
+            names.update(found.group(1) for found in FILTER_ATTRIBUTE_RE.finditer(text))
+    kept: list[str] = []
+    used = 0
+    for name in sorted(names):
+        size = len(os.fsencode(name))
+        if len(kept) == BLANKED_NAME_LIMIT or used + size > BLANKED_BYTES_LIMIT:
+            break
+        kept.append(name)
+        used += size
+    return kept
+
+
+def blank_filter_environment(names: Sequence[str]) -> dict[str, str]:
+    """Command-line scope configuration, by environment so that no name is parsed, that
+    gives each named filter driver no clean or process program and makes it optional."""
+    pairs = [(f"filter.{name}.{key}", value) for name in names
+             for key, value in BLANK_FILTER_SETTINGS]
+    if not pairs:
+        return {}
+    environment = {"GIT_CONFIG_COUNT": str(len(pairs))}
+    for index, (key, value) in enumerate(pairs):
+        environment[f"GIT_CONFIG_KEY_{index}"] = key
+        environment[f"GIT_CONFIG_VALUE_{index}"] = value
+    return environment
+
+
+def git_environment(root: Path) -> dict[str, str]:
     environment = {key: value for key, value in os.environ.items()
                    if not key.startswith("GIT_")}
     environment.update(GIT_READ_ENVIRONMENT)
+    common = git_common_directory(root)
+    if common is not None:
+        found_format = object_format(common)
+        if found_format is not None:
+            environment["GIT_ATTR_SOURCE"] = EMPTY_TREES[found_format]
+        environment.update(blank_filter_environment(information_attribute_filters(common)))
     return environment
 
 
@@ -1318,7 +1506,7 @@ def run_git(root: Path, *arguments: str) -> bytes | None:
         result = subprocess.run(["git", "--no-pager", *GIT_INERT_CONFIGURATION,
                                  "-C", str(root), *arguments],
                                 stdin=subprocess.DEVNULL, capture_output=True,
-                                env=git_environment(), check=False)
+                                env=git_environment(root), check=False)
     except OSError:
         return None
     return result.stdout if result.returncode == 0 else None
@@ -1886,6 +2074,8 @@ def strict_diagnostics(root: Path, inventory: Document) -> list[Diagnostic]:
 # Verify: the assessment against the inventory
 # ---------------------------------------------------------------------------
 
+# Specific to this audit's rule set: the two rules that need a sections list whatever
+# their kinds. A later audit of other rules replaces these paths.
 ALWAYS_SECTIONED = frozenset({"rules/phase-atomic-execution.md", "rules/phase-discovery.md"})
 REPETITION_TYPES = (("report", "report-repeat"), ("checkpoint", "checkpoint-repeat"),
                     ("review", "review-repeat"))
@@ -2323,6 +2513,8 @@ SPEC09_DIRECTORY = ".ai/specs"
 SPEC09_NAME_RE = re.compile(r"09-.*\.md", re.DOTALL)
 SPEC09_ANY = f"{SPEC09_DIRECTORY}/09-*.md"
 SPEC09_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]+")
+# Specific to this audit's rule set: the rule whose statement units the assessment
+# covers. Once the rule is renamed or split, verify reports req21-invalid.
 DISCOVERY_RULE = "rules/phase-discovery.md"
 COVERAGE_SECTIONS = ("## Codebase Reading Rules", "## Decision Protocol")
 LIST_ITEM_RE = re.compile(r"\s*([-*+]|\d+[.)])\s")
@@ -2781,12 +2973,72 @@ def economics_rules(check: Verification) -> Iterator[Diagnostic]:
             yield from economic_claims(check.at(key), value)
 
 
+# ---------------------------------------------------------------------------
+# Verify: evidence against the inventory
+# ---------------------------------------------------------------------------
+
+EVIDENCE_SPAN_RE = re.compile(r"([^\s:]+):(\d+)(?:-(\d+))?")
+LINE_DIGITS_LIMIT = 9
+
+
+def cited_line(digits: str, lines: int) -> int:
+    """The line a run of digits names, or `lines + 1` when it has more significant digits
+    than any line count needs, so no unbounded string is converted to an integer."""
+    significant = digits.lstrip("0") or "0"
+    return lines + 1 if len(significant) > LINE_DIGITS_LIMIT else int(significant)
+
+
+
+def evidence_fault(check: Verification, item: str, paths_allowed: bool) -> str | None:
+    """Why one evidence item does not resolve against the inventory, or None when it does.
+    Only items in a form their list accepts are resolved: `path:line` everywhere, and in a
+    finding also a bare repository path, which may carry a `:start-end` range. An
+    amendment id is left to the reference rules and a malformed item to the form rules; a
+    finding id in a finding is a bare path like any other. `path:line` and `path:start-end`
+    need an inventory path with a line count that holds every cited line, a number too long
+    for any line count lying outside it; a bare path must be an inventory path. Line counts
+    come from the inventory, so a later tree changes nothing."""
+    if AMENDMENT_ID_RE.fullmatch(item):
+        return None
+    if not (EVIDENCE_LINE_RE.fullmatch(item) or (paths_allowed and is_repository_path(item))):
+        return None
+    span = EVIDENCE_SPAN_RE.fullmatch(item)
+    entry = check.entry(span.group(1) if span is not None else item)
+    if entry is None:
+        return f'evidence "{item}" names no inventory path'
+    if span is None:
+        return None
+    lines = entry["lines"]
+    if not isinstance(lines, int):
+        return f'evidence "{item}" cites a line of an entry without a line count'
+    start = cited_line(span.group(2), lines)
+    end = cited_line(span.group(3), lines) if span.group(3) is not None else start
+    if start > end:
+        return f'evidence "{item}" is a reversed range'
+    if not 1 <= start <= end <= lines:
+        return f'evidence "{item}" lies outside lines 1-{lines} of its entry'
+    return None
+
+
+def evidence_rules(check: Verification) -> Iterator[Diagnostic]:
+    """Every evidence item of the files rows, findings and amendments must resolve."""
+    located = [(check.at(f"files[{index}]"), row, False)
+               for index, row in enumerate(check.rows("files"))]
+    located += [(check.at(str(row["id"])), row, key == "findings")
+                for key in ("findings", "amendments") for row in check.rows(key)]
+    for location, row, paths_allowed in located:
+        for item in cast(list[str], row["evidence"]):
+            fault = evidence_fault(check, item, paths_allowed)
+            if fault is not None:
+                yield Diagnostic("evidence-unresolved", location, fault)
+
+
 ASSESSMENT_RULES: tuple[Callable[[Verification], Iterable[Diagnostic]], ...] = (
     digest_rule, row_rules, stale_row_rules, section_rules, repetition_rules, load_rules,
     candidate_rules, legacy_rules, group_rules, finding_rules, defect_rules, coverage_rules,
     installed_rules, shape_rules, split_rules, collision_rules, installed_name_rules,
     stem_rules, prefix_rules, deviation_rules, amendment_rules, statement_rules,
-    economics_rules,
+    economics_rules, evidence_rules,
 )
 
 
@@ -3209,6 +3461,8 @@ REVIEW_LINE_RE = re.compile(
     r"([0-9a-f]{40}))")
 ACCEPTANCE_LINE_RE = re.compile(r"Accepted: (?:pending|owner (\d{4}-\d{2}-\d{2}))")
 FILE_NAME_DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})-")
+LISTED_FINDING_RE = re.compile(r"(?<![A-Za-z0-9_-])AUD-08-\d{3}(?![A-Za-z0-9_-])")
+NO_BLOCKERS = "None."
 
 
 class ReportUnusable(ValueError):
@@ -3429,18 +3683,53 @@ def name_date_rules(path: Path, report: ReportCheck, run_date: str) -> Iterator[
                          f"{run_date}")
 
 
+def listed_extra(report: ReportCheck, filled: Sequence[int],
+                 findings: Mapping[str, JsonObject]) -> Iterator[Diagnostic]:
+    """A finding id on a line of the blockers section must name a blocking finding; each
+    id is reported once per line. Amendment ids and longer tokens are no finding ids."""
+    for index in filled:
+        for identifier in sorted(set(LISTED_FINDING_RE.findall(report.lines[index]))):
+            item = findings.get(identifier)
+            if item is None:
+                yield Diagnostic("blocker-extra", report.at(index + 1),
+                                 f"the listed id {identifier} names no finding")
+            elif item["blocks_09"] is not True:
+                yield Diagnostic("blocker-extra", report.at(index + 1),
+                                 f"the listed finding {identifier} does not block spec 09")
+
+
+def none_rule(report: ReportCheck, start: int, filled: Sequence[int],
+              blocking: bool) -> Iterator[Diagnostic]:
+    """With no blocking finding the section holds exactly `None.`; beside a blocking
+    finding `None.` does not appear."""
+    marked = [index for index in filled if report.lines[index].strip() == NO_BLOCKERS]
+    if blocking:
+        for index in marked:
+            yield Diagnostic("report-layout", report.at(index + 1),
+                             f'"{BLOCKERS_HEADING}" holds {NO_BLOCKERS} beside blocking findings')
+    elif [report.lines[index].strip() for index in filled] != [NO_BLOCKERS]:
+        yield Diagnostic("report-layout", report.at(start + 1),
+                         f'"{BLOCKERS_HEADING}" holds other than {NO_BLOCKERS} although no '
+                         "finding blocks")
+
+
 def blocker_rules(report: ReportCheck, assessment: JsonObject) -> Iterator[Diagnostic]:
+    """The blockers section names exactly the blocking findings, or `None.`."""
     body = section_body(report.lines, report.headings, BLOCKERS_HEADING)
     if body is None:
         return
     start, filled = body
+    findings = {str(item["id"]): item for item in objects(assessment["findings"])}
     text = "\n".join(report.lines[index] for index in filled)
-    for item in sorted(objects(assessment["findings"]), key=lambda row: str(row["id"])):
-        identifier = str(item["id"])
+    blocking = sorted(identifier for identifier, item in findings.items()
+                      if item["blocks_09"] is True)
+    for identifier in blocking:
         token = re.compile(rf"(?<![A-Za-z0-9_-]){re.escape(identifier)}(?![A-Za-z0-9_-])")
-        if item["blocks_09"] is True and token.search(text) is None:
+        if token.search(text) is None:
             yield Diagnostic("blocker-unlisted", report.at(start + 1),
                              f"the blocking finding {identifier} is not listed")
+    yield from listed_extra(report, filled, findings)
+    yield from none_rule(report, start, filled, bool(blocking))
 
 
 def region_rules(report: ReportCheck, inventory: Document, assessment: Document

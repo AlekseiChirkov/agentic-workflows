@@ -87,7 +87,7 @@ echo "[2/7] .windsurf/rules/"
 mkdir -p .windsurf/rules
 
 for rule in workflow-globals.md workflow-reference.md language.md quick-flow.md tdd.md run-log.md git-flow.md orchestration.md \
-            phase-discovery.md phase-execution.md phase-validation.md \
+            phase-discovery.md phase-execution.md phase-validation.md phase-finalize.md \
             phase-atomic-execution.md phase-atomic-validation.md; do
   if [ ! -f ".windsurf/rules/$rule" ]; then
     if [ -f "$WORKFLOWS_SRC/rules/$rule" ]; then
@@ -122,7 +122,7 @@ fi
 echo "  [Devin Desktop] creating .devin/rules/"
 mkdir -p .devin/rules
 for rule in workflow-globals.md workflow-reference.md language.md quick-flow.md tdd.md run-log.md git-flow.md orchestration.md \
-            phase-discovery.md phase-execution.md phase-validation.md \
+            phase-discovery.md phase-execution.md phase-validation.md phase-finalize.md \
             phase-atomic-execution.md phase-atomic-validation.md; do
   if [ ! -f ".devin/rules/$rule" ]; then
     if [ -f "$WORKFLOWS_SRC/rules/$rule" ]; then
