@@ -40,8 +40,13 @@ Notes:
 - `python3 -I scripts/audit-instructions.py extract|verify|render` is the read-only audit tool
   for rules, workflows and harness adapters;
   `python3 -I scripts/audit-instructions.py verify --root . --report docs/audits/<date>-rules-workflows-audit.md`
-  must print nothing for a delivered audit, and `render --write` regenerates the report's
-  generated region. `python3 -I scripts/check-audit-instructions.py` runs its acceptance suite
+  must print nothing in the delivery repository at the delivery commit of an audit. On a later
+  tree or a clone it may print `inventory-stale` (audited files changed),
+  `review-commit-unknown` (the reviewed commit is absent, for example after a squash merge),
+  `spec09-unavailable` (no single `.ai/specs/09-*.md`, for example once spec 09 is archived),
+  `amendment-invalid` or `amendment-target-unknown` (spec 09 edited) and `req21-invalid` (the
+  discovery rule renamed or changed); these do not reopen the audit. `render --write`
+  regenerates the report's generated region. `python3 -I scripts/check-audit-instructions.py` runs its acceptance suite
   against disposable fixture roots. Both are standalone, outside the frozen validator
   inventory; run the suite after every change to `scripts/audit-instructions.py`, with
   `MISE_PYTHON_VERSION` set as above.

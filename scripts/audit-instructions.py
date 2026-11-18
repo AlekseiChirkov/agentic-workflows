@@ -23,15 +23,21 @@ Usage:
       the work-tree state, and every per-item rule of the assessment, including the
       migration map, its deviation from the recorded migration defaults, the amendments
       against the single `.ai/specs/09-*.md` file (read as strict UTF-8 without following a
-      symbolic link) and the statement coverage of the statement units of
-      `## Codebase Reading Rules` and `## Decision Protocol` in rules/phase-discovery.md.
+      symbolic link), the statement coverage of the statement units of
+      `## Codebase Reading Rules` and `## Decision Protocol` in rules/phase-discovery.md,
+      and every well-formed evidence item of the files rows, findings and amendments: a
+      `path:line` item, or in a finding a `path:start-end` item, names an inventory path
+      whose line count holds the lines, and a bare path in a finding names an inventory
+      path (finding and amendment ids and malformed items are left to their own rules).
       Then the report FILE itself: its layout (title, the five `##` headings and the
       generated-region markers in order, one review and one acceptance line in their
       grammars), that the reviewed commit exists (`cat-file`), amounts anywhere in it,
       and, when the JSON files meet their schemas, its file-name date and title date
-      against run_date, every blocking finding under its blockers heading, and the
-      generated region against fresh render output. The report is read as strict UTF-8,
-      at most 64 MiB, without following a symbolic link.
+      against run_date, the blockers heading in both directions (every blocking finding
+      is listed, every listed finding id names a blocking finding, and the section is
+      exactly `None.` when nothing blocks and holds no `None.` beside a blocking finding),
+      and the generated region against fresh render output. The report is read as
+      strict UTF-8, at most 64 MiB, without following a symbolic link.
       Prints one `<code> <location> <message>` line per violation in string order of
       code and location. A location is `<path>:<line>` (`0` for a whole file) or
       `<json file>#<id, key or key[index]>`, with paths relative to the root.
@@ -2067,6 +2073,8 @@ def strict_diagnostics(root: Path, inventory: Document) -> list[Diagnostic]:
 # Verify: the assessment against the inventory
 # ---------------------------------------------------------------------------
 
+# Specific to this audit's rule set: the two rules that need a sections list whatever
+# their kinds. A later audit of other rules replaces these paths.
 ALWAYS_SECTIONED = frozenset({"rules/phase-atomic-execution.md", "rules/phase-discovery.md"})
 REPETITION_TYPES = (("report", "report-repeat"), ("checkpoint", "checkpoint-repeat"),
                     ("review", "review-repeat"))
@@ -2504,6 +2512,8 @@ SPEC09_DIRECTORY = ".ai/specs"
 SPEC09_NAME_RE = re.compile(r"09-.*\.md", re.DOTALL)
 SPEC09_ANY = f"{SPEC09_DIRECTORY}/09-*.md"
 SPEC09_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]+")
+# Specific to this audit's rule set: the rule whose statement units the assessment
+# covers. Once the rule is renamed or split, verify reports req21-invalid.
 DISCOVERY_RULE = "rules/phase-discovery.md"
 COVERAGE_SECTIONS = ("## Codebase Reading Rules", "## Decision Protocol")
 LIST_ITEM_RE = re.compile(r"\s*([-*+]|\d+[.)])\s")
@@ -2962,12 +2972,62 @@ def economics_rules(check: Verification) -> Iterator[Diagnostic]:
             yield from economic_claims(check.at(key), value)
 
 
+# ---------------------------------------------------------------------------
+# Verify: evidence against the inventory
+# ---------------------------------------------------------------------------
+
+EVIDENCE_SPAN_RE = re.compile(r"([^\s:]+):(\d+)(?:-(\d+))?")
+
+
+def evidence_fault(check: Verification, item: str, paths_allowed: bool) -> str | None:
+    """Why one evidence item does not resolve against the inventory, or None when it does.
+    Only items in a form their list accepts are resolved: `path:line` everywhere, and in a
+    finding also a bare repository path, which may carry a `:start-end` range. A finding or
+    amendment id is left to the reference rules and a malformed item to the form rules.
+    `path:line` and `path:start-end` need an inventory path with a line count that holds
+    every cited line; a bare path must be an inventory path. Line counts come from the
+    inventory, so a later tree changes nothing."""
+    if FINDING_ID_RE.fullmatch(item) or AMENDMENT_ID_RE.fullmatch(item):
+        return None
+    if not (EVIDENCE_LINE_RE.fullmatch(item) or (paths_allowed and is_repository_path(item))):
+        return None
+    span = EVIDENCE_SPAN_RE.fullmatch(item)
+    entry = check.entry(span.group(1) if span is not None else item)
+    if entry is None:
+        return f'evidence "{item}" names no inventory path'
+    if span is None:
+        return None
+    lines = entry["lines"]
+    if not isinstance(lines, int):
+        return f'evidence "{item}" cites a line of an entry without a line count'
+    start = int(span.group(2))
+    end = int(span.group(3)) if span.group(3) is not None else start
+    if start > end:
+        return f'evidence "{item}" is a reversed range'
+    if not 1 <= start <= end <= lines:
+        return f'evidence "{item}" lies outside lines 1-{lines} of its entry'
+    return None
+
+
+def evidence_rules(check: Verification) -> Iterator[Diagnostic]:
+    """Every evidence item of the files rows, findings and amendments must resolve."""
+    located = [(check.at(f"files[{index}]"), row, False)
+               for index, row in enumerate(check.rows("files"))]
+    located += [(check.at(str(row["id"])), row, key == "findings")
+                for key in ("findings", "amendments") for row in check.rows(key)]
+    for location, row, paths_allowed in located:
+        for item in cast(list[str], row["evidence"]):
+            fault = evidence_fault(check, item, paths_allowed)
+            if fault is not None:
+                yield Diagnostic("evidence-unresolved", location, fault)
+
+
 ASSESSMENT_RULES: tuple[Callable[[Verification], Iterable[Diagnostic]], ...] = (
     digest_rule, row_rules, stale_row_rules, section_rules, repetition_rules, load_rules,
     candidate_rules, legacy_rules, group_rules, finding_rules, defect_rules, coverage_rules,
     installed_rules, shape_rules, split_rules, collision_rules, installed_name_rules,
     stem_rules, prefix_rules, deviation_rules, amendment_rules, statement_rules,
-    economics_rules,
+    economics_rules, evidence_rules,
 )
 
 
@@ -3390,6 +3450,8 @@ REVIEW_LINE_RE = re.compile(
     r"([0-9a-f]{40}))")
 ACCEPTANCE_LINE_RE = re.compile(r"Accepted: (?:pending|owner (\d{4}-\d{2}-\d{2}))")
 FILE_NAME_DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})-")
+LISTED_FINDING_RE = re.compile(r"(?<![A-Za-z0-9_-])AUD-08-\d{3}(?![A-Za-z0-9_-])")
+NO_BLOCKERS = "None."
 
 
 class ReportUnusable(ValueError):
@@ -3610,18 +3672,53 @@ def name_date_rules(path: Path, report: ReportCheck, run_date: str) -> Iterator[
                          f"{run_date}")
 
 
+def listed_extra(report: ReportCheck, filled: Sequence[int],
+                 findings: Mapping[str, JsonObject]) -> Iterator[Diagnostic]:
+    """A finding id on a line of the blockers section must name a blocking finding; each
+    id is reported once per line. Amendment ids and longer tokens are no finding ids."""
+    for index in filled:
+        for identifier in sorted(set(LISTED_FINDING_RE.findall(report.lines[index]))):
+            item = findings.get(identifier)
+            if item is None:
+                yield Diagnostic("blocker-extra", report.at(index + 1),
+                                 f"the listed id {identifier} names no finding")
+            elif item["blocks_09"] is not True:
+                yield Diagnostic("blocker-extra", report.at(index + 1),
+                                 f"the listed finding {identifier} does not block spec 09")
+
+
+def none_rule(report: ReportCheck, start: int, filled: Sequence[int],
+              blocking: bool) -> Iterator[Diagnostic]:
+    """With no blocking finding the section holds exactly `None.`; beside a blocking
+    finding `None.` does not appear."""
+    marked = [index for index in filled if report.lines[index].strip() == NO_BLOCKERS]
+    if blocking:
+        for index in marked:
+            yield Diagnostic("report-layout", report.at(index + 1),
+                             f'"{BLOCKERS_HEADING}" holds {NO_BLOCKERS} beside blocking findings')
+    elif [report.lines[index].strip() for index in filled] != [NO_BLOCKERS]:
+        yield Diagnostic("report-layout", report.at(start + 1),
+                         f'"{BLOCKERS_HEADING}" holds other than {NO_BLOCKERS} although no '
+                         "finding blocks")
+
+
 def blocker_rules(report: ReportCheck, assessment: JsonObject) -> Iterator[Diagnostic]:
+    """The blockers section names exactly the blocking findings, or `None.`."""
     body = section_body(report.lines, report.headings, BLOCKERS_HEADING)
     if body is None:
         return
     start, filled = body
+    findings = {str(item["id"]): item for item in objects(assessment["findings"])}
     text = "\n".join(report.lines[index] for index in filled)
-    for item in sorted(objects(assessment["findings"]), key=lambda row: str(row["id"])):
-        identifier = str(item["id"])
+    blocking = sorted(identifier for identifier, item in findings.items()
+                      if item["blocks_09"] is True)
+    for identifier in blocking:
         token = re.compile(rf"(?<![A-Za-z0-9_-]){re.escape(identifier)}(?![A-Za-z0-9_-])")
-        if item["blocks_09"] is True and token.search(text) is None:
+        if token.search(text) is None:
             yield Diagnostic("blocker-unlisted", report.at(start + 1),
                              f"the blocking finding {identifier} is not listed")
+    yield from listed_extra(report, filled, findings)
+    yield from none_rule(report, start, filled, bool(blocking))
 
 
 def region_rules(report: ReportCheck, inventory: Document, assessment: Document
