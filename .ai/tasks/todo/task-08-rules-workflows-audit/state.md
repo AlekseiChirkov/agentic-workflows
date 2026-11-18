@@ -463,7 +463,7 @@ T-11 | Fix: git read isolation | atomic-tests: green | atomic-execution: complet
   base_branch: docs/index-rules-workflows-audit
   base_commit: 43053652ad56ef5e57fc79062ff015cfab1d4e30
   commits: 86fdf33 test(audit): require git reads that run no filter and fetch nothing, 22b27b2 fix(audit): keep git reads from running filters and fetching objects, 856968c test(audit): cover git repository shapes and correct the attribute version, 82f6722 fix(audit): read git metadata safely and choose the empty tree by format
-  pr: none
+  pr: #115 draft
 
 
 ## Execution Report
