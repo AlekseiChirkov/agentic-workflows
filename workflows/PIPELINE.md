@@ -5,7 +5,8 @@ description: Reference documentation — pipeline map and command index; not an 
 # AI-Assisted SDLC Pipeline
 
 Discovery → Execution → Validation. Run phases manually, or authorize automatic
-transitions with `/phase-pipeline` or `/spec-run`. This file is a navigation reference;
+transitions through Validation with `/phase-pipeline` or `/spec-run`. After owner integration,
+invoke `/phase-finalize` separately. This file is a navigation reference;
 workflow headers own invocations, rules own contracts. Do not load the entire reference
 as a prerequisite for an individual child.
 
@@ -17,6 +18,7 @@ as a prerequisite for an individual child.
 | Parent phases and children | Task directory, e.g. `.ai/tasks/todo/task-01-add-oauth/` |
 | Atomic execution/validation and their children | Leaf `description.md` path |
 | Composite validation | Composite `description.md` path |
+| Finalization | Exact task directory or uniquely mapped spec path; only `--dry-run` is optional |
 
 `phase-discovery` owns task naming, multi-phase selection and prefix collision checks.
 Resolve `working_dir:` before file operations; umbrella context is relative to the
@@ -89,6 +91,24 @@ Require Execution complete. Verify contract → review code → decide issues �
 execute approved fixes → finalize, record qualifying decisions and reconcile the spec.
 Quick tasks retain contract/review/approval but use inline repairs. Failed invariants or
 Off-limits always stop. A deferred item remains visible; it is never reported as delivered.
+
+## Finalization — after owner integration
+
+`/phase-finalize <task-directory|spec-path> [--dry-run]`
+
+Close one independently validated task after every original recorded branch/stack is
+proven integrated. Ordinary invocation authorizes mandatory task-scoped safe cleanup;
+there are no children or other public flags. Required deterministic helpers preserve
+original snapshots, command failures/retries, recovery packs and locked revision-checked
+journals outside moving artifacts. Git mutations stay explicit under
+`git-flow → ## Finalization Git ownership`.
+
+Report Validation, integration, checkout, cleanup, knowledge, archival, audit and deployment
+separately. Archive the task losslessly and only an eligible whole spec; unfinished phases
+retain the active spec. Post-archive audit verifies state, manifests and links. Untracked
+consumer/umbrella metadata stays local. Deployment is unverified without dated revision and
+environment proof; required deployment without that proof blocks closure. Dry-run writes
+no output files, state, Git data or telemetry. Existing parents only suggest this command.
 
 ## Atomic Workflows
 
@@ -192,7 +212,8 @@ run-log reader and recommends workflow changes without applying them.
 
 Create a spec with H1 and acceptance criteria. Configure real verification commands in
 the runbook before testable execution. Run the manual cycle above or authorize the
-three phases with `/phase-pipeline <spec-path>`. Quick eligibility and promotion are
+three delivery phases with `/phase-pipeline <spec-path>`. Finalization remains separately
+invoked after owner integration. Quick eligibility and promotion are
 owned by `quick-flow`; a small diff alone does not qualify.
 
 ## Known Limitations

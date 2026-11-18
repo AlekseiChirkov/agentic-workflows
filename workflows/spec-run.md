@@ -492,3 +492,7 @@ In multi-repository mode the `--repo` flags may be omitted on resume: the record
 `## Repositories` set is reused, and different flags stop the run. Every recorded checkpoint
 is reconciled against its own repository, and the run resumes at the earliest unfinished
 leaf of the shared order with both stacks and their dependencies intact.
+
+After the owner merges the delivered branches into their intended integration branches,
+suggest `/phase-finalize <task-directory>` for separately invoked evidence-backed closure.
+Do not invoke it, perform its cleanup or change this workflow's Validation/delivery endpoint.
