@@ -584,6 +584,12 @@ T-14 | Fix: git isolation follow-ups and version matrix (proposals) | atomic-tes
          matrix observations (recorded, not fixed): the info/attributes blanking from git 2.31 is exercised only at 2.41 and later, because its cases share the 2.41 gate of their classes; no residual case pins lazy fetching below 2.45; the suite runs about 20 minutes per version on the shared machine
          finalize 2026-11-18: architecture — no delta (`.ai/memory/architecture.md` does not describe the audit tool; no CLI or file interface changed); plan — delta `T-14 → done` returned, not written; composite rollup — not applicable (plain leaf); compression — not run (shared file, orchestrator's call); complete validator — left to the orchestrator (instructed)
 T-15 | Fix: verify input and form rules (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  branch: fix/audit-verify-input-and-form-rules
+  base_branch: fix/audit-git-isolation-follow-ups
+  base_commit: 75a1136db6cf24ed828374652a98a13cfb1f41bc
+  commits:
+  pr: none
+  notes: started in parallel with the independent validation of the git isolation follow-ups by owner instruction 2026-11-18 ("do in parallel what can be done"); if that validation requires rework, its commits are merged into this branch
   last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
   target_files:
   blocker: none
