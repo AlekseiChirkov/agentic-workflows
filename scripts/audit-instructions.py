@@ -2,7 +2,8 @@
 """Read-only audit tool for the instruction files of this repository.
 
 The audited set is every non-directory entry under rules/ and workflows/ (primary) and
-under harness/ plus templates/codex-global-AGENTS.md (adapter). Readers are the other
+under harness/ plus templates/codex-global-AGENTS.md (adapter), each reached through real
+directories only. Readers are the other
 classified files of the root that may refer to audited files.
 
 Usage:
@@ -173,6 +174,7 @@ class ReaderPattern:
 
 
 def reader_pattern(spec: str) -> ReaderPattern:
+    """Compile one reader path pattern into its whole-path and per-component expressions."""
     parts = spec.split("/")
     whole = "/".join(".+" if part == ANY_BELOW else component_pattern(part) for part in parts)
     return ReaderPattern(re.compile(whole), tuple(
@@ -449,6 +451,18 @@ def tree_below(root: Path, top: str,
             pending.append(iter(sorted_children(root, entry[0])))
 
 
+def adapter_file_present(root: Path, path: str) -> bool:
+    """True for an adapter entry that is not a directory and is reached through real
+    directories only: a link above it is never followed, so the entry is then absent. A
+    permission error propagates."""
+    parents = path.split("/")[:-1]
+    for depth in range(1, len(parents) + 1):
+        if not is_real_directory(root.joinpath(*parents[:depth])):
+            return False
+    mode = entry_mode(root / path)
+    return mode is not None and not stat.S_ISDIR(mode)
+
+
 def audited_paths(root: Path) -> tuple[dict[str, str], frozenset[str]]:
     """Map every audited path found on disk to its set, and list the directories walked."""
     found: dict[str, str] = {}
@@ -464,8 +478,7 @@ def audited_paths(root: Path) -> tuple[dict[str, str], frozenset[str]]:
                 else:
                     found[path] = set_name
     for path in ADAPTER_FILES:
-        mode = entry_mode(root / path)
-        if mode is not None and not stat.S_ISDIR(mode):
+        if adapter_file_present(root, path):
             found[path] = "adapter"
     return found, frozenset(directories)
 
@@ -1162,7 +1175,8 @@ CALL_VERB_RE = re.compile(r"\b(run|runs|invoke|invokes|call|calls|execute|execut
                           r"delegates|spawn|spawns)\b", re.IGNORECASE)
 NEGATION_RE = re.compile(r"\b(not|never|no)\b|n't\b", re.IGNORECASE)
 CLAUSE_DELIMITERS = ".;:,—→()"
-STOP_MARKER = "**stop**"
+# The stop marker in lower case, with or without a colon inside the emphasis.
+STOP_MARKER_RE = re.compile(r"\*\*stop:?\*\*")
 CALL_CONTEXTS = frozenset({"span", "text"})
 
 
@@ -1198,9 +1212,9 @@ def call_clause(text: str, column: int) -> str:
 
 
 def is_call(text: str, column: int) -> bool:
-    """A call verb in the clause, no negation before it, and no earlier stop marker outside
-    a span, in any letter case."""
-    if STOP_MARKER in without_spans(text)[:column].lower():
+    """A call verb in the clause, no negation before it, and no earlier stop marker
+    (`**stop**` or `**stop:**`) outside a span, in any letter case."""
+    if STOP_MARKER_RE.search(without_spans(text)[:column].lower()):
         return False
     clause = call_clause(text, column)
     verb = CALL_VERB_RE.search(clause)
@@ -1268,10 +1282,11 @@ LEGACY_TERM_RE = re.compile(r"windsurf|codeium|\bdevin\b", re.IGNORECASE)
 LEGACY_SUFFIXES = (".md", ".json")
 CANDIDATE_TEXT_LIMIT = 160
 # A home directory `/home/<name>` or `/Users/<name>` that starts a path: either a prefix
-# with its slash, or a bare directory followed by optional punctuation and then
-# whitespace, a backtick or the end of the text; the punctuation is not part of the name.
+# with its slash, or a bare directory whose name is a run of user-name characters
+# (letters, digits, `_`, `-` and inner periods) followed, after any periods, by neither
+# `/` nor another name character. Only the name is replaced; what follows it is kept.
 HOME_DIRECTORY_RE = re.compile(r"(?<![\w./~-])/(?:home|Users)/(?:[^/\s]+(/)|"
-                               r"[^/\s]+?(?=[.,;:!?)\]}'\"]*(?:[\s`]|\Z)))")
+                               r"[\w.-]*[\w-](?=\.*(?![\w.-]|/)))")
 
 
 def home_relative(text: str) -> str:
@@ -1322,7 +1337,7 @@ def legacy_mentions(audited: Sequence[AuditedFile]) -> list[JsonObject]:
 # Candidates: verbatim duplicate clusters
 # ---------------------------------------------------------------------------
 
-TABLE_SEPARATOR_RE = re.compile(r"\|[-:| ]+\|")
+TABLE_SEPARATOR_RE = re.compile(r"\|[-:|\s]+\|")
 LINE_PREFIX_RE = re.compile(r"\s*>?\s*(?:[-*+] |\d+[.)] )?")
 SENTENCE_END = (".", "!", "?")
 MINIMUM_UNIT_WORDS = 8
