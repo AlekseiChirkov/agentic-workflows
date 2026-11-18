@@ -5359,5 +5359,315 @@ class DiagnosticCompletenessTests(RenderCase):
         self.assert_silent(self.verify())
 
 
+# ---------------------------------------------------------------------------
+# Git read isolation: attribute filters, lazy fetching and rename detection
+# ---------------------------------------------------------------------------
+
+def installed_git_version() -> tuple[int, int]:
+    """Major and minor version of the git on PATH; (0, 0) when it cannot be read."""
+    if REAL_GIT is None:
+        return (0, 0)
+    result = subprocess.run([REAL_GIT, "--version"], capture_output=True, text=True,
+                            check=False)
+    found = re.search(r"(\d+)\.(\d+)", result.stdout)
+    return (int(found.group(1)), int(found.group(2))) if found else (0, 0)
+
+
+def require_git(case: unittest.TestCase, minimum: tuple[int, int], reason: str) -> None:
+    if REAL_GIT is None:
+        case.skipTest("git is not installed")
+    if installed_git_version() < minimum:
+        case.skipTest(f"git {minimum[0]}.{minimum[1]} or later is needed {reason}")
+
+
+def marker_program(path: Path, marker: Path, body: str) -> Path:
+    """An executable shell program that creates the marker file and then runs body."""
+    path.write_text(f"#!/bin/sh\ntouch '{marker}'\n{body}\n", encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
+def make_stat_stale(path: Path) -> None:
+    """Move the modification time so that git must hash the unchanged content again."""
+    info = path.stat()
+    os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns + 100 * 10**9))
+
+
+class AttributeFilterIsolationTests(ToolCase):
+    """A filter driver selected by attributes never runs, and the work tree still reads
+    correctly: a file whose content is unchanged stays clean, a changed file is dirty."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        require_git(self, (2, 40), "to read attributes from a fixed tree")
+        self.marker = self.base / "filter-ran"
+
+    def clean_filter(self) -> str:
+        return str(marker_program(self.base / "clean-filter.sh", self.marker, "cat"))
+
+    def process_filter(self) -> str:
+        return str(marker_program(self.base / "process-filter.sh", self.marker, "exit 1"))
+
+    def extract_without_marker(self) -> dict:
+        self.marker.unlink(missing_ok=True)
+        inventory = self.extract()
+        self.assertFalse(self.marker.exists(), "git ran a filter program")
+        return inventory
+
+    def test_clean_filter_of_the_repository_selected_by_committed_attributes_never_runs(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.write(".gitattributes", "*.md filter=alpha\n")
+        self.fx.commit_all()
+        self.fx.git("config", "filter.alpha.clean", self.clean_filter())
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        self.fx.write("workflows/beta-step.md", "# Beta step changed\n")
+
+        inventory = self.extract_without_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "dirty",
+                                                 "paths": ["workflows/beta-step.md"]})
+
+    def test_process_filter_of_the_global_configuration_selected_by_attributes_never_runs(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.write(".gitattributes", "*.md filter=beta\n")
+        self.fx.commit_all()
+        (self.fx.home / ".gitconfig").write_text(
+            f'[filter "beta"]\n\tprocess = {self.process_filter()}\n', encoding="utf-8")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        make_stat_stale(self.fx.root / "workflows/beta-step.md")
+
+        inventory = self.extract_without_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_filter_selected_by_the_global_attributes_file_never_runs(self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        self.fx.git("config", "filter.gamma.clean", self.clean_filter())
+        attributes = self.fx.home / ".config" / "git" / "attributes"
+        attributes.parent.mkdir(parents=True, exist_ok=True)
+        attributes.write_text("*.md filter=gamma\n", encoding="utf-8")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+
+        inventory = self.extract_without_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_filter_selected_by_the_repository_information_attributes_never_runs(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        self.fx.git("config", "filter.delta.clean", self.clean_filter())
+        (self.fx.root / ".git" / "info").mkdir(exist_ok=True)
+        (self.fx.root / ".git" / "info" / "attributes").write_text(
+            "[attr]tracked-text filter=delta\n*.md tracked-text\n", encoding="utf-8")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        self.fx.write("workflows/beta-step.md", "# Beta step changed\n")
+
+        inventory = self.extract_without_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "dirty",
+                                                 "paths": ["workflows/beta-step.md"]})
+
+
+class AttributeFilterVerifyTests(VerifyAssertions):
+    def setUp(self) -> None:
+        require_git(self, (2, 40), "to read attributes from a fixed tree")
+        self.temp = tempfile.TemporaryDirectory(prefix="audit-verify-filter-")
+        self.base = Path(self.temp.name)
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def test_strict_verify_runs_no_attribute_selected_filter_and_stays_silent(self) -> None:
+        attributes = "rules/*.md filter=alpha\nworkflows/*.md filter=beta\n"
+        fixture, inventory = build_verify_fixture(self.base,
+                                                  extra={".gitattributes": attributes})
+        (fixture.root / ASSESSMENT_PATH).write_text(canonical(valid_assessment(inventory)),
+                                                    encoding="utf-8")
+        refresh_report(fixture)
+        marker = self.base / "filter-ran"
+        clean = marker_program(self.base / "clean-filter.sh", marker, "cat")
+        process = marker_program(self.base / "process-filter.sh", marker, "exit 1")
+        fixture.git("config", "filter.alpha.clean", str(clean))
+        (fixture.home / ".gitconfig").write_text(
+            f'[filter "beta"]\n\tprocess = {process}\n', encoding="utf-8")
+        make_stat_stale(fixture.root / ALPHA)
+        make_stat_stale(fixture.root / BETA)
+        marker.unlink(missing_ok=True)
+
+        result = run_tool(["verify", "--root", str(fixture.root), "--report",
+                           str(fixture.root / REPORT_PATH), "--strict"],
+                          fixture.env, fixture.base)
+
+        self.assertFalse(marker.exists(), "git ran a filter program")
+        self.assert_silent(result)
+
+
+OLD_FLOW = "rules/old-flow.md"
+OLD_FLOW_TEXT = "# Old flow\n\nThe first step reads the state.\nThe second step writes it.\n"
+NEW_FLOW = "rules/new-flow.md"
+
+
+class PartialCloneIsolationTests(ToolCase):
+    """In a partial clone whose promisor remote is a local repository, no git read fetches a
+    missing object: the remote's upload program, which creates a marker, never starts."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        require_git(self, (2, 45), "to leave an object of a partial clone missing")
+        self.marker = self.base / "fetch-ran"
+        self.fx.minimal()
+        self.fx.write(OLD_FLOW, OLD_FLOW_TEXT)
+        self.fx.commit_all()
+        self.fx.git("config", "uploadpack.allowFilter", "true")
+        self.fx.git("config", "uploadpack.allowAnySHA1InWant", "true")
+        self.clone = self.base / "clone"
+
+    def clone_git(self, *args: str, env: dict[str, str] | None = None
+                  ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run([str(REAL_GIT), "-C", str(self.clone), *args],
+                              env=env if env is not None else self.fx.env, text=True,
+                              capture_output=True, check=False)
+
+    def make_clone(self, *options: str) -> None:
+        result = subprocess.run([str(REAL_GIT), "clone", "-q", "--filter=blob:none", *options,
+                                 f"file://{self.fx.root}", str(self.clone)],
+                                cwd=self.base, env=self.fx.env, text=True,
+                                capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def watch_fetches(self) -> None:
+        upload = marker_program(self.base / "upload-pack.sh", self.marker,
+                                f"exec '{REAL_GIT}' upload-pack \"$@\"")
+        self.assertEqual(self.clone_git("config", "remote.origin.uploadpack",
+                                        str(upload)).returncode, 0)
+        self.marker.unlink(missing_ok=True)
+
+    def test_status_fetches_no_missing_object_and_still_lists_the_staged_change(
+            self) -> None:
+        self.make_clone("--no-checkout")
+        for args in (("read-tree", "HEAD"), ("checkout", "--", "rules/alpha-flow.md",
+                                             "workflows/beta-step.md")):
+            result = self.clone_git(*args)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        old_blob = self.clone_git("rev-parse", f"HEAD:{OLD_FLOW}").stdout.strip()
+        offline = {**self.fx.env, "GIT_NO_LAZY_FETCH": "1"}
+        self.assertNotEqual(self.clone_git("cat-file", "-e", old_blob, env=offline).returncode,
+                            0, "the clone must lack the blob of the renamed file")
+        (self.clone / NEW_FLOW).write_text(OLD_FLOW_TEXT + "The third step reports.\n",
+                                           encoding="utf-8")
+        for args in (("add", NEW_FLOW), ("update-index", "--force-remove", OLD_FLOW)):
+            result = self.clone_git(*args)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.watch_fetches()
+
+        out = self.base / "inventory.json"
+        result = self.run_extract(out=out, root=self.clone)
+
+        self.assertFalse(self.marker.exists(), "git fetched a missing object")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        inventory = parse_inventory(out.read_text(encoding="utf-8"))
+        self.assertEqual(inventory["worktree"], {"state": "dirty",
+                                                 "paths": [NEW_FLOW, OLD_FLOW]})
+
+    def test_review_commit_lookup_fetches_nothing_and_reports_the_unknown_commit(
+            self) -> None:
+        self.make_clone()
+        self.watch_fetches()
+        review = f"Reviewed: Validator {OTHER_DATE} pass {UNKNOWN_COMMIT}"
+        text = report_text(review=review)
+        (self.clone / REPORT_PATH).parent.mkdir(parents=True, exist_ok=True)
+        (self.clone / REPORT_PATH).write_text(text, encoding="utf-8")
+
+        result = run_tool(["verify", "--root", str(self.clone), "--report",
+                           str(self.clone / REPORT_PATH)], self.fx.env, self.base)
+
+        self.assertFalse(self.marker.exists(), "git fetched a missing object")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn(("review-commit-unknown", f"{REPORT_PATH}:{line_number(text, review)}"),
+                      diagnostic_pairs(result))
+
+
+GIT_CALL_SHAPES = {
+    "rev-parse": ["--verify", "HEAD"],
+    "ls-files": ["-z"],
+    "status": ["--porcelain=v1", "-z", "--untracked-files=all"],
+}
+
+
+class GitReadSettingsTests(ToolCase):
+    def setUp(self) -> None:
+        super().setUp()
+        if REAL_GIT is None:
+            self.skipTest("git is not installed")
+
+    def recorded_calls(self, log: Path) -> list[tuple[str, list[str], list[str]]]:
+        """Each call as its lazy-fetch setting, its global options and its subcommand."""
+        calls: list[tuple[str, list[str], list[str]]] = []
+        lazy, arguments = "", []
+        for line in log.read_text(encoding="utf-8").splitlines():
+            if line.startswith("lazy="):
+                lazy, arguments = line[len("lazy="):], []
+            elif line.startswith("arg="):
+                arguments.append(line[len("arg="):])
+            elif line == "end":
+                index = 0
+                while index < len(arguments) and arguments[index] in {"--no-pager", "-c", "-C"}:
+                    index += 1 if arguments[index] == "--no-pager" else 2
+                calls.append((lazy, arguments[:index], arguments[index:]))
+        return calls
+
+    def test_git_reads_disable_lazy_fetching_and_renames_by_settings_older_git_ignores(
+            self) -> None:
+        self.fx.minimal()
+        head = self.fx.commit_all()
+        log = self.base / "git-calls.log"
+        wrapper_bin = self.base / "wrapper-bin"
+        wrapper_bin.mkdir()
+        wrapper = wrapper_bin / "git"
+        wrapper.write_text(
+            "#!/bin/sh\n{\n  printf 'lazy=%s\\n' \"${GIT_NO_LAZY_FETCH-}\"\n"
+            "  for argument in \"$@\"; do printf 'arg=%s\\n' \"$argument\"; done\n"
+            f"  printf 'end\\n'\n}} >> '{log}'\nexec '{REAL_GIT}' \"$@\"\n", encoding="utf-8")
+        wrapper.chmod(0o755)
+        env = {**self.fx.env, "PATH": f"{wrapper_bin}{os.pathsep}{self.fx.env['PATH']}"}
+        review = f"Reviewed: Validator {OTHER_DATE} pass {head}"
+        self.fx.write(REPORT_PATH, report_text(review=review))
+
+        inventory = self.extract(env=env)
+        verified = run_tool(["verify", "--root", str(self.fx.root), "--report",
+                             str(self.fx.root / REPORT_PATH)], env, self.base)
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+        self.assertNotIn("review-commit-unknown", {code for code, _ in
+                                                   diagnostic_pairs(verified)})
+        calls = self.recorded_calls(log)
+        shapes = {**GIT_CALL_SHAPES, "cat-file": ["-e", f"{head}^{{commit}}"]}
+        self.assertEqual(sorted({command[0] for _, _, command in calls}), sorted(shapes))
+        for lazy, options, command in calls:
+            with self.subTest(command=command[0]):
+                self.assertEqual(lazy, "1", "lazy fetching is not disabled")
+                self.assertEqual(command[1:], shapes[command[0]],
+                                 "a subcommand option that older git may reject")
+                if command[0] == "status":
+                    self.assertIn("status.renames=false", options, "status detects renames")
+
+
+class GitIsolationDocstringTests(unittest.TestCase):
+    def test_module_docstring_states_the_git_isolation_and_the_git_versions_it_needs(
+            self) -> None:
+        docstring = ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8")))
+        self.assertIsNotNone(docstring)
+        text = " ".join(str(docstring).split())
+        self.assertNotIn("so no program named by the repository's configuration runs", text)
+        for phrase in ("lazy fetching", "rename detection", "filter", "git 2.40",
+                       "git 2.45"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+
 if __name__ == "__main__":
     unittest.main()
