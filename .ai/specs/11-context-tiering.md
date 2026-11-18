@@ -138,9 +138,10 @@ implementation steps falls to at most half of a recorded baseline with no obliga
    `scripts/sync.sh` running `measure-context.sh check`, re-pointing of existing validator
    checks whose rule text moves (path-map entries in 09's schema-2 inventory amendment),
    knowledge-base updates and an ADR.
-9. The proposals that the 08 audit assigns to owner 11 (08 REQ-02): each is either
-   implemented (with obligation-map rows) or listed as declined, with its reason, in the
-   measurement summary.
+9. Every proposal and every finding that the 08 audit assigns to owner 11 (08 REQ-02 and
+   the owner's decision on AUD-08-065, 2026-11-18), whatever its type: each is either
+   implemented (with obligation-map rows where it moves an obligation) or listed as
+   declined, with its reason, in the measurement summary.
 
 ## Out of Scope
 
@@ -968,7 +969,7 @@ top-level rules produced by splitting (named per 09's `<kind>-<subject>` scheme)
 workflows), `YYYY-MM-DD-context-tiering-obligations.json` (JSON evidence beside the dated
 Markdown naming rule of `.ai/principles/coding.md:71-92`, which names `.md` analyses only)
 and `YYYY-MM-DD-context-tiering-measurement.md` (summary, word counts only, 08 proposals
-implemented or declined), indexed in `docs/README.md`.
+and findings with owner 11 implemented or declined), indexed in `docs/README.md`.
 Changed: every `workflows/*.md` (declaration and citation), `harness/<h>/always-on.md` (the
 line naming `load: always` rules), the rules being split, the four report sections,
 `workflows/spec-run.md` (step 4.6 citation), `scripts/sync.sh` (gate), `docs/name-map.json` and
@@ -1345,15 +1346,21 @@ with REQ-26 added to AC-05.
 - A-33 | Scope of the delta rule | Resolved: deltas inside the four reports and their consumption by `/spec-run` 4.6; other worker deltas follow 13 REQ-36/DM-4, with this rejection rule applied first on the helper route and by the Orchestrator on the manual route (amended 2026-11-14) | Source: `rules/orchestration.md` "Shared-file discipline"; 13 DM-3, DM-4, REQ-08, REQ-36, REQ-50 | Reversible: yes
 - A-34 | Evidence path base | Resolved: two named bases, `work` (`WORK_DIR`) and `task` (parent task directory) | Source: `workflows/spec-run.md:238-239`; `rules/phase-atomic-execution.md:16-22` | Reversible: yes
 - A-35 | Baseline revision content | Resolved: declarations, citation line, `contract-loads`, the always-on lines naming every `load: always` rule, and REQ-22 only; `contract-loads` counted | Source: previous revision §8 step 4 ("add the load schema … then split texts"); best practice | Reversible: no once committed (REQ-28)
-- A-36 | Handling of 08's 11-owned proposals | Resolved: implement or decline each, recorded in the measurement summary | Source: 08 REQ-02 | Reversible: yes
+- A-36 | Handling of 08's 11-owned proposals and findings | Resolved: implement or decline each proposal and each finding of any type with owner 11, recorded in the measurement summary | Source: 08 REQ-02; owner decision on AUD-08-065 (2026-11-18) | Reversible: yes
 - A-37 | Changed validator expressions under the frozen inventory | Resolved (amended 2026-11-14): reuse 09's schema-2 amendment (09 DM-9, REQ-51); 11 supplies `path_changes` entries and `resources` changes for its own re-pointing and defines no schema; the earlier fallback definition is withdrawn | Source: 09 DM-9, REQ-51, REQ-52, A-02; 09 Notes "Peer requests" ("09 owns it") | Reversible: yes
 - A-38 | Rules created after this spec and after the baseline | Resolved: 09's naming and placement rule; full `check`; counted only in after records; over-limit edits stop, with `/spec-sync` to the owning spec for word-fixed rules | Source: 09 Notes "Files and sections created after this spec"; 14 REQ-47, REQ-48; 13 REQ-49; REQ-28 | Reversible: yes
 - A-39 | Delivery order of 09's changes and 11's re-pointing | Resolved: 09's guard (A-28) stays; 11 adds its entries to 09's amendment after 09 has delivered it | Source: `.ai/specs/README.md` dependency order; 09 DM-9 ("reused by spec 11") | Reversible: yes
 
 ## Decisions
 
-N/A — autonomous refinement; no owner decision overrides a principle, ADR or shipped
-invariant. Owner-standing authorizations used: in-place replacement of this file.
+- D-01 (owner, 2026-11-18) — Scope item 9 takes in every finding with owner 11 that the 08
+  audit records, not only its proposals. The audit (AUD-08-065) found nine findings with owner
+  11 and another type (reference-defect, duplicate, naming and others: AUD-08-010, AUD-08-018,
+  AUD-08-025, AUD-08-026, AUD-08-037, AUD-08-038, AUD-08-058, AUD-08-060, AUD-08-061) that
+  the earlier wording gave no intake. Requirement ids and acceptance criteria are unchanged.
+
+Earlier refinements: no owner decision overrides a principle, ADR or shipped invariant.
+Owner-standing authorizations used: in-place replacement of this file.
 
 ## Clarifications
 
@@ -1413,7 +1420,7 @@ If any is missing, stop and report; do not invoke future names as existing.
 4. `rules/contract-reports.md`, the four report sections and the `/spec-run` 4.6 citation.
 5. Split rules: obligations into ≤ 700-word top-level rules, rationale/examples/history
    into `rules/reference/`; re-point affected validator checks (REQ-25); update
-   declarations; write the obligation map; handle 08's 11-owned proposals.
+   declarations; write the obligation map; handle 08's 11-owned proposals and findings.
 6. Reference deployment through 09's mechanism and the sync gate (AC-05, AC-07).
 7. After records, `compare`, `obligations`, measurement summary, knowledge-base updates, ADR.
 
@@ -1503,6 +1510,12 @@ untouched by a rollback.
 #### 2026-11-14 — independent final review
 
 - Q-07 recorded as resolved by 09 REQ-68 (mask constraint, edge case, risk, follow-up, changed files); deployment gate placed after 09's runtime guard and 19's check; isolated `HOME` includes `XDG_CONFIG_HOME`/`XDG_STATE_HOME`; AC-21 names `metadata-invalid-value`; terms unified (deploy manifest, capability declaration, always-on body); stale citations corrected.
+
+#### 2026-11-18 — intake of audit findings with owner 11
+
+- Owner decision on AUD-08-065 of the rules and workflows audit: Scope item 9, A-36, the
+  measurement summary and the implementation-order hint now take in every finding with
+  owner 11 as well as the proposals (D-01). No requirement or criterion id changed.
 
 ## Readiness Checklist
 
