@@ -6713,5 +6713,48 @@ class GitIsolationResidualTests(ToolCase):
         self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
 
 
+# ---------------------------------------------------------------------------
+# A `.git` directory that git does not take as a repository
+# ---------------------------------------------------------------------------
+
+class InvalidGitDirectoryTests(ToolCase):
+    """A root whose `.git` directory git would not take as a repository reads its work
+    tree as unknown, even when git finds a SHA-1 repository above it."""
+
+    def test_invalid_git_directory_below_a_sha1_top_level_reads_unknown(self) -> None:
+        if REAL_GIT is None:
+            self.skipTest("git is not installed")
+        self.fx.write("sub/rules/alpha-flow.md", "# Alpha flow\n")
+        self.fx.write("sub/workflows/beta-step.md", "# Beta step\n")
+        self.fx.commit_all()
+        self.fx.write("sub/rules/alpha-flow.md", "# Alpha flow changed\n")
+        shapes = {
+            "empty": {},
+            "head only": {"HEAD": "ref: refs/heads/main\n"},
+            "head and objects": {"HEAD": "ref: refs/heads/main\n", "objects/.keep": ""},
+        }
+        for number, (shape, files) in enumerate(shapes.items()):
+            with self.subTest(shape=shape):
+                dot_git = self.fx.root / "sub" / ".git"
+                shutil.rmtree(dot_git, ignore_errors=True)
+                dot_git.mkdir()
+                for relative, content in files.items():
+                    (dot_git / relative).parent.mkdir(parents=True, exist_ok=True)
+                    (dot_git / relative).write_text(content, encoding="utf-8")
+                out = self.base / f"inventory-{number}.json"
+
+                result = self.run_extract(out=out, root=self.fx.root / "sub")
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                inventory = parse_inventory(out.read_text(encoding="utf-8"))
+                self.assertEqual(inventory["worktree"], {"state": "unknown", "paths": []})
+
+    def test_module_docstring_states_that_an_invalid_git_directory_reads_unknown(
+            self) -> None:
+        docstring = ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8")))
+        text = " ".join(str(docstring).split())
+        self.assertIn("does not take as a repository", text)
+
+
 if __name__ == "__main__":
     unittest.main()

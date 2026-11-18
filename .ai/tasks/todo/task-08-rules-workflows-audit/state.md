@@ -561,7 +561,7 @@ T-14 | Fix: git isolation follow-ups and version matrix (proposals) | atomic-tes
   base_commit: 5ce334b361c1914d0682269c5240dce96fe6ffcd
   commits:
   pr: none
-  last_action: RED reached — 10 failing tests written (integration plus in-process), 25 failing tests/subtests; 3 residual pins skip on git 2.53.0 (matrix only); one intent question open (invalid `.git` directory below a SHA-1 top level); previous: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
+  last_action: RED reached — 10 failing tests written (integration plus in-process), 25 failing tests/subtests; 3 residual pins skip on git 2.53.0 (matrix only); second RED reached for the invalid `.git` directory (4 failures); previous: one intent question open; previous: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
   target_files: scripts/check-audit-instructions.py
   blocker: none
   notes: source and decisions in `T-14-fix-git-isolation-follow-ups/description.md`
@@ -570,6 +570,9 @@ T-14 | Fix: git isolation follow-ups and version matrix (proposals) | atomic-tes
          tdd: red observed 2026-11-18 — Python 3.12.16, git 2.53.0: 13 tests in about 3.5 s, 25 failing tests/subtests, 3 skipped (the residual pins), 0 errors: home forms copied as `[~/home/x/y)`, `~/y`, `~/y`, `~́x`, `~́y`; `os.open` called on the device link; info/attributes reader returns `kappa` for the NUL-at-column-0 and NUL-before-token lines and nothing for the NUL-then-3000-bytes line; the filter marker appears for the NUL line, both `.git` file endings and both `commondir` endings; the root below the top level reads `clean` with a dirty file; 12 docstring phrases absent and `mismatched work-tree paths` present; no runbook refresh bullet; guard subtests pass
          tdd: earlier tests — test-file diff at RED: 351 added, 1 changed (the suite docstring names the in-process metadata readers), imports `stat` and `unittest.mock` added; no earlier test changed; frozen-test conflict: none
          open question (raised at RED, awaiting the orchestrator): the decision to keep the invalid `.git` directory behaviour assumes it fails closed and reads `unknown`; reproduced 2026-11-18 at 5ce334b: an empty `.git` directory in a root below a SHA-256 top level reads `unknown`, but below a SHA-1 top level it reads `clean` with a dirty audited file (git uses the enclosing repository, the empty SHA-1 tree resolves there, and the top-level-relative paths miss the filter)
+         orchestrator decision 2026-11-18: option A — a root whose `.git` directory git would not take as a repository (no `HEAD`, or a common directory without `objects` and `refs`) reads its work tree as `unknown` without `status`; `git_common_directory` unchanged; no new git command; the docstring states it; `scripts/README.md` becomes a target file (one row for `scripts/audit-git-matrix/`)
+         tdd: second red digest — invalid `.git` directory → InvalidGitDirectoryTests.test_invalid_git_directory_below_a_sha1_top_level_reads_unknown (empty, `HEAD` only, `HEAD` and `objects`), .test_module_docstring_states_that_an_invalid_git_directory_reads_unknown
+         tdd: second red observed 2026-11-18 — Python 3.12.16, git 2.53.0: 2 tests in 0.6 s, 4 failures, 0 errors: each `.git` shape below the SHA-1 top level reads `clean` with a dirty audited file; the docstring lacks `does not take as a repository`; test-file diff since 7ead22d: one class appended, 0 lines deleted
 
 T-15 | Fix: verify input and form rules (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
