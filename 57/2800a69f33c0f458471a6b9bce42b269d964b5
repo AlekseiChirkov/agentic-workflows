@@ -1,0 +1,25 @@
+.ai/tasks/todo/task-08-rules-workflows-audit/T-17-fix-audit-output-corrections/description.md
+  s_96afdcfd38c67e::t_e63488a2125bd7 16-17,19-20,25
+.ai/tasks/todo/task-08-rules-workflows-audit/plan.md
+  s_96afdcfd38c67e::t_a7c12ee6999361 17
+.ai/tasks/todo/task-08-rules-workflows-audit/state.md
+  s_96afdcfd38c67e::t_7e9d5290996b04 514,520-521,529-536
+scripts/audit-instructions.py
+  s_96afdcfd38c67e::t_74deec921f861b 16-17,60-61,145-156,158-183,400-402,404,406-412,425-426,429-430,433-437,448,467-468,493,498-515,519-520,522-525,939-940,942-943,1201-1203,1270-1274,1278-1280,1376
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "572800a69f33c0f458471a6b9bce42b269d964b5",
+  "prompts": {},
+  "sessions": {
+    "s_96afdcfd38c67e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f3ac193-9977-473b-b9f7-3df06f485ee7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
