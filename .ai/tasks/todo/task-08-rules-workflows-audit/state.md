@@ -636,17 +636,22 @@ T-16 | Fix: output boundary and render (proposals) | atomic-tests: green | atomi
          verification: delivery gate GATE PASS (delivery verify silent; verify --strict only the allowed line; current tree the 14 baseline lines); `render --write` of the delivered outputs into a temporary copy is byte-identical to the delivered report, and plain `render` equals its region; every new function annotated; no line over 100 characters; complete validator left to the orchestrator (instructed)
          finalize 2026-11-18: architecture — no delta (`.ai/memory/architecture.md` does not describe the audit tool; the new `output-unwritable` exit and the `report-unwritable` permission refusal are documented in the tool's docstring); plan — delta `T-16 → done` returned, not written; composite rollup — not applicable (plain leaf); compression — not run (shared file, orchestrator's call)
 
-T-17 | Fix: audit output corrections and fresh review (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+T-17 | Fix: audit output corrections and fresh review (proposals) | atomic-tests: red | atomic-execution: not-started | atomic-validation: not-started
   branch: docs/audit-output-corrections
   base_branch: fix/audit-output-boundary-and-render
   base_commit: 2159aa0433cec13929f20b263458ec5b591ade95
   commits:
   pr: none
-  last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
-  target_files:
+  last_action: RED reached — scripted assertion over the corrected fields written (smoke), 40 checks, 32 failing on the uncorrected outputs; previous: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
+  target_files: docs/audits/2026-11-17-rules-workflows-audit.inventory.json, docs/audits/2026-11-17-rules-workflows-audit.assessment.json, docs/audits/2026-11-17-rules-workflows-audit.md
   blocker: none
   notes: source and decisions in `T-17-fix-audit-output-corrections/description.md`
          started in parallel with the independent validation of the output boundary and render change by owner instruction 2026-11-18; if that validation requires a tool change, the outputs are re-rendered after it is merged here
+         tdd: smoke — scripted assertion over the corrected fields, kept outside product paths: `<scratchpad>/t17/assert-corrections.py <work-dir> <fresh-inventory>` (40 checks: each corrected finding and amendment field, AC-39 removal, the inventory equal byte for byte to the fresh extraction with 7005 edges and without the false adapter edge, the digest, the generated region equal to a fresh render, the Summary edge count and AMD-08-03 paraphrase, the Method note, `Accepted: pending`, no economics pattern in corrected text, no finding id in finding evidence, evidence lines within the inventory line counts); the delivery gate is the second executable check
+         tdd: red observed 2026-11-18 — Python 3.12.16: 32 of 40 checks fail on the uncorrected outputs, each for the missing correction; the 8 passing are guards (AUD-08-017 evidence without a finding id, AUD-08-004 closure, digest, region equal to a fresh render, acceptance pending, economics, evidence ids, evidence line range)
+         gate before: GATE PASS (delivery verify silent; verify --strict only the allowed `inventory-stale …inventory.json:82043` line; current tree the 14 baseline lines)
+         re-extraction (scratch, before any target change): the current tool on the clean detached checkout of 8d7e484 (status empty before and after, `git update-index --refresh` first) writes an inventory whose structural JSON diff against the delivered one is exactly one removed edge — `.ai/tasks/todo/task-08-rules-workflows-audit/state.md:100:342`, planning class, form `path`, raw `templates/codex-global-AGENTS.md`, status `resolved` — and nothing else (the byte diff is lines 82043-82061 only; `inventory_digest` unchanged); no assessment item refers to that edge; because it is a resolved edge, the defect counts stay and only the total goes from 7006 to 7005
+         interpretation (reported): the Summary's hand-written `with 7006 reference edges` becomes 7005 with the re-extraction; the Summary's AMD-08-03 paraphrase (`a bootstrap whose own context section already exceeds it`) does not quote the condition but paraphrases it, and is restated to name the minimal rule
 
 T-18 | Feat: state tool memory consistency warning (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
