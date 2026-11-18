@@ -5,7 +5,7 @@ flow: full
 ## Phases
 - discovery: complete
 - execution: complete
-- validation: in-progress
+- validation: complete
 
 ## Task Analysis
 
@@ -560,7 +560,7 @@ T-14 | Fix: git isolation follow-ups and version matrix (proposals) | atomic-tes
   base_branch: fix/audit-extraction-edge-cases
   base_commit: 5ce334b361c1914d0682269c5240dce96fe6ffcd
   commits: 857f08e docs: record the git isolation follow-up branch, 7ead22d test(audit): cover git metadata reads, home prefixes and roots below the top level, ace5c5f test(audit): require an invalid .git directory to read its work tree as unknown, f7c7aad fix(audit): read git metadata as git does and treat roots without a repository as unknown
-  pr: none
+  pr: #120 draft
   last_action: pav-close done — DONE: 4/4 criteria met, no critical or important finding; suite 264 OK (skipped 3), GATE PASS; 6 optional findings recorded, not reworked (owner order); previous: pav-propose done (batch, 0 Do Now, 0 Do Later, 6 Optional); previous: pav-check DONE; previous: pae-finalize done — git metadata read as git reads it (stat before open, CR/LF-only strip, info/attributes cut at NUL), roots without their own repository read `unknown` without `status`, home prefixes keep non-name characters, docstring boundaries, runbook refresh bullet, container matrix delivered and run on the four owner-selected versions (all pass); previous: completed step 3 — matrix 2.30.6, 2.30.7, 2.40.1, 2.41.0 pass; previous: completed step 2 — GREEN: both RED sets pass, full suite 264 OK (3 residual cases skipped on git 2.53.0), delivery gate GATE PASS; matrix (step 3) pending; previous: RED reached — 10 failing tests written (integration plus in-process), 25 failing tests/subtests; 3 residual pins skip on git 2.53.0 (matrix only); second RED reached for the invalid `.git` directory (4 failures); previous: one intent question open; previous: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
   target_files: scripts/check-audit-instructions.py, scripts/audit-instructions.py, .ai/context/runbook.md, scripts/README.md, scripts/audit-git-matrix/Dockerfile, scripts/audit-git-matrix/run.sh
   blocker: none
@@ -591,7 +591,7 @@ T-15 | Fix: verify input and form rules (proposals) | atomic-tests: green | atom
   base_branch: fix/audit-git-isolation-follow-ups
   base_commit: 75a1136db6cf24ed828374652a98a13cfb1f41bc
   commits: 05176a0 docs: record the verify input and form rules branch, 203c385 docs: keep one notes field in the verify rules record, 63f6fe8 test(audit): cover verify input links, kind changes, amendment rules and ASCII digits, e0e6b8b fix(audit): read verify inputs without links and check amendment and digit rules, 683fe8b Merge branch fix/audit-git-isolation-follow-ups
-  pr: none
+  pr: #121 draft
   last_action: pav-close done — DONE: 3/3 criteria met, no critical or important finding; suite 276 OK (skipped 3), GATE PASS; 5 optional findings recorded, not reworked (owner order); previous: pav-propose done (batch, 0 Do Now, 0 Do Later, 5 Optional); previous: pav-check DONE; previous: pae-finalize done — verify reads the inventory and the assessment without following a link (named by the link), reports a changed entry kind without --strict, rejects blank current text, matches Notes headings without trailing whitespace and Terminology targets against the terminology table's body rows only, rejects self-dependencies and dependency cycles, and accepts only ASCII digits in its identifier and line forms; full suite 276 OK, delivery gate GATE PASS; previous: completed step 2 — GREEN: all RED tests pass; previous: RED reached — 8 failing tests written (integration), 31 failing tests/subtests; previous: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
   target_files: scripts/check-audit-instructions.py, scripts/audit-instructions.py
   blocker: none
@@ -615,7 +615,7 @@ T-16 | Fix: output boundary and render (proposals) | atomic-tests: green | atomi
   base_branch: fix/audit-verify-input-and-form-rules
   base_commit: 683fe8bea0e2a8425459ddbcef54ec5e6f81fa74
   commits:
-  pr: none
+  pr: #122 draft
   last_action: pav-close done (re-validation after rework round 1) — DONE, criteria 3/3 met; V1 fixed: an amount a report cell displays is reported as `economics-claim` at its assessment location; suite 292 OK, delivery gate GATE PASS, re-render byte-identical; optional findings R1–R3 recorded only; previous: pae-finalize done (rework round 1) — the economics check scans each assessment string as stored and as its report cell displays it (Cc, Zl and Zp as a space), so an amount the generated region shows is reported at its assessment location; full suite 292 OK, delivery gate GATE PASS in dlv2, re-render byte-identical; previous: rework RED reached — 1 failing test (4 subtests) for V1; previous: pav-check NEEDS WORK — one important finding (V1 below); previous: pae-finalize done — every printed line escapes format characters, every space separator in a code or location, and doubles the `"` of a quoted value; a failing standard output exits 2 with `output-unwritable`; render cells double backslashes before a pipe, tables are sorted by path, line and column, `render --write` refuses a report without owner write permission, and the report economics check skips the generated region; full suite 291 OK, delivery gate GATE PASS, re-render byte-identical; previous: all steps complete (GREEN); previous: RED reached — 10 failing tests written (integration), 26 failing tests/subtests, plus 3 characterization pins and 2 guards passing; previous: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
   target_files: scripts/check-audit-instructions.py, scripts/audit-instructions.py
   blocker: none
@@ -651,7 +651,7 @@ T-17 | Fix: audit output corrections and fresh review (proposals) | atomic-tests
   base_branch: fix/audit-output-boundary-and-render
   base_commit: 2159aa0433cec13929f20b263458ec5b591ade95
   commits:
-  pr: none
+  pr: #123 draft
   last_action: pav-close done — DoD met (3/3 criteria) at ce56065: every correction item verified against the audited bytes at 8d7e484, independent re-extraction byte-identical to the delivered inventory (exactly one resolved planning edge removed, digest unchanged), region equal to a fresh render, assertion 41/41, GATE PASS with verify --strict silent; 0 critical, 0 important, 8 optional recorded; plan delta T-17 → reviewed returned; previous: pav-propose done (batch: 0 Do Now, 0 Do Later, 8 Optional recorded, none applied); previous: pav-check DONE; previous: pae-finalize done — assessment corrected (AUD-08-017 names ``## Parent `plan.md` Table Format`` as a third protocol and cites AUD-08-028; AUD-08-026 cites AUD-08-004 and AUD-08-036; AUD-08-045 consequence restated; AUD-08-052/053 cite rules/workflow-globals.md:36-37; AMD-08-03/06/07 measure the minimal rule; AMD-08-03 exception after the limit; AMD-08-01 names its set; AMD-08-05 scan set E or R; AC-39 dropped from AMD-08-05/06), inventory replaced by the fresh extraction (one false adapter edge removed), report re-rendered with Summary count 7005, AMD-08-03 paraphrase and one Method note; assertion 41/41, render idempotent, GATE PASS, verify --strict at 8d7e484 silent; previous: all steps complete (GREEN); previous: RED reached — scripted assertion over the corrected fields written (smoke), 40 checks, 32 failing on the uncorrected outputs; previous: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
   target_files: docs/audits/2026-11-17-rules-workflows-audit.inventory.json, docs/audits/2026-11-17-rules-workflows-audit.assessment.json, docs/audits/2026-11-17-rules-workflows-audit.md
   blocker: none
@@ -676,7 +676,7 @@ T-18 | Feat: state tool memory consistency warning (proposals) | atomic-tests: g
   base_branch: main
   base_commit: 09fba91e313d5d6c905b997efd2d54cf1b251f39
   commits: e6c9831 test(state-tool): warn when the memory entry overstates a task's reviewed work, 2fde7a5 feat(state-tool): warn when the memory entry overstates a task's reviewed work
-  pr: none
+  pr: #119 draft
   last_action: pae-finalize done — get and validate warn memory-state-mismatch when the project memory entry for the task claims reviewed leaves or a pull request range the leaf blocks do not support; memory read bounded, link-free, strict UTF-8, never an error; exit codes unchanged
   target_files: tests/state-tool.py, scripts/state-tool.py, docs/USAGE.md
   blocker: none
@@ -711,13 +711,13 @@ T-18 | Feat: state tool memory consistency warning (proposals) | atomic-tests: g
          validation round 4 (independent, 2026-11-18): DONE at c01b558 — AC1 met (tip tests vs base tool: 26 run, 32 failures, 0 errors), AC2 met (tests/state-tool.py diff vs base append-only), AC3 met in substance (state-tool suite 383 OK; complete validator 724 passed, 1 failed, 2 skipped — the only failure, Run-log lint validates fields and shared vocabulary, is a 10 s log-step.sh timeout under parallel load in a check the branch does not touch; run_lint_smoke fields passes in isolation at c01b558 twice); pin review: 339 guard records unchanged except 137 inventory_sha256 (= recomputed a75c06ff…ef48) and 2 state-tool dependency digests (= sha256 d7026ce0…5ae2, reasons still true); manifest digest and AMENDMENT_SHA256 match; amendment row: runtime_bounds +4/−1, source_writes +8 (all under TemporaryDirectory), all 327 line hashes match; guard suites, oracle 23 OK; optional O15 (pin note wording: 12 observations added and 1 replaced, guard records stay 339), O16, O17 (run-log lint timeout under load, separate task) — recorded, not applied
          complete validator on the integrated tree: run by the orchestrator after the stack and this branch are combined
 
-T-19 | Fix: separator pattern shadowing (reconciliation finding) | atomic-tests: green | atomic-execution: complete | atomic-validation: not-started
+T-19 | Fix: separator pattern shadowing (reconciliation finding) | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
   branch: fix/audit-separator-pattern
   base_branch: docs/sync-audit-specifications
   base_commit: f71d7a4b11e4f56fc3d028d94fc0bec164546f09
-  commits: 3020af5 test(audit): require separator rows without dashes to stay out of duplicate and statement units
-  pr: none
-  last_action: pae-finalize done — duplicate units and statement units use the decided separator rule again (`TABLE_SEPARATOR_RE`), the terminology table keeps its stricter pattern as `TERMINOLOGY_SEPARATOR_RE`; full suite 295 OK (skipped 3); delivery gate as expected (delivery verify and verify --strict silent, current tree the 14 baseline lines plus the four expected amendment-invalid lines); previous: all steps complete (GREEN); previous: RED reached — 2 failing tests written (integration), 5 failing tests/subtests, plus 2 terminology pins passing before the change; previous: created 2026-11-18 from the spec 08 reconciliation finding Q-06 (a)
+  commits: 878e6b6 docs: record the separator pattern fix branch, 3020af5 test(audit): require separator rows without dashes to stay out of duplicate and statement units, 850a98f fix(audit): give the terminology table its own separator pattern, b599339 Merge branch 'docs/sync-audit-specifications' into fix/audit-separator-pattern
+  pr: #125 draft
+  last_action: pav-close done — validation (independent, 2026-11-18) DONE at b599339: all three criteria met; RED replayed (5 failures, 0 errors), suite 296 OK (skipped 3), GATE PASS; 0 critical, 0 important, 3 optional; previous: pae-finalize done — duplicate units and statement units use the decided separator rule again (`TABLE_SEPARATOR_RE`), the terminology table keeps its stricter pattern as `TERMINOLOGY_SEPARATOR_RE`; full suite 295 OK (skipped 3); delivery gate as expected (delivery verify and verify --strict silent, current tree the 14 baseline lines plus the four expected amendment-invalid lines); previous: all steps complete (GREEN); previous: RED reached — 2 failing tests written (integration), 5 failing tests/subtests, plus 2 terminology pins passing before the change; previous: created 2026-11-18 from the spec 08 reconciliation finding Q-06 (a)
   target_files: scripts/check-audit-instructions.py, scripts/audit-instructions.py
   blocker: none
   notes: source and decision in `T-19-fix-separator-pattern-shadowing/description.md`
@@ -729,6 +729,7 @@ T-19 | Fix: separator pattern shadowing (reconciliation finding) | atomic-tests:
          tdd: green 2026-11-18 — new and related classes 14 OK; full standalone suite 295 OK in 402.7 s under Python 3.12.16, 3 skipped (the git residual cases); `git diff 3020af5 -- scripts/check-audit-instructions.py` empty, no test amended after RED
          verification: delivery gate — delivery verify exit 0, 0 lines; verify --strict exit 0, 0 lines; current tree differs from the baseline only by the four expected `amendment-invalid` lines (AMD-08-03, AMD-08-04, AMD-08-05, AMD-08-07, from the spec 09 amendment on this branch), so the gate prints GATE FAIL for that expected difference only; dlv left clean; complete contract validator not run (instructed); no new git command, verify writes nothing, `METHOD_VERSION` unchanged, no planning identifiers in the script diff, annotations unchanged
          finalize 2026-11-18: architecture — no delta (the audit tool is not described in `.ai/memory/architecture.md`, no interface changed); plan — delta `T-19 → done` returned, not written; composite rollup — not applicable (plain leaf); compression — not run (shared file, orchestrator's call)
+         validation (independent, 2026-11-18): DONE at b599339 — AC1 met (the RED test file at 3020af5 run against the tool at 3020af5: 4 tests, 5 failures counting subtests, 0 errors; both terminology pins pass before and after); AC2 met (`git diff f71d7a4 3020af5` and `git diff e21cb3c b599339` of the test file carry the same 67 added lines; `git diff 3020af5 b599339` of it adds only the 29-line `AssessmentCellEconomicsTests` block of the other branch, identical to `git diff f71d7a4 e21cb3c`; no line removed, no class or block duplicated; the tool-file merge carries the other branch's change unchanged); AC3 met (full standalone suite at b599339: 296 OK, 3 skipped, 425.6 s, Python 3.12.16; delivery gate with the accepted baseline: delivery verify and verify --strict exit 0 and silent, current tree the 18 baseline lines, GATE PASS, dlv2 left clean); the two bindings occur once each (`TABLE_SEPARATOR_RE` `:1405`, used at `:1456` duplicate units on the right-stripped line and `:2843` statement units; `TERMINOLOGY_SEPARATOR_RE` `:2748`, used only at `:2764` in `terminology_terms`); `TABLE_SEPARATOR_RE` is DM-6's `^\|[-:|\s]+\|$`; probes: `| | |`, `|:|:|`, `|\t|\t|`, `| --- | |` are separators for units and not for the terminology table, alignment-colon rows are both; code diff 2 lines, `METHOD_VERSION` unchanged, no planning identifier; complete contract validator not run (instructed); optional O1–O3 recorded, not applied
 
 ## Execution Report
 - T-01: reviewed — read-only `extract` of the deterministic inventory (audited set, readers, text model, git state); re-validated after one correction (unreadable roots, undecodable names, repository-configured git programs)
@@ -859,7 +860,10 @@ Gate notes: #2 is the only code fix, so it is dedicated; it touches the tool and
 - Spec completion marker (`status: done`, `completed_task`, `completed_at`) — deferred to the archival of the spec: the identity ledger pins `.ai/specs/08-rules-workflows-audit.md:23`, so adding front matter in place would move the pinned line; the archival step already updates that ledger row's path cell (REQ-11) [source: finalization]
 
 ## Validation Result
-validation: complete (2026-11-18, second finalization after fix-task T-12)
+validation: complete (2026-11-18, third finalization after the proposal follow-ups T-13–T-19)
+final-tip-3: b599339 on `fix/audit-separator-pattern` (stack #117, #120–#125 from main 09fba91); integration tree 1c7b13b = that tip + `feat/state-tool-memory-consistency-warning` (#119) + `docs/context-tiering-audit-finding-intake` (#118): `bash scripts/validate-contracts.sh` 725 passed, 0 failed, 2 skipped; audit suite 296 tests OK (3 git-version skips); at the audited revision 8d7e484 with the tool and corrected outputs overlaid `verify` and `verify --strict` exit 0, empty; on the current tree `verify` prints the 14 `inventory-stale` and 4 `amendment-invalid` lines expected for a later tree (spec 09 amended); `validate-task.sh` 0 failed; every leaf T-13–T-19 independently validated (T-13 and T-16 after one rework round each, T-18 after three)
+history-2: merged PRs #105–#116 into main on 2026-11-18 by owner instruction (merge-async per PR, top-down; main 09fba91 = validated b3c2306); owner orders 2026-11-18: apply all proposals (T-13–T-18; T-19 added from the spec 08 reconciliation), extend spec 11 intake (#118), accept the report (`Accepted: owner 2026-11-18`; amendments applied to spec 09); owner decisions during the run: git matrix cut to boundary versions, minor findings recorded not reworked
+second-finalization: complete (2026-11-18, after fix-task T-12)
 final-tip-2: 2769bb4 on `fix/audit-blockers-and-evidence-checks` — `bash scripts/validate-contracts.sh` 721 passed, 0 failed, 2 skipped; suite 237 tests OK; `verify` exit 0, empty; `validate-task.sh` 0 failed; PR #116 promoted to ready
 history: reopened 2026-11-18 for fix-task T-12 (owner: fix all findings); the record below is the first finalization
 first-finalization: complete (2026-11-18)
@@ -869,6 +873,7 @@ prs: #105–#115 promoted from draft to ready in stack order; #104 (the stack ba
 
 ## Spec Sync
 sync: complete
+re-synced-2: 2026-11-18 after T-13–T-19 — spec 08 D-05 (behaviour delivered and current behaviour documented by topic), DM-1–DM-9, Contracts, Security row, 15 Edge Cases rows; Q-03 and Q-05 resolved, Q-04 resolved in part (matrix versions 2.44.2, 2.45.0, 2.53.0 not run), Q-06 added: (a) resolved by T-19, (b) `method_version` kept although DM-1 asks for a new one, (c) REQ-11 does not list `scripts/audit-git-matrix/` — (b) and (c) open for the owner; spec 09 D-02: accepted amendments AMD-08-01…07 applied (AC-50 added) after owner acceptance; spec 11 D-01: intake of every owner-11 finding (AUD-08-065, PR #118); spec 08 line 23 and spec 09 line 23 unchanged
 synced_at: 2026-11-18T07:58:35+06:00; re-synced 2026-11-18 after T-12 (D-04: DM-8 two-way blockers rule, DM-9 `blocker-extra` and `evidence-unresolved`, AC-10 extended; Q-05 gains the T-12 Do Later proposals)
 deltas: 8 (implemented-differently: 4, not-implemented: 0, implemented-beyond: 4)
 spec: .ai/specs/08-rules-workflows-audit.md
@@ -963,6 +968,7 @@ adr: not triggered — the specification already fixes the contract and states t
 **Evidence:** the specification's permitted-changes list and suite contract; P4, P7; ADR-0019 Decision 3 (standalone checks under `scripts/`); `scripts/state-tool.py` as the single-file standard-library precedent.
 
 ## Improvement Proposals (T-01)
+status: applied or decided 2026-11-18 by the proposal follow-ups T-13–T-19 and the spec 08 sync D-05 (owner order "apply all proposals"); items left open are listed in spec 08 Q-04 and Q-06
 
 ### Do Now
 - P1: adapter-file presence via `os.lstat` so a permission error surfaces instead of omitting `templates/codex-global-AGENTS.md` (V8); add a test
@@ -977,6 +983,7 @@ adr: not triggered — the specification already fixes the contract and states t
 - P6: settle whether whitespace-only front-matter lines count as continuation lines (V6)
 
 ## Improvement Proposals (T-02)
+status: applied or decided 2026-11-18 by the proposal follow-ups T-13–T-19 and the spec 08 sync D-05 (owner order "apply all proposals"); items left open are listed in spec 08 Q-04 and Q-06
 
 ### Do Now
 - P1: give the token literal `templates/codex-global-AGENTS.md` the same right boundary as the other path tokens, so `templates/codex-global-AGENTS.md.bak` no longer resolves to the adapter file (V1); add a test
@@ -991,6 +998,7 @@ adr: not triggered — the specification already fixes the contract and states t
 - P6: define an unclosed `check "` string and text between `check ` and the first quote (V5)
 
 ## Improvement Proposals (T-03)
+status: applied or decided 2026-11-18 by the proposal follow-ups T-13–T-19 and the spec 08 sync D-05 (owner order "apply all proposals"); items left open are listed in spec 08 Q-04 and Q-06
 
 ### Do Now
 - P1: rewrite a bare home directory at a path end (`/home/<name>` or `/Users/<name>` followed by end of text, whitespace, a backtick or punctuation) to `~`, with a test, so copied text cannot fail the output grep for `/home/` and `/Users/` (V1); confirm it stays within the owner's home-path decision
@@ -1004,6 +1012,7 @@ adr: not triggered — the specification already fixes the contract and states t
 - P5: state in DM-6 that full-output, harness-name, legacy and call detection read only `utf-8` audited files (V5)
 
 ## Improvement Proposals (T-04)
+status: applied or decided 2026-11-18 by the proposal follow-ups T-13–T-19 and the spec 08 sync D-05 (owner order "apply all proposals"); items left open are listed in spec 08 Q-04 and Q-06
 
 ### Do Now
 - P1: add boundary tests that kill the surviving mutants — a backslash in a copied string printed as `\x5c`, U+2028 and U+0085 in a copied string escaped, a `root-unreadable` `ERROR:` line for a file name holding a line break kept on one line, and a direct `write_lines` case on an `ascii` stream escaping a non-encodable character (V13)
@@ -1025,6 +1034,7 @@ adr: not triggered — the specification already fixes the contract and states t
 - P13: escape a quote inside a quoted message value, or drop the quotes, so the value's end is unambiguous (V14)
 
 ## Improvement Proposals (T-05)
+status: applied or decided 2026-11-18 by the proposal follow-ups T-13–T-19 and the spec 08 sync D-05 (owner order "apply all proposals"); items left open are listed in spec 08 Q-04 and Q-06
 
 ### Do Now
 - P1: reject an empty-string `current` for an existing target as `amendment-invalid`, with a test (V1)
@@ -1042,6 +1052,7 @@ adr: not triggered — the specification already fixes the contract and states t
 - P9: index terminology rows once instead of scanning them for every amendment
 
 ## Improvement Proposals (T-06)
+status: applied or decided 2026-11-18 by the proposal follow-ups T-13–T-19 and the spec 08 sync D-05 (owner order "apply all proposals"); items left open are listed in spec 08 Q-04 and Q-06
 
 ### Do Now
 - P1: escape a backslash in rendered cells (or the backslash before `|`) so source text `a\|b` cannot turn the escaped pipe into a cell delimiter in GitHub-flavoured Markdown, with a test in the render tests and the matching change to the test-side cell model (V1)
@@ -1058,6 +1069,7 @@ adr: not triggered — the specification already fixes the contract and states t
 - P8: cut suite time by refreshing the report only when the assessment bytes changed since the last refresh, or by rendering in-process (V7)
 
 ## Improvement Proposals (T-07)
+status: applied or decided 2026-11-18 by the proposal follow-ups T-13–T-19 and the spec 08 sync D-05 (owner order "apply all proposals"); items left open are listed in spec 08 Q-04 and Q-06
 
 ### Do Now
 None
@@ -1071,6 +1083,7 @@ None
 - AUD-08-004 and AUD-08-026: cite each other, since both close when the global principles in `rules/workflow-globals.md` get headings of their own.
 
 ## Improvement Proposals (T-08)
+status: applied or decided 2026-11-18 by the proposal follow-ups T-13–T-19 and the spec 08 sync D-05 (owner order "apply all proposals"); items left open are listed in spec 08 Q-04 and Q-06
 
 ### Do Now
 None
@@ -1083,6 +1096,7 @@ None
 - AUD-08-052 and AUD-08-053: cite rules/workflow-globals.md:36-37 (standalone and reuse sentences) instead of :35-36.
 
 ## Improvement Proposals (T-09)
+status: applied or decided 2026-11-18 by the proposal follow-ups T-13–T-19 and the spec 08 sync D-05 (owner order "apply all proposals"); items left open are listed in spec 08 Q-04 and Q-06
 
 ### Do Now
 - Make the size-exception condition of AMD-08-03, AMD-08-06 and AMD-08-07 measure the minimal rule: front matter, `## Context Bootstrap`, the `## Phase Behaviors` heading and the citing line (today it omits the 3-word heading, so a one-word description gives 299 while the minimal rule is 302; satisfiable with any description of three or more words). Tagged for post-execution review; not applied (batch).
@@ -1097,6 +1111,7 @@ None
 - Drop AC-39 from `affected` of AMD-08-05 and AMD-08-06 (AC-39 checks only that the record exists and is indexed).
 
 ## Improvement Proposals (T-10)
+status: applied or decided 2026-11-18 by the proposal follow-ups T-13–T-19 and the spec 08 sync D-05 (owner order "apply all proposals"); items left open are listed in spec 08 Q-04 and Q-06
 
 ### Do Now
 None
@@ -1110,6 +1125,7 @@ None
 - Record a NEEDS WORK round as `atomic-validation: failed` in the leaf header, as `/pav-check` requires (the 04ae554 round left it `not-started`).
 
 ## Improvement Proposals (T-11)
+status: applied or decided 2026-11-18 by the proposal follow-ups T-13–T-19 and the spec 08 sync D-05 (owner order "apply all proposals"); items left open are listed in spec 08 Q-04 and Q-06
 
 ### Do Now
 - `information_attribute_filters` (scripts/audit-instructions.py): cut each info/attributes line at its first NUL before measuring it against the 2048-byte limit and before matching `filter=` tokens, because git measures and parses the line as a C string; today `*.md filter=kappa` + NUL + 3000 bytes is skipped by the tool while git applies `filter=kappa`, and the filter runs at the top level on git 2.53.0. Test first: that fixture must leave no marker and keep the tree `clean`; the docstring then needs no new residual.
@@ -1125,6 +1141,7 @@ None
 - Delivered in the rework, from the first round's optional list: Unicode `\s` splitting (now space, tab, CR and LF), the NUL in a `.git` file (cut at the NUL), the FIFO named `.git` (never waited on), and E2BIG from long lines or many names (git's line limit plus a cap on blanked names). All were reproduced as fixed with the earlier fixtures. Nothing remains open.
 
 ## Improvement Proposals (T-12)
+status: applied or decided 2026-11-18 by the proposal follow-ups T-13–T-19 and the spec 08 sync D-05 (owner order "apply all proposals"); items left open are listed in spec 08 Q-04 and Q-06
 
 ### Do Now
 None
@@ -1245,3 +1262,16 @@ None
 - Rewrap the inserted `## State tool` sentence in `.ai/memory/architecture.md` — applied in the rework round.
 - One-line docstring for `claim_number` — applied in the rework round.
 - Re-validation (rounds 2–4, recorded, not applied by owner order "do not rework minor items"): O3 draft ranges during validation warn; O5 O_PATH for search-only directories; O9 em dash, minus sign, no-break or double space after a number word; O10 digit count after a number word ignored; O11 a name ending a sentence with a dot is not matched; O12 fixture numbers inside an archived task's PR series; O13 cross-class in-process helper; O14 prose #N in a pending pr: compared; O15 pin note wording; O16 focused run-log rerun does not cover the lint fields smoke; O17 run-log lint smoke times out under parallel load (separate task); block parser drops field lines after a blank line and blocks after a later `## ` heading (archived task-04 loses pr #31 and #36)
+
+## Improvement Proposals (T-19)
+
+### Do Now
+None
+
+### Do Later
+None
+
+### Optional
+- O1 Leaf records: `commits:` lists only the RED commit 3020af5 (add the GREEN commit 850a98f and the merge b599339); the finalize note says the plan delta `T-19 → done` was returned, not written, but 850a98f wrote it to `plan.md`; the `verification:` note's GATE FAIL was measured against the earlier baseline and is superseded by GATE PASS with the accepted baseline.
+- O2 The GREEN commit body is one unwrapped line of about 270 characters; the commit standard wraps bodies at 72 columns.
+- O3 `section_units` strips leading whitespace before the row and separator tests, `unit_lines` does not (an indented `| | |` is a separator for statement units and a paragraph line for duplicate units). Pre-existing and outside this subtask; DM-5 and DM-6 describe different unit kinds, so record only.
