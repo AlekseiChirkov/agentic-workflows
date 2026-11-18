@@ -5,13 +5,14 @@ Everything here is *about* the system; the system itself is `workflows/`, `rules
 `.ai/principles/coding.md → Document placement`.
 
 ## Manuals
-- [USAGE.md](USAGE.md) — operating manual: setup, project initialisation, daily workflow, command reference, status formats, hook coverage and exact retrospective timing
-- [Repository scripts](../scripts/README.md#exact-run-timing) — explicit-file timing invocation, dependencies and output semantics
+- [USAGE.md](USAGE.md) — operating manual: setup, project initialisation, daily workflow, command reference, status formats, post-merge finalization, hook coverage and exact retrospective timing
+- [Repository scripts](../scripts/README.md#exact-run-timing) — finalization helpers, recovery, staged sync, explicit-file timing and dependencies
 - [SPEC-RUN-QUICKSTART.md](SPEC-RUN-QUICKSTART.md) — operating procedure for `/spec-run`
 - [MODEL-CATALOG.md](MODEL-CATALOG.md) — optional cached selection, explicit refresh/rollback, provider-column compatibility and offline helper examples
 
 ## Audits (`audits/`)
 
+- [Rules and workflows audit](audits/2026-11-17-rules-workflows-audit.md) — pinned audit of every rule, workflow and harness adapter before the naming migration: migration map, statement coverage, 72 findings (15 major, 9 blocking the migration) and seven proposed amendments to the migration specification, with the machine-readable inventory and assessment beside it; independently reviewed, owner acceptance pending
 - [Specification delivery review](audits/2026-11-06-specification-delivery-review.md) — all 23 specifications, delivered foundations, outstanding scope, owner-directed runtime closure, and verification limits
 - [Usage telemetry review](audits/2026-10-30-usage-telemetry-review.md) — isolated per-PR reviews, behavioral repairs, independent rechecks and integration evidence
 - Historical workflow clarity and size audit (`2026-10-28-workflow-clarity-and-size.md`) — unavailable in the current tree; do not use it as evidence of delivery

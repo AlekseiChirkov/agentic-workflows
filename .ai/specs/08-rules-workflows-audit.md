@@ -229,7 +229,10 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
   bytes, edge counts and load counts as separate fields, SHALL contain no token count and no
   monetary amount (DM-9 → `economics-claim`), and WHERE the auditor compares an installed copy,
   THE assessment SHALL record the source digest, the installed digest and the installed location
-  in `~/`-relative form, with conclusions limited to that installation.
+  in `~/`-relative form, with conclusions limited to that installation. A path or file name
+  copied verbatim from a scanned file (for example the edge `raw` `rules/reference/12ktokens.md`)
+  is not a token count, even where it matches the DM-9 token pattern; the verbatim-copy rule of
+  REQ-25 covers it. *(Clarified 2026-11-18 by `/spec-sync`; Decisions → D-03.)*
 - **REQ-04 Audit boundary.** THE audit delivery SHALL change no file outside the list of REQ-11,
   SHALL run neither `scripts/sync.sh`, an installer, a workflow nor a model, and SHALL record
   every change it proposes to spec 09 only as an amendment (DM-7).
@@ -327,9 +330,17 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
   `scripts/validate-contracts.sh` or `scripts/sync.sh`, SHALL build every fixture under a
   temporary directory, and SHALL contain at least one case per edge form, per status, per
   diagnostic code of DM-9 and per edge case listed with this requirement.
-- **REQ-25 Public hygiene.** THE audit outputs SHALL contain only repository-relative or
-  `~/`-relative paths and no occurrence of the former repository name, and WHEN the delivery is
-  complete, `bash scripts/validate-contracts.sh` SHALL finish with zero failures.
+- **REQ-25 Public hygiene.** THE audit outputs SHALL contain no machine-specific home path
+  (`/home/<name>/` or `/Users/<name>/`) and no occurrence of the former repository name, SHALL
+  state every path of their own (entry paths, locations, evidence) in repository-relative or
+  `~/`-relative form, and WHEN the delivery is complete, `bash scripts/validate-contracts.sh`
+  SHALL finish with zero failures. Other absolute paths, such as system paths (`/usr/bin/sg`,
+  `/tmp`), are allowed only inside text copied verbatim from a scanned file: the DM-6 text of
+  audited files, after its home rewrite, and edge `raw` values (DM-4). The suite's fixtures may
+  use placeholder absolute paths (`/home/someone/…`, `/opt/skills/SKILL.md`), because AC-27
+  needs a location that does not start `~/`; no fixture names a real home directory.
+  *(Narrowed 2026-11-18 by `/spec-sync` from "only repository-relative or `~/`-relative
+  paths"; Decisions → D-03.)*
 - **REQ-26 Index and knowledge.** THE delivery SHALL add the report to `docs/README.md` under
   ``## Audits (`audits/`)``, both scripts to the `scripts/README.md` table, the two commands to
   `.ai/context/runbook.md → ## Commands` notes, the updated script counts to
@@ -577,6 +588,15 @@ pre-existing defects spec 09 fixes (spec 09 DM-16, last paragraph). Otherwise fa
   Units whose text is equal in two or more places form a cluster
   `{"id", "sha256", "words", "text", "members": [{"path", "line_start", "line_end"}]}`, members
   in path then line order; clusters ordered by their first member; ids from `DUP-001`.
+- **Home-directory prefixes in copied text.** In every text copied from an audited file — the
+  `text` of `FO`, `HN` and legacy mentions and each line that enters a duplicate unit — each
+  home-directory prefix `/home/<name>/` or `/Users/<name>/` (not preceded by a word character,
+  `.`, `/`, `~` or `-`; `<name>` one path component without whitespace) is written as `~/`
+  before whitespace is collapsed and the text is cut, and before units are joined, split,
+  counted, compared and hashed (`scripts/audit-instructions.py:1206-1217`, `:1296-1310`).
+  Candidate matching and `line`/`column` values use the original line. Other absolute paths are
+  copied verbatim (REQ-25). `method_version` stays `08-extract-1`, because no output was produced
+  under the rule before this amendment. *(Amended 2026-11-18 by `/spec-sync`; Decisions → D-01.)*
 
 ### DM-7 Assessment (new) — `docs/audits/<run_date>-rules-workflows-audit.assessment.json`
 
@@ -672,7 +692,8 @@ Exact top-level layout, in this order: `# Rules and workflows audit — <run_dat
 (hand-written); `## Method` (hand-written: commands run, deviations from the plan, time taken);
 one line `<!-- audit:generated:begin -->`; the generated region; one line
 `<!-- audit:generated:end -->`; `## Blockers for spec 09` (hand-written; names every finding with
-`blocks_09: true`, or `None.`); `## Independent review` with exactly one line
+`blocks_09: true` and no other finding, or is exactly `None.` when no finding blocks; amendment
+ids and other text beside the listed ids are allowed); `## Independent review` with exactly one line
 `Reviewed: pending` or `Reviewed: <role> <YYYY-MM-DD> pass|fail <40-hex commit>` (`<role>` matches
 `^[A-Za-z][A-Za-z0-9-]*$`, the date is a valid calendar date, and the commit must exist:
 `git -C <root> cat-file -e <sha>^{commit}`); `## Acceptance` with exactly one line
@@ -729,6 +750,7 @@ Location is `<path>:<line>` (`0` for a whole file) or `<json file>#<id or index>
 | `defect-unrecorded` | A defect edge is named in no finding's `edges` |
 | `finding-invalid` | A finding breaks DM-7: owner not allowed for its type, `blocks_09` unequal to the blocking predicate, severity `blocker` with `blocks_09` false, bad `status`, `lines` or `section`, or a `09`-owned finding naming an edge with `in_spec09_grammar` false without an amendment id in `evidence` (REQ-29) |
 | `finding-stale` | A finding's `sha256` differs from its source's |
+| `evidence-unresolved` | A well-formed evidence item of a `files` row, finding or amendment does not resolve against the inventory: a `path:line`, `path:start-end` or bare path names no `files` or `readers` path, the entry has no line count, the range is reversed, or a line lies outside `1..lines` (a number of more than nine significant digits counts as outside); a finding id cited as finding evidence names no path. Line counts come from the inventory, so a later tree adds none. *(Added 2026-11-18 by `/spec-sync`; Decisions → D-04.)* |
 | `reference-unknown` | A finding, candidate, group or map entry cites an id that does not exist |
 | `map-invalid` | A decision's target shape is wrong (DM-7 → Decisions) |
 | `split-sections-incomplete` | A split does not cover every section of its source exactly once |
@@ -741,10 +763,11 @@ Location is `<path>:<line>` (`0` for a whole file) or `<json file>#<id or index>
 | `amendment-invalid`, `amendment-target-unknown` | An amendment breaks DM-7, or its `target` does not satisfy DM-7 → Amendment target forms against spec 09, or an `affected` id is not a whole token of spec 09 |
 | `req21-invalid` | The statements are not exactly one per statement unit of `## Codebase Reading Rules` and `## Decision Protocol` of `rules/phase-discovery.md` (missing, extra, repeated or outside them), or the verdict contradicts the `covered_by` values |
 | `coverage-inconsistent` | An `unavailable` or `changed` entry has no `coverage-gap` finding, `not-a-file` is used for a regular file, or a non-file has another status |
-| `report-layout` | DM-8 headings, markers or the review/acceptance line are missing, repeated or malformed |
+| `report-layout` | DM-8 headings, markers or the review/acceptance line are missing, repeated or malformed; or `## Blockers for spec 09` is not exactly `None.` when no finding blocks, or holds a `None.` line beside blocking findings |
 | `review-commit-unknown` | The commit of a `Reviewed:` line does not exist in the root's repository |
 | `report-generated-mismatch` | The generated region differs from `render` output |
 | `blocker-unlisted` | A `blocks_09: true` finding id does not occur in `## Blockers for spec 09` |
+| `blocker-extra` | A whole finding id under `## Blockers for spec 09` names no finding, or a finding whose `blocks_09` is false; reported once per id per line *(added 2026-11-18 by `/spec-sync`; Decisions → D-04)* |
 | `economics-claim` | The report or any assessment string matches `(?i)\b\d[\d,.]*\s*k?\s*tokens?\b`, `[$€£]\s?\d` or `\b(USD|EUR)\b` |
 | `installed-invalid` | `installed` breaks REQ-03 (non-empty with `not-verified`, a location not starting `~/`, or a `source_sha256` unequal to the inventory) |
 
@@ -777,7 +800,8 @@ DM-1 and DM-2, never an error.
 passes, 1 otherwise. Fixture roots are built under `tempfile.TemporaryDirectory()` with minimal
 `rules/`, `workflows/`, `harness/`, reader files and, where needed, an initialised git
 repository with `HOME` and `XDG_CONFIG_HOME` set to temporary paths for the git calls. Fixtures
-use synthetic stems (for example `alpha-flow`, `beta-step`), never the repository's names.
+use synthetic stems (for example `alpha-flow`, `beta-step`), never the repository's names, and
+may use placeholder absolute paths, never a real home directory (REQ-25).
 
 ## Non-Functional Requirements
 
@@ -855,7 +879,11 @@ Fixture criteria (AC-11 onward, and the fixture parts of AC-01–AC-10) are case
 - **AC-02** (REQ-03, REQ-04) — Given an assessment string `saves 3,000 tokens` or `$5`, when
   `verify` runs, then it prints `economics-claim`; and given the delivery's last commit `<tip>`,
   when `git diff --name-only "$(git merge-base main <tip>)" <tip>` runs, then every listed path is
-  in the REQ-11 list.
+  in the REQ-11 list. *(Delivery 2026-11-18: the delivery stack is built on
+  `feat/multi-repository-spec-run`, draft PR #104 with tip `488edb1`, so that the audit covers its
+  rule and workflow changes; by the owner's decision D-02 the list was computed with base
+  `488edb1` in place of `merge-base main`, and every listed path is in the REQ-11 list. The
+  criterion's `merge-base main` form applies unchanged once PR #104 is in `main`.)*
 - **AC-03** (REQ-05, REQ-12, REQ-13) — Given a checkout of the inventory's `source_revision` in
   a temporary work tree, when `extract` writes a fresh inventory, then it equals the delivered
   inventory byte for byte; and the delivered assessment has one `coverage` entry per audited path
@@ -891,7 +919,8 @@ Fixture criteria (AC-11 onward, and the fixture parts of AC-01–AC-10) are case
 - **AC-10** (REQ-14) — Given the delivered report, then `## Independent review` holds
   `Reviewed: <role> <date> pass <sha>`, `## Acceptance` holds `Accepted: pending`, and every
   finding with `blocks_09: true` is named under `## Blockers for spec 09`; and given a fixture
-  report missing one such id, `verify` prints `blocker-unlisted`.
+  report missing one such id, `verify` prints `blocker-unlisted`; given one listing a finding that
+  does not block, `blocker-extra`. *(Extended 2026-11-18 by `/spec-sync`; Decisions → D-04.)*
 - **AC-11** (REQ-15) — Given a fixture root and the SHA-256 of every file in it, when `extract`
   and `verify` run, then only the `--out` file is new or changed; and when `render --write` runs,
   then the report differs only between the two marker lines.
@@ -1055,7 +1084,34 @@ Every AC names at least one REQ above; no AC is unmapped.
 
 ## Decisions
 
-N/A — auto mode; no human decision was taken in this revision.
+N/A — auto mode; no human decision was taken in the 2026-11-14 revision.
+
+Owner decisions taken during the delivery (task 08, recorded by `/spec-sync` on 2026-11-18;
+source: `.ai/tasks/todo/task-08-rules-workflows-audit/state.md → ### Assumptions`, source user):
+
+- D-01 | 2026-11-17 | Home-directory prefixes in copied text | Decision: the tool writes
+  `/home/<name>/` and `/Users/<name>/` as `~/` in every text it copies from audited files, before
+  comparing and hashing, so the outputs meet REQ-25 and AC-22 and clusters stay intact;
+  `method_version` stays `08-extract-1`. Applied to DM-6. Raised by the duplicate-cluster
+  subtask during Execution.
+- D-02 | 2026-11-17 | Stack base | Decision: the delivery stack is built on
+  `feat/multi-repository-spec-run` (draft PR #104, tip `488edb1`), not on `main`, so the audit
+  covers the multi-repository changes to rules and workflows; that PR merges first, and the
+  permitted-changes check is computed against `488edb1`. Recorded at AC-02.
+- D-03 | 2026-11-18 | Absolute paths other than home paths | Decision: REQ-25 and the
+  delivery's derived Off-limits line "No absolute path … in any output or fixture" are narrowed
+  to machine-specific home paths; system paths copied verbatim (DM-6, edge `raw` values) and
+  placeholder absolute paths in test fixtures (AC-27 needs one) are allowed; no code or output
+  change. Taken at the contract-check critical-failure gate (`### Critical Failures Decision:
+  continue`). The token-pattern exemption for a copied file name (review finding 6, Issue List
+  [6], recorded with [1]) belongs to the same verbatim-copy rule. Applied to REQ-25, REQ-03 and
+  the suite contract.
+- D-04 | 2026-11-18 | Review follow-ups | Decision: the owner approved fixing the deferred
+  optional review findings 4, 5 and 7 ("fix all findings") after the first finalization.
+  `verify` checks the blockers section in both directions (`blocker-extra`; the `None.` rule as
+  `report-layout`) and resolves well-formed evidence against the inventory's paths and line
+  counts (`evidence-unresolved`); the runbook limits the silent `verify` to the delivery commit.
+  The delivered outputs are unchanged and verify silently. Applied to DM-8, DM-9 and AC-10.
 
 ## Clarifications
 
@@ -1071,6 +1127,38 @@ resolved as A-01–A-28; open items are Q-01 and Q-02.
   reviews stay unverifiable; the new audit of the available snapshot is not blocked (previous §10).
 - Q-02 | non-blocker | Should `scripts/audit-instructions.py` stay after spec 09 lands, or be
   retired once spec 09's checker exists? Impact: maintenance of a second reference parser.
+- Q-03 | non-blocker | Should these delivered and verified behaviours, which go beyond the
+  Contracts table and have no owner approval, be added to it? (a) `extract` exits 2 with
+  `root-unreadable` for an unreadable directory or file or a file name that is not valid UTF-8
+  (the table lists an unreadable root only for `verify`); (b) `render --write` refuses with exit 2
+  and `report-unreadable` (absent, not a regular file, a symbolic link, over 64 MiB or not
+  UTF-8), `report-markers` or `report-unwritable`, and checks the report before its inputs;
+  (c) the report is read up to 64 MiB (67108864 bytes), and `verify` reports an unreadable report
+  as `report-layout` at `:0` (`scripts/audit-instructions.py:46-57`, `:3379-3420`, `:3648-3653`). Source: delivery
+  proposals T-01 P4, T-06 P2 and T-06 P5 (task 08). Impact: until then, the Contracts table
+  understates the exit-2 cases.
+- Q-04 | non-blocker | Should Contracts → Git use and REQ-15 record the git isolation the
+  delivery added (lazy fetching off, rename detection off, the user's and the system's attributes
+  files not read, attributes read from the empty tree of the object format, filter drivers named
+  by `info/attributes` blanked, file-system monitor off, hooks pointed at an empty location), and
+  the git versions the guarantee needs? From the module docstring
+  (`scripts/audit-instructions.py:59-96`): with git older than 2.45, `status` or `cat-file` in a
+  partial clone can still fetch a missing object; older than 2.41, a tree attribute can still
+  select a filter; older than 2.31, an `info/attributes` filter can still run; a submodule's own
+  `info/attributes` and a root without its own `.git` are not covered. Source: the review
+  finding of task 08 fixed in its git-read fix subtask (PR #115); only git 2.53.0 was run.
+  Impact: REQ-15's offline and no-program statement holds as tested on current git only.
+- Q-05 | non-blocker | Other behaviour the delivery's validators proposed to settle in this spec,
+  pending an owner decision (task 08 proposals, not applied): T-01 P3 (roots below the git top
+  level); T-02 P2 (duplicate headings, untrimmed and empty components); T-03 P3 (table separator
+  rows with trailing whitespace); T-04 P3–P11 (output character set and escaping; relative
+  `--report`; assessment-only checks with an invalid inventory; plain `verify` on a changed
+  non-file kind; linked inventory and assessment files; evidence paths that are not repository
+  paths; recursion depth of the reader walk; `--help`; exit on a failing standard output);
+  T-05 P3–P6 (non-blank `reason`; `Terminology:` targets and whole-token ids in examples;
+  amendment self-dependency and cycles; `merge` for every shared target); T-06 P3 (report line
+  endings); T-12 Do Later (ASCII-only digits in evidence forms; escaping bidirectional control
+  characters in diagnostic messages). T-03 P2 is resolved by D-01 and D-03.
 
 ## Notes
 
@@ -1160,6 +1248,28 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
   AC-01–AC-10 restated in EARS and binary form; tool, data model, verifier codes, report layout,
   edge cases, REQ-15–REQ-29 and AC-11–AC-29 added; the absent test-suite review link removed.
 - 2026-11-14 — independent final review: optional overflow targets carry `sections: null` and stay out of the exactly-once cover; `in_spec09_grammar` narrowed to spec 09 DM-16 form 2 heads; README and spec citations by heading or id; line 23 untouched.
+- 2026-11-18 — `/spec-sync` of task 08 (`.ai/tasks/todo/task-08-rules-workflows-audit`), called
+  by validation finalization after the contract check (16 of 17 passed; the failed Off-limits
+  line decided by the owner), the review and the one fix were complete; `verify` silent and the
+  suite at 228/228 on the delivery stack. Deltas: (1) DM-6, implemented-differently — home
+  prefixes in copied text written as `~/` before comparing and hashing, `method_version`
+  unchanged; edit: new DM-6 bullet; source D-01. (2) REQ-25, implemented-differently (approved
+  narrowing) — from "only repository-relative or `~/`-relative paths" to no machine-specific home
+  path, with system paths in verbatim-copied text and placeholder fixture paths allowed; edit:
+  REQ-25 restated, one sentence added to the suite contract; source D-03. (3) REQ-03,
+  implemented-differently (clarification under the same rule) — a copied file name that matches
+  the token pattern is not a token count; edit: one sentence; source D-03, Issue List [6].
+  (4) AC-02, implemented-differently (verification base) — the permitted-changes list computed
+  from `488edb1` instead of `merge-base main`; edit: delivery annotation, criterion text kept;
+  source D-02. Owner decisions recorded under Decisions; behaviour beyond the spec without owner
+  approval and the validators' pending proposals listed as Q-03–Q-05; no requirement or
+  criterion removed or renumbered; REQ-15 and every other requirement unchanged.
+- 2026-11-18 — `/spec-sync` of task 08 after fix-task T-12 (owner-approved review follow-ups,
+  D-04): suite 237/237, `verify` silent. Deltas, all implemented-beyond with owner approval:
+  (1) DM-8 blockers rule stated in both directions; (2) DM-9 gains `blocker-extra` and
+  `evidence-unresolved`, and `report-layout` covers the `None.` rule; (3) AC-10 extended for
+  `blocker-extra` (AC-20 covers both codes through its every-code fixture). Q-05 lists the T-12
+  Do Later proposals. No requirement or criterion removed or renumbered; line 23 untouched.
 
 ## Readiness Checklist
 
@@ -1171,14 +1281,15 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
 | 4 | Every REQ maps to ≥1 AC; every AC names ≥1 REQ | PASS — Traceability table covers REQ-01–REQ-29 and AC-01–AC-29 |
 | 5 | Every AC is binary, observable and can guide a test before implementation | PASS — fixture cases with named inputs and expected codes; delivery checks with exact commands |
 | 6 | Non-functional targets measurable, standard-referenced or N/A | PASS — determinism, read-only, offline, dependencies, hygiene, security; runtime has no target by recorded decision (A-12) |
-| 7 | Data model and contracts specified | PASS — DM-1–DM-9; CLI, exit codes, git use, suite contract |
+| 7 | Data model and contracts specified | PASS — DM-1–DM-9; CLI, exit codes, git use, suite contract; delivered exit-2 refusals and git isolation beyond the Contracts table are open as Q-03 and Q-04 |
 | 8 | Error, empty, boundary and concurrency cases covered | PASS — Edge Cases table (encodings, links, empty files, stale trees, cycles, negations, single writer) |
-| 9 | Every ambiguity recorded as resolved or open | PASS — A-01–A-28; Q-01, Q-02 |
-| 10 | No blocker question remains | PASS — both open questions are non-blocking |
-| 11 | Every existing-code claim has a verified path:line citation | PASS — citations re-verified by the reviewer in every round |
+| 9 | Every ambiguity recorded as resolved or open | PASS — A-01–A-28; delivery decisions D-01–D-03; Q-01–Q-05 |
+| 10 | No blocker question remains | PASS — all five open questions are non-blocking |
+| 11 | Every existing-code claim has a verified path:line citation | PASS — citations re-verified by the reviewer in every round; the `scripts/audit-instructions.py` citations added on 2026-11-18 verified at `df3aa06` |
 | 12 | Terminology matches project domain definitions | PASS — Terminology table; kinds from ADR-0009 Decision 3 with operational definitions (A-04); word count from spec 09 |
 | 13 | Scope is feature-sized (1–8 subtasks) | PASS — four implementation steps (Notes), reading split by file group |
 | 14 | Devil's Advocate review passed | PASS — Review: 4 rounds, score 99/100, critic: sub-agent, open: F-33 (minor; applied after the final round) |
 
-**Verdict: READY FOR DEVELOPMENT.** Automated readiness is not sign-off; review before
-implementation.
+**Verdict: READY FOR DEVELOPMENT** (re-run 2026-11-18 by `/spec-sync` after the delivery
+reconciliation; check 14 is the authoring review and was not repeated). Automated readiness is
+not sign-off; review before implementation.

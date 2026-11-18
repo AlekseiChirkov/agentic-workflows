@@ -159,3 +159,7 @@ coverage, fixed/deferred issues, unprocessed proposals, state/plan paths and ADR
 
 Re-run the same invocation. Read current files, reconcile pending decisions, and resume
 from the earliest incomplete checkpoint. Never infer completion from the last chat reply.
+
+After the owner merges the delivered branches into their intended integration branches,
+suggest `/phase-finalize <task-directory>` for separately invoked evidence-backed closure.
+Do not invoke it, perform its cleanup or change this workflow's Validation/delivery endpoint.

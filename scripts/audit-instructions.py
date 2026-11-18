@@ -20,30 +20,87 @@ Usage:
       Check the inventory and the assessment whose paths replace the `.md` of FILE with
       `.inventory.json` and `.assessment.json`: their schemas, the audited files of the
       root against the inventory (with --strict, a fresh extraction against its bytes),
-      the work-tree state, and every per-item rule of the assessment. Prints one
-      `<code> <location> <message>` line per violation in string order of code and
-      location. A location is `<path>:<line>` (`0` for a whole file) or
+      the work-tree state, and every per-item rule of the assessment, including the
+      migration map, its deviation from the recorded migration defaults, the amendments
+      against the single `.ai/specs/09-*.md` file (read as strict UTF-8 without following a
+      symbolic link), the statement coverage of the statement units of
+      `## Codebase Reading Rules` and `## Decision Protocol` in rules/phase-discovery.md,
+      and every well-formed evidence item of the files rows, findings and amendments: a
+      `path:line` item, or in a finding a `path:start-end` item, names an inventory path
+      whose line count holds the lines, and a bare path in a finding names an inventory
+      path (amendment ids and malformed items are left to their own rules, and a line
+      number too long for any line count lies outside the entry).
+      Then the report FILE itself: its layout (title, the five `##` headings and the
+      generated-region markers in order, one review and one acceptance line in their
+      grammars), that the reviewed commit exists (`cat-file`), amounts anywhere in it,
+      and, when the JSON files meet their schemas, its file-name date and title date
+      against run_date, the blockers heading in both directions (every blocking finding
+      is listed, every listed finding id names a blocking finding, and the section is
+      exactly `None.` when nothing blocks and holds no `None.` beside a blocking finding),
+      and the generated region against fresh render output. The report is read as
+      strict UTF-8, at most 64 MiB, without following a symbolic link.
+      Prints one `<code> <location> <message>` line per violation in string order of
+      code and location. A location is `<path>:<line>` (`0` for a whole file) or
       `<json file>#<id, key or key[index]>`, with paths relative to the root.
+  python3 -I scripts/audit-instructions.py render [--root DIR] --report FILE [--write]
+      Render the generated region of the report from the inventory and the assessment
+      named as for verify: both marker lines and the eighteen `###` subsections, written
+      to standard output as UTF-8 bytes. The output depends on the two JSON files only.
+      With --write, FILE is read as for verify and the lines from its begin marker to its
+      end marker are replaced by the region in a temporary file beside it that is moved
+      into place, keeping FILE's permission bits; nothing is printed.
 
 Exit codes:
-  0  extract: the inventory was written; verify: no diagnostic
-  1  verify: at least one diagnostic was printed
+  0  extract: the inventory was written; verify: no diagnostic; render: rendered
+  1  verify: at least one diagnostic was printed; render: the inventory or the
+     assessment is missing or breaks its schema (its diagnostics are printed, nothing
+     is written)
   2  usage error, root-invalid (no rules/ or workflows/ directory), root-unreadable
      (a directory or file that cannot be read, or a file name that is not valid UTF-8),
-     out-unwritable, or an interpreter older than Python 3.11; one `ERROR:` line on
-     standard error, and no --out file is written
+     out-unwritable, render --write refusals report-unreadable (absent, not a regular
+     file, a symbolic link, larger than 64 MiB or not valid UTF-8), report-markers (not
+     exactly one begin marker line followed by one end marker line) and
+     report-unwritable, or an interpreter older than Python 3.11; one `ERROR:` line on
+     standard error, and no --out file or report is written
 
-Read-only contract: the tool writes nothing but the --out file, and verify writes
-nothing. It never follows a symbolic link of the audited tree, never executes or
+Read-only contract: the tool writes nothing but the --out file and, under
+render --write, the generated region of the report; verify writes nothing. It
+never follows a symbolic link of the audited tree, never executes or
 imports repository content and opens no network
-connection. The only programs it runs are the git read commands
+connection itself. The only programs it runs are the git read commands
 `rev-parse --verify HEAD`, `ls-files -z` and
-`status --porcelain=v1 -z --untracked-files=all`, with LC_ALL=C, GIT_OPTIONAL_LOCKS=0,
+`status --porcelain=v1 -z --untracked-files=all` and, in verify,
+`cat-file -e <sha>^{commit}`, with LC_ALL=C, GIT_OPTIONAL_LOCKS=0,
 no pager, no inherited GIT_* variables, the file-system monitor disabled and hooks
-pointed at an empty location, so no program named by the repository's configuration
-runs; a missing or failing git yields null or `unknown` values, never an error. The
-root is taken as the top level of its git work tree: `status` reports paths relative
-to that top level, so a root below it yields mismatched work-tree paths.
+pointed at an empty location; a missing or failing git yields null or `unknown`
+values, never an error. Every git read also runs with lazy fetching disabled
+(GIT_NO_LAZY_FETCH, git 2.45 or later) and rename detection off (status.renames,
+git 2.18 or later), and reads neither the user's nor the system's attributes file. The
+root is taken as the top level of its git work tree, and its `.git` directory or file
+locates the repository: when its configuration names the SHA-1 or the SHA-256 object
+format, git reads attributes from that format's empty tree instead of the committed and
+work-tree .gitattributes files (GIT_ATTR_SOURCE, git 2.41 or later), and every filter
+driver that the repository's info/attributes file names, within git's own limits of
+2048 bytes a line and 100 MiB a file, is given an empty clean and process program
+(GIT_CONFIG_COUNT, git 2.31 or later). With git 2.45 or later and a root that is that
+top level, therefore, no attribute-selected clean or process filter of the repository
+runs and no object missing from a partial clone is fetched. Each of these settings is
+one that an older git ignores rather than rejects, so it still answers, with less
+isolation. The cases left open are exactly these: with git older than 2.41 a filter
+selected by a .gitattributes file of the tree can still run, and with git older than
+2.31 one named by info/attributes; with git older than 2.45 `status` or `cat-file` in a
+partial clone can still fetch a missing object from its promisor remote; a filter named
+by a submodule's own info/attributes file can run when `status` inspects that
+submodule; only the first 1000 names of info/attributes in name order, at most 64 KiB
+of names, are blanked; a root without its own `.git` (a directory below the top
+level, or a link to one) gets neither the empty attribute source nor the blanked names;
+and a repository whose configuration cannot be read or names another object format
+gets no empty attribute source. Because the attributes of the tree, the user and the
+system do not apply, a file whose stored form differs from its work-tree form through
+attributes (text, eol, ident, working-tree-encoding or a filter) can read as changed
+when git hashes it again. Below the top level `status` also
+reports paths relative to that top level, so such a root yields mismatched work-tree
+paths.
 Standard library only.
 """
 from __future__ import annotations
@@ -56,6 +113,7 @@ if sys.version_info < (3, 11):
 
 import argparse
 import datetime
+import errno
 import hashlib
 import json
 import os
@@ -108,10 +166,36 @@ ZONE_FRONT_MATTER = "front-matter"
 ZONE_FENCE = "fence"
 ZONE_BODY = "body"
 
+# The empty tree of each object format, keyed by the value of extensions.objectFormat.
+EMPTY_TREES = {"sha1": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+               "sha256": "6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321"}
+# Every setting below is one that a git too old to know it ignores instead of rejecting,
+# so an older git still answers; only the guarantee the setting adds is lost. The
+# attribute source (GIT_ATTR_SOURCE) is added per repository, because its empty tree
+# depends on the object format.
 GIT_READ_ENVIRONMENT = {"LC_ALL": "C", "GIT_OPTIONAL_LOCKS": "0", "GIT_PAGER": "cat",
-                        "PAGER": "cat"}
-# Configuration that would otherwise let git start a program the repository names.
-GIT_INERT_CONFIGURATION = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
+                        "PAGER": "cat", "GIT_NO_LAZY_FETCH": "1", "GIT_ATTR_NOSYSTEM": "1"}
+# Configuration that would otherwise let git start a program the repository names, read
+# attributes that select a filter driver, or need an object a partial clone lacks.
+GIT_INERT_CONFIGURATION = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null",
+                           "-c", "core.attributesFile=/dev/null",
+                           "-c", "status.renames=false")
+# Settings that make a filter driver run nothing, applied to each driver that the
+# repository's info/attributes file names, because git reads that file in any case.
+BLANK_FILTER_SETTINGS = (("clean", ""), ("process", ""), ("required", "false"))
+# git separates attribute tokens by space, tab, CR and LF only.
+FILTER_ATTRIBUTE_RE = re.compile(r"(?<![^ \t\r\n])filter=([^ \t\r\n\x00]+)")
+# git ignores an attributes line of 2048 bytes or more and an attributes file of 100 MiB
+# or more; a line of exactly 2048 bytes is still read here, which only blanks more.
+ATTRIBUTE_LINE_LIMIT = 2048
+ATTRIBUTE_FILE_LIMIT = 100 * 1024 * 1024
+# Bounds on the blanked names that keep the environment of every git read small.
+BLANKED_NAME_LIMIT = 1000
+BLANKED_BYTES_LIMIT = 64 * 1024
+# Bound on the `.git` file, `commondir` and the repository configuration read here.
+GIT_METADATA_LIMIT = 1024 * 1024
+CONFIG_SECTION_RE = re.compile(r'\[\s*([A-Za-z0-9.-]+)\s*("(?:[^"\\]|\\.)*")?\s*\]')
+CONFIG_ENTRY_RE = re.compile(r"([A-Za-z][A-Za-z0-9-]*)\s*(?:=\s*(.*))?")
 
 JsonObject = dict[str, object]
 
@@ -1279,10 +1363,140 @@ def candidate_lists(audited: Sequence[AuditedFile], edges: Sequence[JsonObject]
 # Git
 # ---------------------------------------------------------------------------
 
-def git_environment() -> dict[str, str]:
+def read_git_metadata(path: Path, limit: int) -> bytes | None:
+    """A regular file of fewer than limit bytes, links followed as git follows them; None
+    when it is absent, not a regular file, too large or unreadable. A first-in first-out
+    entry is never waited on."""
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    except (OSError, ValueError):
+        return None
+    with os.fdopen(descriptor, "rb") as handle:
+        try:
+            info = os.fstat(handle.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_size >= limit:
+                return None
+            return handle.read(limit)
+        except OSError:
+            return None
+
+
+def metadata_text(data: bytes) -> str:
+    """The text git takes from a one-line metadata file: up to a NUL, without trailing
+    white space."""
+    return data.split(b"\0", 1)[0].decode("utf-8", "surrogateescape").rstrip()
+
+
+def git_common_directory(root: Path) -> Path | None:
+    """The repository directory that holds info/ and the configuration for the root's
+    `.git` directory or file; None when there is none or it cannot be read."""
+    dot_git = root / ".git"
+    try:
+        is_directory = stat.S_ISDIR(os.stat(dot_git).st_mode)
+    except (OSError, ValueError):
+        return None
+    if is_directory:
+        git_directory = dot_git
+    else:
+        data = read_git_metadata(dot_git, GIT_METADATA_LIMIT)
+        if data is None or not data.startswith(b"gitdir: "):
+            return None
+        target = metadata_text(data[len(b"gitdir: "):])
+        if not target:
+            return None
+        git_directory = root / target
+    common = read_git_metadata(git_directory / "commondir", GIT_METADATA_LIMIT)
+    target = metadata_text(common) if common is not None else ""
+    return git_directory / target if target else git_directory
+
+
+def config_value(text: str) -> str:
+    """A configuration value without its quotes and its trailing comment."""
+    kept: list[str] = []
+    quoted = False
+    for character in text:
+        if character == '"':
+            quoted = not quoted
+        elif character in "#;" and not quoted:
+            break
+        else:
+            kept.append(character)
+    return "".join(kept).strip()
+
+
+def object_format(common: Path) -> str | None:
+    """The repository's extensions.objectFormat, `sha1` when it is unset or there is no
+    configuration file; None when the configuration cannot be read or names a format
+    without a known empty tree."""
+    config = common / "config"
+    if not os.path.lexists(config):
+        return "sha1"
+    data = read_git_metadata(config, GIT_METADATA_LIMIT)
+    if data is None:
+        return None
+    value = "sha1"
+    section: str | None = None
+    for raw in data.decode("utf-8", "surrogateescape").splitlines():
+        line = raw.strip()
+        header = CONFIG_SECTION_RE.match(line)
+        if header is not None:
+            section = header.group(1).lower() if header.group(2) is None else None
+            line = line[header.end():].strip()
+        if section != "extensions" or not line or line[0] in "#;":
+            continue
+        entry = CONFIG_ENTRY_RE.fullmatch(line)
+        if entry is not None and entry.group(1).lower() == "objectformat":
+            value = config_value(entry.group(2) or "")
+    return value if value in EMPTY_TREES else None
+
+
+def information_attribute_filters(common: Path) -> list[str]:
+    """The filter driver names that the repository's info/attributes file sets, macros
+    included, read within git's own line and file limits and kept within the blanking
+    bounds in name order; empty when the file is absent or cannot be read."""
+    data = read_git_metadata(common / "info" / "attributes", ATTRIBUTE_FILE_LIMIT)
+    if data is None:
+        return []
+    names: set[str] = set()
+    for line in data.split(b"\n"):
+        if len(line.rstrip(b"\r")) <= ATTRIBUTE_LINE_LIMIT:
+            text = line.decode("utf-8", "surrogateescape")
+            names.update(found.group(1) for found in FILTER_ATTRIBUTE_RE.finditer(text))
+    kept: list[str] = []
+    used = 0
+    for name in sorted(names):
+        size = len(os.fsencode(name))
+        if len(kept) == BLANKED_NAME_LIMIT or used + size > BLANKED_BYTES_LIMIT:
+            break
+        kept.append(name)
+        used += size
+    return kept
+
+
+def blank_filter_environment(names: Sequence[str]) -> dict[str, str]:
+    """Command-line scope configuration, by environment so that no name is parsed, that
+    gives each named filter driver no clean or process program and makes it optional."""
+    pairs = [(f"filter.{name}.{key}", value) for name in names
+             for key, value in BLANK_FILTER_SETTINGS]
+    if not pairs:
+        return {}
+    environment = {"GIT_CONFIG_COUNT": str(len(pairs))}
+    for index, (key, value) in enumerate(pairs):
+        environment[f"GIT_CONFIG_KEY_{index}"] = key
+        environment[f"GIT_CONFIG_VALUE_{index}"] = value
+    return environment
+
+
+def git_environment(root: Path) -> dict[str, str]:
     environment = {key: value for key, value in os.environ.items()
                    if not key.startswith("GIT_")}
     environment.update(GIT_READ_ENVIRONMENT)
+    common = git_common_directory(root)
+    if common is not None:
+        found_format = object_format(common)
+        if found_format is not None:
+            environment["GIT_ATTR_SOURCE"] = EMPTY_TREES[found_format]
+        environment.update(blank_filter_environment(information_attribute_filters(common)))
     return environment
 
 
@@ -1292,7 +1506,7 @@ def run_git(root: Path, *arguments: str) -> bytes | None:
         result = subprocess.run(["git", "--no-pager", *GIT_INERT_CONFIGURATION,
                                  "-C", str(root), *arguments],
                                 stdin=subprocess.DEVNULL, capture_output=True,
-                                env=git_environment(), check=False)
+                                env=git_environment(root), check=False)
     except OSError:
         return None
     return result.stdout if result.returncode == 0 else None
@@ -1401,26 +1615,31 @@ def current_umask() -> int:
     return mask
 
 
-def write_atomically(target: Path, text: str) -> None:
-    """Write to a temporary file beside the target and move it into place."""
+OUT_FAILURE = ("out-unwritable", "cannot write the --out file")
+
+
+def write_atomically(target: Path, text: str, failure: tuple[str, str] = OUT_FAILURE,
+                     mode: int | None = None) -> None:
+    """Write to a temporary file beside the target and move it into place; on any failure
+    the temporary file is removed and `failure` names the error code and message."""
+    code, message = failure
     try:
         descriptor, temporary = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp",
                                                  dir=target.parent)
     except OSError as error:
-        raise ToolError("out-unwritable",
-                        f"cannot write the --out file ({error.strerror})") from error
+        raise ToolError(code, f"{message} ({error.strerror})") from error
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
-            os.fchmod(handle.fileno(), 0o666 & ~current_umask())
+            os.fchmod(handle.fileno(), mode if mode is not None else 0o666 & ~current_umask())
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, target)
-    except OSError as error:
+    except (OSError, UnicodeEncodeError) as error:
         with suppress(FileNotFoundError):
             os.unlink(temporary)
-        raise ToolError("out-unwritable",
-                        f"cannot write the --out file ({error.strerror})") from error
+        reason = error.strerror if isinstance(error, OSError) else "text is not encodable"
+        raise ToolError(code, f"{message} ({reason})") from error
 
 
 def run_extract(root: Path, out: Path) -> int:
@@ -1488,6 +1707,16 @@ def display_name(path: Path, root: Path) -> str:
         return path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
         return path.name
+
+
+def link_name(path: Path, root: Path) -> str:
+    """The root-relative name of a path whose last component may be a symbolic link,
+    which is named itself rather than its target; the base name outside the root."""
+    try:
+        relative = path.parent.resolve().relative_to(root.resolve())
+    except ValueError:
+        return path.name
+    return (relative / path.name).as_posix()
 
 
 def load_document(path: Path, name: str, code: str) -> Document | Diagnostic:
@@ -1609,6 +1838,13 @@ ROLE = matching(ROLE_LABEL_RE)
 LINE_REF = record({"source": is_str, "line": is_int, "column": is_int})
 SPAN = record({"path": is_str, "line_start": is_int, "line_end": is_int})
 AUDIT_ID = matching(re.compile(r"AUD-08-\d{3}"))
+AMENDMENT_ID = matching(AMENDMENT_ID_RE)
+MAP_DECISIONS = ("keep", "rename", "move", "split", "merge")
+MAP_TARGET = record({"path": is_repository_path, "sections": nullable(list_of(is_str)),
+                     "merge_reason": nullable(is_str)})
+DEFAULT_TARGET = record({"path": is_repository_path, "sections": nullable(list_of(is_str))})
+STATEMENT = record({"source": is_str, "text": is_str,
+                    "covered_by": nullable(matching(EVIDENCE_LINE_RE))})
 
 
 @dataclass(frozen=True)
@@ -1701,15 +1937,24 @@ ASSESSMENT_SCHEMA: Schema = {
         "disposition": one_of("consolidate", "intentional", "condition-specific",
                               "contradiction"),
         "owner": is_str, "finding": nullable(is_str), "rationale": is_str}), "id"),
-    "map": is_list,
-    "req21": is_object,
+    "map": ListSchema(record({
+        "source": is_str, "decision": one_of(*MAP_DECISIONS), "targets": list_of(MAP_TARGET),
+        "spec09_default": nullable(list_of(DEFAULT_TARGET)),
+        "spec09_optional": list_of(is_repository_path), "amendment": nullable(AMENDMENT_ID)})),
+    "req21": record({"verdict": one_of("covered", "not-covered"),
+                     "statements": list_of(STATEMENT)}),
     "findings": ListSchema(record({
         "id": AUDIT_ID, "type": one_of(*FINDING_OWNERS),
         "severity": one_of("blocker", "major", "minor"), "source": is_str, "section": is_str,
         "sha256": nullable(DIGEST), "lines": list_of(is_int), "observation": is_str,
         "consequence": is_str, "owner": is_str, "closure": is_str, "blocks_09": is_bool,
         "status": is_str, "evidence": list_of(is_str), "edges": list_of(LINE_REF)}), "id"),
-    "amendments": ListSchema(is_object),
+    "amendments": ListSchema(record({
+        "id": AMENDMENT_ID, "target": is_str,
+        "change": one_of("semantic", "editorial", "relocation"), "current": nullable(is_str),
+        "proposed": is_str, "reason": is_str, "evidence": list_of(is_str),
+        "affected": list_of(is_str), "depends_on": list_of(AMENDMENT_ID),
+        "requires_adr": is_bool, "disposition": one_of("proposed")}), "id"),
     "installed": ListSchema(record({
         "path": is_str, "location": is_str, "source_sha256": is_str,
         "installed_sha256": is_str})),
@@ -1829,6 +2074,8 @@ def strict_diagnostics(root: Path, inventory: Document) -> list[Diagnostic]:
 # Verify: the assessment against the inventory
 # ---------------------------------------------------------------------------
 
+# Specific to this audit's rule set: the two rules that need a sections list whatever
+# their kinds. A later audit of other rules replaces these paths.
 ALWAYS_SECTIONED = frozenset({"rules/phase-atomic-execution.md", "rules/phase-discovery.md"})
 REPETITION_TYPES = (("report", "report-repeat"), ("checkpoint", "checkpoint-repeat"),
                     ("review", "review-repeat"))
@@ -1854,6 +2101,8 @@ class Verification:
     amendment_ids: frozenset[str]
     cited: frozenset[str]
     defects: dict[tuple[str, int, int], JsonObject]
+    migration: MigrationText | None
+    units: frozenset[int]
 
     @property
     def inv(self) -> JsonObject:
@@ -1886,7 +2135,8 @@ def amendment_lookups(assessment: JsonObject) -> tuple[frozenset[str], frozenset
     return cast(frozenset[str], ids), cast(frozenset[str], cited)
 
 
-def verification(inventory: Document, assessment: Document) -> Verification:
+def verification(inventory: Document, assessment: Document, migration: MigrationText | None,
+                 units: frozenset[int]) -> Verification:
     inv, doc = cast(JsonObject, inventory.value), cast(JsonObject, assessment.value)
     ids, cited = amendment_lookups(doc)
     return Verification(
@@ -1896,14 +2146,16 @@ def verification(inventory: Document, assessment: Document) -> Verification:
         findings={str(entry["id"]): entry for entry in objects(doc["findings"])},
         amendment_ids=ids, cited=cited,
         defects={edge_key(edge): edge for edge in objects(inv["edges"])
-                 if is_defect_edge(edge)})
+                 if is_defect_edge(edge)},
+        migration=migration, units=units)
 
 
-def first_rows(check: Verification, key: str) -> dict[str, tuple[int, JsonObject]]:
-    """The first row of `key` for each audited path, with its index."""
+def first_rows(check: Verification, key: str, field: str = "path"
+               ) -> dict[str, tuple[int, JsonObject]]:
+    """The first row of `key` for each audited path named by `field`, with its index."""
     found: dict[str, tuple[int, JsonObject]] = {}
     for index, row in enumerate(check.rows(key)):
-        path = str(row["path"])
+        path = str(row[field])
         if path in check.files and path not in found:
             found[path] = (index, row)
     return found
@@ -1923,11 +2175,14 @@ def digest_rule(check: Verification) -> Iterator[Diagnostic]:
                          "differs from the inventory's inventory_digest")
 
 
+ROW_KEYS = (("files", "path"), ("coverage", "path"), ("map", "source"))
+
+
 def row_rules(check: Verification) -> Iterator[Diagnostic]:
-    for key in ("files", "coverage"):
+    for key, field in ROW_KEYS:
         seen: set[str] = set()
         for index, row in enumerate(check.rows(key)):
-            path, location = str(row["path"]), check.at(f"{key}[{index}]")
+            path, location = str(row[field]), check.at(f"{key}[{index}]")
             if path not in check.files:
                 yield Diagnostic("row-extra", location, f"{path} is not an audited path")
             elif path in seen:
@@ -2250,6 +2505,442 @@ def installed_rules(check: Verification) -> Iterator[Diagnostic]:
             yield Diagnostic("installed-invalid", check.at(f"installed[{index}]"), message)
 
 
+# ---------------------------------------------------------------------------
+# Verify: the migration specification and the statement units of the discovery rule
+# ---------------------------------------------------------------------------
+
+SPEC09_DIRECTORY = ".ai/specs"
+SPEC09_NAME_RE = re.compile(r"09-.*\.md", re.DOTALL)
+SPEC09_ANY = f"{SPEC09_DIRECTORY}/09-*.md"
+SPEC09_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]+")
+# Specific to this audit's rule set: the rule whose statement units the assessment
+# covers. Once the rule is renamed or split, verify reports req21-invalid.
+DISCOVERY_RULE = "rules/phase-discovery.md"
+COVERAGE_SECTIONS = ("## Codebase Reading Rules", "## Decision Protocol")
+LIST_ITEM_RE = re.compile(r"\s*([-*+]|\d+[.)])\s")
+
+
+@dataclass(frozen=True)
+class MigrationText:
+    """The migration specification: its text, whole tokens, `###` headings and table rows."""
+
+    text: str
+    tokens: frozenset[str]
+    notes: frozenset[str]
+    table_rows: tuple[str, ...]
+
+
+def migration_text(text: str) -> MigrationText:
+    lines = [matching_text(line) for line in text.split("\n")]
+    return MigrationText(text, frozenset(SPEC09_TOKEN_RE.findall(text)),
+                         frozenset(line[4:] for line in lines if line.startswith("### ")),
+                         tuple(line for line in lines if line.startswith("| ")))
+
+
+def spec09_matches(root: Path) -> list[str]:
+    """Names of the non-directory entries of the specification directory that match
+    `09-*.md`; raises ValueError when that directory is absent, a link or unreadable."""
+    directory = root / SPEC09_DIRECTORY
+    try:
+        if not is_real_directory(directory):
+            raise ValueError("the specification directory is absent or a symbolic link")
+        with os.scandir(directory) as iterator:
+            return sorted(entry.name for entry in iterator
+                          if SPEC09_NAME_RE.fullmatch(entry.name)
+                          and not entry.is_dir(follow_symlinks=False))
+    except OSError as error:
+        raise ValueError(f"the specification directory cannot be listed ({error.strerror})"
+                         ) from None
+
+
+def read_spec09(path: Path) -> str:
+    """The strict UTF-8 text of a regular file; raises ValueError naming why it is unusable."""
+    try:
+        if entry_kind(path) == "symlink":
+            raise ValueError("is a symbolic link and is not followed")
+        data = read_regular_file(path)
+    except OSError as error:
+        raise ValueError(f"cannot be read ({error.strerror})") from None
+    except ToolError:
+        raise ValueError("is not a regular file") from None
+    text = decode_strict(data)
+    if text is None:
+        raise ValueError("is not valid UTF-8")
+    return text
+
+
+def load_migration(root: Path) -> tuple[MigrationText | None, list[Diagnostic]]:
+    """The single migration specification under the root, or one spec09-unavailable."""
+    try:
+        names = spec09_matches(root)
+    except ValueError as error:
+        return None, [Diagnostic("spec09-unavailable", f"{SPEC09_ANY}:0", str(error))]
+    if len(names) != 1:
+        reason = "no file matches" if not names else f"{len(names)} files match"
+        return None, [Diagnostic("spec09-unavailable", f"{SPEC09_ANY}:0", reason)]
+    relative = f"{SPEC09_DIRECTORY}/{names[0]}"
+    try:
+        return migration_text(read_spec09(root / relative)), []
+    except ValueError as error:
+        return None, [Diagnostic("spec09-unavailable", f"{relative}:0", f"the file {error}")]
+
+
+def section_units(lines: Sequence[Line]) -> set[int]:
+    """Unit start lines of one section body: list items, table rows other than the
+    separator, fence openings (a fenced block is one unit) and the first non-blank line
+    after a blank line or after the heading."""
+    starts: set[int] = set()
+    fence: str | None = None
+    after_blank = True
+    for line in lines:
+        text = line.text
+        if fence is not None:
+            fence = None if closes_fence(text, fence) else fence
+            continue
+        if not text.strip():
+            after_blank = True
+            continue
+        opening = FENCE_OPEN_RE.match(text)
+        row = text.strip()
+        is_row = row.startswith("|") and TABLE_SEPARATOR_RE.fullmatch(row) is None
+        if after_blank or opening or is_row or LIST_ITEM_RE.match(text):
+            starts.add(line.number)
+        fence = opening.group(1) if opening else None
+        after_blank = False
+    return starts
+
+
+def statement_units(model: TextModel) -> frozenset[int]:
+    """Unit start lines of the two coverage sections of the discovery rule."""
+    level_two = [heading for heading in model.headings if heading.level == 2]
+    units: set[int] = set()
+    for index, heading in enumerate(level_two):
+        if heading.text in COVERAGE_SECTIONS:
+            end = level_two[index + 1].line - 1 if index + 1 < len(level_two) else len(model.lines)
+            units |= section_units(model.lines[heading.line:end])
+    return frozenset(units)
+
+
+def discovery_units(root: Path) -> frozenset[int]:
+    """Statement units of the discovery rule in the root; none when it is absent, not a
+    regular file, or not decodable text."""
+    path = root / DISCOVERY_RULE
+    try:
+        if entry_kind(path) != "file":
+            return frozenset()
+    except (FileNotFoundError, NotADirectoryError):
+        return frozenset()
+    data = read_regular_file(path)
+    if encoding_of(data)[1] is None:
+        return frozenset()
+    return statement_units(build_text_model(data))
+
+
+# ---------------------------------------------------------------------------
+# Verify: the migration map
+# ---------------------------------------------------------------------------
+
+KIND_PREFIXES = ("bootstrap-", "contract-", "protocol-", "procedure-")
+CONDUCT_RULE = "rules/protocol-discovery-conduct.md"
+AUTONOMOUS_RULE = "rules/protocol-autonomous-decision.md"
+
+
+def mapped_rows(check: Verification) -> dict[str, tuple[int, JsonObject]]:
+    return first_rows(check, "map", "source")
+
+
+def targets_of(row: JsonObject) -> list[JsonObject]:
+    return objects(row["targets"])
+
+
+def target_owners(check: Verification) -> dict[str, set[str]]:
+    """Every target path of the checked entries with the sources that name it."""
+    owners: dict[str, set[str]] = {}
+    for source, (_, row) in mapped_rows(check).items():
+        for target in targets_of(row):
+            owners.setdefault(str(target["path"]), set()).add(source)
+    return owners
+
+
+def source_headings(check: Verification, source: str) -> list[str]:
+    return [str(item["heading"]) for item in objects(check.files[source]["sections"])]
+
+
+def parent_of(path: str) -> str:
+    return path.rpartition("/")[0]
+
+
+def decision_fits(source: str, row: JsonObject, owners: Mapping[str, set[str]]) -> bool:
+    paths = [str(target["path"]) for target in targets_of(row)]
+    decision, single = row["decision"], len(paths) == 1
+    if decision == "keep":
+        return single and paths[0] == source
+    if decision == "rename":
+        return single and parent_of(paths[0]) == parent_of(source) and paths[0] != source
+    if decision == "move":
+        return single and parent_of(paths[0]) != parent_of(source)
+    if decision == "split":
+        return len(paths) >= 2
+    return single and len(owners.get(paths[0], ())) > 1
+
+
+def shape_faults(check: Verification, source: str, row: JsonObject,
+                 owners: Mapping[str, set[str]]) -> list[str]:
+    targets = targets_of(row)
+    if not targets:
+        return ["the entry has no target"]
+    paths = [str(target["path"]) for target in targets]
+    faults = [] if decision_fits(source, row, owners) else [
+        f"the targets do not have the shape of a {row['decision']} decision"]
+    if len(set(paths)) != len(paths):
+        faults.append("a target path is listed twice")
+    headings = set(source_headings(check, source))
+    for target in targets:
+        reason, listed = target["merge_reason"], target["sections"]
+        if isinstance(reason, str) and not reason.strip():
+            faults.append(f"the merge_reason of {target['path']} is blank")
+        if row["decision"] != "split" and isinstance(listed, list) and not set(listed) <= headings:
+            faults.append(f"the sections of {target['path']} are not headings of the source")
+    return faults
+
+
+def shape_rules(check: Verification) -> Iterator[Diagnostic]:
+    owners = target_owners(check)
+    for source, (index, row) in mapped_rows(check).items():
+        for message in shape_faults(check, source, row, owners):
+            yield Diagnostic("map-invalid", check.at(f"map[{index}]"), message)
+
+
+def split_rules(check: Verification) -> Iterator[Diagnostic]:
+    for source, (index, row) in mapped_rows(check).items():
+        if row["decision"] != "split":
+            continue
+        listed = sorted(str(heading) for target in targets_of(row)
+                        if isinstance(target["sections"], list) for heading in target["sections"])
+        if listed != sorted(source_headings(check, source)):
+            yield Diagnostic("split-sections-incomplete", check.at(f"map[{index}]"),
+                             "the targets do not hold every section of the source exactly once")
+
+
+def collision_rules(check: Verification) -> Iterator[Diagnostic]:
+    owners = target_owners(check)
+    for source, (index, row) in mapped_rows(check).items():
+        for target in targets_of(row):
+            path = str(target["path"])
+            if len(owners[path]) > 1 and target["merge_reason"] is None:
+                yield Diagnostic("map-collision", check.at(f"map[{index}]"),
+                                 f"{path} is shared and has no merge_reason here")
+
+
+def installed_name(path: str) -> str | None:
+    """`rule-<stem>` for a top-level rule, `<stem>` for a top-level workflow, else None."""
+    rule = RULE_FILE_RE.fullmatch(path)
+    if rule is not None:
+        return f"rule-{rule.group(1)}"
+    workflow = WORKFLOW_FILE_RE.fullmatch(path)
+    return workflow.group(1) if workflow is not None else None
+
+
+def entry_target_rule(check: Verification, code: str, faulty: Mapping[str, str]
+                      ) -> Iterator[Diagnostic]:
+    """One diagnostic per checked entry and distinct target path listed in `faulty`."""
+    for _, (index, row) in mapped_rows(check).items():
+        for path in sorted({str(target["path"]) for target in targets_of(row)}):
+            if path in faulty:
+                yield Diagnostic(code, check.at(f"map[{index}]"), faulty[path])
+
+
+def installed_name_rules(check: Verification) -> Iterator[Diagnostic]:
+    folded: dict[str, set[str]] = {}
+    for path in target_owners(check):
+        name = installed_name(path)
+        if name is not None:
+            folded.setdefault(name.casefold(), set()).add(path)
+    faulty = {path: f"the installed name of {path} equals that of "
+                    f"{', '.join(sorted(paths - {path}))} under casefolding"
+              for paths in folded.values() if len(paths) > 1 for path in paths}
+    yield from entry_target_rule(check, "installed-name-collision", faulty)
+
+
+def stem_rules(check: Verification) -> Iterator[Diagnostic]:
+    paths = target_owners(check)
+    rules = {match.group(1) for path in paths if (match := RULE_FILE_RE.fullmatch(path))}
+    workflows = {match.group(1) for path in paths if (match := WORKFLOW_FILE_RE.fullmatch(path))}
+    faulty: dict[str, str] = {}
+    for stem in rules & workflows:
+        for path in (f"rules/{stem}.md", f"workflows/{stem}.md"):
+            faulty[path] = f"the stem {stem} is both a rule and a workflow"
+    yield from entry_target_rule(check, "stem-overlap", faulty)
+
+
+def prefix_rules(check: Verification) -> Iterator[Diagnostic]:
+    faulty = {path: f"the rule {path} has no kind prefix" for path in target_owners(check)
+              if (match := RULE_FILE_RE.fullmatch(path))
+              and not match.group(1).startswith(KIND_PREFIXES)}
+    yield from entry_target_rule(check, "kind-prefix-invalid", faulty)
+
+
+# ---------------------------------------------------------------------------
+# Verify: deviation from the migration defaults
+# ---------------------------------------------------------------------------
+
+def compared_targets(check: Verification, source: str, row: JsonObject) -> list[JsonObject]:
+    """The targets, with the autonomous-decision rule read as the conduct rule it replaces
+    when the discovery rule's statements are covered."""
+    targets = targets_of(row)
+    defaults = {str(item["path"]) for item in objects(row["spec09_default"])}
+    paths = {str(target["path"]) for target in targets}
+    if (source == DISCOVERY_RULE and check.doc["req21"]["verdict"] == "covered"
+            and CONDUCT_RULE in defaults and CONDUCT_RULE not in paths):
+        return [target | {"path": CONDUCT_RULE} if target["path"] == AUTONOMOUS_RULE else target
+                for target in targets]
+    return targets
+
+
+def deviates(check: Verification, source: str, row: JsonObject) -> bool:
+    if row["spec09_default"] is None:
+        return True
+    defaults = objects(row["spec09_default"])
+    targets = compared_targets(check, source, row)
+    default_paths = {str(item["path"]) for item in defaults}
+    target_paths = {str(item["path"]) for item in targets}
+    optional = {str(path) for path in cast(list[str], row["spec09_optional"])}
+    if not default_paths <= target_paths or not target_paths - default_paths <= optional:
+        return True
+    return any(listed_sections(targets, str(default["path"])) != sorted(default["sections"])
+               for default in defaults if default["sections"] is not None)
+
+
+def listed_sections(targets: Sequence[JsonObject], path: str) -> list[str]:
+    """The sections that the targets with one path list together, in sorted order."""
+    return sorted(str(heading) for target in targets
+                  if target["path"] == path and isinstance(target["sections"], list)
+                  for heading in target["sections"])
+
+
+def deviation_rules(check: Verification) -> Iterator[Diagnostic]:
+    for source, (index, row) in mapped_rows(check).items():
+        amendment, location = row["amendment"], check.at(f"map[{index}]")
+        known = amendment in check.amendment_ids
+        if amendment is not None and not known:
+            yield Diagnostic("reference-unknown", location, f"amendment {amendment} does not exist")
+        if not known and deviates(check, source, row):
+            yield Diagnostic("deviation-unamended", location,
+                             "the targets deviate from the migration default without an amendment")
+
+
+# ---------------------------------------------------------------------------
+# Verify: amendments
+# ---------------------------------------------------------------------------
+
+NEW_TARGETS = ("new-REQ", "new-AC")
+IDENTIFIER_TARGET_RE = re.compile(r"(REQ|AC|DM|A|Q)-\d+")
+CRITERION_ID_RE = re.compile(r"AC-\d+")
+FINDING_ID_RE = re.compile(r"AUD-08-\d{3}")
+NOTES_PREFIX = "Notes:"
+TERMINOLOGY_PREFIX = "Terminology:"
+
+
+def target_exists(migration: MigrationText, target: str) -> bool:
+    """Whether a target satisfies one of the amendment target forms against the text."""
+    if IDENTIFIER_TARGET_RE.fullmatch(target):
+        return target in migration.tokens
+    if target.startswith(NOTES_PREFIX):
+        heading = target[len(NOTES_PREFIX):]
+        return bool(heading) and heading in migration.notes
+    if target.startswith(TERMINOLOGY_PREFIX):
+        term = target[len(TERMINOLOGY_PREFIX):]
+        return bool(term) and any(row.startswith(f"| {term} |") for row in migration.table_rows)
+    return False
+
+
+def current_faults(migration: MigrationText | None, row: JsonObject) -> list[str]:
+    current = row["current"]
+    if row["target"] in NEW_TARGETS:
+        return [] if current is None else ["a new requirement or criterion has no current text"]
+    if current is None:
+        return ["current is null for an existing target"]
+    if migration is not None and current not in migration.text:
+        return ["current is not the exact text of the migration specification"]
+    return []
+
+
+def amendment_faults(migration: MigrationText | None, row: JsonObject) -> list[str]:
+    evidence = cast(list[str], row["evidence"])
+    faults = [] if evidence else ["evidence is empty"]
+    faults += [f'evidence "{item}" is not a finding id or path:line' for item in evidence
+               if not (FINDING_ID_RE.fullmatch(item) or EVIDENCE_LINE_RE.fullmatch(item))]
+    faults += current_faults(migration, row)
+    faults += [f"{key} is blank" for key in ("proposed", "reason") if not str(row[key]).strip()]
+    faults += [f'affected "{item}" is not an acceptance criterion id'
+               for item in cast(list[str], row["affected"]) if not CRITERION_ID_RE.fullmatch(item)]
+    return faults
+
+
+def target_faults(migration: MigrationText, row: JsonObject) -> list[str]:
+    target = str(row["target"])
+    faults = [] if target in NEW_TARGETS or target_exists(migration, target) else [
+        f'target "{target}" is not found in the migration specification']
+    faults += [f"affected {item} is not a whole token of the migration specification"
+               for item in cast(list[str], row["affected"])
+               if CRITERION_ID_RE.fullmatch(item) and item not in migration.tokens]
+    return faults
+
+
+def amendment_references(check: Verification, row: JsonObject) -> list[str]:
+    missing = [f"finding {item} does not exist" for item in cast(list[str], row["evidence"])
+               if FINDING_ID_RE.fullmatch(item) and item not in check.findings]
+    return missing + [f"amendment {item} does not exist"
+                      for item in cast(list[str], row["depends_on"])
+                      if item not in check.amendment_ids]
+
+
+def amendment_rules(check: Verification) -> Iterator[Diagnostic]:
+    for row in check.rows("amendments"):
+        location = check.at(str(row["id"]))
+        for message in amendment_faults(check.migration, row):
+            yield Diagnostic("amendment-invalid", location, message)
+        if check.migration is not None:
+            for message in target_faults(check.migration, row):
+                yield Diagnostic("amendment-target-unknown", location, message)
+        for message in amendment_references(check, row):
+            yield Diagnostic("reference-unknown", location, message)
+
+
+# ---------------------------------------------------------------------------
+# Verify: statement coverage of the discovery rule
+# ---------------------------------------------------------------------------
+
+STATEMENT_SOURCE_RE = re.compile(re.escape(DISCOVERY_RULE) + r":([1-9]\d{0,8})")
+
+
+def statement_line(source: str) -> int | None:
+    found = STATEMENT_SOURCE_RE.fullmatch(source)
+    return int(found.group(1)) if found is not None else None
+
+
+def statement_rules(check: Verification) -> Iterator[Diagnostic]:
+    record = cast(JsonObject, check.doc["req21"])
+    statements = objects(record["statements"])
+    seen: set[int] = set()
+    for index, item in enumerate(statements):
+        line, location = statement_line(str(item["source"])), check.at(f"req21.statements[{index}]")
+        if line is None or line not in check.units:
+            yield Diagnostic("req21-invalid", location,
+                             f"{item['source']} is not a statement unit of the two sections")
+        elif line in seen:
+            yield Diagnostic("req21-invalid", location, f"{item['source']} is listed twice")
+        if line is not None:
+            seen.add(line)
+    for line in sorted(check.units - seen):
+        yield Diagnostic("req21-invalid", f"{DISCOVERY_RULE}:{line}",
+                         "the statement unit has no statement")
+    covered = all(item["covered_by"] is not None for item in statements)
+    if (record["verdict"] == "covered") != covered:
+        yield Diagnostic("req21-invalid", check.at("req21"),
+                         "the verdict contradicts the covered_by values")
+
+
 def strings_in(value: object) -> Iterator[str]:
     """Every string in a JSON value in document order, walked with an explicit stack."""
     pending = [value]
@@ -2282,11 +2973,804 @@ def economics_rules(check: Verification) -> Iterator[Diagnostic]:
             yield from economic_claims(check.at(key), value)
 
 
+# ---------------------------------------------------------------------------
+# Verify: evidence against the inventory
+# ---------------------------------------------------------------------------
+
+EVIDENCE_SPAN_RE = re.compile(r"([^\s:]+):(\d+)(?:-(\d+))?")
+LINE_DIGITS_LIMIT = 9
+
+
+def cited_line(digits: str, lines: int) -> int:
+    """The line a run of digits names, or `lines + 1` when it has more significant digits
+    than any line count needs, so no unbounded string is converted to an integer."""
+    significant = digits.lstrip("0") or "0"
+    return lines + 1 if len(significant) > LINE_DIGITS_LIMIT else int(significant)
+
+
+
+def evidence_fault(check: Verification, item: str, paths_allowed: bool) -> str | None:
+    """Why one evidence item does not resolve against the inventory, or None when it does.
+    Only items in a form their list accepts are resolved: `path:line` everywhere, and in a
+    finding also a bare repository path, which may carry a `:start-end` range. An
+    amendment id is left to the reference rules and a malformed item to the form rules; a
+    finding id in a finding is a bare path like any other. `path:line` and `path:start-end`
+    need an inventory path with a line count that holds every cited line, a number too long
+    for any line count lying outside it; a bare path must be an inventory path. Line counts
+    come from the inventory, so a later tree changes nothing."""
+    if AMENDMENT_ID_RE.fullmatch(item):
+        return None
+    if not (EVIDENCE_LINE_RE.fullmatch(item) or (paths_allowed and is_repository_path(item))):
+        return None
+    span = EVIDENCE_SPAN_RE.fullmatch(item)
+    entry = check.entry(span.group(1) if span is not None else item)
+    if entry is None:
+        return f'evidence "{item}" names no inventory path'
+    if span is None:
+        return None
+    lines = entry["lines"]
+    if not isinstance(lines, int):
+        return f'evidence "{item}" cites a line of an entry without a line count'
+    start = cited_line(span.group(2), lines)
+    end = cited_line(span.group(3), lines) if span.group(3) is not None else start
+    if start > end:
+        return f'evidence "{item}" is a reversed range'
+    if not 1 <= start <= end <= lines:
+        return f'evidence "{item}" lies outside lines 1-{lines} of its entry'
+    return None
+
+
+def evidence_rules(check: Verification) -> Iterator[Diagnostic]:
+    """Every evidence item of the files rows, findings and amendments must resolve."""
+    located = [(check.at(f"files[{index}]"), row, False)
+               for index, row in enumerate(check.rows("files"))]
+    located += [(check.at(str(row["id"])), row, key == "findings")
+                for key in ("findings", "amendments") for row in check.rows(key)]
+    for location, row, paths_allowed in located:
+        for item in cast(list[str], row["evidence"]):
+            fault = evidence_fault(check, item, paths_allowed)
+            if fault is not None:
+                yield Diagnostic("evidence-unresolved", location, fault)
+
+
 ASSESSMENT_RULES: tuple[Callable[[Verification], Iterable[Diagnostic]], ...] = (
     digest_rule, row_rules, stale_row_rules, section_rules, repetition_rules, load_rules,
     candidate_rules, legacy_rules, group_rules, finding_rules, defect_rules, coverage_rules,
-    installed_rules, economics_rules,
+    installed_rules, shape_rules, split_rules, collision_rules, installed_name_rules,
+    stem_rules, prefix_rules, deviation_rules, amendment_rules, statement_rules,
+    economics_rules, evidence_rules,
 )
+
+
+# ---------------------------------------------------------------------------
+# Render: the generated region of the report
+# ---------------------------------------------------------------------------
+
+REPORT_BEGIN = "<!-- audit:generated:begin -->"
+REPORT_END = "<!-- audit:generated:end -->"
+CELL_BREAKING_CATEGORIES = frozenset({"Cc", "Zl", "Zp"})
+READER_CLASSES = ("active", "frozen", "planning", "history")
+IMPACT_CONTEXTS = ("text", "check-description", "comment")
+IMPACT_GROUPS = (*IMPACT_CONTEXTS, "tests", "frozen", "hooks", "active")
+SCOPE_TEXT = (
+    "primary {primary} (`rules/`, `workflows/`); adapter {adapter} (`harness/`, "
+    "`templates/codex-global-AGENTS.md`); readers {readers} (active {active}, "
+    "frozen {frozen}, planning {planning}, history {history}); excluded "
+    "`docs/audits/*-rules-workflows-audit.md`, "
+    "`docs/audits/*-rules-workflows-audit.inventory.json`, "
+    "`docs/audits/*-rules-workflows-audit.assessment.json`, "
+    "`scripts/audit-instructions.py`, `scripts/check-audit-instructions.py`; skipped "
+    "`.git/`, `logs/`, `output/`, `__pycache__/`, `*.pyc`")
+TABLE_HEADERS: dict[str, tuple[str, ...]] = {
+    "Inventory": ("Path", "Set", "Entry", "Tracked", "Words", "Bytes", "Kinds", "Coverage",
+                  "Decision", "Findings"),
+    "Sections": ("Path", "Section", "Line", "Words", "Bytes", "Kind", "Proposed home"),
+    "References": ("Class", *EDGE_STATUSES),
+    "Defect edges": ("Source:line:column", "Raw", "Form", "Context", "Status", "Candidates",
+                     "Findings"),
+    "Loads": ("Source:line", "Targets", "Mode", "Condition"),
+    "Repeated loads": ("ID", "Caller", "Callee", "Target", "Disposition", "Finding"),
+    "Line candidates": ("ID", "Source:line", "Text", "Disposition", "Finding"),
+    "Repetition review": ("Workflow", "Report findings", "Checkpoint findings",
+                          "Review findings"),
+    "Legacy mentions": ("Source:line", "Term", "Role", "Note"),
+    "Duplicates": ("Group", "Clusters", "Locations", "Normative source",
+                   "Condition differences", "Disposition", "Owner", "Finding"),
+    "Migration map": ("Source", "Decision", "Targets", "Spec 09 default", "Deviation",
+                      "Amendment"),
+    "Validator and test impact": ("Source", "Decision", "Validator text",
+                                  "Validator check-description", "Validator comment",
+                                  "Other tests", "Frozen", "Hooks", "Other active"),
+    "Spec 09 inputs": ("Source", "Decision", "Targets", "Amendment"),
+    "Statements": ("Statement", "Text", "Covered by"),
+    "Findings": ("ID", "Type", "Severity", "Source", "Section", "Owner", "Blocks 09",
+                 "Status", "Observation", "Closure"),
+    "Amendments to spec 09": ("ID", "Target", "Change", "Proposed", "Reason", "Evidence",
+                              "Affected", "Depends on", "Requires ADR", "Disposition"),
+    "Read coverage": ("Path", "Status", "SHA-256", "Reader"),
+    "Installed comparison": ("Path", "Location", "Source SHA-256", "Installed SHA-256",
+                             "Match"),
+}
+
+Rows = list[list[object]]
+Body = list[str]
+Position = tuple[str, int, int]
+
+
+def cell(value: object) -> str:
+    """Cell text: `-` for null, true or false, `none` for an empty list, list items joined
+    by commas, `|` escaped and every line-breaking or control character a space."""
+    if value is None:
+        return "-"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, list):
+        return ", ".join(cell(item) for item in value) if value else "none"
+    text = "".join(" " if unicodedata.category(character) in CELL_BREAKING_CATEGORIES
+                   else character for character in str(value))
+    return text.replace("|", "\\|")
+
+
+def table_row(cells: Sequence[str]) -> str:
+    return "| " + " | ".join(cells) + " |"
+
+
+def table(name: str, rows: Rows) -> Body:
+    """A table with its header and separator rows, even when it has no other row."""
+    header = TABLE_HEADERS[name]
+    return [table_row(header), "|" + "---|" * len(header),
+            *(table_row([cell(value) for value in row]) for row in rows)]
+
+
+def first_by(rows: object, key: Callable[[JsonObject], object]) -> dict[object, JsonObject]:
+    """The first row for each key value, in row order."""
+    found: dict[object, JsonObject] = {}
+    for row in objects(rows):
+        found.setdefault(key(row), row)
+    return found
+
+
+def position(item: Mapping[str, object]) -> Position:
+    return str(item["source"]), number(item["line"]), number(item["column"])
+
+
+def target_text(target: JsonObject) -> str:
+    sections = target["sections"]
+    if not isinstance(sections, list):
+        return str(target["path"])
+    return f"{target['path']} [{', '.join(str(item) for item in sections)}]"
+
+
+def targets_text(targets: object) -> str | None:
+    if targets is None:
+        return None
+    return "; ".join(target_text(item) for item in objects(targets)) or "none"
+
+
+def by_field(rows: object, field: str) -> list[JsonObject]:
+    return sorted(objects(rows), key=lambda row: str(row[field]))
+
+
+def passport_body(check: Verification) -> Body:
+    inv, doc = check.inv, check.doc
+    gaps = sum(1 for row in check.rows("coverage") if row["status"] in GAP_STATUSES)
+    findings = check.rows("findings")
+    opened = sum(1 for item in findings if item["status"] == "open")
+    blocking = sum(1 for item in findings if item["blocks_09"] is True)
+    sets = {name: sum(1 for entry in check.files.values() if entry["set"] == name)
+            for name in ("primary", "adapter")}
+    classes = {name: sum(1 for entry in check.readers.values() if entry["class"] == name)
+               for name in READER_CLASSES}
+    scope = SCOPE_TEXT.format(readers=len(check.readers), **sets, **classes)
+    environment = "; ".join(cell(value) for value in cast(JsonObject,
+                                                          doc["environment"]).values())
+    worktree = cast(JsonObject, inv["worktree"])
+    coverage = "complete" if not gaps else f"partial ({gaps} gaps)"
+    return [
+        f"- source_revision: {cell(inv['source_revision'])}",
+        f"- worktree: {cell(worktree['state'])}",
+        f"- inventory_digest: {cell(inv['inventory_digest'])}",
+        f"- method_version: {cell(inv['method_version'])}",
+        f"- scope: {scope}",
+        f"- installed_access: {cell(doc['installed_access'])}",
+        f"- read_coverage: {coverage}",
+        f"- findings: {len(findings)} total, {opened} open, {blocking} blocking spec 09",
+        f"- run_date: {cell(doc['run_date'])}",
+        f"- environment: {environment}",
+    ]
+
+
+def finding_ids_by_source(check: Verification) -> dict[str, list[str]]:
+    found: dict[str, list[str]] = {}
+    for item in check.rows("findings"):
+        found.setdefault(str(item["source"]), []).append(str(item["id"]))
+    return {source: sorted(ids) for source, ids in found.items()}
+
+
+def inventory_body(check: Verification) -> Body:
+    files_rows = first_by(check.doc["files"], lambda row: row["path"])
+    coverage = first_by(check.doc["coverage"], lambda row: row["path"])
+    mapped = first_by(check.doc["map"], lambda row: row["source"])
+    findings = finding_ids_by_source(check)
+    rows: Rows = []
+    for path, entry in check.files.items():
+        files_row, covered, entry_map = files_rows.get(path), coverage.get(path), mapped.get(path)
+        rows.append([path, entry["set"], entry["entry"], entry["tracked"], entry["words"],
+                     entry["bytes"], files_row["kinds"] if files_row else None,
+                     covered["status"] if covered else None,
+                     entry_map["decision"] if entry_map else None, findings.get(path, [])])
+    return table("Inventory", rows)
+
+
+def sections_body(check: Verification) -> Body:
+    files_rows = first_by(check.doc["files"], lambda row: row["path"])
+    rows: Rows = []
+    for path, entry in check.files.items():
+        files_row = files_rows.get(path)
+        listed = first_by(files_row["sections"] if files_row else None,
+                          lambda row: row["heading"])
+        for section in objects(entry["sections"]):
+            match = listed.get(section["heading"])
+            rows.append([path, section["heading"], section["line"], section["words"],
+                         section["bytes"], match["kind"] if match else None,
+                         match["proposed_home"] if match else None])
+    return table("Sections", rows)
+
+
+def naming_findings(check: Verification) -> dict[Position, list[str]]:
+    """The ids of the findings that name each edge position."""
+    found: dict[Position, list[str]] = {}
+    for item in check.rows("findings"):
+        for edge_ref in objects(item["edges"]):
+            found.setdefault(position(edge_ref), []).append(str(item["id"]))
+    return {key: sorted(set(ids)) for key, ids in found.items()}
+
+
+def edge_target_text(target: JsonObject) -> str:
+    status = target["heading_status"]
+    return str(target["path"]) + (f" ({status})" if status else "")
+
+
+def references_body(check: Verification) -> Body:
+    edges = objects(check.inv["edges"])
+    counts: dict[tuple[str, str], int] = {}
+    for item in edges:
+        key = (str(item["class"]), str(item["status"]))
+        counts[key] = counts.get(key, 0) + 1
+    count_rows: Rows = [[name, *(counts.get((name, status), 0) for status in EDGE_STATUSES)]
+                        for name in READER_CLASSES]
+    named = naming_findings(check)
+    defect_rows: Rows = [
+        ["{}:{}:{}".format(*position(item)), item["raw"], item["form"], item["context"],
+         item["status"], [edge_target_text(target) for target in objects(item["targets"])],
+         named.get(position(item), [])]
+        for item in edges if is_defect_edge(item)]
+    return table("References", count_rows) + [""] + table("Defect edges", defect_rows)
+
+
+def loads_body(check: Verification) -> Body:
+    loads = first_by(check.doc["loads"], position)
+    rows: Rows = []
+    for item in objects(check.inv["edges"]):
+        if item["load"] is True and item["source"] in check.files:
+            row = loads.get(position(item))
+            rows.append([f"{item['source']}:{item['line']}",
+                         [target["path"] for target in objects(item["targets"])],
+                         row["mode"] if row else None, row["condition"] if row else None])
+    return table("Loads", rows)
+
+
+def dispositions(check: Verification) -> Callable[[object], list[object]]:
+    candidates = first_by(check.doc["candidates"], lambda row: row["id"])
+
+    def of(identifier: object) -> list[object]:
+        row = candidates.get(identifier)
+        return [row["disposition"], row["finding"]] if row else [None, None]
+    return of
+
+
+def repeated_loads_body(check: Verification) -> Body:
+    of = dispositions(check)
+    return table("Repeated loads", [
+        [item["id"], item["caller"], item["callee"], item["target"], *of(item["id"])]
+        for item in objects(check.inv["repeat_loads"])])
+
+
+def line_candidates_body(check: Verification, key: str) -> Body:
+    of = dispositions(check)
+    return table("Line candidates", [
+        [item["id"], f"{item['source']}:{item['line']}", item["text"], *of(item["id"])]
+        for item in objects(check.inv[key])])
+
+
+def repetition_body(check: Verification) -> Body:
+    files_rows = first_by(check.doc["files"], lambda row: row["path"])
+    rows: Rows = []
+    for path, entry in check.files.items():
+        if WORKFLOW_FILE_RE.fullmatch(path) and number(entry["invocation_lines"]) > 0:
+            files_row = files_rows.get(path)
+            repetition = files_row["repetition"] if files_row else None
+            rows.append([path, *(cast(JsonObject, repetition)[key] if repetition else None
+                                 for key, _ in REPETITION_TYPES)])
+    return table("Repetition review", rows)
+
+
+def legacy_body(check: Verification) -> Body:
+    roles = first_by(check.doc["legacy"], position)
+    rows: Rows = []
+    for item in objects(check.inv["legacy_mentions"]):
+        row = roles.get(position(item))
+        rows.append([f"{item['source']}:{item['line']}", item["term"],
+                     row["role"] if row else None, row["note"] if row else None])
+    return table("Legacy mentions", rows)
+
+
+def span_text(span: JsonObject) -> str:
+    return f"{span['path']}:{span['line_start']}-{span['line_end']}"
+
+
+def duplicates_body(check: Verification) -> Body:
+    clusters = first_by(check.inv["duplicate_clusters"], lambda row: row["id"])
+    rows: Rows = []
+    for group in by_field(check.doc["duplicate_groups"], "id"):
+        members = [member for identifier in cast(list[object], group["clusters"])
+                   if identifier in clusters
+                   for member in objects(clusters[identifier]["members"])]
+        normative = cast(JsonObject, group["normative_source"])
+        rows.append([group["id"], group["clusters"],
+                     [span_text(span) for span in members + objects(group["locations"])],
+                     f"{normative['path']} → {normative['section']}",
+                     group["condition_differences"], group["disposition"], group["owner"],
+                     group["finding"]])
+    return table("Duplicates", rows)
+
+
+def map_body(check: Verification) -> Body:
+    return table("Migration map", [
+        [row["source"], row["decision"], targets_text(row["targets"]),
+         targets_text(row["spec09_default"]),
+         "yes" if deviates(check, str(row["source"]), row) else "no", row["amendment"]]
+        for row in by_field(check.doc["map"], "source")])
+
+
+def impact_group(item: JsonObject) -> str | None:
+    """The impact column of an edge: validator context, other tests, frozen, hooks or
+    other active; planning and history edges have none."""
+    source, reader_class = str(item["source"]), item["class"]
+    if source == VALIDATOR_PATH:
+        return str(item["context"]) if item["context"] in IMPACT_CONTEXTS else None
+    if reader_class == "frozen":
+        return "frozen"
+    if reader_class != "active":
+        return None
+    if source.startswith("tests/"):
+        return "tests"
+    return "hooks" if source.startswith("hooks/") else "active"
+
+
+def impact_counts(check: Verification) -> dict[str, dict[str, int]]:
+    """For each target path, the number of edges naming it in each impact column."""
+    counts: dict[str, dict[str, int]] = {}
+    for item in objects(check.inv["edges"]):
+        group = impact_group(item)
+        if group is None:
+            continue
+        for path in {str(target["path"]) for target in objects(item["targets"])}:
+            column = counts.setdefault(path, {})
+            column[group] = column.get(group, 0) + 1
+    return counts
+
+
+def impact_body(check: Verification) -> Body:
+    counts = impact_counts(check)
+    return table("Validator and test impact", [
+        [row["source"], row["decision"],
+         *(counts.get(str(row["source"]), {}).get(group, 0) for group in IMPACT_GROUPS)]
+        for row in by_field(check.doc["map"], "source") if row["decision"] != "keep"])
+
+
+def spec09_body(check: Verification) -> Body:
+    record = cast(JsonObject, check.doc["req21"])
+    nulls: Rows = [[row["source"], row["decision"], targets_text(row["targets"]),
+                    row["amendment"]]
+                   for row in by_field(check.doc["map"], "source")
+                   if row["spec09_default"] is None]
+    statements: Rows = [[item["source"], item["text"], item["covered_by"]]
+                        for item in objects(record["statements"])]
+    return (table("Spec 09 inputs", nulls) + ["", f"req21 verdict: {cell(record['verdict'])}",
+                                              ""] + table("Statements", statements))
+
+
+def findings_body(check: Verification) -> Body:
+    return table("Findings", [
+        [item["id"], item["type"], item["severity"], item["source"], item["section"],
+         item["owner"], item["blocks_09"], item["status"], item["observation"],
+         item["closure"]] for item in by_field(check.doc["findings"], "id")])
+
+
+def amendments_body(check: Verification) -> Body:
+    return table("Amendments to spec 09", [
+        [item["id"], item["target"], item["change"], item["proposed"], item["reason"],
+         item["evidence"], item["affected"], item["depends_on"], item["requires_adr"],
+         item["disposition"]] for item in by_field(check.doc["amendments"], "id")])
+
+
+def coverage_body(check: Verification) -> Body:
+    return table("Read coverage", [
+        [item["path"], item["status"], item["sha256"], item["reader"]]
+        for item in by_field(check.doc["coverage"], "path")])
+
+
+def installed_body(check: Verification) -> Body:
+    if check.doc["installed_access"] == "not-verified":
+        return ["Not verified."]
+    return table("Installed comparison", [
+        [item["path"], item["location"], item["source_sha256"], item["installed_sha256"],
+         "yes" if item["source_sha256"] == item["installed_sha256"] else "no"]
+        for item in by_field(check.doc["installed"], "path")])
+
+
+SUBSECTIONS: tuple[tuple[str, Callable[[Verification], Body]], ...] = (
+    ("Passport", passport_body),
+    ("Inventory", inventory_body),
+    ("Sections", sections_body),
+    ("References", references_body),
+    ("Loads", loads_body),
+    ("Repeated loads", repeated_loads_body),
+    ("Full-output candidates", lambda check: line_candidates_body(check, "full_output")),
+    ("Harness-name candidates", lambda check: line_candidates_body(check, "harness_names")),
+    ("Repetition review", repetition_body),
+    ("Legacy mentions", legacy_body),
+    ("Duplicates", duplicates_body),
+    ("Migration map", map_body),
+    ("Validator and test impact", impact_body),
+    ("Spec 09 inputs", spec09_body),
+    ("Findings", findings_body),
+    ("Amendments to spec 09", amendments_body),
+    ("Read coverage", coverage_body),
+    ("Installed comparison", installed_body),
+)
+
+
+def render_region(inventory: Document, assessment: Document) -> str:
+    """The generated region: both marker lines and each `###` subsection with its body,
+    blank lines between; every line ends with LF. It depends on the two documents only."""
+    check = verification(inventory, assessment, None, frozenset())
+    lines = [REPORT_BEGIN, ""]
+    for name, body in SUBSECTIONS:
+        lines += [f"### {name}", "", *body(check), ""]
+    lines.append(REPORT_END)
+    return "".join(f"{line}\n" for line in lines)
+
+
+# ---------------------------------------------------------------------------
+# Report file: reading, markers and layout
+# ---------------------------------------------------------------------------
+
+REPORT_SIZE_LIMIT = 64 * 1024 * 1024
+REPORT_TITLE_PREFIX = "# Rules and workflows audit — "
+SUMMARY_HEADING = "## Summary"
+METHOD_HEADING = "## Method"
+BLOCKERS_HEADING = "## Blockers for spec 09"
+REVIEW_HEADING = "## Independent review"
+ACCEPTANCE_HEADING = "## Acceptance"
+REPORT_HEADINGS = (SUMMARY_HEADING, METHOD_HEADING, BLOCKERS_HEADING, REVIEW_HEADING,
+                   ACCEPTANCE_HEADING)
+REVIEW_LINE_RE = re.compile(
+    r"Reviewed: (?:pending|[A-Za-z][A-Za-z0-9-]* (\d{4}-\d{2}-\d{2}) (?:pass|fail) "
+    r"([0-9a-f]{40}))")
+ACCEPTANCE_LINE_RE = re.compile(r"Accepted: (?:pending|owner (\d{4}-\d{2}-\d{2}))")
+FILE_NAME_DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})-")
+LISTED_FINDING_RE = re.compile(r"(?<![A-Za-z0-9_-])AUD-08-\d{3}(?![A-Za-z0-9_-])")
+NO_BLOCKERS = "None."
+
+
+class ReportUnusable(ValueError):
+    """A report that is absent or cannot be read as text."""
+
+    def __init__(self, message: str, missing: bool = False) -> None:
+        super().__init__(message)
+        self.missing = missing
+
+
+@dataclass(frozen=True)
+class ReportText:
+    """The text of a regular report file and its permission bits."""
+
+    text: str
+    mode: int
+
+
+def read_bounded(descriptor: int) -> ReportText:
+    with os.fdopen(descriptor, "rb") as handle:
+        status = os.fstat(handle.fileno())
+        if not stat.S_ISREG(status.st_mode):
+            raise ReportUnusable("is not a regular file")
+        if status.st_size > REPORT_SIZE_LIMIT:
+            raise ReportUnusable(f"is larger than {REPORT_SIZE_LIMIT} bytes")
+        data = handle.read(REPORT_SIZE_LIMIT + 1)
+    if len(data) > REPORT_SIZE_LIMIT:
+        raise ReportUnusable(f"is larger than {REPORT_SIZE_LIMIT} bytes")
+    text = decode_strict(data)
+    if text is None:
+        raise ReportUnusable("is not valid UTF-8")
+    return ReportText(text, stat.S_IMODE(status.st_mode))
+
+
+def read_report(path: Path) -> ReportText:
+    """The strict UTF-8 text of a regular report file of bounded size, read without
+    following a symbolic link or blocking on a special file."""
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except (FileNotFoundError, NotADirectoryError):
+        raise ReportUnusable("does not exist", missing=True) from None
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise ReportUnusable("is a symbolic link and is not followed") from None
+        raise ReportUnusable(f"cannot be read ({error.strerror})") from None
+    try:
+        return read_bounded(descriptor)
+    except OSError as error:
+        raise ReportUnusable(f"cannot be read ({error.strerror})") from None
+
+
+def report_lines(text: str) -> list[str]:
+    """The LF-separated lines of the report; a final LF ends the last line."""
+    lines = text.split("\n")
+    return lines[:-1] if lines[-1] == "" else lines
+
+
+def marker_indexes(lines: Sequence[str], marker: str) -> list[int]:
+    return [index for index, line in enumerate(lines) if line == marker]
+
+
+def region_bounds(lines: Sequence[str]) -> tuple[int, int] | None:
+    """The indexes of the begin and end marker lines when each occurs once, in order."""
+    begins, ends = marker_indexes(lines, REPORT_BEGIN), marker_indexes(lines, REPORT_END)
+    if len(begins) != 1 or len(ends) != 1 or ends[0] < begins[0]:
+        return None
+    return begins[0], ends[0]
+
+
+def top_headings(lines: Sequence[str]) -> list[tuple[int, int, str]]:
+    """Level-1 and level-2 headings outside fences and the generated region, as
+    (index, level, text with trailing whitespace removed)."""
+    zones = line_zones(lines, 0)
+    bounds = region_bounds(lines)
+    found = []
+    for index, line in enumerate(lines):
+        inside = bounds is not None and bounds[0] <= index <= bounds[1]
+        match = HEADING_RE.match(line) if zones[index] == ZONE_BODY and not inside else None
+        if match is not None and len(match.group(1)) <= 2:
+            found.append((index, len(match.group(1)), line.rstrip()))
+    return found
+
+
+def title_faults(lines: Sequence[str], run_date: str | None) -> list[tuple[int, str]]:
+    first = lines[0] if lines else ""
+    if not first.startswith(REPORT_TITLE_PREFIX):
+        return [(1, "the first line is not the report title")]
+    if run_date is not None and first != REPORT_TITLE_PREFIX + run_date:
+        return [(1, f"the title does not name the run date {run_date}")]
+    return []
+
+
+def repeated_faults(name: str, indexes: Sequence[int]) -> list[tuple[int, str]]:
+    if not indexes:
+        return [(0, f"{name} is missing")]
+    return [(index + 1, f"{name} is repeated") for index in indexes[1:]]
+
+
+def heading_faults(headings: Sequence[tuple[int, int, str]]) -> list[tuple[int, str]]:
+    faults = [(index + 1, f'unexpected heading "{text}"') for index, level, text in headings
+              if index > 0 and (level == 1 or text not in REPORT_HEADINGS)]
+    for expected in REPORT_HEADINGS:
+        found = [index for index, _, text in headings if text == expected]
+        faults += repeated_faults(f'the heading "{expected}"', found)
+    return faults
+
+
+def heading_index(headings: Sequence[tuple[int, int, str]], text: str) -> int | None:
+    found = [index for index, _, heading in headings if heading == text]
+    return found[0] if len(found) == 1 else None
+
+
+def order_faults(lines: Sequence[str], headings: Sequence[tuple[int, int, str]]
+                 ) -> list[tuple[int, str]]:
+    """The documented order of the five headings and the marker pair, checked once
+    each occurs exactly once."""
+    begins, ends = marker_indexes(lines, REPORT_BEGIN), marker_indexes(lines, REPORT_END)
+    places = [heading_index(headings, text) for text in REPORT_HEADINGS[:2]]
+    places += [begins[0] if len(begins) == 1 else None, ends[0] if len(ends) == 1 else None]
+    places += [heading_index(headings, text) for text in REPORT_HEADINGS[2:]]
+    if any(place is None for place in places):
+        return []
+    known = cast(list[int], places)
+    for previous, current in zip(known, known[1:]):
+        if current < previous:
+            return [(current + 1, "the headings and markers are out of the documented order")]
+    return []
+
+
+def section_body(lines: Sequence[str], headings: Sequence[tuple[int, int, str]],
+                 text: str) -> tuple[int, list[int]] | None:
+    """The heading index of a section that occurs once and the indexes of its non-blank
+    lines up to the next level-1 or level-2 heading."""
+    start = heading_index(headings, text)
+    if start is None:
+        return None
+    later = [index for index, _, _ in headings if index > start]
+    end = later[0] if later else len(lines)
+    return start, [index for index in range(start + 1, end) if lines[index].strip()]
+
+
+def line_matches(line: str, pattern: re.Pattern[str]) -> bool:
+    found = pattern.fullmatch(line)
+    return found is not None and (found.group(1) is None or is_date(found.group(1)))
+
+
+def single_line_faults(lines: Sequence[str], headings: Sequence[tuple[int, int, str]],
+                       text: str, pattern: re.Pattern[str]) -> list[tuple[int, str]]:
+    """A section that must hold exactly one non-blank line in its grammar."""
+    body = section_body(lines, headings, text)
+    if body is None:
+        return []
+    start, filled = body
+    if not filled:
+        return [(start + 1, f'"{text}" holds no line in its grammar')]
+    faults = [(filled[0] + 1, f'"{text}" holds a malformed line')
+              ] if not line_matches(lines[filled[0]], pattern) else []
+    return faults + [(index + 1, f'"{text}" holds more than one line') for index in filled[1:]]
+
+
+def layout_faults(lines: Sequence[str], headings: Sequence[tuple[int, int, str]],
+                  run_date: str | None) -> list[tuple[int, str]]:
+    """Title, headings, markers, their order and the review and acceptance lines; the
+    title date is checked only when the run date is known."""
+    faults = title_faults(lines, run_date) + heading_faults(headings)
+    faults += repeated_faults("the begin marker", marker_indexes(lines, REPORT_BEGIN))
+    faults += repeated_faults("the end marker", marker_indexes(lines, REPORT_END))
+    faults += order_faults(lines, headings)
+    faults += single_line_faults(lines, headings, REVIEW_HEADING, REVIEW_LINE_RE)
+    faults += single_line_faults(lines, headings, ACCEPTANCE_HEADING, ACCEPTANCE_LINE_RE)
+    return faults
+
+
+# ---------------------------------------------------------------------------
+# Verify: the report
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class ReportCheck:
+    """One readable report with its display name, lines and top-level headings."""
+
+    name: str
+    lines: list[str]
+    headings: list[tuple[int, int, str]]
+
+    def at(self, index: int) -> str:
+        return f"{self.name}:{index}"
+
+
+def review_commit_rules(root: Path, report: ReportCheck) -> Iterator[Diagnostic]:
+    """The commit of a well-formed review line must exist in the root's repository."""
+    body = section_body(report.lines, report.headings, REVIEW_HEADING)
+    for index in body[1] if body is not None else []:
+        found = REVIEW_LINE_RE.fullmatch(report.lines[index])
+        if found is None or found.group(2) is None or not is_date(found.group(1)):
+            continue
+        if run_git(root, "cat-file", "-e", f"{found.group(2)}^{{commit}}") is None:
+            yield Diagnostic("review-commit-unknown", report.at(index + 1),
+                             f"the commit {found.group(2)} does not exist in the repository")
+
+
+def report_economics_rules(report: ReportCheck) -> Iterator[Diagnostic]:
+    for index, line in enumerate(report.lines):
+        for pattern in ECONOMICS_PATTERNS:
+            found = pattern.search(line)
+            if found is not None:
+                yield Diagnostic("economics-claim", report.at(index + 1),
+                                 f'names an amount: "{found.group(0)}"')
+                break
+
+
+def name_date_rules(path: Path, report: ReportCheck, run_date: str) -> Iterator[Diagnostic]:
+    found = FILE_NAME_DATE_RE.match(path.name)
+    named = found.group(1) if found is not None else None
+    if named != run_date:
+        yield Diagnostic("report-name-date", report.at(0),
+                         f"the file name date {named or '(none)'} differs from run_date "
+                         f"{run_date}")
+
+
+def listed_extra(report: ReportCheck, filled: Sequence[int],
+                 findings: Mapping[str, JsonObject]) -> Iterator[Diagnostic]:
+    """A finding id on a line of the blockers section must name a blocking finding; each
+    id is reported once per line. Amendment ids and longer tokens are no finding ids."""
+    for index in filled:
+        for identifier in sorted(set(LISTED_FINDING_RE.findall(report.lines[index]))):
+            item = findings.get(identifier)
+            if item is None:
+                yield Diagnostic("blocker-extra", report.at(index + 1),
+                                 f"the listed id {identifier} names no finding")
+            elif item["blocks_09"] is not True:
+                yield Diagnostic("blocker-extra", report.at(index + 1),
+                                 f"the listed finding {identifier} does not block spec 09")
+
+
+def none_rule(report: ReportCheck, start: int, filled: Sequence[int],
+              blocking: bool) -> Iterator[Diagnostic]:
+    """With no blocking finding the section holds exactly `None.`; beside a blocking
+    finding `None.` does not appear."""
+    marked = [index for index in filled if report.lines[index].strip() == NO_BLOCKERS]
+    if blocking:
+        for index in marked:
+            yield Diagnostic("report-layout", report.at(index + 1),
+                             f'"{BLOCKERS_HEADING}" holds {NO_BLOCKERS} beside blocking findings')
+    elif [report.lines[index].strip() for index in filled] != [NO_BLOCKERS]:
+        yield Diagnostic("report-layout", report.at(start + 1),
+                         f'"{BLOCKERS_HEADING}" holds other than {NO_BLOCKERS} although no '
+                         "finding blocks")
+
+
+def blocker_rules(report: ReportCheck, assessment: JsonObject) -> Iterator[Diagnostic]:
+    """The blockers section names exactly the blocking findings, or `None.`."""
+    body = section_body(report.lines, report.headings, BLOCKERS_HEADING)
+    if body is None:
+        return
+    start, filled = body
+    findings = {str(item["id"]): item for item in objects(assessment["findings"])}
+    text = "\n".join(report.lines[index] for index in filled)
+    blocking = sorted(identifier for identifier, item in findings.items()
+                      if item["blocks_09"] is True)
+    for identifier in blocking:
+        token = re.compile(rf"(?<![A-Za-z0-9_-]){re.escape(identifier)}(?![A-Za-z0-9_-])")
+        if token.search(text) is None:
+            yield Diagnostic("blocker-unlisted", report.at(start + 1),
+                             f"the blocking finding {identifier} is not listed")
+    yield from listed_extra(report, filled, findings)
+    yield from none_rule(report, start, filled, bool(blocking))
+
+
+def region_rules(report: ReportCheck, inventory: Document, assessment: Document
+                 ) -> Iterator[Diagnostic]:
+    bounds = region_bounds(report.lines)
+    if bounds is None:
+        return
+    begin, end = bounds
+    written = report.lines[begin:end + 1]
+    rendered = report_lines(render_region(inventory, assessment))
+    if written == rendered:
+        return
+    offset = next((index for index, (left, right) in enumerate(zip(written, rendered))
+                   if left != right), min(len(written), len(rendered)))
+    yield Diagnostic("report-generated-mismatch", report.at(begin + offset + 1),
+                     "the generated region differs from the render output")
+
+
+def report_diagnostics(root: Path, path: Path, inventory: Document | None,
+                       assessment: Document | None) -> list[Diagnostic]:
+    """Rules over the report. Those that need no valid input always run; the name date,
+    the title date and the blockers need the assessment, the region needs both."""
+    name = link_name(path, root)
+    try:
+        text = read_report(path).text
+    except ReportUnusable as error:
+        code = "report-missing" if error.missing else "report-layout"
+        message = "the file does not exist" if error.missing else f"the report {error}"
+        return [Diagnostic(code, f"{name}:0", message)]
+    lines = report_lines(text)
+    report = ReportCheck(name, lines, top_headings(lines))
+    doc = cast(JsonObject, assessment.value) if assessment is not None else None
+    run_date = str(doc["run_date"]) if doc is not None else None
+    found = [Diagnostic("report-layout", report.at(line), message)
+             for line, message in layout_faults(lines, report.headings, run_date)]
+    found += list(review_commit_rules(root, report)) + list(report_economics_rules(report))
+    if doc is not None and run_date is not None:
+        found += list(name_date_rules(path, report, run_date)) + list(blocker_rules(report, doc))
+    if inventory is not None and assessment is not None:
+        found += list(region_rules(report, inventory, assessment))
+    return found
 
 
 # ---------------------------------------------------------------------------
@@ -2302,7 +3786,10 @@ def checked_document(document: Document | Diagnostic, schema: Schema, code: str
     return (None if problems else document), problems
 
 
-def verify_diagnostics(root: Path, report: Path, strict: bool) -> list[Diagnostic]:
+def load_inputs(root: Path, report: Path
+                ) -> tuple[Document | None, Document | None, list[Diagnostic]]:
+    """The inventory and the assessment derived from the report path, each None when it
+    is missing or breaks its schema, with every diagnostic found."""
     stem = str(report)[:-len(".md")]
     paths = [Path(stem + suffix) for suffix in (".inventory.json", ".assessment.json")]
     inventory, found = checked_document(
@@ -2311,13 +3798,19 @@ def verify_diagnostics(root: Path, report: Path, strict: bool) -> list[Diagnosti
     assessment, problems = checked_document(
         load_document(paths[1], display_name(paths[1], root), "assessment"),
         ASSESSMENT_SCHEMA, "assessment-invalid")
-    found += problems
+    return inventory, assessment, found + problems
+
+
+def verify_diagnostics(root: Path, report: Path, strict: bool) -> list[Diagnostic]:
+    inventory, assessment, found = load_inputs(root, report)
+    migration, unavailable = load_migration(root)
+    found += unavailable + report_diagnostics(root, report, inventory, assessment)
     if inventory is not None:
         found += worktree_diagnostics(inventory) + stale_diagnostics(root, inventory)
         if strict:
             found += strict_diagnostics(root, inventory)
     if inventory is not None and assessment is not None:
-        check = verification(inventory, assessment)
+        check = verification(inventory, assessment, migration, discovery_units(root))
         found += [item for rule in ASSESSMENT_RULES for item in rule(check)]
     return found
 
@@ -2332,6 +3825,62 @@ def run_verify(root: Path, report: Path, strict: bool) -> int:
         raise ToolError("root-unreadable", f"cannot read the root ({error.strerror})") from error
     write_lines(sys.stdout, [diagnostic_line(item) for item in diagnostics])
     return 1 if diagnostics else 0
+
+
+# ---------------------------------------------------------------------------
+# Render: command
+# ---------------------------------------------------------------------------
+
+REPORT_FAILURE = ("report-unwritable", "cannot write the report")
+
+
+def report_for_write(report: Path) -> ReportText:
+    """The report to update, refused unless it is readable and holds one marker pair."""
+    try:
+        current = read_report(report)
+    except ReportUnusable as error:
+        raise ToolError("report-unreadable", f"the report {error}") from None
+    if region_bounds(report_lines(current.text)) is None:
+        raise ToolError("report-markers", "the report needs exactly one begin marker line "
+                        "followed by exactly one end marker line")
+    return current
+
+
+def replace_region(text: str, region: str) -> str:
+    """The text with the lines from the begin marker to the end marker replaced."""
+    pieces = text.split("\n")
+    begin, end = cast(tuple[int, int], region_bounds(report_lines(text)))
+    start = sum(len(piece) + 1 for piece in pieces[:begin])
+    stop = min(len(text), sum(len(piece) + 1 for piece in pieces[:end + 1]))
+    return text[:start] + region + text[stop:]
+
+
+def write_region(region: str) -> None:
+    """Write the region as UTF-8 bytes whatever the locale, as --write stores it."""
+    sys.stdout.flush()
+    buffer = getattr(sys.stdout, "buffer", None)
+    if buffer is None:
+        sys.stdout.write(region)
+        return
+    buffer.write(region.encode("utf-8"))
+    buffer.flush()
+
+
+def run_render(root: Path, report: Path, write: bool) -> int:
+    if report.suffix != ".md":
+        raise UsageError("--report must name the report's .md file")
+    current = report_for_write(report) if write else None
+    inventory, assessment, problems = load_inputs(root, report)
+    if inventory is None or assessment is None:
+        write_lines(sys.stdout, [diagnostic_line(item) for item in sorted(problems)])
+        return 1
+    region = render_region(inventory, assessment)
+    if current is None:
+        write_region(region)
+    else:
+        write_atomically(report, replace_region(current.text, region), REPORT_FAILURE,
+                         current.mode)
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -2420,6 +3969,10 @@ def argument_parser() -> UsageParser:
     verify.add_argument("--root", type=Path, default=None)
     verify.add_argument("--report", type=Path, required=True)
     verify.add_argument("--strict", action="store_true")
+    render = commands.add_parser("render", help="render the generated region of the report")
+    render.add_argument("--root", type=Path, default=None)
+    render.add_argument("--report", type=Path, required=True)
+    render.add_argument("--write", action="store_true")
     return parser
 
 
@@ -2429,6 +3982,8 @@ def main(argv: Sequence[str]) -> int:
         root = arguments.root if arguments.root is not None else default_root()
         if arguments.command == "verify":
             return run_verify(root, arguments.report, arguments.strict)
+        if arguments.command == "render":
+            return run_render(root, arguments.report, arguments.write)
         return run_extract(root, arguments.out)
     except UsageError as error:
         write_lines(sys.stderr, [f"ERROR: usage: {error}"])

@@ -88,3 +88,14 @@ limitations:
 | X18 | The exact permission deny rules apply at user level, in unregistered projects too; here-document body lines can match them because the harness splits commands on newlines; reinstall re-adds an owned rule the user deleted. |
 | X19 | Local rewrites of a pushed branch are allowed: `git reset --soft`/`--mixed`/`--keep`/`--merge` on any branch, protected ones included; `git branch -f`, `git checkout -B`, `git switch -C`, `git update-ref` and `git pull --rebase` on an unprotected branch without `rebase.updateRefs`; only the later forced push asks. |
 | X20 | gh is checked only for `gh pr merge` and the `gh api` merge endpoints. A gh alias (`gh m 5` with `m: pr merge` in the gh configuration), `gh pr close --delete-branch` and `gh api` writes to git refs (`-X POST`, `-X PATCH` or `-X DELETE` on `repos/<owner>/<repo>/git/refs`) are not enforced. |
+
+## Finalization receipt support
+
+The source git-rails core additionally recognizes the narrow canonical finalization
+journal-bound receipt for exact task-scoped normal local deletion and expected-SHA remote
+deletion. Independent scope, recovery digest, current ref/integration, protection and
+worktree checks remain mandatory. Canonical policy: `rules/git-flow.md → Finalization Git
+ownership`. Isolated `check-finalization-safety.py` fixtures verify this source behavior;
+that evidence does not establish live installation or new native workflow-step coverage.
+The four Enforcement values, restack semantics and other harnesses' textual-only status
+remain unchanged. Finalization dry-run never emits telemetry.
