@@ -1,0 +1,27 @@
+.ai/memory/progress.md
+  s_96afdcfd38c67e::t_4dbd647174e962 149
+.ai/memory/state.md
+  s_96afdcfd38c67e::t_16af81c0a5975f 19
+.ai/tasks/todo/task-08-rules-workflows-audit/T-11-fix-git-read-isolation/description.md
+  s_96afdcfd38c67e::t_c2554fc2423c99 1-33
+.ai/tasks/todo/task-08-rules-workflows-audit/plan.md
+  s_96afdcfd38c67e::t_591414e9575c1f 15
+.ai/tasks/todo/task-08-rules-workflows-audit/state.md
+  s_96afdcfd38c67e::t_fb2552b87bf8dc 425-430,480-546
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "43053652ad56ef5e57fc79062ff015cfab1d4e30",
+  "prompts": {},
+  "sessions": {
+    "s_96afdcfd38c67e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f3ac193-9977-473b-b9f7-3df06f485ee7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
