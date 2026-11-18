@@ -6246,5 +6246,122 @@ class StopMarkerTests(CandidateCase):
                     expected.append(repeat_load(2, "w-root", "w-child"))
                 self.assertEqual(inventory["repeat_loads"], expected)
 
+
+class BareHomeNameBoundaryTests(CandidateCase):
+    def test_bare_home_name_ends_at_the_first_character_outside_a_user_name(self) -> None:
+        source = "rules/r-names.md"
+        cases = [
+            ("Keep the full output in |/home/someone| here.",
+             "Keep the full output in |~| here."),
+            ("Keep the full output in **/home/x** here.", "Keep the full output in **~** here."),
+            ("Keep the full output at /home/x> here.", "Keep the full output at ~> here."),
+            ("Keep the full output in /home/someone's dir.",
+             "Keep the full output in ~'s dir."),
+            ("Keep the full output in /home/some.one-x_y, then /Users/jkl.",
+             "Keep the full output in ~, then ~."),
+            ("Keep the full output in /home/ alone, /homestead/x and /home/someone/z.",
+             "Keep the full output in /home/ alone, /homestead/x and ~/z."),
+        ]
+        self.write_lines(source, [line for line, _ in cases])
+        out = self.base / "inventory.json"
+
+        inventory = self.extract(out=out)
+
+        self.assertEqual(inventory["full_output"],
+                         [line_candidate("FO", number, source, number, kept)
+                          for number, (_, kept) in enumerate(cases, start=1)])
+        text = out.read_text(encoding="utf-8")
+        self.assertNotIn("/home/someone", text)
+        self.assertNotIn("/home/x", text)
+
+
+class AdapterBehindLinkTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+    verify = VerifyTreeTests.verify
+
+    def extract_rows(self, fixture: FixtureRoot, name: str) -> tuple[list[dict], str]:
+        """Extract the fixture root; return its files rows and the inventory text."""
+        out = fixture.base / f"inventory-{name}.json"
+        result = run_tool(["extract", "--root", str(fixture.root), "--out", str(out)],
+                          fixture.env, fixture.base)
+        self.assertEqual(result.returncode, 0, f"stderr={result.stderr!r}")
+        text = out.read_text(encoding="utf-8")
+        return parse_inventory(text)["files"], text
+
+    def test_templates_directory_that_is_a_link_is_never_followed(self) -> None:
+        fixture, _ = self.build("outside")
+        outside = fixture.base / "outside"
+        outside.mkdir()
+        (outside / "codex-global-AGENTS.md").write_text(
+            "# Outside\n\nSee `rules/zz-outside.md`.\n", encoding="utf-8")
+        (fixture.root / "templates").symlink_to(outside)
+
+        rows, text = self.extract_rows(fixture, "outside")
+
+        self.assertNotIn(ADAPTER_FILE, [row["path"] for row in rows])
+        self.assertNotIn("templates", [row["path"] for row in rows])
+        self.assertNotIn("zz-outside", text)
+        self.assertNotIn(str(outside), text)
+        self.assert_silent(self.verify(fixture))
+
+    def test_templates_link_that_loops_is_an_absent_adapter(self) -> None:
+        fixture, _ = self.build("loop")
+        (fixture.root / "templates").symlink_to("templates")
+
+        rows, _ = self.extract_rows(fixture, "loop")
+
+        self.assertNotIn(ADAPTER_FILE, [row["path"] for row in rows])
+        self.assert_silent(self.verify(fixture))
+
+
+class SeparatorRowInnerWhitespaceTests(CandidateCase):
+    def test_separator_row_with_tabs_inside_is_not_a_unit(self) -> None:
+        content_row = "|\tEvery audited file\t|\tkeeps one row\t|\there\t|"
+        lines = ["# S", "", "|\t---\t|\t---\t|\t---\t|\t---\t|",
+                 "| :---\t| ---: |\t:---: | --- |", content_row]
+        for path in ("rules/t-one.md", "rules/t-two.md"):
+            self.write_lines(path, lines)
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["duplicate_clusters"], [
+            cluster(1, " ".join(content_row.split()),
+                    [("rules/t-one.md", 5, 5), ("rules/t-two.md", 5, 5)]),
+        ])
+
+
+class StopMarkerColonTests(CandidateCase):
+    NOT_CALLS = [
+        "**Stop:** run `/w-child` first",
+        "**STOP:** then run `/w-child`.",
+        "**stop:** run `/w-child` next.",
+    ]
+    CALLS = [
+        "Write `**Stop:**` as shown, then run `/w-child`.",
+        "Run `/w-child`; **Stop:** after it.",
+    ]
+
+    def test_stop_marker_with_the_colon_inside_the_emphasis_ends_calls(self) -> None:
+        control = repeat_load(1, "w-ctl", "w-child")
+        cases = [(line, False) for line in self.NOT_CALLS]
+        cases += [(line, True) for line in self.CALLS]
+        for index, (line, is_call) in enumerate(cases):
+            with self.subTest(line=line):
+                fixture = self.fresh_fixture(f"case-{index}")
+                fixture.write(R_ONE, "# R one\n")
+                self.write_workflow("w-root", [LOAD_R_ONE, line], fixture)
+                self.write_workflow("w-child", [LOAD_R_ONE], fixture)
+                self.write_workflow("w-ctl", [LOAD_R_ONE, "Run `/w-child`."], fixture)
+
+                inventory = self.extract_fixture(fixture)
+
+                expected = [control]
+                if is_call:
+                    expected.append(repeat_load(2, "w-root", "w-child"))
+                self.assertEqual(inventory["repeat_loads"], expected)
+
+
 if __name__ == "__main__":
     unittest.main()
