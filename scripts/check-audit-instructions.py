@@ -21,6 +21,7 @@ import ast
 import copy
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import re
@@ -4144,8 +4145,8 @@ def tool_module() -> object:
 
 def cell(value: object) -> str:
     """Documented cell text: `-` for null, true or false, `none` for an empty list, list
-    items joined by commas, `|` escaped and every line-breaking or control character a
-    space."""
+    items joined by commas, each backslash run directly before a `|` doubled and the `|`
+    escaped, and every line-breaking or control character a space."""
     if value is None:
         return "-"
     if isinstance(value, bool):
@@ -4154,7 +4155,7 @@ def cell(value: object) -> str:
         return ", ".join(cell(item) for item in value) if value else "none"
     text = "".join(" " if unicodedata.category(character) in LINE_BREAK_CATEGORIES
                    else character for character in str(value))
-    return text.replace("|", "\\|")
+    return re.sub(r"(\\*)\|", lambda found: found.group(1) * 2 + "\\|", text)
 
 
 def md_row(cells: Sequence[str]) -> str:
@@ -7007,6 +7008,288 @@ class VerifyEvidenceLineDigitsTests(SharedVerifyCase):
                 if int(digits) > 10:
                     self.assert_reports(result, [("evidence-unresolved",
                                                   assessment_at("AUD-08-002"))])
+                else:
+                    self.assert_silent(result)
+
+
+# ---------------------------------------------------------------------------
+# Output boundary: escapes, quoted values and a failing standard output
+# ---------------------------------------------------------------------------
+
+EPSILON = "rules/epsilon-rule.md"
+COSTLY_OUTPUT_LINE = "Paste the full test output costing $5 into the report."
+FINDINGS_OBSERVATION_COLUMN = 8
+
+
+def extra_coverage_location(assessment: dict, path: str) -> str:
+    """Append a coverage row for a path outside the inventory and return its location."""
+    assessment["coverage"].append(coverage_row({"path": path, "entry": "file",
+                                                "encoding": "utf-8", "sha256": "0" * 64}))
+    return assessment_at(f"coverage[{len(assessment['coverage']) - 1}]")
+
+
+def displayed_cells(row: str) -> list[str]:
+    """The cells of a table row as GitHub-flavoured Markdown displays them: the row splits
+    at each pipe without a backslash directly before it, the backslash of an escaped pipe
+    is dropped, and a backslash before ASCII punctuation then displays that character."""
+    inner = row.strip()[1:-1]
+    return [re.sub(r"\\([!-/:-@\[-`{-~])", r"\1", piece.strip().replace("\\|", "|"))
+            for piece in re.split(r"(?<!\\)\|", inner)]
+
+
+class OutputBoundaryPinTests(SharedVerifyCase):
+    def test_backslash_and_line_separators_in_a_copied_string_are_escaped(self) -> None:
+        location = extra_coverage_location(self.assessment, "rules/a\\b\u2028c\x85d.md")
+        result = self.verify()
+        self.assertEqual((result.returncode, result.stderr), (1, ""), result.stdout)
+        self.assertEqual(result.stdout, f"row-extra {location} "
+                                        "rules/a\\x5cb\\u2028c\\x85d.md is not an audited path\n")
+
+
+class OutputBoundaryPinToolTests(ToolCase):
+    def test_root_unreadable_line_for_a_name_with_a_line_break_stays_one_line(self) -> None:
+        self.fx.minimal()
+        name = os.fsencode(self.fx.root / "rules") + b"/bad\n\xff.md"
+        with open(name, "wb") as handle:
+            handle.write(b"# Bad name\n")
+        out = self.base / "inventory.json"
+        result = self.run_extract(out=out)
+        self.assertEqual((result.returncode, result.stdout), (2, ""), result.stderr)
+        self.assertEqual(result.stderr, "ERROR: root-unreadable: a file name is not valid "
+                                        "UTF-8: rules/bad\\x0a\\udcff.md\n")
+        self.assertFalse(out.exists())
+
+
+class OutputBoundaryStreamTests(unittest.TestCase):
+    def test_write_lines_escapes_what_an_ascii_stream_cannot_encode(self) -> None:
+        buffer = io.BytesIO()
+        stream = io.TextIOWrapper(buffer, encoding="ascii", newline="\n")
+        tool_module().write_lines(stream, [
+            ("code-x", "rules/\u00e9.md:0", "na\u00efve \u2713 \U0001f600"),
+            "ERROR: code-y: caf\u00e9"])
+        stream.flush()
+        self.assertEqual(buffer.getvalue(), b"code-x rules/\\xe9.md:0 na\\xefve \\u2713 "
+                                            b"\\U0001f600\nERROR: code-y: caf\\xe9\n")
+
+
+class OutputEscapeTests(SharedVerifyCase):
+    def test_format_characters_in_a_message_are_escaped(self) -> None:
+        location = extra_coverage_location(self.assessment, "rules/a\u202eb\u200dc\ufeffd.md")
+        self.finding("AUD-08-003")["section"] = "## Con\u00adtract"
+        result = self.verify()
+        self.assertEqual((result.returncode, result.stderr), (1, ""), result.stdout)
+        self.assertEqual(result.stdout.split("\n"), [
+            f"finding-invalid {assessment_at('AUD-08-003')} section \"## Con\\xadtract\" is "
+            "not a section of the source",
+            f"row-extra {location} rules/a\\u202eb\\u200dc\\ufeffd.md is not an audited path",
+            ""])
+
+    def test_quoted_values_double_an_inner_quote(self) -> None:
+        cases = {'a"b': '"a""b"', '"': '""""', 'a\\"b': '"a\\x5c""b"'}
+        for value, quoted in cases.items():
+            with self.subTest(value=value):
+                self.setUp()
+                self.finding("AUD-08-003")["section"] = value
+                result = self.verify()
+                self.assertEqual((result.returncode, result.stderr), (1, ""), result.stdout)
+                self.assertEqual(result.stdout, f"finding-invalid {assessment_at('AUD-08-003')} "
+                                                f"section {quoted} is not a section of the "
+                                                "source\n")
+        self.setUp()
+        self.finding("AUD-08-002")["evidence"] = [f"{GUIDE}:1", 'x" y']
+        result = self.verify()
+        self.assertEqual(result.stdout, f"finding-invalid {assessment_at('AUD-08-002')} "
+                                        'evidence "x"" y" is not path:line, a path or an '
+                                        "amendment id\n")
+
+    def test_empty_quoted_value_is_two_quotes(self) -> None:
+        self.finding("AUD-08-003")["section"] = ""
+        result = self.verify()
+        self.assertEqual(result.stdout, f"finding-invalid {assessment_at('AUD-08-003')} "
+                                        'section "" is not a section of the source\n')
+
+
+class OutputLocationEscapeTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+    verify = VerifyTreeTests.verify
+
+    def test_space_separators_and_a_soft_hyphen_in_a_location_are_escaped(self) -> None:
+        fixture, _ = self.build("separators")
+        names = {"rules/a\u00a0b.md": "rules/a\\xa0b.md",
+                 "rules/c\u2003d.md": "rules/c\\u2003d.md",
+                 "rules/e\u3000f.md": "rules/e\\u3000f.md",
+                 "rules/g\u00adh.md": "rules/g\\xadh.md"}
+        for name in names:
+            fixture.write(name, "# Added\n")
+        result = self.verify(fixture)
+        self.assertEqual((result.returncode, result.stderr), (1, ""), result.stdout)
+        self.assertEqual(sorted(result.stdout.split("\n")[:-1]),
+                         sorted(f"inventory-stale {escaped}:0 added to the root"
+                                for escaped in names.values()))
+
+
+class OutputFailureTests(SharedVerifyCase):
+    def commands(self) -> dict[str, list[str]]:
+        """A verify that prints a diagnostic and a render that prints the region."""
+        self.assessment["inventory_digest"] = "f" * 64
+        self.assertEqual(self.verify().returncode, 1)
+        root, report = str(self.fixture.root), str(self.fixture.root / REPORT_PATH)
+        return {"verify": ["verify", "--root", root, "--report", report],
+                "render": ["render", "--root", root, "--report", report]}
+
+    def run_into(self, arguments: list[str], descriptor: int
+                 ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.run([sys.executable, "-I", str(TOOL), *arguments],
+                              cwd=self.fixture.base, env=self.fixture.env, stdout=descriptor,
+                              stderr=subprocess.PIPE, timeout=60)
+
+    def assert_output_unwritable(self, result: subprocess.CompletedProcess[bytes]) -> None:
+        self.assertNotIn(b"Traceback", result.stderr)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        lines = result.stderr.decode("utf-8").split("\n")
+        self.assertEqual(len(lines), 2, lines)
+        self.assertEqual(lines[1], "")
+        self.assertTrue(lines[0].startswith("ERROR: output-unwritable: "), lines)
+
+    def test_full_device_as_standard_output_exits_two_with_one_error_line(self) -> None:
+        if not os.path.exists("/dev/full"):
+            self.skipTest("/dev/full does not exist")
+        for name, arguments in self.commands().items():
+            with self.subTest(command=name), open("/dev/full", "wb") as full:
+                self.assert_output_unwritable(self.run_into(arguments, full.fileno()))
+
+    def test_closed_pipe_as_standard_output_exits_two_with_one_error_line(self) -> None:
+        for name, arguments in self.commands().items():
+            with self.subTest(command=name):
+                reading, writing = os.pipe()
+                os.close(reading)
+                try:
+                    result = self.run_into(arguments, writing)
+                finally:
+                    os.close(writing)
+                self.assert_output_unwritable(result)
+
+
+class OutputBoundaryDocstringTests(unittest.TestCase):
+    def test_module_docstring_states_the_escapes_and_the_output_failure(self) -> None:
+        docstring = ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8")))
+        text = " ".join(str(docstring).split())
+        for phrase in ("`\\xNN`", "`\\uNNNN`", "`\\UNNNNNNNN`", "format characters",
+                       "space separator", "doubled", "output-unwritable",
+                       "owner write permission", "outside its generated region"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+        self.assertNotIn("amounts anywhere in it", text)
+
+
+# ---------------------------------------------------------------------------
+# Render: cell escapes, row order and report permissions
+# ---------------------------------------------------------------------------
+
+class RenderCellEscapeTests(RenderCase):
+    def test_backslashes_before_a_pipe_stay_in_one_cell_and_display_as_written(self) -> None:
+        values = {"AUD-08-001": "a\\|b", "AUD-08-002": "x\\\\\\|y", "AUD-08-003": "p|q\\r"}
+        for identifier, value in values.items():
+            self.finding(identifier)["observation"] = value
+        region = self.region()
+        self.assertEqual(region, expected_region(self.inventory, self.assessment))
+        rows = {row.split(" | ")[0][2:]: row for row in region_bodies(region)["Findings"][2:]}
+        for identifier, value in values.items():
+            with self.subTest(value=value):
+                cells = displayed_cells(rows[identifier])
+                self.assertEqual(len(cells), len(HEADERS["Findings"]), cells)
+                self.assertEqual(cells[FINDINGS_OBSERVATION_COLUMN], value)
+
+
+class RenderRowOrderTests(RenderCase):
+    def test_shuffled_inventory_renders_its_rows_sorted_by_path_line_and_column(self) -> None:
+        ordered = copy.deepcopy(self.inventory)
+        mention = ordered["legacy_mentions"][0]
+        ordered["legacy_mentions"].append(dict(mention, column=mention["column"] + 1))
+        shuffled = copy.deepcopy(ordered)
+        for key in ("files", "edges", "legacy_mentions"):
+            shuffled[key].reverse()
+        for entry in shuffled["files"]:
+            if entry["sections"]:
+                entry["sections"].reverse()
+        expected = expected_region(ordered, self.assessment)
+        in_input_order = expected_bodies(shuffled, self.assessment)
+        for name in ("Inventory", "Sections", "References", "Loads", "Legacy mentions"):
+            with self.subTest(table=name):
+                self.assertNotEqual(in_input_order[name], region_bodies(expected)[name])
+        restore = self.rewrite_inventory(canonical(shuffled))
+        try:
+            region = self.region()
+        finally:
+            restore()
+        self.assertEqual(region, expected)
+
+
+class RenderWritePermissionTests(RenderCase):
+    assert_refused = RenderWriteTests.assert_refused
+
+    def write_report_with_mode(self, mode: int) -> Path:
+        """An unrendered report with the given permission bits, made writable again after
+        the case."""
+        self.write_assessment()
+        self.fixture.write(REPORT_PATH, report_text(blockers=blocking_ids(self.assessment)))
+        report = self.report_file()
+        report.chmod(mode)
+        self.addCleanup(report.chmod, 0o644)
+        return report
+
+    def test_render_write_refuses_a_report_without_owner_write_permission(self) -> None:
+        for mode in (0o444, 0o460):
+            with self.subTest(mode=oct(mode)):
+                report = self.write_report_with_mode(mode)
+                before, listing = report.read_bytes(), self.audits_listing()
+                result = run_render(self.fixture, "--write")
+                self.assertEqual(stat.S_IMODE(report.stat().st_mode), mode)
+                report.chmod(0o644)
+                self.assert_refused(result, "report-unwritable", before, listing)
+
+    def test_render_write_keeps_the_mode_of_a_writable_report(self) -> None:
+        for mode in (0o640, 0o600):
+            with self.subTest(mode=oct(mode)):
+                report = self.write_report_with_mode(mode)
+                result = run_render(self.fixture, "--write")
+                self.assertEqual((result.returncode, result.stdout, result.stderr), (0, "", ""))
+                self.assertEqual(stat.S_IMODE(report.stat().st_mode), mode)
+                self.assertIn(expected_region(self.inventory, self.assessment),
+                              report.read_text(encoding="utf-8"))
+                report.chmod(0o644)
+
+
+# ---------------------------------------------------------------------------
+# Report economics outside the generated region
+# ---------------------------------------------------------------------------
+
+class ReportEconomicsRegionTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+
+    def test_amount_copied_into_the_region_is_silent_and_one_outside_it_is_a_claim(
+            self) -> None:
+        fixture, inventory = self.build(
+            "copied-amount", extra={EPSILON: f"# Epsilon rule\n\n{COSTLY_OUTPUT_LINE}\n"})
+        self.assertIn(COSTLY_OUTPUT_LINE, [item["text"] for item in inventory["full_output"]])
+        rendered = run_render(fixture)
+        self.assertEqual((rendered.returncode, rendered.stderr), (0, ""), rendered.stdout)
+        self.assertIn(COSTLY_OUTPUT_LINE, rendered.stdout)
+        blockers = blocking_ids(valid_assessment(inventory))
+        for summary, expected in (
+                ("Every audited file was read once.", []),
+                ("One run costs $5 in total.", [("economics-claim", f"{REPORT_PATH}:5")])):
+            with self.subTest(summary=summary):
+                fixture.write(REPORT_PATH, report_text(region=rendered.stdout,
+                                                       blockers=blockers, summary=summary))
+                result = run_tool(["verify", "--root", str(fixture.root), "--report",
+                                   str(fixture.root / REPORT_PATH)], fixture.env, fixture.base)
+                if expected:
+                    self.assert_reports(result, expected)
                 else:
                     self.assert_silent(result)
 
