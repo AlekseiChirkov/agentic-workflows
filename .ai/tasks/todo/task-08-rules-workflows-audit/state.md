@@ -667,6 +667,12 @@ T-18 | Feat: state tool memory consistency warning (proposals) | atomic-tests: n
   blocker: none
   notes: source and decisions in `T-18-feat-state-tool-memory-consistency-warning/description.md`
 
+T-19 | Fix: separator pattern shadowing (reconciliation finding) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action: created 2026-11-18 from the spec 08 reconciliation finding Q-06 (a)
+  target_files:
+  blocker: none
+  notes: source and decision in `T-19-fix-separator-pattern-shadowing/description.md`
+
 ## Execution Report
 - T-01: reviewed — read-only `extract` of the deterministic inventory (audited set, readers, text model, git state); re-validated after one correction (unreadable roots, undecodable names, repository-configured git programs)
 - T-02: reviewed — reference edges (span and token grammar, heading resolution, statuses, contexts, load flag, defect predicate); arbiter ruling that token-grammar edges never carry the migration-grammar flag
@@ -777,8 +783,8 @@ Split recorded automatically under the orchestrated-run override: critical and i
 
 ## Fix-Tasks
 fixes-created: complete
-fixes-count: 8
-Created: T-11-fix-git-read-isolation, T-12-fix-review-follow-ups, T-13-fix-extraction-edge-cases, T-14-fix-git-isolation-follow-ups, T-15-fix-verify-input-and-form-rules, T-16-fix-output-boundary-and-render, T-17-fix-audit-output-corrections, T-18-feat-state-tool-memory-consistency-warning
+fixes-count: 9
+Created: T-11-fix-git-read-isolation, T-12-fix-review-follow-ups, T-13-fix-extraction-edge-cases, T-14-fix-git-isolation-follow-ups, T-15-fix-verify-input-and-form-rules, T-16-fix-output-boundary-and-render, T-17-fix-audit-output-corrections, T-18-feat-state-tool-memory-consistency-warning, T-19-fix-separator-pattern-shadowing
 
 ### Fix Classification
 | Issue | Severity | Gate 1 | Gate 2 | Gate 3 | Gate 4 | Grouping | Branch |
