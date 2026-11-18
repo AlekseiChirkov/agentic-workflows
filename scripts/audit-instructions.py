@@ -13,7 +13,8 @@ Usage:
       the candidates: loads repeated by a workflow and a workflow it calls, full-output
       and harness-name lines, legacy-integration mentions and verbatim duplicate text
       units; text copied from audited files writes `/home/<name>/` and `/Users/<name>/`
-      as `~/`) as canonical JSON to FILE. FILE is written to a temporary file in its own directory
+      as `~/`, and a bare `/home/<name>` or `/Users/<name>` that ends a path as `~`) as
+      canonical JSON to FILE. FILE is written to a temporary file in its own directory
       and moved into place. `is_defect_edge` is the defect predicate over one edge.
       --root defaults to the parent of the scripts/ directory that holds this file.
   python3 -I scripts/audit-instructions.py verify [--root DIR] --report FILE [--strict]
@@ -56,7 +57,8 @@ Exit codes:
      assessment is missing or breaks its schema (its diagnostics are printed, nothing
      is written)
   2  usage error, root-invalid (no rules/ or workflows/ directory), root-unreadable
-     (a directory or file that cannot be read, or a file name that is not valid UTF-8),
+     (a file, or a directory that can hold an audited file or a reader, that cannot be
+     read, or a file name that is not valid UTF-8; other directories are never read),
      out-unwritable, render --write refusals report-unreadable (absent, not a regular
      file, a symbolic link, larger than 64 MiB or not valid UTF-8), report-markers (not
      exactly one begin marker line followed by one end marker line) and
@@ -140,19 +142,45 @@ OWN_SCRIPTS = frozenset({"scripts/audit-instructions.py", "scripts/check-audit-i
 AUDIT_OUTPUT_RE = re.compile(
     r"docs/audits/[^/]*-rules-workflows-audit\.(md|inventory\.json|assessment\.json)")
 
-# Reader classes in precedence order: the first class with a matching pattern wins.
-READER_CLASS_PATTERNS: tuple[tuple[str, tuple[re.Pattern[str], ...]], ...] = tuple(
-    (name, tuple(re.compile(pattern) for pattern in patterns)) for name, patterns in (
-        ("frozen", (r"tests/fixtures/validator-runtime/.+",)),
-        ("active", (r"CLAUDE\.md", r"README\.md", r"(principles|templates|hooks|scripts|tests)/.+",
-                    r"docs/[^/]+", r"\.ai/(principles|context)/[^/]+\.md",
-                    r"\.ai/memory/architecture\.md")),
-        ("planning", (r"\.ai/README\.md", r"\.ai/memory/state\.md", r"\.ai/specs/[^/]+",
-                      r"\.ai/tasks/todo/.+")),
-        ("history", (r"\.ai/adr/.+", r"\.ai/specs/completed/.+", r"\.ai/tasks/completed/.+",
-                     r"\.ai/memory/progress\.md", r"docs/[^/]+/.+")),
-    )
+# Reader classes in precedence order: the first class with a matching path pattern wins.
+# In a pattern, `*` stands for one or more characters other than `/`, and a last
+# component `**` for one or more characters of any kind, so every path below the
+# directory before it.
+READER_CLASS_SPECS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("frozen", ("tests/fixtures/validator-runtime/**",)),
+    ("active", ("CLAUDE.md", "README.md", "principles/**", "templates/**", "hooks/**",
+                "scripts/**", "tests/**", "docs/*", ".ai/principles/*.md", ".ai/context/*.md",
+                ".ai/memory/architecture.md")),
+    ("planning", (".ai/README.md", ".ai/memory/state.md", ".ai/specs/*", ".ai/tasks/todo/**")),
+    ("history", (".ai/adr/**", ".ai/specs/completed/**", ".ai/tasks/completed/**",
+                 ".ai/memory/progress.md", "docs/*/**")),
 )
+ANY_BELOW = "**"
+
+
+def component_pattern(component: str) -> str:
+    """The expression of one pattern component: literal text with `*` as a name run."""
+    return "[^/]+".join(re.escape(part) for part in component.split("*"))
+
+
+@dataclass(frozen=True)
+class ReaderPattern:
+    """One reader path pattern: the whole-path expression and one per component, None
+    standing for a last `**`."""
+
+    whole: re.Pattern[str]
+    components: tuple[re.Pattern[str] | None, ...]
+
+
+def reader_pattern(spec: str) -> ReaderPattern:
+    parts = spec.split("/")
+    whole = "/".join(".+" if part == ANY_BELOW else component_pattern(part) for part in parts)
+    return ReaderPattern(re.compile(whole), tuple(
+        None if part == ANY_BELOW else re.compile(component_pattern(part)) for part in parts))
+
+
+READER_CLASS_PATTERNS: tuple[tuple[str, tuple[ReaderPattern, ...]], ...] = tuple(
+    (name, tuple(reader_pattern(spec) for spec in specs)) for name, specs in READER_CLASS_SPECS)
 
 CONTROL_CHARACTER_RE = re.compile("[\u001c-\u001f]")
 FRONT_MATTER_DELIMITER = "---"
@@ -369,12 +397,19 @@ def entry_kind(path: Path) -> str:
     return "other"
 
 
+def entry_mode(path: Path) -> int | None:
+    """The mode of an entry without following a link, or None when there is no entry; a
+    permission error propagates."""
+    try:
+        return os.lstat(path).st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+
+
 def is_real_directory(path: Path) -> bool:
     """True for a directory that is not a link; a permission error propagates."""
-    try:
-        return stat.S_ISDIR(os.lstat(path).st_mode)
-    except (FileNotFoundError, NotADirectoryError):
-        return False
+    mode = entry_mode(path)
+    return mode is not None and stat.S_ISDIR(mode)
 
 
 def read_regular_file(path: Path) -> bytes:
@@ -387,14 +422,19 @@ def read_regular_file(path: Path) -> bytes:
 
 
 def sorted_children(root: Path, top: str) -> list[tuple[str, bool]]:
-    """The entries directly below `top` in name order, with whether each is a real directory."""
+    """The entries directly below `top` (the root when empty) in name order, with whether
+    each is a real directory."""
     with os.scandir(root / top) as iterator:
         children = sorted(iterator, key=lambda child: child.name)
-    return [(f"{top}/{child.name}", child.is_dir(follow_symlinks=False)) for child in children]
+    return [(f"{top}/{child.name}" if top else child.name, child.is_dir(follow_symlinks=False))
+            for child in children]
 
 
-def tree_below(root: Path, top: str) -> Iterator[tuple[str, bool]]:
-    """Yield every entry below `top` depth first in name order; links stay unfollowed.
+def tree_below(root: Path, top: str,
+               descend: Callable[[str], bool] = lambda path: True
+               ) -> Iterator[tuple[str, bool]]:
+    """Yield every entry below `top` depth first in name order, entering only directories
+    that `descend` accepts; links stay unfollowed.
 
     The walk keeps its own stack, so directory depth is not limited by recursion.
     """
@@ -405,7 +445,7 @@ def tree_below(root: Path, top: str) -> Iterator[tuple[str, bool]]:
             pending.pop()
             continue
         yield entry
-        if entry[1]:
+        if entry[1] and descend(entry[0]):
             pending.append(iter(sorted_children(root, entry[0])))
 
 
@@ -424,7 +464,8 @@ def audited_paths(root: Path) -> tuple[dict[str, str], frozenset[str]]:
                 else:
                     found[path] = set_name
     for path in ADAPTER_FILES:
-        if os.path.lexists(root / path) and not is_real_directory(root / path):
+        mode = entry_mode(root / path)
+        if mode is not None and not stat.S_ISDIR(mode):
             found[path] = "adapter"
     return found, frozenset(directories)
 
@@ -449,27 +490,39 @@ def reader_class_of(path: str) -> str | None:
     if AUDIT_OUTPUT_RE.fullmatch(path) or audited_set_of(path) is not None:
         return None
     for name, patterns in READER_CLASS_PATTERNS:
-        if any(pattern.fullmatch(path) for pattern in patterns):
+        if any(pattern.whole.fullmatch(path) for pattern in patterns):
             return name
     return None
 
 
-def raise_walk_error(error: OSError) -> NoReturn:
-    raise error
+def pattern_reaches_below(pattern: ReaderPattern, names: Sequence[str]) -> bool:
+    """True when the pattern can match a path below the directory of these names."""
+    last = len(pattern.components) - 1
+    for index, name in enumerate(names):
+        component = pattern.components[index]
+        if component is None:
+            return True
+        if index == last or component.fullmatch(name) is None:
+            return False
+    return True
+
+
+def may_hold_reader(directory: str) -> bool:
+    """True for a directory that is not skipped and below which a reader pattern can match."""
+    names = directory.split("/")
+    return names[-1] not in SKIPPED_DIRECTORIES and any(
+        pattern_reaches_below(pattern, names)
+        for _, patterns in READER_CLASS_PATTERNS for pattern in patterns)
 
 
 def reader_paths(root: Path) -> dict[str, str]:
-    """Map every regular reader file to its class; an unreadable directory is an error."""
+    """Map every regular reader file to its class. The walk enters only directories that
+    can hold a reader; an unreadable one of those is an error, any other is never read."""
     found: dict[str, str] = {}
-    for directory, dirnames, filenames in os.walk(root, onerror=raise_walk_error,
-                                                  followlinks=False):
-        dirnames[:] = [name for name in dirnames if name not in SKIPPED_DIRECTORIES]
-        base = Path(directory).relative_to(root).as_posix()
-        for name in filenames:
-            relative = name if base == "." else f"{base}/{name}"
-            reader_class = reader_class_of(relative)
-            if reader_class is not None and entry_kind(root / relative) == "file":
-                found[relative] = reader_class
+    for path, is_directory in tree_below(root, "", descend=may_hold_reader):
+        reader_class = None if is_directory else reader_class_of(path)
+        if reader_class is not None and entry_kind(root / path) == "file":
+            found[path] = reader_class
     return found
 
 
@@ -883,8 +936,11 @@ def span_verdict(nodes: Nodes, span: Span, line_text: str) -> Verdict | None:
 # Reference edges: token grammar
 # ---------------------------------------------------------------------------
 
+# The adapter literal ends where a directory path token would end: it is not followed by
+# more path characters that end in a name character.
 TOKEN_PATH_RE = re.compile(r"(?<![A-Za-z0-9_./-])(?:(?:rules|workflows|harness)/"
-                           r"[A-Za-z0-9_*./-]*[A-Za-z0-9_*]|templates/codex-global-AGENTS\.md)")
+                           r"[A-Za-z0-9_*./-]*[A-Za-z0-9_*]|templates/codex-global-AGENTS\.md"
+                           r"(?![A-Za-z0-9_*./-]*[A-Za-z0-9_*]))")
 TOKEN_MD_NAME_RE = re.compile(r"(?<![A-Za-z0-9_-])([A-Za-z0-9_-]+)\.md(?![A-Za-z0-9_-])")
 TOKEN_SKILL_RE = re.compile(r"(?<![A-Za-z0-9_-])rule-([a-z0-9]+(?:-[a-z0-9]+)*)"
                             r"(?![A-Za-z0-9_-])")
@@ -1142,8 +1198,9 @@ def call_clause(text: str, column: int) -> str:
 
 
 def is_call(text: str, column: int) -> bool:
-    """A call verb in the clause, no negation before it, and no earlier stop marker."""
-    if STOP_MARKER in text[:column]:
+    """A call verb in the clause, no negation before it, and no earlier stop marker outside
+    a span, in any letter case."""
+    if STOP_MARKER in without_spans(text)[:column].lower():
         return False
     clause = call_clause(text, column)
     verb = CALL_VERB_RE.search(clause)
@@ -1210,13 +1267,17 @@ HARNESS_NAME_RE = re.compile(r"\b(claude code|claude|codex)\b", re.IGNORECASE)
 LEGACY_TERM_RE = re.compile(r"windsurf|codeium|\bdevin\b", re.IGNORECASE)
 LEGACY_SUFFIXES = (".md", ".json")
 CANDIDATE_TEXT_LIMIT = 160
-# A home directory prefix `/home/<name>/` or `/Users/<name>/` that starts a path.
-HOME_PREFIX_RE = re.compile(r"(?<![\w./~-])/(?:home|Users)/[^/\s]+/")
+# A home directory `/home/<name>` or `/Users/<name>` that starts a path: either a prefix
+# with its slash, or a bare directory followed by optional punctuation and then
+# whitespace, a backtick or the end of the text; the punctuation is not part of the name.
+HOME_DIRECTORY_RE = re.compile(r"(?<![\w./~-])/(?:home|Users)/(?:[^/\s]+(/)|"
+                               r"[^/\s]+?(?=[.,;:!?)\]}'\"]*(?:[\s`]|\Z)))")
 
 
 def home_relative(text: str) -> str:
-    """Text copied from an audited file, with home directory prefixes written as `~/`."""
-    return HOME_PREFIX_RE.sub("~/", text)
+    """Text copied from an audited file, with a home directory prefix written as `~/` and a
+    bare home directory as `~`."""
+    return HOME_DIRECTORY_RE.sub(lambda found: "~/" if found.group(1) else "~", text)
 
 
 def candidate_text(text: str) -> str:
@@ -1312,7 +1373,7 @@ def unit_lines(model: TextModel) -> Iterator[tuple[str, list[Word]]]:
             yield "paragraph", paragraph
             paragraph = []
         if (line.zone == ZONE_BODY and text.startswith("|")
-                and TABLE_SEPARATOR_RE.fullmatch(text) is None):
+                and TABLE_SEPARATOR_RE.fullmatch(text.rstrip()) is None):
             yield "row", [(word, line.number) for word in home_relative(text).split()]
     if paragraph:
         yield "paragraph", paragraph

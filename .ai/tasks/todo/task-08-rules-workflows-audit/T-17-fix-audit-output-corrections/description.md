@@ -13,15 +13,16 @@ The delivered assessment and report carry the content corrections the reviews pr
   - T-09 O2: AMD-08-01's reason names AMD-08-02 and AMD-08-05 as its set.
   - T-09 O3: AMD-08-05's proposed text adds "in scan set E or R".
   - T-09 O4: remove AC-39 from `affected` of AMD-08-05 and AMD-08-06.
-- Steps for the outputs: edit the assessment JSON only (never the inventory); run `render --write` with the current tool; update the Summary's paraphrase of AMD-08-03 if it quotes the changed condition; add one Method note listing these post-review corrections. New text holds no `$`+digit, no `<n> tokens`, no USD or EUR; no finding id goes into finding `evidence`.
+- Inventory re-extraction (orchestrator decision 2026-11-18, carried from T-13): the corrected adapter token boundary removes one false adapter edge that the delivered inventory holds (a reader line at 8d7e484 cites `templates/codex-global-AGENTS.md.bak`), so `verify --strict` at 8d7e484 reports `inventory-stale …inventory.json:82043 a fresh extraction differs from the inventory`. Re-extract the inventory at 8d7e484 with the current tool on a clean checkout (the `extract` output must differ from the delivered inventory by exactly that edge and nothing else; prove it with a JSON diff), replace the delivered inventory with it, re-render the report, and confirm no assessment item refers to the removed edge. After this the gate's allowed strict line (`scratchpad/orch/strict-allowed.txt`) is deleted by the orchestrator and `verify --strict` at 8d7e484 must be silent again.
+- Steps for the outputs: edit the assessment JSON (the inventory changes only by the re-extraction above); run `render --write` with the current tool; update the Summary's paraphrase of AMD-08-03 if it quotes the changed condition; add one Method note listing these post-review corrections. New text holds no `$`+digit, no `<n> tokens`, no USD or EUR; no finding id goes into finding `evidence`.
 - Review line: the current `Reviewed: Validator 2026-11-18 pass 0add2fa…` attests outputs that these edits change. This subtask's independent Validator reviews the corrected outputs; after a pass the orchestrator moves the review line to the reviewed commit (`Reviewed: Validator <date> pass <sha>`) in a separate commit and re-runs the gate (the review commit must exist on both trees). `Accepted:` stays `pending` here; the owner's acceptance is recorded afterwards.
-- Constraints: the inventory is never touched; `verify` stays silent at 8d7e484 with the outputs overlaid, including `--strict`; the current tree prints only the recorded 14 `inventory-stale` lines.
-- Off-limits: every file except the assessment JSON and the report; no specification is edited here.
+- Constraints: the inventory changes only by the re-extraction above; `verify` stays silent at 8d7e484 with the outputs overlaid, including `--strict`; the current tree prints only the recorded 14 `inventory-stale` lines.
+- Off-limits: every file except the inventory (re-extraction only), the assessment JSON and the report; no specification is edited here.
 
 ## Scope
 - **In scope:** the content items above and the re-render.
 - **Out of scope:** applying amendments to spec 09 (done at acceptance), tool code.
-- **Target files:** `docs/audits/2026-11-17-rules-workflows-audit.assessment.json`, `docs/audits/2026-11-17-rules-workflows-audit.md`
+- **Target files:** `docs/audits/2026-11-17-rules-workflows-audit.inventory.json`, `docs/audits/2026-11-17-rules-workflows-audit.assessment.json`, `docs/audits/2026-11-17-rules-workflows-audit.md`
 
 ## Steps
 1. Test level `none` is not assumed: the delivery gate is the executable check for these outputs; record it as the test with its before/after result (before: gate passes on the uncorrected outputs; the check that the corrections are present is a scripted assertion over the JSON listing each corrected field, run before (fails) and after (passes)).

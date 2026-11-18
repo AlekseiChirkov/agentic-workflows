@@ -14,7 +14,7 @@
 | T-10 | Index, knowledge and review line | index line → script rows → runbook note → inventory sentence → memory entries → review line → verify, suite, validator → permitted-paths check | T-09 | reviewed | claude-opus-5-5 |  |
 | T-11 | Fix: git read isolation | lazy-fetch and rename guard → filter guard or narrowed claim → tests first | T-10 | reviewed | claude-opus-5-5 |  |
 | T-12 | Fix: review follow-ups (blockers, evidence, runbook) | tests first → two-way blockers check → evidence resolution → constants and runbook note | T-11 | reviewed | claude-opus-5-5 |  |
-| T-13 | Fix: extraction edge cases (proposals) | tests first → adapter lstat → pruned explicit-stack reader walk → token boundary, bare home, separator rows, stop marker | T-12 | pending | claude-opus-5-5 |  |
+| T-13 | Fix: extraction edge cases (proposals) | tests first → adapter lstat → pruned explicit-stack reader walk → token boundary, bare home, separator rows, stop marker | T-12 | done | claude-opus-5-5 |  |
 | T-14 | Fix: git isolation follow-ups and version matrix (proposals) | tests first → NUL cut, stat before open, CR/LF strip → below-top-level unknown → docstring boundary → runbook bullet → container matrix | T-13 | pending | claude-opus-5-5 |  |
 | T-15 | Fix: verify input and form rules (proposals) | tests first → kind change, no-follow inputs → amendment rules → ASCII digits, line bound → recorded amendments | T-14 | pending | claude-opus-5-5 |  |
 | T-16 | Fix: output boundary and render (proposals) | characterization and red tests → Zs/Cf escapes, quoted values, output-unwritable → cell backslashes, sorting, write-protected report, economics region → suite cache | T-15 | pending | claude-opus-5-5 |  |
