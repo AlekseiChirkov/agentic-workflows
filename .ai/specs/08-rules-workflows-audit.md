@@ -609,7 +609,7 @@ file (`scripts/audit-instructions.py:1181-1186`, `:1228-1233`, `:1385-1391`). *(
 - **Duplicate clusters `DUP-NNN`.** Units are taken from audited `.md` files with `utf-8`
   encoding, outside front matter and fences, skipping heading lines and table separator lines
   (`^\|[-:| ]+\|$`; matched after trailing whitespace is removed and with any whitespace inside,
-  `^\|[-:|\s]+\|$`, D-05; Open Questions → Q-06 (a) records how the tool applies it). A table
+  `^\|[-:|\s]+\|$`, D-05; the terminology table of spec 09 has its own stricter pattern). A table
   row (a line starting with `|`) is one unit. Other non-blank lines
   are grouped into paragraphs (maximal runs of non-blank, non-table lines); each line loses a
   leading `>`, leading whitespace and a leading list marker (`[-*+] ` or `\d+[.)] `); the
@@ -1324,8 +1324,11 @@ source: `.ai/tasks/todo/task-08-rules-workflows-audit/state.md → ### Assumptio
     check over the follow-up stack lists the two matrix files. Both are open as Q-06 (b) and (c).
   - *Recorded, not applied*: the optional validation findings T-14 O1–O6 and T-15 O1–O5 (owner:
     minor findings recorded, not reworked); T-09 Do Later goes to spec 09 with the accepted
-    amendments (Notes → Follow-ups). The independent validation of T-16 and T-17 is not recorded
-    at `ce56065`.
+    amendments (Notes → Follow-ups). T-16 and T-17 later passed independent validation (T-16
+    after one rework round for an amount a rendered cell displays); the T-17 review moved the
+    report's review line to `ce56065`, and the owner's acceptance is recorded as
+    `Accepted: owner 2026-11-18`. The accepted amendments AMD-08-01…07 are applied to spec 09.
+    The shadowed separator pattern of Q-06 (a) is fixed by T-19.
 
 ## Clarifications
 
@@ -1386,8 +1389,9 @@ resolved as A-01–A-28; open items are Q-01 and Q-02.
   Output grammar. T-04 P8 was settled by D-04: an evidence path must name an inventory path. Not
   part of this question and still open: T-09 Do Later, applied to spec 09 after acceptance (Notes
   → Follow-ups).)*
-- Q-06 | non-blocker | Observed while reconciling D-05 (2026-11-18), no owner decision yet:
-  (a) `scripts/audit-instructions.py` binds `TABLE_SEPARATOR_RE` twice (`:1404`, then `:2747` for
+- Q-06 | non-blocker | Observed while reconciling D-05 (2026-11-18), no owner decision yet on (b) and (c):
+  (a) [resolved 2026-11-18 by T-19: the terminology pattern has its own name, and duplicate and
+  statement units use DM-6's rule again] `scripts/audit-instructions.py` binds `TABLE_SEPARATOR_RE` twice (`:1404`, then `:2747` for
   the terminology table); the later binding is the one the duplicate units (`:1455`) and the
   statement units (`:2842`) use, so a separator row needs a `-` in every cell and a row such as
   `| | |` or `|:|:|` is now content, unlike DM-5 and DM-6. The delivered inventory is unaffected
@@ -1528,7 +1532,9 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
   the Security row; 15 Edge Cases rows. Not applied, recorded under D-05 and Q-06: the
   `method_version` and REQ-11 conflicts and the shadowed separator pattern. Q-03 resolved, Q-04
   resolved in part (matrix versions not run), Q-05 resolved; Q-06 added; spec 09 follow-up for
-  T-09 Do Later added. The independent validation of T-16 and T-17 is not recorded at `ce56065`.
+  T-09 Do Later added. T-16 and T-17 then passed independent validation, the report's review
+  line names `ce56065`, the owner accepted the report on 2026-11-18, the amendments were
+  applied to spec 09, and T-19 fixes the shadowed separator pattern of Q-06 (a).
   No requirement or criterion removed, renumbered or reworded; line 23 untouched.
 
 ## Readiness Checklist
