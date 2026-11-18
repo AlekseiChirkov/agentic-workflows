@@ -20,7 +20,7 @@ invoked Finalization closes the selected task with safe cleanup and archival. Pr
 is persisted in the target project's `.ai/tasks/…/state.md`; ordinary runs attempt
 best-effort telemetry to the central store that `/retro` reads, while dry-run emits none.
 
-Current inventory: 43 workflows, 15 rules, 4 principles, 11 shell scripts and 44 Python
+Current inventory: 43 workflows, 15 rules, 4 principles, 11 shell scripts and 46 Python
 helpers under `scripts/`, with automated consistency and smoke checks.
 
 ## Components

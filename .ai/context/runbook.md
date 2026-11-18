@@ -40,6 +40,19 @@ Notes:
   instruction contract) in a few seconds. It is standalone, outside the frozen validator
   inventory, so run it after every change to `scripts/repo-set.py`, `workflows/spec-run.md`,
   `rules/git-flow.md → ## Multi-repository runs` or the `## Repositories` state format.
+- `python3 -I scripts/audit-instructions.py extract|verify|render` is the read-only audit tool
+  for rules, workflows and harness adapters;
+  `python3 -I scripts/audit-instructions.py verify --root . --report docs/audits/<date>-rules-workflows-audit.md`
+  must print nothing in the delivery repository at the delivery commit of an audit. On a later
+  tree or a clone it may print `inventory-stale` (audited files changed),
+  `review-commit-unknown` (the reviewed commit is absent, for example after a squash merge),
+  `spec09-unavailable` (no single `.ai/specs/09-*.md`, for example once spec 09 is archived),
+  `amendment-invalid` or `amendment-target-unknown` (spec 09 edited) and `req21-invalid` (the
+  discovery rule renamed or changed); these do not reopen the audit. `render --write`
+  regenerates the report's generated region. `python3 -I scripts/check-audit-instructions.py` runs its acceptance suite
+  against disposable fixture roots. Both are standalone, outside the frozen validator
+  inventory; run the suite after every change to `scripts/audit-instructions.py`, with
+  `MISE_PYTHON_VERSION` set as above.
 - `--state-tool-only` runs `tests/state-tool.py` (the state tool's acceptance suite, about 30 s) through `scripts/validate-contracts.sh`; the default run includes it as `test_state_tool_acceptance`.
 - Optional model helpers use offline focused suites `--model-catalog-only`,
   `--model-selection-only` and `--model-plan-only` through `scripts/validate-contracts.sh`.
