@@ -427,6 +427,11 @@ T-11 | Fix: git read isolation | atomic-tests: not-started | atomic-execution: n
   target_files: scripts/audit-instructions.py, scripts/check-audit-instructions.py
   blocker: none
   notes: fix for issue [2] of the task-level review
+  branch: fix/audit-git-read-isolation
+  base_branch: docs/index-rules-workflows-audit
+  base_commit: 43053652ad56ef5e57fc79062ff015cfab1d4e30
+  commits:
+  pr: none
 
 
 ## Execution Report
