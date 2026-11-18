@@ -5,7 +5,8 @@ Every case builds a disposable fixture root under a private temporary directory,
 minimal rules/, workflows/, harness/ and reader files and, where a case needs git, an
 initialised repository whose git calls use a temporary HOME and XDG_CONFIG_HOME. The
 tool runs as a subprocess with `python3 -I`, except that the defect predicate, a pure
-function over one edge, is called after loading the tool's source as a module; no real
+function over one edge, and the readers of git's metadata and info/attributes files are
+called after loading the tool's source as a module; no real
 project file is read except the tool's own source and the two scripts that must not
 name it.
 
@@ -24,6 +25,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -33,6 +35,7 @@ from collections import Counter
 from collections.abc import Callable, Sequence
 from contextlib import suppress
 from pathlib import Path
+from unittest import mock
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
 TOOL = SOURCE_ROOT / "scripts" / "audit-instructions.py"
@@ -6361,6 +6364,353 @@ class StopMarkerColonTests(CandidateCase):
                 if is_call:
                     expected.append(repeat_load(2, "w-root", "w-child"))
                 self.assertEqual(inventory["repeat_loads"], expected)
+
+
+# ---------------------------------------------------------------------------
+# Git metadata read as git reads it, roots below the top level, home names before a slash
+# ---------------------------------------------------------------------------
+
+class HomePrefixNameTests(CandidateCase):
+    def test_home_prefix_name_holds_only_name_characters_and_keeps_every_other_character(
+            self) -> None:
+        source = "rules/r-prefix.md"
+        cases = [
+            ("Keep the full output in [/home/x](/home/x/y) here.",
+             "Keep the full output in [~](~/y) here."),
+            ("Keep the full output in /home/x|/y here.", "Keep the full output in ~|/y here."),
+            ("Keep the full output in /home/x)/y here.", "Keep the full output in ~)/y here."),
+            ("Keep the full output in /home/éx ok.", "Keep the full output in ~ ok."),
+            ("Keep the full output in /home/x́y ok.", "Keep the full output in ~ ok."),
+            ("Keep the full output in /home/éx/y ok.", "Keep the full output in ~/y ok."),
+            ("Keep the full output in /home/x./y and /home/some.one-x_y/z.",
+             "Keep the full output in ~/y and ~/z."),
+        ]
+        self.write_lines(source, [line for line, _ in cases])
+        out = self.base / "inventory.json"
+
+        inventory = self.extract(out=out)
+
+        self.assertEqual(inventory["full_output"],
+                         [line_candidate("FO", number, source, number, kept)
+                          for number, (_, kept) in enumerate(cases, start=1)])
+        text = out.read_text(encoding="utf-8")
+        self.assertNotIn("home/x", text)
+        self.assertNotIn("\\u0301", text)
+
+
+class GitMetadataReadTests(unittest.TestCase):
+    """The functions that read git's metadata files, called after loading the tool's
+    source as a module."""
+
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory(prefix="audit-git-metadata-")
+        self.base = Path(self.temp.name)
+        self.tool = load_tool_module()
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def test_link_to_a_device_node_is_never_opened(self) -> None:
+        device = Path("/dev/null")
+        if not stat.S_ISCHR(os.stat(device).st_mode):
+            self.skipTest("/dev/null is not a character device here")
+        linked_device = self.base / "linked-device"
+        linked_device.symlink_to(device)
+        regular = self.base / "regular"
+        regular.write_bytes(b"gitdir: elsewhere\n")
+        linked_regular = self.base / "linked-regular"
+        linked_regular.symlink_to(regular)
+        opened: list[str] = []
+        real_open = os.open
+
+        def recording_open(path: str | os.PathLike[str], flags: int, mode: int = 0o777, *,
+                           dir_fd: int | None = None) -> int:
+            opened.append(os.fspath(path))
+            return real_open(path, flags, mode, dir_fd=dir_fd)
+
+        with mock.patch.object(os, "open", recording_open):
+            from_device = self.tool.read_git_metadata(linked_device, 1024)
+            from_regular = self.tool.read_git_metadata(linked_regular, 1024)
+
+        self.assertIsNone(from_device)
+        self.assertNotIn(str(linked_device), opened)
+        self.assertNotIn(str(device), opened)
+        self.assertEqual(from_regular, b"gitdir: elsewhere\n")
+
+    def test_information_attribute_line_is_read_up_to_its_first_nul(self) -> None:
+        common = self.base / "common"
+        (common / "info").mkdir(parents=True)
+        cases = [
+            (b"\x00*.md filter=kappa\n", []),
+            (b"*.md\x00 filter=kappa\n", []),
+            (b"*.md filter=kappa\x00" + b"q" * 3000 + b"\n", ["kappa"]),
+            (b"*.md filter=ka\x00ppa\n", ["ka"]),
+            (b"*.md filter=kappa\r\n", ["kappa"]),
+        ]
+        for data, names in cases:
+            with self.subTest(line=data[:40]):
+                (common / "info" / "attributes").write_bytes(data)
+
+                found = self.tool.information_attribute_filters(common)
+
+                self.assertEqual(found, names)
+
+
+def git_config_file(config: Path, env: dict[str, str], key: str, value: str) -> None:
+    """Set one key in the configuration file of a repository directory."""
+    result = subprocess.run([str(REAL_GIT), "config", "--file", str(config), key, value],
+                            env=env, text=True, capture_output=True, check=False)
+    if result.returncode != 0:
+        raise AssertionError(f"git config {key} failed: {result.stderr}")
+
+
+class GitMetadataLineEndTests(ToolCase):
+    """A `.git` file, its `commondir` and the info/attributes lines are read as git reads
+    them, so the filters of the repository they name stay blanked."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        require_git(self, (2, 41), "to read attributes from a fixed tree")
+        self.marker = self.base / "filter-ran"
+
+    def watched_filter(self, common: Path, env: dict[str, str]) -> None:
+        """A clean filter of the common directory that its info/attributes selects."""
+        program = marker_program(self.base / "clean-filter.sh", self.marker, "cat")
+        git_config_file(common / "config", env, "filter.kappa.clean", str(program))
+        (common / "info").mkdir(exist_ok=True)
+        (common / "info" / "attributes").write_text("*.md filter=kappa\n", encoding="utf-8")
+
+    def extract_root(self, fixture: FixtureRoot) -> dict:
+        make_stat_stale(fixture.root / "rules/alpha-flow.md")
+        self.marker.unlink(missing_ok=True)
+        out = fixture.base / "inventory.json"
+        result = self.run_extract(out=out, root=fixture.root, env=fixture.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.marker.exists(), "git ran a filter program")
+        return parse_inventory(out.read_text(encoding="utf-8"))
+
+    def test_information_attribute_line_with_a_nul_before_the_line_limit_runs_no_filter(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        self.watched_filter(self.fx.root / ".git", self.fx.env)
+        (self.fx.root / ".git" / "info" / "attributes").write_bytes(
+            b"*.md filter=kappa\x00" + b"q" * 3000 + b"\n")
+
+        inventory = self.extract_root(self.fx)
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_git_file_naming_a_directory_with_a_trailing_space_keeps_its_filters_blank(
+            self) -> None:
+        for number, ending in enumerate((b"\r\n", b"\n")):
+            with self.subTest(ending=ending):
+                case = self.base / f"case-{number}"
+                case.mkdir()
+                fixture = FixtureRoot(case)
+                fixture.minimal()
+                head = fixture.commit_all()
+                common = case / "repo-dir "
+                os.rename(fixture.root / ".git", common)
+                (fixture.root / ".git").write_bytes(b"gitdir: ../repo-dir " + ending)
+                self.watched_filter(common, fixture.env)
+
+                inventory = self.extract_root(fixture)
+
+                self.assertEqual(inventory["source_revision"], head)
+                self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_common_directory_with_a_trailing_space_keeps_its_filters_blank(self) -> None:
+        for number, ending in enumerate((b"\r", b"\r\n")):
+            with self.subTest(ending=ending):
+                case = self.base / f"case-{number}"
+                case.mkdir()
+                fixture = FixtureRoot(case)
+                main = case / "main"
+                main.mkdir()
+                for relative, content in (("rules/alpha-flow.md", "# Alpha flow\n"),
+                                          ("workflows/beta-step.md", "# Beta step\n")):
+                    (main / relative).parent.mkdir(parents=True, exist_ok=True)
+                    (main / relative).write_text(content, encoding="utf-8")
+                for args in (("init", "-q", "-b", "main"), ("add", "-A"),
+                             ("commit", "-q", "-m", "chore: fixture"),
+                             ("worktree", "add", "-q", "--detach", str(fixture.root))):
+                    result = subprocess.run([str(REAL_GIT), "-C", str(main), *args],
+                                            env=fixture.env, text=True, capture_output=True,
+                                            check=False)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                head = fixture.git("rev-parse", "HEAD")
+                common = case / "common "
+                os.rename(main / ".git", common)
+                gitdir = common / "worktrees" / "root"
+                (fixture.root / ".git").write_bytes(b"gitdir: " + os.fsencode(gitdir) + b"\n")
+                (gitdir / "commondir").write_bytes(b"../../../common " + ending)
+                self.watched_filter(common, fixture.env)
+
+                inventory = self.extract_root(fixture)
+
+                self.assertEqual(inventory["source_revision"], head)
+                self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+
+class BelowTopLevelRootTests(ToolCase):
+    def test_root_below_the_top_level_reads_its_work_tree_as_unknown_without_status(
+            self) -> None:
+        if REAL_GIT is None:
+            self.skipTest("git is not installed")
+        self.fx.write("sub/rules/alpha-flow.md", "# Alpha flow\n")
+        self.fx.write("sub/workflows/beta-step.md", "# Beta step\n")
+        head = self.fx.commit_all()
+        self.fx.write("sub/rules/alpha-flow.md", "# Alpha flow changed\n")
+        log = self.base / "git-arguments.log"
+        wrapper_bin = self.base / "wrapper-bin"
+        wrapper_bin.mkdir()
+        wrapper = wrapper_bin / "git"
+        wrapper.write_text(
+            f"#!/bin/sh\nfor argument in \"$@\"; do printf '%s\\n' \"$argument\"; done "
+            f">> '{log}'\nexec '{REAL_GIT}' \"$@\"\n", encoding="utf-8")
+        wrapper.chmod(0o755)
+        env = {**self.fx.env, "PATH": f"{wrapper_bin}{os.pathsep}{self.fx.env['PATH']}"}
+        out = self.base / "inventory.json"
+
+        result = self.run_extract(out=out, root=self.fx.root / "sub", env=env)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        inventory = parse_inventory(out.read_text(encoding="utf-8"))
+        self.assertEqual(inventory["source_revision"], head)
+        self.assertEqual(inventory["worktree"], {"state": "unknown", "paths": []})
+        arguments = log.read_text(encoding="utf-8").splitlines()
+        self.assertIn("rev-parse", arguments)
+        self.assertNotIn("status", arguments)
+
+
+ATTRIBUTE_LIMIT_RELEASES = ("2.30.7", "2.31.6", "2.32.5", "2.33.6", "2.34.6", "2.35.6",
+                            "2.36.4", "2.37.5", "2.38.3", "2.39.1")
+
+
+class GitIsolationBoundaryDocstringTests(unittest.TestCase):
+    def docstring_text(self) -> str:
+        docstring = ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8")))
+        return " ".join(str(docstring).split())
+
+    def test_module_docstring_names_the_releases_that_brought_the_attribute_limits(
+            self) -> None:
+        text = self.docstring_text()
+        for phrase in ("January 2023", *ATTRIBUTE_LIMIT_RELEASES, "from 2.31.0 to 2.39.0"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+    def test_module_docstring_states_that_a_root_below_the_top_level_reads_unknown(
+            self) -> None:
+        text = self.docstring_text()
+        self.assertNotIn("mismatched work-tree paths", text)
+        self.assertIn("top level", text)
+        self.assertIn("work-tree state as `unknown`", text)
+
+
+class AuditIndexRefreshNoteTests(unittest.TestCase):
+    def test_runbook_suggests_refreshing_the_index_before_an_extraction(self) -> None:
+        text = RUNBOOK.read_text(encoding="utf-8")
+        bullets = [" ".join(item.split()) for item in re.split(r"\n(?=- )", text)
+                   if "git update-index --refresh" in item]
+        self.assertEqual(len(bullets), 1, "the runbook has no single note on the refresh")
+        note = bullets[0]
+        self.assertNotIn("audit-instructions.py verify", note)
+        self.assertIn("audit-instructions.py extract", note)
+
+
+# ---------------------------------------------------------------------------
+# Documented residuals, confirmed only on a git older than the boundary they name
+# ---------------------------------------------------------------------------
+
+def installed_git_release() -> tuple[int, int, int]:
+    """Major, minor and patch version of the git on PATH; (0, 0, 0) when unreadable."""
+    if REAL_GIT is None:
+        return (0, 0, 0)
+    result = subprocess.run([REAL_GIT, "--version"], capture_output=True, text=True,
+                            check=False)
+    found = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", result.stdout)
+    if found is None:
+        return (0, 0, 0)
+    return (int(found.group(1)), int(found.group(2)), int(found.group(3) or 0))
+
+
+def has_attribute_limits(release: tuple[int, int, int]) -> bool:
+    """Whether a git release ignores overlong attribute lines and files."""
+    if release[:2] >= (2, 40):
+        return True
+    first = {tuple(int(part) for part in name.split(".")[:2]): int(name.split(".")[2])
+             for name in ATTRIBUTE_LIMIT_RELEASES}.get(release[:2])
+    return first is not None and release[2] >= first
+
+
+def require_git_below(case: unittest.TestCase, maximum: tuple[int, int, int],
+                      reason: str) -> None:
+    if REAL_GIT is None:
+        case.skipTest("git is not installed")
+    if installed_git_release() >= maximum:
+        case.skipTest(f"only a git older than {'.'.join(map(str, maximum))} {reason}")
+
+
+class GitIsolationResidualTests(ToolCase):
+    """On a git older than a boundary that the module docstring names, the filter it names
+    still runs; each case is skipped on every later git."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        if REAL_GIT is None:
+            self.skipTest("git is not installed")
+        self.marker = self.base / "filter-ran"
+        self.fx.minimal()
+
+    def clean_filter(self) -> str:
+        return str(marker_program(self.base / "clean-filter.sh", self.marker, "cat"))
+
+    def extract_with_marker(self) -> dict:
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        self.marker.unlink(missing_ok=True)
+        inventory = self.extract()
+        self.assertTrue(self.marker.exists(), "the documented residual did not occur")
+        return inventory
+
+    def information_filter(self, data: bytes) -> None:
+        self.fx.git("config", "filter.kappa.clean", self.clean_filter())
+        (self.fx.root / ".git" / "info").mkdir(exist_ok=True)
+        (self.fx.root / ".git" / "info" / "attributes").write_bytes(data)
+
+    def test_filter_selected_by_committed_attributes_runs_on_a_git_without_attr_source(
+            self) -> None:
+        require_git_below(self, (2, 41, 0), "ignores the attribute source")
+        self.fx.write(".gitattributes", "*.md filter=kappa\n")
+        self.fx.commit_all()
+        self.fx.git("config", "filter.kappa.clean", self.clean_filter())
+
+        inventory = self.extract_with_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_filter_named_by_information_attributes_runs_on_a_git_without_config_count(
+            self) -> None:
+        require_git_below(self, (2, 31, 0), "ignores configuration from the environment")
+        self.fx.commit_all()
+        self.information_filter(b"*.md filter=kappa\n")
+
+        inventory = self.extract_with_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_overlong_information_attribute_line_runs_its_filter_on_a_git_without_limits(
+            self) -> None:
+        release = installed_git_release()
+        if REAL_GIT is None or release < (2, 31, 0) or has_attribute_limits(release):
+            self.skipTest("only a git from 2.31.0 without the attribute line limit "
+                          "reads an overlong line and blanks named filters")
+        self.fx.commit_all()
+        self.information_filter(b"*.md filter=kappa" + b" " * 3000 + b"\n")
+
+        inventory = self.extract_with_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
 
 
 if __name__ == "__main__":
