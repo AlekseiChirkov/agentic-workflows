@@ -133,9 +133,11 @@ class HookInstallation(unittest.TestCase):
         return result
 
     def sync(self) -> subprocess.CompletedProcess[str]:
-        # Replace only validation in this private source copy to avoid recursively
-        # invoking these integration fixtures during the real deployment script.
+        # Isolate acceptance preflights only in this private source copy; the real
+        # deployment script still exercises installation and every provider target.
         (self.checkout / 'scripts' / 'validate-contracts.sh').write_text('#!/bin/bash\nexit 0\n')
+        for name in ('check-phase-finalize.py', 'check-finalization-safety.py', 'check-finalization-workflow.py'):
+            (self.checkout / 'scripts' / name).write_text('raise SystemExit(0)\n')
         result = subprocess.run(['bash', str(self.checkout / 'scripts' / 'sync.sh'),
                                  '--from', str(self.checkout)], cwd=self.project,
                                 env=self.env, text=True, capture_output=True, timeout=25)

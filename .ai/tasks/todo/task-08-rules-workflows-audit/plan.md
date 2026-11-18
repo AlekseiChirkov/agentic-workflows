@@ -3,15 +3,17 @@
 | ID | Name | Key Steps (summary) | Depends On | Status | Model (Claude) | Model (Codex) |
 |----|------|---------------------|------------|--------| --- | --- |
 | T-01 | Inventory extractor | suite helpers → guard and CLI → audited set and readers → text model → git reads → atomic inventory write | — | reviewed | claude-opus-5-5 |  |
-| T-02 | Reference edges | spans → span grammar → heading resolution → token grammar → status and flags → contexts → load flag | T-01 | not-started | claude-opus-5-5 |  |
-| T-03 | Candidates, legacy mentions and duplicate clusters | call clauses → repeated loads → full-output and harness lines → legacy mentions → text units → clusters | T-02 | not-started | claude-opus-5-5 |  |
-| T-04 | Verifier: assessment consistency | valid fixture → verify frame → schema and staleness → rows and sections → loads, candidates, repetition, legacy → groups → findings → coverage, installed, economics | T-03 | not-started | claude-opus-5-5 |  |
-| T-05 | Verifier: map, amendments and statement coverage | fixture specification → map shapes → split cover → collisions and prefixes → deviation → amendments → statement coverage | T-04 | not-started | claude-opus-5-5 |  |
-| T-06 | Renderer and report checks | render helpers → eighteen subsections → render CLI → layout parsing → review, blockers, region checks → per-code completeness | T-05 | not-started | claude-opus-5-5 |  |
-| T-07 | Extraction and assessment of rules and adapters | clean extraction → assessment skeleton → read 14 rules → read adapters → loads → candidates and legacy → findings → verify | T-06 | not-started | claude-opus-5-5 |  |
-| T-08 | Assessment of workflows | read orchestrators → read phase children → read utilities → loads → candidates → repetition review → findings → verify | T-07 | not-started | claude-opus-5-5 |  |
-| T-09 | Map, findings, amendments and report | duplicate groups → defaults → map decisions → statement coverage → amendments → blocking flags → report and render → verify exits 0 | T-08 | not-started | claude-opus-5-5 |  |
-| T-10 | Index, knowledge and review line | index line → script rows → runbook note → inventory sentence → memory entries → review line → verify, suite, validator → permitted-paths check | T-09 | not-started | claude-opus-5-5 |  |
+| T-02 | Reference edges | spans → span grammar → heading resolution → token grammar → status and flags → contexts → load flag | T-01 | reviewed | claude-opus-5-5 |  |
+| T-03 | Candidates, legacy mentions and duplicate clusters | call clauses → repeated loads → full-output and harness lines → legacy mentions → text units → clusters | T-02 | reviewed | claude-opus-5-5 |  |
+| T-04 | Verifier: assessment consistency | valid fixture → verify frame → schema and staleness → rows and sections → loads, candidates, repetition, legacy → groups → findings → coverage, installed, economics | T-03 | reviewed | claude-opus-5-5 |  |
+| T-05 | Verifier: map, amendments and statement coverage | fixture specification → map shapes → split cover → collisions and prefixes → deviation → amendments → statement coverage | T-04 | reviewed | claude-opus-5-5 |  |
+| T-06 | Renderer and report checks | render helpers → eighteen subsections → render CLI → layout parsing → review, blockers, region checks → per-code completeness | T-05 | reviewed | claude-opus-5-5 |  |
+| T-07 | Extraction and assessment of rules and adapters | clean extraction → assessment skeleton → read 14 rules → read adapters → loads → candidates and legacy → findings → verify | T-06 | reviewed | claude-opus-5-5 |  |
+| T-08 | Assessment of workflows | read orchestrators → read phase children → read utilities → loads → candidates → repetition review → findings → verify | T-07 | reviewed | claude-opus-5-5 |  |
+| T-09 | Map, findings, amendments and report | duplicate groups → defaults → map decisions → statement coverage → amendments → blocking flags → report and render → verify exits 0 | T-08 | reviewed | claude-opus-5-5 |  |
+| T-10 | Index, knowledge and review line | index line → script rows → runbook note → inventory sentence → memory entries → review line → verify, suite, validator → permitted-paths check | T-09 | reviewed | claude-opus-5-5 |  |
+| T-11 | Fix: git read isolation | lazy-fetch and rename guard → filter guard or narrowed claim → tests first | T-10 | reviewed | claude-opus-5-5 |  |
+| T-12 | Fix: review follow-ups (blockers, evidence, runbook) | tests first → two-way blockers check → evidence resolution → constants and runbook note | T-11 | reviewed | claude-opus-5-5 |  |
 
 ## Execution Strategy
 
