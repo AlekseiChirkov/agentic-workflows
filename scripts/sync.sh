@@ -1,11 +1,13 @@
 #!/bin/bash
-set -e
+# Validate and render all providers; --stage renders only into an isolated directory.
+# Usage: sync.sh [--from SOURCE] [--stage DIRECTORY]. Any failed check exits nonzero.
+set -euo pipefail
 
 # Source tree to deploy from. Defaults to the repository root (the parent of scripts/).
 # ORCHESTRAIL_HOME overrides the default; --from <dir> takes precedence over the environment.
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="${ORCHESTRAIL_HOME:-$SCRIPT_DIR/..}"
-ARGS=()
+STAGE_ROOT=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --from)
@@ -14,14 +16,23 @@ while [ $# -gt 0 ]; do
       shift 2 ;;
     --from=*)
       ROOT="${1#--from=}"; shift ;;
+    --stage)
+      [ -z "$STAGE_ROOT" ] || { echo "ERROR: duplicate --stage" >&2; exit 1; }
+      STAGE_ROOT="${2:-}"
+      [ -n "$STAGE_ROOT" ] || { echo "ERROR: --stage needs a directory" >&2; exit 1; }
+      shift 2 ;;
+    --stage=*)
+      [ -z "$STAGE_ROOT" ] || { echo "ERROR: duplicate --stage" >&2; exit 1; }
+      STAGE_ROOT="${1#--stage=}"
+      [ -n "$STAGE_ROOT" ] || { echo "ERROR: --stage needs a directory" >&2; exit 1; }
+      shift ;;
     -h|--help)
-      echo "Usage: scripts/sync.sh [--from <source-tree>]"
+      echo "Usage: scripts/sync.sh [--from <source-tree>] [--stage <output-directory>]"
       echo "  --from <dir>  deploy from <dir> instead of the repository root (or ORCHESTRAIL_HOME)"
       exit 0 ;;
-    *) ARGS+=("$1"); shift ;;
+    *) echo "ERROR: unknown argument: $1" >&2; exit 1 ;;
   esac
 done
-set -- "${ARGS[@]+"${ARGS[@]}"}"
 
 SELECTED_ROOT="$ROOT"
 ROOT="$(cd -- "$SELECTED_ROOT" 2>/dev/null && pwd)" || {
@@ -36,6 +47,29 @@ done
 SRC="$ROOT/workflows"
 RULES="$ROOT/rules"
 PRINCIPLES="$ROOT/principles"
+OUTPUT_ROOT="$HOME"
+if [ -n "$STAGE_ROOT" ]; then
+  # Resolve without creating anything; prohibit source/live-provider overlap and reuse.
+  STAGE_ROOT="$(python3 - "$STAGE_ROOT" "$ROOT" "$HOME" <<'PY'
+import os
+from pathlib import Path
+import sys
+
+target, source, home = (Path(value).absolute() for value in sys.argv[1:])
+physical = target.resolve()
+source, home = source.resolve(), home.resolve()
+blocked = (target != physical or physical == home or physical in home.parents
+           or physical == source or source in physical.parents or physical in source.parents
+           or any(physical == home / name or home / name in physical.parents
+                  for name in ('.claude', '.codex', '.codeium', '.config'))
+           or physical.exists() and (not physical.is_dir() or any(physical.iterdir())))
+if blocked:
+    sys.exit('ERROR: staging needs an empty isolated directory outside source and live provider paths')
+print(physical)
+PY
+  )" || exit 1
+  OUTPUT_ROOT="$STAGE_ROOT"
+fi
 
 # ── 0. Pre-flight contract validation ────────────────────────────────
 echo "[0/5] Contract validation"
@@ -43,6 +77,10 @@ bash "$ROOT/scripts/validate-contracts.sh" || {
   echo "ERROR: Contract validation failed. Fix errors before syncing."
   exit 1
 }
+for acceptance in check-phase-finalize.py check-finalization-safety.py check-finalization-workflow.py; do
+  [ -f "$ROOT/scripts/$acceptance" ] || { echo "ERROR: required acceptance check missing: $acceptance" >&2; exit 1; }
+  python3 "$ROOT/scripts/$acceptance" || { echo "ERROR: acceptance check failed: $acceptance" >&2; exit 1; }
+done
 echo ""
 
 echo "=== Syncing Orchestrail ==="
@@ -50,7 +88,7 @@ echo ""
 
 # Hook installation is independent of the remaining deployment targets.
 HOOK_INSTALL_RESULT='{"reason":"installer-unavailable","status":"unavailable"}'
-if [ -f "$ROOT/scripts/install-hooks.sh" ]; then
+if [ -z "$STAGE_ROOT" ] && [ -f "$ROOT/scripts/install-hooks.sh" ]; then
   HOOK_INSTALL_RESULT="$(bash "$ROOT/scripts/install-hooks.sh" install --from "$ROOT")" || \
     HOOK_INSTALL_RESULT='{"reason":"installer-failed","status":"unavailable"}'
 fi
@@ -68,21 +106,21 @@ append_logging_capabilities() {
 
 # ── 1. Devin Desktop / Windsurf: global workflows (path unchanged) ──
 echo "[1/5] Devin Desktop / Windsurf global workflows"
-mkdir -p ~/.codeium/windsurf/global_workflows
-cp "$SRC"/*.md ~/.codeium/windsurf/global_workflows/
-echo "  $(ls "$SRC"/*.md | wc -l) workflows → ~/.codeium/windsurf/global_workflows/"
+mkdir -p "$OUTPUT_ROOT"/.codeium/windsurf/global_workflows
+cp "$SRC"/*.md "$OUTPUT_ROOT"/.codeium/windsurf/global_workflows/
+echo "  $(ls "$SRC"/*.md | wc -l) workflows → "$OUTPUT_ROOT"/.codeium/windsurf/global_workflows/"
 
 # ── 2. Devin Desktop / Windsurf: global rules (path unchanged) ──
 echo "[2/5] Devin Desktop / Windsurf global rules"
-mkdir -p ~/.codeium/windsurf/global_rules
+mkdir -p "$OUTPUT_ROOT"/.codeium/windsurf/global_rules
 for rule in "$RULES"/*.md; do
   name=$(basename "$rule")
-  cp "$rule" ~/.codeium/windsurf/global_rules/"$name"
+  cp "$rule" "$OUTPUT_ROOT"/.codeium/windsurf/global_rules/"$name"
   echo "  copied: $name"
 done
 for principle in "$PRINCIPLES"/*.md; do
   name=$(basename "$principle")
-  cp "$principle" ~/.codeium/windsurf/global_rules/"$name"
+  cp "$principle" "$OUTPUT_ROOT"/.codeium/windsurf/global_rules/"$name"
   echo "  copied (principle): $name"
 done
 
@@ -90,73 +128,78 @@ done
 echo "[3/5] Claude Code global skills"
 for file in "$SRC"/*.md; do
   name=$(basename "$file" .md)
-  mkdir -p ~/.claude/skills/$name
-  cp "$file" ~/.claude/skills/$name/SKILL.md
+  mkdir -p "$OUTPUT_ROOT"/.claude/skills/$name
+  cp "$file" "$OUTPUT_ROOT"/.claude/skills/$name/SKILL.md
 done
-echo "  $(ls ~/.claude/skills/ | wc -l) skills → ~/.claude/skills/"
+echo "  $(ls "$OUTPUT_ROOT"/.claude/skills/ | wc -l) skills → "$OUTPUT_ROOT"/.claude/skills/"
 
 # Global CLAUDE.md — principles + standards for Claude Code
-GLOBAL_CLAUDE="$HOME/.claude/CLAUDE.md"
+GLOBAL_CLAUDE="$OUTPUT_ROOT/.claude/CLAUDE.md"
 cp "$RULES/global-claude.md" "$GLOBAL_CLAUDE"
 append_logging_capabilities "$GLOBAL_CLAUDE" claude "$HOOK_INSTALL_RESULT"
-echo "  updated: ~/.claude/CLAUDE.md"
+echo "  updated: "$OUTPUT_ROOT"/.claude/CLAUDE.md"
 
 # ── 3b. Claude Code: principles as skills ─────────────────────────────
 echo "[3b/5] Claude Code: principles as skills"
 for file in "$PRINCIPLES"/*.md; do
   name=$(basename "$file" .md)
   skill_name="principle-${name}"
-  mkdir -p ~/.claude/skills/$skill_name
-  cp "$file" ~/.claude/skills/$skill_name/SKILL.md
+  mkdir -p "$OUTPUT_ROOT"/.claude/skills/$skill_name
+  cp "$file" "$OUTPUT_ROOT"/.claude/skills/$skill_name/SKILL.md
   echo "  deployed: $skill_name"
 done
-echo "  $(ls "$PRINCIPLES"/*.md | wc -l | tr -d ' ') principles → ~/.claude/skills/principle-*/"
+echo "  $(ls "$PRINCIPLES"/*.md | wc -l | tr -d ' ') principles → "$OUTPUT_ROOT"/.claude/skills/principle-*/"
 
 # ── 3c. Claude Code: rules as skills ──────────────────────────────────
 # Rules are contracts every workflow cites ("load the `tdd` rule", "follow
 # `phase-atomic-execution` rules"). Claude Code has no rules directory, so each rule is
 # deployed as a skill. The `rule-` prefix is a correctness requirement, not a style choice:
-# five basenames (phase-discovery, phase-execution, phase-validation,
+# six basenames (phase-discovery, phase-execution, phase-validation, phase-finalize,
 # phase-atomic-execution, phase-atomic-validation) exist in BOTH workflows/ and rules/, and
 # deploying rules under their bare names would overwrite those workflow skills.
 echo "[3c/5] Claude Code: rules as skills"
 for file in "$RULES"/*.md; do
   name=$(basename "$file" .md)
   skill_name="rule-${name}"
-  mkdir -p ~/.claude/skills/$skill_name
-  cp "$file" ~/.claude/skills/$skill_name/SKILL.md
+  if [ -n "$STAGE_ROOT" ]; then
+    mkdir -p "$OUTPUT_ROOT"/.claude/skills/$skill_name
+    cp "$file" "$OUTPUT_ROOT"/.claude/skills/$skill_name/SKILL.md
+  else
+    mkdir -p ~/.claude/skills/$skill_name
+    cp "$file" ~/.claude/skills/$skill_name/SKILL.md
+  fi
   echo "  deployed: $skill_name"
 done
-echo "  $(ls "$RULES"/*.md | wc -l | tr -d ' ') rules → ~/.claude/skills/rule-*/"
+echo "  $(ls "$RULES"/*.md | wc -l | tr -d ' ') rules → "$OUTPUT_ROOT"/.claude/skills/rule-*/"
 
 # ── 4. Codex: global skills ───────────────────────────────────────────
 echo "[4/5] Codex global skills"
-mkdir -p ~/.codex/skills
+mkdir -p "$OUTPUT_ROOT"/.codex/skills
 for file in "$SRC"/*.md; do
   name=$(basename "$file" .md)
-  mkdir -p ~/.codex/skills/$name
-  cp "$file" ~/.codex/skills/$name/SKILL.md
+  mkdir -p "$OUTPUT_ROOT"/.codex/skills/$name
+  cp "$file" "$OUTPUT_ROOT"/.codex/skills/$name/SKILL.md
 done
-echo "  $(ls ~/.codex/skills/ | grep -v '^\.' | wc -l) skills → ~/.codex/skills/"
+echo "  $(ls "$OUTPUT_ROOT"/.codex/skills/ | grep -v '^\.' | wc -l) skills → "$OUTPUT_ROOT"/.codex/skills/"
 
 # ── 4b. Codex: principles as skills ───────────────────────────────────
 echo "[4b/5] Codex: principles as skills"
 for file in "$PRINCIPLES"/*.md; do
   name=$(basename "$file" .md)
   skill_name="principle-${name}"
-  mkdir -p ~/.codex/skills/$skill_name
-  cp "$file" ~/.codex/skills/$skill_name/SKILL.md
+  mkdir -p "$OUTPUT_ROOT"/.codex/skills/$skill_name
+  cp "$file" "$OUTPUT_ROOT"/.codex/skills/$skill_name/SKILL.md
   echo "  deployed: $skill_name"
 done
-echo "  $(ls "$PRINCIPLES"/*.md | wc -l | tr -d ' ') principles → ~/.codex/skills/principle-*/"
+echo "  $(ls "$PRINCIPLES"/*.md | wc -l | tr -d ' ') principles → "$OUTPUT_ROOT"/.codex/skills/principle-*/"
 
 # ── 4c. Codex: global AGENTS.md (always-on rules, incl. language) ─────
 echo "[4c/5] Codex global AGENTS.md"
 if [ -f "$ROOT/templates/codex-global-AGENTS.md" ]; then
-  mkdir -p ~/.codex
-  cp "$ROOT/templates/codex-global-AGENTS.md" ~/.codex/AGENTS.md
-  append_logging_capabilities "$HOME/.codex/AGENTS.md" codex '{"reason":"no-native-adapter","status":"unavailable"}'
-  echo "  updated: ~/.codex/AGENTS.md"
+  mkdir -p "$OUTPUT_ROOT"/.codex
+  cp "$ROOT/templates/codex-global-AGENTS.md" "$OUTPUT_ROOT"/.codex/AGENTS.md
+  append_logging_capabilities "$OUTPUT_ROOT/.codex/AGENTS.md" codex '{"reason":"no-native-adapter","status":"unavailable"}'
+  echo "  updated: "$OUTPUT_ROOT"/.codex/AGENTS.md"
 else
   echo "  WARNING: templates/codex-global-AGENTS.md not found — global AGENTS.md not deployed"
 fi
@@ -167,11 +210,16 @@ echo "[4d/5] Codex: rules as skills"
 for file in "$RULES"/*.md; do
   name=$(basename "$file" .md)
   skill_name="rule-${name}"
-  mkdir -p ~/.codex/skills/$skill_name
-  cp "$file" ~/.codex/skills/$skill_name/SKILL.md
+  if [ -n "$STAGE_ROOT" ]; then
+    mkdir -p "$OUTPUT_ROOT"/.codex/skills/$skill_name
+    cp "$file" "$OUTPUT_ROOT"/.codex/skills/$skill_name/SKILL.md
+  else
+    mkdir -p ~/.codex/skills/$skill_name
+    cp "$file" ~/.codex/skills/$skill_name/SKILL.md
+  fi
   echo "  deployed: $skill_name"
 done
-echo "  $(ls "$RULES"/*.md | wc -l | tr -d ' ') rules → ~/.codex/skills/rule-*/"
+echo "  $(ls "$RULES"/*.md | wc -l | tr -d ' ') rules → "$OUTPUT_ROOT"/.codex/skills/rule-*/"
 
 # ── 5. Codex: principles summary in Orchestrail ──────────────────────
 # Codex reads AGENTS.md per project — scripts/setup-new-project.sh handles that.
@@ -190,6 +238,11 @@ else
   echo "  WARNING: templates/.ai not found — knowledge-base template missing"
 fi
 
+if [ -n "$STAGE_ROOT" ]; then
+  echo "=== Staged all provider outputs in $STAGE_ROOT ==="
+  exit 0
+fi
+
 # ── 5b. Per-project sync ─────────────────────────────────────────────
 echo "[5b/5] Per-project sync (rules, skills symlinks, workflow cleanup)"
 PROJECTS_UPDATED=0
@@ -206,7 +259,7 @@ while IFS= read -r -d '' devin_dir; do
   # 1. Update .devin/rules/
   mkdir -p "$devin_dir/rules"
   for rule in workflow-globals.md workflow-reference.md language.md quick-flow.md tdd.md run-log.md git-flow.md orchestration.md \
-              phase-discovery.md phase-execution.md phase-validation.md \
+              phase-discovery.md phase-execution.md phase-validation.md phase-finalize.md \
               phase-atomic-execution.md phase-atomic-validation.md; do
     src="$ROOT/rules/$rule"
     [ -f "$src" ] && cp "$src" "$devin_dir/rules/$rule"
@@ -216,7 +269,7 @@ while IFS= read -r -d '' devin_dir; do
   windsurf_rules="$project_dir/.windsurf/rules"
   if [ -d "$windsurf_rules" ]; then
     for rule in workflow-globals.md workflow-reference.md language.md quick-flow.md tdd.md run-log.md git-flow.md orchestration.md \
-                phase-discovery.md phase-execution.md phase-validation.md \
+                phase-discovery.md phase-execution.md phase-validation.md phase-finalize.md \
                 phase-atomic-execution.md phase-atomic-validation.md; do
       src="$ROOT/rules/$rule"
       [ -f "$src" ] && cp "$src" "$windsurf_rules/$rule"
@@ -288,15 +341,15 @@ echo ""
 echo "=== Sync complete ==="
 echo ""
 echo "Deployed to:"
-echo "  Windsurf workflows: ~/.codeium/windsurf/global_workflows/"
-echo "  Windsurf rules:     ~/.codeium/windsurf/global_rules/"
-echo "  Claude Code skills: ~/.claude/skills/"
-echo "  Claude Code global: ~/.claude/CLAUDE.md"
-echo "  Codex skills:       ~/.codex/skills/"
-echo "  Codex global:       ~/.codex/AGENTS.md (always-on rules, incl. language)"
+echo "  Windsurf workflows: "$OUTPUT_ROOT"/.codeium/windsurf/global_workflows/"
+echo "  Windsurf rules:     "$OUTPUT_ROOT"/.codeium/windsurf/global_rules/"
+echo "  Claude Code skills: "$OUTPUT_ROOT"/.claude/skills/"
+echo "  Claude Code global: "$OUTPUT_ROOT"/.claude/CLAUDE.md"
+echo "  Codex skills:       "$OUTPUT_ROOT"/.codex/skills/"
+echo "  Codex global:       "$OUTPUT_ROOT"/.codex/AGENTS.md (always-on rules, incl. language)"
 echo "  Codex template:     $ROOT/templates/AGENTS.md (deployed per project)"
-echo "  Claude principles: ~/.claude/skills/principle-*/"
-echo "  Codex principles:  ~/.codex/skills/principle-*/"
-echo "  Claude rules:      ~/.claude/skills/rule-*/"
-echo "  Codex rules:       ~/.codex/skills/rule-*/"
+echo "  Claude principles: "$OUTPUT_ROOT"/.claude/skills/principle-*/"
+echo "  Codex principles:  "$OUTPUT_ROOT"/.codex/skills/principle-*/"
+echo "  Claude rules:      "$OUTPUT_ROOT"/.claude/skills/rule-*/"
+echo "  Codex rules:       "$OUTPUT_ROOT"/.codex/skills/rule-*/"
 echo "  Per-project:    rules (.devin/rules/ + .windsurf/rules/), skills symlinks refresh, local workflow cleanup"

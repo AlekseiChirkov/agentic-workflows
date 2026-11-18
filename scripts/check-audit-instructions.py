@@ -2122,7 +2122,7 @@ def files_row(entry: dict) -> dict:
     return {"path": path, "sha256": entry["sha256"],
             "kinds": list(VERIFY_KINDS.get(path, ["contract"])),
             "sections": copy.deepcopy(VERIFY_SECTIONS.get(path)),
-            "evidence": [f"{path}:1"],
+            "evidence": [f"{path}:1" if entry["lines"] is not None else f"{CAPS}:1"],
             "repetition": empty_repetition() if invocable else None}
 
 
@@ -4057,6 +4057,7 @@ DIAGNOSTIC_CODES = (
     "amendment-invalid", "amendment-target-unknown", "req21-invalid", "coverage-inconsistent",
     "report-layout", "review-commit-unknown", "report-generated-mismatch", "blocker-unlisted",
     "economics-claim", "installed-invalid",
+    "evidence-unresolved", "blocker-extra",
 )
 UNKNOWN_COMMIT = "1" * 40
 OTHER_DATE = "2026-01-03"
@@ -4931,7 +4932,7 @@ class VerifyReportTests(RenderCase):
             "failing review": {"review": f"Reviewed: Peer-Validator-2 {OTHER_DATE} fail {head}"},
             "owner acceptance": {"acceptance": f"Accepted: owner {OTHER_DATE}"},
             "headings inside a fence": {"method": fenced},
-            "extra listed ids": {"blockers": ["AUD-08-001", "AUD-08-003", "AUD-08-005"]},
+            "extra listed ids": {"blockers": ["AUD-08-001 (AMD-08-01)", "AUD-08-005"]},
             "subsection headings in hand-written text": {
                 "summary": "### Scope\n\nEvery audited file was read once.",
                 "method": "### Commands\n\nThe inventory was extracted."},
@@ -5088,8 +5089,9 @@ class VerifyReportTests(RenderCase):
                     ("blocker-unlisted", f"{REPORT_PATH}:{line_number(text, heading)}")])
         text = self.valid_report(blockers=[])
         location = f"{REPORT_PATH}:{line_number(text, heading)}"
-        self.assert_reports(self.verify_report(text), [("blocker-unlisted", location),
-                                                       ("blocker-unlisted", location)])
+        self.assert_reports(self.verify_report(text), [
+            ("blocker-unlisted", location), ("blocker-unlisted", location),
+            ("report-layout", f"{REPORT_PATH}:{line_number(text, 'None.')}")])
 
     def test_changed_generated_region_is_report_generated_mismatch_at_its_first_line(
             self) -> None:
@@ -5329,6 +5331,10 @@ class DiagnosticCompletenessTests(RenderCase):
             "report-generated-mismatch": lambda: self.report_case(lambda region: region.replace(
                 f"- run_date: {AUDIT_DATE}", f"- run_date: {OTHER_DATE}")),
             "blocker-unlisted": lambda: self.report_case(blockers=["AUD-08-001"]),
+            "blocker-extra": lambda: self.report_case(
+                blockers=blocking_ids(self.assessment) + ["AUD-08-003"]),
+            "evidence-unresolved": lambda: a(lambda v: files(DELTA)(v).update(
+                evidence=["rules/zz-unknown.md:1"])),
             "economics-claim": lambda: a(lambda v: finding("AUD-08-002")(v).update(
                 observation="It saves 3,000 tokens.")),
             "installed-invalid": lambda: a(lambda v: v["installed"].append({
@@ -5358,6 +5364,689 @@ class DiagnosticCompletenessTests(RenderCase):
         self.assessment = valid_assessment(self.inventory)
         self.assert_silent(self.verify())
 
+
+# ---------------------------------------------------------------------------
+# Git read isolation: attribute filters, lazy fetching and rename detection
+# ---------------------------------------------------------------------------
+
+def installed_git_version() -> tuple[int, int]:
+    """Major and minor version of the git on PATH; (0, 0) when it cannot be read."""
+    if REAL_GIT is None:
+        return (0, 0)
+    result = subprocess.run([REAL_GIT, "--version"], capture_output=True, text=True,
+                            check=False)
+    found = re.search(r"(\d+)\.(\d+)", result.stdout)
+    return (int(found.group(1)), int(found.group(2))) if found else (0, 0)
+
+
+def require_git(case: unittest.TestCase, minimum: tuple[int, int], reason: str) -> None:
+    if REAL_GIT is None:
+        case.skipTest("git is not installed")
+    if installed_git_version() < minimum:
+        case.skipTest(f"git {minimum[0]}.{minimum[1]} or later is needed {reason}")
+
+
+def marker_program(path: Path, marker: Path, body: str) -> Path:
+    """An executable shell program that creates the marker file and then runs body."""
+    path.write_text(f"#!/bin/sh\ntouch '{marker}'\n{body}\n", encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
+def make_stat_stale(path: Path) -> None:
+    """Move the modification time so that git must hash the unchanged content again."""
+    info = path.stat()
+    os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns + 100 * 10**9))
+
+
+class AttributeFilterIsolationTests(ToolCase):
+    """A filter driver selected by attributes never runs, and the work tree still reads
+    correctly: a file whose content is unchanged stays clean, a changed file is dirty."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        require_git(self, (2, 41), "to read attributes from a fixed tree")
+        self.marker = self.base / "filter-ran"
+
+    def clean_filter(self) -> str:
+        return str(marker_program(self.base / "clean-filter.sh", self.marker, "cat"))
+
+    def process_filter(self) -> str:
+        return str(marker_program(self.base / "process-filter.sh", self.marker, "exit 1"))
+
+    def extract_without_marker(self) -> dict:
+        self.marker.unlink(missing_ok=True)
+        inventory = self.extract()
+        self.assertFalse(self.marker.exists(), "git ran a filter program")
+        return inventory
+
+    def test_clean_filter_of_the_repository_selected_by_committed_attributes_never_runs(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.write(".gitattributes", "*.md filter=alpha\n")
+        self.fx.commit_all()
+        self.fx.git("config", "filter.alpha.clean", self.clean_filter())
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        self.fx.write("workflows/beta-step.md", "# Beta step changed\n")
+
+        inventory = self.extract_without_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "dirty",
+                                                 "paths": ["workflows/beta-step.md"]})
+
+    def test_process_filter_of_the_global_configuration_selected_by_attributes_never_runs(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.write(".gitattributes", "*.md filter=beta\n")
+        self.fx.commit_all()
+        (self.fx.home / ".gitconfig").write_text(
+            f'[filter "beta"]\n\tprocess = {self.process_filter()}\n', encoding="utf-8")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        make_stat_stale(self.fx.root / "workflows/beta-step.md")
+
+        inventory = self.extract_without_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_filter_selected_by_the_global_attributes_file_never_runs(self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        self.fx.git("config", "filter.gamma.clean", self.clean_filter())
+        attributes = self.fx.home / ".config" / "git" / "attributes"
+        attributes.parent.mkdir(parents=True, exist_ok=True)
+        attributes.write_text("*.md filter=gamma\n", encoding="utf-8")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+
+        inventory = self.extract_without_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_filter_selected_by_the_repository_information_attributes_never_runs(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        self.fx.git("config", "filter.delta.clean", self.clean_filter())
+        (self.fx.root / ".git" / "info").mkdir(exist_ok=True)
+        (self.fx.root / ".git" / "info" / "attributes").write_text(
+            "[attr]tracked-text filter=delta\n*.md tracked-text\n", encoding="utf-8")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        self.fx.write("workflows/beta-step.md", "# Beta step changed\n")
+
+        inventory = self.extract_without_marker()
+
+        self.assertEqual(inventory["worktree"], {"state": "dirty",
+                                                 "paths": ["workflows/beta-step.md"]})
+
+
+class AttributeFilterVerifyTests(VerifyAssertions):
+    def setUp(self) -> None:
+        require_git(self, (2, 41), "to read attributes from a fixed tree")
+        self.temp = tempfile.TemporaryDirectory(prefix="audit-verify-filter-")
+        self.base = Path(self.temp.name)
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def test_strict_verify_runs_no_attribute_selected_filter_and_stays_silent(self) -> None:
+        attributes = "rules/*.md filter=alpha\nworkflows/*.md filter=beta\n"
+        fixture, inventory = build_verify_fixture(self.base,
+                                                  extra={".gitattributes": attributes})
+        (fixture.root / ASSESSMENT_PATH).write_text(canonical(valid_assessment(inventory)),
+                                                    encoding="utf-8")
+        refresh_report(fixture)
+        marker = self.base / "filter-ran"
+        clean = marker_program(self.base / "clean-filter.sh", marker, "cat")
+        process = marker_program(self.base / "process-filter.sh", marker, "exit 1")
+        fixture.git("config", "filter.alpha.clean", str(clean))
+        (fixture.home / ".gitconfig").write_text(
+            f'[filter "beta"]\n\tprocess = {process}\n', encoding="utf-8")
+        make_stat_stale(fixture.root / ALPHA)
+        make_stat_stale(fixture.root / BETA)
+        marker.unlink(missing_ok=True)
+
+        result = run_tool(["verify", "--root", str(fixture.root), "--report",
+                           str(fixture.root / REPORT_PATH), "--strict"],
+                          fixture.env, fixture.base)
+
+        self.assertFalse(marker.exists(), "git ran a filter program")
+        self.assert_silent(result)
+
+
+OLD_FLOW = "rules/old-flow.md"
+OLD_FLOW_TEXT = "# Old flow\n\nThe first step reads the state.\nThe second step writes it.\n"
+NEW_FLOW = "rules/new-flow.md"
+
+
+class PartialCloneIsolationTests(ToolCase):
+    """In a partial clone whose promisor remote is a local repository, no git read fetches a
+    missing object: the remote's upload program, which creates a marker, never starts."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        require_git(self, (2, 45), "to leave an object of a partial clone missing")
+        self.marker = self.base / "fetch-ran"
+        self.fx.minimal()
+        self.fx.write(OLD_FLOW, OLD_FLOW_TEXT)
+        self.fx.commit_all()
+        self.fx.git("config", "uploadpack.allowFilter", "true")
+        self.fx.git("config", "uploadpack.allowAnySHA1InWant", "true")
+        self.clone = self.base / "clone"
+
+    def clone_git(self, *args: str, env: dict[str, str] | None = None
+                  ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run([str(REAL_GIT), "-C", str(self.clone), *args],
+                              env=env if env is not None else self.fx.env, text=True,
+                              capture_output=True, check=False)
+
+    def make_clone(self, *options: str) -> None:
+        result = subprocess.run([str(REAL_GIT), "clone", "-q", "--filter=blob:none", *options,
+                                 f"file://{self.fx.root}", str(self.clone)],
+                                cwd=self.base, env=self.fx.env, text=True,
+                                capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def watch_fetches(self) -> None:
+        upload = marker_program(self.base / "upload-pack.sh", self.marker,
+                                f"exec '{REAL_GIT}' upload-pack \"$@\"")
+        self.assertEqual(self.clone_git("config", "remote.origin.uploadpack",
+                                        str(upload)).returncode, 0)
+        self.marker.unlink(missing_ok=True)
+
+    def test_status_fetches_no_missing_object_and_still_lists_the_staged_change(
+            self) -> None:
+        self.make_clone("--no-checkout")
+        for args in (("read-tree", "HEAD"), ("checkout", "--", "rules/alpha-flow.md",
+                                             "workflows/beta-step.md")):
+            result = self.clone_git(*args)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        old_blob = self.clone_git("rev-parse", f"HEAD:{OLD_FLOW}").stdout.strip()
+        offline = {**self.fx.env, "GIT_NO_LAZY_FETCH": "1"}
+        self.assertNotEqual(self.clone_git("cat-file", "-e", old_blob, env=offline).returncode,
+                            0, "the clone must lack the blob of the renamed file")
+        (self.clone / NEW_FLOW).write_text(OLD_FLOW_TEXT + "The third step reports.\n",
+                                           encoding="utf-8")
+        for args in (("add", NEW_FLOW), ("update-index", "--force-remove", OLD_FLOW)):
+            result = self.clone_git(*args)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.watch_fetches()
+
+        out = self.base / "inventory.json"
+        result = self.run_extract(out=out, root=self.clone)
+
+        self.assertFalse(self.marker.exists(), "git fetched a missing object")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        inventory = parse_inventory(out.read_text(encoding="utf-8"))
+        self.assertEqual(inventory["worktree"], {"state": "dirty",
+                                                 "paths": [NEW_FLOW, OLD_FLOW]})
+
+    def test_review_commit_lookup_fetches_nothing_and_reports_the_unknown_commit(
+            self) -> None:
+        self.make_clone()
+        self.watch_fetches()
+        review = f"Reviewed: Validator {OTHER_DATE} pass {UNKNOWN_COMMIT}"
+        text = report_text(review=review)
+        (self.clone / REPORT_PATH).parent.mkdir(parents=True, exist_ok=True)
+        (self.clone / REPORT_PATH).write_text(text, encoding="utf-8")
+
+        result = run_tool(["verify", "--root", str(self.clone), "--report",
+                           str(self.clone / REPORT_PATH)], self.fx.env, self.base)
+
+        self.assertFalse(self.marker.exists(), "git fetched a missing object")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn(("review-commit-unknown", f"{REPORT_PATH}:{line_number(text, review)}"),
+                      diagnostic_pairs(result))
+
+
+GIT_CALL_SHAPES = {
+    "rev-parse": ["--verify", "HEAD"],
+    "ls-files": ["-z"],
+    "status": ["--porcelain=v1", "-z", "--untracked-files=all"],
+}
+
+
+class GitReadSettingsTests(ToolCase):
+    def setUp(self) -> None:
+        super().setUp()
+        if REAL_GIT is None:
+            self.skipTest("git is not installed")
+
+    def recorded_calls(self, log: Path) -> list[tuple[str, list[str], list[str]]]:
+        """Each call as its lazy-fetch setting, its global options and its subcommand."""
+        calls: list[tuple[str, list[str], list[str]]] = []
+        lazy, arguments = "", []
+        for line in log.read_text(encoding="utf-8").splitlines():
+            if line.startswith("lazy="):
+                lazy, arguments = line[len("lazy="):], []
+            elif line.startswith("arg="):
+                arguments.append(line[len("arg="):])
+            elif line == "end":
+                index = 0
+                while index < len(arguments) and arguments[index] in {"--no-pager", "-c", "-C"}:
+                    index += 1 if arguments[index] == "--no-pager" else 2
+                calls.append((lazy, arguments[:index], arguments[index:]))
+        return calls
+
+    def test_git_reads_disable_lazy_fetching_and_renames_by_settings_older_git_ignores(
+            self) -> None:
+        self.fx.minimal()
+        head = self.fx.commit_all()
+        log = self.base / "git-calls.log"
+        wrapper_bin = self.base / "wrapper-bin"
+        wrapper_bin.mkdir()
+        wrapper = wrapper_bin / "git"
+        wrapper.write_text(
+            "#!/bin/sh\n{\n  printf 'lazy=%s\\n' \"${GIT_NO_LAZY_FETCH-}\"\n"
+            "  for argument in \"$@\"; do printf 'arg=%s\\n' \"$argument\"; done\n"
+            f"  printf 'end\\n'\n}} >> '{log}'\nexec '{REAL_GIT}' \"$@\"\n", encoding="utf-8")
+        wrapper.chmod(0o755)
+        env = {**self.fx.env, "PATH": f"{wrapper_bin}{os.pathsep}{self.fx.env['PATH']}"}
+        review = f"Reviewed: Validator {OTHER_DATE} pass {head}"
+        self.fx.write(REPORT_PATH, report_text(review=review))
+
+        inventory = self.extract(env=env)
+        verified = run_tool(["verify", "--root", str(self.fx.root), "--report",
+                             str(self.fx.root / REPORT_PATH)], env, self.base)
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+        self.assertNotIn("review-commit-unknown", {code for code, _ in
+                                                   diagnostic_pairs(verified)})
+        calls = self.recorded_calls(log)
+        shapes = {**GIT_CALL_SHAPES, "cat-file": ["-e", f"{head}^{{commit}}"]}
+        self.assertEqual(sorted({command[0] for _, _, command in calls}), sorted(shapes))
+        for lazy, options, command in calls:
+            with self.subTest(command=command[0]):
+                self.assertEqual(lazy, "1", "lazy fetching is not disabled")
+                self.assertEqual(command[1:], shapes[command[0]],
+                                 "a subcommand option that older git may reject")
+                if command[0] == "status":
+                    self.assertIn("status.renames=false", options, "status detects renames")
+
+
+class GitIsolationDocstringTests(unittest.TestCase):
+    def test_module_docstring_states_the_git_isolation_and_the_git_versions_it_needs(
+            self) -> None:
+        docstring = ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8")))
+        self.assertIsNotNone(docstring)
+        text = " ".join(str(docstring).split())
+        self.assertNotIn("so no program named by the repository's configuration runs", text)
+        for phrase in ("lazy fetching", "rename detection", "filter", "git 2.41",
+                       "git 2.45"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+
+class GitRepositoryShapeTests(ToolCase):
+    """Repository shapes that git reads without trouble keep the work tree readable, and the
+    git reads still run no filter in them."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        require_git(self, (2, 41), "to read attributes from a fixed tree")
+        self.marker = self.base / "filter-ran"
+
+    def clean_filter(self) -> str:
+        return str(marker_program(self.base / "clean-filter.sh", self.marker, "cat"))
+
+    def information_attributes(self, data: bytes) -> None:
+        info = self.fx.root / ".git" / "info"
+        info.mkdir(exist_ok=True)
+        (info / "attributes").write_bytes(data)
+
+    def test_repository_with_sha256_object_names_reads_its_work_tree_and_runs_no_filter(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.write(".gitattributes", "*.md filter=alpha\n")
+        self.fx.git("init", "-q", "-b", "main", "--object-format=sha256")
+        self.fx.git("add", "-A")
+        self.fx.git("commit", "-q", "-m", "chore: fixture")
+        head = self.fx.git("rev-parse", "HEAD")
+        self.fx.git("config", "filter.alpha.clean", self.clean_filter())
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        self.marker.unlink(missing_ok=True)
+
+        inventory = self.extract()
+
+        self.assertFalse(self.marker.exists(), "git ran a filter program")
+        self.assertEqual(len(head), 64)
+        self.assertEqual(inventory["source_revision"], head)
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_git_file_with_an_embedded_nul_is_read_up_to_the_nul_as_git_reads_it(
+            self) -> None:
+        self.fx.minimal()
+        head = self.fx.commit_all()
+        os.rename(self.fx.root / ".git", self.base / "real-git")
+        (self.fx.root / ".git").write_bytes(b"gitdir: ../real-git\x00ignored\n")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+
+        result = self.run_extract()
+
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        inventory = parse_inventory((self.base / "inventory.json").read_text(encoding="utf-8"))
+        self.assertEqual(inventory["source_revision"], head)
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_first_in_first_out_entry_named_git_is_never_opened(self) -> None:
+        self.fx.minimal()
+        os.mkfifo(self.fx.root / ".git")
+        out = self.base / "inventory.json"
+        try:
+            result = subprocess.run(
+                [sys.executable, "-I", str(TOOL), "extract", "--root", str(self.fx.root),
+                 "--out", str(out)], cwd=self.base, env=self.fx.env, text=True,
+                capture_output=True, timeout=20)
+        except subprocess.TimeoutExpired:
+            self.fail("extract blocked on a first-in first-out entry named .git")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        inventory = parse_inventory(out.read_text(encoding="utf-8"))
+        self.assertIsNone(inventory["source_revision"])
+        self.assertEqual(inventory["worktree"], {"state": "unknown", "paths": []})
+
+    def test_information_attribute_line_longer_than_git_reads_keeps_the_tree_readable(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        self.information_attributes(b"x.md filter=" + b"q" * 200_000 + b"\n")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_many_information_attribute_filters_keep_the_tree_readable(self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        self.information_attributes("".join(f"x{number}.md filter=f{number}\n"
+                                            for number in range(40_000)).encode("ascii"))
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_filter_name_with_a_no_break_space_is_blanked_as_git_reads_the_name(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        name = "a b"
+        self.information_attributes(f"*.md filter={name}\n".encode("utf-8"))
+        (self.fx.home / ".gitconfig").write_text(
+            f'[filter "{name}"]\n\tclean = {self.clean_filter()}\n', encoding="utf-8")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        self.marker.unlink(missing_ok=True)
+
+        inventory = self.extract()
+
+        self.assertFalse(self.marker.exists(), "git ran a filter program")
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+
+class GitIsolationLimitsDocstringTests(unittest.TestCase):
+    def test_module_docstring_names_the_cases_the_git_isolation_leaves_open(self) -> None:
+        docstring = ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8")))
+        text = " ".join(str(docstring).split())
+        for phrase in ("git 2.31", "submodule", "info/attributes", "top level", "SHA-256"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+
+# ---------------------------------------------------------------------------
+# The blockers section in both directions, evidence resolution, audit-scope notes
+# ---------------------------------------------------------------------------
+
+BLOCKERS_HEADING = "## Blockers for spec 09"
+BLOCKERS_BODY_RE = re.compile(r"(## Blockers for spec 09\n\n)(.*?)(\n## Independent review\n)",
+                              re.DOTALL)
+UNDECODED_READER = "docs/RAW.txt"
+UNDECODED_READER_BYTES = b"\xff\xfe first\nsecond\nthird\n"
+RUNBOOK = SOURCE_ROOT / ".ai" / "context" / "runbook.md"
+LATER_TREE_CODES = ("inventory-stale", "review-commit-unknown", "spec09-unavailable",
+                    "req21-invalid", "amendment-invalid", "amendment-target-unknown")
+AUDIT_SPECIFIC_CONSTANTS = ("ALWAYS_SECTIONED", "DISCOVERY_RULE")
+
+
+def with_blockers_body(text: str, body: str) -> str:
+    """The report text with the body of its blockers section replaced."""
+    replaced, count = BLOCKERS_BODY_RE.subn(
+        lambda found: found.group(1) + body + found.group(3), text, count=1)
+    if count != 1:
+        raise AssertionError("the report has no blockers section to replace")
+    return replaced
+
+
+class VerifyBlockersSectionTests(RenderCase):
+    def unblock_every_finding(self) -> None:
+        """Make the valid assessment one in which no finding blocks: the amendment cites a
+        line instead of a finding, and the unreadable file is read and its finding becomes
+        an observation of type other."""
+        self.assessment["amendments"][0]["evidence"] = [f"{BETA}:9"]
+        self.finding("AUD-08-001")["blocks_09"] = False
+        self.finding("AUD-08-005").update(type="other", blocks_09=False)
+        self.row("coverage", BLOB)["status"] = "read"
+
+    def test_listed_id_of_a_finding_that_does_not_block_or_does_not_exist_is_blocker_extra(
+            self) -> None:
+        blocking = ["AUD-08-001", "AUD-08-005"]
+        cases: dict[str, tuple[list[str], list[str]]] = {
+            "finding that does not block": (blocking + ["AUD-08-003"], ["- AUD-08-003"]),
+            "id that names no finding": (blocking + ["AUD-08-099"], ["- AUD-08-099"]),
+            "amendment id beside a finding that does not block": (
+                blocking + ["AUD-08-004 (AMD-08-01)"], ["- AUD-08-004 (AMD-08-01)"]),
+            "id twice on one line and again on another line": (
+                blocking + ["AUD-08-003 and again AUD-08-003", "AUD-08-003 once more"],
+                ["- AUD-08-003 and again AUD-08-003", "- AUD-08-003 once more"]),
+            "amendment ids beside the blocking findings only": (
+                ["AUD-08-001 (AMD-08-01)", "AUD-08-005 (AMD-08-99)"], []),
+            "id inside a longer token": (blocking + ["AUD-08-0030"], []),
+        }
+        for name, (blockers, lines) in cases.items():
+            with self.subTest(case=name):
+                self.assessment = valid_assessment(self.inventory)
+                text = self.valid_report(blockers=blockers)
+                expected = [("blocker-extra", f"{REPORT_PATH}:{line_number(text, line)}")
+                            for line in lines]
+                result = self.verify_report(text)
+                if expected:
+                    self.assert_reports(result, expected)
+                else:
+                    self.assert_silent(result)
+
+    def test_blockers_section_breaking_the_none_rule_is_report_layout(self) -> None:
+        nothing_blocks = {
+            "None. alone": ("None.\n", None),
+            "empty section": ("", BLOCKERS_HEADING),
+            "prose instead of None.": ("No finding blocks the migration.\n", BLOCKERS_HEADING),
+            "None. followed by prose": ("None.\n\nSee the summary.\n", BLOCKERS_HEADING),
+        }
+        for name, (body, line) in nothing_blocks.items():
+            with self.subTest(case=name, blocking="none"):
+                self.assessment = valid_assessment(self.inventory)
+                self.unblock_every_finding()
+                text = with_blockers_body(self.valid_report(), body)
+                result = self.verify_report(text)
+                if line is None:
+                    self.assert_silent(result)
+                else:
+                    self.assert_reports(result, [
+                        ("report-layout", f"{REPORT_PATH}:{line_number(text, line)}")])
+        with self.subTest(case="None. beside the blocking findings"):
+            self.assessment = valid_assessment(self.inventory)
+            text = with_blockers_body(self.valid_report(),
+                                      "- AUD-08-001\n- AUD-08-005\n\nNone.\n")
+            self.assert_reports(self.verify_report(text), [
+                ("report-layout", f"{REPORT_PATH}:{line_number(text, 'None.')}")])
+        with self.subTest(case="None. alone while findings block"):
+            self.assessment = valid_assessment(self.inventory)
+            text = self.valid_report(blockers=[])
+            heading = f"{REPORT_PATH}:{line_number(text, BLOCKERS_HEADING)}"
+            self.assert_reports(self.verify_report(text), [
+                ("blocker-unlisted", heading), ("blocker-unlisted", heading),
+                ("report-layout", f"{REPORT_PATH}:{line_number(text, 'None.')}")])
+
+
+class VerifyEvidenceResolutionTests(SharedVerifyCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.temp = tempfile.TemporaryDirectory(prefix="audit-evidence-")
+        try:
+            cls.fixture, cls.inventory = build_verify_fixture(
+                Path(cls.temp.name), extra={UNDECODED_READER: UNDECODED_READER_BYTES})
+        except BaseException:
+            cls.temp.cleanup()
+            raise
+
+    def resolvable_assessment(self) -> dict:
+        """The valid assessment with the symbolic link's evidence citing a line of its
+        target, since the link itself has no line count."""
+        assessment = valid_assessment(self.inventory)
+        assessment["files"][row_index(assessment["files"], "path", LINK)]["evidence"] = [
+            f"{CAPS}:1"]
+        return assessment
+
+    def lines_of(self, path: str) -> int:
+        return int(inventory_entry(self.inventory, path)["lines"])
+
+    def evidence_cases(self, cases: dict[str, tuple[str, str, list[str], int]]) -> None:
+        """Each case replaces the evidence of one files row (by path), finding or amendment
+        (by id) and expects that many evidence-unresolved diagnostics at that row."""
+        for name, (key, identifier, evidence, count) in cases.items():
+            with self.subTest(case=name):
+                self.assessment = self.resolvable_assessment()
+                field = "path" if key == "files" else "id"
+                index = row_index(self.assessment[key], field, identifier)
+                self.assessment[key][index]["evidence"] = evidence
+                location = assessment_at(f"files[{index}]" if key == "files" else identifier)
+                result = self.verify()
+                if count:
+                    self.assert_reports(result, [("evidence-unresolved", location)] * count)
+                else:
+                    self.assert_silent(result)
+
+    def test_line_evidence_that_names_no_inventory_path_or_a_line_outside_it_is_unresolved(
+            self) -> None:
+        beta, guide = self.lines_of(BETA), self.lines_of(GUIDE)
+        self.evidence_cases({
+            "unknown path in a files row": ("files", DELTA, ["rules/zz-unknown.md:1"], 1),
+            "line past the count of an audited file": (
+                "findings", "AUD-08-003", [f"{GAMMA}:5", f"{BETA}:{beta + 1}"], 1),
+            "line zero": ("findings", "AUD-08-004", [f"{GAMMA}:0"], 1),
+            "line past the count of a reader": (
+                "findings", "AUD-08-002", [f"{GUIDE}:{guide + 1}"], 1),
+            "line on an entry without a line count": ("files", LINK, [f"{LINK}:1"], 1),
+            "unknown path in an amendment": (
+                "amendments", "AMD-08-01", ["AUD-08-001", "docs/zz-gone.md:2"], 1),
+            "two unresolved items in one finding": (
+                "findings", "AUD-08-004", ["rules/zz-unknown.md:1", f"{GAMMA}:99"], 2),
+            "last line of an audited file": ("files", BETA, [f"{BETA}:{beta}"], 0),
+            "line of a reader that is not decoded": (
+                "findings", "AUD-08-002",
+                [f"{GUIDE}:1", f"{UNDECODED_READER}:{self.lines_of(UNDECODED_READER)}"], 0),
+            "reader line in an amendment": (
+                "amendments", "AMD-08-01", ["AUD-08-001", f"{SPEC09_PATH}:1"], 0),
+        })
+
+    def test_range_evidence_resolves_only_within_the_line_count_of_its_entry(self) -> None:
+        gamma = self.lines_of(GAMMA)
+        self.evidence_cases({
+            "reversed range": ("findings", "AUD-08-004", [f"{GAMMA}:6-5"], 1),
+            "range past the count": ("findings", "AUD-08-004", [f"{GAMMA}:5-{gamma + 1}"], 1),
+            "range starting at zero": ("findings", "AUD-08-004", [f"{GAMMA}:0-2"], 1),
+            "range on an unknown path": ("findings", "AUD-08-004", ["rules/zz-unknown.md:1-2"],
+                                         1),
+            "range on an entry without a line count": (
+                "findings", "AUD-08-004", [f"{GAMMA}:6", f"{LINK}:1-1"], 1),
+            "range ending at the count": ("findings", "AUD-08-004", [f"{GAMMA}:1-{gamma}"], 0),
+            "range of one line": ("findings", "AUD-08-004", [f"{GAMMA}:6-6"], 0),
+        })
+
+    def test_bare_evidence_path_that_names_no_inventory_path_is_unresolved(self) -> None:
+        self.evidence_cases({
+            "unknown bare path": ("findings", "AUD-08-005", [BLOB, "harness/x/zz-gone.bin"], 1),
+            "bare audited and reader paths": (
+                "findings", "AUD-08-005", [BLOB, GUIDE, UNDECODED_READER, LINK], 0),
+        })
+
+
+class AuditScopeNoteTests(unittest.TestCase):
+    def test_runbook_limits_the_silent_verify_to_the_delivery_commit_and_names_later_codes(
+            self) -> None:
+        text = RUNBOOK.read_text(encoding="utf-8")
+        bullets = [" ".join(item.split()) for item in re.split(r"\n(?=- )", text)
+                   if "audit-instructions.py verify" in item]
+        self.assertEqual(len(bullets), 1, "the runbook has no single note on the audit verify")
+        note = bullets[0]
+        self.assertNotIn("must print nothing for a delivered audit", note)
+        self.assertIn("delivery commit", note)
+        for code in LATER_TREE_CODES:
+            with self.subTest(code=code):
+                self.assertIn(code, note)
+
+    def test_constants_of_this_audit_rule_set_are_marked_as_specific_to_this_audit(
+            self) -> None:
+        lines = TOOL.read_text(encoding="utf-8").split("\n")
+        for name in AUDIT_SPECIFIC_CONSTANTS:
+            with self.subTest(constant=name):
+                starts = [index for index, line in enumerate(lines)
+                          if line.startswith(f"{name} = ")]
+                self.assertEqual(len(starts), 1, f"{name} is not assigned once")
+                comments: list[str] = []
+                index = starts[0] - 1
+                while index >= 0 and lines[index].startswith("#"):
+                    comments.insert(0, lines[index].lstrip("# "))
+                    index -= 1
+                self.assertIn("specific to this audit", " ".join(comments).lower())
+
+OVERLONG_DIGITS = 4301
+
+
+class VerifyEvidenceResolutionLimitTests(SharedVerifyCase):
+    def evidence_case(self, key: str, identifier: str, evidence: list[str]
+                      ) -> tuple[subprocess.CompletedProcess[str], str]:
+        """Verify the valid assessment with the evidence of one files row (by path),
+        finding or amendment (by id) replaced; return the result and that row's location."""
+        self.assessment = valid_assessment(self.inventory)
+        field = "path" if key == "files" else "id"
+        index = row_index(self.assessment[key], field, identifier)
+        self.assessment[key][index]["evidence"] = evidence
+        location = assessment_at(f"files[{index}]" if key == "files" else identifier)
+        return self.verify(), location
+
+    def test_line_number_too_long_to_convert_is_a_line_outside_its_entry(self) -> None:
+        long_number = "9" * OVERLONG_DIGITS
+        cases = {
+            "files row line": ("files", DELTA, [f"{DELTA}:{long_number}"]),
+            "finding range end": ("findings", "AUD-08-003",
+                                  [f"{GAMMA}:5", f"{GAMMA}:1-{long_number}"]),
+            "finding range start": ("findings", "AUD-08-004", [f"{GAMMA}:{long_number}-6"]),
+            "amendment line": ("amendments", "AMD-08-01",
+                               ["AUD-08-001", f"{BETA}:{'1' * 5000}"]),
+            "ten-digit line": ("findings", "AUD-08-004", [f"{GAMMA}:1234567890"]),
+        }
+        for name, (key, identifier, evidence) in cases.items():
+            with self.subTest(case=name):
+                result, location = self.evidence_case(key, identifier, evidence)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assert_reports(result, [("evidence-unresolved", location)])
+
+    def test_finding_id_in_the_evidence_of_a_finding_is_a_bare_path_that_is_unresolved(
+            self) -> None:
+        cases: dict[str, tuple[str, str, list[str], list[str]]] = {
+            "unknown finding id beside a line and an amendment id": (
+                "findings", "AUD-08-002", [f"{GUIDE}:1", "AMD-08-01", "AUD-08-999"],
+                ["evidence-unresolved"]),
+            "existing finding id": ("findings", "AUD-08-002", [f"{GUIDE}:1", "AUD-08-001"],
+                                    ["evidence-unresolved"]),
+            "unknown amendment id in a finding": (
+                "findings", "AUD-08-002", [f"{GUIDE}:1", "AMD-08-99"], ["reference-unknown"]),
+            "unknown finding id in an amendment": (
+                "amendments", "AMD-08-01", ["AUD-08-001", "AUD-08-099"], ["reference-unknown"]),
+        }
+        for name, (key, identifier, evidence, codes) in cases.items():
+            with self.subTest(case=name):
+                result, location = self.evidence_case(key, identifier, evidence)
+                self.assert_reports(result, [(code, location) for code in codes])
 
 if __name__ == "__main__":
     unittest.main()

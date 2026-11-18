@@ -2835,11 +2835,1730 @@
       "note": "instructs to resolve a rule to its bare basename on Windsurf and Devin (AUD-08-015)"
     }
   ],
-  "duplicate_groups": [],
-  "map": [],
+  "duplicate_groups": [
+    {
+      "id": "DG-001",
+      "clusters": [
+        "DUP-003",
+        "DUP-004",
+        "DUP-005"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "rules/language.md",
+        "section": "(preamble)"
+      },
+      "condition_differences": "None: the same always-on language rule in the language contract and in both harness always-on bodies.",
+      "disposition": "intentional",
+      "owner": "none",
+      "finding": null,
+      "rationale": "The always-on essentials are duplicated on purpose: a rule deployed as a skill is not loaded unbidden, so the language rule is repeated in the two bodies every session reads (rules/workflow-globals.md:29-33; ADR-0003 Decision 2). The naming migration moves both bodies with their text unchanged except stale names (spec 09 REQ-55)."
+    },
+    {
+      "id": "DG-002",
+      "clusters": [
+        "DUP-001",
+        "DUP-002",
+        "DUP-006",
+        "DUP-007",
+        "DUP-008",
+        "DUP-009",
+        "DUP-010",
+        "DUP-011",
+        "DUP-012",
+        "DUP-013"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "rules/git-flow.md",
+        "section": "## Commits"
+      },
+      "condition_differences": "None: the commit-message and attribution rule of the git-flow contract, repeated in both always-on bodies.",
+      "disposition": "intentional",
+      "owner": "none",
+      "finding": null,
+      "rationale": "The commit rule must hold in sessions that load no git-flow skill, so the always-on essentials carry it (rules/workflow-globals.md:29-33; ADR-0003 Decision 2); the contract stays the canonical text (rules/git-flow.md:86)."
+    },
+    {
+      "id": "DG-003",
+      "clusters": [
+        "DUP-014",
+        "DUP-015",
+        "DUP-016",
+        "DUP-017",
+        "DUP-018",
+        "DUP-019",
+        "DUP-020",
+        "DUP-021"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "rules/global-claude.md",
+        "section": "## AST-GREP STRUCTURAL SEARCH POLICY"
+      },
+      "condition_differences": "None: the same search policy in the two harness always-on bodies.",
+      "disposition": "intentional",
+      "owner": "none",
+      "finding": null,
+      "rationale": "Both always-on bodies carry the same essentials by ADR-0003 Decision 2. The machine-specific lines inside this policy are recorded separately by AUD-08-022 and AUD-08-023; the duplication itself is the decided form."
+    },
+    {
+      "id": "DG-004",
+      "clusters": [
+        "DUP-022",
+        "DUP-023",
+        "DUP-024",
+        "DUP-025",
+        "DUP-026"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "rules/phase-atomic-execution.md",
+        "section": "## Context Bootstrap"
+      },
+      "condition_differences": "rules/phase-atomic-execution.md states the reuse condition, path resolution and load order for atomic execution (loaded by /phase-atomic-execution, /pae-tests and /pae-implement); rules/phase-atomic-validation.md states them for atomic validation (loaded by /phase-atomic-validation and /pav-check).",
+      "disposition": "condition-specific",
+      "owner": "none",
+      "finding": null,
+      "rationale": "Each bootstrap is loaded alone at the start of its phase, so each must hold its own reuse condition and Step 0 before anything else is loaded; the naming migration keeps one bootstrap rule per phase (spec 09 REQ-18, REQ-19). The repeated path resolution weighs on the size of the atomic-execution bootstrap (AUD-08-063)."
+    },
+    {
+      "id": "DG-005",
+      "clusters": [
+        "DUP-027",
+        "DUP-029"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "rules/phase-execution.md",
+        "section": "## Context Bootstrap"
+      },
+      "condition_differences": "Each phase rule lists its own sources under the same table header, and the three orchestrator-phase rules state the same umbrella order for their own phase.",
+      "disposition": "condition-specific",
+      "owner": "none",
+      "finding": null,
+      "rationale": "The shared header and umbrella sentence are the common shape of the five bootstrap rules, each loaded only for its phase; the naming migration keeps that shape (spec 09 REQ-19)."
+    },
+    {
+      "id": "DG-006",
+      "clusters": [
+        "DUP-028"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "rules/phase-atomic-execution.md",
+        "section": "## Phase Behaviors"
+      },
+      "condition_differences": "None: the same obligation for the same step; the workflow adds that missing tooling never justifies level `none` (workflows/pae-tests.md:64-65).",
+      "disposition": "intentional",
+      "owner": "none",
+      "finding": null,
+      "rationale": "/pae-tests applies the phase behaviour at the step where it captures the test command; the rule states it for every atomic-execution step. One sentence, kept where it is acted on."
+    },
+    {
+      "id": "DG-007",
+      "clusters": [
+        "DUP-030"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "rules/tdd.md",
+        "section": "## RED — what counts"
+      },
+      "condition_differences": "None: the quick path applies the RED criterion of the tdd rule, which it cites (rules/quick-flow.md:86).",
+      "disposition": "intentional",
+      "owner": "none",
+      "finding": null,
+      "rationale": "The quick path's numbered TDD steps restate the one sentence that defines RED so the step is complete where it is executed; the tdd rule stays canonical."
+    },
+    {
+      "id": "DG-008",
+      "clusters": [
+        "DUP-031"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "rules/run-log.md",
+        "section": "## Field vocabulary"
+      },
+      "condition_differences": "None: two different tables in the same section share a column header (rules/run-log.md:205, :254).",
+      "disposition": "intentional",
+      "owner": "none",
+      "finding": null,
+      "rationale": "Only the header row repeats; the table bodies differ, so nothing is stated twice."
+    },
+    {
+      "id": "DG-009",
+      "clusters": [
+        "DUP-032"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "rules/workflow-globals.md",
+        "section": "## Canonical Status Formats"
+      },
+      "condition_differences": "None: the same vocabulary for the same fields; the `atomic-tests` line that follows differs in wording, not in values (rules/workflow-globals.md:217, rules/workflow-reference.md:227).",
+      "disposition": "consolidate",
+      "owner": "11",
+      "finding": "AUD-08-060",
+      "rationale": "The anchored status line has one canonical place; the copy in rules/workflow-reference.md is read by no check (AUD-08-060). The naming migration keeps every parent line starting `Status values for` (spec 09 AC-42), so the consolidation follows it and no map decision performs it (A-20: owner 11)."
+    },
+    {
+      "id": "DG-010",
+      "clusters": [
+        "DUP-033",
+        "DUP-034",
+        "DUP-040",
+        "DUP-047"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "workflows/pav-check.md",
+        "section": "(preamble)"
+      },
+      "condition_differences": "Each atomic workflow resolves its own argument and locates and checks its own progress block before acting; the stop messages name each workflow's phase.",
+      "disposition": "condition-specific",
+      "owner": "none",
+      "finding": null,
+      "rationale": "Every one of these workflows has an `Invocation:` line and may run standalone, so each validates its own input; the lines are guards, not shared definitions."
+    },
+    {
+      "id": "DG-011",
+      "clusters": [
+        "DUP-049",
+        "DUP-050",
+        "DUP-051",
+        "DUP-063"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "workflows/phase-execution.md",
+        "section": "(preamble)"
+      },
+      "condition_differences": "Each phase workflow takes its task directory and stops on its own phase status; the stop messages name the phase.",
+      "disposition": "condition-specific",
+      "owner": "none",
+      "finding": null,
+      "rationale": "Standalone-invocable steps each check their own argument and phase state before acting; the repetition is the guard of each entry point."
+    },
+    {
+      "id": "DG-012",
+      "clusters": [
+        "DUP-035",
+        "DUP-036",
+        "DUP-037",
+        "DUP-038",
+        "DUP-041",
+        "DUP-042",
+        "DUP-048",
+        "DUP-062"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "rules/workflow-globals.md",
+        "section": "(preamble)"
+      },
+      "condition_differences": "Each workflow loads the bootstrap rule of its own phase (atomic execution, atomic validation, discovery or validation) at its own entry.",
+      "disposition": "condition-specific",
+      "owner": "none",
+      "finding": null,
+      "rationale": "A step invoked standalone must load its phase rule; the general load order and reuse sentences are rules/workflow-globals.md:35-37. The repeated loads under a parent are recorded as load-repeat findings (AUD-08-051, AUD-08-052, AUD-08-053), not as duplicated text."
+    },
+    {
+      "id": "DG-013",
+      "clusters": [
+        "DUP-043",
+        "DUP-044",
+        "DUP-045",
+        "DUP-046"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "rules/phase-atomic-execution.md",
+        "section": "## Context Bootstrap"
+      },
+      "condition_differences": "The workflows resolve the description and parent paths before changing directories and name the base of a relative `working_dir:` (the atomic task directory, workflows/pav-check.md:28-30); the rule's Step 0 states the result for any caller (rules/phase-atomic-execution.md:16-20).",
+      "disposition": "condition-specific",
+      "owner": "none",
+      "finding": null,
+      "rationale": "The workflow must resolve its paths before it can load the rule from the resolved knowledge base; the statements agree on reading."
+    },
+    {
+      "id": "DG-014",
+      "clusters": [
+        "DUP-039"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "workflows/pae-implement.md",
+        "section": "## Pre-check"
+      },
+      "condition_differences": "/pae-implement reads the design constraints before writing code; /pav-check reads them to check the implementation against them.",
+      "disposition": "condition-specific",
+      "owner": "none",
+      "finding": null,
+      "rationale": "Two steps read the same inputs for different decisions; each line is the step's own input list."
+    },
+    {
+      "id": "DG-015",
+      "clusters": [
+        "DUP-052",
+        "DUP-053",
+        "DUP-054",
+        "DUP-055",
+        "DUP-056",
+        "DUP-057",
+        "DUP-058",
+        "DUP-059",
+        "DUP-060"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "rules/run-log.md",
+        "section": "## Workflow coverage and routing"
+      },
+      "condition_differences": "Each orchestrator opens or inherits its own run and logs its own boundaries (/phase-execution, /phase-validation, /phase-discovery, /phase-pipeline, /spec-run).",
+      "disposition": "condition-specific",
+      "owner": "none",
+      "finding": null,
+      "rationale": "Run ownership is decided per orchestrator; the shared sentences apply the routing section to each. The full-rule load behind them is AUD-08-039."
+    },
+    {
+      "id": "DG-016",
+      "clusters": [
+        "DUP-061"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "rules/workflow-reference.md",
+        "section": "## Multi-Phase Spec Rules"
+      },
+      "condition_differences": "/phase-pipeline passes the phase to its children in the autonomous pipeline; /spec-run passes it to its sub-agents in orchestrated mode.",
+      "disposition": "condition-specific",
+      "owner": "none",
+      "finding": null,
+      "rationale": "The two orchestrators pass the same argument in different run modes."
+    },
+    {
+      "id": "DG-017",
+      "clusters": [
+        "DUP-064"
+      ],
+      "locations": [],
+      "normative_source": {
+        "path": "workflows/suggest-commit-message.md",
+        "section": "## Step 0 — Gather Diff Context"
+      },
+      "condition_differences": "None: /suggest-pr-description reuses the context step of /suggest-commit-message and states the same stop.",
+      "disposition": "intentional",
+      "owner": "none",
+      "finding": null,
+      "rationale": "The PR description workflow cites the commit-message step as its definition and restates only the stop it relies on."
+    },
+    {
+      "id": "DG-018",
+      "clusters": [],
+      "locations": [
+        {
+          "path": "workflows/phase-atomic-execution.md",
+          "line_start": 76,
+          "line_end": 98
+        },
+        {
+          "path": "workflows/pe-execute.md",
+          "line_start": 41,
+          "line_end": 62
+        },
+        {
+          "path": "workflows/spec-run.md",
+          "line_start": 181,
+          "line_end": 205
+        },
+        {
+          "path": "rules/workflow-reference.md",
+          "line_start": 97,
+          "line_end": 188
+        }
+      ],
+      "normative_source": {
+        "path": "rules/workflow-reference.md",
+        "section": "## Parent `plan.md` Table Format"
+      },
+      "condition_differences": "/phase-atomic-execution reuses a caller's resolution only for the same invocation (workflows/phase-atomic-execution.md:97-98); /spec-run stops its setup when guidance is unavailable and never implements inline (workflows/spec-run.md:186, :203), the caller's own conservative path that the contract leaves to it (rules/workflow-reference.md:124-125).",
+      "disposition": "consolidate",
+      "owner": "11",
+      "finding": "AUD-08-061",
+      "rationale": "Read-detected: three workflows paraphrase the model-resolution contract in about twenty lines each; no paraphrase contradicts it, and the caller-specific parts are short. No map decision performs the consolidation (A-20: owner 11)."
+    }
+  ],
+  "map": [
+    {
+      "source": "harness/claude/capabilities.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "harness/claude/capabilities.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "harness/claude/capabilities.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "harness/claude/hooks.json",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "harness/claude/hooks.json",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "harness/claude/hooks.json",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "harness/claude/permissions.json",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "harness/claude/permissions.json",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "harness/claude/permissions.json",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "harness/codex/capabilities.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "harness/codex/capabilities.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "harness/codex/capabilities.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "rules/git-flow.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "rules/contract-git-flow.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "rules/contract-git-flow.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "rules/global-claude.md",
+      "decision": "move",
+      "targets": [
+        {
+          "path": "harness/claude/always-on.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "harness/claude/always-on.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "rules/language.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "rules/contract-language.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "rules/contract-language.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "rules/orchestration.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "rules/contract-orchestration.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "rules/contract-orchestration.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "rules/phase-atomic-execution.md",
+      "decision": "split",
+      "targets": [
+        {
+          "path": "rules/bootstrap-atomic-execution.md",
+          "sections": [
+            "(preamble)",
+            "## Context Bootstrap",
+            "## Phase Behaviors"
+          ],
+          "merge_reason": null
+        },
+        {
+          "path": "rules/procedure-blocker-reconciliation.md",
+          "sections": [
+            "## Blocker Reconciliation"
+          ],
+          "merge_reason": null
+        },
+        {
+          "path": "rules/protocol-atomic-execution-conduct.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "rules/bootstrap-atomic-execution.md",
+          "sections": [
+            "(preamble)",
+            "## Context Bootstrap",
+            "## Phase Behaviors"
+          ]
+        },
+        {
+          "path": "rules/procedure-blocker-reconciliation.md",
+          "sections": [
+            "## Blocker Reconciliation"
+          ]
+        }
+      ],
+      "spec09_optional": [
+        "rules/protocol-atomic-execution-conduct.md"
+      ],
+      "amendment": null
+    },
+    {
+      "source": "rules/phase-atomic-validation.md",
+      "decision": "split",
+      "targets": [
+        {
+          "path": "rules/bootstrap-atomic-validation.md",
+          "sections": [
+            "(preamble)",
+            "## Context Bootstrap",
+            "## Phase Behaviors"
+          ],
+          "merge_reason": null
+        },
+        {
+          "path": "rules/protocol-atomic-validation-conduct.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "rules/bootstrap-atomic-validation.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [
+        "rules/protocol-atomic-validation-conduct.md"
+      ],
+      "amendment": null
+    },
+    {
+      "source": "rules/phase-discovery.md",
+      "decision": "split",
+      "targets": [
+        {
+          "path": "rules/bootstrap-discovery.md",
+          "sections": [
+            "(preamble)",
+            "## Context Bootstrap"
+          ],
+          "merge_reason": null
+        },
+        {
+          "path": "rules/protocol-discovery-conduct.md",
+          "sections": [
+            "## Codebase Reading Rules",
+            "## Decision Protocol"
+          ],
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "rules/bootstrap-discovery.md",
+          "sections": [
+            "(preamble)",
+            "## Context Bootstrap"
+          ]
+        },
+        {
+          "path": "rules/protocol-discovery-conduct.md",
+          "sections": [
+            "## Codebase Reading Rules",
+            "## Decision Protocol"
+          ]
+        }
+      ],
+      "spec09_optional": [
+        "rules/protocol-discovery-conduct.md"
+      ],
+      "amendment": null
+    },
+    {
+      "source": "rules/phase-execution.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "rules/bootstrap-execution.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "rules/bootstrap-execution.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [
+        "rules/protocol-execution-conduct.md"
+      ],
+      "amendment": null
+    },
+    {
+      "source": "rules/phase-validation.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "rules/bootstrap-validation.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "rules/bootstrap-validation.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [
+        "rules/protocol-validation-conduct.md"
+      ],
+      "amendment": null
+    },
+    {
+      "source": "rules/quick-flow.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "rules/contract-quick-flow.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "rules/contract-quick-flow.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "rules/run-log.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "rules/contract-run-log.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "rules/contract-run-log.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "rules/tdd.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "rules/contract-tdd.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "rules/contract-tdd.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "rules/workflow-globals.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "rules/contract-phases.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "rules/contract-phases.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "rules/workflow-reference.md",
+      "decision": "split",
+      "targets": [
+        {
+          "path": "rules/contract-state-files.md",
+          "sections": [
+            "(preamble)",
+            "## File Responsibility",
+            "## Description Amendment",
+            "## Parent `plan.md` Table Format",
+            "## Parent `state.md` — `## Subtask Progress` Format",
+            "## Status Lifecycle Notes",
+            "## Key State-File Markers",
+            "## Reference Tables (moved from workflow-globals)",
+            "## Status Translation Table",
+            "## Protected Sections Contract",
+            "## Multi-Phase Spec Rules",
+            "## .ai/memory/state.md Entry Format",
+            "## .ai/project_state.md Update Rules",
+            "## Legacy tasks",
+            "## Project .ai/ Contract",
+            "## File Location Reference"
+          ],
+          "merge_reason": null
+        },
+        {
+          "path": "rules/protocol-autonomous-decision.md",
+          "sections": [
+            "## Autonomous Decision Protocol"
+          ],
+          "merge_reason": null
+        },
+        {
+          "path": "rules/protocol-subtask-classifier.md",
+          "sections": [
+            "## Autonomous Subtask Classifier",
+            "## Decomposition Rules"
+          ],
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "rules/contract-state-files.md",
+          "sections": [
+            "(preamble)",
+            "## File Responsibility",
+            "## Description Amendment",
+            "## Parent `plan.md` Table Format",
+            "## Parent `state.md` — `## Subtask Progress` Format",
+            "## Status Lifecycle Notes",
+            "## Key State-File Markers",
+            "## Reference Tables (moved from workflow-globals)",
+            "## Status Translation Table",
+            "## Protected Sections Contract",
+            "## Multi-Phase Spec Rules",
+            "## .ai/memory/state.md Entry Format",
+            "## .ai/project_state.md Update Rules",
+            "## Legacy tasks",
+            "## Project .ai/ Contract",
+            "## File Location Reference"
+          ]
+        },
+        {
+          "path": "rules/protocol-autonomous-decision.md",
+          "sections": [
+            "## Autonomous Decision Protocol"
+          ]
+        },
+        {
+          "path": "rules/protocol-subtask-classifier.md",
+          "sections": [
+            "## Autonomous Subtask Classifier",
+            "## Decomposition Rules"
+          ]
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "templates/codex-global-AGENTS.md",
+      "decision": "move",
+      "targets": [
+        {
+          "path": "harness/codex/always-on.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "harness/codex/always-on.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/PIPELINE.md",
+      "decision": "move",
+      "targets": [
+        {
+          "path": "docs/PIPELINE.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "docs/PIPELINE.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/adr-new.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "workflows/adr-new.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/adr-new.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/bugfix.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "workflows/bugfix.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/bugfix.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/compress-state.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "workflows/compress-state.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/compress-state.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/context-pack.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "workflows/context-pack.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/context-pack.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/onboard-legacy-project.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "workflows/onboard-legacy-project.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/onboard-legacy-project.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pae-finalize.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/atomic-execution-finalize.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/atomic-execution-finalize.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pae-implement.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/atomic-execution-implement.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/atomic-execution-implement.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pae-tests.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/atomic-execution-tests.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/atomic-execution-tests.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pav-check.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/atomic-validation-check.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/atomic-validation-check.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pav-close.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/atomic-validation-close.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/atomic-validation-close.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pav-propose.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/atomic-validation-propose.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/atomic-validation-propose.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pd-analyze.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/discovery-analyze.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/discovery-analyze.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pd-archive.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/discovery-archive.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/discovery-archive.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pd-decompose.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/discovery-decompose.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/discovery-decompose.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pd-design.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/discovery-design.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/discovery-design.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pd-finalize.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/discovery-finalize.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/discovery-finalize.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pd-select-model.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/discovery-select-model.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/discovery-select-model.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pe-execute.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/execution-execute.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/execution-execute.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pe-finalize.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/execution-finalize.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/execution-finalize.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/phase-atomic-execution.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/atomic-execution.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/atomic-execution.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/phase-atomic-validation.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/atomic-validation.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/atomic-validation.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/phase-composite-validation.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/composite-validation.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/composite-validation.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/phase-discovery.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/discovery.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/discovery.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/phase-execution.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/execution.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/execution.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/phase-pipeline.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/pipeline.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/pipeline.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/phase-validation.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/validation.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/validation.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pv-classify-fixes.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/validation-classify-fixes.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/validation-classify-fixes.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pv-contract.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/validation-contract.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/validation-contract.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pv-create-fixes.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/validation-create-fixes.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/validation-create-fixes.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pv-execute-fixes.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/validation-execute-fixes.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/validation-execute-fixes.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pv-finalize.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/validation-finalize.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/validation-finalize.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pv-issues.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/validation-issues.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/validation-issues.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/pv-review.md",
+      "decision": "rename",
+      "targets": [
+        {
+          "path": "workflows/validation-review.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/validation-review.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/restack.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "workflows/restack.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/restack.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/retro.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "workflows/retro.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/retro.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/spec-draft.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "workflows/spec-draft.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/spec-draft.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/spec-run.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "workflows/spec-run.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/spec-run.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/spec-sync.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "workflows/spec-sync.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/spec-sync.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/suggest-commit-message.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "workflows/suggest-commit-message.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/suggest-commit-message.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/suggest-commit-pr.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "workflows/suggest-commit-pr.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/suggest-commit-pr.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    },
+    {
+      "source": "workflows/suggest-pr-description.md",
+      "decision": "keep",
+      "targets": [
+        {
+          "path": "workflows/suggest-pr-description.md",
+          "sections": null,
+          "merge_reason": null
+        }
+      ],
+      "spec09_default": [
+        {
+          "path": "workflows/suggest-pr-description.md",
+          "sections": null
+        }
+      ],
+      "spec09_optional": [],
+      "amendment": null
+    }
+  ],
   "req21": {
     "verdict": "not-covered",
-    "statements": []
+    "statements": [
+      {
+        "source": "rules/phase-discovery.md:38",
+        "text": "- Use `.ai/memory/architecture.md` to scope source reads. Read affected source when verifying behavior, freshness, or a concrete pattern; an inventory description alone is not implementation evidence.",
+        "covered_by": null
+      },
+      {
+        "source": "rules/phase-discovery.md:39",
+        "text": "- Budget: max 12 files (8 entry-points + 4 one-level-deeper). Hard limit.",
+        "covered_by": null
+      },
+      {
+        "source": "rules/phase-discovery.md:40",
+        "text": "- Document every file read with reason: \"read to verify <specific behavior or gap>.\"",
+        "covered_by": null
+      },
+      {
+        "source": "rules/phase-discovery.md:41",
+        "text": "- Stop reading when affected parts are understood.",
+        "covered_by": null
+      },
+      {
+        "source": "rules/phase-discovery.md:45",
+        "text": "Discovery runs **autonomously by default**; `--step-by-step` switches it to manual review. See `/phase-discovery → ## Execution Modes` (the workflow, not this rules file).",
+        "covered_by": "rules/workflow-reference.md:426"
+      },
+      {
+        "source": "rules/phase-discovery.md:48",
+        "text": "**Autonomous mode (default):**",
+        "covered_by": "rules/workflow-reference.md:426"
+      },
+      {
+        "source": "rules/phase-discovery.md:49",
+        "text": "- Task requirements unclear → resolve by research in this order: `.ai/principles/*` → `.ai/adr/` → `.ai/memory/*` → existing codebase patterns → general best practice. Record the resolution in `## Task Analysis → ### Assumptions`. Never infer intent silently — inferring is allowed, hiding it is not.",
+        "covered_by": null
+      },
+      {
+        "source": "rules/phase-discovery.md:53",
+        "text": "- Decomposition boundary or architectural choice ambiguous → generate 2–3 options and resolve them with `workflow-reference → ## Autonomous Decision Protocol`. Record the scoring and rationale.",
+        "covered_by": "rules/workflow-reference.md:430"
+      },
+      {
+        "source": "rules/phase-discovery.md:56",
+        "text": "- Steps 1→4 run back-to-back. A step's completion report is not a handoff.",
+        "covered_by": null
+      },
+      {
+        "source": "rules/phase-discovery.md:57",
+        "text": "- Stop only on the Autonomous Decision Protocol's escalation conditions or a Guard confirmation that would overwrite existing artifacts.",
+        "covered_by": null
+      },
+      {
+        "source": "rules/phase-discovery.md:60",
+        "text": "**Step-by-step mode (`--step-by-step`):**",
+        "covered_by": null
+      },
+      {
+        "source": "rules/phase-discovery.md:61",
+        "text": "- Task requirements unclear → ask before proceeding. Never infer intent silently.",
+        "covered_by": null
+      },
+      {
+        "source": "rules/phase-discovery.md:62",
+        "text": "- Decomposition boundary ambiguous → present 2–3 options with trade-offs, wait for decision.",
+        "covered_by": null
+      },
+      {
+        "source": "rules/phase-discovery.md:63",
+        "text": "- Architectural variants → present, wait for the user's choice.",
+        "covered_by": null
+      },
+      {
+        "source": "rules/phase-discovery.md:64",
+        "text": "- After each of Steps 1–4 → stop and wait for review.",
+        "covered_by": null
+      }
+    ]
   },
   "findings": [
     {
@@ -2855,16 +4574,17 @@
       ],
       "observation": "Two section references omit the `##` marker of their target heading: `workflow-globals → Canonical Status Formats` and `workflow-reference → Protected Sections Contract`. Both targets exist as level-2 headings, so a reader finds them, but the cross-reference syntax requires the marker and the naming migration's executable-reference grammar does not read the unmarked form.",
       "consequence": "No grammar-based check or rewrite sees these references, so a renamed or split target leaves them stale without a diagnostic.",
-      "owner": "11",
-      "closure": "Both spans carry the marker of the target heading (`## Canonical Status Formats`, `## Protected Sections Contract`), or the finding is re-owned to 09 with an amendment that gives the naming migration the obligation.",
-      "blocks_09": false,
+      "owner": "09",
+      "closure": "Both spans carry the marker of the target heading (`## Canonical Status Formats`, `## Protected Sections Contract`); the naming migration fixes them under AMD-08-01.",
+      "blocks_09": true,
       "status": "open",
       "evidence": [
         "rules/git-flow.md:279",
         "rules/git-flow.md:280",
         "rules/workflow-globals.md:156",
         "rules/workflow-reference.md:280",
-        ".ai/principles/coding.md:46"
+        ".ai/principles/coding.md:46",
+        "AMD-08-01"
       ],
       "edges": [
         {
@@ -2952,9 +4672,9 @@
       ],
       "observation": "Lines 21 and 22 cite `workflow-globals → Never auto-advance between phases` and `workflow-globals → Test-first execution`; neither is a heading of rules/workflow-globals.md, both are bold paragraph labels inside its `## Context Pack` section (:56, :114). Lines 125-126 split `workflow-globals → Canonical Status Formats` across a line break, so no span forms and no tool reads it.",
       "consequence": "The references cannot be resolved or loaded as sections, and the split one escapes every reference check.",
-      "owner": "11",
-      "closure": "Each reference names an existing heading in the marked form on one line, or the cited paragraphs become headings; alternatively the finding is re-owned to 09 with an amendment.",
-      "blocks_09": false,
+      "owner": "09",
+      "closure": "Each reference names an existing heading in the marked form on one line: the cited paragraph's own heading once AUD-08-026 gives it one, otherwise `## Context Pack`, whose extent holds both paragraphs; the naming migration fixes them under AMD-08-01.",
+      "blocks_09": true,
       "status": "open",
       "evidence": [
         "rules/quick-flow.md:21",
@@ -2962,7 +4682,8 @@
         "rules/quick-flow.md:125",
         "rules/workflow-globals.md:56",
         "rules/workflow-globals.md:114",
-        "rules/workflow-globals.md:156"
+        "rules/workflow-globals.md:156",
+        "AMD-08-01"
       ],
       "edges": [
         {
@@ -2990,15 +4711,16 @@
       ],
       "observation": "Two section references omit the `##` marker: `workflow-globals → Canonical Status Formats` (:35) and `quick-flow → The quick path` (:201), the second also a bare prefix of the heading `## The quick path — what changes`.",
       "consequence": "The references escape grammar-based checks and rewriting; with the marker added, the second would resolve only through the accepted ` — ` prefix form.",
-      "owner": "11",
-      "closure": "Both spans name their headings in the marked form, or the finding is re-owned to 09 with an amendment.",
-      "blocks_09": false,
+      "owner": "09",
+      "closure": "Both spans carry the marker of the target heading (`## Canonical Status Formats`, `## The quick path — what changes`); the naming migration fixes them under AMD-08-01.",
+      "blocks_09": true,
       "status": "open",
       "evidence": [
         "rules/tdd.md:35",
         "rules/tdd.md:201",
         "rules/quick-flow.md:61",
-        "rules/workflow-globals.md:156"
+        "rules/workflow-globals.md:156",
+        "AMD-08-01"
       ],
       "edges": [
         {
@@ -3023,7 +4745,7 @@
       "lines": [
         44
       ],
-      "observation": "The span `.ai/context-pack.md` names the pack file a consumer project generates, not workflows/context-pack.md; the md-name match on its last path component resolves to the workflow and sets the md suffix flag. Read in context the text is correct and needs no change.",
+      "observation": "The span `.ai/context-pack.md` names the pack file a consumer project generates, not workflows/context-pack.md; the md-name match on its last path component resolves to the workflow and sets the md suffix flag. Read in context the text is correct and needs no change. The same match occurs in docs/USAGE.md:803 and .ai/principles/domain.md:49, where the span `.ai/context-pack.md` also names the generated pack file.",
       "consequence": "None for the instruction; the edge and its load entry are detection artifacts.",
       "owner": "none",
       "closure": "No change; the edge stays recorded as correct on reading.",
@@ -3031,13 +4753,25 @@
       "status": "open",
       "evidence": [
         "rules/workflow-globals.md:44",
-        "workflows/context-pack.md:1"
+        "workflows/context-pack.md:1",
+        "docs/USAGE.md:803",
+        ".ai/principles/domain.md:49"
       ],
       "edges": [
         {
           "source": "rules/workflow-globals.md",
           "line": 44,
           "column": 46
+        },
+        {
+          "source": ".ai/principles/domain.md",
+          "line": 49,
+          "column": 26
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 803,
+          "column": 99
         }
       ]
     },
@@ -3052,15 +4786,16 @@
         139,
         140
       ],
-      "observation": "`quick-flow →` and `## Mid-flight escalation` are split across a line break, so no span forms. Joined, the reference would still not resolve: the heading is `## Mid-flight escalation (quick → full)`, a parenthesised suffix the heading grammar does not accept, and its text contains ` → `, which a section reference cannot cite.",
-      "consequence": "No reader or check sees the reference, and the target heading cannot be cited in the cross-reference syntax as written.",
-      "owner": "11",
-      "closure": "The reference sits on one line and names a citable heading, which may require renaming the target heading.",
-      "blocks_09": false,
+      "observation": "`quick-flow →` and `## Mid-flight escalation` are split across a line break, so no span forms. Joined as written, it names only the start of the heading `## Mid-flight escalation (quick → full)` (rules/quick-flow.md:137).",
+      "consequence": "No reader or check sees the reference.",
+      "owner": "09",
+      "closure": "The reference sits on one line as one span that names `## Mid-flight escalation (quick → full)` with its marker; no heading is renamed; the naming migration fixes it under AMD-08-01.",
+      "blocks_09": true,
       "status": "open",
       "evidence": [
         "rules/workflow-globals.md:139",
-        "rules/quick-flow.md:137"
+        "rules/quick-flow.md:137",
+        "AMD-08-01"
       ],
       "edges": []
     },
@@ -3671,7 +5406,7 @@
     },
     {
       "id": "AUD-08-031",
-      "type": "reference-defect",
+      "type": "accepted-observation",
       "severity": "minor",
       "source": "workflows/phase-execution.md",
       "section": "## Execution",
@@ -3680,10 +5415,10 @@
         96,
         97
       ],
-      "observation": "Two references name `quick-flow → ## Mid-flight escalation (quick → full)`. The heading exists at rules/quick-flow.md:137, but its text contains the component separator ` → `, so the reference grammar splits it into `## Mid-flight escalation (quick` and `full)` and reports a missing heading. The references are correct on reading; the heading text makes them unresolvable by any grammar that splits on the separator. The same heading is cited unmarked at rules/workflow-globals.md:140.",
-      "consequence": "The naming migration's reference check reports these two pre-existing references as defects it must fix, and a renamed or moved escalation section would leave them stale without a reliable diagnostic.",
-      "owner": "09",
-      "closure": "The heading text no longer contains ` → ` (for example `(quick to full)`) and both references match it, or the migration's grammar resolves a component against a whole heading before splitting; both edges then resolve.",
+      "observation": "Two references name `quick-flow → ## Mid-flight escalation (quick → full)`, whose heading exists at rules/quick-flow.md:137. This audit's grammar splits components at every ` → ` and reports a missing heading. The naming migration's form-2 pattern (spec 09 DM-16) captures the whole heading instead, because the text after the inner ` → ` does not start with `#` and the pattern is anchored at the end; the captured heading equals the heading line. Both references are correct on reading and resolve in the migration's grammar.",
+      "consequence": "None.",
+      "owner": "none",
+      "closure": "No change; the edges stay recorded as correct on reading.",
       "blocks_09": false,
       "status": "open",
       "evidence": [
@@ -3691,7 +5426,8 @@
         "workflows/bugfix.md:104",
         "rules/quick-flow.md:137",
         "rules/quick-flow.md:36",
-        "rules/workflow-globals.md:140"
+        "rules/workflow-globals.md:140",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:945"
       ],
       "edges": [
         {
@@ -3766,9 +5502,9 @@
       ],
       "observation": "Two section references omit the `##` marker of their target heading: `quick-flow → The quick path` (target `## The quick path — what changes`, rules/quick-flow.md:61) and `workflow-reference → Autonomous Subtask Classifier → Runtime self-correction` (targets rules/workflow-reference.md:487 and :530). Both targets exist, so a reader finds them, but the cross-reference syntax requires the marker and the migration's executable-reference grammar does not read the unmarked form.",
       "consequence": "No grammar-based check or rewrite sees these references, so a renamed or split target leaves them stale without a diagnostic; the classifier section is a split target of the naming migration.",
-      "owner": "11",
-      "closure": "Both spans carry the markers of their target headings (`## The quick path — what changes`; `## Autonomous Subtask Classifier → ### Runtime self-correction (tripwire)`), or the finding is re-owned to 09 with an amendment that gives the naming migration the obligation.",
-      "blocks_09": false,
+      "owner": "09",
+      "closure": "Both spans carry the markers of their target headings (`## The quick path — what changes`; `## Autonomous Subtask Classifier → ### Runtime self-correction (tripwire)`); the naming migration fixes them under AMD-08-01.",
+      "blocks_09": true,
       "status": "open",
       "evidence": [
         "workflows/pv-contract.md:33",
@@ -3776,7 +5512,8 @@
         "rules/quick-flow.md:61",
         "rules/workflow-reference.md:487",
         "rules/workflow-reference.md:530",
-        ".ai/principles/coding.md:46"
+        ".ai/principles/coding.md:46",
+        "AMD-08-01"
       ],
       "edges": [
         {
@@ -3859,9 +5596,9 @@
       ],
       "observation": "Three lists map each child command to its workflow file name (`/pd-analyze` → `pd-analyze.md`). The file names are suffixed references outside the migration's grammar; `phase-atomic-execution.md` and `phase-atomic-validation.md` are also ambiguous between a rule and a workflow. The lists restate children that the phase orchestrators own, and line 109 forbids replaying them separately.",
       "consequence": "The command renames of the naming migration leave every file name stale, and no grammar-based rewrite or check sees them.",
-      "owner": "11",
-      "closure": "The lists name commands only, or are removed in favour of the phase orchestrators; or the finding is re-owned to 09 with an amendment that gives the naming migration the obligation to rewrite the suffixed names.",
-      "blocks_09": false,
+      "owner": "09",
+      "closure": "The lists name commands only (`/<name>` without `.md`), or are removed in favour of the phase orchestrators; the naming migration fixes them under AMD-08-01.",
+      "blocks_09": true,
       "status": "open",
       "evidence": [
         "workflows/phase-pipeline.md:108",
@@ -3869,7 +5606,8 @@
         "workflows/phase-pipeline.md:111",
         "workflows/phase-pipeline.md:125",
         "workflows/phase-pipeline.md:129",
-        "workflows/phase-pipeline.md:147"
+        "workflows/phase-pipeline.md:147",
+        "AMD-08-01"
       ],
       "edges": [
         {
@@ -3994,22 +5732,35 @@
       "lines": [
         12
       ],
-      "observation": "The proposal semantics are cited as `workflow-globals → Workflow-declared mode overrides`, which is no heading: the registry sits inside `## Context Pack` (rules/workflow-globals.md:40, :62). This is the missing registry heading that AUD-08-026 records; this finding records the citing edge so the defect is not reported twice.",
+      "observation": "The proposal semantics are cited as `workflow-globals → Workflow-declared mode overrides`, which is no heading: the registry sits inside `## Context Pack` (rules/workflow-globals.md:40, :62). This is the missing registry heading that AUD-08-026 records; this finding records the citing edge so the defect is not reported twice. Two active knowledge files cite the same non-heading: .ai/memory/architecture.md:164 and .ai/principles/architecture.md:41.",
       "consequence": "The citation cannot be resolved or checked, and it points into a section whose heading says nothing about mode overrides.",
-      "owner": "11",
-      "closure": "Closes with AUD-08-026: the registry gets its own heading and this span names it with the `##` marker.",
-      "blocks_09": false,
+      "owner": "09",
+      "closure": "The span names an existing heading in the marked form: the registry's own heading once AUD-08-026 gives it one, otherwise `## Context Pack`, whose extent holds the registry; the naming migration fixes this span and the two reader citations under AMD-08-01.",
+      "blocks_09": true,
       "status": "open",
       "evidence": [
         "workflows/pav-propose.md:12",
         "rules/workflow-globals.md:40",
-        "rules/workflow-globals.md:62"
+        "rules/workflow-globals.md:62",
+        ".ai/memory/architecture.md:164",
+        ".ai/principles/architecture.md:41",
+        "AMD-08-01"
       ],
       "edges": [
         {
           "source": "workflows/pav-propose.md",
           "line": 12,
           "column": 31
+        },
+        {
+          "source": ".ai/memory/architecture.md",
+          "line": 164,
+          "column": 32
+        },
+        {
+          "source": ".ai/principles/architecture.md",
+          "line": 41,
+          "column": 23
         }
       ]
     },
@@ -4635,8 +6386,2778 @@
         "rules/phase-atomic-execution.md:28"
       ],
       "edges": []
+    },
+    {
+      "id": "AUD-08-060",
+      "type": "duplicate",
+      "severity": "minor",
+      "source": "rules/workflow-reference.md",
+      "section": "## Parent `state.md` — `## Subtask Progress` Format",
+      "sha256": "08c81786494f39665b4aebf495c705a21b4fd38294a995074a24d165730bd463",
+      "lines": [
+        226,
+        227
+      ],
+      "observation": "The anchored line `Status values for atomic-execution / atomic-validation:` stands under `## Canonical Status Formats` (rules/workflow-globals.md:215) and again in rules/workflow-reference.md:226; the `atomic-tests` vocabulary follows both (:217 and :227) with the same values. The validator and the state-tool test read the vocabulary only from rules/workflow-globals.md (scripts/validate-contracts.sh:641, :2020; tests/state-tool.py:768), so the copy is read by no check.",
+      "consequence": "A change to the canonical vocabulary can leave the copy stale without a failing check, and readers of the state-file reference see two definitions.",
+      "owner": "11",
+      "closure": "rules/workflow-reference.md cites `workflow-globals → ## Canonical Status Formats` instead of restating the anchored lines, after the naming migration, which keeps every parent line starting `Status values for` (spec 09 AC-42).",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "rules/workflow-globals.md:215",
+        "rules/workflow-reference.md:226",
+        "rules/workflow-globals.md:217",
+        "rules/workflow-reference.md:227",
+        "scripts/validate-contracts.sh:641",
+        "scripts/validate-contracts.sh:2020",
+        "tests/state-tool.py:768",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1440"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-061",
+      "type": "duplicate",
+      "severity": "minor",
+      "source": "workflows/pe-execute.md",
+      "section": "## Instructions",
+      "sha256": "5d4097666f7bd3bc1d343c10dd545db306b845cc74cba2ce21e43acf8d28316e",
+      "lines": [
+        41,
+        62
+      ],
+      "observation": "Three workflows restate `workflow-reference → ### Model columns and resolution` (rules/workflow-reference.md:97-188) in about twenty lines each: workflows/phase-atomic-execution.md:76-98, workflows/pe-execute.md:41-62 and workflows/spec-run.md:181-205 (guidance preflight, helper call, identity display, fallback or stop, actual identity only from a receipt). The wording differs in each copy; read against the contract, none contradicts it. The caller-specific parts are short: /phase-atomic-execution reuses a caller's resolution only for the same invocation (:97-98), and /spec-run stops its setup when guidance is unavailable and never implements inline (:186, :203), the conservative path the contract leaves to its caller (rules/workflow-reference.md:124-125).",
+      "consequence": "A change to the contract has to be repeated in three paraphrases that no check compares, and each caller reads both the contract and its paraphrase (AUD-08-056).",
+      "owner": "11",
+      "closure": "Each workflow cites the contract and keeps only its caller-specific lines.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "workflows/phase-atomic-execution.md:76",
+        "workflows/pe-execute.md:41",
+        "workflows/spec-run.md:181",
+        "rules/workflow-reference.md:97",
+        "rules/workflow-reference.md:124",
+        "workflows/spec-run.md:186",
+        "workflows/spec-run.md:203",
+        "workflows/phase-atomic-execution.md:97"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-062",
+      "type": "reference-defect",
+      "severity": "minor",
+      "source": ".ai/context/runbook.md",
+      "section": "Recovery of a damaged progress block",
+      "sha256": "2661970eac18ce69c77ad2874951ee3452d5fd459da7d42666dfb4af0470382c",
+      "lines": [
+        145
+      ],
+      "observation": "Three active readers cite a section without its heading marker: `workflow-globals → Canonical Status Formats` (.ai/context/runbook.md:145, target rules/workflow-globals.md:156), `workflow-reference → Model columns and resolution` as link text (docs/MODEL-CATALOG.md:10, target the `###` heading at rules/workflow-reference.md:97) and `/pae-implement → Final Verification` (principles/testing-standards.md:63, target workflows/pae-implement.md:156). Each target exists; the references break the cross-reference syntax (.ai/principles/coding.md:46) like AUD-08-001, AUD-08-005 and AUD-08-033 inside instruction files.",
+      "consequence": "The naming migration renames the stems in these lines as stale names, but its checker reads section references only in instruction files and only in the marked form, so the unmarked headings stay unchecked after the rename.",
+      "owner": "09",
+      "closure": "Each span names its target heading with the marker (`## Canonical Status Formats`, `### Model columns and resolution`, `## Final Verification`); the naming migration fixes them under AMD-08-01.",
+      "blocks_09": true,
+      "status": "open",
+      "evidence": [
+        ".ai/context/runbook.md:145",
+        "docs/MODEL-CATALOG.md:10",
+        "principles/testing-standards.md:63",
+        "rules/workflow-globals.md:156",
+        "rules/workflow-reference.md:97",
+        "workflows/pae-implement.md:156",
+        ".ai/principles/coding.md:46",
+        "AMD-08-01"
+      ],
+      "edges": [
+        {
+          "source": ".ai/context/runbook.md",
+          "line": 145,
+          "column": 5
+        },
+        {
+          "source": "docs/MODEL-CATALOG.md",
+          "line": 10,
+          "column": 2
+        },
+        {
+          "source": "principles/testing-standards.md",
+          "line": 63,
+          "column": 15
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-063",
+      "type": "other",
+      "severity": "major",
+      "source": "rules/phase-atomic-execution.md",
+      "section": "## Context Bootstrap",
+      "sha256": "0337126eab8b8ca2559559c01af4d85faa7751882e69f4f0522cbf7650e88134",
+      "lines": [
+        1,
+        8,
+        44
+      ],
+      "observation": "The text that moves into the atomic-execution bootstrap rule has 443 words by the migration's word count: the preamble (front matter and title, :1-7) 29, `## Context Bootstrap` (:8-43) 287 and `## Phase Behaviors` (:44-52) 127. The naming migration lets only `## Phase Behaviors` text overflow (spec 09 REQ-19), yet the preamble and `## Context Bootstrap` alone have 316 words; even with a one-word description, no title and only the citing line under `## Phase Behaviors` the rule would hold 302 words. The migration's own measurement at its parent snapshot (about 393 words, DM-10 → Overflow rules) predates the multi-repository runbook resolution at :21-25.",
+      "consequence": "The bootstrap target cannot satisfy the 300-word limit and its check (spec 09 REQ-19, REQ-32, AC-11) without deleting or rewording load instructions that the section map moves verbatim (DM-12).",
+      "owner": "09",
+      "closure": "The migration specification states how a bootstrap whose own context section exceeds the limit is delivered, recorded and checked (AMD-08-03, AMD-08-04, AMD-08-06, AMD-08-07); nothing in the section is deleted.",
+      "blocks_09": true,
+      "status": "open",
+      "evidence": [
+        "rules/phase-atomic-execution.md:1",
+        "rules/phase-atomic-execution.md:8",
+        "rules/phase-atomic-execution.md:21",
+        "rules/phase-atomic-execution.md:44",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:319",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:848",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:913",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:374",
+        "AMD-08-03",
+        "AMD-08-04",
+        "AMD-08-06",
+        "AMD-08-07"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-064",
+      "type": "ambiguous-name",
+      "severity": "minor",
+      "source": "workflows/phase-pipeline.md",
+      "section": "## Phase 2 — Execution",
+      "sha256": "6510fdf8efc7eb9a3fda2193a21af31151372f3aff5f8f23170c72049f074345",
+      "lines": [
+        120
+      ],
+      "observation": "The naming review of 2026-09-16 cited workflows/phase-pipeline.md:185 saying \"Read and follow `phase-execution.md` inline\", a suffixed name that fits the rule and the workflow equally (docs/analysis/2026-09-16-rules-workflows-naming-review.md:54-56). The current file has 161 lines and no such citation; the Execution phase calls `/phase-execution <task-directory>` (:120). The same suffix pattern remains for two other stems in the child lists (AUD-08-035).",
+      "consequence": "None for this example.",
+      "owner": "09",
+      "closure": "Confirmed absent at the audited revision; no new work.",
+      "blocks_09": false,
+      "status": "historical-fixed",
+      "evidence": [
+        "docs/analysis/2026-09-16-rules-workflows-naming-review.md:54",
+        "workflows/phase-pipeline.md:120"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-065",
+      "type": "other",
+      "severity": "major",
+      "source": ".ai/specs/11-context-tiering.md",
+      "section": "Scope item 9",
+      "sha256": "6669ada67f087a0bea825fa1255b9468ce341d0ecd350bb8240b1d6a4ba8eb6d",
+      "lines": [
+        141
+      ],
+      "observation": "Spec 11 takes in only the proposals that this audit assigns to owner 11 (Scope item 9, citing this audit's REQ-02), while this audit's data model also allows owner 11 for reference-defect, ambiguous-name, mixed-kind, naming, legacy-mention, duplicate, coverage-gap and other findings, and its A-20 gives owner 11 every duplicate consolidation that no map decision performs. Nine findings have owner 11 and a type spec 11 does not take in: AUD-08-010, AUD-08-018, AUD-08-025, AUD-08-026, AUD-08-037, AUD-08-038, AUD-08-058, AUD-08-060 and AUD-08-061.",
+      "consequence": "No specification is bound to implement or decline these findings, so they can stay open with no one acting on them.",
+      "owner": "owner",
+      "closure": "The owner either extends spec 11's intake to every finding with owner 11 or assigns these findings to a specification that takes them in; this audit does not decide it.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        ".ai/specs/11-context-tiering.md:141",
+        ".ai/specs/08-rules-workflows-audit.md:650",
+        ".ai/specs/08-rules-workflows-audit.md:652",
+        ".ai/specs/08-rules-workflows-audit.md:1046",
+        ".ai/specs/08-rules-workflows-audit.md:1101"
+      ],
+      "edges": []
+    },
+    {
+      "id": "AUD-08-066",
+      "type": "accepted-observation",
+      "severity": "minor",
+      "source": "scripts/validate-contracts.sh",
+      "section": "check expressions, failure messages, comments and check descriptions",
+      "sha256": "397215e6bae49424a159037473680b715d8e057e3ab1cd47dbbc17abcf8a6a98",
+      "lines": [
+        607,
+        673,
+        695,
+        871
+      ],
+      "observation": "272 defect edges in scripts/validate-contracts.sh are `<stem>.md` file names matched by the token grammar: 259 in check expressions and failure messages (:607 reads workflows/pd-analyze.md and reports `pd-analyze.md missing …`), 12 of them ambiguous between a rule and a workflow only without the directory written beside them (:871), nine inside `check \"…\"` descriptions (:695) and four in comment lines (:673-674). Each names the file the check reads; the `.md` belongs to a file name, not to a rule or workflow name in an executable reference, which the migration's grammar defines for instruction files only (spec 09 REQ-22, DM-16).",
+      "consequence": "None for the checks. When the naming migration renames a file, these are stale-name occurrences that it re-points (spec 09 REQ-25, REQ-51, REQ-53), except check descriptions and comment lines, which its scan set skips as frozen labels; the Validator and test impact table counts them per map entry.",
+      "owner": "none",
+      "closure": "No change; the edges stay recorded as correct on reading.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "scripts/validate-contracts.sh:607",
+        "scripts/validate-contracts.sh:673",
+        "scripts/validate-contracts.sh:695",
+        "scripts/validate-contracts.sh:871"
+      ],
+      "edges": [
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 607,
+          "column": 91
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 610,
+          "column": 100
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 613,
+          "column": 92
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 616,
+          "column": 97
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 619,
+          "column": 94
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 622,
+          "column": 93
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 625,
+          "column": 88
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 628,
+          "column": 87
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 631,
+          "column": 92
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 634,
+          "column": 87
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 643,
+          "column": 56
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 647,
+          "column": 87
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 655,
+          "column": 97
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 662,
+          "column": 90
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 665,
+          "column": 101
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 670,
+          "column": 88
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 673,
+          "column": 46
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 674,
+          "column": 22
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 674,
+          "column": 49
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 695,
+          "column": 7
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 701,
+          "column": 91
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 706,
+          "column": 89
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 709,
+          "column": 83
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 712,
+          "column": 99
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 714,
+          "column": 7
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 718,
+          "column": 99
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 721,
+          "column": 83
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 724,
+          "column": 84
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 727,
+          "column": 82
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 735,
+          "column": 108
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 738,
+          "column": 170
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 741,
+          "column": 95
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 746,
+          "column": 95
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 749,
+          "column": 152
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 760,
+          "column": 94
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 763,
+          "column": 93
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 766,
+          "column": 107
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 769,
+          "column": 84
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 772,
+          "column": 92
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 775,
+          "column": 97
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 778,
+          "column": 122
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 781,
+          "column": 108
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 784,
+          "column": 86
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 787,
+          "column": 101
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 793,
+          "column": 133
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 796,
+          "column": 119
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 798,
+          "column": 12
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 799,
+          "column": 108
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 802,
+          "column": 138
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 807,
+          "column": 98
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 810,
+          "column": 86
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 813,
+          "column": 85
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 816,
+          "column": 87
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 819,
+          "column": 89
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 822,
+          "column": 87
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 825,
+          "column": 89
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 833,
+          "column": 144
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 841,
+          "column": 142
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 844,
+          "column": 144
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 849,
+          "column": 151
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 852,
+          "column": 101
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 856,
+          "column": 12
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 857,
+          "column": 134
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 871,
+          "column": 95
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 874,
+          "column": 206
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 877,
+          "column": 89
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 880,
+          "column": 91
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 884,
+          "column": 90
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 888,
+          "column": 84
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 891,
+          "column": 90
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 896,
+          "column": 227
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 904,
+          "column": 193
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 907,
+          "column": 85
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 921,
+          "column": 89
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 924,
+          "column": 80
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 927,
+          "column": 88
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 930,
+          "column": 87
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 933,
+          "column": 91
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 939,
+          "column": 84
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 942,
+          "column": 87
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 945,
+          "column": 91
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 948,
+          "column": 96
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 951,
+          "column": 97
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 956,
+          "column": 12
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 957,
+          "column": 81
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 959,
+          "column": 36
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 960,
+          "column": 105
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 962,
+          "column": 49
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 963,
+          "column": 131
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 966,
+          "column": 91
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 989,
+          "column": 165
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 997,
+          "column": 111
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1000,
+          "column": 89
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1003,
+          "column": 84
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1009,
+          "column": 190
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1013,
+          "column": 102
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1016,
+          "column": 113
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1019,
+          "column": 84
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1022,
+          "column": 85
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1025,
+          "column": 86
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1028,
+          "column": 192
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1032,
+          "column": 93
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1035,
+          "column": 95
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1043,
+          "column": 82
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1047,
+          "column": 198
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1050,
+          "column": 87
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1053,
+          "column": 107
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1056,
+          "column": 109
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1059,
+          "column": 96
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1063,
+          "column": 93
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1066,
+          "column": 84
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1072,
+          "column": 136
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1075,
+          "column": 96
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1078,
+          "column": 101
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1084,
+          "column": 99
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1087,
+          "column": 128
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1090,
+          "column": 100
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1094,
+          "column": 106
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1097,
+          "column": 90
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1102,
+          "column": 129
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1105,
+          "column": 85
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1108,
+          "column": 80
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1112,
+          "column": 115
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1115,
+          "column": 131
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1118,
+          "column": 110
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1121,
+          "column": 104
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1124,
+          "column": 72
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1135,
+          "column": 113
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1146,
+          "column": 82
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1150,
+          "column": 92
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1153,
+          "column": 96
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1156,
+          "column": 94
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1169,
+          "column": 96
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1173,
+          "column": 26
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1173,
+          "column": 42
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1231,
+          "column": 122
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1234,
+          "column": 119
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1237,
+          "column": 19
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1240,
+          "column": 121
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1243,
+          "column": 94
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1256,
+          "column": 103
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1262,
+          "column": 88
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1265,
+          "column": 108
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1268,
+          "column": 88
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1274,
+          "column": 159
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1277,
+          "column": 93
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1282,
+          "column": 168
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1286,
+          "column": 99
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1290,
+          "column": 108
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1293,
+          "column": 93
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1307,
+          "column": 15
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1353,
+          "column": 113
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1368,
+          "column": 79
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1380,
+          "column": 10
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1384,
+          "column": 10
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1395,
+          "column": 62
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1398,
+          "column": 58
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1398,
+          "column": 69
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1398,
+          "column": 331
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1398,
+          "column": 342
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1409,
+          "column": 99
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1412,
+          "column": 94
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1415,
+          "column": 92
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1418,
+          "column": 93
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1421,
+          "column": 98
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1425,
+          "column": 143
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1441,
+          "column": 126
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1465,
+          "column": 97
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1469,
+          "column": 131
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1472,
+          "column": 219
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1493,
+          "column": 90
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1498,
+          "column": 106
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1501,
+          "column": 158
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1504,
+          "column": 155
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1514,
+          "column": 106
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1517,
+          "column": 104
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1520,
+          "column": 120
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1523,
+          "column": 157
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1558,
+          "column": 159
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1561,
+          "column": 156
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1575,
+          "column": 85
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1578,
+          "column": 97
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1581,
+          "column": 71
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1585,
+          "column": 104
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1588,
+          "column": 100
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1598,
+          "column": 58
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1609,
+          "column": 146
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1614,
+          "column": 147
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1617,
+          "column": 87
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1620,
+          "column": 95
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1635,
+          "column": 105
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1643,
+          "column": 104
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1646,
+          "column": 132
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1649,
+          "column": 103
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1652,
+          "column": 101
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1655,
+          "column": 107
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1665,
+          "column": 89
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1687,
+          "column": 168
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1725,
+          "column": 116
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1728,
+          "column": 96
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1731,
+          "column": 139
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1734,
+          "column": 114
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1740,
+          "column": 93
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1755,
+          "column": 89
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1758,
+          "column": 94
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1761,
+          "column": 87
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1764,
+          "column": 95
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1768,
+          "column": 100
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1771,
+          "column": 89
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1786,
+          "column": 132
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1789,
+          "column": 94
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1801,
+          "column": 127
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1804,
+          "column": 123
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1835,
+          "column": 104
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1843,
+          "column": 131
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1846,
+          "column": 160
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1889,
+          "column": 103
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1893,
+          "column": 122
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1918,
+          "column": 109
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1921,
+          "column": 102
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1931,
+          "column": 82
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1934,
+          "column": 80
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1937,
+          "column": 87
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1946,
+          "column": 90
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1949,
+          "column": 89
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1982,
+          "column": 84
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1985,
+          "column": 156
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1992,
+          "column": 149
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1995,
+          "column": 123
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1998,
+          "column": 120
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 2001,
+          "column": 131
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 2075,
+          "column": 391
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 2078,
+          "column": 176
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 4645,
+          "column": 18
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 4645,
+          "column": 46
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5611,
+          "column": 10
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5690,
+          "column": 61
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5714,
+          "column": 300
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5720,
+          "column": 91
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5723,
+          "column": 171
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5726,
+          "column": 178
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5729,
+          "column": 187
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5732,
+          "column": 241
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5735,
+          "column": 61
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5738,
+          "column": 128
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5741,
+          "column": 104
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5744,
+          "column": 218
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5747,
+          "column": 98
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5750,
+          "column": 135
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5786,
+          "column": 249
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5789,
+          "column": 156
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5792,
+          "column": 188
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5795,
+          "column": 134
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5798,
+          "column": 210
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5801,
+          "column": 134
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5819,
+          "column": 109
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5825,
+          "column": 56
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5834,
+          "column": 267
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5837,
+          "column": 97
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5867,
+          "column": 101
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5870,
+          "column": 158
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5876,
+          "column": 182
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5879,
+          "column": 166
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5885,
+          "column": 49
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5888,
+          "column": 119
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5891,
+          "column": 61
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5894,
+          "column": 148
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5897,
+          "column": 288
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5900,
+          "column": 103
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5903,
+          "column": 139
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5906,
+          "column": 155
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 5912,
+          "column": 125
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-067",
+      "type": "accepted-observation",
+      "severity": "minor",
+      "source": "scripts/validate-contracts.sh",
+      "section": "check descriptions, path templates, fixtures and failure messages",
+      "sha256": "397215e6bae49424a159037473680b715d8e057e3ab1cd47dbbc17abcf8a6a98",
+      "lines": [
+        1236,
+        1306,
+        2593,
+        3378,
+        3516,
+        4697
+      ],
+      "observation": "Seven defect edges in scripts/validate-contracts.sh match no file the text means: `rules/phase-discovery` in a check description is the rule's name without suffix (:1236); `workflows/rule` is cut from the path template `workflows/rule-$base.md` built from a variable (:1306, twice); `workflows/fixture-known.md` is a synthetic workflow written into a temporary fixture home (:2593, :3378, :3516); and `rule-history` is part of a failure message about a version-history warning, not a skill (:4697).",
+      "consequence": "None; no reference is missing.",
+      "owner": "none",
+      "closure": "No change; the edges stay recorded as correct on reading.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "scripts/validate-contracts.sh:1236",
+        "scripts/validate-contracts.sh:1306",
+        "scripts/validate-contracts.sh:2593",
+        "scripts/validate-contracts.sh:3378",
+        "scripts/validate-contracts.sh:3516",
+        "scripts/validate-contracts.sh:4697"
+      ],
+      "edges": [
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1236,
+          "column": 12
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1306,
+          "column": 15
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 1306,
+          "column": 64
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 2593,
+          "column": 13
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 3378,
+          "column": 13
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 3516,
+          "column": 13
+        },
+        {
+          "source": "scripts/validate-contracts.sh",
+          "line": 4697,
+          "column": 90
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-068",
+      "type": "accepted-observation",
+      "severity": "minor",
+      "source": "scripts/sync.sh",
+      "section": "rule copy loops and the always-on assembly",
+      "sha256": "968b8d585f47569251be91c1d6d443bb27bce17e1f92ac4697e5604c8dba1cef",
+      "lines": [
+        61,
+        62,
+        100,
+        208,
+        218
+      ],
+      "observation": "58 defect edges in scripts/sync.sh (29) and scripts/setup-new-project.sh (29) are file names in shell code: the `for rule in workflow-globals.md … phase-atomic-validation.md` loops that copy rule files (sync.sh:208-210, :218-220; setup-new-project.sh:89-91, :124-126), where the five `phase-*.md` names are ambiguous only out of context because the loops read rules/; the always-on copy of `global-claude.md` (sync.sh:100); the language rule written into the legacy editor directory (setup-new-project.sh:104-118); and `$harness/capabilities.md`, a path built from the harness variable that the path grammar cuts after the variable name (sync.sh:61-62).",
+      "consequence": "None for the scripts as they stand; the naming migration replaces the deployment steps (spec 09 REQ-05, REQ-06) and re-points the remaining names with the renames (REQ-25).",
+      "owner": "none",
+      "closure": "No change; the edges stay recorded as correct on reading.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "scripts/sync.sh:61",
+        "scripts/sync.sh:100",
+        "scripts/sync.sh:208",
+        "scripts/sync.sh:218",
+        "scripts/setup-new-project.sh:89",
+        "scripts/setup-new-project.sh:104",
+        "scripts/setup-new-project.sh:124"
+      ],
+      "edges": [
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 89,
+          "column": 12
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 89,
+          "column": 32
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 89,
+          "column": 54
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 89,
+          "column": 66
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 89,
+          "column": 80
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 89,
+          "column": 87
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 89,
+          "column": 98
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 89,
+          "column": 110
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 90,
+          "column": 12
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 90,
+          "column": 31
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 90,
+          "column": 50
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 91,
+          "column": 12
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 91,
+          "column": 38
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 104,
+          "column": 27
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 105,
+          "column": 24
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 118,
+          "column": 35
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 124,
+          "column": 12
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 124,
+          "column": 32
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 124,
+          "column": 54
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 124,
+          "column": 66
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 124,
+          "column": 80
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 124,
+          "column": 87
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 124,
+          "column": 98
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 124,
+          "column": 110
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 125,
+          "column": 12
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 125,
+          "column": 31
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 125,
+          "column": 50
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 126,
+          "column": 12
+        },
+        {
+          "source": "scripts/setup-new-project.sh",
+          "line": 126,
+          "column": 38
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 61,
+          "column": 26
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 62,
+          "column": 24
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 100,
+          "column": 11
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 208,
+          "column": 14
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 208,
+          "column": 34
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 208,
+          "column": 56
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 208,
+          "column": 68
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 208,
+          "column": 82
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 208,
+          "column": 89
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 208,
+          "column": 100
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 208,
+          "column": 112
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 209,
+          "column": 14
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 209,
+          "column": 33
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 209,
+          "column": 52
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 210,
+          "column": 14
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 210,
+          "column": 40
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 218,
+          "column": 16
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 218,
+          "column": 36
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 218,
+          "column": 58
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 218,
+          "column": 70
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 218,
+          "column": 84
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 218,
+          "column": 91
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 218,
+          "column": 102
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 218,
+          "column": 114
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 219,
+          "column": 16
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 219,
+          "column": 35
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 219,
+          "column": 54
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 220,
+          "column": 16
+        },
+        {
+          "source": "scripts/sync.sh",
+          "line": 220,
+          "column": 42
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-069",
+      "type": "accepted-observation",
+      "severity": "minor",
+      "source": "tests/hook-install.sh",
+      "section": "legacy-directory and checkout path fixtures",
+      "sha256": "f77db5c7acd726cf8a0a6a8e020c0dae5775c96f5b5fd1e24fdb187029d2df0c",
+      "lines": [
+        790,
+        817,
+        818,
+        824,
+        825,
+        827
+      ],
+      "observation": "14 defect edges name a rule or workflow file in test and helper code: path components joined by the path operator (tests/hook-install.sh:790, tests/log-step-hook.sh:770, tests/state-tool.py:32, :5076), legacy-directory fixtures that the hook installer must leave untouched (tests/hook-install.sh:817-827), a file-name filter (tests/workflow-instructions.py:11), a test message (scripts/check-repo-set.py:658), a default argument path (scripts/check-spec-draft.sh:9), a folder listing (tests/log-step-hook.sh:53) and a relative Markdown link (scripts/README.md:53). Each names the file it means.",
+      "consequence": "None; the naming migration re-points them with the renames (spec 09 REQ-53).",
+      "owner": "none",
+      "closure": "No change; the edges stay recorded as correct on reading.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "tests/hook-install.sh:790",
+        "tests/hook-install.sh:817",
+        "tests/log-step-hook.sh:770",
+        "tests/state-tool.py:32",
+        "tests/workflow-instructions.py:11",
+        "scripts/check-repo-set.py:658",
+        "scripts/check-spec-draft.sh:9",
+        "scripts/README.md:53"
+      ],
+      "edges": [
+        {
+          "source": "scripts/README.md",
+          "line": 53,
+          "column": 46
+        },
+        {
+          "source": "scripts/check-repo-set.py",
+          "line": 658,
+          "column": 31
+        },
+        {
+          "source": "scripts/check-spec-draft.sh",
+          "line": 9,
+          "column": 38
+        },
+        {
+          "source": "tests/hook-install.sh",
+          "line": 790,
+          "column": 77
+        },
+        {
+          "source": "tests/hook-install.sh",
+          "line": 817,
+          "column": 34
+        },
+        {
+          "source": "tests/hook-install.sh",
+          "line": 818,
+          "column": 38
+        },
+        {
+          "source": "tests/hook-install.sh",
+          "line": 824,
+          "column": 51
+        },
+        {
+          "source": "tests/hook-install.sh",
+          "line": 825,
+          "column": 54
+        },
+        {
+          "source": "tests/hook-install.sh",
+          "line": 827,
+          "column": 55
+        },
+        {
+          "source": "tests/log-step-hook.sh",
+          "line": 53,
+          "column": 72
+        },
+        {
+          "source": "tests/log-step-hook.sh",
+          "line": 770,
+          "column": 36
+        },
+        {
+          "source": "tests/state-tool.py",
+          "line": 32,
+          "column": 26
+        },
+        {
+          "source": "tests/state-tool.py",
+          "line": 5076,
+          "column": 36
+        },
+        {
+          "source": "tests/workflow-instructions.py",
+          "line": 11,
+          "column": 25
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-070",
+      "type": "accepted-observation",
+      "severity": "minor",
+      "source": "docs/USAGE.md",
+      "section": "## 9. File Roles Quick Reference",
+      "sha256": "d4c96fcc4d7a612b7e122ad0af396583c5aa977c3d518d91737995506a77a88c",
+      "lines": [
+        18,
+        433,
+        653,
+        748,
+        756,
+        772,
+        813
+      ],
+      "observation": "61 defect edges in docs/USAGE.md name rule and workflow files: the file-role tables under `### rules/` (:748-757) and `### workflows/` (:772-813), where the subsection heading fixes the directory, so the ten `phase-*.md` names (:756, :774-778) are not ambiguous on reading; two prose mentions of always-on rule files (:18, :433); and a relative link (:653). The manual documents files; it holds no executable reference (spec 09 REQ-22).",
+      "consequence": "None now; the renames turn the renamed names into stale-name occurrences that the migration rewrites (spec 09 REQ-25, REQ-40).",
+      "owner": "none",
+      "closure": "No change; the edges stay recorded as correct on reading.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        "docs/USAGE.md:18",
+        "docs/USAGE.md:433",
+        "docs/USAGE.md:653",
+        "docs/USAGE.md:744",
+        "docs/USAGE.md:756",
+        "docs/USAGE.md:768",
+        "docs/USAGE.md:813"
+      ],
+      "edges": [
+        {
+          "source": "docs/USAGE.md",
+          "line": 18,
+          "column": 35
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 18,
+          "column": 58
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 433,
+          "column": 64
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 653,
+          "column": 42
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 748,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 748,
+          "column": 188
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 749,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 750,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 751,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 752,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 753,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 754,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 755,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 756,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 756,
+          "column": 25
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 756,
+          "column": 47
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 756,
+          "column": 70
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 756,
+          "column": 99
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 757,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 772,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 773,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 774,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 775,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 776,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 777,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 778,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 779,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 780,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 781,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 782,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 783,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 784,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 785,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 786,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 787,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 788,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 789,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 790,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 791,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 792,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 793,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 794,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 795,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 796,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 797,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 798,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 799,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 800,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 801,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 802,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 803,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 804,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 805,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 806,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 807,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 808,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 809,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 810,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 811,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 812,
+          "column": 3
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 813,
+          "column": 3
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-071",
+      "type": "accepted-observation",
+      "severity": "minor",
+      "source": ".ai/memory/architecture.md",
+      "section": "Layer 1 rule table",
+      "sha256": "32dbd5c12b5fff41989a3a9365b249ad04bf617c36a82e0b95cb399ce1a280a2",
+      "lines": [
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        43
+      ],
+      "observation": "17 defect edges in knowledge and reference documents name rule and workflow files in prose, tables or link targets: the rule table of .ai/memory/architecture.md (:34-43), .ai/context/integrations.md:16, .ai/context/runbook.md:81 and :105, .ai/principles/architecture.md:87, .ai/principles/coding.md:57 and :95, and the relative link targets `../rules/workflow-reference.md` in docs/MODEL-CATALOG.md:10 and :48. Each names the file it means; none is an executable reference.",
+      "consequence": "None now; renamed names become stale-name occurrences that the migration rewrites in its reference scan set (spec 09 REQ-25, REQ-34).",
+      "owner": "none",
+      "closure": "No change; the edges stay recorded as correct on reading.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        ".ai/memory/architecture.md:27",
+        ".ai/memory/architecture.md:34",
+        ".ai/memory/architecture.md:43",
+        ".ai/context/integrations.md:16",
+        ".ai/context/runbook.md:81",
+        ".ai/context/runbook.md:105",
+        ".ai/principles/architecture.md:87",
+        ".ai/principles/coding.md:57",
+        ".ai/principles/coding.md:95",
+        "docs/MODEL-CATALOG.md:10",
+        "docs/MODEL-CATALOG.md:48"
+      ],
+      "edges": [
+        {
+          "source": ".ai/context/integrations.md",
+          "line": 16,
+          "column": 65
+        },
+        {
+          "source": ".ai/context/runbook.md",
+          "line": 81,
+          "column": 61
+        },
+        {
+          "source": ".ai/context/runbook.md",
+          "line": 105,
+          "column": 10
+        },
+        {
+          "source": ".ai/memory/architecture.md",
+          "line": 34,
+          "column": 3
+        },
+        {
+          "source": ".ai/memory/architecture.md",
+          "line": 35,
+          "column": 3
+        },
+        {
+          "source": ".ai/memory/architecture.md",
+          "line": 36,
+          "column": 3
+        },
+        {
+          "source": ".ai/memory/architecture.md",
+          "line": 37,
+          "column": 3
+        },
+        {
+          "source": ".ai/memory/architecture.md",
+          "line": 38,
+          "column": 3
+        },
+        {
+          "source": ".ai/memory/architecture.md",
+          "line": 39,
+          "column": 3
+        },
+        {
+          "source": ".ai/memory/architecture.md",
+          "line": 40,
+          "column": 3
+        },
+        {
+          "source": ".ai/memory/architecture.md",
+          "line": 41,
+          "column": 3
+        },
+        {
+          "source": ".ai/memory/architecture.md",
+          "line": 43,
+          "column": 3
+        },
+        {
+          "source": ".ai/principles/architecture.md",
+          "line": 87,
+          "column": 19
+        },
+        {
+          "source": ".ai/principles/coding.md",
+          "line": 57,
+          "column": 21
+        },
+        {
+          "source": ".ai/principles/coding.md",
+          "line": 95,
+          "column": 44
+        },
+        {
+          "source": "docs/MODEL-CATALOG.md",
+          "line": 10,
+          "column": 63
+        },
+        {
+          "source": "docs/MODEL-CATALOG.md",
+          "line": 48,
+          "column": 40
+        }
+      ]
+    },
+    {
+      "id": "AUD-08-072",
+      "type": "accepted-observation",
+      "severity": "minor",
+      "source": ".ai/principles/coding.md",
+      "section": "### Cross-references",
+      "sha256": "774b890784acbf0b4c6852169e0bdfa7d8f79210f08126dbfd305161f40d015a",
+      "lines": [
+        31,
+        46,
+        51
+      ],
+      "observation": "Nine defect edges are placeholders or names of other things: the syntax examples `file → ## Section`, `file → ## Section → ### Subsection` and `rule-name` (.ai/principles/coding.md:31, :46, :51; .ai/principles/architecture.md:48), the HTTP endpoint `/metrics` (principles/infra-standards.md:195, templates/stacks/python-fastapi.md:381) and the placeholder command `/x` in a deployment table (docs/USAGE.md:689).",
+      "consequence": "None; no rule, workflow or command is meant.",
+      "owner": "none",
+      "closure": "No change; the edges stay recorded as correct on reading.",
+      "blocks_09": false,
+      "status": "open",
+      "evidence": [
+        ".ai/principles/coding.md:31",
+        ".ai/principles/coding.md:46",
+        ".ai/principles/coding.md:51",
+        ".ai/principles/architecture.md:48",
+        "principles/infra-standards.md:195",
+        "templates/stacks/python-fastapi.md:381",
+        "docs/USAGE.md:689"
+      ],
+      "edges": [
+        {
+          "source": ".ai/principles/coding.md",
+          "line": 31,
+          "column": 21
+        },
+        {
+          "source": ".ai/principles/coding.md",
+          "line": 31,
+          "column": 55
+        },
+        {
+          "source": ".ai/principles/coding.md",
+          "line": 46,
+          "column": 14
+        },
+        {
+          "source": ".ai/principles/coding.md",
+          "line": 46,
+          "column": 43
+        },
+        {
+          "source": ".ai/principles/coding.md",
+          "line": 51,
+          "column": 36
+        },
+        {
+          "source": ".ai/principles/architecture.md",
+          "line": 48,
+          "column": 65
+        },
+        {
+          "source": "principles/infra-standards.md",
+          "line": 195,
+          "column": 21
+        },
+        {
+          "source": "templates/stacks/python-fastapi.md",
+          "line": 381,
+          "column": 12
+        },
+        {
+          "source": "docs/USAGE.md",
+          "line": 689,
+          "column": 67
+        }
+      ]
     }
   ],
-  "amendments": [],
+  "amendments": [
+    {
+      "id": "AMD-08-01",
+      "target": "DM-16",
+      "change": "semantic",
+      "current": "A finding this grammar produces on the parent tree is a pre-existing defect: the delivery\nfixes it and lists it in DM-20 → Pre-existing reference defects.",
+      "proposed": "A finding this grammar produces on the parent tree is a pre-existing defect: the delivery fixes it and lists it in DM-20 → Pre-existing reference defects. The same holds for every reference defect that 08's accepted report records with owner 09 outside this grammar, in scan set E or R: a section reference without its heading marker gains the marker of the existing heading; a reference to a paragraph label that is no heading names the heading whose extent holds the label; a reference broken across lines is joined into one span; a rule or workflow name with `.md` in a span loses the suffix or becomes a `/<name>` command. These fixes are edits permitted beside DM-1 substitutions; no `## ` heading is renamed or added for them, and each is listed in the same DM-20 table.",
+      "reason": "The audit gives pre-existing reference defects to the naming migration (spec 08 A-18), but this grammar finds and fixes only marked section references, commands, rule names and paths in scan set E. The recorded defects outside it are unmarked or paragraph-label section references (AUD-08-001, AUD-08-004, AUD-08-005, AUD-08-033, AUD-08-036, AUD-08-062), a reference broken across lines (AUD-08-007) and suffixed workflow file names in span lists (AUD-08-035); REQ-25 renames their stems as stale names but neither repairs nor checks them, so they survive the migration unchecked.",
+      "evidence": [
+        "AUD-08-001",
+        "AUD-08-004",
+        "AUD-08-005",
+        "AUD-08-007",
+        "AUD-08-033",
+        "AUD-08-035",
+        "AUD-08-036",
+        "AUD-08-062",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:958",
+        ".ai/specs/08-rules-workflows-audit.md:1044"
+      ],
+      "affected": [
+        "AC-16",
+        "AC-39"
+      ],
+      "depends_on": [],
+      "requires_adr": false,
+      "disposition": "proposed"
+    },
+    {
+      "id": "AMD-08-02",
+      "target": "new-AC",
+      "change": "semantic",
+      "current": null,
+      "proposed": "AC-NN (DM-16, REQ-31) — Given the 08 report accepted by the owner and the delivered tree, then every reference that a 09-owned reference-defect finding of that report names outside the DM-16 grammar is a row of DM-20 → Pre-existing reference defects whose Fix cell names the applied fix, and the delivered text at that place is one span that names an existing heading with its marker and carries no `.md` after a rule or workflow name.",
+      "reason": "AMD-08-01 adds an obligation that no acceptance criterion of the migration specification checks; without one the delivery can pass while the recorded defects remain.",
+      "evidence": [
+        "AUD-08-001",
+        "AUD-08-004",
+        "AUD-08-005",
+        "AUD-08-007",
+        "AUD-08-033",
+        "AUD-08-035",
+        "AUD-08-036",
+        "AUD-08-062"
+      ],
+      "affected": [],
+      "depends_on": [
+        "AMD-08-01",
+        "AMD-08-05"
+      ],
+      "requires_adr": false,
+      "disposition": "proposed"
+    },
+    {
+      "id": "AMD-08-03",
+      "target": "REQ-19",
+      "change": "semantic",
+      "current": "EACH bootstrap rule SHALL contain, after its front matter and one optional H1,\n  exactly the two `## ` sections `## Context Bootstrap` then `## Phase Behaviors` and at most\n  300 words (DM-19); IF the moved text exceeds 300 words, THEN the excess `## Phase Behaviors`\n  text SHALL move to the overflow rule DM-10 names for that phase, cited from\n  `## Phase Behaviors`, and SHALL never be deleted.",
+      "proposed": "EACH bootstrap rule SHALL contain, after its front matter and one optional H1, exactly the two `## ` sections `## Context Bootstrap` then `## Phase Behaviors` and at most 300 words (DM-19), unless DM-20 → Bootstrap size exceptions lists it; IF the moved text exceeds 300 words, THEN the excess `## Phase Behaviors` text SHALL move to the overflow rule DM-10 names for that phase, cited from `## Phase Behaviors`, and SHALL never be deleted; IF the front matter, the moved `## Context Bootstrap` section and the citing line alone exceed 300 words, THEN THE bootstrap rule SHALL keep that section whole, SHALL move all other `## Phase Behaviors` text to the overflow rule, and SHALL be listed in DM-20 → Bootstrap size exceptions with its word count and that reason.",
+      "reason": "At the audited revision the atomic-execution bootstrap cannot meet the limit by overflow alone (AUD-08-063): its preamble and `## Context Bootstrap` already have 316 words, and DM-12 moves that section verbatim, so the current REQ-19 can be met only by deleting or rewording load instructions, which it forbids. This amendment states the exception; AMD-08-04 (checker), AMD-08-06 (the DM-20 table it refers to) and AMD-08-07 (AC-11) carry it into the other normative places, and the set is consistent only when all four are accepted. Three further statements of the limit are not amendment targets and are left for the reconciliation of the specification: the Non-Functional Requirements row `Bootstrap rule` (spec 09:1196), the Edge Cases row `Bootstrap over 300 words after the move` (:1244) and the Risks row `Bootstrap rules exceed 300 words after the move` (:1563). DM-10's measurement of about 393 words (:850) is out of date (443 words at the audited revision) but states no rule. Alternatives left to the owner: shorten the section under spec 11's obligation map before this migration, or move the path resolution that the atomic-validation bootstrap repeats (duplicate group DG-004) into a procedure rule; both change text that DM-12 moves verbatim.",
+      "evidence": [
+        "AUD-08-063",
+        "rules/phase-atomic-execution.md:8",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:319",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:848",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1196",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1244",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1563"
+      ],
+      "affected": [
+        "AC-11"
+      ],
+      "depends_on": [
+        "AMD-08-06"
+      ],
+      "requires_adr": false,
+      "disposition": "proposed"
+    },
+    {
+      "id": "AMD-08-04",
+      "target": "REQ-32",
+      "change": "semantic",
+      "current": "THE checker SHALL reject a bootstrap rule over 300 words or with any `## `\n  section other than the two of REQ-19, counting words by DM-19 (same rule as specs 11 and 19).",
+      "proposed": "THE checker SHALL reject a bootstrap rule over 300 words or with any `## ` section other than the two of REQ-19, counting words by DM-19 (same rule as specs 11 and 19), except that a bootstrap rule listed in DM-20 → Bootstrap size exceptions is not rejected for its word count while its count equals the listed `Words` value.",
+      "reason": "AMD-08-03 requires a bootstrap rule over 300 words when its own context section already exceeds the limit (AUD-08-063); without the matching exception here the checker rejects that rule. Tying the exception to the listed count keeps any later growth visible.",
+      "evidence": [
+        "AUD-08-063",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:374"
+      ],
+      "affected": [
+        "AC-11"
+      ],
+      "depends_on": [
+        "AMD-08-03",
+        "AMD-08-06"
+      ],
+      "requires_adr": false,
+      "disposition": "proposed"
+    },
+    {
+      "id": "AMD-08-05",
+      "target": "DM-20",
+      "change": "semantic",
+      "current": "- `## Pre-existing reference defects` — `| Path:line | Reference | Fix |`: dangling references\n  and missing headings the checker finds on the parent tree, fixed by this delivery.",
+      "proposed": "- `## Pre-existing reference defects` — `| Path:line | Reference | Fix |`: dangling references and missing headings the checker finds on the parent tree, and the reference defects 08's accepted report records with owner 09 outside the DM-16 grammar, fixed by this delivery.",
+      "reason": "AMD-08-01 lists defects in this table that the checker does not find; without this change the table's description excludes them.",
+      "evidence": [
+        "AUD-08-001",
+        "AUD-08-004",
+        "AUD-08-005",
+        "AUD-08-007",
+        "AUD-08-033",
+        "AUD-08-035",
+        "AUD-08-036",
+        "AUD-08-062",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1028"
+      ],
+      "affected": [
+        "AC-39"
+      ],
+      "depends_on": [
+        "AMD-08-01"
+      ],
+      "requires_adr": false,
+      "disposition": "proposed"
+    },
+    {
+      "id": "AMD-08-06",
+      "target": "DM-20",
+      "change": "semantic",
+      "current": "- `## Retained old names` — `| Path | Line text | Reason |` (DM-17).",
+      "proposed": "- `## Retained old names` — `| Path | Line text | Reason |` (DM-17).\n- `## Bootstrap size exceptions` — `| Rule | Words | Reason |`: one row per bootstrap rule that REQ-19 lets exceed 300 words, with its word count by DM-19 at the delivery commit and the reason that its front matter, `## Context Bootstrap` section and citing line alone exceed the limit; no other rule is listed.",
+      "reason": "AMD-08-03, AMD-08-04 and AMD-08-07 refer to a listed size exception and its word count; the record has no table for them (AUD-08-063).",
+      "evidence": [
+        "AUD-08-063",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1027"
+      ],
+      "affected": [
+        "AC-11",
+        "AC-39"
+      ],
+      "depends_on": [],
+      "requires_adr": false,
+      "disposition": "proposed"
+    },
+    {
+      "id": "AMD-08-07",
+      "target": "AC-11",
+      "change": "semantic",
+      "current": "**AC-11** (REQ-19, REQ-32) — Given the delivered bootstrap rules, then each has ≤ 300 words\n  and only the two sections; and fixtures with 301 words, or with a third `## ` section, each\n  yield one finding.",
+      "proposed": "**AC-11** (REQ-19, REQ-32) — Given the delivered bootstrap rules, then each has only the two sections and either ≤ 300 words or exactly the word count of its row in DM-20 → Bootstrap size exceptions, and for every listed rule the front matter, `## Context Bootstrap` section and citing line alone exceed 300 words; and fixtures with 301 words, or with a third `## ` section, each yield one finding, while a 316-word fixture listed with 316 words yields none and the same fixture listed with 315 words yields one.",
+      "reason": "Under AMD-08-03 the atomic-execution bootstrap must exceed 300 words (AUD-08-063), so the current criterion cannot pass on the delivered tree; this restates it for the exception and keeps the 301-word and third-section fixtures.",
+      "evidence": [
+        "AUD-08-063",
+        ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1311"
+      ],
+      "affected": [
+        "AC-11"
+      ],
+      "depends_on": [
+        "AMD-08-03",
+        "AMD-08-04",
+        "AMD-08-06"
+      ],
+      "requires_adr": false,
+      "disposition": "proposed"
+    }
+  ],
   "installed": []
 }
