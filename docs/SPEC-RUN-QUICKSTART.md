@@ -226,3 +226,27 @@ T-02 | token service | atomic-tests: green | atomic-execution: complete | atomic
 `base_commit` is the one field that cannot be recovered after a squash merge — never remove it.
 `notes:` lines beginning with `tdd:` and `arbiter:` are the audit trail: test level, `none`
 justifications, test amendments, and every class-A resolution with its cited source.
+
+## Close the task after integration
+
+After the owner merges the delivered branches into their intended integration bases, run:
+
+```text
+/phase-finalize .ai/tasks/todo/task-add-oauth/ --dry-run
+/phase-finalize .ai/tasks/todo/task-add-oauth/
+```
+
+The separate phase verifies original commit/PR evidence for every recorded repository,
+returns explicit checkout/refresh and cleanup commands, preserves self-contained recovery
+packs, reconciles current knowledge and archives without overwrite. Ordinary invocation
+authorizes mandatory proven task cleanup, without another cleanup approval. A refused
+normal deletion remains incomplete. There are no additional public flags or child commands.
+
+Dry-run writes no files, Git data or telemetry. Repeat the same command after interruption;
+the stable journal resolves old task/spec paths and preserves failed and recovered attempts.
+Only an eligible whole spec moves; future phases and unfinished product scope stay active.
+An independent post-archive audit verifies current references and protected state. Deployment
+remains separate and unverified without dated revision/environment evidence. This phase
+never commits untracked umbrella state or publishes metadata. `/spec-run` still stops at
+review-ready delivery and only suggests finalization. Helper schemas and recovery details:
+[repository scripts](../scripts/README.md#post-merge-finalization).
