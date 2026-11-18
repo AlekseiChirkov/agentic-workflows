@@ -589,11 +589,11 @@ T-15 | Fix: verify input and form rules (proposals) | atomic-tests: not-started 
   base_commit: 75a1136db6cf24ed828374652a98a13cfb1f41bc
   commits:
   pr: none
-  notes: started in parallel with the independent validation of the git isolation follow-ups by owner instruction 2026-11-18 ("do in parallel what can be done"); if that validation requires rework, its commits are merged into this branch
   last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
   target_files:
   blocker: none
   notes: source and decisions in `T-15-fix-verify-input-and-form-rules/description.md`
+         started in parallel with the independent validation of the git isolation follow-ups by owner instruction 2026-11-18 ("do in parallel what can be done"); if that validation requires rework, its commits are merged into this branch
 
 T-16 | Fix: output boundary and render (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
