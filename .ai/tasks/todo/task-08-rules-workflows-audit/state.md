@@ -610,10 +610,16 @@ T-15 | Fix: verify input and form rules (proposals) | atomic-tests: green | atom
          finalize 2026-11-18: architecture — no delta (`.ai/memory/architecture.md` does not describe the audit tool; no CLI or file interface changed); plan — delta `T-15 → done` returned, not written; composite rollup — not applicable (plain leaf); compression — not run (shared file, orchestrator's call)
 
 T-16 | Fix: output boundary and render (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  branch: fix/audit-output-boundary-and-render
+  base_branch: fix/audit-verify-input-and-form-rules
+  base_commit: 683fe8bea0e2a8425459ddbcef54ec5e6f81fa74
+  commits:
+  pr: none
   last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
   target_files:
   blocker: none
   notes: source and decisions in `T-16-fix-output-boundary-and-render/description.md`
+         started in parallel with the independent validation of the verify input and form rules by owner instruction 2026-11-18; if that validation requires rework, its commits are merged into this branch
 
 T-17 | Fix: audit output corrections and fresh review (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
