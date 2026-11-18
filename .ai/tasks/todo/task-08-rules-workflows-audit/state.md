@@ -516,7 +516,7 @@ T-13 | Fix: extraction edge cases (proposals) | atomic-tests: green | atomic-exe
   base_branch: main
   base_commit: 09fba91e313d5d6c905b997efd2d54cf1b251f39
   commits: b6ed113 docs: plan the audit improvement follow-ups, 9023402 test(audit): cover extraction edge cases of directories, tokens and markers, 572800a fix(audit): handle unreadable, deep and edge-case input during extraction, 0d810cd docs: record the review of the extraction edge-case fix, 5e264fe test(audit): cover home name boundaries, linked templates and marker forms, ec31804 fix(audit): keep text after home names and never follow a linked templates directory
-  pr: none
+  pr: #117 draft
   last_action: pav-close done (re-validation) — DoD met (4/4 acceptance criteria with criterion 4 as narrowed, 249/249 tests, both RED sets intact, fresh extraction at 8d7e484 differs from the delivered inventory only by the one allowed adapter edge), no critical or important finding, two optional findings R1–R2 recorded; plan.md `reviewed` returned as a delta; previous: pav-propose done (re-validation) — batch: 0 Do Now, 0 Do Later, 2 Optional recorded, none applied; previous: pav-check DONE (re-validation); previous: pae-finalize done (rework) — a bare home name ends at the first character outside a user name and keeps what follows, a linked templates directory is never followed (the adapter is then absent, a looping link included), separator rows match with any whitespace inside, and `**stop:**` counts as a stop marker; previous: rework GREEN — 249/249 pass; previous: rework RED reached — 5 failing tests appended (integration), 7 failing tests/subtests; previous: pav-close done — DoD met (4/4 acceptance criteria with criterion 4 as narrowed, 244/244 tests, RED set intact, fresh extraction at 8d7e484 differs from the delivered inventory only by the one allowed adapter edge), no critical or important finding, four optional findings V1–V4 recorded; plan.md `reviewed` returned as a delta; previous: pav-propose done — batch: 0 Do Now, 2 Do Later, 4 Optional recorded, none applied; previous: pav-check DONE — independent validation, all criteria met; previous: pae-finalize done — unsearchable adapter lookups refuse the root, the reader walk keeps its own stack and enters only directories that can hold a reader, the adapter token ends like the other path tokens, bare home directories become ~, separator rows with trailing whitespace are no units, and the stop marker matches in any case outside spans; previous: all steps complete (GREEN, gate pass); previous: completed step 3 (blocked on the adapter-token neutrality conflict); previous: RED reached — 7 failing tests written (integration) plus the recorded fixture heading amendment; previous: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
   target_files: scripts/check-audit-instructions.py, scripts/audit-instructions.py
   blocker: none
@@ -556,6 +556,11 @@ T-13 | Fix: extraction edge cases (proposals) | atomic-tests: green | atomic-exe
          finalize (rework) 2026-11-18: architecture — no delta; plan — delta `T-13 → done` returned, not written; no composite; compression not run (orchestrator's call)
 
 T-14 | Fix: git isolation follow-ups and version matrix (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  branch: fix/audit-git-isolation-follow-ups
+  base_branch: fix/audit-extraction-edge-cases
+  base_commit: 5ce334b361c1914d0682269c5240dce96fe6ffcd
+  commits:
+  pr: none
   last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
   target_files:
   blocker: none
