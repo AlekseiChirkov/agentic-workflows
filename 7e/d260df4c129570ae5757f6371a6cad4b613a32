@@ -1,0 +1,19 @@
+.ai/specs/09-model-only-harnesses-and-rule-naming.md
+  s_9ffcb74080ebec::t_dbb47df87a7c1c 320-328,380-382,966-973,1042-1046,1048-1050,1217,1265,1332-1338,1519-1523,1550,1593,1642,1933-1945,1972-1973
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7ed260df4c129570ae5757f6371a6cad4b613a32",
+  "prompts": {},
+  "sessions": {
+    "s_9ffcb74080ebec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc38276e-d819-4acd-ac7b-a035ad8deb45",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
