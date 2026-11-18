@@ -667,13 +667,13 @@ T-18 | Feat: state tool memory consistency warning (proposals) | atomic-tests: n
   blocker: none
   notes: source and decisions in `T-18-feat-state-tool-memory-consistency-warning/description.md`
 
-T-19 | Fix: separator pattern shadowing (reconciliation finding) | atomic-tests: red | atomic-execution: not-started | atomic-validation: not-started
+T-19 | Fix: separator pattern shadowing (reconciliation finding) | atomic-tests: green | atomic-execution: complete | atomic-validation: not-started
   branch: fix/audit-separator-pattern
   base_branch: docs/sync-audit-specifications
   base_commit: f71d7a4b11e4f56fc3d028d94fc0bec164546f09
-  commits:
+  commits: 3020af5 test(audit): require separator rows without dashes to stay out of duplicate and statement units
   pr: none
-  last_action: RED reached — 2 failing tests written (integration), 5 failing tests/subtests, plus 2 terminology pins passing before the change; previous: created 2026-11-18 from the spec 08 reconciliation finding Q-06 (a)
+  last_action: pae-finalize done — duplicate units and statement units use the decided separator rule again (`TABLE_SEPARATOR_RE`), the terminology table keeps its stricter pattern as `TERMINOLOGY_SEPARATOR_RE`; full suite 295 OK (skipped 3); delivery gate as expected (delivery verify and verify --strict silent, current tree the 14 baseline lines plus the four expected amendment-invalid lines); previous: all steps complete (GREEN); previous: RED reached — 2 failing tests written (integration), 5 failing tests/subtests, plus 2 terminology pins passing before the change; previous: created 2026-11-18 from the spec 08 reconciliation finding Q-06 (a)
   target_files: scripts/check-audit-instructions.py, scripts/audit-instructions.py
   blocker: none
   notes: source and decision in `T-19-fix-separator-pattern-shadowing/description.md`
@@ -681,6 +681,10 @@ T-19 | Fix: separator pattern shadowing (reconciliation finding) | atomic-tests:
          tdd: red digest — duplicate units → SeparatorRowWithoutDashesTests.test_separator_row_with_empty_or_colon_only_cells_is_not_a_unit (`| | | | | | | | |`, `| : | : | : | : |`, colon cells with tabs, empty cells with tabs and trailing spaces; guard: the content row is the only cluster); statement units → StatementUnitSeparatorTests.test_separator_row_with_empty_or_colon_only_cells_starts_no_statement_unit (`| | |`, `|:|:|`, `|\t|\t|`, `| :\t| :\t|` under `## Codebase Reading Rules`; units 5 and 7 only, a statement at 6 is `req21-invalid`); terminology pins → TerminologySeparatorTests.test_terminology_table_needs_dashes_in_its_separator_row (`| | |`, `|:|:|` second row → `amendment-target-unknown`), .test_terminology_separator_with_alignment_colons_keeps_the_table (`|:---|---:|`, `| :---: | --- |` → silent)
          tdd: red observed 2026-11-18 — Python 3.12.16, 4 tests in 10.4 s, 5 failing tests/subtests, 0 errors: the four dashless rows form four extra duplicate clusters (DUP-001 `| | | | | | | | |` at lines 3 and 6, DUP-002, DUP-003, plus the content row); each dashless separator gives `req21-invalid rules/phase-discovery.md:6 the statement unit has no statement`; both terminology pins pass (the stricter pattern already applies there), recorded as pins per the description
          tdd: earlier tests — test-file diff at RED: 67 added lines appended before the main guard, no line removed or changed; frozen-test conflict: none
+         implementation: the second module binding of `TABLE_SEPARATOR_RE` (terminology section) renamed to `TERMINOLOGY_SEPARATOR_RE` and used only by `terminology_terms`; `unit_lines` and `section_units` now resolve to the decided rule `\|[-:|\s]+\|` (2 lines changed, no other code)
+         tdd: green 2026-11-18 — new and related classes 14 OK; full standalone suite 295 OK in 402.7 s under Python 3.12.16, 3 skipped (the git residual cases); `git diff 3020af5 -- scripts/check-audit-instructions.py` empty, no test amended after RED
+         verification: delivery gate — delivery verify exit 0, 0 lines; verify --strict exit 0, 0 lines; current tree differs from the baseline only by the four expected `amendment-invalid` lines (AMD-08-03, AMD-08-04, AMD-08-05, AMD-08-07, from the spec 09 amendment on this branch), so the gate prints GATE FAIL for that expected difference only; dlv left clean; complete contract validator not run (instructed); no new git command, verify writes nothing, `METHOD_VERSION` unchanged, no planning identifiers in the script diff, annotations unchanged
+         finalize 2026-11-18: architecture — no delta (the audit tool is not described in `.ai/memory/architecture.md`, no interface changed); plan — delta `T-19 → done` returned, not written; composite rollup — not applicable (plain leaf); compression — not run (shared file, orchestrator's call)
 
 ## Execution Report
 - T-01: reviewed — read-only `extract` of the deterministic inventory (audited set, readers, text model, git state); re-validated after one correction (unreadable roots, undecodable names, repository-configured git programs)
