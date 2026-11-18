@@ -1,0 +1,25 @@
+.ai/memory/progress.md
+  s_96afdcfd38c67e::t_819f94bb67356a 150
+.ai/memory/state.md
+  s_96afdcfd38c67e::t_9e915e23e01a53 18
+.ai/specs/08-rules-workflows-audit.md
+  s_96afdcfd38c67e::t_c809bda5e9cf75 232-235,333-343,591-599,800-801,879-883,1083-1104,1120-1150,1240-1255,1267,1269-1271,1276-1278
+.ai/tasks/todo/task-08-rules-workflows-audit/state.md
+  s_96afdcfd38c67e::t_5ab01db2ec30d2 584-600,656
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7974dcf6a8d1daad9442483c9c16b930d9845ddc",
+  "prompts": {},
+  "sessions": {
+    "s_96afdcfd38c67e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f3ac193-9977-473b-b9f7-3df06f485ee7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
