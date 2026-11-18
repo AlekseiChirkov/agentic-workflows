@@ -196,6 +196,33 @@ The no-attribution rule above applies verbatim to PR titles and bodies: no tool 
 
 ---
 
+## Finalization Git ownership
+
+An ordinary `/phase-finalize` invocation authorizes only the resolved task's verified
+resources. Its deterministic helper may plan targeted fetches of missing recorded
+objects, safe owned checkout using `git switch --no-overwrite-ignore <integration>`,
+and `git pull --ff-only` from the existing configured integration upstream. Execute
+Git mutations explicitly through the applicable hooks. Never force checkout, update
+a branch tip, merge a PR, publish metadata, create commits or push an integration base
+under this authorization. Other command-level rails and textual restrictions remain.
+
+The hook accepts only an exact planned `git branch -d <branch>` or
+`git push --force-with-lease=refs/heads/<branch>:<full-sha> origin :refs/heads/<branch>`
+deletion after independently checking the canonical journal-bound receipt, exact task
+and repository identity, action membership, authorization, full original/current tips,
+integration ancestry or matching authoritative reachable merged-PR evidence, current
+protection and worktrees, and the immutable verified recovery pack's SHA-256. A receipt
+alone grants nothing. Missing, ambiguous, stale or changed evidence retains the existing
+ask/deny. Never use `-D`, `update-ref` deletion, a nonempty push source, an implicit lease,
+an unrelated resource, a forced update or broader command as a substitute. A refused
+ordinary local deletion remains incomplete. Restack verifier defaults and all unrelated
+rails retain their original semantics. The explicit full-SHA remote lease is checked by
+Git against the server at execution; the hook never treats a tracking ref as live proof.
+
+This narrow verified exception takes precedence over the deletion and unverified-lease
+fallback rows below. The planned temporary child-branch exception is a separate feature.
+Original Git audit-field ownership remains with `/spec-run` and `/restack`.
+
 ## Safety rails
 
 The Policy column says what an agent may do. The Enforcement column says what the git-rails
@@ -223,10 +250,10 @@ with `default-branch-unknown`; set it with `git remote set-head <remote> --auto`
 | `git push` to an unprotected `<base>` | **Forbidden, always** | `text only` |
 | `git push --force`; a dry run (`--dry-run` or `-n`) of any forced push is allowed | **Forbidden.** Only `--force-with-lease`, only inside `/restack`, only on subtask branches of the current task | `hook: ask` |
 | A `--force-with-lease` push whose explicit lease the restack journal verifies for every destination; `/restack` uses `git push --force-with-lease=refs/heads/<b>:<sha> origin <b>` | Only inside `/restack` with `--allow-pr` | `hook: allow with restack journal` |
-| A lease push the restack journal does not verify, a `+` refspec, or `--force-if-includes` without a verified lease | **Forbidden** — `/restack` publishes only in the form above | `hook: ask` |
-| Bulk, tag or delete push (`--all`, `--mirror`, `--tags`, `--follow-tags`, `--delete`, `:<branch>`) | Owner approval required | `hook: ask` |
+| A lease push the restack journal does not verify, a `+` refspec, or `--force-if-includes` without a verified lease | Outside the verified finalization exception: **Forbidden** — `/restack` publishes only in the form above | `hook: ask` |
+| Bulk, tag or delete push (`--all`, `--mirror`, `--tags`, `--follow-tags`, `--delete`, `:<branch>`) | Outside the verified finalization exception: owner approval required | `hook: ask` |
 | Push whose remote, destination or remote default branch cannot be resolved | **Forbidden** — name the remote and destination explicitly; set a missing default with `git remote set-head <remote> --auto` | `hook: deny` |
-| Branch deletion through git (`git branch -d`/`-D`, `git update-ref -d`); gh deletions are listed in the harness capability record | **Owner approval required; a verified temporary child-branch exception is planned.** Deleting a branch on the agent's own initiative is forbidden; branches are deleted by the human when merging | `hook: ask` |
+| Branch deletion through git (`git branch -d`/`-D`, `git update-ref -d`); gh deletions are listed in the harness capability record | Outside the verified finalization exception: **Owner approval required; a verified temporary child-branch exception is planned.** Deleting a branch on the agent's own initiative is forbidden; branches are deleted by the human when merging | `hook: ask` |
 | `gh pr merge`, and the `gh api` pull-request merge endpoints | **Forbidden, always** | `hook: ask` |
 | `git add -A` / `.` / `--all`, `git commit -a` | **Forbidden** — explicit paths only | `hook: deny` |
 | Staging a directory, a glob, a pathspec-magic or missing path, or staging interactively | **Forbidden** — explicit file paths only | `hook: deny` |

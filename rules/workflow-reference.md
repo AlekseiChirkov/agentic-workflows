@@ -12,7 +12,7 @@ Canonical status formats (`## Phases`, subtask statuses) live in `workflow-globa
 **Parent task directory (`.ai/tasks/todo/task-<NN>-<slug>/`):**
 - `state.md` — current state, all decisions (including architectural), phase statuses,
   execution report, fix-tasks marker, `## Subtask Progress` (per-T-XX atomic execution/
-  validation status). Contains `spec_path:` field pointing to the original spec.
+  validation status). Contains `spec_path:` pointing to the current location of the original spec; its original identity remains in the finalization snapshot/journal.
 - `plan.md` — decomposition only: subtask table (with `Key Steps` column), dependencies,
   execution strategy. No architectural decisions.
 
@@ -28,6 +28,11 @@ at verified finalization, after Validation, or under explicit user authorization
 Failed acceptance criteria remain defects and must never be weakened by reconciliation.
 During implementation, requirement changes use the Description Amendment procedure on
 subtask descriptions; they do not silently alter the source spec.
+
+Finalization may relocate the task and eligible whole spec losslessly through its required
+helper. This is a mechanical location/link exception, never authority to change requirements;
+`/spec-sync` retains content-edit ownership and its evidence/approval gates. Keep unfinished
+phases and deferred requirements active. Preserve original snapshots and original audit fields.
 
 **Subtask directory (`T-XX-<slug>/`):**
 
@@ -317,10 +322,18 @@ The following sections are contracts read by orchestrators and must never be rem
   decision. The header and its entries may be cleared only by `/spec-run`, after the human has
   answered; no other workflow may remove or summarize them)
 - Top-of-file lines that must never be removed or modified:
-  - `spec_path:` — pointer to the original spec file
+  - `spec_path:` — current-location pointer to the original spec; only verified Finalization relocation may change its path
   - `flow:` — the tier selector (`quick` | `full`) set during Discovery
   - `active_phase:` — active spec phase number (multi-phase only)
   - `spec_phase_count:` — total number of spec phases (multi-phase only)
+
+**Finalization relocation exception:** the required helper may add/update only the active
+`finalization:` phase marker and current-location `spec_path:` pointer, and journal exact
+mechanical relative-link/index edits for moving current task/spec artifacts. Retain byte-exact
+original snapshots, manifests and stable old-path resolution. Never rewrite original Git fields,
+requirements, historical decisions/progress, state archives or TDD records. Protected state links
+that cannot move under this exception block archival. Resume from journaled intent without
+collision overwrite; whole-spec archival requires every phase and required scope eligible.
 
 ## Multi-Phase Spec Rules
 
@@ -379,7 +392,7 @@ Inside a protected section, stale bullet points may be shortened, but headers an
 When any workflow updates `.ai/memory/state.md`, use this exact format for task status entries under `## Active Tasks`:
 
 ```
-[task-id / task-name] | phase: <discovery|execution|validation> | status: <in-progress|complete|blocked|reviewed> | note: <one line — what changed>
+[task-id / task-name] | phase: <discovery|execution|validation|finalization> | status: <in-progress|complete|blocked|reviewed> | note: <one line — what changed>
 ```
 
 Examples:
@@ -400,6 +413,10 @@ for later phases of a multi-phase spec, and by `/pv-finalize` for deferred items
 `## Blocked` section: `blocked` is a `status:` value **inside** an `## Active Tasks` entry, which
 keeps a blocked task in the list a reader actually scans. Do not add a section no workflow
 writes — `/compress-state` cannot distinguish an empty section from a stale one.
+
+`/phase-finalize` reconciles the existing entry and current links surgically after integration;
+retain the Validation result and unfinished scope. Its independent closure outcomes live in the
+stable finalization journal (canonical definition: `workflow-globals → ## Finalization`).
 
 **Upsert rule:** if the task entry already exists — update it in place. If it does not exist — append to the relevant section. Never create duplicate entries for the same task.
 

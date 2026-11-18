@@ -8112,7 +8112,7 @@
             {
               "path": "tests/hook-install.sh",
               "provenance": "direct lexical reference",
-              "sha256": "f77db5c7acd726cf8a0a6a8e020c0dae5775c96f5b5fd1e24fdb187029d2df0c"
+              "sha256": "689efc26f278948130446382880246b7dd8822d93398754d4a9520f47e6b729a"
             }
           ],
           "before": [
@@ -8158,407 +8158,412 @@
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 161,
+              "line": 140,
+              "line_sha256": "d287b5d31edc1a728c315386d234ec08942f2d7fe96fd4e25e874fd39964ff4e",
+              "path": "tests/hook-install.sh"
+            },
+            {
+              "line": 163,
               "line_sha256": "d13b877ff78bd56d4a38424f6cf43ac2110ff824af2fbdb366749297266ef11a",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 162,
+              "line": 164,
               "line_sha256": "7e570cba06b21b6f05c65fc3067e4e1dcb4c2d5c853f37b6c7eb8e04c74484b6",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 167,
+              "line": 169,
               "line_sha256": "d79583d6a3bcffef11837b0c7d369698352b5b5077d25efe342ed196c0a458fd",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 168,
+              "line": 170,
               "line_sha256": "fb89b338a5f7edf7be87bbc857a80938b924935b56db43a4dfa83ac1577d5708",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 184,
+              "line": 186,
               "line_sha256": "7dd0fd8f1d1141d3484e3c58fcd7fed3410215903ea076078c5b0d1aea326e23",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 195,
+              "line": 197,
               "line_sha256": "3a16a63d250f8eba23fbcc3ab3ad8f34a6ba6600320013cbf0af624c24758c6c",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 354,
+              "line": 356,
               "line_sha256": "5cb935e2a375160603bb79bc2037dc7384089131bf5c80e67d0da7c701ad46e6",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 380,
+              "line": 382,
               "line_sha256": "1bf06a0b5a1617fc6d83f2f2790e2dfc8d3d27dbe5cf39ebe4c1f71f74cb26ef",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 381,
+              "line": 383,
               "line_sha256": "d9ea03a71975d6654617ce9a5b27dd953a4e9561e535cb893dd80fd15d4ebd6e",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 390,
+              "line": 392,
               "line_sha256": "07bec7e2bf69e860fda1a5fb4e5a165637309f57bd86956ac28344e788764b54",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 406,
+              "line": 408,
               "line_sha256": "2a9785229d6a6ade39681d88516edcfa97102f3a70399517e788899c7df0cc7a",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 410,
+              "line": 412,
               "line_sha256": "9761dfee2182713bd1c66be18052a4aa8432f2fb1c1295f7f22fdfe0c7a89fa6",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 418,
+              "line": 420,
               "line_sha256": "ebad6b3a8010a8cee7e3265e4f1f51e926d9f9c78b61922e26f4a4017a901e23",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 431,
+              "line": 433,
               "line_sha256": "4331f1cabb70e0de88dd05ac575ab801698b747fe3ce4041e1ef127514f03648",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 493,
+              "line": 495,
               "line_sha256": "b86087ad497a211e222e189c8c6b027a907843ddf548a4d2754aef3311f0b108",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 538,
+              "line": 540,
               "line_sha256": "e720be1612d3f169f35a1a9ae5eadd4d7e8318573b67f80abfd41bd8c15e2c99",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 540,
+              "line": 542,
               "line_sha256": "d79583d6a3bcffef11837b0c7d369698352b5b5077d25efe342ed196c0a458fd",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 541,
+              "line": 543,
               "line_sha256": "fb89b338a5f7edf7be87bbc857a80938b924935b56db43a4dfa83ac1577d5708",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 549,
+              "line": 551,
               "line_sha256": "2ddedaabc15eb440dc072aa2f2302d3c59db27b1332beac17353cce8ccec9a30",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 568,
+              "line": 570,
               "line_sha256": "d79583d6a3bcffef11837b0c7d369698352b5b5077d25efe342ed196c0a458fd",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 569,
+              "line": 571,
               "line_sha256": "fb89b338a5f7edf7be87bbc857a80938b924935b56db43a4dfa83ac1577d5708",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 589,
+              "line": 591,
               "line_sha256": "b5f7602b971d0b9cd347c84f0e44c0805723f0b77c41bd84f4231d34babd014f",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 593,
+              "line": 595,
               "line_sha256": "62796b4aa6f38f5ad6544db85d7081c0590854ba3003e97e5f3300ab175451e1",
-              "path": "tests/hook-install.sh"
-            },
-            {
-              "line": 616,
-              "line_sha256": "45687e3bf13dbee2d1e9c8df5b1a8c3f8fef7ab9bb80d7c4b791d6aa738ed472",
               "path": "tests/hook-install.sh"
             },
             {
               "line": 618,
+              "line_sha256": "45687e3bf13dbee2d1e9c8df5b1a8c3f8fef7ab9bb80d7c4b791d6aa738ed472",
+              "path": "tests/hook-install.sh"
+            },
+            {
+              "line": 620,
               "line_sha256": "3cc73ffa2d22b751ddee534e7a1431838c0adfae3f8d294b3a00d8acea2e3a3f",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 649,
+              "line": 651,
               "line_sha256": "4d329f34df679377e7c65170eb9bfd5b061b84df2362f84881b4d8253010096b",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 656,
+              "line": 658,
               "line_sha256": "977181aead3dcd0513a729f9b0636cd0d30cb263ee2b2c392f4a0b639a5b0d09",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 666,
+              "line": 668,
               "line_sha256": "af5ab49ba992df0fb87a9e19bccc55918ce6fab2e28b585e5cfc4d4c06238ae2",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 670,
+              "line": 672,
               "line_sha256": "573b9f63c7686d54b9b4134393a7013faf898826c9e4c24a49a3e97ca357d235",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 678,
+              "line": 680,
               "line_sha256": "d13b877ff78bd56d4a38424f6cf43ac2110ff824af2fbdb366749297266ef11a",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 724,
+              "line": 726,
               "line_sha256": "05b1c33b592e07444b694633974e6aa1392125a81b845fafbdd3a3e8615ff92c",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 729,
+              "line": 731,
               "line_sha256": "e549be2204015345d6fe0eda0340553727cec6c4b99876a2d7c55f9319894920",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 746,
+              "line": 748,
               "line_sha256": "ccc3c24d7f3f0765cb49bb005a513f956040512430755d59c1828cb6e9faa897",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 747,
+              "line": 749,
               "line_sha256": "2bc99eb29a43850398948c4cf270757ce2d6aaea115c0496965c8f22527eb12f",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 754,
+              "line": 756,
               "line_sha256": "b7222bab0dc382654b70820bfa339c7c3b6dd18f94b9b5fef6cb080d5329c584",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 755,
+              "line": 757,
               "line_sha256": "fe5fb8b307864c2b669175aab7c68a7c652cea1b8a9a2b57616f217511b923ae",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 771,
+              "line": 773,
               "line_sha256": "b8e96f72a4966724af0d06104c777bcd6f9e386e713c38e3cde605b43bd2c3ef",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 775,
+              "line": 777,
               "line_sha256": "e0d6c643580b29af447f565a08d4d74dddf42c9ba1e10721a765cb77381395b9",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 777,
+              "line": 779,
               "line_sha256": "b5e2b90bab7b299e08854a45747aa4473d96229c2979b1eba495b8c6401c2fbb",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 812,
+              "line": 814,
               "line_sha256": "6ddef56c26a3274e04e6e6427b7a358e9de1426f7d5f276fd81e74b63bf5ea28",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 813,
+              "line": 815,
               "line_sha256": "bd74163a992a449bd78392520b2fd8182e5ad075252d8e1567d4f15ee681e800",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 816,
+              "line": 818,
               "line_sha256": "ce86fe28f1b9952fbc2f21b1d579c6ec01fc0f03cc7415875236119a2243fe22",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 817,
+              "line": 819,
               "line_sha256": "b0c7938404e916960e4e725a1f4657b244035a58f7761c8961ddcd7cded6d987",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 818,
+              "line": 820,
               "line_sha256": "6d7d0f5432a6302511cb8916e9ce56b1d39131c075a064aeee3e4d5701d9606c",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 819,
+              "line": 821,
               "line_sha256": "016d56da0bbfdb71a887e004cf89c1236ad7f558ffd5ae0e53945219b9e1ce8d",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 891,
+              "line": 893,
               "line_sha256": "55247ac636ae894fef7c4becdc5cb80d4ac57f2986ce6b3b1f6a9d74d7039ec2",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 892,
+              "line": 894,
               "line_sha256": "6c17c118c45344a83da7e1eee8d208f85b65b04fe0f25cc8246224c95bc008b4",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 897,
+              "line": 899,
               "line_sha256": "d79583d6a3bcffef11837b0c7d369698352b5b5077d25efe342ed196c0a458fd",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 898,
+              "line": 900,
               "line_sha256": "fb89b338a5f7edf7be87bbc857a80938b924935b56db43a4dfa83ac1577d5708",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 906,
+              "line": 908,
               "line_sha256": "2ddedaabc15eb440dc072aa2f2302d3c59db27b1332beac17353cce8ccec9a30",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 966,
+              "line": 968,
               "line_sha256": "e37f3c7234dbf42245446f2bbb9405c347ec05a088e7f40ba0ef7d8837557bfa",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 967,
+              "line": 969,
               "line_sha256": "5f940836bb6d86fd34d4d8a3a1b400433ea65e06c3af899e2b4a28da3f8f0f88",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 979,
+              "line": 981,
               "line_sha256": "68d56623aaccda9edbf2b4cbea57bcc1feac58eeba0d61a82b67df237d659f47",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 981,
+              "line": 983,
               "line_sha256": "0946916dda28a7dff124fdb093a3e4b35bcaa7152a49e3f426b70c71b39fe3e7",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 991,
+              "line": 993,
               "line_sha256": "43e755dcd382e94886280cbeb664dfdfc147a9f38320c51a9a48e9a9f178c116",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1045,
+              "line": 1047,
               "line_sha256": "7f1851accde42f4b038f93fe1af4fcb525d37e492b3f8b29bc1b33ddc0d6ae0c",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1057,
+              "line": 1059,
               "line_sha256": "d9ea03a71975d6654617ce9a5b27dd953a4e9561e535cb893dd80fd15d4ebd6e",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1125,
+              "line": 1127,
               "line_sha256": "b5f7602b971d0b9cd347c84f0e44c0805723f0b77c41bd84f4231d34babd014f",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1128,
+              "line": 1130,
               "line_sha256": "62796b4aa6f38f5ad6544db85d7081c0590854ba3003e97e5f3300ab175451e1",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1161,
+              "line": 1163,
               "line_sha256": "e720be1612d3f169f35a1a9ae5eadd4d7e8318573b67f80abfd41bd8c15e2c99",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1191,
+              "line": 1193,
               "line_sha256": "1e1cca239a82d3580e9fb4b357d5374f4a46f25a5c2492b8a1e7c0e423012a63",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1217,
+              "line": 1219,
               "line_sha256": "ccf831c012dcba4f1d2c6f52202bc6a32d6eb4f314645d53bc9774b28d851167",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1302,
+              "line": 1304,
               "line_sha256": "7f1851accde42f4b038f93fe1af4fcb525d37e492b3f8b29bc1b33ddc0d6ae0c",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1314,
+              "line": 1316,
               "line_sha256": "7f1851accde42f4b038f93fe1af4fcb525d37e492b3f8b29bc1b33ddc0d6ae0c",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1402,
+              "line": 1404,
               "line_sha256": "55247ac636ae894fef7c4becdc5cb80d4ac57f2986ce6b3b1f6a9d74d7039ec2",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1403,
+              "line": 1405,
               "line_sha256": "6c17c118c45344a83da7e1eee8d208f85b65b04fe0f25cc8246224c95bc008b4",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1453,
+              "line": 1455,
               "line_sha256": "d200b7b07573cf2f2ba408a2d2903aef1ff6fbe88a0d88e5d1bac32a5ee90d5a",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1456,
+              "line": 1458,
               "line_sha256": "1383c85bccf329ca0f58fc9a00e7fb576451b07d49526aab87f3991147454d4a",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1457,
+              "line": 1459,
               "line_sha256": "e37f3c7234dbf42245446f2bbb9405c347ec05a088e7f40ba0ef7d8837557bfa",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1458,
+              "line": 1460,
               "line_sha256": "5cf33953cd3b0ad7f72c0cbe98decc58dc0fb39d3600653ebe0588aa7ab6a7f6",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1494,
+              "line": 1496,
               "line_sha256": "b5f7602b971d0b9cd347c84f0e44c0805723f0b77c41bd84f4231d34babd014f",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1495,
+              "line": 1497,
               "line_sha256": "87b3ca70c3785a3da2339e888d80fcc5c18d452649faa879296883354fdae768",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1564,
+              "line": 1566,
               "line_sha256": "72cea65fba03c27575ee107f3b15e550715e00bf17c7bacdabcffa7177d8e77f",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1585,
+              "line": 1587,
               "line_sha256": "2e30da8ad81d4e2bfb09378d77150f4e755d643690310cdc2bc5eed80f02123a",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1604,
+              "line": 1606,
               "line_sha256": "8c7cdc7413ff55a3b44edc150f20bd39b0cf75561aba64aa083d3e4b83887dab",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1627,
+              "line": 1629,
               "line_sha256": "4a32c02a221e23ff7a39fd3b7ec059bd764ba2c8a30489787fbeef0e7f6bb3a8",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1633,
+              "line": 1635,
               "line_sha256": "ccfddc6c6f43da64986954887f28233171eec1e21ccbc9a74bf49730d453b685",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1669,
+              "line": 1671,
               "line_sha256": "ada746c2e6855033e34ded5ef0b38ccdba12b3e936107951287c5b692b72402f",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1670,
+              "line": 1672,
               "line_sha256": "06e76c8fb3578da1d48873a41bc05c9965337bc9717bc66e7deeeccd21e6c6ec",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1705,
+              "line": 1707,
               "line_sha256": "7839a91f9960254eabea751e1ea7a4b88d58975341704ee1b9f996b96f613505",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1736,
+              "line": 1738,
               "line_sha256": "9896e6d6c9ac74875e0daad207c39e554ef53837ac52347322aeed2989ab616e",
               "path": "tests/hook-install.sh"
             }
@@ -9012,7 +9017,7 @@
         {
           "after": [
             {
-              "line": 1417,
+              "line": 1419,
               "line_sha256": "847cd3f226c315ab682f408acfac091a3fbddd3e9bf5b794cb3feb3f42fc83a0",
               "path": "tests/hook-install.sh"
             }
@@ -9031,7 +9036,7 @@
         {
           "after": [
             {
-              "line": 1224,
+              "line": 1226,
               "line_sha256": "2c7cc1dce5f7a702f55b4fedf04b3f42808e9c844c11893f1b2ca45a0fde642e",
               "path": "tests/hook-install.sh"
             }
@@ -9090,162 +9095,162 @@
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 175,
+              "line": 177,
               "line_sha256": "c39f8e0fa21a984c4af1f4cce0132b2fc3376814992adc1b7b767bb03ed1d0bd",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 312,
+              "line": 314,
               "line_sha256": "0be3dbe95fb90f50754b590eb83e3b44ca927b969028e8961c71335513bcb37c",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 327,
+              "line": 329,
               "line_sha256": "f1e486eee8e0e1f9f855e7d1e552a3b7ded34f459c0e9135ce4b7962f93b50d2",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 332,
+              "line": 334,
               "line_sha256": "ec617452d43e39efefb45106b0599f4f15f12290fc61bfb31b69910903fd7c21",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 351,
+              "line": 353,
               "line_sha256": "873e6b14b1c4844f9516aa9bf285766dfaa2f6ab0e5efb9389814dcf4fa97946",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 372,
+              "line": 374,
               "line_sha256": "ed333f6041f519d651b97a51185d4da0246e5e0785478aad9f05de724faf85df",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 476,
+              "line": 478,
               "line_sha256": "99335578f76cff987a7c6428d994af4b0e5035791d3f2b4614d8d33eb4d2b4e1",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 548,
+              "line": 550,
               "line_sha256": "00febcf98a3f29827e285129ac5554e95871ada6e06c68c3fc585f83fdd9b797",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 549,
+              "line": 551,
               "line_sha256": "2ddedaabc15eb440dc072aa2f2302d3c59db27b1332beac17353cce8ccec9a30",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 575,
+              "line": 577,
               "line_sha256": "49d54a902aed03d2766750bc2c7f8a153290780808415e0caf63ee189088cc17",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 592,
+              "line": 594,
               "line_sha256": "23113ec1dc9627bdad3485c602ef39cf5fb9d5f36e44b959f7670461df62cec0",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 689,
+              "line": 691,
               "line_sha256": "0b4f4abb4f83391d07393ad470e8ce9dfe0d9a7eb101b85f8208aba09e70c933",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 693,
+              "line": 695,
               "line_sha256": "e21837fd24f25d9d830f19aa6703992fe559c5a624e41ec4512cad5df87fc093",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 757,
+              "line": 759,
               "line_sha256": "bca7d07228c7b9c8e67977128c336de58d1865127f25406f4d82e8cad90c59ee",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 759,
+              "line": 761,
               "line_sha256": "58bf3f2014236d2c590c9bbf49b7cd56c12c72d79fa3d17cb71aa0afdf9281bb",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 790,
+              "line": 792,
               "line_sha256": "312720bb20b3ba6e6c22110ad0bd535c2e061173137def0c438c707f07110b88",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 791,
+              "line": 793,
               "line_sha256": "cc0028a9001cd239606941a2eab017e93b572a7c713f84743d590545d985431b",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 796,
+              "line": 798,
               "line_sha256": "b999b59b0cc96dc3c0036a947f50eafc5980f5c1404a198ac77d44c687e71af2",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 798,
+              "line": 800,
               "line_sha256": "99cf3715de10acdf5d24772dc5fd701826525faf1003011f226d3fc4be0c9063",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 804,
+              "line": 806,
               "line_sha256": "32ab84c57dc5fb51db99d04b11cbeb8cfa7b0f5e06063a99d49151f1d531597c",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 808,
+              "line": 810,
               "line_sha256": "f516617ba1c08b8b870bc22fa8f66b08203c6620ed3c5fe233eed4672edf6204",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 814,
+              "line": 816,
               "line_sha256": "33137fc63189aff973930695eb775eff4f510ac11db14fe80605f1079db6c0da",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 821,
+              "line": 823,
               "line_sha256": "38dd71e0a7ad5ef2bd88375789650284f60825fef4f63945ff821f8f0c7c70db",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 833,
+              "line": 835,
               "line_sha256": "234f7e4029b662ba6725f1d1b2912bea857c8d3517e9e27860e9b4951bdacaad",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 835,
+              "line": 837,
               "line_sha256": "e212db8f3266a2b7c7e9e01fe6d9424a992858ff0a880052d82cf515e083935e",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 905,
+              "line": 907,
               "line_sha256": "00febcf98a3f29827e285129ac5554e95871ada6e06c68c3fc585f83fdd9b797",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 906,
+              "line": 908,
               "line_sha256": "2ddedaabc15eb440dc072aa2f2302d3c59db27b1332beac17353cce8ccec9a30",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1033,
+              "line": 1035,
               "line_sha256": "ea4aa55c877709c7c47edc99cebd79fda56b178b0552afa76a3b879e6fc343c6",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1035,
+              "line": 1037,
               "line_sha256": "5f200382075e88d2f6a438ab51a32d5fd975a70b9f10a8154c13daafde503adf",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1036,
+              "line": 1038,
               "line_sha256": "c2427664790aef583f69a6ae61022d18f05b525bc54a83439679e072bb8c4bba",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1194,
+              "line": 1196,
               "line_sha256": "0364752068020c3288c89d82feb260c427a4498c88cf7eb629834eb7fa0a5181",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1739,
+              "line": 1741,
               "line_sha256": "0364752068020c3288c89d82feb260c427a4498c88cf7eb629834eb7fa0a5181",
               "path": "tests/hook-install.sh"
             }
@@ -9469,112 +9474,112 @@
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 141,
+              "line": 143,
               "line_sha256": "54e2c6cd67bb0c46215ba60ed677d8db10c60a59592e4017fb7f5d0a825dd76e",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 272,
+              "line": 274,
               "line_sha256": "8e31341bb623b7e2937def2ba56e756f2341e1bfcff4c096f611fd46574358e4",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 363,
+              "line": 365,
               "line_sha256": "1d63b873a70135a2c2d3ea98b28337b9b36afcc1cc3f6d56026abd3d6aa29d26",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 430,
+              "line": 432,
               "line_sha256": "3ab8da31cef50aa4c8f18b0603d6acfc8febcae28e56d86578309d1d5b1761c4",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 689,
+              "line": 691,
               "line_sha256": "0b4f4abb4f83391d07393ad470e8ce9dfe0d9a7eb101b85f8208aba09e70c933",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 693,
+              "line": 695,
               "line_sha256": "e21837fd24f25d9d830f19aa6703992fe559c5a624e41ec4512cad5df87fc093",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 833,
+              "line": 835,
               "line_sha256": "234f7e4029b662ba6725f1d1b2912bea857c8d3517e9e27860e9b4951bdacaad",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 835,
+              "line": 837,
               "line_sha256": "e212db8f3266a2b7c7e9e01fe6d9424a992858ff0a880052d82cf515e083935e",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 963,
+              "line": 965,
               "line_sha256": "582d50a4640e875de469429cd4ad67567ab01744ee07714120ad11fe281775b3",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 965,
+              "line": 967,
               "line_sha256": "664abe4dace52ccfc643eac50ac75e0e71ac6840ca23d2d297606e17b622e6be",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 972,
+              "line": 974,
               "line_sha256": "ab62376afccd13bf655e49013348b2cc64f20e94d7fb4d4db3c331566261d6fe",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1037,
+              "line": 1039,
               "line_sha256": "9f02fdca55d04203634d623600652ea6f5d24f839519a4fb0611553cc1db2d97",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1039,
+              "line": 1041,
               "line_sha256": "51bb63e2962573d29c4c570c6f5364c2048592ff7529d6023adac91f35354588",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1065,
+              "line": 1067,
               "line_sha256": "7869b8145a13e506ddb3b8f8330b16df71fde9965daaed0576fb9bbf7aaa2f4d",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1072,
+              "line": 1074,
               "line_sha256": "82bd19430da3b1875939b58aedd527ee1670e6dab9092ea5e223d0c7142420dc",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1127,
+              "line": 1129,
               "line_sha256": "feb78f48993c5be7936a2ad7edbf059664770fe9559773351f10843dee8bd779",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1129,
+              "line": 1131,
               "line_sha256": "a1dbf67a41be833689388aa7ff7cee3c6b17e08a183ad08b10f3558d6de8e55d",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1270,
+              "line": 1272,
               "line_sha256": "3dd92b68828841101619173266f2f0c62f55de30edb5e0086af68e518ae3a62a",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1331,
+              "line": 1333,
               "line_sha256": "5b6f17b1c8f2b5872c19f1dd11b6db0e444896df418c8b2fce1b99441e68e194",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1418,
+              "line": 1420,
               "line_sha256": "e811d1ea8525380214cdbec8c2dff602c1c576172a385608a67388cab02651be",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1429,
+              "line": 1431,
               "line_sha256": "d1d7e98a1bfe64c38fab23d3729950cc2bed74452862e565cebb40e81cad5a99",
               "path": "tests/hook-install.sh"
             },
             {
-              "line": 1454,
+              "line": 1456,
               "line_sha256": "d0f5f9ea7e02508af9e92fcd5dd4f91fb9d2dbdc9f5e19baa4649329d129d111",
               "path": "tests/hook-install.sh"
             }
@@ -9704,6 +9709,35 @@
           "field": "observations",
           "kind": "runtime_bounds",
           "path": "tests/hook-install.sh"
+        },
+        {
+          "field": "observations",
+          "kind": "locks",
+          "path": "tests/hook-install.sh",
+          "before": [
+            {
+              "path": "tests/hook-install.sh",
+              "line": 612,
+              "line_sha256": "056f4978938ba16e4325d50cd8b9b120718ebfbeae4e3cc324361db389a1cb3a"
+            },
+            {
+              "path": "tests/hook-install.sh",
+              "line": 650,
+              "line_sha256": "97f72e4823a29086ff4bb254f7cdb485bfaeb28679bff541530575636e93b172"
+            }
+          ],
+          "after": [
+            {
+              "path": "tests/hook-install.sh",
+              "line": 614,
+              "line_sha256": "056f4978938ba16e4325d50cd8b9b120718ebfbeae4e3cc324361db389a1cb3a"
+            },
+            {
+              "path": "tests/hook-install.sh",
+              "line": 652,
+              "line_sha256": "97f72e4823a29086ff4bb254f7cdb485bfaeb28679bff541530575636e93b172"
+            }
+          ]
         }
       ],
       "name": "test_user_hook_installation_acceptance"

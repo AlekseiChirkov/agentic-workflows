@@ -1,8 +1,8 @@
 # Orchestrail — USAGE
 
 Source of truth for an AI-assisted SDLC pipeline deployed to three environments:
-Windsurf, Claude Code, and Codex. Everything in this repository is plain markdown;
-shell scripts only copy files around. There is no runtime.
+Windsurf, Claude Code, and Codex. Markdown orchestrates workflows; local shell and Python
+helpers validate, log, deploy instructions and provide required finalization safety mechanics.
 
 ---
 
@@ -120,6 +120,7 @@ with explicit state on disk. The AI assistant is constrained by:
 │   ├── phase-discovery.md           Phase 1 orchestrator
 │   ├── phase-execution.md           Phase 2 orchestrator
 │   ├── phase-validation.md          Phase 3 orchestrator
+│   ├── phase-finalize.md            separately invoked post-merge closure
 │   ├── phase-atomic-execution.md    per-T-XX execution orchestrator
 │   ├── phase-atomic-validation.md   per-T-XX validation orchestrator
 │   ├── pd-analyze.md                Discovery step 1
@@ -268,7 +269,7 @@ It then performs:
    `principles/<name>.md` → `~/.claude/skills/principle-<name>/SKILL.md`, and each
    `rules/<name>.md` → `~/.claude/skills/rule-<name>/SKILL.md`.
    Also write/refresh `~/.claude/CLAUDE.md` from `rules/global-claude.md`.
-   The `rule-` prefix is required: five basenames exist in both `workflows/` and `rules/`, so
+   The `rule-` prefix is required: six basenames exist in both `workflows/` and `rules/`, so
    an unprefixed rule skill would overwrite the workflow skill of the same name.
 4. The same three skill layouts under `~/.codex/skills/`, plus `~/.codex/AGENTS.md` from
    `templates/codex-global-AGENTS.md`.
@@ -304,7 +305,7 @@ The script (idempotent — safe to re-run):
 | Step | What it creates / modifies                                                                  |
 |------|---------------------------------------------------------------------------------------------|
 | 1    | `CLAUDE.md` — pointer form, or the two-level protocol when an umbrella `../.ai/` is detected |
-| 2    | `.windsurf/rules/` **and** `.devin/rules/`: all twelve rule files — `workflow-globals`, `workflow-reference`, `language`, `quick-flow`, `tdd`, `git-flow`, `orchestration`, and the five `phase-*` context rules |
+| 2    | `.windsurf/rules/` **and** `.devin/rules/`: all project rule files — `workflow-globals`, `workflow-reference`, `language`, `quick-flow`, `tdd`, `git-flow`, `orchestration`, `run-log`, and the six `phase-*` context rules |
 | 3    | Notes about `.windsurf/workflows/` — uses global workflows unless local override exists     |
 | 4    | `.claude/skills/<name>` symlinks pointing at `~/.claude/skills/<name>` (Claude Code workaround) |
 | 5    | `.ai/` knowledge base seeded from `templates/.ai/` (never overwrites existing files), then `AGENTS.md` for Codex from `templates/AGENTS.md` |
@@ -474,13 +475,44 @@ list documented, ADR optionally written.
 Once `validation: complete` — commit, push, open PR. The state files
 (`state.md`, `plan.md`, per-T-XX descriptions) double as PR description material.
 
+### Step 5 — Finalize the integrated task
+
+After the owner merges the delivered branches into their intended integration branches:
+
+```text
+/phase-finalize .ai/tasks/todo/task-01-task-jwt-auth/ --dry-run
+/phase-finalize .ai/tasks/todo/task-01-task-jwt-auth/
+```
+
+The single separate phase accepts a task directory or uniquely mapped spec path. Ordinary
+invocation authorizes mandatory cleanup of the resolved task's proven resources, without
+another cleanup approval. It verifies every original recorded branch/stack, preserves
+self-contained recovery packs, returns explicit checkout/refresh and remote/local cleanup
+commands, reconciles current knowledge and archives losslessly. Refused normal deletion,
+changed tips or unsafe checkout leave closure incomplete with evidence retained.
+
+Required Python 3.11+ finalization helpers fail closed on missing evidence. Optional logging
+and tools stay nonblocking unless the project's required checks depend on them. Dry-run
+writes no output files, locks, project/Git state or telemetry. Rerun the same command after
+interruption, including old task/spec paths; the stable journal resolves moves and retains
+failed and recovered command/check attempts. Exit zero never proves a postcondition.
+
+Inspect the actual archive, references, state and manifests after movement and refresh
+independent audit evidence before closure. Original Git/TDD fields, requirements, historical
+decisions and snapshots remain intact. Only an eligible whole spec moves; later phases and
+unfinished product scope remain active. Respect tracking policy: untracked umbrella state
+stays local. Deployment is independently unverified without dated revision/environment
+proof, and required deployment blocks closure without that proof. Internal schemas and
+recovery details: [repository scripts](../scripts/README.md#post-merge-finalization).
+
 ### Alternative — Fully autonomous pipeline
 
 ```
 /phase-pipeline .ai/tasks/todo/task-01-task-jwt-auth/
 ```
 
-Runs all three phases without phase boundaries. Architectural choices use the
+Runs all three delivery phases without phase boundaries. It only suggests separately
+invoked finalization after owner integration. Architectural choices use the
 **Deep Architectural Analysis Protocol** (5-lens scoring + anti-overengineering
 filter, recorded as `### Autonomous Decision` in `state.md`). Pauses only for:
 
@@ -503,6 +535,7 @@ restart.
 
 Path argument syntax:
 - `/phase-discovery`: `<path>` = path to spec file in `.ai/specs/`
+- `/phase-finalize`: `<path>` = exact task directory or uniquely mapped spec path; only optional flag is `--dry-run`
 - All other phase and child workflow commands: `<path>` = task directory (`.ai/tasks/todo/task-<NN>-<slug>/`)
 - Atomic child workflows (`pae-*`, `pav-*`, `phase-atomic-*`): `<path>` = `T-XX/description.md`
 
@@ -513,6 +546,7 @@ Path argument syntax:
 | `/phase-discovery <path> [--step-by-step]` | Runs Discovery steps 1–4; autonomous by default, `--step-by-step` pauses for review after each step | `spec (.ai/specs/*.md)`, root state files; creates `state.md` with `spec_path:` | `state.md`, `plan.md`, `T-XX/description.md`                    |
 | `/phase-execution <path>`     | Runs atomic-execution + atomic-validation per T-XX    | `state.md`, `plan.md`, all `T-XX/description.md`| `state.md → ## Subtask Progress`, code changes                  |
 | `/phase-validation <path>`    | Runs Validation steps 1–6                             | `state.md`, `plan.md`, codebase                | `## Contract Check`, `## Code Review`, `## Issue List`, `## Fix-Tasks`, `## Deferred`, fix-task code |
+| `/phase-finalize <task-directory\|spec-path> [--dry-run]` | Close one proven integrated task with mandatory safe cleanup and lossless archival | Original state/spec, delivery and current evidence | Stable journal, recovery, relocated current pointers and archive |
 | `/phase-pipeline <path>`      | All three phases autonomously                         | same as above                                  | same as above + `### Autonomous Decision` blocks                |
 | `/phase-atomic-execution <T>` | Implement one T-XX                                    | `T-XX/description.md`, parent `state.md`       | parent `state.md → ## Subtask Progress`, code                   |
 | `/phase-atomic-validation <T>`| Validate one T-XX                                     | parent `state.md`, code                        | parent `state.md → ## Subtask Progress`, `plan.md` status       |
@@ -575,7 +609,7 @@ migration and complete offline helper examples are in [MODEL-CATALOG.md](MODEL-C
 
 (Defined in `rules/workflow-globals.md` — loaded into every conversation.)
 
-- **Never auto-advance between phases** — except `/phase-pipeline`.
+- **Never auto-advance between phases** — `/phase-pipeline` and `/spec-run` advance only through their authorized delivery phases; finalization remains separately invoked.
 - **Test-first execution** — every leaf subtask goes through `/pae-tests` (RED) before
   `/pae-implement` (GREEN). The failing tests are a frozen contract, not a draft. Non-testable
   work passes an explicit, recorded gate. Contract: `rules/tdd.md`. Not suspended by
@@ -674,6 +708,17 @@ to all three environments on the next slash-command invocation:
   NOT overwrite an existing `AGENTS.md`; you must update each project's
   `AGENTS.md` manually or `rm AGENTS.md` first).
 
+### Stage provider artifacts without live installation
+
+```bash
+bash scripts/sync.sh --from /absolute/source --stage /absolute/new-empty-destination
+```
+
+Staging runs the complete validator then all three standalone finalization suites and writes
+only generated provider artifacts under the destination. It does not install hooks, write
+live HOME configuration, refresh consumer projects or deploy product code. Missing/failing
+required checks blocks staging. See [repository scripts](../scripts/README.md#focused-checks-and-staged-synchronization).
+
 ### What NOT to do
 
 - Do **not** edit files in `~/.codeium/windsurf/global_workflows/`,
@@ -753,7 +798,7 @@ files are clean. Logs and local machine settings stay ignored in this repository
 | `tdd.md`                   | Always-on. TDD contract: RED→GREEN cycle, test-level gate (unit/integration/contract/smoke/none), what counts as RED, frozen-test-set rule during GREEN, characterization mode (`pinned`) for behaviour-preserving work, `atomic-tests:` status vocabulary. |
 | `run-log.md`               | Always-on. Run log contract: the central store, the three `scripts/log-step.sh` calls, the field vocabulary, what must never be logged, and the rule that logging never blocks a run. |
 | `quick-flow.md`            | Always-on. Quick vs full tier: four-condition escalation gate, what the quick path skips and still mandates (inline contract + inline TDD step), mid-flight promotion to full. |
-| `phase-discovery.md`, `phase-execution.md`, `phase-validation.md`, `phase-atomic-execution.md`, `phase-atomic-validation.md` | Model-decision trigger. Per-phase Context Bootstrap (which `.ai/` files to load, in what order), phase behaviours, and — for atomic execution — the Blocker Reconciliation procedure. Every phase workflow cites these by name. |
+| `phase-discovery.md`, `phase-execution.md`, `phase-validation.md`, `phase-finalize.md`, `phase-atomic-execution.md`, `phase-atomic-validation.md` | Model-decision trigger. Per-phase Context Bootstrap (which `.ai/` files to load, in what order), phase behaviours, and — for atomic execution — the Blocker Reconciliation procedure. Every phase workflow cites these by name. |
 | `global-claude.md`         | Content for `~/.claude/CLAUDE.md`. Architecture principles + Python/testing/infra/naming/forbidden summaries. |
 
 ### `principles/`
@@ -774,6 +819,7 @@ files are clean. Logs and local machine settings stay ignored in this repository
 | `phase-discovery.md`            | Discovery orchestrator. Sequentially calls `pd-analyze`, `pd-decompose`, `pd-design`, `pd-finalize`. |
 | `phase-execution.md`            | Execution orchestrator. Loops atomic-execution + atomic-validation per T-XX, then `pe-finalize`. |
 | `phase-validation.md`           | Validation orchestrator. Sequentially calls `pv-contract` … `pv-finalize`.        |
+| `phase-finalize.md`             | Separately invoked post-merge task closure; required evidence/recovery, mandatory safe cleanup, knowledge and audited archival. |
 | `phase-atomic-execution.md`     | Single T-XX execution: `pae-tests` → `pae-implement` → `pae-finalize`.            |
 | `phase-atomic-validation.md`    | Single T-XX validation: `pav-check` → `pav-propose` → `pav-close`.                |
 | `pd-analyze.md`                 | Discovery step 1: read spec + root state + minimal code, record assumptions, set the `flow:` tier, write `## Task Analysis`. |
@@ -797,7 +843,7 @@ files are clean. Logs and local machine settings stay ignored in this repository
 | `pav-propose.md`                | Atomic-validation step 2: propose Do Now / Do Later / Optional improvements; wait for user. |
 | `pav-close.md`                  | Atomic-validation step 3: mark complete, parent `plan.md` status `reviewed`.      |
 | `spec-draft.md`                 | Standalone SDD authoring: a raw task (link, text, or file) → one development-ready spec in `.ai/specs/`. Interactive by default, autonomous with `--auto-mode`. A separate Devil's Advocate critic reviews the draft for at most 10 rounds; ready for development needs 95/100 with no open critical or major finding. Isolated — creates no task directory and starts no pipeline. |
-| `spec-sync.md`                  | Reconcile a finished task's implementation back into its spec. The only workflow permitted to write a spec after Discovery starts; every edit carries a citation to the state file that recorded the divergence. Called by `/pv-finalize`, runnable standalone. |
+| `spec-sync.md`                  | Reconcile a finished task's implementation back into its spec. Owns requirement-content reconciliation after Discovery starts; every edit cites the recorded divergence. Finalization may only relocate the spec and journal mechanical links. Called by `/pv-finalize`, runnable standalone. |
 | `bugfix.md`                     | Governed entry point for a defect: reproduce → freeze the reproduction as a failing test → fix → verify → record. Runs the quick tier; hands over to the full path when the quick gate returns `full`. |
 | `adr-new.md`                    | Write an ADR at the moment the decision exists, from a task directory or a bare decision. `--provisional` records a Discovery decision before the task finishes; `/pv-finalize` promotes it instead of writing a second record. |
 | `context-pack.md`               | Assemble bootstrap sources 1–7 into one manifest-verified `.ai/context-pack.md`. A step may read it instead of the seven files, only after confirming freshness. |
@@ -839,6 +885,12 @@ files are clean. Logs and local machine settings stay ignored in this repository
 ### Phase statuses in `state.md → ## Phases`
 
 `not-started` | `in-progress` | `complete`
+
+Finalization adds `- finalization: not-started | in-progress | complete`; a missing marker
+means `not-started` and never invalidates prior Validation. Its stable journal keeps independent
+outcomes and operation checkpoints (`pending`, `prepared`, `applied`, `verified`, `blocked`,
+`preserved`) plus immutable failed/recovered execution observations. Canonical definition:
+`workflow-globals → ## Finalization`; schema authority: `scripts/phase-finalize.py` header.
 
 ### `## Subtask Progress` block (one per T-XX)
 

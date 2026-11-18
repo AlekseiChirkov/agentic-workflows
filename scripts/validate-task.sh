@@ -79,6 +79,21 @@ BAD_PHASE="$(awk '/^## Phases/{f=1;next} f&&/^- (discovery|execution|validation)
 check "phase statuses use the canonical vocabulary" \
   "$([ -z "$BAD_PHASE" ] && echo pass || echo "not-started|in-progress|complete expected, found: $(echo "$BAD_PHASE" | tr '\n' ';')")"
 
+# Finalization is additive: legacy absence means not-started, never validation failure.
+# Read the active phase block only; fenced historical examples do not count.
+FINALIZATION_FINDINGS="$(LC_ALL=C awk '
+  marker == "~~~" { if ($0 ~ /^ ? ? ?~~~/) marker = ""; next }
+  marker == "```" { if ($0 ~ /^ ? ? ?```/) marker = ""; next }
+  /^ ? ? ?(```|~~~)/ { marker = ($0 ~ /^ ? ? ?~~~/) ? "~~~" : "```"; next }
+  /^## / { inside = ($0 ~ /^## Phases[[:space:]]*$/); next }
+  inside && /^- finalization:/ {
+    count++
+    if ($0 !~ /^- finalization: (not-started|in-progress|complete)$/) print "invalid finalization status at line " NR
+  }
+  END { if (count > 1) print "duplicate finalization markers" }' "$STATE")"
+check "optional finalization phase uses one canonical marker (absent means not-started)" \
+  "$([ -z "$FINALIZATION_FINDINGS" ] && echo pass || echo "$FINALIZATION_FINDINGS")"
+
 FLOW="$(sed -n 's/^flow: *//p' "$STATE" | head -1)"
 
 # ── Group 2: quick tier keeps its inline contract ────────────────────
