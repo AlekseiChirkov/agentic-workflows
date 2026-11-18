@@ -60,13 +60,27 @@ Read-only contract: the tool writes nothing but the --out file and, under
 render --write, the generated region of the report; verify writes nothing. It
 never follows a symbolic link of the audited tree, never executes or
 imports repository content and opens no network
-connection. The only programs it runs are the git read commands
+connection itself. The only programs it runs are the git read commands
 `rev-parse --verify HEAD`, `ls-files -z` and
 `status --porcelain=v1 -z --untracked-files=all` and, in verify,
 `cat-file -e <sha>^{commit}`, with LC_ALL=C, GIT_OPTIONAL_LOCKS=0,
 no pager, no inherited GIT_* variables, the file-system monitor disabled and hooks
-pointed at an empty location, so no program named by the repository's configuration
-runs; a missing or failing git yields null or `unknown` values, never an error. The
+pointed at an empty location; a missing or failing git yields null or `unknown`
+values, never an error. Every git read also runs with lazy fetching disabled
+(GIT_NO_LAZY_FETCH, git 2.45 or later) and rename detection off (status.renames,
+git 2.18 or later), reads attributes from the empty tree instead of the committed and
+work-tree .gitattributes files (GIT_ATTR_SOURCE, git 2.40 or later), reads neither the
+user's nor the system's attributes file, and gives every filter driver that the
+repository's info/attributes file names an empty clean and process program. With git
+2.45 or later, therefore, no attribute-selected clean or process filter runs and no
+object missing from a partial clone is fetched. Each of these settings is one that an
+older git ignores rather than rejects, so it still answers, with less isolation: with
+git older than 2.40 a filter selected by a .gitattributes file of the tree can still
+run, and with git older than 2.45 `status` or `cat-file` in a partial clone can still
+fetch a missing object from its promisor remote. Because no attribute applies, a file
+whose stored form differs from its work-tree form through attributes (text, eol,
+ident, working-tree-encoding or a filter) can read as changed when git hashes it
+again. The
 root is taken as the top level of its git work tree: `status` reports paths relative
 to that top level, so a root below it yields mismatched work-tree paths.
 Standard library only.
@@ -134,10 +148,21 @@ ZONE_FRONT_MATTER = "front-matter"
 ZONE_FENCE = "fence"
 ZONE_BODY = "body"
 
+EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+# Every setting below is one that a git too old to know it ignores instead of rejecting,
+# so an older git still answers; only the guarantee the setting adds is lost.
 GIT_READ_ENVIRONMENT = {"LC_ALL": "C", "GIT_OPTIONAL_LOCKS": "0", "GIT_PAGER": "cat",
-                        "PAGER": "cat"}
-# Configuration that would otherwise let git start a program the repository names.
-GIT_INERT_CONFIGURATION = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
+                        "PAGER": "cat", "GIT_NO_LAZY_FETCH": "1",
+                        "GIT_ATTR_SOURCE": EMPTY_TREE, "GIT_ATTR_NOSYSTEM": "1"}
+# Configuration that would otherwise let git start a program the repository names, read
+# attributes that select a filter driver, or need an object a partial clone lacks.
+GIT_INERT_CONFIGURATION = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null",
+                           "-c", "core.attributesFile=/dev/null",
+                           "-c", "status.renames=false")
+# Settings that make a filter driver run nothing, applied to each driver that the
+# repository's info/attributes file names, because git reads that file in any case.
+BLANK_FILTER_SETTINGS = (("clean", ""), ("process", ""), ("required", "false"))
+FILTER_ATTRIBUTE_RE = re.compile(r"(?<!\S)filter=([^\s\x00]+)")
 
 JsonObject = dict[str, object]
 
@@ -1305,10 +1330,58 @@ def candidate_lists(audited: Sequence[AuditedFile], edges: Sequence[JsonObject]
 # Git
 # ---------------------------------------------------------------------------
 
-def git_environment() -> dict[str, str]:
+def git_common_directory(root: Path) -> Path | None:
+    """The repository directory that holds info/ for the root's `.git` directory or file;
+    None when there is none or it cannot be read."""
+    dot_git = root / ".git"
+    try:
+        if dot_git.is_dir():
+            git_directory = dot_git
+        else:
+            text = dot_git.read_text(encoding="utf-8")
+            if not text.startswith("gitdir: "):
+                return None
+            git_directory = root / text[len("gitdir: "):].strip()
+        common = git_directory / "commondir"
+        if common.is_file():
+            return git_directory / common.read_text(encoding="utf-8").strip()
+        return git_directory
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def information_attribute_filters(root: Path) -> list[str]:
+    """Every filter driver name that the repository's info/attributes file sets, macros
+    included; empty when the file is absent or cannot be read."""
+    common = git_common_directory(root)
+    if common is None:
+        return []
+    try:
+        text = (common / "info" / "attributes").read_bytes().decode("utf-8", "surrogateescape")
+    except OSError:
+        return []
+    return sorted({found.group(1) for found in FILTER_ATTRIBUTE_RE.finditer(text)})
+
+
+def blank_filter_environment(names: Sequence[str]) -> dict[str, str]:
+    """Command-line scope configuration, by environment so that no name is parsed, that
+    gives each named filter driver no clean or process program and makes it optional."""
+    pairs = [(f"filter.{name}.{key}", value) for name in names
+             for key, value in BLANK_FILTER_SETTINGS]
+    if not pairs:
+        return {}
+    environment = {"GIT_CONFIG_COUNT": str(len(pairs))}
+    for index, (key, value) in enumerate(pairs):
+        environment[f"GIT_CONFIG_KEY_{index}"] = key
+        environment[f"GIT_CONFIG_VALUE_{index}"] = value
+    return environment
+
+
+def git_environment(root: Path) -> dict[str, str]:
     environment = {key: value for key, value in os.environ.items()
                    if not key.startswith("GIT_")}
     environment.update(GIT_READ_ENVIRONMENT)
+    environment.update(blank_filter_environment(information_attribute_filters(root)))
     return environment
 
 
@@ -1318,7 +1391,7 @@ def run_git(root: Path, *arguments: str) -> bytes | None:
         result = subprocess.run(["git", "--no-pager", *GIT_INERT_CONFIGURATION,
                                  "-C", str(root), *arguments],
                                 stdin=subprocess.DEVNULL, capture_output=True,
-                                env=git_environment(), check=False)
+                                env=git_environment(root), check=False)
     except OSError:
         return None
     return result.stdout if result.returncode == 0 else None
