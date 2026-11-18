@@ -422,6 +422,12 @@ T-10 | Index, knowledge and review line | atomic-tests: n-a | atomic-execution: 
   commits: 2c7655b docs(audit): index the audit report and record its independent review
   pr: #114 draft
 
+T-11 | Fix: git read isolation | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action: none
+  target_files: scripts/audit-instructions.py, scripts/check-audit-instructions.py
+  blocker: none
+  notes: fix for issue [2] of the task-level review
+
 
 ## Execution Report
 - T-01: reviewed — read-only `extract` of the deterministic inventory (audited set, readers, text model, git state); re-validated after one correction (unreadable roots, undecodable names, repository-configured git programs)
@@ -470,6 +476,73 @@ spec-run: proposals retained for post-delivery review; no application (10 Do Now
 | No absolute path and no former repository name in any output or fixture | FAIL: the former name and `/home/`, `/Users/` are absent from the outputs, but the inventory keeps `/usr/bin/sg` (inventory.json:146234, DUP-021 text) and a bare `/tmp` raw at :13736, :82407, :83245, :92683; the suite's fixtures hold `/home/someone/…`, `/Users/someone/…` (check-audit-instructions.py:1947-1951, 1978-1980), `/opt/skills/SKILL.md` (:2955) and `/abs/GUIDE.md` (:3194). Known (T-03 V2, V6; report Method) and accepted only by the orchestrator; the owner's decision of 2026-11-17 covers home prefixes only. AC-27 itself requires a non-`~/` location fixture, and DM-6 requires verbatim copied text, so the fix is a /spec-sync narrowing of REQ-25 and this line (T-03 P2), not a code change |
 
 ### Critical Failures Decision: continue — owner decision 2026-11-18: the absolute-path Off-limits line and REQ-25 are narrowed by `/spec-sync` to machine-specific home paths; system paths copied verbatim from audited files and placeholder fixture paths are allowed; no code or output change
+
+## Code Review
+
+### Findings
+1. contract: docs/audits/2026-11-17-rules-workflows-audit.inventory.json:146234 (`/usr/bin/sg` in DUP-021 text), :13736, :82407, :83245, :92683 (bare `/tmp` edge raws); scripts/check-audit-instructions.py:1947-1951, 1978-1980 (`/home/someone/…`, `/Users/someone/…`), :2955 (`/opt/skills/SKILL.md`), :3194 (`/abs/GUIDE.md`) — the Off-limits line "No absolute path and no former repository name in any output or fixture" and REQ-25 fail as written. Owner decision 2026-11-18 (`### Critical Failures Decision: continue`): REQ-25 and the line are narrowed to machine-specific home paths; system paths copied verbatim (DM-6) and placeholder fixture paths (AC-27 needs one) are allowed; no code or output change. Closure: the /spec-sync record of that narrowing in spec 08 (REQ-25, DM-6 home rewrite, fixture exception). Severity: critical (carried from the contract check; resolution decided, record pending).
+2. scripts/audit-instructions.py:59-67, :137-140, :1315-1324, :1367, :3408 — the git subprocesses can do what REQ-15 and the module's read-only contract say they never do. (a) Network: the environment keeps everything except GIT_* and adds no lazy-fetch guard, so in a partial clone (`git clone --filter=blob:none`), `status` rename detection over a staged rename or add+delete, and `cat-file -e <sha>^{commit}` for a commit the clone lacks (for example a `Reviewed:` line naming a squashed-away or invented sha), can fetch missing objects from the promisor remote, i.e. open a network connection during `extract` or `verify`. (b) Programs: `status` runs clean/process filter drivers for files whose stat data changed. The driver is selected by a `.gitattributes` and defined in the repository's or the user's inherited global configuration (for example git-lfs's `filter.lfs.process`). Yet the docstring says "so no program named by the repository's configuration runs". This repeats T-01 V9/P2, raised because of the network path. Not triggered by this delivery (full clone, no `.gitattributes`, review commit present). Not reproduced here (git probes in the scratchpad were not permitted); it rests on git's documented partial-clone and filter behaviour. Fix: add `GIT_NO_LAZY_FETCH=1` (git 2.45 or later) to GIT_READ_ENVIRONMENT and `--no-renames` to `status`. Then either read attributes from the empty tree (`--attr-source=4b825dc642cb6eb9a060e54bf8d69288fbee4904`, git 2.40 or later) or narrow the docstring claim. Add a fixture test whose configured clean filter writes a marker file. Severity: important.
+3. .ai/memory/state.md:9 and :19, .ai/memory/progress.md:149 — task 08 is listed under Active Tasks (`phase: validation | status: in-progress`, "draft PRs #105–#114") and under Done (`completed: 2026-11-18`, "stacked draft PRs #105–#113"); progress.md calls it "delivered". Failure scenario: a later session loads state.md first (Context Loading Protocol), reads the Done row as authoritative, and promotes or merges #105–#113, leaving #114 (the index and review-line leaf) behind. It may also skip the pending spec-sync and finalization. REQ-26/AC-24 require a completed entry, so keep the row but correct the PR range to #105–#114. Word it as "audit complete (verify silent, review pass); task validation in progress" until /pv-finalize. Severity: important.
+4. .ai/context/runbook.md:41-43; scripts/audit-instructions.py:2322-2326, :1889 — the runbook says `verify … must print nothing for a delivered audit`, but that holds only at the delivery commit. Once spec 09 is archived to `.ai/specs/completed/`, `verify` prints `spec09-unavailable` (not among the later-tree diagnostics DM-8 expects). Once spec 09 renames `rules/phase-discovery.md`, it prints `inventory-stale`, `req21-invalid` and, through the hard-coded `ALWAYS_SECTIONED` and `DISCOVERY_RULE`, loses its section checks. A maintainer following the runbook after the naming migration gets dozens of diagnostics and may conclude the audit is broken. Fix: state "at the delivery commit" in the runbook. Optionally name the one-off constants in the module docstring as specific to this audit. Severity: optional.
+5. scripts/audit-instructions.py:3432-3443 — `blocker_rules` checks only that every `blocks_09: true` id appears under `## Blockers for spec 09`. It does not flag a listed id that no longer blocks, nor a section without `None.` when nothing blocks (DM-8: "names every finding with `blocks_09: true`, or `None.`"). Scenario: the owner rejects AMD-08-03/04/06/07, AUD-08-063 flips to `blocks_09: false`, the hand-written list still names it, and `verify` stays silent, so spec 09 is told a finding blocks it when it does not. Severity: optional.
+6. docs/audits/2026-11-17-rules-workflows-audit.inventory.json:82829 — the planning edge raw `rules/reference/12ktokens.md` (copied from this task's own state file) matches the DM-9 token pattern. REQ-03 forbids token counts in the inventory too, but `economics-claim` scans only the report and the assessment, so `verify` cannot see it. It is disclosed in the report's Method section (:171-173) and is a file name, not a claim. Closure: record the verbatim-copy exemption in the same /spec-sync as finding 1. Severity: optional.
+7. scripts/audit-instructions.py:2235-2242, :2676-2685 (and the `files[].evidence` schema) — `path:line` evidence is checked only for format, not for an existing path or a line in range. The report's Method claim of "current `path:line` evidence" (:143-144) is therefore not machine-verified. Re-checked by this review: all 595 items resolve at 8d7e484. Scenario: a later assessment edit cites `rules/tdd.md:999` and `verify` stays silent. Severity: optional.
+
+### Summary
+7 findings: 1 critical (the contract item carried over with the owner's continue decision; only its /spec-sync record is pending), 2 important (git calls can fetch from the network or run filter programs despite the offline contract; contradictory task-08 entries and PR range in `.ai/memory/state.md`), 4 optional. Cross-layer: `extract`, `verify --strict` and `render` share one inventory builder and one region renderer, and a fresh extraction at 8d7e484 is byte-identical. The report's hand-written numbers, all 61 spec 09 defaults, the 9 blocking findings and all 595 evidence citations were recomputed from the JSON files and the audited revision, and match. Security: no shell, no import or exec of repository content, links not followed for the audited tree, the report or the spec file; the remaining gap is the git subprocess (finding 2). Maintainability: the 3,707-line tool is layered by banner sections of plain functions as the design decided; one-off audit constants limit reuse (finding 4). The 5,363-line suite has 212 tests in 61 classes, no mocks and only environment-dependent skips; recorded test amendments are test-side corrections. No test-integrity finding.
+
+## Issue List
+
+Split recorded automatically under the orchestrated-run override: critical and important approved, optional deferred (2026-11-18).
+
+[1]. Absolute paths other than home paths in outputs and fixtures
+     Problem: the Off-limits line and REQ-25 forbid any absolute path, but verbatim copied text keeps `/usr/bin/sg` and bare `/tmp`, and test fixtures use placeholder absolute paths.
+     Solution: owner decision 2026-11-18 — narrow REQ-25 and the Off-limits line to machine-specific home paths through `/spec-sync`, recording the verbatim-copy and fixture exceptions; no code or output change; no fix-task.
+     Priority: critical
+[2]. Git reads can fetch from the network or run filter programs
+     Problem: in a partial clone `status` rename detection and `cat-file -e` can lazily fetch from the promisor remote, and `status` can run clean or process filter drivers selected by attributes; the docstring claims no configured program runs.
+     Solution: disable lazy fetching and rename detection for the git reads, keep attribute-selected filters from running where git allows it, or narrow the docstring claim to what holds; failing tests first.
+     Priority: important
+[3]. Contradictory task records in the project state
+     Problem: the state registry lists the task both as active and as done with different pull request ranges, so a later session may promote or merge an incomplete stack.
+     Solution: orchestrator remedy in the shared file, no fix-task — keep the completed entry required by the specification, correct the range to #105–#114 and word it as audit complete with task validation in progress until finalization.
+     Priority: important
+[4]. Runbook says verify must stay silent after the delivery
+     Problem: later trees legitimately report staleness and an unavailable migration specification.
+     Solution: say "at the delivery commit"; optionally mark the audit-specific constants.
+     Priority: optional
+[5]. Blockers check is one-directional
+     Problem: a listed id that no longer blocks, or a missing `None.`, is not reported.
+     Solution: check both directions.
+     Priority: optional
+[6]. Token pattern in an inventory edge raw
+     Problem: a copied file name matches the token pattern, and the inventory is not scanned.
+     Solution: record the verbatim-copy exemption with issue 1 through `/spec-sync`.
+     Priority: optional
+[7]. Evidence citations are checked only for form
+     Problem: `path:line` evidence is not checked for an existing path or line.
+     Solution: resolve evidence against the inventory in `verify`.
+     Priority: optional
+
+### Approved
+- [1] critical — spec record through `/spec-sync` (owner decision)
+- [2] important — fix-task
+- [3] important — orchestrator remedy in the shared state file
+
+### Deferred
+- [4], [5], [6], [7] optional — kept for post-delivery review ([6] is recorded together with [1] by `/spec-sync`)
+
+## Fix-Tasks
+fixes-created: complete
+fixes-count: 1
+Created: T-11-fix-git-read-isolation
+
+### Fix Classification
+| Issue | Severity | Gate 1 | Gate 2 | Gate 3 | Gate 4 | Grouping | Branch |
+|-------|----------|--------|--------|--------|--------|----------|--------|
+| #2 Git reads can fetch from the network or run filter programs | important | pass | pass | pass | pass | dedicated | T-11-fix-git-read-isolation |
+
+Gate notes: #2 is the only code fix, so it is dedicated; it touches the tool and its suite. Issues #1 and #3 are a specification record and a shared-file remedy applied by the orchestrator and have no fix-task.
 
 ## Model Selection
 selection: complete
