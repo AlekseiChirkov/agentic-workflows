@@ -6,6 +6,8 @@ of every session. Updated after every phase transition.
 
 ## Active Tasks
 
+- [task-24-task-finalization](../tasks/todo/task-24-task-finalization/state.md) | phase: execution | status: in-progress | note: owner-approved post-merge closure; isolated local worktree on the pinned multi-repository dependency; test-first evidence/archive helper, scoped cleanup hooks and staged sync, then shared workflow contracts; no publication or consumer deployment
+
 - [task-08-rules-workflows-audit](../tasks/todo/task-08-rules-workflows-audit/state.md) | phase: discovery | status: complete | note: plan ready, 10 subtasks; one-file read-only audit tool with a standalone suite, then extraction, full reading by file group, map and amendments, report and review line; execution not started
 
 
