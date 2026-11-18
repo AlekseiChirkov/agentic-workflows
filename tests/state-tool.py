@@ -7440,12 +7440,45 @@ class MemoryClaimTests(MemoryConsistencyCase):
         self.write_memory(memory_text(active=(memory_entry("one leaves reviewed"),)))
         self.assert_mismatch()
         claims = ("twenty-one leaves reviewed", "all twenty-one leaves reviewed",
-                  "21 leaves reviewed", "batch-1 leaves reviewed")
+                  "21 leaves reviewed", "batch-1 leaves reviewed", "x1 leaves reviewed")
         for claim in claims:
             with self.subTest(claim=claim):
                 self.write_memory(memory_text(active=(memory_entry(claim),)))
 
                 self.assert_no_mismatch()
+
+    def test_number_word_after_another_number_word_or_a_dash_is_not_a_claim(self) -> None:
+        self.write_state(state_text(*reviewed_leaves(21)))
+        self.write_memory(memory_text(active=(memory_entry("status – one leaves reviewed"),)))
+        self.assert_mismatch()
+        claims = ("twenty one leaves reviewed", "all twenty one leaves reviewed",
+                  "twenty–one leaves reviewed", "all twenty–one leaves reviewed",
+                  "eleven–one leaves reviewed")
+        for claim in claims:
+            with self.subTest(claim=claim):
+                self.write_memory(memory_text(active=(memory_entry(claim),)))
+
+                self.assert_no_mismatch()
+
+    def test_directory_name_followed_by_a_dot_names_another_task(self) -> None:
+        self.write_state(state_text(*reviewed_leaves(10, unreviewed=(10,))))
+        self.write_memory(memory_text(active=(memory_entry(HISTORICAL_CLAIM),)))
+        self.assert_mismatch()
+
+        self.write_memory(memory_text(active=(memory_entry(HISTORICAL_CLAIM, "task-demo.1"),)))
+
+        self.assert_no_mismatch()
+
+    def test_every_pull_request_of_a_leaf_not_reviewed_is_compared(self) -> None:
+        pending = leaf("T-10", header=leaf_statuses("green", "complete", "in-progress"),
+                       body=leaf_body(extra="  pr: #114 draft, #120 draft\n"))
+        self.write_state(state_text(*reviewed_leaves(9), pending))
+        self.write_memory(memory_text(active=(memory_entry("PRs #112–#114 ready"),)))
+        self.assert_mismatch()
+
+        self.write_memory(memory_text(active=(memory_entry("PRs #118–#122 ready"),)))
+
+        self.assert_mismatch()
 
     def test_pull_request_range_is_compared_with_reviewed_leaves_pr_fields(self) -> None:
         cases = (("PRs #105–#114 ready", (), False), ("PRs #105-#114 ready", (), False),
@@ -7565,6 +7598,20 @@ class MemoryFileSafetyTests(MemoryConsistencyCase):
 
         self.assert_no_mismatch()
 
+    def test_platform_without_a_no_follow_open_flag_gives_no_warning(self) -> None:
+        self.write_memory(self.text)
+        arguments = ("get", "--root", str(self.root), "--task", str(self.task))
+        with_flag = InProcessTests.run_in_process(self, *arguments)  # type: ignore[arg-type]
+        self.assertIn(MEMORY_WARNING, self.read_ok(with_flag)["warnings"])
+        saved = os.O_NOFOLLOW
+        del os.O_NOFOLLOW
+        try:
+            without_flag = InProcessTests.run_in_process(self, *arguments)  # type: ignore[arg-type]
+        finally:
+            os.O_NOFOLLOW = saved
+
+        self.assertNotIn(MEMORY_WARNING, self.read_ok(without_flag)["warnings"])
+
     def test_memory_file_that_is_not_utf8_gives_no_warning(self) -> None:
         self.write_memory(self.text.encode("utf-8") + b"\xff\xfe broken\n")
 
@@ -7592,7 +7639,6 @@ class MemoryFileSafetyTests(MemoryConsistencyCase):
         self.assert_no_mismatch()
 
 
-
 def numbered_leaves(numbers: range, *, validation: str, first_pr: int | None) -> list[str]:
     """Leaves with the given numbers and validation status; with first_pr each records
     consecutive pull requests from it, otherwise none records one."""
@@ -7618,25 +7664,26 @@ class AccurateMemoryEntryTests(MemoryConsistencyCase):
 
     def test_range_that_includes_a_prerequisite_pull_request_does_not_warn(self) -> None:
         self.assert_accurate(
-            state_text(*numbered_leaves(range(1, 8), validation="complete", first_pr=23)),
-            "seven leaves and prerequisite reviewed; PRs #22–#29 merged in order")
+            state_text(*numbered_leaves(range(1, 6), validation="complete", first_pr=41)),
+            "five leaves and a setup change reviewed; PRs #40–#46 merged")
 
     def test_range_partly_recorded_by_leaves_the_parser_does_not_list_does_not_warn(
             self) -> None:
         unlisted_pr = leaf("T-01", header=leaf_statuses("green", "complete", "complete"),
-                           body=leaf_body("reviewed", extra="\n  pr: #31 ready\n"))
-        listed = numbered_leaves(range(2, 6), validation="complete", first_pr=32)
-        outside = numbered_leaves(range(6, 7), validation="complete", first_pr=36)[0]
+                           body=leaf_body("reviewed", extra="\n  pr: #50 ready\n"))
+        listed = numbered_leaves(range(2, 5), validation="complete", first_pr=51)
+        outside = numbered_leaves(range(5, 6), validation="complete", first_pr=54)[0]
         self.assert_accurate(
             state_text(unlisted_pr, *listed,
-                       after="## Execution Report\n\nAll six reviewed.\n\n" + outside),
-            "all six PRs #31–#36 merged")
+                       after="## Delivery Notes\n\nEvery change reviewed.\n\n" + outside),
+            "all five PRs #50–#54 merged")
 
     def test_partially_closed_task_with_unstarted_leaves_and_unrecorded_range_does_not_warn(
             self) -> None:
         self.assert_accurate(
             state_text(*numbered_leaves(range(1, 4), validation="not-started", first_pr=None)),
-            "#77–#79 integrated; partial implementation only")
+            "#60–#62 delivered; the remaining work is deferred")
+
 
 class MemoryWarningDocumentationTests(unittest.TestCase):
     def setUp(self) -> None:
