@@ -51,6 +51,13 @@ Keep `validation: in-progress` until finalization succeeds; do not announce comp
 2. Confirm final evidence covers the changed surface after the last fix. If not, rerun
    `/pv-contract` and `/pv-review`; preserve issue decisions and resolution history. A new
    finding returns to its decision/fix cycle. Do not recreate completed fix directories.
+   Preserve a `## Final Verification` record with the date, independent verifier, actual
+   command/results, source revisions, changed-surface coverage and reuse/runtime limits.
+   No exact prose success phrase is required. Retain the underlying command receipts so
+   separately invoked Finalization can supply a dated successful verification attestation
+   bound to the final task-state SHA-256 and exact integration source tips. That receipt
+   uses the finalization helper's documented schema and needs no existing journal. Hash
+   the final persisted state after step 5; do not embed a self-referential hash in that state.
 
 2.5. **Mark spec as complete — prepare metadata only.** Read `spec_path:` and determine
    whether the entire spec is delivered, including all phases and required scope. Pending
@@ -207,3 +214,7 @@ Keep `validation: in-progress` until finalization succeeds; do not announce comp
    actual phase number K and `/phase-discovery <spec_path> --phase K`; do not invoke it.
 
 Return to the active caller; completion is a progress marker, not an extra handoff.
+
+After the owner merges the delivered branches into their intended integration branches,
+suggest `/phase-finalize <task-directory>` for separately invoked evidence-backed closure.
+Do not invoke it, perform its cleanup or change this workflow's Validation/delivery endpoint.

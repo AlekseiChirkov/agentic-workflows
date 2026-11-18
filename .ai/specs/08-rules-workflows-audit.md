@@ -692,7 +692,8 @@ Exact top-level layout, in this order: `# Rules and workflows audit — <run_dat
 (hand-written); `## Method` (hand-written: commands run, deviations from the plan, time taken);
 one line `<!-- audit:generated:begin -->`; the generated region; one line
 `<!-- audit:generated:end -->`; `## Blockers for spec 09` (hand-written; names every finding with
-`blocks_09: true`, or `None.`); `## Independent review` with exactly one line
+`blocks_09: true` and no other finding, or is exactly `None.` when no finding blocks; amendment
+ids and other text beside the listed ids are allowed); `## Independent review` with exactly one line
 `Reviewed: pending` or `Reviewed: <role> <YYYY-MM-DD> pass|fail <40-hex commit>` (`<role>` matches
 `^[A-Za-z][A-Za-z0-9-]*$`, the date is a valid calendar date, and the commit must exist:
 `git -C <root> cat-file -e <sha>^{commit}`); `## Acceptance` with exactly one line
@@ -749,6 +750,7 @@ Location is `<path>:<line>` (`0` for a whole file) or `<json file>#<id or index>
 | `defect-unrecorded` | A defect edge is named in no finding's `edges` |
 | `finding-invalid` | A finding breaks DM-7: owner not allowed for its type, `blocks_09` unequal to the blocking predicate, severity `blocker` with `blocks_09` false, bad `status`, `lines` or `section`, or a `09`-owned finding naming an edge with `in_spec09_grammar` false without an amendment id in `evidence` (REQ-29) |
 | `finding-stale` | A finding's `sha256` differs from its source's |
+| `evidence-unresolved` | A well-formed evidence item of a `files` row, finding or amendment does not resolve against the inventory: a `path:line`, `path:start-end` or bare path names no `files` or `readers` path, the entry has no line count, the range is reversed, or a line lies outside `1..lines` (a number of more than nine significant digits counts as outside); a finding id cited as finding evidence names no path. Line counts come from the inventory, so a later tree adds none. *(Added 2026-11-18 by `/spec-sync`; Decisions → D-04.)* |
 | `reference-unknown` | A finding, candidate, group or map entry cites an id that does not exist |
 | `map-invalid` | A decision's target shape is wrong (DM-7 → Decisions) |
 | `split-sections-incomplete` | A split does not cover every section of its source exactly once |
@@ -761,10 +763,11 @@ Location is `<path>:<line>` (`0` for a whole file) or `<json file>#<id or index>
 | `amendment-invalid`, `amendment-target-unknown` | An amendment breaks DM-7, or its `target` does not satisfy DM-7 → Amendment target forms against spec 09, or an `affected` id is not a whole token of spec 09 |
 | `req21-invalid` | The statements are not exactly one per statement unit of `## Codebase Reading Rules` and `## Decision Protocol` of `rules/phase-discovery.md` (missing, extra, repeated or outside them), or the verdict contradicts the `covered_by` values |
 | `coverage-inconsistent` | An `unavailable` or `changed` entry has no `coverage-gap` finding, `not-a-file` is used for a regular file, or a non-file has another status |
-| `report-layout` | DM-8 headings, markers or the review/acceptance line are missing, repeated or malformed |
+| `report-layout` | DM-8 headings, markers or the review/acceptance line are missing, repeated or malformed; or `## Blockers for spec 09` is not exactly `None.` when no finding blocks, or holds a `None.` line beside blocking findings |
 | `review-commit-unknown` | The commit of a `Reviewed:` line does not exist in the root's repository |
 | `report-generated-mismatch` | The generated region differs from `render` output |
 | `blocker-unlisted` | A `blocks_09: true` finding id does not occur in `## Blockers for spec 09` |
+| `blocker-extra` | A whole finding id under `## Blockers for spec 09` names no finding, or a finding whose `blocks_09` is false; reported once per id per line *(added 2026-11-18 by `/spec-sync`; Decisions → D-04)* |
 | `economics-claim` | The report or any assessment string matches `(?i)\b\d[\d,.]*\s*k?\s*tokens?\b`, `[$€£]\s?\d` or `\b(USD|EUR)\b` |
 | `installed-invalid` | `installed` breaks REQ-03 (non-empty with `not-verified`, a location not starting `~/`, or a `source_sha256` unequal to the inventory) |
 
@@ -916,7 +919,8 @@ Fixture criteria (AC-11 onward, and the fixture parts of AC-01–AC-10) are case
 - **AC-10** (REQ-14) — Given the delivered report, then `## Independent review` holds
   `Reviewed: <role> <date> pass <sha>`, `## Acceptance` holds `Accepted: pending`, and every
   finding with `blocks_09: true` is named under `## Blockers for spec 09`; and given a fixture
-  report missing one such id, `verify` prints `blocker-unlisted`.
+  report missing one such id, `verify` prints `blocker-unlisted`; given one listing a finding that
+  does not block, `blocker-extra`. *(Extended 2026-11-18 by `/spec-sync`; Decisions → D-04.)*
 - **AC-11** (REQ-15) — Given a fixture root and the SHA-256 of every file in it, when `extract`
   and `verify` run, then only the `--out` file is new or changed; and when `render --write` runs,
   then the report differs only between the two marker lines.
@@ -1102,6 +1106,12 @@ source: `.ai/tasks/todo/task-08-rules-workflows-audit/state.md → ### Assumptio
   continue`). The token-pattern exemption for a copied file name (review finding 6, Issue List
   [6], recorded with [1]) belongs to the same verbatim-copy rule. Applied to REQ-25, REQ-03 and
   the suite contract.
+- D-04 | 2026-11-18 | Review follow-ups | Decision: the owner approved fixing the deferred
+  optional review findings 4, 5 and 7 ("fix all findings") after the first finalization.
+  `verify` checks the blockers section in both directions (`blocker-extra`; the `None.` rule as
+  `report-layout`) and resolves well-formed evidence against the inventory's paths and line
+  counts (`evidence-unresolved`); the runbook limits the silent `verify` to the delivery commit.
+  The delivered outputs are unchanged and verify silently. Applied to DM-8, DM-9 and AC-10.
 
 ## Clarifications
 
@@ -1147,7 +1157,8 @@ resolved as A-01–A-28; open items are Q-01 and Q-02.
   paths; recursion depth of the reader walk; `--help`; exit on a failing standard output);
   T-05 P3–P6 (non-blank `reason`; `Terminology:` targets and whole-token ids in examples;
   amendment self-dependency and cycles; `merge` for every shared target); T-06 P3 (report line
-  endings). T-03 P2 is resolved by D-01 and D-03.
+  endings); T-12 Do Later (ASCII-only digits in evidence forms; escaping bidirectional control
+  characters in diagnostic messages). T-03 P2 is resolved by D-01 and D-03.
 
 ## Notes
 
@@ -1253,6 +1264,12 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
   source D-02. Owner decisions recorded under Decisions; behaviour beyond the spec without owner
   approval and the validators' pending proposals listed as Q-03–Q-05; no requirement or
   criterion removed or renumbered; REQ-15 and every other requirement unchanged.
+- 2026-11-18 — `/spec-sync` of task 08 after fix-task T-12 (owner-approved review follow-ups,
+  D-04): suite 237/237, `verify` silent. Deltas, all implemented-beyond with owner approval:
+  (1) DM-8 blockers rule stated in both directions; (2) DM-9 gains `blocker-extra` and
+  `evidence-unresolved`, and `report-layout` covers the `None.` rule; (3) AC-10 extended for
+  `blocker-extra` (AC-20 covers both codes through its every-code fixture). Q-05 lists the T-12
+  Do Later proposals. No requirement or criterion removed or renumbered; line 23 untouched.
 
 ## Readiness Checklist
 
