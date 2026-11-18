@@ -1,0 +1,25 @@
+.ai/tasks/todo/task-08-rules-workflows-audit/plan.md
+  s_96afdcfd38c67e::t_a8ff43b08da8c7 21
+.ai/tasks/todo/task-08-rules-workflows-audit/state.md
+  s_96afdcfd38c67e::t_5f660bf4a9ab9a 639,645,655-660
+docs/audits/2026-11-17-rules-workflows-audit.assessment.json
+  s_96afdcfd38c67e::t_d1d2f78ea677ac 5053,5296,6008,6186,6201-6202,6218,6233,9001,9052,9098,9111,9123,9130,9141
+docs/audits/2026-11-17-rules-workflows-audit.md
+  s_96afdcfd38c67e::t_79f73bc76f667c 10,48-50,181-194,628,1516,1525,1551,1577,1579,1581-1583
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ce560658c93d2a3e39cb4ff34448dfe9e5ffbb9b",
+  "prompts": {},
+  "sessions": {
+    "s_96afdcfd38c67e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f3ac193-9977-473b-b9f7-3df06f485ee7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
