@@ -47,9 +47,10 @@ the project memory file .ai/memory/state.md under the root and add the warning
 memory-state-mismatch when a line under its ## Active Tasks or ## Done heading that names the
 task directory claims a number of reviewed leaves ("all ten leaves reviewed", "9 of 10 leaves
 reviewed") other than the leaf blocks whose atomic-validation is complete, or a pull request
-range #A–#B holding a number that is not the pr of such a leaf; the file is read only when it
-is a regular file reached without a symbolic link, of at most 1 MiB of UTF-8, otherwise
-nothing is compared, and the warning never changes the exit code. For tests only,
+range #A–#B holding the pr of a leaf whose atomic-validation is not complete (numbers no leaf
+records are ignored); the file is read only when it is a regular file reached without a
+symbolic link, of at most 1 MiB of UTF-8, otherwise nothing is compared, and the warning never
+changes the exit code. For tests only,
 STATE_TOOL_TEST_FAULT set to kill-before-replace or kill-after-replace kills the tool after
 its temporary file is synced or after the rename, and pause-before-recheck pauses it before
 the recheck until the file named by STATE_TOOL_TEST_RESUME exists (at most 10 s); any other
@@ -238,8 +239,9 @@ try:
         ("one two three four five six seven eight nine ten eleven twelve thirteen fourteen "
          "fifteen sixteen seventeen eighteen nineteen twenty").split(), 1)}
     CLAIM_NUMBER = r"([0-9]{1,9}|" + "|".join(NUMBER_WORDS) + r")"
-    REVIEWED_CLAIM = re.compile(r"\b(all )?" + CLAIM_NUMBER + r"(?: of " + CLAIM_NUMBER
-                                + r")? leaves reviewed\b", re.IGNORECASE)
+    # A count claim starts after neither a hyphen nor a word character: "twenty-one" is no "one".
+    REVIEWED_CLAIM = re.compile(r"(?<![A-Za-z0-9_-])(all )?" + CLAIM_NUMBER + r"(?: of "
+                                + CLAIM_NUMBER + r")? leaves reviewed\b", re.IGNORECASE)
     PR_RANGE = re.compile(r"#([0-9]{1,9})[–-]#?([0-9]{1,9})(?![0-9])")
     LEAF_PR = re.compile(r"\s*#([0-9]{1,9})(?![0-9])")
 
@@ -1788,24 +1790,32 @@ try:
     # ---------------------------------------------------------------- project memory
 
     def read_memory(root: str) -> str | None:
-        """Text of the project memory file, or None unless it is a regular file reached without a
-        symbolic link, of at most MEMORY_LIMIT_BYTES of UTF-8. The open never blocks."""
-        path = os.path.join(root, *MEMORY_PATH)
-        flags = (os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
-                 | getattr(os, "O_BINARY", 0))
+        """Text of the project memory file, or None unless it is a regular file of at most
+        MEMORY_LIMIT_BYTES of UTF-8 reached without a symbolic link. Each directory below the root
+        is opened relative to its parent without following a link, so a link swapped in while the
+        path is walked is refused as well; no open blocks."""
+        directory_flags = (os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+                           | getattr(os, "O_NOFOLLOW", 0))
+        file_flags = (os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+                      | getattr(os, "O_BINARY", 0))
+        if os.open not in os.supports_dir_fd:
+            return None
+        directories: list[int] = []
         try:
-            if os.path.realpath(path) != path:
-                return None
-            info = os.lstat(path)
-            if not stat.S_ISREG(info.st_mode) or info.st_size > MEMORY_LIMIT_BYTES:
-                return None
-            descriptor = os.open(path, flags)
+            directories.append(os.open(root, directory_flags))
+            for name in MEMORY_PATH[:-1]:
+                directories.append(os.open(name, directory_flags, dir_fd=directories[-1]))
+            descriptor = os.open(MEMORY_PATH[-1], file_flags, dir_fd=directories[-1])
             with os.fdopen(descriptor, "rb") as handle:
-                if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                info = os.fstat(handle.fileno())
+                if not stat.S_ISREG(info.st_mode) or info.st_size > MEMORY_LIMIT_BYTES:
                     return None
                 data = handle.read(MEMORY_LIMIT_BYTES + 1)
         except OSError:
             return None
+        finally:
+            for directory in directories:
+                os.close(directory)
         if len(data) > MEMORY_LIMIT_BYTES:
             return None
         try:
@@ -1829,22 +1839,25 @@ try:
 
 
     def claim_number(text: str) -> int:
+        """The value of a claimed count written in digits or as a number word."""
         return int(text) if text.isdigit() else NUMBER_WORDS[text.lower()]
 
 
     def entry_unsupported(entry: str, leaves: list[Block]) -> bool:
         """Whether a memory entry claims a reviewed-leaf count, or a pull request range, that the
         leaves do not support: a count must equal the leaves whose validation is complete ("all"
-        also needs every leaf complete, "of M" needs M leaves), and every number of a range must
-        be the pull request of such a leaf."""
-        reviewed = [block for block in leaves
-                    if dict(block.header_fields).get("atomic-validation") == "complete"]
-        requests = set()
-        for block in reviewed:
+        also needs every leaf complete, "of M" needs M leaves), and a range must not hold the pull
+        request of a leaf whose validation is not complete; numbers no leaf records are ignored."""
+        reviewed: list[Block] = []
+        pending: set[int] = set()
+        for block in leaves:
+            if dict(block.header_fields).get("atomic-validation") == "complete":
+                reviewed.append(block)
+                continue
             for group in block.groups:
                 match = LEAF_PR.match(group.value) if group.name == "pr" else None
                 if match:
-                    requests.add(int(match.group(1)))
+                    pending.add(int(match.group(1)))
         for match in REVIEWED_CLAIM.finditer(entry):
             everything, claimed, total = match.groups()
             if (claim_number(claimed) != len(reviewed)
@@ -1853,9 +1866,7 @@ try:
                 return True
         for match in PR_RANGE.finditer(entry):
             first, last = int(match.group(1)), int(match.group(2))
-            if first <= last and (last - first + 1 > len(requests)
-                                  or any(number not in requests
-                                         for number in range(first, last + 1))):
+            if any(first <= number <= last for number in pending):
                 return True
         return False
 

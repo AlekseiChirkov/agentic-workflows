@@ -986,9 +986,11 @@ blocks. They read `.ai/memory/state.md` under the root and take every line under
 `## Active Tasks` or `## Done` that names the task directory. A claimed number of reviewed
 leaves (`all ten leaves reviewed`, `9 of 10 leaves reviewed`; digits or the words one to
 twenty) must equal the leaves whose `atomic-validation` is `complete`; `all` also needs every
-leaf complete and `of M` needs M leaves. Every number of a pull request range `#A–#B` (en dash
-or hyphen, the second `#` optional) must be the `pr:` of such a leaf. Otherwise the warning
-`memory-state-mismatch` is added; it never changes the exit code. The memory file is read only
+leaf complete and `of M` needs M leaves; a number after a hyphen or a letter
+(`twenty-one`) is no claim. A pull request range `#A–#B` (en dash or hyphen, the second `#`
+optional) must not hold the `pr:` of a leaf whose `atomic-validation` is not `complete`;
+numbers no leaf records are ignored. Otherwise the warning `memory-state-mismatch` is added;
+it never changes the exit code. The memory file is read only
 when it is a regular file reached without a symbolic link, of at most 1 MiB of UTF-8;
 otherwise nothing is compared and no warning or error results.
 
