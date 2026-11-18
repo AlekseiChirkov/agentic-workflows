@@ -668,6 +668,11 @@ T-18 | Feat: state tool memory consistency warning (proposals) | atomic-tests: n
   notes: source and decisions in `T-18-feat-state-tool-memory-consistency-warning/description.md`
 
 T-19 | Fix: separator pattern shadowing (reconciliation finding) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  branch: fix/audit-separator-pattern
+  base_branch: docs/sync-audit-specifications
+  base_commit: f71d7a4b11e4f56fc3d028d94fc0bec164546f09
+  commits:
+  pr: none
   last_action: created 2026-11-18 from the spec 08 reconciliation finding Q-06 (a)
   target_files:
   blocker: none
