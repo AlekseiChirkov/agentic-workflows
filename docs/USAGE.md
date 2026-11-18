@@ -582,7 +582,10 @@ migration and complete offline helper examples are in [MODEL-CATALOG.md](MODEL-C
   `/phase-pipeline`.
 - **Orchestrated mode** — `/spec-run` runs a whole spec with context-bounded sub-agents, one
   stacked branch per subtask, strictly sequential. Contracts: `rules/orchestration.md`,
-  `rules/git-flow.md`. It never merges a PR or pushes to the base branch. Tracked `.ai/`
+  `rules/git-flow.md`. With `--repo <directory>=<base-branch>` flags one shared spec runs
+  across several git repositories under a project root that is not itself a repository,
+  one stack per repository (`rules/git-flow.md → ## Multi-repository runs`). It never
+  merges a PR or pushes to the base branch. Tracked `.ai/`
   knowledge and state follow repository policy; untracked consumer state stays local unless
   the user explicitly authorizes tracking it.
 - **Continue, never restart** — read `state.md` first, resume from last completed step.
@@ -855,7 +858,8 @@ A block written before the TDD step existed has no `atomic-tests:` line; read it
 `not-started` and do not error.
 
 Under `/spec-run` the block also carries `branch:`, `base_branch:`, `base_commit:`,
-`commits:`, and `pr:`. Composite subtasks use a `[composite]` block with
+`commits:`, and `pr:`; a multi-repository run adds `repo:` before them and records the
+repository set in a task-level `## Repositories` section. Composite subtasks use a `[composite]` block with
 `rollup:` / `integration-validation:` / `children:` instead of the three atomic status fields.
 
 A block may also carry a tool-managed `state_receipts:` line, written only by

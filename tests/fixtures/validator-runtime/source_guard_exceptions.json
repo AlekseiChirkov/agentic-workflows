@@ -3565,13 +3565,13 @@
     "inventory_sha256": "566bed33b9d04c1d19f791c35319a5e1554febd51e938bfb21b2f435cde56dae",
     "dependencies": {
       "docs/MODEL-CATALOG.md": "705c920c60218461404d3b76b6ef77f04b42f72b659800dec2cba2d5ef507ad4",
-      "rules/workflow-reference.md": "9e2922848016b689c9e955542cacf53a76adc5c8423471e3051170352b464df4",
+      "rules/workflow-reference.md": "08c81786494f39665b4aebf495c705a21b4fd38294a995074a24d165730bd463",
       "scripts/sync.sh": "968b8d585f47569251be91c1d6d443bb27bce17e1f92ac4697e5604c8dba1cef",
       "scripts/model-catalog.py": "dfe20c5cac2eefa8f03b4dbc90dbc107abd3635104102ec0e24e7ad5109d6bd4",
       "scripts/model_selection.py": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece",
       "scripts/model_plan.py": "283c7d1d0a4c37fd9f1f2405eb269cfa7e5bb32b8dd898c0b49e9b16d32231ff",
       "workflows/pd-select-model.md": "16a7239c47c97e0fc2c52a54a67017d45be9b12809bb010267555c3a3b6977d2",
-      "workflows/spec-run.md": "f8d25f0e542fb9530ecfcfd9d4197ba1decea470be7f81455b2bcf4c4a8d3523",
+      "workflows/spec-run.md": "a7a5af2cbadf807d2c316dfe1887bdf9eacb50d9f83c242bd7e0fea939b3106c",
       "workflows/pe-execute.md": "5d4097666f7bd3bc1d343c10dd545db306b845cc74cba2ce21e43acf8d28316e",
       "workflows/phase-atomic-execution.md": "2891c7773cb73a2d25d3ef23e8ec6c3c003f98342cbea69e1288796178ad48f8"
     }
@@ -3587,13 +3587,13 @@
     "inventory_sha256": "566bed33b9d04c1d19f791c35319a5e1554febd51e938bfb21b2f435cde56dae",
     "dependencies": {
       "docs/MODEL-CATALOG.md": "705c920c60218461404d3b76b6ef77f04b42f72b659800dec2cba2d5ef507ad4",
-      "rules/workflow-reference.md": "9e2922848016b689c9e955542cacf53a76adc5c8423471e3051170352b464df4",
+      "rules/workflow-reference.md": "08c81786494f39665b4aebf495c705a21b4fd38294a995074a24d165730bd463",
       "scripts/sync.sh": "968b8d585f47569251be91c1d6d443bb27bce17e1f92ac4697e5604c8dba1cef",
       "scripts/model-catalog.py": "dfe20c5cac2eefa8f03b4dbc90dbc107abd3635104102ec0e24e7ad5109d6bd4",
       "scripts/model_selection.py": "fc70143323c6ca7c98c943a67183865d202ecc4b57f8d22b2e7b600b4a719ece",
       "scripts/model_plan.py": "283c7d1d0a4c37fd9f1f2405eb269cfa7e5bb32b8dd898c0b49e9b16d32231ff",
       "workflows/pd-select-model.md": "16a7239c47c97e0fc2c52a54a67017d45be9b12809bb010267555c3a3b6977d2",
-      "workflows/spec-run.md": "f8d25f0e542fb9530ecfcfd9d4197ba1decea470be7f81455b2bcf4c4a8d3523",
+      "workflows/spec-run.md": "a7a5af2cbadf807d2c316dfe1887bdf9eacb50d9f83c242bd7e0fea939b3106c",
       "workflows/pe-execute.md": "5d4097666f7bd3bc1d343c10dd545db306b845cc74cba2ce21e43acf8d28316e",
       "workflows/phase-atomic-execution.md": "2891c7773cb73a2d25d3ef23e8ec6c3c003f98342cbea69e1288796178ad48f8"
     }

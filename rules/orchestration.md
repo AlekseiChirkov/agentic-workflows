@@ -66,8 +66,9 @@ wrote, and waits. That pause exists so the orchestrator can create the test-only
 it, in the same context, for `/pae-implement` → `/pae-finalize`. Sequence:
 `/spec-run → ## Step 4 → 4.2`.
 
-Receives: the path to one `T-XX/description.md`, the resolved `WORK_DIR`, and the branch it
-is on. Loads `.ai/` context itself per the standalone-invocation rule. Receives **no**
+Receives: the path to one `T-XX/description.md`, the resolved `WORK_DIR` (in a
+multi-repository run, the leaf's repository — `git-flow → ## Multi-repository runs`), and the
+branch it is on. Loads `.ai/` context itself per the standalone-invocation rule. Receives **no**
 transcript from previous subtasks — the parent `state.md` is the handoff.
 
 The existing RED return may carry the provisional dispatch envelope supplied by

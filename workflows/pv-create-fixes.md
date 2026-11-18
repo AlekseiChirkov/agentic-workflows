@@ -123,7 +123,9 @@ Quick tasks apply approved fixes inline in `/phase-validation`; do not create at
    Each shared-group fix has one branch and pull request; each dedicated fix has its own.
    Branch naming (feature-based, no identifiers) and commit type (`fix:`) follow `git-flow`. Record `branch:`,
    `base_branch:`, `base_commit:`, `commits:`, and `pr:` in each fix-task's progress block
-   exactly as for a regular subtask.
+   exactly as for a regular subtask. In a multi-repository task fix branches extend the
+   stack of their own repository from that repository's tip, and the block also records
+   `repo:`; the plan row carries `Repo` and the description `working_dir:`.
 
 7. Report: "Step 4 (Create Fix-Tasks) complete. Created N fix-tasks: T-XX, T-YY, ..."
 Return to the caller; this is a progress marker.

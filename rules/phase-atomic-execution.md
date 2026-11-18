@@ -18,6 +18,10 @@ Read `T-XX/description.md → ## Context → working_dir:` before loading any co
 - If `working_dir:` present: `WORK_DIR = <resolved absolute path>`, `AI_DIR = WORK_DIR/.ai`
 - If absent: `WORK_DIR = <absolute invocation directory>`, `AI_DIR = WORK_DIR/.ai`
 - Umbrella: if `<WORK_DIR>/../.ai/` exists → load umbrella FIRST, then `AI_DIR` (local overrides)
+- Runbook: `AI_DIR/context/runbook.md` when it exists; otherwise the umbrella's `context/runbook.md`
+  (a multi-repository project whose repositories have no local `.ai/`). Run a local runbook's
+  commands in `WORK_DIR` and an umbrella runbook's commands from the umbrella root `<WORK_DIR>/..`,
+  where they are written. Every later mention of the runbook means this resolved runbook.
 
 Report before continuing: "WORK_DIR=<path>, AI_DIR=<path>"
 

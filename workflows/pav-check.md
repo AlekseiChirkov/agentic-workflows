@@ -44,7 +44,8 @@ Keep task-artifact paths absolute; run code reads, writes, and commands in `WORK
    the latest commit belongs to it. Persist the recovered cumulative list with its source.
    Without reliable ownership evidence → **stop**: "Identify this subtask's changed files before validation."
 
-5. Run the applicable `test:` and `lint:` commands from the resolved runbook in `WORK_DIR`.
+5. Run the applicable `test:` and `lint:` commands from the resolved runbook in `WORK_DIR`
+   (from the umbrella root for an umbrella runbook; `phase-atomic-execution → ## Context Bootstrap`).
    Missing commands, unavailable dependencies, or incomplete runs are reported as evidence
    gaps; do not claim a passing verification that did not run.
 

@@ -154,7 +154,7 @@ offline examples are in [MODEL-CATALOG.md](../docs/MODEL-CATALOG.md).
 
 ## Orchestrated Mode — one spec to review-ready pull requests
 
-`/spec-run <spec-path> [--allow-pr] [--dry-run]`
+`/spec-run <spec-path> [--repo <directory>=<base-branch> ...] [--allow-pr] [--dry-run]`
 
 `orchestration` defines Orchestrator, Arbiter, Implementer and independent Validator.
 Workers run sequentially and return shared-file deltas; the Orchestrator owns shared
@@ -166,8 +166,12 @@ gets a test-only commit before the same Implementer continues to GREEN; justifie
 current model. Later PRs contain their predecessors and depend on them. PRs require
 `--allow-pr`, start as drafts and become ready after successful task validation.
 The workflow never merges; the human chooses integration timing and strategy.
+With `--repo` flags a shared spec in a project root that is not a git repository runs
+across the declared repositories: per-repository preflight, one stack per repository,
+one shared sequential order and explicit cross-repository dependencies
+(`git-flow → ## Multi-repository runs`).
 
-`/restack <task-directory> [--allow-pr]` repairs the remaining stack using recorded
+`/restack <task-directory> [--repo <directory>] [--allow-pr]` repairs the remaining stack using recorded
 branch points after integration. Missing branches alone do not prove a merge.
 
 ## Utility

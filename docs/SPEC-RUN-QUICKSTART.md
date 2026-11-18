@@ -20,7 +20,45 @@ use the quick tier instead (`rules/quick-flow.md`).
 | Spec exists | `.ai/specs/<NN>-<slug>.md`, H1 title required, `## Acceptance Criteria` strongly recommended |
 | Only for `--allow-pr` | remote `origin` exists and `gh auth status` succeeds |
 
-One spec covers **one repository**. Cross-repo work is split into separate specs.
+A spec covers one repository, or — in a **multi-repository project** — several git
+repositories that share one knowledge base. See below.
+
+### Multi-repository projects
+
+Use this when the project root holds the shared `.ai/` (spec, task state) but is **not** a
+git repository, and the code lives in git repositories directly under it:
+
+```
+project/            ← not a git repository; holds .ai/specs/05-user-dashboard.md
+├── .ai/
+├── backend/        ← git repository, base branch dev
+└── frontend/       ← git repository, base branch dev
+```
+
+Declare every participating repository and its local base branch, from the project root:
+
+```bash
+/spec-run .ai/specs/05-user-dashboard.md --repo backend=dev --repo frontend=dev --dry-run
+/spec-run .ai/specs/05-user-dashboard.md --repo backend=dev --repo frontend=dev
+```
+
+- Only the named repositories take part; other nested repositories are listed as ignored.
+- The preflight runs in each repository (clean tracked tree, no unfinished merge or rebase,
+  local base branch, no branch collision; with `--allow-pr` also `origin` and
+  `gh auth status`). Any failure stops before the first branch and names the repository.
+- One plan and one shared order; every leaf belongs to one repository (`Repo` column and
+  `working_dir:`). Work that touches both is split into one leaf per repository, the
+  consumer depending on the producer.
+- One stack per repository: its first leaf branches from that repository's base branch,
+  each later leaf from the previous reviewed leaf of the same repository.
+- A cross-repository dependency is recorded in `plan.md`, in `state.md → ## Repositories`
+  and in the PR body. It is a merge and deployment order — the repositories share no git
+  history, and no PR is based on another repository's branch.
+- The set is recorded in the task state, so a resume may omit the `--repo` flags. Each
+  recorded branch is checked against its own repository; a missing branch or an unexpected
+  tip stops for you to resolve.
+- The read-only facts come from `scripts/repo-set.py` (`mode`, `preflight`, `route`,
+  `reconcile`); run `python3 scripts/check-repo-set.py` in the source checkout to test it.
 
 ---
 
@@ -145,6 +183,10 @@ merge commit, rebase, or squash. After a rebase or squash merge, replay what is 
 /restack .ai/tasks/todo/task-01-add-oauth/              # local only
 /restack .ai/tasks/todo/task-01-add-oauth/ --allow-pr   # and update the open PRs
 ```
+
+In a multi-repository project, merge each repository's stack bottom-up in the integration
+order of the final report (a producer change before the changes that consume it), and
+restack one repository at a time: `/restack <task-directory> --repo backend`.
 
 `/restack` works with any strategy because each branch's `base_commit` was recorded when the
 branch was created and is never recomputed. On a conflict it stops and hands the rebase to you —

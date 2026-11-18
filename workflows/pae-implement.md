@@ -155,8 +155,9 @@ If no tripwire condition is observed → continue execution normally without any
 
 ## Final Verification
 
-After all planned steps, read `AI_DIR/context/runbook.md → ## Commands` and run
-verification in `WORK_DIR`:
+After all planned steps, read the resolved runbook's `## Commands` (`AI_DIR/context/runbook.md`,
+or the umbrella fallback of `phase-atomic-execution → ## Context Bootstrap`) and run
+verification in `WORK_DIR` (from the umbrella root for an umbrella runbook):
 1. Require `test:` for testable work. A missing command blocks it; only justified `n-a`
    or a documented pre-TDD task may record its absence and use actual AC/manual
    verification. Missing tooling never changes a testable level to `none`.

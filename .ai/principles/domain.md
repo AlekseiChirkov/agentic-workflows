@@ -37,7 +37,10 @@ appears in a rule.
 | **Class A** | Missing context — the answer exists in project artifacts; the Arbiter resolves it. |
 | **Class B** | Missing intent — only the human may decide; harvested into `## Open Questions (batch)` during Discovery. |
 | **Batch gate** | The one planned stop of `/spec-run`: all class-B questions presented at once, before the first branch. |
-| **Stack** | Subtask branches chained in dependency order; branch N is cut from the tip of N-1 after N-1 is `reviewed`. |
+| **Stack** | Subtask branches chained in dependency order; branch N is cut from the tip of N-1 after N-1 is `reviewed`. A multi-repository run keeps one stack per repository. |
+| **Multi-repository run** | A `/spec-run` whose project root holds the shared `.ai/` but is not a git repository; its code lives in declared git repositories directly under that root. |
+| **Repository set** | The repositories a multi-repository run declares with `--repo <directory>=<base-branch>`, recorded in task `state.md → ## Repositories`. |
+| **Cross-repository dependency** | A `Depends On` edge between leaves of different repositories: an ordering, merge and deployment fact, never a git base. |
 | **`base_commit`** | The sha at branch creation, written once, never recomputed; the only input that makes `/restack` merge-strategy-agnostic. |
 | **Fix-task** | A `T-XX-fix-<slug>` subtask created by `/pv-create-fixes` from an approved review issue. |
 | **Run log** | The central JSONL store written by `scripts/log-step.sh`; read only by `/retro`. |

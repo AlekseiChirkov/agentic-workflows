@@ -18,6 +18,7 @@ Read `T-XX/description.md → ## Context → working_dir:` before loading any co
 - If `working_dir:` present: `WORK_DIR = <resolved absolute path>`, `AI_DIR = WORK_DIR/.ai`
 - If absent: `WORK_DIR = <absolute invocation directory>`, `AI_DIR = WORK_DIR/.ai`
 - Umbrella: if `<WORK_DIR>/../.ai/` exists → load umbrella FIRST, then `AI_DIR` (local overrides)
+- Runbook: resolved as in `phase-atomic-execution → ## Context Bootstrap` (umbrella fallback included)
 
 Report before continuing: "WORK_DIR=<path>, AI_DIR=<path>"
 

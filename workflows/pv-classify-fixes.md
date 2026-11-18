@@ -48,6 +48,9 @@ reuses them in `## Fix-Tasks → Created:`. The legacy `Branch` table column sto
 Each distinct ID is one group; `Grouping: shared` alone does not identify a group.
 Keep top-level fixes separate from composite-child fixes, and never group children of
 separate composites. Composite groups use the next available sibling letter.
+In a multi-repository task (`state.md → ## Repositories`) never group fixes from different
+repositories: a fix that would touch several repositories is split into one fix per
+repository, each routed with `Repo` and `working_dir:` like any leaf.
 
 ### Splitting the shared group
 

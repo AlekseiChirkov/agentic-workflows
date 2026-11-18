@@ -2,14 +2,52 @@
 description: Orchestrator — carry one spec from Discovery to review-ready pull requests, one stacked branch per subtask, using context-bounded sub-agents
 ---
 
-Invocation: `/spec-run <path-to-spec> [--allow-pr] [--dry-run]`
+Invocation: `/spec-run <path-to-spec> [--repo <directory>=<base-branch> ...] [--allow-pr] [--dry-run]`
 You are the **Orchestrator**. Load `orchestration` and `git-flow` before Step 0.
 They own roles, shared-file discipline, escalation and git rails.
 
 - `--allow-pr` authorizes pushes and draft PRs; without it run no push or `gh` command.
 - `--dry-run` reports preflight, existing plan and proposed stack without project writes,
   branches, commits, PRs or Discovery. Best-effort telemetry is its only write exception.
-- One repository per invocation; split cross-repository work into separate specs.
+  In multi-repository mode `--dry-run` runs only the read-only helper commands (`mode`,
+  `preflight`, and `route` and `reconcile` when a plan exists) and prints one proposed stack
+  per repository.
+- `--repo <directory>=<base-branch>` (repeatable) declares one participating repository of a
+  multi-repository project. Without it the run is single-repository and every rule below
+  applies as written. See `## Repository mode`.
+
+## Repository mode
+
+The **project root** `ROOT` is the directory holding `.ai/specs/<spec>`. Classify it before
+anything else. When no `--repo` flag was given and `git -C "$ROOT" rev-parse
+--is-inside-work-tree` prints `true`, the run is **single-repository**: `WORK_DIR = ROOT`,
+everything below applies unchanged, and the helper is never used. Otherwise classify with
+`repo-set.py mode`, a read-only helper resolved from the configured or independently
+verified source root, never from CWD or an installed skill's location:
+
+```bash
+REPO_HELPER="${ORCHESTRAIL_HOME:+$ORCHESTRAIL_HOME/scripts/repo-set.py}"
+python3 -I "$REPO_HELPER" mode --root "$ROOT" [--repo <directory>=<base-branch> ...]
+```
+
+- `single-repository` with `root-is-repository` — `--repo` was given for a root inside a
+  git work tree → **stop**: rerun without `--repo`.
+- `multi-repository` — `ROOT` is not a git repository and the repository set comes from
+  `--repo` or, on resume, from task `state.md → ## Repositories`
+  (`git-flow → ## Multi-repository runs`). Each leaf's `WORK_DIR` is its own repository;
+  shared files (`.ai/`, the spec, task state) stay in `ROOT` outside every repository and are
+  never staged. Run every git command of a leaf inside its repository with a literal path
+  (`git -C <ROOT>/<repository> …`). Never initialize a repository in `ROOT` or move files.
+- `repositories-required` without `--repo`: resolve the task read-only (Step 0 item 2) and
+  rerun `mode` with its `state.md`, so a resumed run reuses the recorded set.
+- A failed `mode` result after that (`repositories-required`, `root-is-repository`,
+  `repository-set-mismatch`) or a missing helper, Python 3.9+ or JSON result in a project
+  whose root is not a git repository → **stop**: report the result and its `candidates`, and
+  the invocation to use.
+
+Every `preflight`, `route` and `reconcile` call below takes `--root "$ROOT"`, the same
+`--repo` flags when given, and `--state <task state.md>` once it exists. Exit 1 means stop
+before mutation; report each failure as repository, check and reason.
 
 ## Guard
 
@@ -50,6 +88,7 @@ This aggregate is distinct from the named RED row in Step 4.2. Ordinary prompt s
 Dry-run logs only `run-start`, `--step dry-run --outcome skipped --note approximate`,
 and `run-end --outcome completed`. Close other runs as `completed`, `stopped` or `failed`.
 Missing helpers or log failures never block work; mention unavailable logging once.
+In multi-repository mode pass `--project "$ROOT"`.
 
 ---
 
@@ -58,12 +97,17 @@ Missing helpers or log failures never block work; mention unavailable logging on
 1. Resolve the project `WORK_DIR` and run `git-flow → ## Preflight (mandatory, before any branch is created)`. Report any failure
    and **stop**. Dry-run performs read-only checks and reads an existing plan if available;
    otherwise report "unknown until Discovery" and stop after closing telemetry.
+   In multi-repository mode run `repo-set.py preflight` after item 2 instead, with
+   `--allow-pr` when given; it applies the same checks to every participating repository
+   and lists undeclared nested repositories as ignored.
 2. Run `phase-discovery` Step 0 in full for resolution only, adopting its working directory, task path,
    multi-phase selection and collision guards. Resolution itself writes nothing; let
    Discovery initialize a fresh task once.
 3. If resolution found a new task without state, start at Step 1. Otherwise read
    `state.md` and reconcile recorded branches and commit tips. A missing branch or
    unexpected tip requires explicit reconciliation; never infer that missing means merged.
+   In multi-repository mode `repo-set.py reconcile` compares every recorded checkpoint
+   with its own repository; any failure stops with its repository, leaf and reason.
    Clean-tree preflight also applies on resume. Uncommitted tracked work, including
    tracked task bookkeeping, stops before mutation: report exact paths and the pending
    checkpoint for user reconciliation. Never stash or commit it merely to clear this gate.
@@ -74,6 +118,8 @@ Missing helpers or log failures never block work; mention unavailable logging on
    - Discovery incomplete: Step 1.
    - Discovery complete, model/stack setup missing: Steps 2–3.
    - Unreviewed leaves: Step 4 at the first one, at its existing atomic/git checkpoint.
+     In multi-repository mode that is `repo-set.py route`'s `next` leaf, the earliest
+     unfinished leaf of the shared order, in whichever repository it belongs to.
    - Leaves reviewed, execution finalization missing: `/pe-finalize` before Step 5.
    - Execution complete, Validation incomplete: Step 5, including its pending fixes.
    - Validation complete: Step 7 if authorized PR promotion is outstanding; otherwise report.
@@ -87,6 +133,9 @@ Missing helpers or log failures never block work; mention unavailable logging on
 Pass the resolved `--phase N` for multi-phase specs so the child keeps the selected
 phase. Run `/phase-discovery` in autonomous **orchestrated** mode, allowing normal initialization
 for a fresh task and resuming existing Discovery artifacts otherwise. It owns child sequencing and quick/full routing; never pass `--step-by-step`.
+In multi-repository mode supply the repository set; Discovery records it in
+`state.md → ## Repositories` and routes every leaf to one repository. Discovery writes
+only the shared knowledge base in `ROOT`, never inside a repository.
 Spawn the **Arbiter** after task artifacts exist, before execution; give it current spec,
 state, plan and relevant project context. Use the session-default role worker without a
 model override after checking current worker capabilities, permissions and restrictions;
@@ -183,6 +232,28 @@ follows repository policy. They never reach a branch name, a commit message, or 
 text — see
 `git-flow → ### Pipeline identifiers stay out of the repository`.
 
+**Multi-repository mode.** Run `repo-set.py route --plan <plan.md>`. It returns the shared
+order, one stack per repository (`stacks`), each leaf's `stack_parent` and `base_branch`,
+and `cross_repository_dependencies`. Any failure (`unrouted-leaf`, `working-dir-mismatch`,
+`composite-spans-repositories`, `unknown-dependency`, `dependency-cycle`, a missing
+description) → **stop** before the first branch: Discovery must repair the routing. Derive
+every new branch name, then rerun `repo-set.py preflight --branch <repository>=<branch> …`
+for all of them; a collision stops the run. Write the dependency list to
+`state.md → ## Repositories → cross_repo_dependencies:`, then print one stack per repository
+and the shared order:
+
+```
+Stack plan — <spec title> (multi-repository)
+  backend @ dev
+  └── feat/watchlist-api        requested: <model/default>   (T-01)
+      └── feat/openings-api     requested: <model/default>   (T-02, depends T-01)
+  frontend @ dev
+  └── feat/dashboard-screen     requested: <model/default>   (T-03, depends backend T-01)
+      └── feat/opening-capture  requested: <model/default>   (T-04, depends backend T-02, T-03)
+Shared order: T-01 → T-03 → T-02 → T-04
+PRs: draft on creation, promoted to ready after validation | not created (no --allow-pr)
+```
+
 ---
 
 ## Step 4 — Subtask loop
@@ -204,6 +275,13 @@ For a resumed leaf, check out its reconciled existing branch.
 Immediately record in the subtask's `## Subtask Progress` block: `branch:`, `base_branch:`,
 and `base_commit:` (the sha of the branch point — `git rev-parse HEAD` before any work).
 `base_commit` is written once and never recomputed. Do not rewrite it on resume.
+
+In multi-repository mode, rerun `repo-set.py route` before each leaf: start only the
+`next` leaf and only when `ready` is true; a leaf waiting for a dependency or stack parent
+in any repository does not start. Work in `next.repository`: create the new branch there
+from `next.base_branch` (that repository's base branch for its first leaf, otherwise the
+tip of its previous reviewed leaf) and record `repo:` together with the git fields.
+Leaves of other repositories never move this repository's stack.
 
 **4.2 Implementer — one agent, two checkpoints.** Before the existing spawn, check native
 capability, current installation and native session identity as required by
@@ -278,6 +356,9 @@ implementation commit, exactly as `git-flow → ## Commits` specifies for that c
 
 Follow `git-flow → ## Commits` for explicit staging, repository tracking policy and
 messages. Verify the recorded digest/commits before skipping an interrupted checkpoint.
+In multi-repository mode `WORK_DIR` is the leaf's repository: stage and commit only paths
+inside it, with `git -C <ROOT>/<repository>`; the shared `.ai/` in `ROOT` is outside every
+repository and is never staged.
 A characterization (`pinned`) checkpoint uses the same test-first commit handoff without
 claiming RED or emitting a named RED marker; follow `tdd` for its evidence.
 
@@ -287,7 +368,8 @@ restrictions.
 Never inherit the Implementer's model or resolve its leaf plan model for this role.
 Keep unknown default identity unknown; successful spawning does not identify execution.
 Unavailable worker spawning stops the run. Give it: the path to the same
-`T-XX/description.md`, the test files, and the subtask diff (`git diff <base_commit>..HEAD`).
+`T-XX/description.md`, the test files, and the subtask diff (`git diff <base_commit>..HEAD`,
+run inside the leaf's repository in multi-repository mode).
 Do **not** give it the Implementer's reasoning or report. Instruct it to run `/pav-check` →
 `/pav-propose --batch` → `/pav-close`.
 
@@ -301,11 +383,18 @@ this subtask can be built on a failing base.
 **4.4 Composite rollup.** When the closed subtask is the last child of a composite,
 `/pav-close` triggers `/phase-composite-validation` automatically. It runs on the current
 branch — the tip already contains every child. Do not create a branch for the composite.
+In multi-repository mode that is the current branch of the composite's one repository.
 
 **4.5 Pull request** (only with `--allow-pr`, only when the subtask is `reviewed`). Push the
 branch, then open a **draft** PR with base = the previous subtask's branch (for T-01, base =
 the repository default branch). Build the body per `git-flow → ## Pull requests`, including
 the stack position and the dependency warning. Record `pr:` in the block.
+In multi-repository mode push and open the PR from the leaf's repository. Its base is
+`next.base_branch` from Step 4.1 — the stack parent in the same repository or that
+repository's base branch — never a branch of another repository. State the stack position
+within that repository and add one line per cross-repository dependency, naming the other
+repository, its branch and its PR URL (or "local branch"), per
+`git-flow → ## Multi-repository runs`.
 
 A subtask that is `blocked` or whose validation `failed` gets no PR.
 
@@ -321,7 +410,9 @@ registered in `workflow-globals`. The Orchestrator delegates approved code work 
 
 ## Step 5 — Task-level validation
 
-Run `/phase-validation <task-directory>` on the stack tip. Its children own issue
+Run `/phase-validation <task-directory>` on the stack tip. In multi-repository mode first
+check out each repository's stack tip; validation then reads every repository through each
+subtask's `working_dir:`, and the whole run passes or fails as one. Its children own issue
 collection, fix creation/classification, fix execution and finalization; do not rerun those
 steps separately afterward. Inside this invocation:
 
@@ -337,7 +428,10 @@ This is a callback **during Step 5**, not a second fix pass. `/pv-create-fixes` 
 The Orchestrator applies shared deltas and runs Step 4's Implementer/Validator/commit
 handoffs for each group before `/pv-finalize`. Shared groups execute leaves sequentially
 on their recorded branch; only dedicated groups create another branch. Use domain-named
-`fix:` branches/messages and test-first commits under `git-flow`.
+`fix:` branches/messages and test-first commits under `git-flow`. In multi-repository
+mode each fix group belongs to one repository and its branch extends that repository's
+stack from its tip; rerun `repo-set.py route` after the fix rows are added, so each fix
+leaf carries `Repo` and `working_dir:` like any other leaf.
 
 ---
 
@@ -345,6 +439,8 @@ on their recorded branch; only dedicated groups create another branch. Use domai
 
 Only with `--allow-pr`, only after `/phase-validation` completes with no unresolved critical
 findings. Convert every draft PR in the stack to **ready for review**, in stack order.
+In multi-repository mode promote only after validation of the whole run, repository by
+repository, each in its own stack order.
 
 This is the one moment PRs become mergeable — during the run they are drafts precisely so the
 stack cannot shift while later subtasks are still being built.
@@ -359,6 +455,12 @@ fix group include status, branch, base and `base_commit`, commit hashes, tests a
 questions. Mark hashes as pre-merge. List the required merge order and the dependency
 warning: later PRs include predecessors. After squash/rebase integration, `/restack`
 repairs remaining branches; the human chooses merge timing and strategy.
+In multi-repository mode report one stack per repository with its base branch, the
+cross-repository dependencies, and one integration order that respects both the stacks and
+those dependencies (for example: backend stack first, then the frontend PRs that consume
+it). State plainly that the repositories share no git history: a cross-repository
+dependency is a merge and deployment order, not a git base. Use `/restack --repo <directory>`
+per repository.
 
 If blocked, report the exact checkpoint and resume command; never label it complete.
 
@@ -376,6 +478,8 @@ If blocked, report the exact checkpoint and resume command; never label it compl
 - Never writes a pipeline identifier into a branch name, a commit, or pull request text.
 - Never resolves a class-B ambiguity on the human's behalf.
 - Never runs subtasks in parallel.
+- Never names a branch of another repository as a git or pull request base, never creates a
+  git repository in a multi-repository project root, and never moves its files.
 
 ## Interruption recovery
 
@@ -383,3 +487,8 @@ Re-run `/spec-run <same-spec>` with the same flags. Step 0 reads `state.md`, rec
 recorded branches and commit hashes against the actual repository, and resumes at the first
 incomplete subtask. Branch and commit state is recorded as it happens precisely so this is
 possible — nothing is reconstructed after the fact.
+
+In multi-repository mode the `--repo` flags may be omitted on resume: the recorded
+`## Repositories` set is reused, and different flags stop the run. Every recorded checkpoint
+is reconciled against its own repository, and the run resumes at the earliest unfinished
+leaf of the shared order with both stacks and their dependencies intact.
