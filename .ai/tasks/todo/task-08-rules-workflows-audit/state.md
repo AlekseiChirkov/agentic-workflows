@@ -581,6 +581,23 @@ Created: T-11-fix-git-read-isolation
 
 Gate notes: #2 is the only code fix, so it is dedicated; it touches the tool and its suite. Issues #1 and #3 are a specification record and a shared-file remedy applied by the orchestrator and have no fix-task.
 
+## Deferred
+- [4] Runbook says verify must stay silent after the delivery — optional [source: issues]
+- [5] Blockers check is one-directional — optional [source: issues]
+- [6] Token pattern in an inventory edge raw — optional; its verbatim-copy exemption was recorded by `/spec-sync` (REQ-03, D-03) [source: issues]
+- [7] Evidence citations are checked only for form — optional [source: issues]
+- Spec completion marker (`status: done`, `completed_task`, `completed_at`) — deferred to the archival of the spec: the identity ledger pins `.ai/specs/08-rules-workflows-audit.md:23`, so adding front matter in place would move the pinned line; the archival step already updates that ledger row's path cell (REQ-11) [source: finalization]
+
+## Spec Sync
+sync: complete
+synced_at: 2026-11-18T07:58:35+06:00
+deltas: 8 (implemented-differently: 4, not-implemented: 0, implemented-beyond: 4)
+spec: .ai/specs/08-rules-workflows-audit.md
+applied: DM-6 home rewrite (D-01, user 2026-11-17); REQ-25 narrowed to machine-specific home paths with the verbatim-copy and fixture allowances (D-03, user 2026-11-18); REQ-03 copied-file-name clarification (D-03, Issue List [6]); AC-02 delivery annotation for base 488edb1 (D-02, user 2026-11-17)
+flagged, not applied: Q-03 (extract root-unreadable; render --write refusals and check order; 64 MiB report cap and report-layout :0 — T-01 P4, T-06 P2, T-06 P5), Q-04 (git isolation settings and git-version residuals of REQ-15 — T-11); Q-05 lists the remaining spec-sync proposals by id
+authority: /pv-finalize step 4 with contract, review and fix prerequisites verified; Critical Failures Decision: continue (owner, 2026-11-18)
+note: REQ-25's verbatim-copy allowance covers text copied from any scanned file, including reader edge raws (the four bare `/tmp` raws come from readers); the owner's question named those raws and chose no output change
+
 ## Model Selection
 selection: complete
 active provider: anthropic (`Model (Claude)` column)
@@ -636,6 +653,7 @@ adr: not triggered — the specification already fixes the contract and states t
 - `scripts/sync.sh`, installers, workflows and models are never run to produce the inventory.
 - Installed copies under the user's home are never read or changed by the tool.
 - No absolute path and no former repository name in any output or fixture.
+  - Narrowed 2026-11-18 by owner decision (Critical Failures Decision; spec REQ-25 and D-03): no machine-specific home path and no former repository name; system paths in verbatim-copied text and placeholder absolute paths in test fixtures are allowed.
 
 ### Invariants
 - The tool writes only the `extract --out` file or the generated region under `render --write`, each by atomic replacement.
