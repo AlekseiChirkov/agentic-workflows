@@ -1,0 +1,19 @@
+docs/audits/2026-11-17-rules-workflows-audit.md
+  s_f576f9cbaee634::t_e4c77922f36884 1684
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "38712a5d49a2cf284bd8769f26cd007c92bbe069",
+  "prompts": {},
+  "sessions": {
+    "s_f576f9cbaee634": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1ed04-729c-74b2-8f5b-86e8b5fe0676",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
