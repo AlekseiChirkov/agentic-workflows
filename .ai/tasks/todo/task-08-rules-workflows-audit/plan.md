@@ -13,6 +13,7 @@
 | T-09 | Map, findings, amendments and report | duplicate groups → defaults → map decisions → statement coverage → amendments → blocking flags → report and render → verify exits 0 | T-08 | reviewed | claude-opus-5-5 |  |
 | T-10 | Index, knowledge and review line | index line → script rows → runbook note → inventory sentence → memory entries → review line → verify, suite, validator → permitted-paths check | T-09 | reviewed | claude-opus-5-5 |  |
 | T-11 | Fix: git read isolation | lazy-fetch and rename guard → filter guard or narrowed claim → tests first | T-10 | reviewed | claude-opus-5-5 |  |
+| T-12 | Fix: review follow-ups (blockers, evidence, runbook) | tests first → two-way blockers check → evidence resolution → constants and runbook note | T-11 | not-started | claude-opus-5-5 |  |
 
 ## Execution Strategy
 

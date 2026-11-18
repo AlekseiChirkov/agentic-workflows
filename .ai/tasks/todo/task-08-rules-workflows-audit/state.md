@@ -5,7 +5,7 @@ flow: full
 ## Phases
 - discovery: complete
 - execution: complete
-- validation: complete
+- validation: in-progress
 
 ## Task Analysis
 
@@ -465,6 +465,17 @@ T-11 | Fix: git read isolation | atomic-tests: green | atomic-execution: complet
   commits: 86fdf33 test(audit): require git reads that run no filter and fetch nothing, 22b27b2 fix(audit): keep git reads from running filters and fetching objects, 856968c test(audit): cover git repository shapes and correct the attribute version, 82f6722 fix(audit): read git metadata safely and choose the empty tree by format
   pr: #115 ready
 
+T-12 | Fix: review follow-ups (blockers, evidence, runbook) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  last_action: created by the orchestrator from approved issues [4], [5] and [7] of the task-level review
+  target_files: scripts/audit-instructions.py, scripts/check-audit-instructions.py, .ai/context/runbook.md
+  blocker: none
+  notes: fix for issues [4], [5] and [7] of the task-level review, approved by the owner on 2026-11-18
+  branch: fix/audit-blockers-and-evidence-checks
+  base_branch: fix/audit-git-read-isolation
+  base_commit: 5a7e2dcca8e4691dd28696e166010a8517e6323b
+  commits:
+  pr: none
+
 
 ## Execution Report
 - T-01: reviewed — read-only `extract` of the deterministic inventory (audited set, readers, text model, git state); re-validated after one correction (unreadable roots, undecodable names, repository-configured git programs)
@@ -565,31 +576,31 @@ Split recorded automatically under the orchestrated-run override: critical and i
 - [1] critical — spec record through `/spec-sync` (owner decision)
 - [2] important — fix-task
 - [3] important — orchestrator remedy in the shared state file
+- [4], [5], [7] optional — approved by the owner on 2026-11-18 ("fix all findings") after the first finalization; fix-task
+- [6] optional — approved with [4], [5] and [7]; already closed by `/spec-sync` (REQ-03 verbatim-copy clarification, D-03), no change needed
 
 ### Deferred
-- [4], [5], [6], [7] optional — kept for post-delivery review ([6] is recorded together with [1] by `/spec-sync`)
+- none (the earlier deferral of [4]–[7] was lifted by the owner on 2026-11-18)
 
 ## Fix-Tasks
 fixes-created: complete
-fixes-count: 1
-Created: T-11-fix-git-read-isolation
+fixes-count: 2
+Created: T-11-fix-git-read-isolation, T-12-fix-review-follow-ups
 
 ### Fix Classification
 | Issue | Severity | Gate 1 | Gate 2 | Gate 3 | Gate 4 | Grouping | Branch |
 |-------|----------|--------|--------|--------|--------|----------|--------|
 | #2 Git reads can fetch from the network or run filter programs | important | pass | pass | pass | pass | dedicated | T-11-fix-git-read-isolation |
+| #4, #5, #7 Runbook guarantee, two-way blockers check, evidence resolution | optional | pass | pass | pass | pass | grouped | T-12-fix-review-follow-ups |
 
-Gate notes: #2 is the only code fix, so it is dedicated; it touches the tool and its suite. Issues #1 and #3 are a specification record and a shared-file remedy applied by the orchestrator and have no fix-task.
+Gate notes: #2 is the only code fix, so it is dedicated; it touches the tool and its suite. #4, #5 and #7 (approved later by the owner) touch the same tool, its suite and the runbook note, so they form one group. Issues #1 and #3 are a specification record and a shared-file remedy applied by the orchestrator and have no fix-task.
 
 ## Deferred
-- [4] Runbook says verify must stay silent after the delivery — optional [source: issues]
-- [5] Blockers check is one-directional — optional [source: issues]
-- [6] Token pattern in an inventory edge raw — optional; its verbatim-copy exemption was recorded by `/spec-sync` (REQ-03, D-03) [source: issues]
-- [7] Evidence citations are checked only for form — optional [source: issues]
 - Spec completion marker (`status: done`, `completed_task`, `completed_at`) — deferred to the archival of the spec: the identity ledger pins `.ai/specs/08-rules-workflows-audit.md:23`, so adding front matter in place would move the pinned line; the archival step already updates that ledger row's path cell (REQ-11) [source: finalization]
 
 ## Validation Result
-validation: complete (2026-11-18)
+validation: reopened 2026-11-18 for fix-task T-12 (owner: fix all findings); the record below is the first finalization
+first-finalization: complete (2026-11-18)
 final-tip: 7974dcf on `fix/audit-git-read-isolation`
 checks: `bash scripts/validate-contracts.sh` 721 passed, 0 failed, 2 skipped; `python3 -I scripts/check-audit-instructions.py` 228 tests OK; `verify --root . --report docs/audits/2026-11-17-rules-workflows-audit.md` exit 0, empty; `validate-task.sh` 21 passed, 0 failed, 1 skipped
 prs: #105–#115 promoted from draft to ready in stack order; #104 (the stack base) was merged into main by the owner on 2026-11-18 (merge commit f330eb4), so #105's base `feat/multi-repository-spec-run` needs retargeting or `/restack` before merge
