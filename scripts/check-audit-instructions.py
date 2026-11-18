@@ -2122,7 +2122,7 @@ def files_row(entry: dict) -> dict:
     return {"path": path, "sha256": entry["sha256"],
             "kinds": list(VERIFY_KINDS.get(path, ["contract"])),
             "sections": copy.deepcopy(VERIFY_SECTIONS.get(path)),
-            "evidence": [f"{path}:1"],
+            "evidence": [f"{path}:1" if entry["lines"] is not None else f"{CAPS}:1"],
             "repetition": empty_repetition() if invocable else None}
 
 
@@ -4057,6 +4057,7 @@ DIAGNOSTIC_CODES = (
     "amendment-invalid", "amendment-target-unknown", "req21-invalid", "coverage-inconsistent",
     "report-layout", "review-commit-unknown", "report-generated-mismatch", "blocker-unlisted",
     "economics-claim", "installed-invalid",
+    "evidence-unresolved", "blocker-extra",
 )
 UNKNOWN_COMMIT = "1" * 40
 OTHER_DATE = "2026-01-03"
@@ -4931,7 +4932,7 @@ class VerifyReportTests(RenderCase):
             "failing review": {"review": f"Reviewed: Peer-Validator-2 {OTHER_DATE} fail {head}"},
             "owner acceptance": {"acceptance": f"Accepted: owner {OTHER_DATE}"},
             "headings inside a fence": {"method": fenced},
-            "extra listed ids": {"blockers": ["AUD-08-001", "AUD-08-003", "AUD-08-005"]},
+            "extra listed ids": {"blockers": ["AUD-08-001 (AMD-08-01)", "AUD-08-005"]},
             "subsection headings in hand-written text": {
                 "summary": "### Scope\n\nEvery audited file was read once.",
                 "method": "### Commands\n\nThe inventory was extracted."},
@@ -5088,8 +5089,9 @@ class VerifyReportTests(RenderCase):
                     ("blocker-unlisted", f"{REPORT_PATH}:{line_number(text, heading)}")])
         text = self.valid_report(blockers=[])
         location = f"{REPORT_PATH}:{line_number(text, heading)}"
-        self.assert_reports(self.verify_report(text), [("blocker-unlisted", location),
-                                                       ("blocker-unlisted", location)])
+        self.assert_reports(self.verify_report(text), [
+            ("blocker-unlisted", location), ("blocker-unlisted", location),
+            ("report-layout", f"{REPORT_PATH}:{line_number(text, 'None.')}")])
 
     def test_changed_generated_region_is_report_generated_mismatch_at_its_first_line(
             self) -> None:
@@ -5329,6 +5331,10 @@ class DiagnosticCompletenessTests(RenderCase):
             "report-generated-mismatch": lambda: self.report_case(lambda region: region.replace(
                 f"- run_date: {AUDIT_DATE}", f"- run_date: {OTHER_DATE}")),
             "blocker-unlisted": lambda: self.report_case(blockers=["AUD-08-001"]),
+            "blocker-extra": lambda: self.report_case(
+                blockers=blocking_ids(self.assessment) + ["AUD-08-003"]),
+            "evidence-unresolved": lambda: a(lambda v: files(DELTA)(v).update(
+                evidence=["rules/zz-unknown.md:1"])),
             "economics-claim": lambda: a(lambda v: finding("AUD-08-002")(v).update(
                 observation="It saves 3,000 tokens.")),
             "installed-invalid": lambda: a(lambda v: v["installed"].append({
@@ -5785,6 +5791,212 @@ class GitIsolationLimitsDocstringTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
 
+
+# ---------------------------------------------------------------------------
+# The blockers section in both directions, evidence resolution, audit-scope notes
+# ---------------------------------------------------------------------------
+
+BLOCKERS_HEADING = "## Blockers for spec 09"
+BLOCKERS_BODY_RE = re.compile(r"(## Blockers for spec 09\n\n)(.*?)(\n## Independent review\n)",
+                              re.DOTALL)
+UNDECODED_READER = "docs/RAW.txt"
+UNDECODED_READER_BYTES = b"\xff\xfe first\nsecond\nthird\n"
+RUNBOOK = SOURCE_ROOT / ".ai" / "context" / "runbook.md"
+LATER_TREE_CODES = ("inventory-stale", "review-commit-unknown", "spec09-unavailable",
+                    "req21-invalid", "amendment-invalid", "amendment-target-unknown")
+AUDIT_SPECIFIC_CONSTANTS = ("ALWAYS_SECTIONED", "DISCOVERY_RULE")
+
+
+def with_blockers_body(text: str, body: str) -> str:
+    """The report text with the body of its blockers section replaced."""
+    replaced, count = BLOCKERS_BODY_RE.subn(
+        lambda found: found.group(1) + body + found.group(3), text, count=1)
+    if count != 1:
+        raise AssertionError("the report has no blockers section to replace")
+    return replaced
+
+
+class VerifyBlockersSectionTests(RenderCase):
+    def unblock_every_finding(self) -> None:
+        """Make the valid assessment one in which no finding blocks: the amendment cites a
+        line instead of a finding, and the unreadable file is read and its finding becomes
+        an observation of type other."""
+        self.assessment["amendments"][0]["evidence"] = [f"{BETA}:9"]
+        self.finding("AUD-08-001")["blocks_09"] = False
+        self.finding("AUD-08-005").update(type="other", blocks_09=False)
+        self.row("coverage", BLOB)["status"] = "read"
+
+    def test_listed_id_of_a_finding_that_does_not_block_or_does_not_exist_is_blocker_extra(
+            self) -> None:
+        blocking = ["AUD-08-001", "AUD-08-005"]
+        cases: dict[str, tuple[list[str], list[str]]] = {
+            "finding that does not block": (blocking + ["AUD-08-003"], ["- AUD-08-003"]),
+            "id that names no finding": (blocking + ["AUD-08-099"], ["- AUD-08-099"]),
+            "amendment id beside a finding that does not block": (
+                blocking + ["AUD-08-004 (AMD-08-01)"], ["- AUD-08-004 (AMD-08-01)"]),
+            "id twice on one line and again on another line": (
+                blocking + ["AUD-08-003 and again AUD-08-003", "AUD-08-003 once more"],
+                ["- AUD-08-003 and again AUD-08-003", "- AUD-08-003 once more"]),
+            "amendment ids beside the blocking findings only": (
+                ["AUD-08-001 (AMD-08-01)", "AUD-08-005 (AMD-08-99)"], []),
+            "id inside a longer token": (blocking + ["AUD-08-0030"], []),
+        }
+        for name, (blockers, lines) in cases.items():
+            with self.subTest(case=name):
+                self.assessment = valid_assessment(self.inventory)
+                text = self.valid_report(blockers=blockers)
+                expected = [("blocker-extra", f"{REPORT_PATH}:{line_number(text, line)}")
+                            for line in lines]
+                result = self.verify_report(text)
+                if expected:
+                    self.assert_reports(result, expected)
+                else:
+                    self.assert_silent(result)
+
+    def test_blockers_section_breaking_the_none_rule_is_report_layout(self) -> None:
+        nothing_blocks = {
+            "None. alone": ("None.\n", None),
+            "empty section": ("", BLOCKERS_HEADING),
+            "prose instead of None.": ("No finding blocks the migration.\n", BLOCKERS_HEADING),
+            "None. followed by prose": ("None.\n\nSee the summary.\n", BLOCKERS_HEADING),
+        }
+        for name, (body, line) in nothing_blocks.items():
+            with self.subTest(case=name, blocking="none"):
+                self.assessment = valid_assessment(self.inventory)
+                self.unblock_every_finding()
+                text = with_blockers_body(self.valid_report(), body)
+                result = self.verify_report(text)
+                if line is None:
+                    self.assert_silent(result)
+                else:
+                    self.assert_reports(result, [
+                        ("report-layout", f"{REPORT_PATH}:{line_number(text, line)}")])
+        with self.subTest(case="None. beside the blocking findings"):
+            self.assessment = valid_assessment(self.inventory)
+            text = with_blockers_body(self.valid_report(),
+                                      "- AUD-08-001\n- AUD-08-005\n\nNone.\n")
+            self.assert_reports(self.verify_report(text), [
+                ("report-layout", f"{REPORT_PATH}:{line_number(text, 'None.')}")])
+        with self.subTest(case="None. alone while findings block"):
+            self.assessment = valid_assessment(self.inventory)
+            text = self.valid_report(blockers=[])
+            heading = f"{REPORT_PATH}:{line_number(text, BLOCKERS_HEADING)}"
+            self.assert_reports(self.verify_report(text), [
+                ("blocker-unlisted", heading), ("blocker-unlisted", heading),
+                ("report-layout", f"{REPORT_PATH}:{line_number(text, 'None.')}")])
+
+
+class VerifyEvidenceResolutionTests(SharedVerifyCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.temp = tempfile.TemporaryDirectory(prefix="audit-evidence-")
+        try:
+            cls.fixture, cls.inventory = build_verify_fixture(
+                Path(cls.temp.name), extra={UNDECODED_READER: UNDECODED_READER_BYTES})
+        except BaseException:
+            cls.temp.cleanup()
+            raise
+
+    def resolvable_assessment(self) -> dict:
+        """The valid assessment with the symbolic link's evidence citing a line of its
+        target, since the link itself has no line count."""
+        assessment = valid_assessment(self.inventory)
+        assessment["files"][row_index(assessment["files"], "path", LINK)]["evidence"] = [
+            f"{CAPS}:1"]
+        return assessment
+
+    def lines_of(self, path: str) -> int:
+        return int(inventory_entry(self.inventory, path)["lines"])
+
+    def evidence_cases(self, cases: dict[str, tuple[str, str, list[str], int]]) -> None:
+        """Each case replaces the evidence of one files row (by path), finding or amendment
+        (by id) and expects that many evidence-unresolved diagnostics at that row."""
+        for name, (key, identifier, evidence, count) in cases.items():
+            with self.subTest(case=name):
+                self.assessment = self.resolvable_assessment()
+                field = "path" if key == "files" else "id"
+                index = row_index(self.assessment[key], field, identifier)
+                self.assessment[key][index]["evidence"] = evidence
+                location = assessment_at(f"files[{index}]" if key == "files" else identifier)
+                result = self.verify()
+                if count:
+                    self.assert_reports(result, [("evidence-unresolved", location)] * count)
+                else:
+                    self.assert_silent(result)
+
+    def test_line_evidence_that_names_no_inventory_path_or_a_line_outside_it_is_unresolved(
+            self) -> None:
+        beta, guide = self.lines_of(BETA), self.lines_of(GUIDE)
+        self.evidence_cases({
+            "unknown path in a files row": ("files", DELTA, ["rules/zz-unknown.md:1"], 1),
+            "line past the count of an audited file": (
+                "findings", "AUD-08-003", [f"{GAMMA}:5", f"{BETA}:{beta + 1}"], 1),
+            "line zero": ("findings", "AUD-08-004", [f"{GAMMA}:0"], 1),
+            "line past the count of a reader": (
+                "findings", "AUD-08-002", [f"{GUIDE}:{guide + 1}"], 1),
+            "line on an entry without a line count": ("files", LINK, [f"{LINK}:1"], 1),
+            "unknown path in an amendment": (
+                "amendments", "AMD-08-01", ["AUD-08-001", "docs/zz-gone.md:2"], 1),
+            "two unresolved items in one finding": (
+                "findings", "AUD-08-004", ["rules/zz-unknown.md:1", f"{GAMMA}:99"], 2),
+            "last line of an audited file": ("files", BETA, [f"{BETA}:{beta}"], 0),
+            "line of a reader that is not decoded": (
+                "findings", "AUD-08-002",
+                [f"{GUIDE}:1", f"{UNDECODED_READER}:{self.lines_of(UNDECODED_READER)}"], 0),
+            "reader line in an amendment": (
+                "amendments", "AMD-08-01", ["AUD-08-001", f"{SPEC09_PATH}:1"], 0),
+        })
+
+    def test_range_evidence_resolves_only_within_the_line_count_of_its_entry(self) -> None:
+        gamma = self.lines_of(GAMMA)
+        self.evidence_cases({
+            "reversed range": ("findings", "AUD-08-004", [f"{GAMMA}:6-5"], 1),
+            "range past the count": ("findings", "AUD-08-004", [f"{GAMMA}:5-{gamma + 1}"], 1),
+            "range starting at zero": ("findings", "AUD-08-004", [f"{GAMMA}:0-2"], 1),
+            "range on an unknown path": ("findings", "AUD-08-004", ["rules/zz-unknown.md:1-2"],
+                                         1),
+            "range on an entry without a line count": (
+                "findings", "AUD-08-004", [f"{GAMMA}:6", f"{LINK}:1-1"], 1),
+            "range ending at the count": ("findings", "AUD-08-004", [f"{GAMMA}:1-{gamma}"], 0),
+            "range of one line": ("findings", "AUD-08-004", [f"{GAMMA}:6-6"], 0),
+        })
+
+    def test_bare_evidence_path_that_names_no_inventory_path_is_unresolved(self) -> None:
+        self.evidence_cases({
+            "unknown bare path": ("findings", "AUD-08-005", [BLOB, "harness/x/zz-gone.bin"], 1),
+            "bare audited and reader paths": (
+                "findings", "AUD-08-005", [BLOB, GUIDE, UNDECODED_READER, LINK], 0),
+        })
+
+
+class AuditScopeNoteTests(unittest.TestCase):
+    def test_runbook_limits_the_silent_verify_to_the_delivery_commit_and_names_later_codes(
+            self) -> None:
+        text = RUNBOOK.read_text(encoding="utf-8")
+        bullets = [" ".join(item.split()) for item in re.split(r"\n(?=- )", text)
+                   if "audit-instructions.py verify" in item]
+        self.assertEqual(len(bullets), 1, "the runbook has no single note on the audit verify")
+        note = bullets[0]
+        self.assertNotIn("must print nothing for a delivered audit", note)
+        self.assertIn("delivery commit", note)
+        for code in LATER_TREE_CODES:
+            with self.subTest(code=code):
+                self.assertIn(code, note)
+
+    def test_constants_of_this_audit_rule_set_are_marked_as_specific_to_this_audit(
+            self) -> None:
+        lines = TOOL.read_text(encoding="utf-8").split("\n")
+        for name in AUDIT_SPECIFIC_CONSTANTS:
+            with self.subTest(constant=name):
+                starts = [index for index, line in enumerate(lines)
+                          if line.startswith(f"{name} = ")]
+                self.assertEqual(len(starts), 1, f"{name} is not assigned once")
+                comments: list[str] = []
+                index = starts[0] - 1
+                while index >= 0 and lines[index].startswith("#"):
+                    comments.insert(0, lines[index].lstrip("# "))
+                    index -= 1
+                self.assertIn("specific to this audit", " ".join(comments).lower())
 
 if __name__ == "__main__":
     unittest.main()
