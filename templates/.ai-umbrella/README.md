@@ -91,3 +91,12 @@ Prefer this when a feature is entirely contained within one service.
 - `specs/`                  — specs for tasks that span multiple services
 - `tasks/todo/`             — active cross-repo task directories
 - `tasks/completed/`        — finished cross-repo task directories
+
+## Post-merge finalization
+
+Invoke `/phase-finalize <task-directory|spec-path> [--dry-run]` separately after integration.
+Its stable `.ai/context/finalization/` journal preserves original snapshots, immutable
+command attempts, operation checkpoints, recovery and old-path resolution while moving
+the task and only an eligible whole spec. Unfinished phases retain the active spec.
+Follow repository tracking policy; untracked state remains local. Deployment is separate
+and unverified without dated revision/environment evidence. Dry-run writes nothing.
