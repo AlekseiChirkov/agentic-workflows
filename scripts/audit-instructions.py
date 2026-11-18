@@ -20,8 +20,10 @@ Usage:
       --root defaults to the parent of the scripts/ directory that holds this file.
   python3 -I scripts/audit-instructions.py verify [--root DIR] --report FILE [--strict]
       Check the inventory and the assessment whose paths replace the `.md` of FILE with
-      `.inventory.json` and `.assessment.json`: their schemas, the audited files of the
-      root against the inventory (with --strict, a fresh extraction against its bytes),
+      `.inventory.json` and `.assessment.json` (each read as a regular file without
+      following a symbolic link): their schemas, the audited files of the root against
+      the inventory (entry kind and digest; with --strict, a fresh extraction against its
+      bytes),
       the work-tree state, and every per-item rule of the assessment, including the
       migration map, its deviation from the recorded migration defaults, the amendments
       against the single `.ai/specs/09-*.md` file (read as strict UTF-8 without following a
@@ -1866,14 +1868,6 @@ def parse_json(text: str) -> object:
     return value
 
 
-def display_name(path: Path, root: Path) -> str:
-    """The path relative to the root, or its base name when it lies outside the root."""
-    try:
-        return path.resolve().relative_to(root.resolve()).as_posix()
-    except ValueError:
-        return path.name
-
-
 def link_name(path: Path, root: Path) -> str:
     """The root-relative name of a path whose last component may be a symbolic link,
     which is named itself rather than its target; the base name outside the root."""
@@ -1884,15 +1878,37 @@ def link_name(path: Path, root: Path) -> str:
     return (relative / path.name).as_posix()
 
 
-def load_document(path: Path, name: str, code: str) -> Document | Diagnostic:
-    """Read and parse one JSON file; a missing or unparseable file is one diagnostic."""
+def read_input(path: Path, name: str, code: str) -> str | Diagnostic:
+    """The UTF-8 text of a regular JSON input, read as the report is read: without
+    following a symbolic link or blocking on a special file; otherwise one diagnostic."""
+    invalid = f"{code}-invalid"
     try:
-        text = path.read_bytes().decode("utf-8")
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     except (FileNotFoundError, NotADirectoryError):
         return Diagnostic(f"{code}-missing", f"{name}:0", "the file does not exist")
-    except (OSError, UnicodeDecodeError) as error:
-        reason = error.strerror if isinstance(error, OSError) else "not valid UTF-8"
-        return Diagnostic(f"{code}-invalid", f"{name}:0", f"cannot be read ({reason})")
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            return Diagnostic(invalid, f"{name}:0", "is a symbolic link and is not followed")
+        return Diagnostic(invalid, f"{name}:0", f"cannot be read ({error.strerror})")
+    try:
+        with os.fdopen(descriptor, "rb") as handle:
+            if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                return Diagnostic(invalid, f"{name}:0", "is not a regular file")
+            data = handle.read()
+    except OSError as error:
+        return Diagnostic(invalid, f"{name}:0", f"cannot be read ({error.strerror})")
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return Diagnostic(invalid, f"{name}:0", "cannot be read (not valid UTF-8)")
+
+
+def load_document(path: Path, name: str, code: str) -> Document | Diagnostic:
+    """Read and parse one JSON file; a missing, unusable or unparseable file is one
+    diagnostic."""
+    text = read_input(path, name, code)
+    if isinstance(text, Diagnostic):
+        return text
     try:
         return Document(name, parse_json(text), text)
     except json.JSONDecodeError as error:
@@ -1911,8 +1927,8 @@ Check = Callable[[object], bool]
 HEX_DIGEST_RE = re.compile(r"[0-9a-f]{64}")
 ROLE_LABEL_RE = re.compile(r"[A-Za-z][A-Za-z0-9-]*")
 SAFE_FRAGMENT_RE = re.compile(r"[A-Za-z0-9_.-]+")
-EVIDENCE_LINE_RE = re.compile(r"[^\s:]+:\d+")
-AMENDMENT_ID_RE = re.compile(r"AMD-08-\d{2}")
+EVIDENCE_LINE_RE = re.compile(r"[^\s:]+:[0-9]+")
+AMENDMENT_ID_RE = re.compile(r"AMD-08-[0-9]{2}")
 KINDS = ("bootstrap", "contract", "protocol", "procedure", "always-on", "workflow",
          "reference", "adapter-config")
 PROPOSAL_TYPES = ("load-repeat", "conditional-context", "report-repeat", "checkpoint-repeat",
@@ -2002,7 +2018,7 @@ DIGEST = matching(HEX_DIGEST_RE)
 ROLE = matching(ROLE_LABEL_RE)
 LINE_REF = record({"source": is_str, "line": is_int, "column": is_int})
 SPAN = record({"path": is_str, "line_start": is_int, "line_end": is_int})
-AUDIT_ID = matching(re.compile(r"AUD-08-\d{3}"))
+AUDIT_ID = matching(re.compile(r"AUD-08-[0-9]{3}"))
 AMENDMENT_ID = matching(AMENDMENT_ID_RE)
 MAP_DECISIONS = ("keep", "rename", "move", "split", "merge")
 MAP_TARGET = record({"path": is_repository_path, "sections": nullable(list_of(is_str)),
@@ -2194,25 +2210,34 @@ def worktree_diagnostics(inventory: Document) -> list[Diagnostic]:
                        f"the inventory was extracted from a {state} work tree")]
 
 
-def audited_digests(root: Path) -> dict[str, str | None]:
-    """The audited paths on disk now, with the digest of each regular file."""
+def audited_states(root: Path) -> dict[str, tuple[object, object]]:
+    """The audited paths on disk now, each with its entry kind and the digest of a
+    regular file (None for any other kind)."""
     audited, _ = audited_paths(root)
     require_utf8_paths(audited)
-    return {path: sha256_hex(read_regular_file(root / path))
-            if entry_kind(root / path) == "file" else None for path in audited}
+    states: dict[str, tuple[object, object]] = {}
+    for path in audited:
+        kind = entry_kind(root / path)
+        states[path] = kind, (sha256_hex(read_regular_file(root / path))
+                              if kind == "file" else None)
+    return states
 
 
 def stale_diagnostics(root: Path, inventory: Document) -> list[Diagnostic]:
-    recorded = {str(entry["path"]): entry["sha256"]
+    """Audited entries removed, added, of another kind or with other bytes than the
+    inventory records; a change of kind is named as such."""
+    recorded = {str(entry["path"]): (entry["entry"], entry["sha256"])
                 for entry in objects(cast(JsonObject, inventory.value)["files"])}
-    current = audited_digests(root)
+    current = audited_states(root)
     found: list[Diagnostic] = []
     for path in sorted(recorded.keys() | current.keys()):
         if path not in current:
             found.append(Diagnostic("inventory-stale", f"{path}:0", "removed from the root"))
         elif path not in recorded:
             found.append(Diagnostic("inventory-stale", f"{path}:0", "added to the root"))
-        elif current[path] != recorded[path]:
+        elif current[path][0] != recorded[path][0]:
+            found.append(Diagnostic("inventory-stale", f"{path}:0", "changed kind in the root"))
+        elif current[path][1] != recorded[path][1]:
             found.append(Diagnostic("inventory-stale", f"{path}:0", "changed in the root"))
     return found
 
@@ -2687,19 +2712,44 @@ LIST_ITEM_RE = re.compile(r"\s*([-*+]|\d+[.)])\s")
 
 @dataclass(frozen=True)
 class MigrationText:
-    """The migration specification: its text, whole tokens, `###` headings and table rows."""
+    """The migration specification: its text, whole tokens, `###` heading texts and the
+    terms of the body rows of its terminology table."""
 
     text: str
     tokens: frozenset[str]
     notes: frozenset[str]
-    table_rows: tuple[str, ...]
+    terms: frozenset[str]
+
+
+TERMINOLOGY_HEADING = "## Terminology"
+TABLE_SEPARATOR_RE = re.compile(r"\|(?:\s*:?-+:?\s*\|)+\s*")
+
+
+def terminology_terms(lines: Sequence[str]) -> frozenset[str]:
+    """The first cells of the body rows (no header or separator row) of the first table
+    under the terminology heading, up to the next heading."""
+    starts = [index for index, line in enumerate(lines)
+              if line.rstrip() == TERMINOLOGY_HEADING]
+    if not starts:
+        return frozenset()
+    rows: list[str] = []
+    for line in lines[starts[0] + 1:]:
+        if HEADING_RE.match(line) or (rows and not line.startswith("|")):
+            break
+        if line.startswith("|"):
+            rows.append(line)
+    if len(rows) < 2 or TABLE_SEPARATOR_RE.fullmatch(rows[1]) is None:
+        return frozenset()
+    return frozenset(row[2:].split(" |", 1)[0] for row in rows[2:]
+                     if row.startswith("| ") and " |" in row[2:])
 
 
 def migration_text(text: str) -> MigrationText:
     lines = [matching_text(line) for line in text.split("\n")]
     return MigrationText(text, frozenset(SPEC09_TOKEN_RE.findall(text)),
-                         frozenset(line[4:] for line in lines if line.startswith("### ")),
-                         tuple(line for line in lines if line.startswith("| ")))
+                         frozenset(line[4:].rstrip() for line in lines
+                                   if line.startswith("### ")),
+                         terminology_terms(lines))
 
 
 def spec09_matches(root: Path) -> list[str]:
@@ -2999,9 +3049,9 @@ def deviation_rules(check: Verification) -> Iterator[Diagnostic]:
 # ---------------------------------------------------------------------------
 
 NEW_TARGETS = ("new-REQ", "new-AC")
-IDENTIFIER_TARGET_RE = re.compile(r"(REQ|AC|DM|A|Q)-\d+")
-CRITERION_ID_RE = re.compile(r"AC-\d+")
-FINDING_ID_RE = re.compile(r"AUD-08-\d{3}")
+IDENTIFIER_TARGET_RE = re.compile(r"(REQ|AC|DM|A|Q)-[0-9]+")
+CRITERION_ID_RE = re.compile(r"AC-[0-9]+")
+FINDING_ID_RE = re.compile(r"AUD-08-[0-9]{3}")
 NOTES_PREFIX = "Notes:"
 TERMINOLOGY_PREFIX = "Terminology:"
 
@@ -3015,7 +3065,7 @@ def target_exists(migration: MigrationText, target: str) -> bool:
         return bool(heading) and heading in migration.notes
     if target.startswith(TERMINOLOGY_PREFIX):
         term = target[len(TERMINOLOGY_PREFIX):]
-        return bool(term) and any(row.startswith(f"| {term} |") for row in migration.table_rows)
+        return bool(term) and term in migration.terms
     return False
 
 
@@ -3025,6 +3075,8 @@ def current_faults(migration: MigrationText | None, row: JsonObject) -> list[str
         return [] if current is None else ["a new requirement or criterion has no current text"]
     if current is None:
         return ["current is null for an existing target"]
+    if not str(current).strip():
+        return ["current is blank"]
     if migration is not None and current not in migration.text:
         return ["current is not the exact text of the migration specification"]
     return []
@@ -3060,11 +3112,37 @@ def amendment_references(check: Verification, row: JsonObject) -> list[str]:
                       if item not in check.amendment_ids]
 
 
+def cyclic_amendments(rows: Sequence[JsonObject]) -> frozenset[str]:
+    """The ids of the amendments that their own dependencies lead back to."""
+    graph = {str(row["id"]): [str(item) for item in cast(list[str], row["depends_on"])]
+             for row in rows}
+    on_cycle: set[str] = set()
+    for start, depends_on in graph.items():
+        seen: set[str] = set()
+        pending = list(depends_on)
+        while pending:
+            item = pending.pop()
+            if item == start:
+                on_cycle.add(start)
+                break
+            if item in graph and item not in seen:
+                seen.add(item)
+                pending.extend(graph[item])
+    return frozenset(on_cycle)
+
+
 def amendment_rules(check: Verification) -> Iterator[Diagnostic]:
+    cyclic = cyclic_amendments(check.rows("amendments"))
     for row in check.rows("amendments"):
         location = check.at(str(row["id"]))
         for message in amendment_faults(check.migration, row):
             yield Diagnostic("amendment-invalid", location, message)
+        if str(row["id"]) in cast(list[str], row["depends_on"]):
+            yield Diagnostic("amendment-invalid", location,
+                             "depends_on names the amendment itself")
+        elif str(row["id"]) in cyclic:
+            yield Diagnostic("amendment-invalid", location,
+                             "depends_on leads back to the amendment")
         if check.migration is not None:
             for message in target_faults(check.migration, row):
                 yield Diagnostic("amendment-target-unknown", location, message)
@@ -3076,7 +3154,7 @@ def amendment_rules(check: Verification) -> Iterator[Diagnostic]:
 # Verify: statement coverage of the discovery rule
 # ---------------------------------------------------------------------------
 
-STATEMENT_SOURCE_RE = re.compile(re.escape(DISCOVERY_RULE) + r":([1-9]\d{0,8})")
+STATEMENT_SOURCE_RE = re.compile(re.escape(DISCOVERY_RULE) + r":([1-9][0-9]{0,8})")
 
 
 def statement_line(source: str) -> int | None:
@@ -3142,16 +3220,14 @@ def economics_rules(check: Verification) -> Iterator[Diagnostic]:
 # Verify: evidence against the inventory
 # ---------------------------------------------------------------------------
 
-EVIDENCE_SPAN_RE = re.compile(r"([^\s:]+):(\d+)(?:-(\d+))?")
-LINE_DIGITS_LIMIT = 9
+EVIDENCE_SPAN_RE = re.compile(r"([^\s:]+):([0-9]+)(?:-([0-9]+))?")
 
 
 def cited_line(digits: str, lines: int) -> int:
     """The line a run of digits names, or `lines + 1` when it has more significant digits
-    than any line count needs, so no unbounded string is converted to an integer."""
+    than the line count has digits, so no unbounded string is converted to an integer."""
     significant = digits.lstrip("0") or "0"
-    return lines + 1 if len(significant) > LINE_DIGITS_LIMIT else int(significant)
-
+    return lines + 1 if len(significant) > len(str(lines)) else int(significant)
 
 
 def evidence_fault(check: Verification, item: str, paths_allowed: bool) -> str | None:
@@ -3626,7 +3702,7 @@ REVIEW_LINE_RE = re.compile(
     r"([0-9a-f]{40}))")
 ACCEPTANCE_LINE_RE = re.compile(r"Accepted: (?:pending|owner (\d{4}-\d{2}-\d{2}))")
 FILE_NAME_DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})-")
-LISTED_FINDING_RE = re.compile(r"(?<![A-Za-z0-9_-])AUD-08-\d{3}(?![A-Za-z0-9_-])")
+LISTED_FINDING_RE = re.compile(r"(?<![A-Za-z0-9_-])AUD-08-[0-9]{3}(?![A-Za-z0-9_-])")
 NO_BLOCKERS = "None."
 
 
@@ -3958,10 +4034,10 @@ def load_inputs(root: Path, report: Path
     stem = str(report)[:-len(".md")]
     paths = [Path(stem + suffix) for suffix in (".inventory.json", ".assessment.json")]
     inventory, found = checked_document(
-        load_document(paths[0], display_name(paths[0], root), "inventory"),
+        load_document(paths[0], link_name(paths[0], root), "inventory"),
         INVENTORY_SCHEMA, "inventory-invalid")
     assessment, problems = checked_document(
-        load_document(paths[1], display_name(paths[1], root), "assessment"),
+        load_document(paths[1], link_name(paths[1], root), "assessment"),
         ASSESSMENT_SCHEMA, "assessment-invalid")
     return inventory, assessment, found + problems
 
