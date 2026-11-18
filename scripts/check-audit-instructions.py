@@ -5399,7 +5399,7 @@ class AttributeFilterIsolationTests(ToolCase):
 
     def setUp(self) -> None:
         super().setUp()
-        require_git(self, (2, 40), "to read attributes from a fixed tree")
+        require_git(self, (2, 41), "to read attributes from a fixed tree")
         self.marker = self.base / "filter-ran"
 
     def clean_filter(self) -> str:
@@ -5474,7 +5474,7 @@ class AttributeFilterIsolationTests(ToolCase):
 
 class AttributeFilterVerifyTests(VerifyAssertions):
     def setUp(self) -> None:
-        require_git(self, (2, 40), "to read attributes from a fixed tree")
+        require_git(self, (2, 41), "to read attributes from a fixed tree")
         self.temp = tempfile.TemporaryDirectory(prefix="audit-verify-filter-")
         self.base = Path(self.temp.name)
 
@@ -5663,8 +5663,125 @@ class GitIsolationDocstringTests(unittest.TestCase):
         self.assertIsNotNone(docstring)
         text = " ".join(str(docstring).split())
         self.assertNotIn("so no program named by the repository's configuration runs", text)
-        for phrase in ("lazy fetching", "rename detection", "filter", "git 2.40",
+        for phrase in ("lazy fetching", "rename detection", "filter", "git 2.41",
                        "git 2.45"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+
+class GitRepositoryShapeTests(ToolCase):
+    """Repository shapes that git reads without trouble keep the work tree readable, and the
+    git reads still run no filter in them."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        require_git(self, (2, 41), "to read attributes from a fixed tree")
+        self.marker = self.base / "filter-ran"
+
+    def clean_filter(self) -> str:
+        return str(marker_program(self.base / "clean-filter.sh", self.marker, "cat"))
+
+    def information_attributes(self, data: bytes) -> None:
+        info = self.fx.root / ".git" / "info"
+        info.mkdir(exist_ok=True)
+        (info / "attributes").write_bytes(data)
+
+    def test_repository_with_sha256_object_names_reads_its_work_tree_and_runs_no_filter(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.write(".gitattributes", "*.md filter=alpha\n")
+        self.fx.git("init", "-q", "-b", "main", "--object-format=sha256")
+        self.fx.git("add", "-A")
+        self.fx.git("commit", "-q", "-m", "chore: fixture")
+        head = self.fx.git("rev-parse", "HEAD")
+        self.fx.git("config", "filter.alpha.clean", self.clean_filter())
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        self.marker.unlink(missing_ok=True)
+
+        inventory = self.extract()
+
+        self.assertFalse(self.marker.exists(), "git ran a filter program")
+        self.assertEqual(len(head), 64)
+        self.assertEqual(inventory["source_revision"], head)
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_git_file_with_an_embedded_nul_is_read_up_to_the_nul_as_git_reads_it(
+            self) -> None:
+        self.fx.minimal()
+        head = self.fx.commit_all()
+        os.rename(self.fx.root / ".git", self.base / "real-git")
+        (self.fx.root / ".git").write_bytes(b"gitdir: ../real-git\x00ignored\n")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+
+        result = self.run_extract()
+
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        inventory = parse_inventory((self.base / "inventory.json").read_text(encoding="utf-8"))
+        self.assertEqual(inventory["source_revision"], head)
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_first_in_first_out_entry_named_git_is_never_opened(self) -> None:
+        self.fx.minimal()
+        os.mkfifo(self.fx.root / ".git")
+        out = self.base / "inventory.json"
+        try:
+            result = subprocess.run(
+                [sys.executable, "-I", str(TOOL), "extract", "--root", str(self.fx.root),
+                 "--out", str(out)], cwd=self.base, env=self.fx.env, text=True,
+                capture_output=True, timeout=20)
+        except subprocess.TimeoutExpired:
+            self.fail("extract blocked on a first-in first-out entry named .git")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        inventory = parse_inventory(out.read_text(encoding="utf-8"))
+        self.assertIsNone(inventory["source_revision"])
+        self.assertEqual(inventory["worktree"], {"state": "unknown", "paths": []})
+
+    def test_information_attribute_line_longer_than_git_reads_keeps_the_tree_readable(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        self.information_attributes(b"x.md filter=" + b"q" * 200_000 + b"\n")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_many_information_attribute_filters_keep_the_tree_readable(self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        self.information_attributes("".join(f"x{number}.md filter=f{number}\n"
+                                            for number in range(40_000)).encode("ascii"))
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+    def test_filter_name_with_a_no_break_space_is_blanked_as_git_reads_the_name(
+            self) -> None:
+        self.fx.minimal()
+        self.fx.commit_all()
+        name = "a b"
+        self.information_attributes(f"*.md filter={name}\n".encode("utf-8"))
+        (self.fx.home / ".gitconfig").write_text(
+            f'[filter "{name}"]\n\tclean = {self.clean_filter()}\n', encoding="utf-8")
+        make_stat_stale(self.fx.root / "rules/alpha-flow.md")
+        self.marker.unlink(missing_ok=True)
+
+        inventory = self.extract()
+
+        self.assertFalse(self.marker.exists(), "git ran a filter program")
+        self.assertEqual(inventory["worktree"], {"state": "clean", "paths": []})
+
+
+class GitIsolationLimitsDocstringTests(unittest.TestCase):
+    def test_module_docstring_names_the_cases_the_git_isolation_leaves_open(self) -> None:
+        docstring = ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8")))
+        text = " ".join(str(docstring).split())
+        for phrase in ("git 2.31", "submodule", "info/attributes", "top level", "SHA-256"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
 
