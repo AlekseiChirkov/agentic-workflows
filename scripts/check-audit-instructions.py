@@ -894,7 +894,7 @@ TARGET_KEYS = ["path", "heading_status"]
 # rules/reference/deep-note.md is audited but nested, so it names no stem.
 NODE_FILES = {
     "rules/r-one.md": ("# R one\n\n## Step 1\n\n### Detail\n\n## Scope — overview\n\n"
-                       "## Codebase Reading Rules\n"),
+                       "## Sample Reading Rules\n"),
     "rules/alpha-flow.md": "# Alpha flow\n\n## Present\n",
     "rules/shared-step.md": "# Shared rule\n\n## Step 1\n",
     "rules/solo.md": "# Solo\n",
@@ -1060,13 +1060,13 @@ class SpanCommandAndSectionTests(EdgeCase):
     def test_heading_components_resolve_inside_the_current_extent(self) -> None:
         cases = [
             ("r-one → ## Scope", R_ONE, "resolved-prefix"),
-            ("r-one → Codebase Reading Rules", R_ONE, "heading-unmarked"),
+            ("r-one → Sample Reading Rules", R_ONE, "heading-unmarked"),
             ("r-one → Scope", R_ONE, "heading-unmarked"),
             ("r-one → Missing Part", R_ONE, "missing-heading"),
             ("r-one → # R one", R_ONE, "resolved"),
             ("r-one → ### Detail", R_ONE, "resolved"),
             ("r-one → ## Step 1 → ### Detail", R_ONE, "resolved"),
-            ("r-one → ## Codebase Reading Rules → ### Detail", R_ONE, "missing-heading"),
+            ("r-one → ## Sample Reading Rules → ### Detail", R_ONE, "missing-heading"),
             ("r-one → ## Step 1 → 4.2", R_ONE, "resolved"),
             ("r-one → ## Scope → ### Detail", R_ONE, "missing-heading"),
             ("r-one → Step 1 → ### Detail", R_ONE, "heading-unmarked"),
@@ -1386,17 +1386,17 @@ class SpecGrammarFlagTests(EdgeCase):
         "`w-one.md → ### Sub`",
         "`rules/*.md`",
         "`w-one`",
-        "`r-one → Codebase Reading Rules`",
+        "`r-one → Sample Reading Rules`",
         "`r-one → #### Deep`",
         "`workflows/w-one.md → ## Step 1`",
         "Text w-one.md here.",
-        "## Codebase Reading Rules",
+        "## Sample Reading Rules",
     ]
     IN_GRAMMAR = {
         (1, "w-one → ## Step 1"): True, (2, "/w-one"): True, (3, "rule-shared-step"): True,
         (4, "rules/solo.md"): True, (5, "rules/zz-gone.md"): True,
         (6, "w-one.md → ### Sub"): True, (7, "rules/*.md"): False, (8, "w-one"): False,
-        (9, "r-one → Codebase Reading Rules"): False, (10, "r-one → #### Deep"): False,
+        (9, "r-one → Sample Reading Rules"): False, (10, "r-one → #### Deep"): False,
         (11, "workflows/w-one.md → ## Step 1"): False, (12, "w-one.md"): False,
     }
 
@@ -6047,6 +6047,204 @@ class VerifyEvidenceResolutionLimitTests(SharedVerifyCase):
             with self.subTest(case=name):
                 result, location = self.evidence_case(key, identifier, evidence)
                 self.assert_reports(result, [(code, location) for code in codes])
+
+
+ADAPTER_FILE = "templates/codex-global-AGENTS.md"
+DEEP_READER_LEVELS = 1200
+
+
+class AdapterFileLookupTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+    verify = VerifyTreeTests.verify
+
+    def extract_into(self, fixture: FixtureRoot, out: Path
+                     ) -> subprocess.CompletedProcess[str]:
+        return run_tool(["extract", "--root", str(fixture.root), "--out", str(out)],
+                        fixture.env, fixture.base)
+
+    def test_adapter_file_below_an_unsearchable_templates_directory_refuses_the_root(
+            self) -> None:
+        if os.geteuid() == 0:
+            self.skipTest("permission bits do not restrict the superuser")
+        fixture, inventory = self.build("unsearchable")
+        with self.subTest(case="absent templates directory"):
+            self.assertNotIn(ADAPTER_FILE, [entry["path"] for entry in inventory["files"]])
+            self.assert_silent(self.verify(fixture))
+        fixture.write(ADAPTER_FILE, "# Essentials\n")
+        refresh_report(fixture)
+        report = str(fixture.root / REPORT_PATH)
+        templates = fixture.root / "templates"
+        for mode in (0o600, 0o000):
+            for command in ("extract", "verify"):
+                with self.subTest(mode=oct(mode), command=command):
+                    out = fixture.base / f"inventory-{mode:o}.json"
+                    os.chmod(templates, mode)
+                    try:
+                        result = (self.extract_into(fixture, out) if command == "extract"
+                                  else self.verify(fixture, report=report))
+                    finally:
+                        os.chmod(templates, 0o755)
+                    self.assertEqual(result.returncode, 2, f"stdout={result.stdout!r} "
+                                                           f"stderr={result.stderr!r}")
+                    self.assertEqual(result.stdout, "")
+                    lines = result.stderr.strip().splitlines()
+                    self.assertEqual(len(lines), 1, lines)
+                    self.assertTrue(lines[0].startswith("ERROR: root-unreadable: "), lines[0])
+                    self.assertNotIn(str(fixture.base), result.stderr)
+                    self.assertFalse(out.exists())
+        (fixture.root / ADAPTER_FILE).unlink()
+        (fixture.root / ADAPTER_FILE).symlink_to("elsewhere.md")
+        out = fixture.base / "inventory-link.json"
+        result = self.extract_into(fixture, out)
+        with self.subTest(case="link named like the adapter file"):
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rows = [entry for entry in parse_inventory(out.read_text(encoding="utf-8"))["files"]
+                    if entry["path"] == ADAPTER_FILE]
+            self.assertEqual([(row["set"], row["entry"]) for row in rows],
+                             [("adapter", "symlink")])
+
+
+class ReaderWalkTests(ToolCase):
+    def test_unreadable_directory_that_cannot_hold_a_reader_does_not_refuse_the_root(
+            self) -> None:
+        if os.geteuid() == 0:
+            self.skipTest("permission bits do not restrict the superuser")
+        for index, directory in enumerate(("private", ".ai/context/sub")):
+            with self.subTest(directory=directory):
+                (self.base / f"case-{index}").mkdir()
+                fixture = FixtureRoot(self.base / f"case-{index}")
+                fixture.minimal()
+                fixture.write("docs/GUIDE.md", "# Guide\n")
+                fixture.write(f"{directory}/notes.md", "# Notes\n")
+                out = fixture.base / "inventory.json"
+                os.chmod(fixture.root / directory, 0)
+                try:
+                    result = self.run_extract(out=out, root=fixture.root, env=fixture.env)
+                finally:
+                    os.chmod(fixture.root / directory, 0o755)
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                inventory = parse_inventory(out.read_text(encoding="utf-8"))
+                self.assertEqual({entry["path"]: entry["class"]
+                                  for entry in inventory["readers"]},
+                                 {"docs/GUIDE.md": "active"})
+
+    def test_reader_below_a_deep_directory_chain_is_extracted_without_a_traceback(
+            self) -> None:
+        self.fx.minimal()
+        (self.fx.root / "docs").mkdir()
+        directory = deep_directory(self.fx.root, "docs", DEEP_READER_LEVELS)
+        out = self.base / "inventory.json"
+        try:
+            self.fx.write(f"{directory}/x.md", "# X\n")
+            result = self.run_extract(out=out)
+        finally:
+            remove_deep_directory(self.fx.root, directory)
+
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr[-2000:])
+        inventory = parse_inventory(out.read_text(encoding="utf-8"))
+        self.assertEqual({entry["path"]: entry["class"] for entry in inventory["readers"]},
+                         {f"{directory}/x.md": "history"})
+
+
+class AdapterTokenBoundaryTests(EdgeCase):
+    SOURCE = "docs/GUIDE.md"
+
+    def test_adapter_path_token_ends_where_the_other_path_tokens_end(self) -> None:
+        lines = self.write_lines(self.SOURCE, [
+            "Backup templates/codex-global-AGENTS.md.bak here.",
+            "Older templates/codex-global-AGENTS.md-old here.",
+            "Adapter templates/codex-global-AGENTS.md. Also templates/codex-global-AGENTS.md, too.",
+            "Rule rules/r-one.md.bak here.",
+        ])
+
+        inventory = self.extract()
+
+        s, text = self.SOURCE, "text"
+        self.assert_edges(inventory, s, [
+            edge(s, lines, lines[2], ADAPTER_FILE, "path", "resolved", [ADAPTER_FILE],
+                 context=text),
+            edge(s, lines, lines[2], ADAPTER_FILE, "path", "resolved", [ADAPTER_FILE],
+                 context=text, nth=1),
+            edge(s, lines, lines[3], "rules/r-one.md.bak", "path", "missing-path",
+                 context=text),
+        ])
+
+
+class BareHomeDirectoryTests(CandidateCase):
+    def test_bare_home_directory_before_a_path_end_becomes_a_tilde(self) -> None:
+        source = "rules/r-bare.md"
+        cases = [
+            ("Keep the full output in /home/someone and /Users/x, /home/abc; /Users/def: "
+             "(/home/ghi) /Users/jkl.",
+             "Keep the full output in ~ and ~, ~; ~: (~) ~."),
+            ("Keep the full output under `/home/someone` now.",
+             "Keep the full output under `~` now."),
+            ("Keep the full output at /home/someone", "Keep the full output at ~"),
+            ("Keep the full output in /home/ alone, /homestead/x and /home/someone/z.",
+             "Keep the full output in /home/ alone, /homestead/x and ~/z."),
+        ]
+        self.write_lines(source, [line for line, _ in cases])
+        out = self.base / "inventory.json"
+
+        inventory = self.extract(out=out)
+
+        self.assertEqual(inventory["full_output"],
+                         [line_candidate("FO", number, source, number, kept)
+                          for number, (_, kept) in enumerate(cases, start=1)])
+        text = out.read_text(encoding="utf-8")
+        self.assertNotIn("/home/someone", text)
+        self.assertNotIn("/Users/x", text)
+
+
+class SeparatorRowWhitespaceTests(CandidateCase):
+    def test_separator_row_with_trailing_whitespace_is_not_a_unit(self) -> None:
+        content_row = "| Every audited file | keeps one row | here |  "
+        lines = ["# S", "", "| --- | --- | --- | --- |   ", "| :--- | ---: | :---: | --- |\t",
+                 "|---|---|---|---|---|---|---|---|\t", content_row]
+        for path in ("rules/s-one.md", "rules/s-two.md"):
+            self.write_lines(path, lines)
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["duplicate_clusters"], [
+            cluster(1, " ".join(content_row.split()),
+                    [("rules/s-one.md", 6, 6), ("rules/s-two.md", 6, 6)]),
+        ])
+
+
+class StopMarkerTests(CandidateCase):
+    NOT_CALLS = [
+        "**Stop**: run `/w-child` first",
+        "**STOP**, then run `/w-child`.",
+    ]
+    CALLS = [
+        "The `**stop**` marker ends a step; run `/w-child` now.",
+        "Write `**Stop**` as shown, then run `/w-child`.",
+        "Run `/w-child`; **Stop** after it.",
+    ]
+
+    def test_stop_marker_in_any_case_outside_code_spans_ends_calls(self) -> None:
+        control = repeat_load(1, "w-ctl", "w-child")
+        cases = [(line, False) for line in self.NOT_CALLS]
+        cases += [(line, True) for line in self.CALLS]
+        for index, (line, is_call) in enumerate(cases):
+            with self.subTest(line=line):
+                fixture = self.fresh_fixture(f"case-{index}")
+                fixture.write(R_ONE, "# R one\n")
+                self.write_workflow("w-root", [LOAD_R_ONE, line], fixture)
+                self.write_workflow("w-child", [LOAD_R_ONE], fixture)
+                self.write_workflow("w-ctl", [LOAD_R_ONE, "Run `/w-child`."], fixture)
+
+                inventory = self.extract_fixture(fixture)
+
+                expected = [control]
+                if is_call:
+                    expected.append(repeat_load(2, "w-root", "w-child"))
+                self.assertEqual(inventory["repeat_loads"], expected)
 
 if __name__ == "__main__":
     unittest.main()
