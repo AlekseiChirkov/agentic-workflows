@@ -42,7 +42,14 @@ file is at most 64 KiB of UTF-8 holding one JSON object nested at most 16 levels
 numbers and no lone surrogate, and the age is null unless the owner records a start time with
 a UTC offset that is not in the future; age never proves that the owner is gone, so a held
 lock is never deleted, truncated or taken over. Leftover .state.md.*.tmp files are
-listed in stale_temp_files and are never read as state or deleted. For tests only,
+listed in stale_temp_files and are never read as state or deleted. get and validate also read
+the project memory file .ai/memory/state.md under the root and add the warning
+memory-state-mismatch when a line under its ## Active Tasks or ## Done heading that names the
+task directory claims a number of reviewed leaves ("all ten leaves reviewed", "9 of 10 leaves
+reviewed") other than the leaf blocks whose atomic-validation is complete, or a pull request
+range #A–#B holding a number that is not the pr of such a leaf; the file is read only when it
+is a regular file reached without a symbolic link, of at most 1 MiB of UTF-8, otherwise
+nothing is compared, and the warning never changes the exit code. For tests only,
 STATE_TOOL_TEST_FAULT set to kill-before-replace or kill-after-replace kills the tool after
 its temporary file is synced or after the rename, and pause-before-recheck pauses it before
 the recheck until the file named by STATE_TOOL_TEST_RESUME exists (at most 10 s); any other
@@ -222,6 +229,20 @@ try:
     CHILDREN_SEPARATOR = ","
     CHILDREN_JOINER = ", "
 
+    # The project memory file whose task entry the read commands compare with the leaf blocks.
+    MEMORY_PATH = (".ai", "memory", "state.md")
+    MEMORY_LIMIT_BYTES = 1024 * 1024
+    MEMORY_SECTIONS = ("## Active Tasks", "## Done")
+    MEMORY_WARNING = "memory-state-mismatch"
+    NUMBER_WORDS = {word: value for value, word in enumerate(
+        ("one two three four five six seven eight nine ten eleven twelve thirteen fourteen "
+         "fifteen sixteen seventeen eighteen nineteen twenty").split(), 1)}
+    CLAIM_NUMBER = r"([0-9]{1,9}|" + "|".join(NUMBER_WORDS) + r")"
+    REVIEWED_CLAIM = re.compile(r"\b(all )?" + CLAIM_NUMBER + r"(?: of " + CLAIM_NUMBER
+                                + r")? leaves reviewed\b", re.IGNORECASE)
+    PR_RANGE = re.compile(r"#([0-9]{1,9})[–-]#?([0-9]{1,9})(?![0-9])")
+    LEAF_PR = re.compile(r"\s*#([0-9]{1,9})(?![0-9])")
+
 
     class ToolError(Exception):
         """A refusal carrying its exit code, error code, message and optional line number."""
@@ -281,6 +302,7 @@ try:
         task: str
         relative_task: str
         state: str
+        root: str
 
 
     # ---------------------------------------------------------------- argument parsing
@@ -421,7 +443,7 @@ try:
             raise ToolError(2, "path-outside-root",
                             f"task {task_argument} is outside root {root_argument}")
         relative = os.path.relpath(task, root).replace(os.sep, "/")
-        return TaskPaths(task, relative, os.path.join(task, "state.md"))
+        return TaskPaths(task, relative, os.path.join(task, "state.md"), root)
 
 
     def stale_temp_files(task: str) -> list[str]:
@@ -1763,12 +1785,103 @@ try:
         return block
 
 
+    # ---------------------------------------------------------------- project memory
+
+    def read_memory(root: str) -> str | None:
+        """Text of the project memory file, or None unless it is a regular file reached without a
+        symbolic link, of at most MEMORY_LIMIT_BYTES of UTF-8. The open never blocks."""
+        path = os.path.join(root, *MEMORY_PATH)
+        flags = (os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+                 | getattr(os, "O_BINARY", 0))
+        try:
+            if os.path.realpath(path) != path:
+                return None
+            info = os.lstat(path)
+            if not stat.S_ISREG(info.st_mode) or info.st_size > MEMORY_LIMIT_BYTES:
+                return None
+            descriptor = os.open(path, flags)
+            with os.fdopen(descriptor, "rb") as handle:
+                if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                    return None
+                data = handle.read(MEMORY_LIMIT_BYTES + 1)
+        except OSError:
+            return None
+        if len(data) > MEMORY_LIMIT_BYTES:
+            return None
+        try:
+            return data.decode("utf-8")
+        except UnicodeDecodeError:
+            return None
+
+
+    def memory_entries(text: str, directory: str) -> list[str]:
+        """Lines under the active and done task headings that name the task directory as a whole
+        path word."""
+        names = re.compile(r"(?<![A-Za-z0-9_.-])" + re.escape(directory) + r"(?![A-Za-z0-9_-])")
+        entries = []
+        registry = False
+        for line in text.split("\n"):
+            if SECTION_END.match(line):
+                registry = line.rstrip() in MEMORY_SECTIONS
+            elif registry and names.search(line):
+                entries.append(line)
+        return entries
+
+
+    def claim_number(text: str) -> int:
+        return int(text) if text.isdigit() else NUMBER_WORDS[text.lower()]
+
+
+    def entry_unsupported(entry: str, leaves: list[Block]) -> bool:
+        """Whether a memory entry claims a reviewed-leaf count, or a pull request range, that the
+        leaves do not support: a count must equal the leaves whose validation is complete ("all"
+        also needs every leaf complete, "of M" needs M leaves), and every number of a range must
+        be the pull request of such a leaf."""
+        reviewed = [block for block in leaves
+                    if dict(block.header_fields).get("atomic-validation") == "complete"]
+        requests = set()
+        for block in reviewed:
+            for group in block.groups:
+                match = LEAF_PR.match(group.value) if group.name == "pr" else None
+                if match:
+                    requests.add(int(match.group(1)))
+        for match in REVIEWED_CLAIM.finditer(entry):
+            everything, claimed, total = match.groups()
+            if (claim_number(claimed) != len(reviewed)
+                    or (everything and len(reviewed) != len(leaves))
+                    or (total is not None and claim_number(total) != len(leaves))):
+                return True
+        for match in PR_RANGE.finditer(entry):
+            first, last = int(match.group(1)), int(match.group(2))
+            if first <= last and (last - first + 1 > len(requests)
+                                  or any(number not in requests
+                                         for number in range(first, last + 1))):
+                return True
+        return False
+
+
+    def memory_warnings(paths: TaskPaths, document: Document) -> list[str]:
+        """The memory-state-mismatch warning when an entry of the project memory for this task
+        claims reviewed leaves or pull requests the leaf blocks do not support; a memory file that
+        cannot be read safely gives no warning."""
+        if paths.task == paths.root:
+            return []
+        text = read_memory(paths.root)
+        if text is None:
+            return []
+        leaves = [block for block in document.blocks if block.kind == "leaf"]
+        entries = memory_entries(text, os.path.basename(paths.task))
+        return [MEMORY_WARNING] if any(entry_unsupported(entry, leaves)
+                                       for entry in entries) else []
+
+
     # ---------------------------------------------------------------- commands
 
     def load_document(options: dict[str, list[str]], report: dict[str, Any],
                       report_version: bool) -> tuple[Document, list[str]]:
         """Resolve and read state.md for a read command, filling task, stale files, revision and,
-        when asked, contract_version; return the parsed document and the version warnings."""
+        when asked, contract_version; return the parsed document with the version and memory
+        warnings."""
         paths = resolve_paths(options["--root"][0], options["--task"][0])
         report["task"] = paths.relative_task
         report["stale_temp_files"] = stale_temp_files(paths.task)
@@ -1780,7 +1893,8 @@ try:
         if report_version:
             report["contract_version"] = version
         warnings = [] if supported else ["unsupported-contract-version"]
-        return parse_lines(lines, openers), warnings
+        document = parse_lines(lines, openers)
+        return document, warnings + memory_warnings(paths, document)
 
 
     def command_get(options: dict[str, list[str]], report: dict[str, Any]) -> int:

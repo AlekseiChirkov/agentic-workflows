@@ -7533,6 +7533,15 @@ class MemoryFileSafetyTests(MemoryConsistencyCase):
 
         self.assert_no_mismatch()
 
+    def test_memory_directory_reached_through_a_symbolic_link_gives_no_warning(self) -> None:
+        linked = self.base / "linked-memory"
+        linked.mkdir()
+        (linked / "state.md").write_text(self.text, encoding="utf-8")
+        self.memory.parent.rmdir()
+        self.memory.parent.symlink_to(linked, target_is_directory=True)
+
+        self.assert_no_mismatch()
+
     def test_memory_file_that_is_not_utf8_gives_no_warning(self) -> None:
         self.write_memory(self.text.encode("utf-8") + b"\xff\xfe broken\n")
 
