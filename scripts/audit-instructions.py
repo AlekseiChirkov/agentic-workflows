@@ -28,7 +28,8 @@ Usage:
       and every well-formed evidence item of the files rows, findings and amendments: a
       `path:line` item, or in a finding a `path:start-end` item, names an inventory path
       whose line count holds the lines, and a bare path in a finding names an inventory
-      path (finding and amendment ids and malformed items are left to their own rules).
+      path (amendment ids and malformed items are left to their own rules, and a line
+      number too long for any line count lies outside the entry).
       Then the report FILE itself: its layout (title, the five `##` headings and the
       generated-region markers in order, one review and one acceptance line in their
       grammars), that the reviewed commit exists (`cat-file`), amounts anywhere in it,
@@ -2977,17 +2978,27 @@ def economics_rules(check: Verification) -> Iterator[Diagnostic]:
 # ---------------------------------------------------------------------------
 
 EVIDENCE_SPAN_RE = re.compile(r"([^\s:]+):(\d+)(?:-(\d+))?")
+LINE_DIGITS_LIMIT = 9
+
+
+def cited_line(digits: str, lines: int) -> int:
+    """The line a run of digits names, or `lines + 1` when it has more significant digits
+    than any line count needs, so no unbounded string is converted to an integer."""
+    significant = digits.lstrip("0") or "0"
+    return lines + 1 if len(significant) > LINE_DIGITS_LIMIT else int(significant)
+
 
 
 def evidence_fault(check: Verification, item: str, paths_allowed: bool) -> str | None:
     """Why one evidence item does not resolve against the inventory, or None when it does.
     Only items in a form their list accepts are resolved: `path:line` everywhere, and in a
-    finding also a bare repository path, which may carry a `:start-end` range. A finding or
-    amendment id is left to the reference rules and a malformed item to the form rules.
-    `path:line` and `path:start-end` need an inventory path with a line count that holds
-    every cited line; a bare path must be an inventory path. Line counts come from the
-    inventory, so a later tree changes nothing."""
-    if FINDING_ID_RE.fullmatch(item) or AMENDMENT_ID_RE.fullmatch(item):
+    finding also a bare repository path, which may carry a `:start-end` range. An
+    amendment id is left to the reference rules and a malformed item to the form rules; a
+    finding id in a finding is a bare path like any other. `path:line` and `path:start-end`
+    need an inventory path with a line count that holds every cited line, a number too long
+    for any line count lying outside it; a bare path must be an inventory path. Line counts
+    come from the inventory, so a later tree changes nothing."""
+    if AMENDMENT_ID_RE.fullmatch(item):
         return None
     if not (EVIDENCE_LINE_RE.fullmatch(item) or (paths_allowed and is_repository_path(item))):
         return None
@@ -3000,8 +3011,8 @@ def evidence_fault(check: Verification, item: str, paths_allowed: bool) -> str |
     lines = entry["lines"]
     if not isinstance(lines, int):
         return f'evidence "{item}" cites a line of an entry without a line count'
-    start = int(span.group(2))
-    end = int(span.group(3)) if span.group(3) is not None else start
+    start = cited_line(span.group(2), lines)
+    end = cited_line(span.group(3), lines) if span.group(3) is not None else start
     if start > end:
         return f'evidence "{item}" is a reversed range'
     if not 1 <= start <= end <= lines:
