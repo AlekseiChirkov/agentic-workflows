@@ -5,7 +5,7 @@ flow: full
 ## Phases
 - discovery: complete
 - execution: complete
-- validation: in-progress
+- validation: complete
 
 ## Task Analysis
 
@@ -508,7 +508,7 @@ T-12 | Fix: review follow-ups (blockers, evidence, runbook) | atomic-tests: gree
   base_branch: fix/audit-git-read-isolation
   base_commit: 5a7e2dcca8e4691dd28696e166010a8517e6323b
   commits: c2d6cc8 test(audit): require a two-way blockers check and resolvable evidence, fd61ad2 fix(audit): check the blockers list both ways and resolve evidence, fcba812 test(audit): bound evidence line numbers and reject finding ids as evidence, 4bbc47d fix(audit): bound evidence line numbers and resolve finding ids as paths
-  pr: #116 draft
+  pr: #116 ready
 
 
 ## Execution Report
@@ -536,17 +536,17 @@ spec-run: proposals retained for post-delivery review; no application (10 Do Now
 | Symbolic links are recorded and never followed; repository content is never executed or imported by the tool | PASS: lstat-based entry kinds and directory test (:305-319), O_NOFOLLOW reads (:324, :3250), `os.walk(followlinks=False)` (:406), `is_dir(follow_symlinks=False)` (:335); the only subprocess is `git` with an argument list, no shell, inherited GIT_* variables dropped, fsmonitor off and hooks redirected (:1315-1324); no importlib, exec or eval |
 | The assessment has one writer at a time, and every audited path has exactly one row in `files`, `coverage` and `map` | PASS: 61/61/61 entries, equal to the inventory's 61 audited paths with no duplicates (recomputed independently); verify silent on row-missing, row-extra and row-duplicate; the leaves wrote the assessment in sequence (T-07, then T-08, then T-09) |
 | Nothing obligatory is proposed for deletion; changes to the naming-migration specification exist only as amendments | PASS: map decisions are only keep, rename, split and move; the 7 amendments only extend or qualify text (AMD-08-01..07); `.ai/specs/09-*` is not in the delivery diff |
-| `bash scripts/validate-contracts.sh` stays at zero failures | PASS: 721 passed, 0 failed, 2 skipped at 04ae554; after the fix and spec-sync, re-run at the final tip 7974dcf: 721 passed, 0 failed, 2 skipped |
+| `bash scripts/validate-contracts.sh` stays at zero failures | PASS: 721 passed, 0 failed, 2 skipped at 04ae554; after the fix and spec-sync, re-run at 7974dcf and, after the follow-up fix, at the final tip 2769bb4: 721 passed, 0 failed, 2 skipped |
 
 ### Acceptance Criteria
 | Criterion | Status |
 |-----------|--------|
-| `python3 -I scripts/check-audit-instructions.py` exits 0, with at least one case per edge form, per status and per diagnostic code | PASS: 212 tests OK at 04ae554; 228 tests OK at the final tip 7974dcf after the git-isolation fix; every one of the 43 DM-9 codes and every edge status occurs in the suite |
+| `python3 -I scripts/check-audit-instructions.py` exits 0, with at least one case per edge form, per status and per diagnostic code | PASS: 212 tests OK at 04ae554; 228 tests OK at 7974dcf after the git-isolation fix; 237 tests OK at the final tip 2769bb4 after the follow-up fix; every one of the 43 DM-9 codes and every edge status occurs in the suite |
 | `verify --root . --report docs/audits/2026-11-17-rules-workflows-audit.md` exits 0 with empty output at the delivery commit | PASS: re-run at 7c777af, exit 0, empty |
 | A fresh extraction on a checkout of the inventory's `source_revision` equals the delivered inventory byte for byte | PASS: worktree at 8d7e484, `cmp` identical; `verify --strict` exit 0 |
 | The report holds `Reviewed: <role> <date> pass <commit>` and `Accepted: pending`, and names every blocking finding under its blockers heading | PASS: `Reviewed: Validator 2026-11-18 pass 0add2fa…` and `Accepted: pending`; all 9 `blocks_09: true` ids (AUD-08-001, 004, 005, 007, 033, 035, 036, 062, 063) are listed under the blockers heading |
 | Every changed path of the delivery is in the permitted-changes list, and the grep of the validator and sync prints nothing | PASS: `git diff --name-only 488edb1..HEAD` gives 13 paths, all in REQ-11 (base 488edb1 by the user's decision of 2026-11-17; the literal `merge-base main` form waits for PR #104); grep empty |
-| `bash scripts/validate-contracts.sh` reports zero failures | PASS: 721/0/2 at 04ae554 and at the final tip 7974dcf |
+| `bash scripts/validate-contracts.sh` reports zero failures | PASS: 721/0/2 at 04ae554, at 7974dcf and at the final tip 2769bb4 |
 | The index, script table, runbook note, inventory sentence and the two memory entries are present as the specification states | PASS: docs/README.md links the report under ``## Audits (`audits/`)``; scripts/README.md has one row per script; runbook `## Commands` note names both commands; architecture.md states 11 shell scripts and 35 Python helpers, equal to `ls scripts/*.sh` / `ls scripts/*.py`; `.ai/memory/state.md` Done entry and `.ai/memory/progress.md` 2026-11-18 entry both link the report |
 
 ### Off-limits
@@ -636,7 +636,9 @@ Gate notes: #2 is the only code fix, so it is dedicated; it touches the tool and
 - Spec completion marker (`status: done`, `completed_task`, `completed_at`) — deferred to the archival of the spec: the identity ledger pins `.ai/specs/08-rules-workflows-audit.md:23`, so adding front matter in place would move the pinned line; the archival step already updates that ledger row's path cell (REQ-11) [source: finalization]
 
 ## Validation Result
-validation: reopened 2026-11-18 for fix-task T-12 (owner: fix all findings); the record below is the first finalization
+validation: complete (2026-11-18, second finalization after fix-task T-12)
+final-tip-2: 2769bb4 on `fix/audit-blockers-and-evidence-checks` — `bash scripts/validate-contracts.sh` 721 passed, 0 failed, 2 skipped; suite 237 tests OK; `verify` exit 0, empty; `validate-task.sh` 0 failed; PR #116 promoted to ready
+history: reopened 2026-11-18 for fix-task T-12 (owner: fix all findings); the record below is the first finalization
 first-finalization: complete (2026-11-18)
 final-tip: 7974dcf on `fix/audit-git-read-isolation`
 checks: `bash scripts/validate-contracts.sh` 721 passed, 0 failed, 2 skipped; `python3 -I scripts/check-audit-instructions.py` 228 tests OK; `verify --root . --report docs/audits/2026-11-17-rules-workflows-audit.md` exit 0, empty; `validate-task.sh` 21 passed, 0 failed, 1 skipped
