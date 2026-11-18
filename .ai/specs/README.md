@@ -29,7 +29,7 @@ and the post-merge closure implementation below does not advance other roadmap s
 
 ## Owner-scheduled post-merge closure
 
-On 2026-11-17 the owner approved [task finalization](24-task-finalization.md) as a separate development task, outside the earlier roadmap ordering. Implementation was independently validated locally on 2026-11-18 on the pinned multi-repository support dependency: full validator 725/0/2 and all 156 finalization acceptance tests passed; staged provider outputs were generated in isolation. Integration, live synchronization and this task's own finalization remain owner-controlled follow-ups. It does not advance unrelated roadmap scope or authorize deployment. Current execution evidence lives in [task state](../tasks/todo/task-24-task-finalization/state.md).
+On 2026-11-17 the owner approved [task finalization](24-task-finalization.md) as a separate development task, outside the earlier roadmap ordering. Implementation was independently validated locally on 2026-11-18 on the pinned multi-repository support dependency: full validator 725/0/2 and all 156 finalization acceptance tests passed; staged provider outputs were generated in isolation. The owner authorized integration on 2026-11-18: the dependency and all three implementation branches were merged in order into main at 75168ca; 194 fresh post-merge acceptance tests passed. Live synchronization and this task's own finalization remain separate follow-ups. It does not advance unrelated roadmap scope or authorize deployment. Current execution evidence lives in [task state](../tasks/todo/task-24-task-finalization/state.md).
 
 ## Nine token optimization workstreams
 

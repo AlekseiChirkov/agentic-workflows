@@ -62,8 +62,10 @@ the selected path and never creates the store; an empty log override uses `<root
   `shellcheck` is optional. Finalization mechanics require Python 3.11+ and Linux
   no-overwrite rename support; unavailable required mechanisms block mutations.
 - Development host: the maintainer's workstation.
-- Local Git history exists. Publication authority is task-specific; the active
-  finalization implementation has no push, PR creation or merge authorization.
+- Local Git history exists. Publication authority is task-specific. On 2026-11-18
+  the owner authorized merging the validated finalization stack and its pinned
+  multi-repository dependency into main, followed by ordinary origin/main publication.
+  This does not authorize live consumer installation or unrelated work integration.
 - Isolated verification uses `PATH=/usr/bin:/bin` and `/usr/bin/python3` on this host.
   Do not select an uninstalled mise version to run checks.
 

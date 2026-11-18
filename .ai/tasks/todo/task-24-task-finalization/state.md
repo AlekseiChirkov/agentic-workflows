@@ -297,3 +297,18 @@ workflows/spec-run.md
 ```
 
 Generated outputs: `/tmp/orchestrail-finalization-stage/.claude/skills/` and `.codex/skills/` each contain 62 generated skills; `.codeium/windsurf/global_workflows/` contains 43 workflows and `global_rules/` contains 19 rules/principles. The stage also contains the generated global `.claude/CLAUDE.md` and `.codex/AGENTS.md`. All 188 files were independently verified; none was installed into the real consumer directories.
+
+## Owner-authorized Integration — 2026-11-18
+
+The owner explicitly requested merge into main and a repository update. These dated facts supersede the earlier local-only status and pending integration follow-ups; they do not rewrite the earlier validation snapshot. Four ordinary no-fast-forward local merges delivered the pinned dependency and reviewed implementation in order to `main`. No PR merge receipt is claimed: these are actual Git merge commits, with independently checked exact second parents and ancestry.
+
+| Source branch | Original source tip | Merge into main | Recorded merge time |
+|---------------|---------------------|-----------------|---------------------|
+| `feat/multi-repository-spec-run` | `488edb11b37c3028b720d7de06cfe64cf7fe30c1` | `f330eb4e042b6bb15bbbfa6333469eda01e05480` | 2026-11-18T06:19:15+06:00 |
+| `feat/task-finalization` | `55568223cd7c07b6aa05053d4bb5cae6852e6b49` | `fa249232b2da26c53aa01548a9fd7f20efec6304` | 2026-11-18T06:19:17+06:00 |
+| `feat/task-closure-safety` | `60bd3e9b8bed9eb17dd3c95af80092d22956c07e` | `3730119033a2d84c68e66bedc7ce838f8e23b3e8` | 2026-11-18T06:19:20+06:00 |
+| `feat/task-closure-workflow` | `8e5726720a6825a31e2ff9b8299f0e81c5a966b4` | `75168ca13b891c7c874c1ed23d7ca05bf337f144` | 2026-11-18T06:19:22+06:00 |
+
+The resulting integration source tip is `75168ca13b891c7c874c1ed23d7ca05bf337f144`; its complete Git tree equals validated final delivery `8e5726720a6825a31e2ff9b8299f0e81c5a966b4`. No conflict resolution or new source code was introduced. Fresh post-merge execution ran repository-set 38, core 77, safety 23 and workflow 56 cases: all 194 passed, exit 0. Exact suite durations: 38/8.273s, 77/113.193s, 23/26.648s, 56/193.557s. Log `/tmp/orchestrail-main-integration-checks-75168ca.log`, SHA256 `41524d77cdf83f20226061e1ca7446ad78772662c8427f4d78376031adb4a16c`; observation 2026-11-18T00:27:08.994073+00:00. Actual runtime remains system Python 3.14.4 and Git 2.53.0. The earlier complete 725/0/2 validator result remains explicitly prior-source evidence; it was not relabeled as a freshly rerun full suite.
+
+Current knowledge changes after this check are metadata only. The owner authorized an ordinary fast-forward publication to `origin/main`; its actual post-push tip must be verified from the remote. The unrelated audit branch remains exactly `201a30cfb8403f0965cc2678939cf694dee99960`, including its unpublished local commit. Task branch cleanup, archival and live consumer installation were not requested by this merge operation and were not performed; the finalization marker remains not-started, and deployment remains unverified.
