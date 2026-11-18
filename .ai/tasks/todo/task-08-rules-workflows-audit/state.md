@@ -555,14 +555,14 @@ T-13 | Fix: extraction edge cases (proposals) | atomic-tests: green | atomic-exe
          plan delta (returned, not written): T-13 → reviewed; compression not run (shared file, orchestrator's call); composite rollup not applicable (plain leaf)
          finalize (rework) 2026-11-18: architecture — no delta; plan — delta `T-13 → done` returned, not written; no composite; compression not run (orchestrator's call)
 
-T-14 | Fix: git isolation follow-ups and version matrix (proposals) | atomic-tests: red | atomic-execution: not-started | atomic-validation: not-started
+T-14 | Fix: git isolation follow-ups and version matrix (proposals) | atomic-tests: green | atomic-execution: in-progress | atomic-validation: not-started
   branch: fix/audit-git-isolation-follow-ups
   base_branch: fix/audit-extraction-edge-cases
   base_commit: 5ce334b361c1914d0682269c5240dce96fe6ffcd
   commits:
   pr: none
-  last_action: RED reached — 10 failing tests written (integration plus in-process), 25 failing tests/subtests; 3 residual pins skip on git 2.53.0 (matrix only); second RED reached for the invalid `.git` directory (4 failures); previous: one intent question open; previous: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
-  target_files: scripts/check-audit-instructions.py
+  last_action: completed step 2 — GREEN: both RED sets pass, full suite 264 OK (3 residual cases skipped on git 2.53.0), delivery gate GATE PASS; matrix (step 3) pending; previous: RED reached — 10 failing tests written (integration plus in-process), 25 failing tests/subtests; 3 residual pins skip on git 2.53.0 (matrix only); second RED reached for the invalid `.git` directory (4 failures); previous: one intent question open; previous: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
+  target_files: scripts/check-audit-instructions.py, scripts/audit-instructions.py, .ai/context/runbook.md, scripts/README.md, scripts/audit-git-matrix/Dockerfile, scripts/audit-git-matrix/run.sh
   blocker: none
   notes: source and decisions in `T-14-fix-git-isolation-follow-ups/description.md`
          tdd: integration — 10 tests (synthetic fixture roots, the tool as a subprocess; the metadata and info/attributes readers in-process with a recording `os.open`), plus 3 residual pins gated by a maximum git version, AC coverage 4/4 (criterion 1 by the 10 tests; criterion 2 by the test-file diff; criteria 3 and 4 are verification commands and the matrix record); test command `MISE_PYTHON_VERSION=3.12.16 python3 -I scripts/check-audit-instructions.py` (standalone suite)
@@ -574,6 +574,10 @@ T-14 | Fix: git isolation follow-ups and version matrix (proposals) | atomic-tes
          tdd: second red digest — invalid `.git` directory → InvalidGitDirectoryTests.test_invalid_git_directory_below_a_sha1_top_level_reads_unknown (empty, `HEAD` only, `HEAD` and `objects`), .test_module_docstring_states_that_an_invalid_git_directory_reads_unknown
          tdd: second red observed 2026-11-18 — Python 3.12.16, git 2.53.0: 2 tests in 0.6 s, 4 failures, 0 errors: each `.git` shape below the SHA-1 top level reads `clean` with a dirty audited file; the docstring lacks `does not take as a repository`; test-file diff since 7ead22d: one class appended, 0 lines deleted
 
+         tdd: green 2026-11-18 — full standalone suite 264 OK in 389.6 s under Python 3.12.16 and git 2.53.0, 3 skipped (the residual cases, which run only below their git boundary); `git diff ace5c5f -- scripts/check-audit-instructions.py` empty; no test amended
+         implementation: `home_relative` scans each `/home/` or `/Users/` start (`HOME_START_RE`) and takes the run of name characters (`[\w.-]` plus combining marks, `user_name_end`): `~/` when a nonempty run is followed by `/`, else `~` for the run without trailing periods when that is nonempty, every other character kept (300 000 fuzzed strings without combining marks equal the bare form and the `[\w.-]+/` prefix form by expression); `read_git_metadata` stats the path and opens only a regular file, `fstat` kept; `metadata_text` strips only trailing CR and LF; info/attributes lines cut at their first NUL before the length check and the match; `root_holds_repository` (a `.git` regular file, or a `.git` directory whose HEAD names a ref below refs/ or starts with 40 hexadecimal digits and whose common directory holds `objects` and `refs` directories) gates `status` in `worktree_state`; module docstring: NUL cut, January 2023 releases, the 2.31.0 to 2.39.0 residual, the work-tree rule for roots without their own repository; runbook refresh bullet; `scripts/README.md` row; `scripts/audit-git-matrix/Dockerfile` and `run.sh`
+         implementation refinement (reported): the repository check also requires a HEAD that names a ref or an object name and treats a `.git` that is neither a directory nor a regular file (FIFO, device, dangling link) as no repository, because git then also looks above the root; both read `unknown`
+         verification: delivery gate GATE PASS (delivery verify silent; verify --strict only the allowed line; current tree the 14 baseline lines), so the home, NUL and work-tree changes are neutral at 8d7e484; every function annotated as at the base; no new git command; verify writes nothing; complete validator left to the orchestrator (instructed)
 T-15 | Fix: verify input and form rules (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
   target_files:

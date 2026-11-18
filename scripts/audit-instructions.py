@@ -83,15 +83,20 @@ root is taken as the top level of its git work tree, and its `.git` directory or
 locates the repository: when its configuration names the SHA-1 or the SHA-256 object
 format, git reads attributes from that format's empty tree instead of the committed and
 work-tree .gitattributes files (GIT_ATTR_SOURCE, git 2.41 or later), and every filter
-driver that the repository's info/attributes file names, within git's own limits of
-2048 bytes a line and 100 MiB a file, is given an empty clean and process program
-(GIT_CONFIG_COUNT, git 2.31 or later). With git 2.45 or later and a root that is that
-top level, therefore, no attribute-selected clean or process filter of the repository
-runs and no object missing from a partial clone is fetched. Each of these settings is
+driver that the repository's info/attributes file names, each line read up to its first
+NUL as git reads it, within git's own limits of 2048 bytes a line and 100 MiB a file,
+is given an empty clean and process program (GIT_CONFIG_COUNT, git 2.31 or later).
+git's line and file limits arrived with the January 2023 security releases (2.30.7,
+2.31.6, 2.32.5, 2.33.6, 2.34.6, 2.35.6, 2.36.4, 2.37.5, 2.38.3, 2.39.1) and are in
+every later release. With git 2.45 or later and a root that is that top level,
+therefore, no attribute-selected clean or process filter of the repository runs and no
+object missing from a partial clone is fetched. Each of these settings is
 one that an older git ignores rather than rejects, so it still answers, with less
 isolation. The cases left open are exactly these: with git older than 2.41 a filter
 selected by a .gitattributes file of the tree can still run, and with git older than
-2.31 one named by info/attributes; with git older than 2.45 `status` or `cat-file` in a
+2.31 one named by info/attributes; a git from 2.31.0 to 2.39.0 without that security
+release reads an info/attributes line of 2048 bytes or more, so a filter that such a
+line names can run; with git older than 2.45 `status` or `cat-file` in a
 partial clone can still fetch a missing object from its promisor remote; a filter named
 by a submodule's own info/attributes file can run when `status` inspects that
 submodule; only the first 1000 names of info/attributes in name order, at most 64 KiB
@@ -101,9 +106,14 @@ and a repository whose configuration cannot be read or names another object form
 gets no empty attribute source. Because the attributes of the tree, the user and the
 system do not apply, a file whose stored form differs from its work-tree form through
 attributes (text, eol, ident, working-tree-encoding or a filter) can read as changed
-when git hashes it again. Below the top level `status` also
-reports paths relative to that top level, so such a root yields mismatched work-tree
-paths.
+when git hashes it again. A root that does not hold its own repository reads its
+work-tree state as `unknown` and `status` is not run for it, because git would report
+the paths of a repository above it relative to that repository's top level: a root
+without its own `.git` entry, such as a directory below the top level, and a root whose
+`.git` git does not take as a repository (a `.git` directory without a HEAD that names
+a ref or an object name, or whose common directory lacks `objects` or `refs`, or a
+`.git` that is neither a directory nor a regular file). Such a `.git` directory still
+gets the empty attribute source and the blanked names for the other git reads.
 Standard library only.
 """
 from __future__ import annotations
@@ -222,8 +232,11 @@ ATTRIBUTE_FILE_LIMIT = 100 * 1024 * 1024
 # Bounds on the blanked names that keep the environment of every git read small.
 BLANKED_NAME_LIMIT = 1000
 BLANKED_BYTES_LIMIT = 64 * 1024
-# Bound on the `.git` file, `commondir` and the repository configuration read here.
+# Bound on the `.git` file, `commondir`, HEAD and the repository configuration read here.
 GIT_METADATA_LIMIT = 1024 * 1024
+# The start of a detached HEAD as git accepts it: the hexadecimal digits of the shortest
+# object name.
+HEAD_OBJECT_RE = re.compile(r"[0-9a-fA-F]{40}")
 CONFIG_SECTION_RE = re.compile(r'\[\s*([A-Za-z0-9.-]+)\s*("(?:[^"\\]|\\.)*")?\s*\]')
 CONFIG_ENTRY_RE = re.compile(r"([A-Za-z][A-Za-z0-9-]*)\s*(?:=\s*(.*))?")
 
@@ -1281,18 +1294,45 @@ HARNESS_NAME_RE = re.compile(r"\b(claude code|claude|codex)\b", re.IGNORECASE)
 LEGACY_TERM_RE = re.compile(r"windsurf|codeium|\bdevin\b", re.IGNORECASE)
 LEGACY_SUFFIXES = (".md", ".json")
 CANDIDATE_TEXT_LIMIT = 160
-# A home directory `/home/<name>` or `/Users/<name>` that starts a path: either a prefix
-# with its slash, or a bare directory whose name is a run of user-name characters
-# (letters, digits, `_`, `-` and inner periods) followed, after any periods, by neither
-# `/` nor another name character. Only the name is replaced; what follows it is kept.
-HOME_DIRECTORY_RE = re.compile(r"(?<![\w./~-])/(?:home|Users)/(?:[^/\s]+(/)|"
-                               r"[\w.-]*[\w-](?=\.*(?![\w.-]|/)))")
+# The start of a home directory `/home/<name>` or `/Users/<name>` that starts a path.
+HOME_START_RE = re.compile(r"(?<![\w./~-])/(?:home|Users)/")
+# A run of user-name characters other than combining marks: letters, digits, `_`, `.`, `-`.
+USER_NAME_RUN_RE = re.compile(r"[\w.-]*")
+
+
+def user_name_end(text: str, start: int) -> int:
+    """The end of the run of user-name characters from start: letters, digits, `_`, `.`,
+    `-` and combining marks, so that a decomposed name is one name."""
+    end = start
+    while True:
+        end = cast(re.Match[str], USER_NAME_RUN_RE.match(text, end)).end()
+        if end == len(text) or not unicodedata.category(text[end]).startswith("M"):
+            return end
+        end += 1
 
 
 def home_relative(text: str) -> str:
-    """Text copied from an audited file, with a home directory prefix written as `~/` and a
-    bare home directory as `~`."""
-    return HOME_DIRECTORY_RE.sub(lambda found: "~/" if found.group(1) else "~", text)
+    """Text copied from an audited file, with a home directory written as `~/` when a
+    nonempty user name is followed by a slash, and as `~` when the name, without its
+    trailing periods, is nonempty and is followed by neither a slash nor another name
+    character. Only the home directory is replaced; every other character is kept."""
+    parts: list[str] = []
+    kept = 0
+    found = HOME_START_RE.search(text)
+    while found is not None:
+        name_start = found.end()
+        name_end = user_name_end(text, name_start)
+        name = text[name_start:name_end]
+        resume = found.start() + 1
+        if name and text.startswith("/", name_end):
+            parts += [text[kept:found.start()], "~/"]
+            kept = resume = name_end + 1
+        elif name.rstrip("."):
+            parts += [text[kept:found.start()], "~"]
+            kept = resume = name_start + len(name.rstrip("."))
+        found = HOME_START_RE.search(text, resume)
+    parts.append(text[kept:])
+    return "".join(parts)
 
 
 def candidate_text(text: str) -> str:
@@ -1441,9 +1481,12 @@ def candidate_lists(audited: Sequence[AuditedFile], edges: Sequence[JsonObject]
 
 def read_git_metadata(path: Path, limit: int) -> bytes | None:
     """A regular file of fewer than limit bytes, links followed as git follows them; None
-    when it is absent, not a regular file, too large or unreadable. A first-in first-out
-    entry is never waited on."""
+    when it is absent, not a regular file, too large or unreadable. Anything that is not a
+    regular file before it is opened, such as a device node or a first-in first-out entry,
+    is never opened, and the opened file is checked again."""
     try:
+        if not stat.S_ISREG(os.stat(path).st_mode):
+            return None
         descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
     except (OSError, ValueError):
         return None
@@ -1458,9 +1501,9 @@ def read_git_metadata(path: Path, limit: int) -> bytes | None:
 
 
 def metadata_text(data: bytes) -> str:
-    """The text git takes from a one-line metadata file: up to a NUL, without trailing
-    white space."""
-    return data.split(b"\0", 1)[0].decode("utf-8", "surrogateescape").rstrip()
+    """The text git takes from a one-line metadata file: up to a NUL, without trailing CR
+    and LF characters; other trailing white space belongs to the text."""
+    return data.split(b"\0", 1)[0].decode("utf-8", "surrogateescape").rstrip("\r\n")
 
 
 def git_common_directory(root: Path) -> Path | None:
@@ -1484,6 +1527,45 @@ def git_common_directory(root: Path) -> Path | None:
     common = read_git_metadata(git_directory / "commondir", GIT_METADATA_LIMIT)
     target = metadata_text(common) if common is not None else ""
     return git_directory / target if target else git_directory
+
+
+def head_names_a_commit(git_directory: Path) -> bool:
+    """Whether HEAD is a regular file, links followed, that names a ref below refs/ or an
+    object name, as git requires of a repository."""
+    data = read_git_metadata(git_directory / "HEAD", GIT_METADATA_LIMIT)
+    if data is None:
+        return False
+    text = metadata_text(data)
+    if text.startswith("ref:"):
+        return text[len("ref:"):].lstrip().startswith("refs/")
+    return HEAD_OBJECT_RE.match(text) is not None
+
+
+def root_holds_repository(root: Path) -> bool:
+    """Whether git takes the root's own `.git` entry as its repository: a `.git` file, which
+    git reads or rejects without looking further, or a `.git` directory with a HEAD that
+    git accepts and a common directory holding `objects` and `refs` directories. For any
+    other root git would look for a repository above it."""
+    dot_git = root / ".git"
+    try:
+        mode = os.stat(dot_git).st_mode
+    except (OSError, ValueError):
+        return False
+    if stat.S_ISREG(mode):
+        return True
+    if not stat.S_ISDIR(mode) or not head_names_a_commit(dot_git):
+        return False
+    common = git_common_directory(root)
+    return common is not None and all(is_directory(common / name)
+                                      for name in ("objects", "refs"))
+
+
+def is_directory(path: Path) -> bool:
+    """Whether path is a directory, links followed."""
+    try:
+        return stat.S_ISDIR(os.stat(path).st_mode)
+    except (OSError, ValueError):
+        return False
 
 
 def config_value(text: str) -> str:
@@ -1528,13 +1610,15 @@ def object_format(common: Path) -> str | None:
 
 def information_attribute_filters(common: Path) -> list[str]:
     """The filter driver names that the repository's info/attributes file sets, macros
-    included, read within git's own line and file limits and kept within the blanking
-    bounds in name order; empty when the file is absent or cannot be read."""
+    included, each line read up to its first NUL as git reads it, within git's own line
+    and file limits, and kept within the blanking bounds in name order; empty when the
+    file is absent or cannot be read."""
     data = read_git_metadata(common / "info" / "attributes", ATTRIBUTE_FILE_LIMIT)
     if data is None:
         return []
     names: set[str] = set()
-    for line in data.split(b"\n"):
+    for raw in data.split(b"\n"):
+        line = raw.split(b"\0", 1)[0]
         if len(line.rstrip(b"\r")) <= ATTRIBUTE_LINE_LIMIT:
             text = line.decode("utf-8", "surrogateescape")
             names.update(found.group(1) for found in FILTER_ATTRIBUTE_RE.finditer(text))
@@ -1628,6 +1712,11 @@ def counts_for_worktree(root: Path, path: str, listed: frozenset[str]) -> bool:
 
 
 def worktree_state(root: Path, listed: frozenset[str]) -> JsonObject:
+    """The work-tree state of the listed paths; `unknown` without running `status` when the
+    root does not hold its own repository, because git would then report the paths of a
+    repository above it relative to that repository's top level."""
+    if not root_holds_repository(root):
+        return {"state": "unknown", "paths": []}
     output = run_git(root, "status", "--porcelain=v1", "-z", "--untracked-files=all")
     if output is None:
         return {"state": "unknown", "paths": []}
