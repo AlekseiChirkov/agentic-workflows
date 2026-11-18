@@ -637,10 +637,16 @@ T-16 | Fix: output boundary and render (proposals) | atomic-tests: green | atomi
          finalize 2026-11-18: architecture — no delta (`.ai/memory/architecture.md` does not describe the audit tool; the new `output-unwritable` exit and the `report-unwritable` permission refusal are documented in the tool's docstring); plan — delta `T-16 → done` returned, not written; composite rollup — not applicable (plain leaf); compression — not run (shared file, orchestrator's call)
 
 T-17 | Fix: audit output corrections and fresh review (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
+  branch: docs/audit-output-corrections
+  base_branch: fix/audit-output-boundary-and-render
+  base_commit: 2159aa0433cec13929f20b263458ec5b591ade95
+  commits:
+  pr: none
   last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
   target_files:
   blocker: none
   notes: source and decisions in `T-17-fix-audit-output-corrections/description.md`
+         started in parallel with the independent validation of the output boundary and render change by owner instruction 2026-11-18; if that validation requires a tool change, the outputs are re-rendered after it is merged here
 
 T-18 | Feat: state tool memory consistency warning (proposals) | atomic-tests: not-started | atomic-execution: not-started | atomic-validation: not-started
   last_action: created 2026-11-18 from the retained improvement proposals (owner order: apply all proposals now)
