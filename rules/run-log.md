@@ -9,7 +9,7 @@ so the pipelines themselves can be improved from evidence instead of recollectio
 is telemetry about **the process**, never a copy of the work product.
 
 Consumed by `/retro`. Produced by `/spec-run`, `/phase-pipeline`, `/phase-discovery`,
-`/phase-execution`, `/phase-validation`.
+`/phase-execution`, `/phase-validation`, `/phase-finalize`. Finalization dry-run emits no telemetry; its ordinary invocation retains inherited run ownership and nonblocking logging.
 
 ---
 

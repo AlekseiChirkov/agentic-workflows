@@ -189,3 +189,13 @@ top of it, and in a stack it invalidates every branch above it too.
 
 Autonomy in this mode licenses *unblocked* decisions, never *unrecorded* ones, and never
 decisions the pipeline has deliberately reserved for a human.
+
+## Finalization ownership
+
+`/phase-finalize` is invoked separately after owner integration and requires independent
+review of delivery evidence, recovery, knowledge and archival. It retains original Git/TDD
+field ownership; its helper owns only the additive finalization marker, current spec location
+and journaled mechanical relocation. Canonical contract: `workflow-globals → ## Finalization`.
+When an active parent owns shared files, workers return exact deltas for architecture, memory,
+domain, runbook/environment and current indexes; the parent applies them once. Standalone
+finalization owns those surgical updates, preserving unrelated work and tracking policy.

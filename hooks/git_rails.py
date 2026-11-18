@@ -26,6 +26,7 @@ import subprocess
 import sys
 from typing import BinaryIO, Callable, Iterable, Mapping, Sequence
 import urllib.parse
+from datetime import datetime
 
 RULE_PATH = 'rules/git-flow.md → ## Safety rails'
 
@@ -2791,7 +2792,7 @@ def check_push_delete(view: PushView) -> Decision | None:
     """R15: --delete, an empty source, or --prune, which deletes remote refs."""
     flags = any(view.parsed.last(key) is True for key in ('delete', 'prune'))
     deletes = any(spec.deletion for spec in view.plan.refspecs)
-    return asking('push-delete', 'R15') if flags or deletes else None
+    return asking('push-delete', 'R15') if (flags or deletes) and not finalization_push(view) else None
 
 
 def check_push_protected(view: PushView) -> Decision | None:
@@ -2814,6 +2815,8 @@ def check_push_lease(view: PushView) -> Decision | None:
     request = lease_request(view)
     if request is None:
         return asking(LEASE_UNVERIFIED, 'R18', 'explicit-lease')
+    if finalization_push(view):
+        return None
     verdict = LEASE_VERIFIER(request, view.invocation, view.context)
     return None if verdict.verified else asking(LEASE_UNVERIFIED, 'R18', verdict.failure)
 
@@ -3096,6 +3099,283 @@ def excepted(request: DeletionRequest, invocation: Invocation, context: Context)
     return DELETION_VERIFIER(request, invocation, context).exception
 
 
+# ── Task-finalization exceptions: exact deletion actions only ───────────
+
+FINALIZATION_RECEIPT_FIELDS = frozenset({
+    'schema_version', 'kind', 'id', 'task_path', 'project_root', 'repository', 'common_dir',
+    'journal_path', 'journal_revision', 'plan_digest', 'authorization', 'integration', 'candidates', 'recovery'})
+
+
+def finalization_json(path: str) -> tuple[dict, bytes]:
+    """Bounded strict JSON, with no symlink component, special file or duplicate key."""
+    if not os.path.isabs(path) or os.path.realpath(path) != path:
+        raise JournalError('finalization-path')
+    raw = read_journal_bytes(path)
+    if raw is None:
+        raise JournalError('finalization-unreadable')
+    document = json.loads(raw.decode('utf-8'), object_pairs_hook=unique_object, parse_constant=reject_constant)
+    if not isinstance(document, dict):
+        raise JournalError('finalization-schema')
+    return document, raw
+
+
+def finalization_require(condition: object) -> None:
+    if not condition:
+        raise JournalError('finalization-unverified')
+
+
+def finalization_sha(value: object) -> bool:
+    return isinstance(value, str) and JOURNAL_SHA.fullmatch(value) is not None
+
+
+def finalization_bytes(document: dict) -> bytes:
+    return (json.dumps(document, sort_keys=True, indent=2) + '\n').encode()
+
+
+def finalization_pack(record: dict, journal_path: str, repository: str, tips: list[str]) -> None:
+    """Rehash the exact immutable pack already verified by the journal's isolated verifier."""
+    expected_path = os.path.join(os.path.dirname(journal_path), 'recovery',
+                                 hashlib.sha256(repository.encode()).hexdigest()[:24] + '.pack')
+    finalization_require(record.get('repository') == repository and record.get('pack_path') == expected_path
+                         and os.path.realpath(expected_path) == expected_path
+                         and record.get('closure_verified') is True and record.get('tips') == tips
+                         and isinstance(record.get('sha256'), str) and re.fullmatch(r'[0-9a-f]{64}', record['sha256'])
+                         and isinstance(record.get('verification'), str) and record['verification']
+                         and record.get('restore_command') == ['git', '-C', repository, 'index-pack', '--stdin', '--strict']
+                         and record.get('restore_stdin') == expected_path)
+    verified_at = datetime.fromisoformat(record['verified_at'].replace('Z', '+00:00'))
+    finalization_require(verified_at.tzinfo is not None)
+    descriptor = os.open(expected_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, 'rb') as stream:
+        finalization_require(stat.S_ISREG(os.fstat(stream.fileno()).st_mode))
+        initial = stream.read(4)
+        finalization_require(initial == b'PACK')
+        digest = hashlib.sha256(initial)
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+        finalization_require(digest.hexdigest() == record['sha256'])
+
+
+def finalization_git(arguments: Sequence[str], invocation: Invocation, context: Context) -> GitRead:
+    """Use the existing bounded read layer with replacements and lazy fetch disabled."""
+    environment = dict(context.environ, GIT_NO_REPLACE_OBJECTS='1', GIT_NO_LAZY_FETCH='1')
+    return read_git(['--no-replace-objects', *arguments], invocation.directory, environment)
+
+
+def finalization_ancestor(source: str, target: str, invocation: Invocation, context: Context) -> bool:
+    return finalization_git(['merge-base', '--is-ancestor', source, target], invocation, context).returncode == 0
+
+
+def finalization_transport(invocation: Invocation, context: Context) -> dict:
+    """Read configured and Git-expanded origin destinations, never network data."""
+    values: dict[str, list[str]] = {}
+    for field, option in (('configured_fetch_urls', 'remote.origin.url'), ('configured_push_urls', 'remote.origin.pushurl')):
+        result = finalization_git(['config', '--get-all', option], invocation, context)
+        finalization_require(result.returncode in (0, 1))
+        values[field] = result.stdout.splitlines()
+        finalization_require(len(values[field]) <= 1)
+    for field, options in (('effective_fetch_urls', ['--all']), ('effective_push_urls', ['--push', '--all'])):
+        result = finalization_git(['remote', 'get-url', *options, 'origin'], invocation, context)
+        finalization_require(result.returncode == 0 if values['configured_fetch_urls'] else result.returncode != 0)
+        values[field] = result.stdout.splitlines() if values['configured_fetch_urls'] else []
+    finalization_require(not values['configured_fetch_urls'] or
+                         len(values['effective_fetch_urls']) == 1 and values['effective_fetch_urls'] == values['effective_push_urls'])
+    for urls in values.values():
+        finalization_require(all(url and not url.startswith('-') and re.match(r'^[A-Za-z][A-Za-z0-9+.-]*::', url) is None for url in urls))
+    for key in ('remote.origin.uploadpack', 'remote.origin.receivepack', 'remote.origin.vcs', 'core.sshCommand'):
+        result = finalization_git(['config', '--get', key], invocation, context)
+        finalization_require(result.returncode == 1 or result.returncode == 0 and not result.stdout.strip())
+    return {'name': 'origin', **values}
+
+
+def finalization_pr(candidate: dict, integration: dict, invocation: Invocation, context: Context, repository: dict) -> bool:
+    """A journal-bound authoritative merged PR must identify the exact original delivery."""
+    receipt = candidate.get('pr_receipt')
+    if not isinstance(receipt, dict):
+        return False
+    url = receipt.get('url')
+    origin = finalization_git(['config', '--get', 'remote.origin.url'], invocation, context)
+    identity = re.fullmatch(r'(?:https://github\.com/|git@github\.com:)([^/]+/[^/]+?)(?:\.git)?', origin.stdout.strip())
+    canonical = identity[1] if identity else None
+    if identity is None:
+        binding = repository.get('hosting_identity')
+        configured = origin.stdout.strip()
+        alias = re.fullmatch(r'(?:[^@/:]+@)?([A-Za-z0-9][A-Za-z0-9.-]*):([^/]+/[^/]+?)(?:\.git)?', configured)
+        if alias is None:
+            parsed = urllib.parse.urlsplit(configured)
+            if parsed.scheme == 'ssh' and parsed.hostname and not parsed.query and not parsed.fragment:
+                alias = re.fullmatch(r'([A-Za-z0-9][A-Za-z0-9.-]*):([^/]+/[^/]+?)(?:\.git)?',
+                                     parsed.hostname + ':' + parsed.path.lstrip('/'))
+        if alias is None or not isinstance(binding, dict) or receipt.get('hosting_identity') != binding:
+            return False
+        canonical = alias[2]
+        resolution = binding.get('resolution', {})
+        metadata = resolution.get('repository_response', {})
+        if not (binding.get('host') == 'github.com' and binding.get('configured_origin') == configured
+                and binding.get('repository') == canonical and binding.get('remote_identity') == repository.get('remote_identity')
+                and resolution.get('kind') == 'ssh-alias' and resolution.get('ssh_argv') == ['ssh', '-G', alias[1]]
+                and type(resolution.get('ssh_exit_code')) is int and resolution['ssh_exit_code'] == 0
+                and resolution.get('resolved_hostname') in {'github.com', 'ssh.github.com'}
+                and resolution.get('repository_argv') == ['gh', 'repo', 'view', 'https://github.com/' + canonical, '--json', 'url,nameWithOwner']
+                and type(resolution.get('repository_exit_code')) is int and resolution['repository_exit_code'] == 0
+                and isinstance(metadata, dict) and isinstance(metadata.get('url'), str)
+                and metadata['url'].casefold() == ('https://github.com/' + canonical).casefold()
+                and isinstance(metadata.get('nameWithOwner'), str) and metadata['nameWithOwner'].casefold() == canonical.casefold()
+                and isinstance(resolution.get('provenance'), str) and resolution['provenance']):
+            return False
+    if canonical is None or not isinstance(url, str):
+        return False
+    match = re.fullmatch(r'https://github\.com/([^/]+/[^/]+)/pull/[1-9][0-9]*', url)
+    merged_at = datetime.fromisoformat(str(receipt.get('merged_at')).replace('Z', '+00:00'))
+    return bool(origin.returncode == 0 and match and match[1].casefold() == canonical.casefold()
+                and receipt.get('repository') == invocation.repository and receipt.get('state') == 'MERGED'
+                and receipt.get('head_ref') == candidate['branch'] and receipt.get('head_sha') == candidate['original_tip']
+                and receipt.get('base_ref') == integration['branch'] and merged_at.tzinfo is not None
+                and isinstance(receipt.get('provenance'), str) and receipt['provenance']
+                and finalization_sha(receipt.get('merge_commit'))
+                and finalization_ancestor(receipt['merge_commit'], integration['tip'], invocation, context))
+
+
+def finalization_bound(path: str, name: str, kind: str, invocation: Invocation, context: Context) -> bool:
+    receipt, _ = finalization_json(path)
+    finalization_require(set(receipt) == FINALIZATION_RECEIPT_FIELDS
+                         and type(receipt['schema_version']) is int and receipt['schema_version'] == 1
+                         and receipt['kind'] == 'task-finalization' and receipt['id'] + '.json' == name
+                         and receipt['repository'] == invocation.repository
+                         and receipt['common_dir'] == common_directory(invocation))
+    root, task = receipt['project_root'], receipt['task_path']
+    finalization_require(isinstance(root, str) and isinstance(task, str) and os.path.isabs(root)
+                         and os.path.realpath(root) == root and os.path.realpath(task) == task
+                         and os.path.commonpath([root, task]) == root and task != root
+                         and (root == invocation.project or root == os.path.dirname(invocation.repository or '')))
+    identifier = hashlib.sha256((root + '\0' + os.path.relpath(task, root)).encode()).hexdigest()
+    finalization_require(identifier == receipt['id'])
+    journal_path = os.path.join(root, '.ai', 'context', 'finalization', identifier, 'journal.json')
+    finalization_require(receipt['journal_path'] == journal_path)
+    journal, raw = finalization_json(journal_path)
+    authorization = {'invocation': 'phase-finalize', 'task_path': task, 'cleanup': True}
+    finalization_require(type(journal.get('schema_version')) is int and journal['schema_version'] == 1
+                         and journal.get('id') == identifier and journal.get('project_root') == root
+                         and journal.get('task_original') == task and receipt['authorization'] == authorization
+                         and journal.get('authorization') == authorization
+                         and receipt['journal_revision'] == hashlib.sha256(raw).hexdigest())
+    plan = {key: journal[key] for key in ('repositories', 'actions')}
+    finalization_require(receipt['plan_digest'] == journal.get('plan_digest')
+                         == hashlib.sha256(finalization_bytes(plan)).hexdigest()
+                         and journal.get('outcomes', {}).get('recovery') == 'verified')
+    repositories = [row for row in journal['repositories'] if row['path'] == invocation.repository]
+    finalization_require(len(repositories) == 1)
+    repository = repositories[0]
+    finalization_require(repository['common_dir'] == receipt['common_dir'] and repository['integration'] == receipt['integration']
+                         and repository['candidates'] == receipt['candidates'] and repository['candidates'])
+    transport = repository.get('remote_identity')
+    transport_fields = {'name', 'configured_fetch_urls', 'configured_push_urls', 'effective_fetch_urls', 'effective_push_urls'}
+    finalization_require(isinstance(transport, dict) and set(transport) == transport_fields and transport['name'] == 'origin')
+    for field in transport_fields - {'name'}:
+        finalization_require(isinstance(transport[field], list) and len(transport[field]) <= 1
+                             and all(isinstance(url, str) and url and not url.startswith('-')
+                                     and re.match(r'^[A-Za-z][A-Za-z0-9+.-]*::', url) is None for url in transport[field]))
+    finalization_require(transport['effective_fetch_urls'] == transport['effective_push_urls']
+                         and (bool(transport['configured_fetch_urls']) == bool(transport['effective_fetch_urls']))
+                         and (not transport['configured_push_urls'] or transport['configured_fetch_urls']))
+    integration = repository['integration']
+    finalization_require(valid_branch_name(integration['branch']) and integration['ref'] == BRANCH_PREFIX + integration['branch']
+                         and finalization_sha(integration['tip']))
+    candidates = repository['candidates']
+    finalization_require(len({row['branch'] for row in candidates}) == len(candidates))
+    for candidate in candidates:
+        branch, original = candidate['branch'], candidate['original_tip']
+        finalization_require(valid_branch_name(branch) and branch != integration['branch']
+                             and candidate['local_ref'] == BRANCH_PREFIX + branch and finalization_sha(original)
+                             and candidate['expected_tip'] == original
+                             and finalization_sha(candidate['base_commit'])
+                             and isinstance(candidate['original_commits'], list) and candidate['original_commits']
+                             and candidate['original_commits'][-1] == original
+                             and all(finalization_sha(sha) for sha in candidate['original_commits']))
+    recovery = [row for row in journal['recovery'] if row['repository'] == invocation.repository]
+    finalization_require(len(recovery) == 1 and receipt['recovery'] == recovery[0])
+    finalization_pack(recovery[0], journal_path, str(invocation.repository),
+                      list(dict.fromkeys(row['original_tip'] for row in candidates)))
+    finalization_require(recovery[0]['branch_recovery_commands'] == [row['recovery_command'] for row in candidates]
+                         and all(row['recovery_command'] == ['git', '-C', invocation.repository, 'branch', row['branch'], row['original_tip']]
+                                 for row in candidates))
+    # Every loaded binding and recovery pack is validated above. A valid older
+    # generation is a contextual nonmatch, not a malformed journal that vetoes
+    # another task. Never suppress binding/schema/hash/recovery errors here.
+    if (repository.get('remote_identity') != finalization_transport(invocation, context)
+            or branch_tip(integration['branch'], invocation, context) != integration['tip']
+            or current_branch(invocation, context) != integration['ref']):
+        return False
+    patterns = local_protected_branches(invocation, context)
+    finalization_require(patterns is not None)
+    worktrees = finalization_git(['worktree', 'list', '--porcelain'], invocation, context)
+    dirty = finalization_git(['status', '--porcelain', '--untracked-files=no'], invocation, context)
+    finalization_require(worktrees.returncode == 0 and dirty.returncode == 0)
+    if dirty.stdout.strip():
+        return False
+    for candidate in candidates:
+        branch, original = candidate['branch'], candidate['original_tip']
+        if (is_protected(candidate['local_ref'], (*patterns, integration['branch']))
+                or 'branch ' + candidate['local_ref'] in worktrees.stdout.splitlines()
+                or branch_tip(branch, invocation, context) not in (None, original)
+                or not all(finalization_ancestor(candidate['base_commit'], sha, invocation, context)
+                           for sha in candidate['original_commits'])):
+            return False
+        ancestry = all(finalization_ancestor(sha, integration['tip'], invocation, context)
+                       for sha in candidate['original_commits'])
+        if not (ancestry or finalization_pr(candidate, integration, invocation, context, repository)):
+            return False
+    matching: list[dict] = []
+    for candidate in candidates:
+        branch, original = candidate['branch'], candidate['original_tip']
+        if kind == 'local-delete':
+            arguments = ['branch', '-d', branch]
+            valid_tip = branch_tip(branch, invocation, context) == original
+        else:
+            remote_ref, tip = candidate['remote_ref'], candidate['expected_remote_tip']
+            arguments = ['push', '--force-with-lease=' + str(remote_ref) + ':' + str(tip), 'origin', ':' + str(remote_ref)]
+            valid_tip = candidate['remote'] == 'origin' and remote_ref == BRANCH_PREFIX + branch and tip == original
+            # The explicit full-SHA lease protects against a concurrently changed server tip;
+            # this read-only hook never contacts a remote or substitutes tracking-ref evidence.
+        if valid_tip and [invocation.subcommand, *invocation.argv] == arguments:
+            expected = ['git', '-C', invocation.repository, *arguments]
+            matching.extend(row for row in journal['actions'] if row.get('kind') == kind
+                            and row.get('repository') == invocation.repository and row.get('branch') == branch
+                            and row.get('expected_tip') == original and row.get('command') == expected
+                            and (kind != 'remote-delete' or row.get('remote_ref') == candidate['remote_ref']))
+    return len(matching) == 1
+
+
+def finalization_exception(kind: str, invocation: Invocation, context: Context) -> bool:
+    """Never trust a marker or receipt alone; exactly one fully bound journal must match."""
+    if state_changed(invocation):
+        return False
+    directory = os.path.join(common_directory(invocation), 'orchestrail-finalize')
+    if os.path.realpath(directory) != directory:
+        return False
+    names = journal_names(directory)
+    if names is None or not names or len(names) > 64:
+        return False
+    try:
+        return sum(finalization_bound(os.path.join(directory, name), name, kind, invocation, context)
+                   for name in names) == 1
+    except (JournalError, OSError, ValueError, TypeError, KeyError, RecursionError):
+        return False
+
+
+def finalization_local(parsed: ParsedOptions, invocation: Invocation, context: Context) -> bool:
+    return (invocation.argv[:1] == ('-d',) and len(parsed.operands) == 1
+            and finalization_exception('local-delete', invocation, context))
+
+
+def finalization_push(view: PushView) -> bool:
+    """Only the helper's single empty-source, explicit full-SHA compare/delete form."""
+    request = lease_request(view)
+    return bool(request and len(request.destinations) == 1 and request.sources == ('',) and not request.forced
+                and len(view.invocation.argv) == 3 and request.remote == 'origin'
+                and finalization_exception('remote-delete', view.invocation, view.context))
+
+
 # ── Rebase replay verification ─────────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -3287,7 +3567,8 @@ def branch_reading(parsed: ParsedOptions, invocation: Invocation, context: Conte
     symbolic ref itself) and forced ones (the branch a symbolic ref points to)."""
     request = branch_deletion(parsed)
     if request is not None:
-        return None if excepted(request, invocation, context) else asking(BRANCH_DELETE, 'R22')
+        allowed = excepted(request, invocation, context) or finalization_local(parsed, invocation, context)
+        return None if allowed else asking(BRANCH_DELETE, 'R22')
     if any(parsed.last(key) is True for key in ('move', 'M', 'copy', 'C')):
         refs = renamed_refs(parsed, invocation, context)
         return refs if isinstance(refs, Decision) else rewrite_decision(refs, invocation, context)
