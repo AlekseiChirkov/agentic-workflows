@@ -1,0 +1,21 @@
+.ai/context/runbook.md
+  s_a8197b6452b1fb::t_2bdf95bcb19dcd 43-49
+scripts/audit-instructions.py
+  s_a8197b6452b1fb::t_a9f1a0f776b293 26-31,36-40,2076-2077,2515-2516,2975-3024,3030,3453-3454,3675-3704,3706,3711,3713-3715,3717,3720-3721
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fd61ad2245ac0e87646f6732e3fda8be019e2f95",
+  "prompts": {},
+  "sessions": {
+    "s_a8197b6452b1fb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aeef09cf62ef97d2a",
+        "model": "unknown"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
