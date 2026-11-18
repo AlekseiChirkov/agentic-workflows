@@ -7322,5 +7322,34 @@ class ReportEconomicsRegionTests(VerifyAssertions):
                     self.assert_silent(result)
 
 
+class AssessmentCellEconomicsTests(SharedVerifyCase):
+    def test_amount_that_a_cell_displays_is_a_claim_at_the_assessment_location(self) -> None:
+        cases = {
+            "control between number and unit": (
+                ("findings", "AUD-08-002", "observation"), "It costs 5\u0001tokens.",
+                "5 tokens"),
+            "control after the currency sign": (
+                ("findings", "AUD-08-002", "observation"), "It costs $\u00015.", "$ 5"),
+            "delete between number and unit": (
+                ("findings", "AUD-08-002", "observation"), "It costs 5\u007ftokens.",
+                "5 tokens"),
+            "control in a legacy note": (("legacy", 0, "note"), "Costs 5\u0002tokens",
+                                         "5 tokens"),
+        }
+        for name, ((key, row, field), value, amount) in cases.items():
+            with self.subTest(case=name):
+                self.setUp()
+                if isinstance(row, str):
+                    self.finding(row)[field] = value
+                    location = assessment_at(row)
+                else:
+                    self.assessment[key][row][field] = value
+                    location = assessment_at(f"{key}[{row}]")
+                result = self.verify()
+                self.assertEqual((result.returncode, result.stderr), (1, ""), result.stdout)
+                self.assertEqual(result.stdout, f"economics-claim {location} names an amount: "
+                                                f'"{amount}"\n')
+
+
 if __name__ == "__main__":
     unittest.main()
