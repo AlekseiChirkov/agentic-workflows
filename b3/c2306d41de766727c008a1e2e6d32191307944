@@ -1,0 +1,137 @@
+.ai/adr/0025-task-24-post-merge-finalization.md
+  s_96afdcfd38c67e::t_135879a9f463bd 1-21
+.ai/adr/index.md
+  s_96afdcfd38c67e::t_d571606e5800cd 37
+.ai/context/environment.md
+  s_96afdcfd38c67e::t_cca186c9773c8b 60-63,65-70,78-85
+.ai/context/runbook.md
+  s_96afdcfd38c67e::t_46e81ede302f19 16-19,30-34,166-193
+.ai/memory/architecture.md
+  s_96afdcfd38c67e::t_4fa86fa0553219 17-21,23,28,31,43,52,56,83,185,364-367
+.ai/memory/progress.md
+  s_96afdcfd38c67e::t_d212d9cd4061fb 152-163
+.ai/memory/state.md
+  s_96afdcfd38c67e::t_2943e836fe68c6 19-20
+.ai/principles/domain.md
+  s_96afdcfd38c67e::t_0edd0617d463fa 17-18
+.ai/specs/24-task-finalization.md
+  s_96afdcfd38c67e::t_237218cac612de 1-39
+.ai/specs/README.md
+  s_96afdcfd38c67e::t_243815a1090193 24-32
+.ai/tasks/completed/task-01-git-source-of-truth/state.md
+  s_96afdcfd38c67e::t_b24bad708c5656 182,204
+.ai/tasks/todo/task-24-task-finalization/T-01-finalization-evidence/description.md
+  s_96afdcfd38c67e::t_d7ef09eeef6b8d 1-28
+.ai/tasks/todo/task-24-task-finalization/T-02-finalization-safety/description.md
+  s_96afdcfd38c67e::t_f74ba857598238 1-32
+.ai/tasks/todo/task-24-task-finalization/T-03-finalization-workflow/description.md
+  s_96afdcfd38c67e::t_b4abf82f614f60 1-40
+.ai/tasks/todo/task-24-task-finalization/plan.md
+  s_96afdcfd38c67e::t_0080c32d2751af 1-13
+.ai/tasks/todo/task-24-task-finalization/state.md
+  s_96afdcfd38c67e::t_cf21002c4f9f15 1-314
+README.md
+  s_96afdcfd38c67e::t_32c5b9a3808070 14
+docs/README.md
+  s_96afdcfd38c67e::t_16dcbadcf68249 8-9
+docs/SPEC-RUN-QUICKSTART.md
+  s_96afdcfd38c67e::t_ce308d9efb7512 229-252
+docs/USAGE.md
+  s_96afdcfd38c67e::t_12719569372558 4-5,123,272,308,478-507,514-515,538,549,612,711-721,801,822,846,889-894
+harness/claude/capabilities.md
+  s_96afdcfd38c67e::t_adca8736ed7a39 91-101
+hooks/git_rails.py
+  s_96afdcfd38c67e::t_9a05dd30a43737 29,2795,2818-2819,3102-3378,3570-3571
+rules/git-flow.md
+  s_96afdcfd38c67e::t_26106b526b85e1 199-225,253-254,256
+rules/global-claude.md
+  s_96afdcfd38c67e::t_9683d921c5a57a 125-134
+rules/orchestration.md
+  s_96afdcfd38c67e::t_6bf49690459ede 192-201
+rules/phase-finalize.md
+  s_96afdcfd38c67e::t_e097cff8f34eaa 1-43
+rules/run-log.md
+  s_96afdcfd38c67e::t_7ba8a33beaba06 12
+rules/workflow-globals.md
+  s_96afdcfd38c67e::t_0523a1f09d06f1 7,16,24-25,57,123,170,173,318-359
+rules/workflow-reference.md
+  s_96afdcfd38c67e::t_ded08eccfee709 15,32-36,325,330-337,395,417-420
+scripts/README.md
+  s_96afdcfd38c67e::t_f502e97de0cc00 56-211
+scripts/check-finalization-safety.py
+  s_96afdcfd38c67e::t_657c75773bfa06 1-422
+scripts/check-finalization-workflow.py
+  s_96afdcfd38c67e::t_9bd7e543a5b275 1-1097
+scripts/check-phase-finalize.py
+  s_96afdcfd38c67e::t_82849c031f772a 1-1048
+scripts/finalization_archive.py
+  s_96afdcfd38c67e::t_b158c227b7c2de 1-337
+scripts/finalization_attempts.py
+  s_96afdcfd38c67e::t_bd4655c8fe219f 1-93
+scripts/finalization_evidence.py
+  s_96afdcfd38c67e::t_84d4ec551d81b7 1-690
+scripts/finalization_knowledge.py
+  s_96afdcfd38c67e::t_b4d959c83b6af0 1-201
+scripts/finalization_outputs.py
+  s_96afdcfd38c67e::t_535301e124beeb 1-54
+scripts/finalization_recovery.py
+  s_96afdcfd38c67e::t_325ec37e03b957 1-123
+scripts/finalization_support.py
+  s_96afdcfd38c67e::t_b75c8ccffb554b 1-274
+scripts/phase-finalize.py
+  s_96afdcfd38c67e::t_6115688ac2085e 1-616
+scripts/setup-new-project.sh
+  s_96afdcfd38c67e::t_883c483942a73f 90,125
+scripts/sync.sh
+  s_96afdcfd38c67e::t_fb7ab5f46f84c3 2-4,10,19-28,30,33,50-72,80-83,91,109-111,115,118,123,131-132,134,137,140,147-148,151,157,164-170,173,177,180-181,183,190-191,194,199-202,213-219,222,241-245,262,272,344-349,351-354
+scripts/validate-task.sh
+  s_96afdcfd38c67e::t_294722d58f305a 82-96
+templates/.ai-umbrella/README.md
+  s_96afdcfd38c67e::t_26dc1ea4970f9a 94-102
+templates/.ai-umbrella/memory/state.md
+  s_96afdcfd38c67e::t_240abb826d534f 18
+templates/.ai/README.md
+  s_96afdcfd38c67e::t_25b24b521f9596 50-58
+templates/.ai/context/runbook.md
+  s_96afdcfd38c67e::t_7e15e69652abed 22-31
+templates/.ai/memory/state.md
+  s_96afdcfd38c67e::t_e6cb7d0e39cd4e 20-22
+templates/codex-global-AGENTS.md
+  s_96afdcfd38c67e::t_c3943570684696 56-65
+tests/fixtures/validator-runtime/inventory-amendment.json
+  s_96afdcfd38c67e::t_a53836f619ec66 8115,8161-8166,8171,8176,8181,8186,8191,8196,8201,8206,8211,8216,8221,8226,8231,8236,8241,8246,8251,8256,8261,8266,8271,8276,8281,8286,8291,8296,8301,8306,8311,8316,8321,8326,8331,8336,8341,8346,8351,8356,8361,8366,8371,8376,8381,8386,8391,8396,8401,8406,8411,8416,8421,8426,8431,8436,8441,8446,8451,8456,8461,8466,8471,8476,8481,8486,8491,8496,8501,8506,8511,8516,8521,8526,8531,8536,8541,8546,8551,8556,8561,8566,9020,9039,9098,9103,9108,9113,9118,9123,9128,9133,9138,9143,9148,9153,9158,9163,9168,9173,9178,9183,9188,9193,9198,9203,9208,9213,9218,9223,9228,9233,9238,9243,9248,9253,9477,9482,9487,9492,9497,9502,9507,9512,9517,9522,9527,9532,9537,9542,9547,9552,9557,9562,9567,9572,9577,9582,9712-9740
+tests/fixtures/validator-runtime/source_guard.py
+  s_96afdcfd38c67e::t_f5e406927a15e9 963
+tests/fixtures/validator-runtime/source_guard_exceptions.json
+  s_96afdcfd38c67e::t_da1231bf1da5df 132,308,332,358,1964,2001,2038,2075,2112,2149,2186,2223,2260,2297,2334,2371,2408,2445,2482,2497,2512,2527,2542,2579,2616,2653,2690,2727,2764,2801,2811,2821,2831,2841,2851,2861,2871,2881,2891,2901,2911,2921,2958,2995,3032,3047,3062,3100,3138,3176,3214,3252,3290,3328,3366,3404,3442,3452,3462,3472,3482,3492,3502,3512,3522,3532,3542,3552,3565,3568-3569,3574,3587,3590-3591,3596,3609,3646,3683,3720,3757,3794,3831,3868,3905,3942,3979,3989,3999,4009,4019,4029,4039,4049,4059,4069,4079,4089,4099,4109,4119,4129,4139,4154,4160,4164,4170,4174,4180,4184,4190,4194,4200,4204,4214,4224,4234,4244,4257,4267,4277,4287,4297,4307,4317,4327,4337,4347,4357,4367,4377,4387,4397,4407,4417,4427,4437,4447,4457,4467,4477,4487,4497,4507,4517,4527,4537,4547,4560,4573,4584,4586,4597,4600
+tests/hook-install.sh
+  s_96afdcfd38c67e::t_1180bc6c0e328f 136-137,139-140
+tests/validator-runtime-oracle.py
+  s_96afdcfd38c67e::t_046c5c4c815931 27
+workflows/PIPELINE.md
+  s_96afdcfd38c67e::t_28bd9fe20c3b29 8-9,21,95-112,215-216
+workflows/phase-finalize.md
+  s_96afdcfd38c67e::t_1adbf628dde467 1-213
+workflows/phase-pipeline.md
+  s_96afdcfd38c67e::t_920e9894b240af 162-165
+workflows/pv-finalize.md
+  s_96afdcfd38c67e::t_2ca4101f0ce39c 54-60,217-220
+workflows/spec-run.md
+  s_96afdcfd38c67e::t_cc109794e5fbc8 495-498
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b3c2306d41de766727c008a1e2e6d32191307944",
+  "prompts": {},
+  "sessions": {
+    "s_96afdcfd38c67e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f3ac193-9977-473b-b9f7-3df06f485ee7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
