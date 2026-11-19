@@ -1,6 +1,7 @@
 """Lossless, no-overwrite archival and exact task/journal location resolution."""
 from __future__ import annotations
 
+from collections.abc import Callable
 import ctypes
 import errno
 import os
@@ -253,6 +254,62 @@ def apply_pointer_plans(root: Path, plans: list[dict]) -> None:
             atomic_write(path, plan['after_text'].encode(), root)
 
 
+BACKTICK_RUN = re.compile(r'`+')
+INLINE_LINK = re.compile(r'(\[[^\]\n]*\]\()(<[^>\n]+>|[^\s)\n]+)((?:[ \t]+[\"\'][^\n]*?[\"\'])?\))')
+REFERENCE_LINK = re.compile(r'(^\s*\[[^\]\n]+\]:\s*)(<[^>\n]+>|[^\s\n]+)()')
+
+
+def code_masked(line: str) -> str:
+    """Return the line with every inline code span's characters replaced by 'x' (same length).
+
+    A backtick run opens a span closed by the next run of the same length; a backslash-escaped
+    backtick outside a span opens nothing.
+    """
+    masked = list(line)
+    position = 0
+    while True:
+        opening = BACKTICK_RUN.search(line, position)
+        if opening is None:
+            return ''.join(masked)
+        start = opening.start()
+        escapes = len(line[:start]) - len(line[:start].rstrip('\\'))
+        if escapes % 2:
+            start += 1
+            if start == opening.end():
+                position = opening.end()
+                continue
+        run = line[start:opening.end()]
+        closing = re.compile(r'(?<!`)' + run + r'(?!`)').search(line, opening.end())
+        if closing is None:
+            position = opening.end()
+            continue
+        masked[start:closing.end()] = 'x' * (closing.end() - start)
+        position = closing.end()
+
+
+def relocate_outside_code(line: str, replace: Callable[[re.Match[str]], str]) -> str:
+    """Apply link relocation only where the link's syntax lies outside inline code spans."""
+    masked = code_masked(line)
+    for pattern in (INLINE_LINK, REFERENCE_LINK):
+        pieces: list[str] = []
+        last = position = 0
+        while (found := pattern.search(masked, position)) is not None:
+            original = pattern.fullmatch(line, found.start(), found.end())
+            if original is None:
+                # The masked match began at a bracket whose span crosses code; retry from the next one.
+                position = found.start() + 1
+                continue
+            pieces.append(line[last:found.start()])
+            pieces.append(replace(original))
+            last = position = found.end()
+        pieces.append(line[last:])
+        rebuilt = ''.join(pieces)
+        if rebuilt != line:
+            masked = code_masked(rebuilt)
+        line = rebuilt
+    return line
+
+
 def relocated_document(source: Path, destination: Path, value: str, root: Path,
                        task_source: Path, task_destination: Path, spec_source: Path,
                        spec_destination: Path, *, current_index: bool = False) -> str:
@@ -304,9 +361,8 @@ def relocated_document(source: Path, destination: Path, value: str, root: Path,
             return match.group(1) + ('<' + replacement + '>' if angled else replacement) + match.group(3)
 
         # Inline and reference-style Markdown links; titles/prose remain outside the destination group.
-        line = re.sub(r'(\[[^\]\n]*\]\()(<[^>\n]+>|[^\s)\n]+)((?:[ \t]+[\"\'][^\n]*?[\"\'])?\))', replace, line)
-        line = re.sub(r'(^\s*\[[^\]\n]+\]:\s*)(<[^>\n]+>|[^\s\n]+)()', replace, line)
-        result.append(line)
+        # Inline code spans are literal text, like fences: their contents are never links.
+        result.append(relocate_outside_code(line, replace))
     return ''.join(result)
 
 
