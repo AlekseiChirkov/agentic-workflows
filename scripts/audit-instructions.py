@@ -2745,7 +2745,7 @@ class MigrationText:
 
 
 TERMINOLOGY_HEADING = "## Terminology"
-TABLE_SEPARATOR_RE = re.compile(r"\|(?:\s*:?-+:?\s*\|)+\s*")
+TERMINOLOGY_SEPARATOR_RE = re.compile(r"\|(?:\s*:?-+:?\s*\|)+\s*")
 
 
 def terminology_terms(lines: Sequence[str]) -> frozenset[str]:
@@ -2761,7 +2761,7 @@ def terminology_terms(lines: Sequence[str]) -> frozenset[str]:
             break
         if line.startswith("|"):
             rows.append(line)
-    if len(rows) < 2 or TABLE_SEPARATOR_RE.fullmatch(rows[1]) is None:
+    if len(rows) < 2 or TERMINOLOGY_SEPARATOR_RE.fullmatch(rows[1]) is None:
         return frozenset()
     return frozenset(row[2:].split(" |", 1)[0] for row in rows[2:]
                      if row.startswith("| ") and " |" in row[2:])
