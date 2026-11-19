@@ -21,6 +21,7 @@ import ast
 import copy
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import re
@@ -3119,7 +3120,8 @@ def remove_deep_directory(root: Path, relative: str) -> None:
 
 
 class VerifyDepthTests(SharedVerifyCase):
-    def test_deeply_nested_assessment_values_are_scanned_without_a_traceback(self) -> None:
+    def test_deeply_nested_assessment_values_are_assessment_invalid_without_a_traceback(
+            self) -> None:
         cases = (
             ("statement coverage", lambda value: value["req21"].update(
                 statements=deeply_nested("Costs $5.")), "req21"),
@@ -3136,7 +3138,7 @@ class VerifyDepthTests(SharedVerifyCase):
                 self.assertNotIn("Traceback", result.stderr)
                 self.assert_reports(result, [("assessment-invalid", assessment_at(fragment_text))])
 
-    def test_deeply_nested_values_without_amounts_are_silent(self) -> None:
+    def test_deeply_nested_values_without_amounts_are_assessment_invalid(self) -> None:
         self.assessment["req21"]["statements"] = deeply_nested([])
         result = self.verify(text=compact(self.assessment))
         self.assertNotIn("Traceback", result.stderr)
@@ -4080,6 +4082,7 @@ IMPACT_FILES: dict[str, str | bytes] = {
 REPORT_AMOUNT_PATTERNS = (re.compile(r"(?i)\b\d[\d,.]*\s*k?\s*tokens?\b"),
                           re.compile(r"[$€£]\s?\d"), re.compile(r"\b(USD|EUR)\b"))
 _TOOL_MODULES: list[object] = []
+_REFRESHED: dict[Path, tuple[bytes, bytes, bytes]] = {}
 
 
 def report_text(region: str = EMPTY_REGION, blockers: Sequence[str] = (),
@@ -4110,11 +4113,33 @@ def run_render(fixture: FixtureRoot, *extra: str, report: Path | None = None
                     fixture.env, fixture.base)
 
 
+def regular_bytes(path: Path) -> bytes | None:
+    """The bytes of a regular file that is not a symbolic link, otherwise None."""
+    if path.is_symlink() or not path.is_file():
+        return None
+    return path.read_bytes()
+
+
 def refresh_report(fixture: FixtureRoot) -> None:
     """Rewrite the report around the assessment on disk (its run date in the title, its
     blocking findings listed, pending review and acceptance) and fill the generated region
     with `render --write`. When the inputs break their schema the rendering fails and the
-    region stays empty."""
+    region stays empty. The rewrite is skipped while the inputs and the report hold the
+    bytes of the previous refresh of the same root, since it would write the same bytes."""
+    root = fixture.root
+    inputs = (regular_bytes(root / ASSESSMENT_PATH), regular_bytes(root / INVENTORY_PATH))
+    report = regular_bytes(root / REPORT_PATH)
+    previous = _REFRESHED.pop(root, None)
+    if report is not None and previous == (*inputs, report):
+        _REFRESHED[root] = previous
+        return
+    _write_refreshed_report(fixture)
+    report = regular_bytes(root / REPORT_PATH)
+    if inputs[0] is not None and inputs[1] is not None and report is not None:
+        _REFRESHED[root] = (inputs[0], inputs[1], report)
+
+
+def _write_refreshed_report(fixture: FixtureRoot) -> None:
     try:
         assessment = json.loads((fixture.root / ASSESSMENT_PATH).read_text(encoding="utf-8"))
     except (OSError, ValueError, RecursionError):
@@ -4127,12 +4152,18 @@ def refresh_report(fixture: FixtureRoot) -> None:
 
 
 def report_claims(fixture: FixtureRoot) -> list[tuple[str, str]]:
-    """One economics claim per line of the fixture report, generated region included,
-    that names a token count or a monetary amount by the documented patterns."""
+    """One economics claim per line of the fixture report outside the generated region
+    (the lines from the begin marker through the end marker) that names a token count or a
+    monetary amount by the documented patterns."""
     text = (fixture.root / REPORT_PATH).read_text(encoding="utf-8")
-    return [("economics-claim", f"{REPORT_PATH}:{number}")
-            for number, line in enumerate(text.split("\n"), start=1)
-            if any(pattern.search(line) for pattern in REPORT_AMOUNT_PATTERNS)]
+    claims: list[tuple[str, str]] = []
+    inside = False
+    for number, line in enumerate(text.split("\n"), start=1):
+        inside = inside or line == REPORT_BEGIN
+        if not inside and any(pattern.search(line) for pattern in REPORT_AMOUNT_PATTERNS):
+            claims.append(("economics-claim", f"{REPORT_PATH}:{number}"))
+        inside = inside and line != REPORT_END
+    return claims
 
 
 def tool_module() -> object:
@@ -4143,8 +4174,8 @@ def tool_module() -> object:
 
 def cell(value: object) -> str:
     """Documented cell text: `-` for null, true or false, `none` for an empty list, list
-    items joined by commas, `|` escaped and every line-breaking or control character a
-    space."""
+    items joined by commas, each backslash run directly before a `|` doubled and the `|`
+    escaped, and every line-breaking or control character a space."""
     if value is None:
         return "-"
     if isinstance(value, bool):
@@ -4153,7 +4184,7 @@ def cell(value: object) -> str:
         return ", ".join(cell(item) for item in value) if value else "none"
     text = "".join(" " if unicodedata.category(character) in LINE_BREAK_CATEGORIES
                    else character for character in str(value))
-    return text.replace("|", "\\|")
+    return re.sub(r"(\\*)\|", lambda found: found.group(1) * 2 + "\\|", text)
 
 
 def md_row(cells: Sequence[str]) -> str:
@@ -5116,7 +5147,7 @@ class VerifyReportTests(RenderCase):
         self.assert_reports(self.verify_report(stale), [
             ("report-generated-mismatch", f"{REPORT_PATH}:{first}")])
 
-    def test_amounts_anywhere_in_the_report_are_economics_claims(self) -> None:
+    def test_amounts_outside_the_generated_region_are_economics_claims(self) -> None:
         text = self.valid_report(summary="The change saves 3,000 tokens.",
                                  method="One run costs $5 in total.")
         self.assert_reports(self.verify_report(text), [
@@ -5127,8 +5158,7 @@ class VerifyReportTests(RenderCase):
                 if "It saves 3,000 tokens." in line]
         self.assertEqual(len(rows), 1)
         self.assert_reports(self.verify_report(text), [
-            ("economics-claim", assessment_at("AUD-08-002")),
-            ("economics-claim", f"{REPORT_PATH}:{rows[0]}")])
+            ("economics-claim", assessment_at("AUD-08-002"))])
 
     def test_report_rules_that_need_no_valid_input_run_when_an_input_breaks_its_schema(
             self) -> None:
@@ -5900,14 +5930,6 @@ class VerifyEvidenceResolutionTests(SharedVerifyCase):
             cls.temp.cleanup()
             raise
 
-    def resolvable_assessment(self) -> dict:
-        """The valid assessment with the symbolic link's evidence citing a line of its
-        target, since the link itself has no line count."""
-        assessment = valid_assessment(self.inventory)
-        assessment["files"][row_index(assessment["files"], "path", LINK)]["evidence"] = [
-            f"{CAPS}:1"]
-        return assessment
-
     def lines_of(self, path: str) -> int:
         return int(inventory_entry(self.inventory, path)["lines"])
 
@@ -5916,7 +5938,7 @@ class VerifyEvidenceResolutionTests(SharedVerifyCase):
         (by id) and expects that many evidence-unresolved diagnostics at that row."""
         for name, (key, identifier, evidence, count) in cases.items():
             with self.subTest(case=name):
-                self.assessment = self.resolvable_assessment()
+                self.assessment = valid_assessment(self.inventory)
                 field = "path" if key == "files" else "id"
                 index = row_index(self.assessment[key], field, identifier)
                 self.assessment[key][index]["evidence"] = evidence
@@ -6000,6 +6022,7 @@ class AuditScopeNoteTests(unittest.TestCase):
                     comments.insert(0, lines[index].lstrip("# "))
                     index -= 1
                 self.assertIn("specific to this audit", " ".join(comments).lower())
+
 
 OVERLONG_DIGITS = 4301
 
@@ -6754,6 +6777,645 @@ class InvalidGitDirectoryTests(ToolCase):
         docstring = ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8")))
         text = " ".join(str(docstring).split())
         self.assertIn("does not take as a repository", text)
+
+
+# ---------------------------------------------------------------------------
+# Verify inputs read without following links, and entry kinds compared
+# ---------------------------------------------------------------------------
+
+STORED_AUDITS = "docs/stored-audits"
+
+
+class VerifyEntryKindTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+    verify = VerifyTreeTests.verify
+
+    def test_audited_entry_that_changes_kind_is_stale_without_strict(self) -> None:
+        def link_to_pipe(fixture: FixtureRoot) -> None:
+            (fixture.root / LINK).unlink()
+            os.mkfifo(fixture.root / LINK)
+
+        def file_to_link(fixture: FixtureRoot) -> None:
+            (fixture.root / DELTA).unlink()
+            (fixture.root / DELTA).symlink_to("alpha-flow.md")
+
+        for name, path, change in (("link becomes a pipe", LINK, link_to_pipe),
+                                   ("file becomes a link", DELTA, file_to_link)):
+            with self.subTest(case=name):
+                fixture, _ = self.build(name.replace(" ", "-"))
+                change(fixture)
+                result = self.verify(fixture)
+                self.assertEqual((result.returncode, result.stderr), (1, ""), result.stdout)
+                self.assertEqual(result.stdout,
+                                 f"inventory-stale {path}:0 changed kind in the root\n")
+
+
+class VerifyLinkedInputTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+    verify = VerifyTreeTests.verify
+
+    def test_linked_inventory_or_assessment_is_invalid_and_not_followed(self) -> None:
+        for code, relative in (("inventory", INVENTORY_PATH), ("assessment", ASSESSMENT_PATH)):
+            for target in ("stored.json", "absent.json"):
+                with self.subTest(file=code, target=target):
+                    fixture, _ = self.build(f"{code}-{target.split('.')[0]}")
+                    refresh_report(fixture)
+                    path = fixture.root / relative
+                    if target == "stored.json":
+                        path.rename(path.parent / target)
+                    else:
+                        path.unlink()
+                    path.symlink_to(target)
+                    result = self.verify(fixture, report=str(fixture.root / REPORT_PATH))
+                    self.assertEqual((result.returncode, result.stderr), (1, ""),
+                                     result.stdout)
+                    self.assertEqual(result.stdout, f"{code}-invalid {relative}:0 is a "
+                                                    "symbolic link and is not followed\n")
+
+    def test_link_above_the_inputs_is_followed_like_the_report_directory(self) -> None:
+        fixture, _ = self.build("parent-link")
+        refresh_report(fixture)
+        audits = fixture.root / "docs" / "audits"
+        audits.rename(fixture.root / STORED_AUDITS)
+        audits.symlink_to("stored-audits")
+        self.assert_silent(self.verify(fixture, report=str(fixture.root / REPORT_PATH)))
+
+
+# ---------------------------------------------------------------------------
+# Amendment text, target and dependency rules
+# ---------------------------------------------------------------------------
+
+OTHER_TABLE = "\n## Other\n\n| Other term | Not a term of the migration |\n|---|---|\n" \
+              "| Row term | Also not a term |\n"
+
+
+class VerifyAmendmentFormTests(MigrationMapCase):
+    def write_spec(self, text: str) -> None:
+        path = self.fixture.root / SPEC09_PATH
+        self.addCleanup(path.write_text, SPEC09_TEXT, encoding="utf-8")
+        path.write_text(text, encoding="utf-8")
+
+    def test_blank_current_text_of_an_existing_target_is_amendment_invalid(self) -> None:
+        for current in ("", " ", "\n"):
+            with self.subTest(current=current):
+                self.setUp()
+                amendment = self.add_amendment(current=current)
+                self.assert_reports(self.verify(), [("amendment-invalid",
+                                                     assessment_at(amendment))])
+
+    def test_notes_target_matches_a_heading_with_trailing_whitespace(self) -> None:
+        for ending in (" ", "\t", " \t "):
+            with self.subTest(ending=repr(ending)):
+                self.setUp()
+                self.write_spec(SPEC09_TEXT.replace("### Ownership\n",
+                                                    f"### Ownership{ending}\n"))
+                self.add_amendment(target="Notes:Ownership",
+                                   current="The migration owns every rename.")
+                self.assert_silent(self.verify())
+
+    def test_terminology_target_matches_only_a_body_row_of_the_terminology_table(
+            self) -> None:
+        self.write_spec(SPEC09_TEXT + OTHER_TABLE)
+        for target in ("Terminology:Term", "Terminology:Other term", "Terminology:Row term"):
+            with self.subTest(target=target):
+                self.setUp()
+                amendment = self.add_amendment(target=target)
+                self.assert_reports(self.verify(), [("amendment-target-unknown",
+                                                     assessment_at(amendment))])
+        with self.subTest(target="Terminology:Kind prefix"):
+            self.setUp()
+            self.add_amendment(target="Terminology:Kind prefix",
+                               current="| Kind prefix | The first stem component |")
+            self.assert_silent(self.verify())
+
+    def test_self_dependency_and_dependency_cycles_are_amendment_invalid(self) -> None:
+        cases: dict[str, tuple[dict[str, list[str]], list[str]]] = {
+            "self-dependency": ({"AMD-08-01": ["AMD-08-01"]}, ["AMD-08-01"]),
+            "two-amendment cycle": ({"AMD-08-01": ["AMD-08-02"], "AMD-08-02": ["AMD-08-01"]},
+                                    ["AMD-08-01", "AMD-08-02"]),
+            "three-amendment cycle": ({"AMD-08-01": ["AMD-08-02"], "AMD-08-02": ["AMD-08-03"],
+                                       "AMD-08-03": ["AMD-08-01"]},
+                                      ["AMD-08-01", "AMD-08-02", "AMD-08-03"]),
+            "dependency on a cycle": ({"AMD-08-01": ["AMD-08-02"], "AMD-08-02": ["AMD-08-01"],
+                                       "AMD-08-03": ["AMD-08-02"]},
+                                      ["AMD-08-01", "AMD-08-02"]),
+            "chain without a cycle": ({"AMD-08-01": [], "AMD-08-02": ["AMD-08-01"],
+                                       "AMD-08-03": ["AMD-08-02", "AMD-08-01"]}, []),
+        }
+        for name, (graph, members) in cases.items():
+            with self.subTest(case=name):
+                self.setUp()
+                for identifier in sorted(graph):
+                    if identifier != "AMD-08-01":
+                        self.add_amendment(id=identifier)
+                for identifier, depends_on in graph.items():
+                    self.assessment["amendments"][row_index(
+                        self.assessment["amendments"], "id", identifier)][
+                        "depends_on"] = depends_on
+                result = self.verify()
+                if members:
+                    self.assert_reports(result, [("amendment-invalid", assessment_at(item))
+                                                 for item in members])
+                else:
+                    self.assert_silent(result)
+
+
+# ---------------------------------------------------------------------------
+# ASCII digits in identifiers and line numbers
+# ---------------------------------------------------------------------------
+
+ARABIC_INDIC = str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩")
+
+
+def indic(text: str) -> str:
+    """The text with its ASCII digits written as Arabic-Indic digits."""
+    return text.translate(ARABIC_INDIC)
+
+
+class VerifyAsciiDigitTests(RenderCase):
+    add_amendment = MigrationMapCase.add_amendment
+
+    def replaced(self, key: str, identifier: str, field: str, value: object) -> str:
+        """Set one field of the files row (by path), finding or amendment (by id); return
+        that row's location."""
+        index = row_index(self.assessment[key], "path" if key == "files" else "id", identifier)
+        self.assessment[key][index][field] = value
+        return assessment_at(f"files[{index}]" if key == "files" else identifier)
+
+    def test_line_evidence_with_other_digits_breaks_its_form_or_resolves_nowhere(
+            self) -> None:
+        cases: dict[str, tuple[str, str, list[str], str]] = {
+            "files row": ("files", DELTA, [f"{DELTA}:{indic('3')}"], "assessment-invalid"),
+            "finding line": ("findings", "AUD-08-004", [f"{GAMMA}:{indic('3')}"],
+                             "evidence-unresolved"),
+            "finding range": ("findings", "AUD-08-004", [f"{GAMMA}:1-{indic('3')}"],
+                              "evidence-unresolved"),
+            "amendment line": ("amendments", "AMD-08-01", ["AUD-08-001", f"{BETA}:{indic('3')}"],
+                               "amendment-invalid"),
+        }
+        for name, (key, identifier, evidence, code) in cases.items():
+            with self.subTest(case=name):
+                self.setUp()
+                location = self.replaced(key, identifier, "evidence", evidence)
+                self.assert_reports(self.verify(), [(code, location)])
+
+    def test_identifiers_with_other_digits_break_their_forms(self) -> None:
+        with self.subTest(case="finding id"):
+            self.setUp()
+            self.replaced("findings", "AUD-08-002", "id", f"AUD-08-{indic('002')}")
+            self.assert_codes(self.verify(), "assessment-invalid", assessment_at(""))
+        with self.subTest(case="amendment id"):
+            self.setUp()
+            self.add_amendment(id=f"AMD-08-{indic('02')}")
+            self.assert_codes(self.verify(), "assessment-invalid", assessment_at(""))
+        with self.subTest(case="dependency id"):
+            self.setUp()
+            self.replaced("amendments", "AMD-08-01", "depends_on", [f"AMD-08-{indic('01')}"])
+            self.assert_codes(self.verify(), "assessment-invalid", assessment_at(""))
+        with self.subTest(case="statement coverage line"):
+            self.setUp()
+            self.assessment["req21"]["statements"][0]["covered_by"] = f"{ALPHA}:{indic('9')}"
+            self.assert_codes(self.verify(), "assessment-invalid", assessment_at(""))
+        cases: dict[str, tuple[str, list[str]]] = {
+            "affected criterion id": ("affected", [f"AC-{indic('05')}"]),
+            "finding id in amendment evidence": ("evidence",
+                                                 ["AUD-08-001", f"AUD-08-{indic('001')}"]),
+        }
+        for name, (field, value) in cases.items():
+            with self.subTest(case=name):
+                self.setUp()
+                location = self.replaced("amendments", "AMD-08-01", field, value)
+                self.assert_reports(self.verify(), [("amendment-invalid", location)])
+
+    def test_statement_source_with_other_digits_is_no_statement_unit(self) -> None:
+        index, line = len(STATEMENT_UNIT_LINES) - 1, STATEMENT_UNIT_LINES[-1]
+        self.assertGreater(line, 9)
+        self.assessment["req21"]["statements"][index]["source"] = (
+            f"{PHASE_DISCOVERY}:{str(line)[0]}{indic(str(line)[1:])}")
+        self.assert_reports(self.verify(), [
+            ("req21-invalid", assessment_at(f"req21.statements[{index}]")),
+            ("req21-invalid", f"{PHASE_DISCOVERY}:{line}")])
+
+    def test_blockers_line_with_other_digits_lists_no_finding(self) -> None:
+        listed = blocking_ids(self.assessment) + [f"AUD-08-{indic('003')}"]
+        text = self.valid_report(blockers=listed)
+        self.assert_silent(self.verify_report(text))
+
+
+TEN_LINE_READER = "docs/TEN.md"
+
+
+class VerifyEvidenceLineDigitsTests(SharedVerifyCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.temp = tempfile.TemporaryDirectory(prefix="audit-line-digits-")
+        try:
+            cls.fixture, cls.inventory = build_verify_fixture(
+                Path(cls.temp.name),
+                extra={TEN_LINE_READER: "".join(f"Line {n}.\n" for n in range(1, 11))})
+        except BaseException:
+            cls.temp.cleanup()
+            raise
+
+    def test_line_with_more_digits_than_the_line_count_is_outside_its_entry(self) -> None:
+        self.assertEqual(inventory_entry(self.inventory, TEN_LINE_READER)["lines"], 10)
+        cases = {"ten-digit line": "1000000000", "three-digit line": "100",
+                 "two-digit line past the count": "11", "last line": "10",
+                 "last line with leading zeros": "0000000010"}
+        for name, digits in cases.items():
+            with self.subTest(case=name):
+                self.setUp()
+                index = row_index(self.assessment["findings"], "id", "AUD-08-002")
+                self.assessment["findings"][index]["evidence"] = [
+                    f"{GUIDE}:1", f"{TEN_LINE_READER}:{digits}"]
+                result = self.verify()
+                if int(digits) > 10:
+                    self.assert_reports(result, [("evidence-unresolved",
+                                                  assessment_at("AUD-08-002"))])
+                else:
+                    self.assert_silent(result)
+
+
+# ---------------------------------------------------------------------------
+# Output boundary: escapes, quoted values and a failing standard output
+# ---------------------------------------------------------------------------
+
+EPSILON = "rules/epsilon-rule.md"
+COSTLY_OUTPUT_LINE = "Paste the full test output costing $5 into the report."
+FINDINGS_OBSERVATION_COLUMN = 8
+
+
+def extra_coverage_location(assessment: dict, path: str) -> str:
+    """Append a coverage row for a path outside the inventory and return its location."""
+    assessment["coverage"].append(coverage_row({"path": path, "entry": "file",
+                                                "encoding": "utf-8", "sha256": "0" * 64}))
+    return assessment_at(f"coverage[{len(assessment['coverage']) - 1}]")
+
+
+def displayed_cells(row: str) -> list[str]:
+    """The cells of a table row as GitHub-flavoured Markdown displays them: the row splits
+    at each pipe without a backslash directly before it, the backslash of an escaped pipe
+    is dropped, and a backslash before ASCII punctuation then displays that character."""
+    inner = row.strip()[1:-1]
+    return [re.sub(r"\\([!-/:-@\[-`{-~])", r"\1", piece.strip().replace("\\|", "|"))
+            for piece in re.split(r"(?<!\\)\|", inner)]
+
+
+class OutputBoundaryPinTests(SharedVerifyCase):
+    def test_backslash_and_line_separators_in_a_copied_string_are_escaped(self) -> None:
+        location = extra_coverage_location(self.assessment, "rules/a\\b\u2028c\x85d.md")
+        result = self.verify()
+        self.assertEqual((result.returncode, result.stderr), (1, ""), result.stdout)
+        self.assertEqual(result.stdout, f"row-extra {location} "
+                                        "rules/a\\x5cb\\u2028c\\x85d.md is not an audited path\n")
+
+
+class OutputBoundaryPinToolTests(ToolCase):
+    def test_root_unreadable_line_for_a_name_with_a_line_break_stays_one_line(self) -> None:
+        self.fx.minimal()
+        name = os.fsencode(self.fx.root / "rules") + b"/bad\n\xff.md"
+        with open(name, "wb") as handle:
+            handle.write(b"# Bad name\n")
+        out = self.base / "inventory.json"
+        result = self.run_extract(out=out)
+        self.assertEqual((result.returncode, result.stdout), (2, ""), result.stderr)
+        self.assertEqual(result.stderr, "ERROR: root-unreadable: a file name is not valid "
+                                        "UTF-8: rules/bad\\x0a\\udcff.md\n")
+        self.assertFalse(out.exists())
+
+
+class OutputBoundaryStreamTests(unittest.TestCase):
+    def test_write_lines_escapes_what_an_ascii_stream_cannot_encode(self) -> None:
+        buffer = io.BytesIO()
+        stream = io.TextIOWrapper(buffer, encoding="ascii", newline="\n")
+        tool_module().write_lines(stream, [
+            ("code-x", "rules/\u00e9.md:0", "na\u00efve \u2713 \U0001f600"),
+            "ERROR: code-y: caf\u00e9"])
+        stream.flush()
+        self.assertEqual(buffer.getvalue(), b"code-x rules/\\xe9.md:0 na\\xefve \\u2713 "
+                                            b"\\U0001f600\nERROR: code-y: caf\\xe9\n")
+
+
+class OutputEscapeTests(SharedVerifyCase):
+    def test_format_characters_in_a_message_are_escaped(self) -> None:
+        location = extra_coverage_location(self.assessment, "rules/a\u202eb\u200dc\ufeffd.md")
+        self.finding("AUD-08-003")["section"] = "## Con\u00adtract"
+        result = self.verify()
+        self.assertEqual((result.returncode, result.stderr), (1, ""), result.stdout)
+        self.assertEqual(result.stdout.split("\n"), [
+            f"finding-invalid {assessment_at('AUD-08-003')} section \"## Con\\xadtract\" is "
+            "not a section of the source",
+            f"row-extra {location} rules/a\\u202eb\\u200dc\\ufeffd.md is not an audited path",
+            ""])
+
+    def test_quoted_values_double_an_inner_quote(self) -> None:
+        cases = {'a"b': '"a""b"', '"': '""""', 'a\\"b': '"a\\x5c""b"'}
+        for value, quoted in cases.items():
+            with self.subTest(value=value):
+                self.setUp()
+                self.finding("AUD-08-003")["section"] = value
+                result = self.verify()
+                self.assertEqual((result.returncode, result.stderr), (1, ""), result.stdout)
+                self.assertEqual(result.stdout, f"finding-invalid {assessment_at('AUD-08-003')} "
+                                                f"section {quoted} is not a section of the "
+                                                "source\n")
+        self.setUp()
+        self.finding("AUD-08-002")["evidence"] = [f"{GUIDE}:1", 'x" y']
+        result = self.verify()
+        self.assertEqual(result.stdout, f"finding-invalid {assessment_at('AUD-08-002')} "
+                                        'evidence "x"" y" is not path:line, a path or an '
+                                        "amendment id\n")
+
+    def test_empty_quoted_value_is_two_quotes(self) -> None:
+        self.finding("AUD-08-003")["section"] = ""
+        result = self.verify()
+        self.assertEqual(result.stdout, f"finding-invalid {assessment_at('AUD-08-003')} "
+                                        'section "" is not a section of the source\n')
+
+
+class OutputLocationEscapeTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+    verify = VerifyTreeTests.verify
+
+    def test_space_separators_and_a_soft_hyphen_in_a_location_are_escaped(self) -> None:
+        fixture, _ = self.build("separators")
+        names = {"rules/a\u00a0b.md": "rules/a\\xa0b.md",
+                 "rules/c\u2003d.md": "rules/c\\u2003d.md",
+                 "rules/e\u3000f.md": "rules/e\\u3000f.md",
+                 "rules/g\u00adh.md": "rules/g\\xadh.md"}
+        for name in names:
+            fixture.write(name, "# Added\n")
+        result = self.verify(fixture)
+        self.assertEqual((result.returncode, result.stderr), (1, ""), result.stdout)
+        self.assertEqual(sorted(result.stdout.split("\n")[:-1]),
+                         sorted(f"inventory-stale {escaped}:0 added to the root"
+                                for escaped in names.values()))
+
+
+class OutputFailureTests(SharedVerifyCase):
+    def commands(self) -> dict[str, list[str]]:
+        """A verify that prints a diagnostic and a render that prints the region."""
+        self.assessment["inventory_digest"] = "f" * 64
+        self.assertEqual(self.verify().returncode, 1)
+        root, report = str(self.fixture.root), str(self.fixture.root / REPORT_PATH)
+        return {"verify": ["verify", "--root", root, "--report", report],
+                "render": ["render", "--root", root, "--report", report]}
+
+    def run_into(self, arguments: list[str], descriptor: int
+                 ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.run([sys.executable, "-I", str(TOOL), *arguments],
+                              cwd=self.fixture.base, env=self.fixture.env, stdout=descriptor,
+                              stderr=subprocess.PIPE, timeout=60)
+
+    def assert_output_unwritable(self, result: subprocess.CompletedProcess[bytes]) -> None:
+        self.assertNotIn(b"Traceback", result.stderr)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        lines = result.stderr.decode("utf-8").split("\n")
+        self.assertEqual(len(lines), 2, lines)
+        self.assertEqual(lines[1], "")
+        self.assertTrue(lines[0].startswith("ERROR: output-unwritable: "), lines)
+
+    def test_full_device_as_standard_output_exits_two_with_one_error_line(self) -> None:
+        if not os.path.exists("/dev/full"):
+            self.skipTest("/dev/full does not exist")
+        for name, arguments in self.commands().items():
+            with self.subTest(command=name), open("/dev/full", "wb") as full:
+                self.assert_output_unwritable(self.run_into(arguments, full.fileno()))
+
+    def test_closed_pipe_as_standard_output_exits_two_with_one_error_line(self) -> None:
+        for name, arguments in self.commands().items():
+            with self.subTest(command=name):
+                reading, writing = os.pipe()
+                os.close(reading)
+                try:
+                    result = self.run_into(arguments, writing)
+                finally:
+                    os.close(writing)
+                self.assert_output_unwritable(result)
+
+
+class OutputBoundaryDocstringTests(unittest.TestCase):
+    def test_module_docstring_states_the_escapes_and_the_output_failure(self) -> None:
+        docstring = ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8")))
+        text = " ".join(str(docstring).split())
+        for phrase in ("`\\xNN`", "`\\uNNNN`", "`\\UNNNNNNNN`", "format characters",
+                       "space separator", "doubled", "output-unwritable",
+                       "owner write permission", "outside its generated region"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+        self.assertNotIn("amounts anywhere in it", text)
+
+
+# ---------------------------------------------------------------------------
+# Render: cell escapes, row order and report permissions
+# ---------------------------------------------------------------------------
+
+class RenderCellEscapeTests(RenderCase):
+    def test_backslashes_before_a_pipe_stay_in_one_cell_and_display_as_written(self) -> None:
+        values = {"AUD-08-001": "a\\|b", "AUD-08-002": "x\\\\\\|y", "AUD-08-003": "p|q\\r"}
+        for identifier, value in values.items():
+            self.finding(identifier)["observation"] = value
+        region = self.region()
+        self.assertEqual(region, expected_region(self.inventory, self.assessment))
+        rows = {row.split(" | ")[0][2:]: row for row in region_bodies(region)["Findings"][2:]}
+        for identifier, value in values.items():
+            with self.subTest(value=value):
+                cells = displayed_cells(rows[identifier])
+                self.assertEqual(len(cells), len(HEADERS["Findings"]), cells)
+                self.assertEqual(cells[FINDINGS_OBSERVATION_COLUMN], value)
+
+
+class RenderRowOrderTests(RenderCase):
+    def test_shuffled_inventory_renders_its_rows_sorted_by_path_line_and_column(self) -> None:
+        ordered = copy.deepcopy(self.inventory)
+        mention = ordered["legacy_mentions"][0]
+        ordered["legacy_mentions"].append(dict(mention, column=mention["column"] + 1))
+        shuffled = copy.deepcopy(ordered)
+        for key in ("files", "edges", "legacy_mentions"):
+            shuffled[key].reverse()
+        for entry in shuffled["files"]:
+            if entry["sections"]:
+                entry["sections"].reverse()
+        expected = expected_region(ordered, self.assessment)
+        in_input_order = expected_bodies(shuffled, self.assessment)
+        for name in ("Inventory", "Sections", "References", "Loads", "Legacy mentions"):
+            with self.subTest(table=name):
+                self.assertNotEqual(in_input_order[name], region_bodies(expected)[name])
+        restore = self.rewrite_inventory(canonical(shuffled))
+        try:
+            region = self.region()
+        finally:
+            restore()
+        self.assertEqual(region, expected)
+
+
+class RenderWritePermissionTests(RenderCase):
+    assert_refused = RenderWriteTests.assert_refused
+
+    def write_report_with_mode(self, mode: int) -> Path:
+        """An unrendered report with the given permission bits, made writable again after
+        the case."""
+        self.write_assessment()
+        self.fixture.write(REPORT_PATH, report_text(blockers=blocking_ids(self.assessment)))
+        report = self.report_file()
+        report.chmod(mode)
+        self.addCleanup(report.chmod, 0o644)
+        return report
+
+    def test_render_write_refuses_a_report_without_owner_write_permission(self) -> None:
+        for mode in (0o444, 0o460):
+            with self.subTest(mode=oct(mode)):
+                report = self.write_report_with_mode(mode)
+                before, listing = report.read_bytes(), self.audits_listing()
+                result = run_render(self.fixture, "--write")
+                self.assertEqual(stat.S_IMODE(report.stat().st_mode), mode)
+                report.chmod(0o644)
+                self.assert_refused(result, "report-unwritable", before, listing)
+
+    def test_render_write_keeps_the_mode_of_a_writable_report(self) -> None:
+        for mode in (0o640, 0o600):
+            with self.subTest(mode=oct(mode)):
+                report = self.write_report_with_mode(mode)
+                result = run_render(self.fixture, "--write")
+                self.assertEqual((result.returncode, result.stdout, result.stderr), (0, "", ""))
+                self.assertEqual(stat.S_IMODE(report.stat().st_mode), mode)
+                self.assertIn(expected_region(self.inventory, self.assessment),
+                              report.read_text(encoding="utf-8"))
+                report.chmod(0o644)
+
+
+# ---------------------------------------------------------------------------
+# Report economics outside the generated region
+# ---------------------------------------------------------------------------
+
+class ReportEconomicsRegionTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+
+    def test_amount_copied_into_the_region_is_silent_and_one_outside_it_is_a_claim(
+            self) -> None:
+        fixture, inventory = self.build(
+            "copied-amount", extra={EPSILON: f"# Epsilon rule\n\n{COSTLY_OUTPUT_LINE}\n"})
+        self.assertIn(COSTLY_OUTPUT_LINE, [item["text"] for item in inventory["full_output"]])
+        rendered = run_render(fixture)
+        self.assertEqual((rendered.returncode, rendered.stderr), (0, ""), rendered.stdout)
+        self.assertIn(COSTLY_OUTPUT_LINE, rendered.stdout)
+        blockers = blocking_ids(valid_assessment(inventory))
+        for summary, expected in (
+                ("Every audited file was read once.", []),
+                ("One run costs $5 in total.", [("economics-claim", f"{REPORT_PATH}:5")])):
+            with self.subTest(summary=summary):
+                fixture.write(REPORT_PATH, report_text(region=rendered.stdout,
+                                                       blockers=blockers, summary=summary))
+                result = run_tool(["verify", "--root", str(fixture.root), "--report",
+                                   str(fixture.root / REPORT_PATH)], fixture.env, fixture.base)
+                if expected:
+                    self.assert_reports(result, expected)
+                else:
+                    self.assert_silent(result)
+
+
+# ---------------------------------------------------------------------------
+# Separator rows without dashes, and the stricter terminology table separator
+# ---------------------------------------------------------------------------
+
+DASHLESS_SEPARATORS = ("| | |", "|:|:|", "|\t|\t|", "| :\t| :\t|")
+
+
+class SeparatorRowWithoutDashesTests(CandidateCase):
+    def test_separator_row_with_empty_or_colon_only_cells_is_not_a_unit(self) -> None:
+        content_row = "| Every audited file | keeps one row | here |"
+        lines = ["# S", "", "| | | | | | | | |", "| : | : | : | : |",
+                 "|:\t|:\t|:\t|:\t|:\t|:\t|:\t|:\t|", "|\t|\t|\t|\t|\t|\t|\t|\t|  ",
+                 content_row]
+        for path in ("rules/u-one.md", "rules/u-two.md"):
+            self.write_lines(path, lines)
+
+        inventory = self.extract()
+
+        self.assertEqual(inventory["duplicate_clusters"], [
+            cluster(1, " ".join(content_row.split()),
+                    [("rules/u-one.md", 7, 7), ("rules/u-two.md", 7, 7)]),
+        ])
+
+
+class StatementUnitSeparatorTests(VerifyAssertions):
+    setUp = VerifyTreeTests.setUp
+    tearDown = VerifyTreeTests.tearDown
+    build = VerifyTreeTests.build
+    verify = VerifyTreeTests.verify
+    discovery_root = VerifyStatementUnitTests.discovery_root
+    verify_statements = VerifyStatementUnitTests.verify_statements
+
+    def test_separator_row_with_empty_or_colon_only_cells_starts_no_statement_unit(
+            self) -> None:
+        for index, separator in enumerate(DASHLESS_SEPARATORS):
+            with self.subTest(separator=repr(separator)):
+                fixture, assessment = self.discovery_root(
+                    f"dashless{index}", "# Phase discovery\n\n## Codebase Reading Rules\n\n"
+                    f"| Rule | Meaning |\n{separator}\n| Read once | Every file |\n")
+                self.assert_silent(self.verify_statements(fixture, assessment, [5, 7]))
+                self.assert_reports(self.verify_statements(fixture, assessment, [5, 7, 6]),
+                                    [("req21-invalid", assessment_at("req21.statements[2]"))])
+
+
+class TerminologySeparatorTests(MigrationMapCase):
+    write_spec = VerifyAmendmentFormTests.write_spec
+
+    def test_terminology_table_needs_dashes_in_its_separator_row(self) -> None:
+        for separator in ("| | |", "|:|:|"):
+            with self.subTest(separator=separator):
+                self.setUp()
+                self.write_spec(SPEC09_TEXT.replace("|---|---|", separator))
+                amendment = self.add_amendment(target="Terminology:Kind prefix",
+                                               current="| Kind prefix | The first stem component |")
+                self.assert_reports(self.verify(), [("amendment-target-unknown",
+                                                     assessment_at(amendment))])
+
+    def test_terminology_separator_with_alignment_colons_keeps_the_table(self) -> None:
+        for separator in ("|:---|---:|", "| :---: | --- |"):
+            with self.subTest(separator=separator):
+                self.setUp()
+                self.write_spec(SPEC09_TEXT.replace("|---|---|", separator))
+                self.add_amendment(target="Terminology:Kind prefix",
+                                   current="| Kind prefix | The first stem component |")
+                self.assert_silent(self.verify())
+
+
+class AssessmentCellEconomicsTests(SharedVerifyCase):
+    def test_amount_that_a_cell_displays_is_a_claim_at_the_assessment_location(self) -> None:
+        cases = {
+            "control between number and unit": (
+                ("findings", "AUD-08-002", "observation"), "It costs 5\u0001tokens.",
+                "5 tokens"),
+            "control after the currency sign": (
+                ("findings", "AUD-08-002", "observation"), "It costs $\u00015.", "$ 5"),
+            "delete between number and unit": (
+                ("findings", "AUD-08-002", "observation"), "It costs 5\u007ftokens.",
+                "5 tokens"),
+            "control in a legacy note": (("legacy", 0, "note"), "Costs 5\u0002tokens",
+                                         "5 tokens"),
+        }
+        for name, ((key, row, field), value, amount) in cases.items():
+            with self.subTest(case=name):
+                self.setUp()
+                if isinstance(row, str):
+                    self.finding(row)[field] = value
+                    location = assessment_at(row)
+                else:
+                    self.assessment[key][row][field] = value
+                    location = assessment_at(f"{key}[{row}]")
+                result = self.verify()
+                self.assertEqual((result.returncode, result.stderr), (1, ""), result.stdout)
+                self.assertEqual(result.stdout, f"economics-claim {location} names an amount: "
+                                                f'"{amount}"\n')
 
 
 if __name__ == "__main__":

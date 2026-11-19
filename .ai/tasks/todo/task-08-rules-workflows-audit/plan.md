@@ -16,10 +16,11 @@
 | T-12 | Fix: review follow-ups (blockers, evidence, runbook) | tests first → two-way blockers check → evidence resolution → constants and runbook note | T-11 | reviewed | claude-opus-5-5 |  |
 | T-13 | Fix: extraction edge cases (proposals) | tests first → adapter lstat → pruned explicit-stack reader walk → token boundary, bare home, separator rows, stop marker | T-12 | reviewed | claude-opus-5-5 |  |
 | T-14 | Fix: git isolation follow-ups and version matrix (proposals) | tests first → NUL cut, stat before open, CR/LF strip → below-top-level unknown → docstring boundary → runbook bullet → container matrix | T-13 | reviewed | claude-opus-5-5 |  |
-| T-15 | Fix: verify input and form rules (proposals) | tests first → kind change, no-follow inputs → amendment rules → ASCII digits, line bound → recorded amendments | T-14 | pending | claude-opus-5-5 |  |
-| T-16 | Fix: output boundary and render (proposals) | characterization and red tests → Zs/Cf escapes, quoted values, output-unwritable → cell backslashes, sorting, write-protected report, economics region → suite cache | T-15 | pending | claude-opus-5-5 |  |
-| T-17 | Fix: audit output corrections and fresh review (proposals) | scripted assertion red → assessment edits → render → gate → independent review → review line | T-16 | pending | claude-opus-5-5 |  |
-| T-18 | Feat: state tool memory consistency warning (proposals) | tests first → read-only memory parse → leaf comparison → warning code | T-17 | pending | claude-opus-5-5 |  |
+| T-15 | Fix: verify input and form rules (proposals) | tests first → kind change, no-follow inputs → amendment rules → ASCII digits, line bound → recorded amendments | T-14 | reviewed | claude-opus-5-5 |  |
+| T-16 | Fix: output boundary and render (proposals) | characterization and red tests → Zs/Cf escapes, quoted values, output-unwritable → cell backslashes, sorting, write-protected report, economics region → suite cache | T-15 | reviewed | claude-opus-5-5 |  |
+| T-17 | Fix: audit output corrections and fresh review (proposals) | scripted assertion red → assessment edits → render → gate → independent review → review line | T-16 | reviewed | claude-opus-5-5 |  |
+| T-18 | Feat: state tool memory consistency warning (proposals) | tests first → read-only memory parse → leaf comparison → warning code | — | reviewed | claude-opus-5-5 |  |
+| T-19 | Fix: separator pattern shadowing (reconciliation finding) | tests first → own name for the terminology pattern → re-point duplicate and statement units | T-17 | reviewed | claude-opus-5-5 |  |
 
 ## Execution Strategy
 
