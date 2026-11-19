@@ -8,6 +8,7 @@ base_branch: main
 - execution: complete
 - validation: complete
 
+- finalization: complete
 ## Task Analysis
 
 → archived to state-archive.md
