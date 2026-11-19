@@ -149,6 +149,32 @@ canonical-URL gh repo view metadata. Journal repository.hosting_identity and the
 bind successful origin-specific resolution to full remote_identity; the hook independently
 matches that hashed journal binding without SSH, gh or network calls. No alias binding in
 an older journal means no alias PR-only exception; no automatic migration exists.
+
+Remote rebinding: repositories[].remote_identity is the original binding and never changes.
+A changed origin refuses (remote-identity-changed) unless it equals that original or the
+'to' of a recorded rebinding for the repository, or a fresh hosting rename is verified:
+both sides have exactly one configured fetch URL and no push URL; expanded destinations
+equal the configured URL on both sides or stay identical; both URLs parse as GitHub
+owner/repository identities with the same transport prefix (scheme or form, user, host or
+SSH alias) and suffix, differing only in owner/repository; a non-github.com host must be
+an SSH alias that ssh -G translates to GitHub; GH_REPO/GH_HOST are refused; gh api
+--hostname github.com repos/OLD and the same read of repos/NEW (pinned, never gh's
+configured default host) both exit 0 with JSON objects carrying the same positive integer
+id and full_name equal (case-insensitively) to NEW; a later rename must keep the id of the
+first entry, which was read for the original name. Journal remote_rebindings[] is
+append-only, outside the plan digest; each entry has exactly repository (a journal
+repository path), from and to (full remote_identity objects), from_identity, to_identity,
+repository_id, host_resolution ({kind:'literal-github'} or {kind:'ssh-alias', ssh_argv,
+ssh_exit_code:0, resolved_hostname}), checks (exactly the two pinned reads, each
+{argv,exit_code:0,response}, response keeping only {id,full_name,node_id}), verified_at
+(dated) and provenance. Entries chain per repository: each 'from' equals the previous 'to'
+(first: the original binding); a further change needs its own verified entry. Every
+reconciliation revalidates recorded entries offline under all of these rules, including
+identities derived from the URLs and ids equal to repository_id; any violation is
+journal-invalid. PR evidence is re-read through the current origin; an explicit recorded
+PR URL naming an earlier name in the verified chain resolves to the current name. Hook
+receipts keep the original binding, so after a rebinding they match no current origin and
+authorize no deletion.
 Rewritten history requires exact original head/ref, intended integration base,
 MERGED state, dated merge and reachable merge object. An ordinary closed PR or a
 merge only into a stack feature does not qualify. Ancestry checks all original
@@ -354,6 +380,13 @@ def accept_attestations(journal: dict, evidence: dict, task: Path) -> None:
             journal['trust_limitations'].append(kind + ' prior evidence reuse: ' + row['reuse']['limitations'])
 
 
+def bind(journal: dict, current: dict) -> None:
+    """Adopt a fresh assessment; verified rebindings are appended, never replaced."""
+    journal.update({key: current[key] for key in ('repositories', 'actions', 'validation_evidence')})
+    if current.get('remote_rebindings'):
+        journal.setdefault('remote_rebindings', []).extend(current['remote_rebindings'])
+
+
 def archive(journal: dict, path: Path, root: Path, task: Path, spec: Path) -> tuple[Path, Path]:
     require(journal['outcomes']['cleanup'] == 'complete' and journal['outcomes']['checkout'] == 'complete'
             and journal['outcomes']['knowledge'] == 'attested' and journal['outcomes']['audit'] == 'attested',
@@ -452,7 +485,7 @@ def response(command: str, status: str, root: Path, task: Path, spec: Path, path
     if journal:
         for key in ('repositories', 'actions', 'outcomes', 'manifest', 'snapshot_path', 'plan_digest', 'action_receipts',
                     'validation_evidence', 'trust_limitations', 'attestations', 'action_history', 'recovery', 'recovery_actions',
-                    'operations', 'command_attempts'):
+                    'operations', 'command_attempts', 'remote_rebindings'):
             if key in journal:
                 result[key] = journal[key]
         for key in ('knowledge_files', 'knowledge_indexes', 'knowledge_indexes_original', 'knowledge_index_history',
@@ -484,7 +517,7 @@ def reconcile_knowledge_input(command: str, dry_run: bool, root: Path, task: Pat
         integrity(root, task, spec, journal, indexes=False, current_knowledge=False)
         fresh = assess(root, task, spec, evidence, journal)
         reconcile_indexes(journal, observations, fresh['repositories'], git)
-        journal.update({key: fresh[key] for key in ('repositories', 'actions', 'validation_evidence')})
+        bind(journal, fresh)
     knowledge_changes(journal, evidence, root, task)
 
 
@@ -531,7 +564,7 @@ def execute(args: argparse.Namespace) -> dict:
     if args.command == 'inspect' or args.dry_run:
         observed = copy.deepcopy(prior) if prior else None
         if observed:
-            observed.update({key: current[key] for key in ('repositories', 'actions', 'validation_evidence')})
+            bind(observed, current)
             update_postconditions(observed)
             accept_attestations(observed, evidence, task)
         return response(args.command, 'ready', root, task, spec, path, current, observed)
@@ -551,7 +584,7 @@ def execute(args: argparse.Namespace) -> dict:
             if prior:
                 require(prior['authorization']['task_path'] == prior['task_original'], 'authorization-required', 'Journal scope authorization differs')
                 journal = prior
-                journal.update({key: current[key] for key in ('repositories', 'actions', 'validation_evidence')})
+                bind(journal, current)
             else:
                 snapshot_path = path.parent / 'snapshot'
                 stored_manifest = snapshot(root, task, spec, snapshot_path)
@@ -575,7 +608,7 @@ def execute(args: argparse.Namespace) -> dict:
         require(prior is not None, 'journal-missing', 'Run prepare before recording or archiving')
         require(prior['outcomes'].get('recovery') == 'verified' and check_verified(prior, root, path), 'recovery-required', 'Create and verify the exact recovery pack plan before cleanup or archival')
         journal = prior
-        journal.update({key: current[key] for key in ('repositories', 'actions', 'validation_evidence')})
+        bind(journal, current)
         update_postconditions(journal)
         accept_attestations(journal, evidence, task)
         if args.command == 'knowledge':
