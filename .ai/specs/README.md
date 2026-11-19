@@ -24,8 +24,8 @@ identity-output I/O correction and comparative performance acceptance remain und
 Deleted experimental branch names do not count as delivery. The dated review above remains
 historical evidence. The state tool was merged and archived on 2026-11-16, as recorded in
 [progress](../memory/progress.md). Current active work is listed in
-[task state](../memory/state.md); the rules/workflows audit remains separately scheduled
-and the post-merge closure implementation below does not advance other roadmap scope.
+[task state](../memory/state.md); the rules/workflows audit (08) was delivered, accepted and closed
+on 2026-11-19, and the post-merge closure implementation below does not advance other roadmap scope.
 
 ## Owner-scheduled post-merge closure
 
@@ -101,7 +101,7 @@ script names in historical context identify their earlier locations.
 | Done | [00 — scrub](completed/00-sensitive-data-scrub.md) | — | Retain completed history and approved exceptions |
 | Done | [01 — source of truth](completed/01-git-source-of-truth.md) | 00 | Retain license/tag deferrals; unchecked historical boxes do not reopen the task |
 | Done | [02 — log vocabulary](completed/02-run-log-vocabulary-validation.md) | 01 | Retain strict grammar, non-blocking writes and read-only lint; merge status belongs to task records |
-| 1 | [08 — audit](08-rules-workflows-audit.md) | 01 | Refresh actual inventory; identify duplicated loads and ownership |
+| Done | [08 — audit](08-rules-workflows-audit.md) | 01 | Pinned audit delivered and accepted (`Accepted: owner 2026-11-18`); follow-ups applied, spec 09 amended; PRs #105–#125 merged; the spec file stays at this path while an identity-ledger row pins its line 23 |
 | 2 | [09 — harnesses/naming](09-model-only-harnesses-and-rule-naming.md) | 01, 08 | Preserve IDs; capability-based behavior and current script paths |
 | Done | [04 — catalog](completed/04-model-catalog-cache.md) | Current-invocation capabilities; wider 09 migration remains separate | Reviewed cached catalog, conservative selection and compatible plan resolution; PRs #31–#36 merged |
 | Done | [03 — logging](completed/03-hook-based-logging.md) | 02; minimal harness/registry scaffold | Reviewed explicit correlation, owned hooks and exact timing; minimal hook scaffold only, wider harness migration remains pending |
