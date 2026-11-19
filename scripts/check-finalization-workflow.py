@@ -597,6 +597,12 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         with self.subTest(value='code text, destination outside the project'):
             with self.assertRaises(Refusal):
                 relocate('[`x`](/abs/outside)\n')
+        prefix = 'Half-open [0, n) range; regex `[^]]` and '
+        with self.subTest(value='stray bracket before code holding a closing bracket'):
+            self.assertEqual(prefix + '[spec](../../../specs/completed/s.md)\n', relocate(prefix + '[spec](../../../specs/s.md)\n'))
+        with self.subTest(value='stray bracket before code, destination outside the project'):
+            with self.assertRaises(Refusal):
+                relocate(prefix + '[x](/abs/outside)\n')
 
     def test_outstanding_scope_in_any_completed_phase_keeps_whole_spec_active(self) -> None:
         for heading in ('Deferred', 'Outstanding Scope'):
