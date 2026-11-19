@@ -1,0 +1,33 @@
+.ai/memory/progress.md
+  s_96afdcfd38c67e::t_ff4e6dc4726688 176-179
+.ai/memory/state.md
+  s_96afdcfd38c67e::t_ce542ab9493556 19
+.ai/tasks/completed/fix-01-finalization-inline-code-links/state.md
+  s_96afdcfd38c67e::t_92b5be3589ffe9 1-65
+scripts/finalization_archive.py
+  s_d707c7c3d78ad1::t_5bd7c19c3f6b54 4,257-312,364-365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f9ff0748cc0342ebcc89699e997ea0f72515f602",
+  "prompts": {},
+  "sessions": {
+    "s_96afdcfd38c67e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f3ac193-9977-473b-b9f7-3df06f485ee7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_d707c7c3d78ad1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a4232f6b7bba3a116",
+        "model": "unknown"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
