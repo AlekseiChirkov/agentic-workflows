@@ -1,0 +1,33 @@
+scripts/README.md
+  s_96afdcfd38c67e::t_3742c1d307012f 137-141
+scripts/check-finalization-workflow.py
+  s_9ffcb74080ebec::t_e2e812c0642337 604-622
+scripts/finalization_evidence.py
+  s_96afdcfd38c67e::t_4617d5d2595315 12,249-258,291,304-305,314-316,336-338,390-478,646,664-665,668-678,745,754,786,801,805-807
+scripts/phase-finalize.py
+  s_96afdcfd38c67e::t_3c8405560e4cf9 152-170,376-382,481,513,560,580,604
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ab21986056d135982cc4e21acc32333dce7b3bf8",
+  "prompts": {},
+  "sessions": {
+    "s_96afdcfd38c67e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f3ac193-9977-473b-b9f7-3df06f485ee7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    },
+    "s_9ffcb74080ebec": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc38276e-d819-4acd-ac7b-a035ad8deb45",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
