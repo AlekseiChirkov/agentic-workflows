@@ -11,7 +11,7 @@ from finalization_support import dated, digest, require, safe_path
 
 CURRENT = {'.ai/memory/architecture.md', '.ai/memory/state.md', '.ai/project_state.md',
            '.ai/principles/domain.md', '.ai/context/runbook.md', '.ai/context/environment.md',
-           '.ai/context/integrations.md', '.ai/specs/README.md'}
+           '.ai/context/integrations.md', '.ai/specs/README.md', '.ai/specs/00-remaining-scope-index.md'}
 KINDS = {'current-record': CURRENT, 'progress': {'.ai/memory/progress.md'},
          'adr-index': {'.ai/adr/index.md'}, 'guidance': {'README.md', 'CLAUDE.md', 'AGENTS.md'},
          'roadmap': {'.ai/roadmap.md', '.ai/memory/roadmap.md'}, 'delivery-notes': set()}
