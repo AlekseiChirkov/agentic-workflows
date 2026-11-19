@@ -1,10 +1,23 @@
-flow: full
+flow: quick
 kind: bugfix
 
 ## Phases
 - discovery: complete
 - execution: complete
 - validation: complete
+
+## Subtask Progress
+
+T-01 | Fix: inline code links in archive relocation (quick, inline; no subtask directory) | atomic-tests: green | atomic-execution: complete | atomic-validation: complete
+  branch: fix/finalization-inline-code-links
+  base_branch: main
+  base_commit: 436f1ef958ca7365f06891a457f24fdcc1bb158d
+  commits: dca91f67670da7f2282332543e5dc217ef970347 test(finalization): require links inside inline code to stay text during archive, 426cbb973f9873a4090ade4d86b8b6a0abd4544b test(finalization): require links with inline code in their text to stay relocated and checked, 003227af7df1ea30e32272cef53cd2820e17e64a test(finalization): require a real link after a stray bracket and code to stay relocated and checked, f9ff0748cc0342ebcc89699e997ea0f72515f602 fix(finalization): treat inline code as text when relocating archive links
+  pr: #128
+  last_action: merged into main as PR #128 after three independent review rounds
+  target_files: scripts/finalization_archive.py, scripts/check-finalization-workflow.py
+  blocker: none
+  notes: quick flow keeps its inline contract and the `## TDD (quick)` record below; this block records the delivery fields
 
 ## Defect
 source: owner request 2026-11-19 during `/phase-finalize` of task 08 (independent finalization reviewer finding)
@@ -30,7 +43,7 @@ callers: `moving_link_plans` and `pointer_plans` during `archive`; persisted dat
 3. behaviour change to a shipped pipeline: yes — the shipped `/phase-finalize` archive step changes which inputs it rewrites or refuses (inline-code examples no longer refuse) → fail
 4. schema change / migration: no → pass
 verdict: full
-owner exception (2026-11-19): the owner accepted the recommendation to fix this defect on the quick path despite condition 3 ("я принимаю твою рекомендацию"), with a failing test first, the finalization suites, the complete validator and an independent review; rationale: the change narrows a refusal to the behaviour the function's contract already states (prose and code stay exact), two files, no new invariant
+owner exception (2026-11-19): the owner accepted the recommendation to fix this defect on the quick path despite condition 3 (the owner accepted the recommendation in chat on 2026-11-19), with a failing test first, the finalization suites, the complete validator and an independent review; rationale: the change narrows a refusal to the behaviour the function's contract already states (prose and code stay exact), two files, no new invariant
 
 ### Off-limits
 - Task records and historical sections stay byte-exact; no other relocation rule changes.
@@ -63,3 +76,6 @@ recorded, not applied: O1, O2
 
 ## Validation Result
 validation: complete (2026-11-19) — contract: both acceptance criteria met (inline-code links stay byte-identical; real links outside code are relocated and refused as before); ADR trigger: none (bug fix restoring the documented contract)
+
+## Spec Sync
+sync: n-a — no specification governs this defect; the fix restores the behaviour that the function's own contract already states (fenced blocks and prose stay exact), so no specification text changes
