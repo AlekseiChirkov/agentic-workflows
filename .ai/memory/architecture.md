@@ -296,7 +296,16 @@ parser of `## Subtask Progress`, read-only, one JSON object on stdout) and `vali
 (structure, status vocabulary, n-a justification, static completion rule, required fields
 and `state_receipts:` format; exit 3 for structure before 6 for invariants). An indented
 fence inside a block is opaque block content, and a repeated header status segment makes
-the block malformed. `set` changes the named header
+the block malformed. Both read commands also compare the task's entry in
+`.ai/memory/state.md` (lines under `## Active Tasks` or `## Done` naming the task directory)
+with the leaf blocks: a reviewed-leaf count that differs from the leaves whose
+`atomic-validation` is `complete` (`all` needs every leaf, `of M` needs M leaves; a number
+after a dash, a letter or another number word is no claim), or a `#A–#B` range holding any
+`pr:` number of a leaf whose `atomic-validation` is not `complete` (numbers no leaf records
+are ignored), adds the non-blocking warning `memory-state-mismatch`; the memory file is read
+only as a regular file reached without a symbolic link (each directory opened relative to
+its parent; no warning where the platform cannot refuse links), of at most 1 MiB of UTF-8,
+and any failure gives no warning. `set` changes the named header
 statuses and `last_action` / `blocker` of one block under the per-task lock
 (`.state-tool.lock`, owner metadata) and the expected-revision check, inserts a missing
 field or the `atomic-tests` segment at its canonical position, appends a `state_receipts:`

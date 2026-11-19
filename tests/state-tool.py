@@ -7329,5 +7329,376 @@ class ManualOwnerAndSignalTests(unittest.TestCase):
         self.assertNotIn(REPLACED_OWNER_PHRASE, text)
 
 
+MEMORY_RELATIVE = Path(".ai") / "memory" / "state.md"
+MEMORY_WARNING = "memory-state-mismatch"
+MEMORY_LIMIT_BYTES = 1024 * 1024
+FIRST_PR = 105
+HISTORICAL_CLAIM = "all ten leaves reviewed (draft PRs #105–#114 ready for review)"
+
+
+def memory_entry(claim: str, directory: str = "task-demo") -> str:
+    """An entry line of the project memory that links a task state file and carries a claim."""
+    return (f"- [Demo task](../tasks/todo/{directory}/state.md) | phase: validation | "
+            f"status: in-progress | note: {claim}")
+
+
+def memory_text(active: tuple[str, ...] = (), done: tuple[str, ...] = (),
+                deferred: tuple[str, ...] = ()) -> str:
+    """Build a project memory file with the task registry sections holding the given lines."""
+    def lines(entries: tuple[str, ...]) -> str:
+        return "".join(entry + "\n" for entry in entries)
+
+    return ("# state.md\n\n## Purpose\nTask registry.\n\n## Active Tasks\n" + lines(active)
+            + "\n## Done\n" + lines(done) + "\n## Deferred\n" + lines(deferred)
+            + "\n## Known conditions\n- none\n")
+
+
+def reviewed_leaves(count: int, *, unreviewed: tuple[int, ...] = ()) -> list[str]:
+    """Leaves T-01 onwards with consecutive pull requests from FIRST_PR; the numbered leaves in
+    unreviewed are still in validation, every other one has completed it."""
+    blocks = []
+    for number in range(1, count + 1):
+        validation = "in-progress" if number in unreviewed else "complete"
+        body = leaf_body(extra=f"  pr: #{FIRST_PR + number - 1} ready\n")
+        blocks.append(leaf(f"T-{number:02d}", header=leaf_statuses("green", "complete", validation),
+                           body=body))
+    return blocks
+
+
+class MemoryConsistencyCase(ValidateCase):
+    """Fixtures for the project memory file read next to the task state by the read commands."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.memory = self.root / MEMORY_RELATIVE
+        self.memory.parent.mkdir(parents=True, exist_ok=True)
+
+    def write_memory(self, text: str | bytes) -> None:
+        if isinstance(text, str):
+            self.memory.write_text(text, encoding="utf-8", newline="")
+        else:
+            self.memory.write_bytes(text)
+
+    def read_warnings(self, *args: str) -> list[str]:
+        """The warnings of a get that reads, checked against the warnings of a validate that
+        finds the state valid: both report the memory comparison alike with exit 0."""
+        warnings = self.read_ok(self.get(*args))["warnings"]
+        validation = self.valid(self.validate())["warnings"]
+        self.assertEqual(MEMORY_WARNING in validation, MEMORY_WARNING in warnings,
+                         f"get warnings {warnings}, validate warnings {validation}")
+        return warnings
+
+    def assert_mismatch(self, *args: str) -> None:
+        self.assertIn(MEMORY_WARNING, self.read_warnings(*args))
+
+    def assert_no_mismatch(self, *args: str) -> None:
+        self.assertNotIn(MEMORY_WARNING, self.read_warnings(*args))
+
+
+class MemoryClaimTests(MemoryConsistencyCase):
+    def test_historical_claim_with_one_leaf_not_reviewed_warns_without_changing_the_exit(
+            self) -> None:
+        self.write_state(state_text(*reviewed_leaves(10, unreviewed=(10,))))
+        self.write_memory(memory_text(active=(memory_entry(HISTORICAL_CLAIM),)))
+
+        get = self.get()
+        validation = self.validate()
+
+        self.assertIn(MEMORY_WARNING, self.read_ok(get)["warnings"])
+        self.assertIn(f"state-tool: warning: {MEMORY_WARNING}\n", get.stderr)
+        self.assertIn(MEMORY_WARNING, self.valid(validation)["warnings"])
+        self.assertIn(MEMORY_WARNING, self.read_ok(self.get("--block", "T-01"))["warnings"])
+
+    def test_consistent_count_and_range_do_not_warn(self) -> None:
+        self.write_memory(memory_text(active=(memory_entry(HISTORICAL_CLAIM),)))
+        self.write_state(state_text(*reviewed_leaves(10, unreviewed=(10,))))
+        self.assert_mismatch()
+
+        self.write_state(state_text(*reviewed_leaves(10)))
+
+        self.assertEqual(self.read_ok(self.get())["warnings"], [])
+        self.assertEqual(self.valid(self.validate())["warnings"], [])
+
+    def test_claimed_number_of_reviewed_leaves_is_compared_with_completed_validations(
+            self) -> None:
+        self.write_state(state_text(*reviewed_leaves(10, unreviewed=(10,))))
+        cases = {"nine leaves reviewed": False, "9 leaves reviewed": False,
+                 "All nine leaves reviewed so far": True, "ten leaves reviewed": True,
+                 "10 leaves reviewed": True, "eight leaves reviewed": True,
+                 "9 of 10 leaves reviewed": False, "nine of ten leaves reviewed": False,
+                 "9 of 11 leaves reviewed": True, "10 of 10 leaves reviewed": True}
+        for claim, mismatch in cases.items():
+            with self.subTest(claim=claim):
+                self.write_memory(memory_text(active=(memory_entry(claim),)))
+
+                warnings = self.read_warnings()
+
+                self.assertEqual(MEMORY_WARNING in warnings, mismatch, warnings)
+
+    def test_count_after_a_hyphen_or_a_letter_is_not_a_claim(self) -> None:
+        self.write_state(state_text(*reviewed_leaves(21)))
+        self.write_memory(memory_text(active=(memory_entry("one leaves reviewed"),)))
+        self.assert_mismatch()
+        claims = ("twenty-one leaves reviewed", "all twenty-one leaves reviewed",
+                  "21 leaves reviewed", "batch-1 leaves reviewed", "x1 leaves reviewed")
+        for claim in claims:
+            with self.subTest(claim=claim):
+                self.write_memory(memory_text(active=(memory_entry(claim),)))
+
+                self.assert_no_mismatch()
+
+    def test_number_word_after_another_number_word_or_a_dash_is_not_a_claim(self) -> None:
+        self.write_state(state_text(*reviewed_leaves(21)))
+        self.write_memory(memory_text(active=(memory_entry("status – one leaves reviewed"),)))
+        self.assert_mismatch()
+        claims = ("twenty one leaves reviewed", "all twenty one leaves reviewed",
+                  "twenty–one leaves reviewed", "all twenty–one leaves reviewed",
+                  "eleven–one leaves reviewed")
+        for claim in claims:
+            with self.subTest(claim=claim):
+                self.write_memory(memory_text(active=(memory_entry(claim),)))
+
+                self.assert_no_mismatch()
+
+    def test_directory_name_followed_by_a_dot_names_another_task(self) -> None:
+        self.write_state(state_text(*reviewed_leaves(10, unreviewed=(10,))))
+        self.write_memory(memory_text(active=(memory_entry(HISTORICAL_CLAIM),)))
+        self.assert_mismatch()
+
+        self.write_memory(memory_text(active=(memory_entry(HISTORICAL_CLAIM, "task-demo.1"),)))
+
+        self.assert_no_mismatch()
+
+    def test_every_pull_request_of_a_leaf_not_reviewed_is_compared(self) -> None:
+        pending = leaf("T-10", header=leaf_statuses("green", "complete", "in-progress"),
+                       body=leaf_body(extra="  pr: #114 draft, #120 draft\n"))
+        self.write_state(state_text(*reviewed_leaves(9), pending))
+        self.write_memory(memory_text(active=(memory_entry("PRs #112–#114 ready"),)))
+        self.assert_mismatch()
+
+        self.write_memory(memory_text(active=(memory_entry("PRs #118–#122 ready"),)))
+
+        self.assert_mismatch()
+
+    def test_pull_request_range_is_compared_with_reviewed_leaves_pr_fields(self) -> None:
+        cases = (("PRs #105–#114 ready", (), False), ("PRs #105-#114 ready", (), False),
+                 ("PRs #105–114 ready", (), False), ("PRs #105-114 ready", (), False),
+                 ("PRs #106–#109 merged", (), False),
+                 ("PRs #105–#115 ready", (), False), ("PRs #104-#114 ready", (), False),
+                 ("PRs #100–#120 merged", (), False), ("PRs #120–#125 merged", (), False),
+                 ("PRs #105-#114 ready", (10,), True), ("PRs #105–114 ready", (10,), True),
+                 ("PRs #114–#120 ready", (10,), True), ("PRs #100–#105 ready", (1,), True))
+        for claim, unreviewed, mismatch in cases:
+            with self.subTest(claim=claim, unreviewed=unreviewed):
+                self.write_state(state_text(*reviewed_leaves(10, unreviewed=unreviewed)))
+                self.write_memory(memory_text(active=(memory_entry(claim),)))
+
+                warnings = self.read_warnings()
+
+                self.assertEqual(MEMORY_WARNING in warnings, mismatch, warnings)
+
+    def test_claim_for_a_task_with_no_leaves_warns_and_an_entry_without_claims_does_not(
+            self) -> None:
+        self.write_state(state_text(composite_block("T-09")))
+        self.write_memory(memory_text(active=(memory_entry("all ten leaves reviewed"),)))
+        self.assert_mismatch()
+
+        self.write_memory(memory_text(active=(memory_entry("decomposition complete"),)))
+
+        self.assertEqual(self.read_ok(self.get())["warnings"], [])
+
+    def test_entry_in_done_section_or_naming_only_the_directory_is_compared(self) -> None:
+        self.write_state(state_text(*reviewed_leaves(10, unreviewed=(10,))))
+        entries = {"done section": memory_text(done=(memory_entry(HISTORICAL_CLAIM),)),
+                   "directory name only": memory_text(active=(
+                       f"task-demo | phase: validation | status: complete | note: "
+                       f"{HISTORICAL_CLAIM}",))}
+        for label, text in entries.items():
+            with self.subTest(entry=label):
+                self.write_memory(text)
+
+                self.assert_mismatch()
+
+    def test_lines_of_other_tasks_and_other_sections_are_ignored(self) -> None:
+        self.write_state(state_text(*reviewed_leaves(10, unreviewed=(10,))))
+        self.write_memory(memory_text(active=(memory_entry(HISTORICAL_CLAIM),)))
+        self.assert_mismatch()
+        ignored = {"similar directory with a suffix":
+                       memory_text(active=(memory_entry(HISTORICAL_CLAIM, "task-demo-2"),)),
+                   "similar directory with a prefix":
+                       memory_text(active=(memory_entry(HISTORICAL_CLAIM, "old-task-demo"),)),
+                   "deferred section": memory_text(deferred=(memory_entry(HISTORICAL_CLAIM),))}
+        for label, text in ignored.items():
+            with self.subTest(line=label):
+                self.write_memory(text)
+
+                self.assert_no_mismatch()
+
+    def test_mismatch_never_changes_the_exit_code_of_a_refused_read(self) -> None:
+        self.write_state(state_text(*reviewed_leaves(9),
+                                    leaf("T-10", header=leaf_statuses("red", "complete"))))
+        self.write_memory(memory_text(active=(memory_entry(HISTORICAL_CLAIM),)))
+
+        validation = self.invalid(self.validate(), 6, "completion-without-tests")
+        missing = self.get("--block", "T-99")
+
+        self.assertIn(MEMORY_WARNING, validation["warnings"])
+        self.assertIn(MEMORY_WARNING, self.read_ok(self.get())["warnings"])
+        self.refused(missing, 3, "block-missing")
+
+    def test_reads_leave_the_memory_file_unchanged(self) -> None:
+        self.write_state(state_text(*reviewed_leaves(10, unreviewed=(10,))))
+        self.write_memory(memory_text(active=(memory_entry(HISTORICAL_CLAIM),)))
+        before = snapshot(self.root)
+
+        self.assert_mismatch()
+
+        self.assertEqual(snapshot(self.root), before)
+
+
+class MemoryFileSafetyTests(MemoryConsistencyCase):
+    """A memory file that cannot be read safely gives no warning and never an error."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.write_state(state_text(*reviewed_leaves(10, unreviewed=(10,))))
+        self.text = memory_text(active=(memory_entry(HISTORICAL_CLAIM),))
+        self.write_memory(self.text)
+        self.assert_mismatch()
+        self.memory.unlink()
+
+    def test_missing_memory_file_or_directory_gives_no_warning(self) -> None:
+        self.assert_no_mismatch()
+        self.memory.parent.rmdir()
+
+        self.assert_no_mismatch()
+
+    def test_symbolic_link_to_a_memory_file_gives_no_warning(self) -> None:
+        target = self.base / "linked-memory.md"
+        target.write_text(self.text, encoding="utf-8")
+        self.memory.symlink_to(target)
+
+        self.assert_no_mismatch()
+
+    def test_memory_directory_reached_through_a_symbolic_link_gives_no_warning(self) -> None:
+        linked = self.base / "linked-memory"
+        linked.mkdir()
+        (linked / "state.md").write_text(self.text, encoding="utf-8")
+        self.memory.parent.rmdir()
+        self.memory.parent.symlink_to(linked, target_is_directory=True)
+
+        self.assert_no_mismatch()
+
+    def test_knowledge_base_directory_reached_through_a_symbolic_link_gives_no_warning(
+            self) -> None:
+        real = self.root / "knowledge"
+        (self.root / ".ai").rename(real)
+        (self.root / ".ai").symlink_to(real, target_is_directory=True)
+        (real / "memory" / "state.md").write_text(self.text, encoding="utf-8")
+
+        self.assert_no_mismatch()
+
+    def test_platform_without_a_no_follow_open_flag_gives_no_warning(self) -> None:
+        self.write_memory(self.text)
+        arguments = ("get", "--root", str(self.root), "--task", str(self.task))
+        with_flag = InProcessTests.run_in_process(self, *arguments)  # type: ignore[arg-type]
+        self.assertIn(MEMORY_WARNING, self.read_ok(with_flag)["warnings"])
+        saved = os.O_NOFOLLOW
+        del os.O_NOFOLLOW
+        try:
+            without_flag = InProcessTests.run_in_process(self, *arguments)  # type: ignore[arg-type]
+        finally:
+            os.O_NOFOLLOW = saved
+
+        self.assertNotIn(MEMORY_WARNING, self.read_ok(without_flag)["warnings"])
+
+    def test_memory_file_that_is_not_utf8_gives_no_warning(self) -> None:
+        self.write_memory(self.text.encode("utf-8") + b"\xff\xfe broken\n")
+
+        self.assert_no_mismatch()
+
+    def test_memory_file_larger_than_the_bound_gives_no_warning(self) -> None:
+        padding = "- " + "x" * 98 + "\n"
+        filler = padding * ((MEMORY_LIMIT_BYTES - len(self.text.encode("utf-8"))) // len(padding))
+        exact = self.text + filler
+        exact += "x" * (MEMORY_LIMIT_BYTES - len(exact.encode("utf-8")))
+        self.write_memory(exact)
+        self.assertEqual(self.memory.stat().st_size, MEMORY_LIMIT_BYTES)
+        self.assert_mismatch()
+
+        self.write_memory(exact + "x")
+
+        self.assert_no_mismatch()
+
+    def test_memory_path_that_is_a_fifo_or_a_directory_gives_no_warning(self) -> None:
+        os.mkfifo(self.memory)
+        self.assert_no_mismatch()
+        self.memory.unlink()
+        self.memory.mkdir()
+
+        self.assert_no_mismatch()
+
+
+def numbered_leaves(numbers: range, *, validation: str, first_pr: int | None) -> list[str]:
+    """Leaves with the given numbers and validation status; with first_pr each records
+    consecutive pull requests from it, otherwise none records one."""
+    blocks = []
+    for number in numbers:
+        extra = "" if first_pr is None else f"  pr: #{first_pr + number - numbers[0]} ready\n"
+        execution = "complete" if validation == "complete" else "not-started"
+        tests = "green" if validation == "complete" else "not-started"
+        blocks.append(leaf(f"T-{number:02d}", body=leaf_body(extra=extra),
+                           header=leaf_statuses(tests, execution, validation)))
+    return blocks
+
+
+class AccurateMemoryEntryTests(MemoryConsistencyCase):
+    """Accurate entries name pull requests that no listed leaf records; they give no warning."""
+
+    def assert_accurate(self, state: str, claim: str) -> None:
+        self.write_state(state)
+        self.write_memory(memory_text(done=(memory_entry(claim),)))
+
+        self.assertNotIn(MEMORY_WARNING, self.read_ok(self.get())["warnings"])
+        self.assertNotIn(MEMORY_WARNING, self.output(self.validate())["warnings"])
+
+    def test_range_that_includes_a_prerequisite_pull_request_does_not_warn(self) -> None:
+        self.assert_accurate(
+            state_text(*numbered_leaves(range(1, 6), validation="complete", first_pr=41)),
+            "five leaves and a setup change reviewed; PRs #40–#46 merged")
+
+    def test_range_partly_recorded_by_leaves_the_parser_does_not_list_does_not_warn(
+            self) -> None:
+        unlisted_pr = leaf("T-01", header=leaf_statuses("green", "complete", "complete"),
+                           body=leaf_body("reviewed", extra="\n  pr: #50 ready\n"))
+        listed = numbered_leaves(range(2, 5), validation="complete", first_pr=51)
+        outside = numbered_leaves(range(5, 6), validation="complete", first_pr=54)[0]
+        self.assert_accurate(
+            state_text(unlisted_pr, *listed,
+                       after="## Delivery Notes\n\nEvery change reviewed.\n\n" + outside),
+            "all five PRs #50–#54 merged")
+
+    def test_partially_closed_task_with_unstarted_leaves_and_unrecorded_range_does_not_warn(
+            self) -> None:
+        self.assert_accurate(
+            state_text(*numbered_leaves(range(1, 4), validation="not-started", first_pr=None)),
+            "#60–#62 delivered; the remaining work is deferred")
+
+
+class MemoryWarningDocumentationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.manual = MANUAL.read_text(encoding="utf-8")
+
+    def test_tool_description_names_the_memory_warning_outside_the_exit_codes(self) -> None:
+        description = ast.get_docstring(ast.parse(TOOL.read_text(encoding="utf-8")))
+        assert description is not None
+        self.assertIn(MEMORY_WARNING, description[:description.index("Exit codes:")])
+        self.assertNotIn(MEMORY_WARNING, description[description.index("Exit codes:"):])
+
+    def test_manual_state_tool_section_names_the_memory_warning(self) -> None:
+        section = ManualTests.section(self, STATE_TOOL_HEADING)  # type: ignore[arg-type]
+        self.assertIn(f"`{MEMORY_WARNING}`", section)
+
+
 if __name__ == "__main__":
     unittest.main()
