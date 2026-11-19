@@ -265,7 +265,8 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
 - **REQ-11 Output files and permitted changes.** THE delivery SHALL create or change only:
   `scripts/audit-instructions.py`, `scripts/check-audit-instructions.py`, the three
   `docs/audits/<run_date>-rules-workflows-audit.*` files (DM-1, DM-7, DM-8), one index line in
-  `docs/README.md`, one table row per new script in `scripts/README.md`, the commands note in
+  `docs/README.md`, one table row per new script in `scripts/README.md`, the git version matrix
+  `scripts/audit-git-matrix/Dockerfile` and `scripts/audit-git-matrix/run.sh` (D-06), the commands note in
   `.ai/context/runbook.md`, the inventory sentence `.ai/memory/architecture.md:22-23`,
   `.ai/memory/state.md` and `.ai/memory/progress.md`, plus the records the pipeline itself
   writes for this task: `.ai/tasks/todo/task-*-rules-workflows-audit/**` and its archived copy
@@ -373,7 +374,7 @@ stated; "path order" means Python string order of the path.
 | Key | Type | Content |
 |---|---|---|
 | `schema_version` | integer | `1` |
-| `method_version` | string | `"08-extract-1"`; any change to DM-2–DM-6 behaviour changes it |
+| `method_version` | string | `"08-extract-1"`; any change to DM-2–DM-6 behaviour changes it, except the D-05 corrections, which keep `08-extract-1` by owner decision (D-06) |
 | `source_revision` | string or null | `git rev-parse --verify HEAD` of the root; null when git or the work tree is unavailable |
 | `worktree` | object | `{"state": "clean" | "dirty" | "unknown", "paths": [...]}`; `paths` lists, in path order, every audited or reader path (after the DM-3 exclusions) that `git status --porcelain=v1 -z --untracked-files=all` reports; `state` is `dirty` exactly when `paths` is non-empty, otherwise `clean`; changes to excluded or unread files (the audit outputs, `VERSION`) do not count; `unknown` with `[]` when git is unavailable, and, without running `status`, when the root does not hold its own repository: it has no `.git` entry (for example a directory below the top level), its `.git` is neither a directory nor a regular file, or its `.git` directory has no `HEAD` naming a ref below `refs/` or an object name, or a common directory without `objects` and `refs` (`scripts/audit-instructions.py:1568-1585`, `:1738-1743`; D-05) |
 | `inventory_digest` | string | SHA-256 of the UTF-8 text formed by one line `<path>\t<set or class>\t<sha256 or ->\n` per entry of `files` and `readers` merged into one list sorted in path order |
@@ -1321,7 +1322,7 @@ source: `.ai/tasks/todo/task-08-rules-workflows-audit/state.md → ### Assumptio
     DM-2–DM-6 behaviour changes `method_version`; the subtasks kept `08-extract-1` because the
     schema pins it, so the re-extracted inventory carries the old value under changed rules.
     (2) REQ-11 permits no file under `scripts/audit-git-matrix/`, so AC-02's permitted-changes
-    check over the follow-up stack lists the two matrix files. Both are open as Q-06 (b) and (c).
+    check over the follow-up stack lists the two matrix files. Both are resolved by the owner in D-06.
   - *Recorded, not applied*: the optional validation findings T-14 O1–O6 and T-15 O1–O5 (owner:
     minor findings recorded, not reworked); T-09 Do Later goes to spec 09 with the accepted
     amendments (Notes → Follow-ups). T-16 and T-17 later passed independent validation (T-16
@@ -1330,6 +1331,13 @@ source: `.ai/tasks/todo/task-08-rules-workflows-audit/state.md → ### Assumptio
     `Accepted: owner 2026-11-18`. The accepted amendments AMD-08-01…07 are applied to spec 09.
     The shadowed separator pattern of Q-06 (a) is fixed by T-19.
 
+- D-06 | 2026-11-19 | Open conflicts of the D-05 reconciliation (Q-06 (b), (c)) | Decision (owner):
+  (b) record an exception instead of a new `method_version`: the D-05 corrections keep
+  `08-extract-1`, because the re-extraction at the audited revision differs from the delivered
+  inventory by exactly one false adapter edge and was independently verified; a later change
+  to DM-2–DM-6 behaviour changes the version as DM-1 states. (c) REQ-11 lists the git version
+  matrix `scripts/audit-git-matrix/Dockerfile` and `run.sh` as permitted delivery files.
+  Applied to DM-1 and REQ-11; no other requirement or criterion changes.
 ## Clarifications
 
 ### Session 2026-11-14
@@ -1389,7 +1397,7 @@ resolved as A-01–A-28; open items are Q-01 and Q-02.
   Output grammar. T-04 P8 was settled by D-04: an evidence path must name an inventory path. Not
   part of this question and still open: T-09 Do Later, applied to spec 09 after acceptance (Notes
   → Follow-ups).)*
-- Q-06 | non-blocker | Observed while reconciling D-05 (2026-11-18), no owner decision yet on (b) and (c):
+- Q-06 | resolved | Observed while reconciling D-05 (2026-11-18); (b) and (c) resolved by the owner in D-06 (2026-11-19):
   (a) [resolved 2026-11-18 by T-19: the terminology pattern has its own name, and duplicate and
   statement units use DM-6's rule again] `scripts/audit-instructions.py` binds `TABLE_SEPARATOR_RE` twice (`:1404`, then `:2747` for
   the terminology table); the later binding is the one the duplicate units (`:1455`) and the
@@ -1536,6 +1544,9 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
   line names `ce56065`, the owner accepted the report on 2026-11-18, the amendments were
   applied to spec 09, and T-19 fixes the shadowed separator pattern of Q-06 (a).
   No requirement or criterion removed, renumbered or reworded; line 23 untouched.
+- 2026-11-19 — owner decisions on Q-06 (D-06): the D-05 corrections keep `method_version`
+  `08-extract-1` as a recorded exception in DM-1; REQ-11 lists the git version matrix files;
+  Q-06 resolved. Line 23 untouched.
 
 ## Readiness Checklist
 
