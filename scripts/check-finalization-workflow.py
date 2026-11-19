@@ -467,10 +467,13 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
 
     RENAMED = 'git@github-personal:fixture-org/renamed.git'
     SAME_REPOSITORY = {'id': 4242, 'full_name': 'fixture-org/renamed', 'node_id': 'R_fixture'}
+    HOSTED_RESPONSE = dict(SAME_REPOSITORY, private=True, temp_clone_token='fixture-clone-token')
+    PINNED = ['gh', 'api', '--hostname', 'github.com']
 
-    def hosting(self, api: dict[str, list]) -> None:
-        """Answer gh api repos/<name> reads; an absent name is an unreadable repository."""
-        self.rename_table.write_text(json.dumps({'api': api, 'pr': {
+    def hosting(self, api: dict[str, list], unpinned: dict[str, list] | None = None) -> None:
+        """Answer gh api repos/<name> reads pinned to github.com from api, unpinned reads (gh's
+        configured default host) from unpinned; an absent name is an unreadable repository."""
+        self.rename_table.write_text(json.dumps({'api': api, 'unpinned': unpinned or {}, 'pr': {
             'state': 'CLOSED', 'baseRefName': 'main', 'headRefName': 'feat/delivery',
             'headRefOid': self.tip, 'mergeCommit': None, 'mergedAt': None}}))
 
@@ -485,15 +488,16 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.alias_fixture()
         self.rename_calls = self.root / '.ai/rename-calls.jsonl'
         self.rename_table = self.root / '.ai/rename-responses.json'
-        self.hosting({'repos/fixture-org/product': [0, self.SAME_REPOSITORY],
-                      'repos/fixture-org/renamed': [0, self.SAME_REPOSITORY]})
+        self.hosting({'repos/fixture-org/product': [0, self.HOSTED_RESPONSE],
+                      'repos/fixture-org/renamed': [0, self.HOSTED_RESPONSE]})
         script = '\n'.join((
             '#!' + sys.executable, 'import json, sys', 'from pathlib import Path',
             'argv = sys.argv[1:]',
             'with Path(' + repr(str(self.rename_calls)) + ').open("a") as handle: handle.write(json.dumps(argv) + "\\n")',
             'table = json.loads(Path(' + repr(str(self.rename_table)) + ').read_text())',
             'if argv[:1] == ["api"]:',
-            '    code, body = table["api"].get(argv[-1], [1, {"message": "Not Found"}])',
+            '    answers = table["api"] if argv[1:3] == ["--hostname", "github.com"] else table["unpinned"]',
+            '    code, body = answers.get(argv[-1], [1, {"message": "Not Found"}])',
             '    print(body if isinstance(body, str) else json.dumps(body))',
             '    raise SystemExit(code)',
             'if argv[:2] == ["repo", "view"]:',
@@ -544,10 +548,11 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
                           'effective_push_urls': [(self.root / '.ai/fixture-origin.git').as_uri()]}, row['to'])
         self.assertEqual(('fixture-org/product', 'fixture-org/renamed', 4242),
                          (row['from_identity'], row['to_identity'], row['repository_id']))
-        self.assertEqual([['gh', 'api', 'repos/fixture-org/product'], ['gh', 'api', 'repos/fixture-org/renamed']],
+        self.assertEqual([[*self.PINNED, 'repos/fixture-org/product'], [*self.PINNED, 'repos/fixture-org/renamed']],
                          [check['argv'] for check in row['checks']])
         self.assertEqual([0, 0], [check['exit_code'] for check in row['checks']])
-        self.assertEqual([self.SAME_REPOSITORY, self.SAME_REPOSITORY], [check['response'] for check in row['checks']])
+        self.assertEqual([self.SAME_REPOSITORY, self.SAME_REPOSITORY], [check['response'] for check in row['checks']],
+                         'Only id, full_name and node_id are kept; tokens in the full response are never stored')
         self.assertIsNotNone(datetime.fromisoformat(row['verified_at']).tzinfo)
         self.assertIsInstance(row['provenance'], str)
         self.assertTrue(row['provenance'].strip())
@@ -619,6 +624,122 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
                 self.assert_rename_refused(prior)
         self.environment = original
         self.assertEqual([], self.api_calls())
+
+    def test_rename_proof_is_pinned_to_github_com(self) -> None:
+        prior = self.rename_fixture()
+        self.hosting({'repos/fixture-org/product': [0, self.HOSTED_RESPONSE],
+                      'repos/fixture-org/renamed': [0, dict(self.HOSTED_RESPONSE, id=7777)]},
+                     unpinned={'repos/fixture-org/product': [0, self.HOSTED_RESPONSE],
+                               'repos/fixture-org/renamed': [0, self.HOSTED_RESPONSE]})
+        self.rename_origin(self.RENAMED)
+        self.assert_rename_refused(prior)
+        self.assertTrue(self.api_calls())
+        self.assertTrue(all(row[:3] == self.PINNED[1:] for row in self.api_calls()), self.api_calls())
+
+    def transport(self, configured: str, effective: str | None = None) -> dict:
+        effective = effective or (self.root / '.ai/fixture-origin.git').as_uri()
+        return {'name': 'origin', 'configured_fetch_urls': [configured], 'configured_push_urls': [],
+                'effective_fetch_urls': [effective], 'effective_push_urls': [effective]}
+
+    def recorded_rebinding(self, before: dict, after: dict, old: str, new: str, repository_id: int = 4242) -> dict:
+        """A well-formed entry exactly as a verified rename records it."""
+        response = dict(self.SAME_REPOSITORY, id=repository_id, full_name=new)
+        return {'repository': str(self.repo), 'from': before, 'to': after, 'from_identity': old, 'to_identity': new,
+                'repository_id': repository_id,
+                'host_resolution': {'kind': 'ssh-alias', 'ssh_argv': ['ssh', '-G', 'github-personal'],
+                                    'ssh_exit_code': 0, 'resolved_hostname': 'github.com'},
+                'checks': [{'argv': [*self.PINNED, 'repos/' + name], 'exit_code': 0, 'response': dict(response)}
+                           for name in (old, new)],
+                'verified_at': datetime.now(timezone.utc).isoformat(),
+                'provenance': 'fresh GitHub API reads in the isolated fixture'}
+
+    def with_rebindings(self, prior: dict, rows: list[dict]) -> dict:
+        path = Path(prior['journal_path'])
+        journal = json.loads(path.read_bytes())
+        journal['remote_rebindings'] = rows
+        data = (json.dumps(journal, sort_keys=True, indent=2) + '\n').encode()
+        path.write_bytes(data)
+        return dict(prior, revision=hashlib.sha256(data).hexdigest())
+
+    def other_storage(self, configured: str) -> str:
+        """Point the configured origin at different physical storage."""
+        other = self.root / '.ai/other-origin.git'
+        self.git(self.root, 'clone', '--bare', '--quiet', str(self.root / '.ai/fixture-origin.git'), str(other))
+        self.git(self.repo, 'remote', 'set-url', 'origin', configured)
+        self.git(self.repo, 'config', '--add', 'url.' + other.as_uri() + '.insteadOf', configured)
+        return other.as_uri()
+
+    def test_recorded_rebinding_is_revalidated_offline(self) -> None:
+        def unpinned(row: dict) -> None:
+            for check in row['checks']:
+                check['argv'] = ['gh', 'api', check['argv'][-1]]
+
+        def elsewhere(row: dict) -> None:
+            row['from_identity'] = 'fixture-org/elsewhere'
+            row['checks'][0]['argv'][-1] = 'repos/fixture-org/elsewhere'
+
+        tampers = {
+            'valid': lambda row: None,
+            'mismatched check ids': lambda row: row['checks'][1]['response'].update(id=4343),
+            'repository id differs from checks': lambda row: row.update(repository_id=4343),
+            'unpinned argv': unpinned,
+            'failed check': lambda row: row['checks'][0].update(exit_code=1),
+            'identity not derived from its URL': elsewhere,
+            'full_name is not the new name': lambda row: [check['response'].update(full_name='fixture-org/product') for check in row['checks']],
+            'full response retained': lambda row: row['checks'][0]['response'].update(temp_clone_token='fixture-clone-token'),
+            'another repository path': lambda row: row.update(repository=str(self.root / 'elsewhere')),
+            'undated verification': lambda row: row.update(verified_at='recently'),
+            'other host resolution': lambda row: row['host_resolution'].update(resolved_hostname='other.invalid'),
+        }
+        for name in [*tampers, 'forged entry for other storage', 'changed expanded destination']:
+            with self.subTest(case=name):
+                self.doCleanups()
+                self.setUp()
+                prior = self.rename_fixture()
+                original = prior['repositories'][0]['remote_identity']
+                self.hosting({})
+                if name == 'forged entry for other storage':
+                    evil = 'git@github-personal:evil-org/other.git'
+                    row = {'repository': str(self.repo), 'from': original, 'to': self.transport(evil, self.other_storage(evil)),
+                           'from_identity': 'x', 'to_identity': 'y', 'repository_id': 1, 'host_resolution': {},
+                           'checks': [{}, {}], 'verified_at': datetime.now(timezone.utc).isoformat(), 'provenance': 'forged'}
+                elif name == 'changed expanded destination':
+                    row = self.recorded_rebinding(original, self.transport(self.RENAMED, self.other_storage(self.RENAMED)),
+                                                  'fixture-org/product', 'fixture-org/renamed')
+                else:
+                    self.rename_origin(self.RENAMED)
+                    row = self.recorded_rebinding(original, self.transport(self.RENAMED), 'fixture-org/product', 'fixture-org/renamed')
+                    tampers[name](row)
+                result = self.checkpoint('record', self.with_rebindings(prior, [row]))
+                if name == 'valid':
+                    self.assertEqual('recorded', result['status'], result)
+                    self.assertEqual([row], result['remote_rebindings'])
+                else:
+                    self.blocked(result, 'journal-invalid')
+                self.assertEqual([], self.api_calls(), 'Recorded entries are revalidated offline')
+
+    def test_later_rebinding_keeps_the_original_repository_id(self) -> None:
+        third = 'git@github-personal:fixture-org/third.git'
+        for repository_id in (4242, 5555):
+            with self.subTest(repository_id=repository_id):
+                self.doCleanups()
+                self.setUp()
+                prior = self.rename_fixture()
+                original = prior['repositories'][0]['remote_identity']
+                first = self.recorded_rebinding(original, self.transport(self.RENAMED), 'fixture-org/product', 'fixture-org/renamed')
+                prior = self.with_rebindings(prior, [first])
+                answer = dict(self.HOSTED_RESPONSE, id=repository_id, full_name='fixture-org/third')
+                api = {'repos/fixture-org/renamed': [0, answer], 'repos/fixture-org/third': [0, answer]}
+                self.hosting(api, unpinned=api)
+                self.rename_origin(self.RENAMED)
+                self.rename_origin(third)
+                if repository_id == 4242:
+                    result = self.checkpoint('record', prior)
+                    self.assertEqual('recorded', result['status'], result)
+                    self.assertEqual(['fixture-org/renamed', 'fixture-org/third'],
+                                     [row['to_identity'] for row in result['remote_rebindings']])
+                else:
+                    self.assert_rename_refused(prior)
 
     def test_second_rename_without_its_own_proof_refuses(self) -> None:
         prior = self.rename_fixture()
