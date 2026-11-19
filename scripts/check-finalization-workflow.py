@@ -685,6 +685,7 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
             'unpinned argv': unpinned,
             'failed check': lambda row: row['checks'][0].update(exit_code=1),
             'identity not derived from its URL': elsewhere,
+            'recorded new identity alone differs from its URL': lambda row: row.update(to_identity='fixture-org/elsewhere'),
             'full_name is not the new name': lambda row: [check['response'].update(full_name='fixture-org/product') for check in row['checks']],
             'full response retained': lambda row: row['checks'][0]['response'].update(temp_clone_token='fixture-clone-token'),
             'another repository path': lambda row: row.update(repository=str(self.root / 'elsewhere')),
@@ -740,6 +741,28 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
                                      [row['to_identity'] for row in result['remote_rebindings']])
                 else:
                     self.assert_rename_refused(prior)
+
+    def test_recorded_later_rebinding_keeps_the_original_repository_id(self) -> None:
+        third = 'git@github-personal:fixture-org/third.git'
+        for name, (entry_id, check_id) in {'same id': (4242, 4242), 'new id throughout': (5555, 5555),
+                                           'entry id differs from checks': (5555, 4242)}.items():
+            with self.subTest(case=name):
+                self.doCleanups()
+                self.setUp()
+                prior = self.rename_fixture()
+                original = prior['repositories'][0]['remote_identity']
+                self.hosting({})
+                first = self.recorded_rebinding(original, self.transport(self.RENAMED), 'fixture-org/product', 'fixture-org/renamed')
+                second = self.recorded_rebinding(self.transport(self.RENAMED), self.transport(third),
+                                                 'fixture-org/renamed', 'fixture-org/third', check_id)
+                second['repository_id'] = entry_id
+                self.rename_origin(third)
+                result = self.checkpoint('record', self.with_rebindings(prior, [first, second]))
+                if name == 'same id':
+                    self.assertEqual('recorded', result['status'], result)
+                else:
+                    self.blocked(result, 'journal-invalid')
+                self.assertEqual([], self.api_calls())
 
     def test_second_rename_without_its_own_proof_refuses(self) -> None:
         prior = self.rename_fixture()

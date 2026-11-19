@@ -415,65 +415,116 @@ def origin_parts(remote: str) -> dict | None:
     return {'prefix': prefix, 'host': host, 'ssh': ssh, 'identity': owner + '/' + project, 'suffix': suffix}
 
 
+TRANSPORT_FIELDS = frozenset({'name', 'configured_fetch_urls', 'configured_push_urls', 'effective_fetch_urls', 'effective_push_urls'})
+HOSTING_RESPONSE_FIELDS = ('id', 'full_name', 'node_id')
+# Without --hostname, gh api uses its configured default host instead of GitHub.
+GITHUB_API = ('gh', 'api', '--hostname', 'github.com')
+
+
+def rename_shape(before: object, after: object, check: str) -> tuple[dict, dict]:
+    """Structural rename rules shared by fresh verification and offline revalidation."""
+    def well_formed(transport: object) -> bool:
+        return (isinstance(transport, dict) and set(transport) == TRANSPORT_FIELDS and transport['name'] == 'origin'
+                and all(isinstance(transport[key], list) and all(isinstance(url, str) for url in transport[key])
+                        for key in TRANSPORT_FIELDS - {'name'}))
+    require(well_formed(before) and well_formed(after), check, 'Origin transport bindings are malformed')
+    require(all(len(transport['configured_fetch_urls']) == 1 and not transport['configured_push_urls']
+                and len(transport['effective_fetch_urls']) == 1 and transport['effective_fetch_urls'] == transport['effective_push_urls']
+                for transport in (before, after)),
+            check, 'A rename needs exactly one configured origin URL and no push URL on both sides')
+    rewritten = [transport['effective_fetch_urls'] != transport['configured_fetch_urls'] for transport in (before, after)]
+    require(rewritten == [False, False] or (rewritten == [True, True] and before['effective_fetch_urls'] == after['effective_fetch_urls']),
+            check, 'Expanded destinations must follow the configured name on both sides or stay identical')
+    old, new = origin_parts(before['configured_fetch_urls'][0]), origin_parts(after['configured_fetch_urls'][0])
+    require(old is not None and new is not None, check, 'Both origins must be GitHub owner/repository identities')
+    require(old['prefix'] == new['prefix'] and old['suffix'] == new['suffix'] and old['identity'] != new['identity'],
+            check, 'Only the owner/repository path may differ; host, alias, user and form must stay the same')
+    require(new['host'].casefold() == 'github.com' or new['ssh'], check, 'Origin is not hosted on GitHub')
+    return old, new
+
+
+def rename_proof(checks: object, old: str, new: str, repository_id: int | None, check: str) -> int:
+    """Exactly two successful github.com-pinned reads naming one repository id and the new name."""
+    require(isinstance(checks, list) and len(checks) == 2
+            and all(isinstance(row, dict) and set(row) == {'argv', 'exit_code', 'response'} for row in checks)
+            and [row['argv'] for row in checks] == [[*GITHUB_API, 'repos/' + name] for name in (old, new)]
+            and all(type(row['exit_code']) is int and row['exit_code'] == 0 for row in checks),
+            check, 'Hosting reads must be the two successful github.com-pinned repository reads')
+    responses = [row['response'] for row in checks]
+    require(all(isinstance(row, dict) and tuple(sorted(row)) == tuple(sorted(HOSTING_RESPONSE_FIELDS))
+                and (row['node_id'] is None or isinstance(row['node_id'], str)) for row in responses),
+            check, 'Hosting responses must keep only id, full_name and node_id')
+    ids = [row['id'] for row in responses]
+    require(all(type(value) is int and value > 0 for value in ids) and ids[0] == ids[1]
+            and (repository_id is None or ids[0] == repository_id),
+            check, 'Old and new names are not the same hosting repository')
+    require(all(isinstance(row['full_name'], str) and row['full_name'].casefold() == new.casefold() for row in responses),
+            check, 'Hosting does not report the new name for both reads')
+    return ids[0]
+
+
+def host_resolution(resolution: object, host: str) -> bool:
+    if host.casefold() == 'github.com':
+        return resolution == {'kind': 'literal-github'}
+    return (isinstance(resolution, dict) and set(resolution) == {'kind', 'ssh_argv', 'ssh_exit_code', 'resolved_hostname'}
+            and resolution['kind'] == 'ssh-alias' and resolution['ssh_argv'] == ['ssh', '-G', host]
+            and type(resolution['ssh_exit_code']) is int and resolution['ssh_exit_code'] == 0
+            and resolution['resolved_hostname'] in {'github.com', 'ssh.github.com'})
+
+
 def rebinding_chain(journal: dict, repository: str, original: dict) -> list[dict]:
-    """Recorded rebindings for one repository, each continuing from the previous bound transport."""
+    """Recorded rebindings for one repository, revalidated offline under every verification rule."""
     rows = journal.get('remote_rebindings', [])
-    require(isinstance(rows, list) and all(isinstance(row, dict) for row in rows), 'journal-invalid', 'Remote rebindings must be a list of objects')
-    chain = [row for row in rows if row.get('repository') == repository]
+    paths = {item['path'] for item in journal['repositories']}
+    require(isinstance(rows, list) and all(isinstance(row, dict) and row.get('repository') in paths for row in rows),
+            'journal-invalid', 'Remote rebindings must be objects bound to journal repositories')
+    chain = [row for row in rows if row['repository'] == repository]
     previous = original
     for row in chain:
-        require(set(row) == REBINDING_FIELDS and row['from'] == previous and isinstance(row['to'], dict)
-                and type(row['repository_id']) is int and row['repository_id'] > 0 and dated(row['verified_at'])
-                and isinstance(row['from_identity'], str) and isinstance(row['to_identity'], str)
-                and isinstance(row['checks'], list) and len(row['checks']) == 2
+        require(set(row) == REBINDING_FIELDS and row['from'] == previous and dated(row['verified_at'])
                 and isinstance(row['provenance'], str) and row['provenance'].strip(),
                 'journal-invalid', 'Recorded remote rebinding is malformed or does not continue its chain')
+        old, new = rename_shape(row['from'], row['to'], 'journal-invalid')
+        require(row['from_identity'] == old['identity'] and row['to_identity'] == new['identity']
+                and host_resolution(row['host_resolution'], new['host']),
+                'journal-invalid', 'Recorded rebinding identities or host resolution differ from its URLs')
+        # The first entry's id was read for the original name; every later rename keeps it.
+        expected = chain[0]['repository_id']
+        require(type(expected) is int and row['repository_id'] == expected, 'journal-invalid', 'Recorded rebinding changes the repository id')
+        rename_proof(row['checks'], old['identity'], new['identity'], expected, 'journal-invalid')
         previous = row['to']
     return chain
 
 
-def verify_rebinding(repo: Path, before: dict, after: dict) -> dict:
+def verify_rebinding(repo: Path, before: dict, after: dict, repository_id: int | None) -> dict:
     """Prove that a changed origin names the same GitHub repository after a hosting rename."""
-    def refuse(condition: object, reason: str) -> None:
-        require(condition, 'remote-identity-changed', reason + '; only a verified hosting rename may rebind the origin')
     import json
-    refuse(not os.environ.get('GH_REPO') and not os.environ.get('GH_HOST'), 'Repository/host environment overrides cannot select hosting authority')
-    refuse(all(len(transport['configured_fetch_urls']) == 1 and not transport['configured_push_urls'] for transport in (before, after)),
-           'A rename needs exactly one configured origin URL and no push URL on both sides')
-    rewritten = [transport['effective_fetch_urls'] != transport['configured_fetch_urls'] for transport in (before, after)]
-    refuse(rewritten == [False, False] or (rewritten == [True, True] and before['effective_fetch_urls'] == after['effective_fetch_urls']),
-           'Expanded destinations must follow the configured name on both sides or stay identical')
-    old, new = origin_parts(before['configured_fetch_urls'][0]), origin_parts(after['configured_fetch_urls'][0])
-    refuse(old is not None and new is not None, 'Both origins must be GitHub owner/repository identities')
-    refuse(old['prefix'] == new['prefix'] and old['suffix'] == new['suffix'] and old['identity'] != new['identity'],
-           'Only the owner/repository path may differ; host, alias, user and form must stay the same')
+    check = 'remote-identity-changed'
+    require(not os.environ.get('GH_REPO') and not os.environ.get('GH_HOST'), check,
+            'Repository/host environment overrides cannot select hosting authority')
+    old, new = rename_shape(before, after, check)
     if new['host'].casefold() == 'github.com':
         resolution: dict = {'kind': 'literal-github'}
     else:
-        refuse(new['ssh'], 'Origin is not hosted on GitHub')
-        argv = ['ssh', '-G', new['host']]
-        resolution = {'kind': 'ssh-alias', 'ssh_argv': argv, 'ssh_exit_code': 0,
-                      'resolved_hostname': github_ssh_host(repo, new['host'], 'remote-identity-changed')}
+        resolution = {'kind': 'ssh-alias', 'ssh_argv': ['ssh', '-G', new['host']], 'ssh_exit_code': 0,
+                      'resolved_hostname': github_ssh_host(repo, new['host'], check)}
     checks: list[dict] = []
     for name in (old['identity'], new['identity']):
-        argv = ['gh', 'api', 'repos/' + name]
+        argv = [*GITHUB_API, 'repos/' + name]
         observed = process(argv, repo)
         try:
             response = json.loads(observed.stdout)
         except ValueError:
             response = None
-        refuse(observed.returncode == 0 and isinstance(response, dict), 'Hosting repository read failed or returned an invalid response')
-        checks.append({'argv': argv, 'exit_code': observed.returncode, 'response': response})
-    ids = [check['response'].get('id') for check in checks]
-    refuse(all(type(value) is int and value > 0 for value in ids) and ids[0] == ids[1],
-           'Old and new names are not the same hosting repository')
-    refuse(all(isinstance(check['response'].get('full_name'), str)
-               and check['response']['full_name'].casefold() == new['identity'].casefold() for check in checks),
-           'Hosting does not report the new name for both reads')
-    refuse(remote_identity(repo) == after, 'Origin changed during rename verification')
+        require(observed.returncode == 0 and isinstance(response, dict), check, 'Hosting repository read failed or returned an invalid response')
+        # Only identity fields are kept; full responses can carry tokens such as temp_clone_token.
+        checks.append({'argv': argv, 'exit_code': observed.returncode,
+                       'response': {key: response.get(key) for key in HOSTING_RESPONSE_FIELDS}})
+    identifier = rename_proof(checks, old['identity'], new['identity'], repository_id, check)
+    require(remote_identity(repo) == after, check, 'Origin changed during rename verification')
     return {'repository': str(repo), 'from': before, 'to': after, 'from_identity': old['identity'],
-            'to_identity': new['identity'], 'repository_id': ids[0], 'host_resolution': resolution, 'checks': checks,
-            'verified_at': now(), 'provenance': 'fresh GitHub API reads: the old name redirects to the new name with the same repository id'}
+            'to_identity': new['identity'], 'repository_id': identifier, 'host_resolution': resolution, 'checks': checks,
+            'verified_at': now(), 'provenance': 'fresh github.com-pinned GitHub API reads: the old name redirects to the new name with the same repository id'}
 
 
 def remote_refs(repo: Path) -> tuple[dict[str, str], str | None]:
@@ -672,7 +723,7 @@ def assess(root: Path, task: Path, spec: Path, evidence: dict, journal: dict | N
             chain = rebinding_chain(journal, str(repo), bound)
             accepted = [bound, *(row['to'] for row in chain)]
             if transport not in accepted:
-                rebinding = verify_rebinding(repo, accepted[-1], transport)
+                rebinding = verify_rebinding(repo, accepted[-1], transport, chain[0]['repository_id'] if chain else None)
                 rebindings.append(rebinding)
                 chain.append(rebinding)
             renamed = frozenset(name.casefold() for row in chain for name in (row['from_identity'], row['to_identity']))

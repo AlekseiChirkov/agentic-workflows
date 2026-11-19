@@ -158,16 +158,23 @@ equal the configured URL on both sides or stay identical; both URLs parse as Git
 owner/repository identities with the same transport prefix (scheme or form, user, host or
 SSH alias) and suffix, differing only in owner/repository; a non-github.com host must be
 an SSH alias that ssh -G translates to GitHub; GH_REPO/GH_HOST are refused; gh api
-repos/OLD and gh api repos/NEW both exit 0 with JSON objects carrying the same positive
-integer id and full_name equal (case-insensitively) to NEW. Journal remote_rebindings[] is
-append-only, outside the plan digest; each entry has exactly repository, from and to (full
-remote_identity objects), from_identity, to_identity, repository_id, host_resolution,
-checks[{argv,exit_code,response}], verified_at (dated) and provenance. Entries chain per
-repository: each 'from' equals the previous 'to' (first: the original binding); a further
-change needs its own verified entry. PR evidence is re-read through the current origin;
-an explicit recorded PR URL naming an earlier name in the verified chain resolves to the
-current name. Hook receipts keep the original binding, so after a rebinding they match no
-current origin and authorize no deletion.
+--hostname github.com repos/OLD and the same read of repos/NEW (pinned, never gh's
+configured default host) both exit 0 with JSON objects carrying the same positive integer
+id and full_name equal (case-insensitively) to NEW; a later rename must keep the id of the
+first entry, which was read for the original name. Journal remote_rebindings[] is
+append-only, outside the plan digest; each entry has exactly repository (a journal
+repository path), from and to (full remote_identity objects), from_identity, to_identity,
+repository_id, host_resolution ({kind:'literal-github'} or {kind:'ssh-alias', ssh_argv,
+ssh_exit_code:0, resolved_hostname}), checks (exactly the two pinned reads, each
+{argv,exit_code:0,response}, response keeping only {id,full_name,node_id}), verified_at
+(dated) and provenance. Entries chain per repository: each 'from' equals the previous 'to'
+(first: the original binding); a further change needs its own verified entry. Every
+reconciliation revalidates recorded entries offline under all of these rules, including
+identities derived from the URLs and ids equal to repository_id; any violation is
+journal-invalid. PR evidence is re-read through the current origin; an explicit recorded
+PR URL naming an earlier name in the verified chain resolves to the current name. Hook
+receipts keep the original binding, so after a rebinding they match no current origin and
+authorize no deletion.
 Rewritten history requires exact original head/ref, intended integration base,
 MERGED state, dated merge and reachable merge object. An ordinary closed PR or a
 merge only into a stack feature does not qualify. Ancestry checks all original
