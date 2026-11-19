@@ -219,6 +219,9 @@ def spec_eligible(root: Path, task: Path, spec: Path, journal: dict) -> tuple[bo
 def section_nonempty(value: str, heading: str) -> bool:
     from finalization_support import section
     body = section(value, heading).strip().casefold()
+    legacy_empty = '(none) — no issue or required subtask scope deferred; optional hardening proposals retained separately.'
+    if heading == '## Deferred' and body == legacy_empty:
+        return False
     return body not in {'', 'none', '(none)', '- none', '- (none)'}
 
 
@@ -226,7 +229,7 @@ def pointer_plans(root: Path, journal: dict, task_destination: Path, spec_destin
     result: list[dict] = []
     original_task = Path(journal['task_original'])
     original_spec = Path(journal['spec_original'])
-    for relative in ('.ai/memory/state.md', '.ai/memory/architecture.md', '.ai/specs/README.md', '.ai/README.md'):
+    for relative in ('.ai/memory/state.md', '.ai/memory/architecture.md', '.ai/specs/README.md', '.ai/specs/00-remaining-scope-index.md', '.ai/README.md'):
         path = safe_path(root / relative, root)
         if not path.exists():
             continue

@@ -540,6 +540,33 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertEqual('incomplete', result['outcomes']['checkout'],
                          'An integration branch still awaiting FF refresh is not a completed checkout')
 
+    def test_legacy_empty_deferred_scope_archives_only_without_required_entries(self) -> None:
+        declaration = '(none) — no issue or required subtask scope deferred; optional hardening proposals retained separately.'
+        for index, (heading, body, expected) in enumerate((
+                ('Deferred', declaration, 'complete'),
+                ('Deferred', declaration + '\n- Required export remains deferred.', 'unfinished-scope'),
+                ('Deferred', '(none) — required export deferred', 'unfinished-scope'),
+                ('Outstanding Scope', declaration, 'unfinished-scope'))):
+            with self.subTest(heading=heading, body=body):
+                if index:
+                    self.doCleanups()
+                    self.setUp()
+                (self.task / 'state.md').write_text(self.state_text + '\n## ' + heading + '\n' + body + '\n')
+                prior = self.attested(self.clean_actions(self.prepare()))
+                archived = self.checkpoint('archive', prior)
+                self.assertEqual('archived', archived['status'], archived)
+                self.assertEqual(expected, archived['outcomes']['spec_archival'])
+
+    def test_scope_index_link_relocates_through_journaled_archive_plan(self) -> None:
+        path = self.root / '.ai/specs/00-remaining-scope-index.md'
+        path.write_text('[Delivered product](delivery.md)\n')
+        self.put_evidence(knowledge_inventory=[{'path': '.ai/specs/00-remaining-scope-index.md', 'kind': 'current-record'}])
+        prior = self.attested(self.clean_actions(self.prepare()))
+        archived = self.checkpoint('archive', prior)
+        self.assertEqual('archived', archived['status'], archived)
+        self.assertEqual('[Delivered product](completed/delivery.md)\n', path.read_text())
+        self.assertTrue(self.checkpoint('finish', archived)['complete'])
+
     def test_outstanding_scope_in_any_completed_phase_keeps_whole_spec_active(self) -> None:
         for heading in ('Deferred', 'Outstanding Scope'):
             with self.subTest(heading=heading):
