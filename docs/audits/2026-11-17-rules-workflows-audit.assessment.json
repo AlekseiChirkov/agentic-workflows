@@ -5050,7 +5050,7 @@
         584,
         619
       ],
-      "observation": "Besides contracts and the two decision protocols that the section map already separates, the file holds a procedure (`## Description Amendment`, :66-91; the composite promotion steps inside the classifier, :530-544) and reference material (`## Legacy tasks`, :584-586, which names one consumer's old directories; `## File Location Reference`, :619-634).",
+      "observation": "Besides contracts and the two decision protocols that the section map already separates, the file holds a third protocol, the model resolution in ``## Parent `plan.md` Table Format`` (:97-188), which the map keeps in rules/contract-state-files.md and AUD-08-028 records as conditional context; a procedure (`## Description Amendment`, :66-91; the composite promotion steps inside the classifier, :530-544) and reference material (`## Legacy tasks`, :584-586, which names one consumer's old directories; `## File Location Reference`, :619-634).",
       "consequence": "The target `contract-state-files` will hold a procedure and reference sections that are not needed to act.",
       "owner": "09",
       "closure": "The map records where the procedure and reference sections go, or keeps them with a recorded reason.",
@@ -5293,7 +5293,7 @@
       "observation": "`## Context Pack` (:40) follows the last preamble line (:39) without a blank line and opens one section that runs to :127. Besides the optional pack it holds the global phase principles: never auto-advance (:56), continue never restart (:58), wait for user decisions (:60), the registry of workflow-declared mode overrides (:62-85), the `--batch` meaning (:87-94), the trust mechanism (:98-102), orchestrated mode (:106-112) and test-first execution (:114-120). The registry has no heading of its own although workflows/pav-propose.md:12 cites it as `workflow-globals → Workflow-declared mode overrides`.",
       "consequence": "A section-level load or move of `## Context Pack` carries the core phase contract, a load of the principles without it is impossible, and the cited registry cannot be resolved as a section.",
       "owner": "11",
-      "closure": "The principles stand under headings of their own (the mode-override registry among them) before any section-level loading or split of the file, and `## Context Pack` holds only the pack.",
+      "closure": "The principles stand under headings of their own (the mode-override registry among them) before any section-level loading or split of the file, and `## Context Pack` holds only the pack; the references that AUD-08-004 and AUD-08-036 record then name those headings.",
       "blocks_09": false,
       "status": "open",
       "evidence": [
@@ -6005,7 +6005,7 @@
         72
       ],
       "observation": "Each leaf compresses the same parent state three times in one Execution: /pae-finalize after execution (pae-finalize.md:62), /pav-close after validation (pav-close.md:51) and /pe-execute right after the leaf is reviewed (:72). The /pav-close pass follows the writes of /pav-check, /pav-propose and its own status update; the /pe-execute pass follows no write since that pass. A composite check (phase-composite-validation.md:85), each fix cycle (pv-execute-fixes.md:43) and the orchestrated loop (spec-run.md:403) add further passes.",
-      "consequence": "Each pass reads the whole state and audits it against the protected-sections contract, so the cost grows with the number of leaves; the /pe-execute pass audits a state the /pav-close pass has just compressed, and the other two each follow only the few lines one step wrote.",
+      "consequence": "Each pass reads the whole state and audits it against the protected-sections contract, so the cost grows with the number of leaves; the /pav-close pass follows the writes of /pav-check, /pav-propose and /pav-close, and the /pae-finalize pass those of the execution cycle; only the /pe-execute pass follows no write and audits a state the /pav-close pass has just compressed.",
       "owner": "13",
       "closure": "One compression checkpoint per leaf cycle, owned by one workflow, with the others returning to it.",
       "blocks_09": false,
@@ -6183,7 +6183,7 @@
         22,
         23
       ],
-      "observation": "/pe-finalize runs the `phase-execution` Context Bootstrap \"including standalone runs\", that is under /phase-execution as well, which ran it at phase-execution.md:53. /pv-create-fixes (:29) and /pv-finalize (:29) do the same under /phase-validation (:54). Unlike the atomic phase rules, the phase-execution and phase-validation rules have no reuse clause (rules/phase-execution.md:10-12, rules/phase-validation.md:10-12). The global rules answer both ways: the standalone sentence says to run the full bootstrap and never assume pre-loaded context, while the next sentence reuses unchanged context within one parent invocation (rules/workflow-globals.md:35-36). Read literally, the step text reloads the seven bootstrap sources under its parent.",
+      "observation": "/pe-finalize runs the `phase-execution` Context Bootstrap \"including standalone runs\", that is under /phase-execution as well, which ran it at phase-execution.md:53. /pv-create-fixes (:29) and /pv-finalize (:29) do the same under /phase-validation (:54). Unlike the atomic phase rules, the phase-execution and phase-validation rules have no reuse clause (rules/phase-execution.md:10-12, rules/phase-validation.md:10-12). The global rules answer both ways: the standalone sentence says to run the full bootstrap and never assume pre-loaded context, while the next sentence reuses unchanged context within one parent invocation (rules/workflow-globals.md:36-37). Read literally, the step text reloads the seven bootstrap sources under its parent.",
       "consequence": "Whether every Execution and Validation reloads the knowledge-base bootstrap inside the session that already holds it depends on which global sentence the agent applies; the step text, which says to bootstrap in both modes, points to the reload.",
       "owner": "12",
       "closure": "The three steps bootstrap only when invoked standalone, as /pe-execute does (pe-execute.md:23-24), or the two phase rules gain the reuse clause of the atomic rules.",
@@ -6198,8 +6198,8 @@
         "rules/phase-execution.md:10",
         "rules/phase-validation.md:10",
         "workflows/pe-execute.md:23",
-        "rules/workflow-globals.md:35",
-        "rules/workflow-globals.md:36"
+        "rules/workflow-globals.md:36",
+        "rules/workflow-globals.md:37"
       ],
       "edges": []
     },
@@ -6215,7 +6215,7 @@
         24
       ],
       "observation": "Children load their phase rule unconditionally while limiting the full bootstrap to standalone runs (pe-execute.md:23-24, pav-check.md:24-25, pv-contract.md:22-23, pv-review.md:27-28, pv-execute-fixes.md:26-27), or run the bootstrap in both modes where the rule's reuse clause keeps the sources (pav-close.md:26, pav-propose.md:18, and phase-composite-validation.md:18 when /pav-close calls it). Their callers loaded the same rule (phase-execution.md:53, phase-atomic-validation.md:21, phase-validation.md:54, pav-close.md:26). The atomic-validation reuse clause keeps current sources for the same resolved project (rules/phase-atomic-validation.md:10-14), so a composite in another `working_dir:` loads its own sources legitimately; in every case the repeat is the rule text.",
-      "consequence": "The rule text is loaded again by each step of a phase; the general reuse rule (rules/workflow-globals.md:35-36) is not restated where the load is written.",
+      "consequence": "The rule text is loaded again by each step of a phase; the general reuse rule (rules/workflow-globals.md:36-37) is not restated where the load is written.",
       "owner": "12",
       "closure": "The load sentence of each child is conditional on the rule not being loaded in the session.",
       "blocks_09": false,
@@ -6230,7 +6230,7 @@
         "workflows/pv-execute-fixes.md:26",
         "workflows/phase-composite-validation.md:18",
         "rules/phase-atomic-validation.md:10",
-        "rules/workflow-globals.md:35"
+        "rules/workflow-globals.md:36"
       ],
       "edges": []
     },
@@ -8998,7 +8998,7 @@
       "change": "semantic",
       "current": "A finding this grammar produces on the parent tree is a pre-existing defect: the delivery\nfixes it and lists it in DM-20 → Pre-existing reference defects.",
       "proposed": "A finding this grammar produces on the parent tree is a pre-existing defect: the delivery fixes it and lists it in DM-20 → Pre-existing reference defects. The same holds for every reference defect that 08's accepted report records with owner 09 outside this grammar, in scan set E or R: a section reference without its heading marker gains the marker of the existing heading; a reference to a paragraph label that is no heading names the heading whose extent holds the label; a reference broken across lines is joined into one span; a rule or workflow name with `.md` in a span loses the suffix or becomes a `/<name>` command. These fixes are edits permitted beside DM-1 substitutions; no `## ` heading is renamed or added for them, and each is listed in the same DM-20 table.",
-      "reason": "The audit gives pre-existing reference defects to the naming migration (spec 08 A-18), but this grammar finds and fixes only marked section references, commands, rule names and paths in scan set E. The recorded defects outside it are unmarked or paragraph-label section references (AUD-08-001, AUD-08-004, AUD-08-005, AUD-08-033, AUD-08-036, AUD-08-062), a reference broken across lines (AUD-08-007) and suffixed workflow file names in span lists (AUD-08-035); REQ-25 renames their stems as stale names but neither repairs nor checks them, so they survive the migration unchecked.",
+      "reason": "The audit gives pre-existing reference defects to the naming migration (spec 08 A-18), but this grammar finds and fixes only marked section references, commands, rule names and paths in scan set E. The recorded defects outside it are unmarked or paragraph-label section references (AUD-08-001, AUD-08-004, AUD-08-005, AUD-08-033, AUD-08-036, AUD-08-062), a reference broken across lines (AUD-08-007) and suffixed workflow file names in span lists (AUD-08-035); REQ-25 renames their stems as stale names but neither repairs nor checks them, so they survive the migration unchecked. AMD-08-02 (the acceptance criterion that checks this) and AMD-08-05 (the DM-20 table that lists the fixes) carry it into the other normative places, and the set is consistent only when all three are accepted.",
       "evidence": [
         "AUD-08-001",
         "AUD-08-004",
@@ -9049,7 +9049,7 @@
       "target": "REQ-19",
       "change": "semantic",
       "current": "EACH bootstrap rule SHALL contain, after its front matter and one optional H1,\n  exactly the two `## ` sections `## Context Bootstrap` then `## Phase Behaviors` and at most\n  300 words (DM-19); IF the moved text exceeds 300 words, THEN the excess `## Phase Behaviors`\n  text SHALL move to the overflow rule DM-10 names for that phase, cited from\n  `## Phase Behaviors`, and SHALL never be deleted.",
-      "proposed": "EACH bootstrap rule SHALL contain, after its front matter and one optional H1, exactly the two `## ` sections `## Context Bootstrap` then `## Phase Behaviors` and at most 300 words (DM-19), unless DM-20 → Bootstrap size exceptions lists it; IF the moved text exceeds 300 words, THEN the excess `## Phase Behaviors` text SHALL move to the overflow rule DM-10 names for that phase, cited from `## Phase Behaviors`, and SHALL never be deleted; IF the front matter, the moved `## Context Bootstrap` section and the citing line alone exceed 300 words, THEN THE bootstrap rule SHALL keep that section whole, SHALL move all other `## Phase Behaviors` text to the overflow rule, and SHALL be listed in DM-20 → Bootstrap size exceptions with its word count and that reason.",
+      "proposed": "EACH bootstrap rule SHALL contain, after its front matter and one optional H1, exactly the two `## ` sections `## Context Bootstrap` then `## Phase Behaviors` and, unless DM-20 → Bootstrap size exceptions lists it, at most 300 words (DM-19); IF the moved text exceeds 300 words, THEN the excess `## Phase Behaviors` text SHALL move to the overflow rule DM-10 names for that phase, cited from `## Phase Behaviors`, and SHALL never be deleted; IF the front matter, the moved `## Context Bootstrap` section, the `## Phase Behaviors` heading and the citing line alone exceed 300 words, THEN THE bootstrap rule SHALL keep the `## Context Bootstrap` section whole, SHALL move all other `## Phase Behaviors` text to the overflow rule, and SHALL be listed in DM-20 → Bootstrap size exceptions with its word count and that reason.",
       "reason": "At the audited revision the atomic-execution bootstrap cannot meet the limit by overflow alone (AUD-08-063): its preamble and `## Context Bootstrap` already have 316 words, and DM-12 moves that section verbatim, so the current REQ-19 can be met only by deleting or rewording load instructions, which it forbids. This amendment states the exception; AMD-08-04 (checker), AMD-08-06 (the DM-20 table it refers to) and AMD-08-07 (AC-11) carry it into the other normative places, and the set is consistent only when all four are accepted. Three further statements of the limit are not amendment targets and are left for the reconciliation of the specification: the Non-Functional Requirements row `Bootstrap rule` (spec 09:1196), the Edge Cases row `Bootstrap over 300 words after the move` (:1244) and the Risks row `Bootstrap rules exceed 300 words after the move` (:1563). DM-10's measurement of about 393 words (:850) is out of date (443 words at the audited revision) but states no rule. Alternatives left to the owner: shorten the section under spec 11's obligation map before this migration, or move the path resolution that the atomic-validation bootstrap repeats (duplicate group DG-004) into a procedure rule; both change text that DM-12 moves verbatim.",
       "evidence": [
         "AUD-08-063",
@@ -9095,7 +9095,7 @@
       "target": "DM-20",
       "change": "semantic",
       "current": "- `## Pre-existing reference defects` — `| Path:line | Reference | Fix |`: dangling references\n  and missing headings the checker finds on the parent tree, fixed by this delivery.",
-      "proposed": "- `## Pre-existing reference defects` — `| Path:line | Reference | Fix |`: dangling references and missing headings the checker finds on the parent tree, and the reference defects 08's accepted report records with owner 09 outside the DM-16 grammar, fixed by this delivery.",
+      "proposed": "- `## Pre-existing reference defects` — `| Path:line | Reference | Fix |`: dangling references and missing headings the checker finds on the parent tree, and the reference defects 08's accepted report records with owner 09 outside the DM-16 grammar, in scan set E or R, fixed by this delivery.",
       "reason": "AMD-08-01 lists defects in this table that the checker does not find; without this change the table's description excludes them.",
       "evidence": [
         "AUD-08-001",
@@ -9108,9 +9108,7 @@
         "AUD-08-062",
         ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1028"
       ],
-      "affected": [
-        "AC-39"
-      ],
+      "affected": [],
       "depends_on": [
         "AMD-08-01"
       ],
@@ -9122,15 +9120,14 @@
       "target": "DM-20",
       "change": "semantic",
       "current": "- `## Retained old names` — `| Path | Line text | Reason |` (DM-17).",
-      "proposed": "- `## Retained old names` — `| Path | Line text | Reason |` (DM-17).\n- `## Bootstrap size exceptions` — `| Rule | Words | Reason |`: one row per bootstrap rule that REQ-19 lets exceed 300 words, with its word count by DM-19 at the delivery commit and the reason that its front matter, `## Context Bootstrap` section and citing line alone exceed the limit; no other rule is listed.",
+      "proposed": "- `## Retained old names` — `| Path | Line text | Reason |` (DM-17).\n- `## Bootstrap size exceptions` — `| Rule | Words | Reason |`: one row per bootstrap rule that REQ-19 lets exceed 300 words, with its word count by DM-19 at the delivery commit and the reason that the front matter, the moved `## Context Bootstrap` section, the `## Phase Behaviors` heading and the citing line alone exceed 300 words; no other rule is listed.",
       "reason": "AMD-08-03, AMD-08-04 and AMD-08-07 refer to a listed size exception and its word count; the record has no table for them (AUD-08-063).",
       "evidence": [
         "AUD-08-063",
         ".ai/specs/09-model-only-harnesses-and-rule-naming.md:1027"
       ],
       "affected": [
-        "AC-11",
-        "AC-39"
+        "AC-11"
       ],
       "depends_on": [],
       "requires_adr": false,
@@ -9141,7 +9138,7 @@
       "target": "AC-11",
       "change": "semantic",
       "current": "**AC-11** (REQ-19, REQ-32) — Given the delivered bootstrap rules, then each has ≤ 300 words\n  and only the two sections; and fixtures with 301 words, or with a third `## ` section, each\n  yield one finding.",
-      "proposed": "**AC-11** (REQ-19, REQ-32) — Given the delivered bootstrap rules, then each has only the two sections and either ≤ 300 words or exactly the word count of its row in DM-20 → Bootstrap size exceptions, and for every listed rule the front matter, `## Context Bootstrap` section and citing line alone exceed 300 words; and fixtures with 301 words, or with a third `## ` section, each yield one finding, while a 316-word fixture listed with 316 words yields none and the same fixture listed with 315 words yields one.",
+      "proposed": "**AC-11** (REQ-19, REQ-32) — Given the delivered bootstrap rules, then each has only the two sections and either ≤ 300 words or exactly the word count of its row in DM-20 → Bootstrap size exceptions, and for every listed rule the front matter, the moved `## Context Bootstrap` section, the `## Phase Behaviors` heading and the citing line alone exceed 300 words; and fixtures with 301 words, or with a third `## ` section, each yield one finding, while a 316-word fixture listed with 316 words yields none and the same fixture listed with 315 words yields one.",
       "reason": "Under AMD-08-03 the atomic-execution bootstrap must exceed 300 words (AUD-08-063), so the current criterion cannot pass on the delivered tree; this restates it for the exception and keeps the 301-word and third-section fixtures.",
       "evidence": [
         "AUD-08-063",

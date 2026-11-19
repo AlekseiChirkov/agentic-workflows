@@ -82040,25 +82040,6 @@
     {
       "source": ".ai/tasks/todo/task-08-rules-workflows-audit/state.md",
       "class": "planning",
-      "line": 100,
-      "column": 342,
-      "context": "span",
-      "form": "path",
-      "raw": "templates/codex-global-AGENTS.md",
-      "load": false,
-      "md_suffix": false,
-      "in_spec09_grammar": false,
-      "status": "resolved",
-      "targets": [
-        {
-          "path": "templates/codex-global-AGENTS.md",
-          "heading_status": null
-        }
-      ]
-    },
-    {
-      "source": ".ai/tasks/todo/task-08-rules-workflows-audit/state.md",
-      "class": "planning",
       "line": 101,
       "column": 153,
       "context": "span",

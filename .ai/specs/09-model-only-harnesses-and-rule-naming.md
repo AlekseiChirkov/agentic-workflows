@@ -317,10 +317,15 @@ records and prose); "receipt" for the deploy manifest (reserved for the hook ins
 - **REQ-18.** THE five bootstrap rules SHALL be `bootstrap-discovery`, `bootstrap-execution`,
   `bootstrap-validation`, `bootstrap-atomic-execution`, `bootstrap-atomic-validation`.
 - **REQ-19.** EACH bootstrap rule SHALL contain, after its front matter and one optional H1,
-  exactly the two `## ` sections `## Context Bootstrap` then `## Phase Behaviors` and at most
-  300 words (DM-19); IF the moved text exceeds 300 words, THEN the excess `## Phase Behaviors`
-  text SHALL move to the overflow rule DM-10 names for that phase, cited from
-  `## Phase Behaviors`, and SHALL never be deleted.
+  exactly the two `## ` sections `## Context Bootstrap` then `## Phase Behaviors` and, unless
+  DM-20 → Bootstrap size exceptions lists it, at most 300 words (DM-19); IF the moved text
+  exceeds 300 words, THEN the excess `## Phase Behaviors` text SHALL move to the overflow rule
+  DM-10 names for that phase, cited from `## Phase Behaviors`, and SHALL never be deleted; IF
+  the front matter, the moved `## Context Bootstrap` section, the `## Phase Behaviors` heading
+  and the citing line alone exceed 300 words, THEN THE bootstrap rule SHALL keep the
+  `## Context Bootstrap` section whole, SHALL move all other `## Phase Behaviors` text to the
+  overflow rule, and SHALL be listed in DM-20 → Bootstrap size exceptions with its word count
+  and that reason.
 - **REQ-20.** THE blocker reconciliation text SHALL live only in
   `rules/procedure-blocker-reconciliation.md` with its three cases (dependency/status blocker,
   non-status blocker, ambiguity rule), and both consumers (`/atomic-execution` Step 0 and
@@ -372,7 +377,9 @@ records and prose); "receipt" for the deploy manifest (reserved for the hook ins
   reference, an unknown name and a missing heading; repository paths are checked for
   existence only; examples in fenced code and history are not rewritten globally.
 - **REQ-32.** THE checker SHALL reject a bootstrap rule over 300 words or with any `## `
-  section other than the two of REQ-19, counting words by DM-19 (same rule as specs 11 and 19).
+  section other than the two of REQ-19, counting words by DM-19 (same rule as specs 11 and 19),
+  except that a bootstrap rule listed in DM-20 → Bootstrap size exceptions is not rejected for
+  its word count while its count equals the listed `Words` value.
 - **REQ-33.** THE delivery SHALL add one accepted ADR that records the migration, supersedes
   ADR-0003 only for its deployment targets (citing ADR-0009), keeps ADR-0003's `rule-` prefix
   and duplicated-essentials decisions, and records the schema-2 inventory amendment as an
@@ -956,7 +963,14 @@ blocks, a single-backtick span is an executable reference when its content match
    example `principles/coding.md` at `rules/phase-execution.md:28`).
 
 A finding this grammar produces on the parent tree is a pre-existing defect: the delivery
-fixes it and lists it in DM-20 → Pre-existing reference defects.
+fixes it and lists it in DM-20 → Pre-existing reference defects. The same holds for every
+reference defect that 08's accepted report records with owner 09 outside this grammar, in scan
+set E or R: a section reference without its heading marker gains the marker of the existing
+heading; a reference to a paragraph label that is no heading names the heading whose extent
+holds the label; a reference broken across lines is joined into one span; a rule or workflow
+name with `.md` in a span loses the suffix or becomes a `/<name>` command. These fixes are
+edits permitted beside DM-1 substitutions; no `## ` heading is renamed or added for them, and
+each is listed in the same DM-20 table.
 
 ### DM-17 Scan sets and stale-name forms
 
@@ -1025,8 +1039,15 @@ rows with their reason. Further sections, each a table:
 - `## Superseded checks` — `| Key | Before | After | Requirement | Verdict |`, one row per
   DM-9 `contract_changes` entry; `Verdict` is `pass` or `fail` with one line of reason.
 - `## Retained old names` — `| Path | Line text | Reason |` (DM-17).
+- `## Bootstrap size exceptions` — `| Rule | Words | Reason |`: one row per bootstrap rule that
+  REQ-19 lets exceed 300 words, with its word count by DM-19 at the delivery commit and the
+  reason that the front matter, the moved `## Context Bootstrap` section, the
+  `## Phase Behaviors` heading and the citing line alone exceed 300 words; no other rule is
+  listed.
 - `## Pre-existing reference defects` — `| Path:line | Reference | Fix |`: dangling references
-  and missing headings the checker finds on the parent tree, fixed by this delivery.
+  and missing headings the checker finds on the parent tree, and the reference defects 08's
+  accepted report records with owner 09 outside the DM-16 grammar, in scan set E or R, fixed by
+  this delivery.
 
 Every row of the first table carries a `Reviewed` column `<role> <YYYY-MM-DD> pass|fail`, and
 the record ends with one line `Signed: <reviewer role> <YYYY-MM-DD> <commit sha>` written by
@@ -1193,7 +1214,7 @@ procedure: run `scripts/sync.sh --from <copy>` with those variables redirected.
 | Attribute | Target and standard | Verification |
 |---|---|---|
 | Always-on body | ≤ 1,200 words per harness (REQ-54) | Checker `always-on-size`; AC-34 |
-| Bootstrap rule | ≤ 300 words, exactly two sections (REQ-19) | Checker; AC-11 |
+| Bootstrap rule | ≤ 300 words, exactly two sections (REQ-19); a rule listed in DM-20 → Bootstrap size exceptions may exceed 300 words only at exactly its listed word count, and only because its front matter, moved `## Context Bootstrap` section, `## Phase Behaviors` heading and citing line alone exceed 300 words (REQ-19, REQ-32) | Checker; AC-11 |
 | Spec 11 follow-up | ≤ 700 words per top-level rule and ≤ 6,000 words per always-on set are spec 11's acceptance, not a precondition of this spec; they do not replace 300/1,200 | Spec 11 |
 | Word counting | DM-19 | Suite cases |
 | Checker runtime | Target ≤ 30 s on the repository; the measured time, machine and tool versions are recorded in the ADR's verification; an overrun is reported, not hidden | Timed run at delivery |
@@ -1241,7 +1262,7 @@ procedure: run `scripts/sync.sh --from <copy>` with those variables redirected.
 | Path with spaces or quotes in a legacy line | Quoted by `printf %q` | REQ-07 |
 | Capability record without evidence and `state: yes` | `capability-schema` | REQ-38 |
 | Capability `unknown` at `/spec-run` | Stop before any action | REQ-37 |
-| Bootstrap over 300 words after the move | Excess moves to the DM-10 overflow rule of that phase, recorded in DM-20 | REQ-19 |
+| Bootstrap over 300 words after the move | Excess `## Phase Behaviors` text moves to the DM-10 overflow rule of that phase, recorded in DM-20; when the front matter, the moved `## Context Bootstrap` section, the `## Phase Behaviors` heading and the citing line alone exceed 300 words, the section stays whole, all other `## Phase Behaviors` text moves to the overflow rule, and the rule is listed in DM-20 → Bootstrap size exceptions with its word count; the checker rejects a listed rule whose count differs from its `Words` value | REQ-19, REQ-32 |
 | New rule or workflow file not in DM-10/DM-11 | Discovery stops; amended through `/spec-sync` | REQ-24 |
 | Name equal to a reserved name | Prefixed map entry `orchestrail-<name>` | REQ-41 |
 | Reserved-name listing unavailable | `info reserved-names-absent`; no prefix | REQ-41 |
@@ -1308,9 +1329,13 @@ procedure: run `scripts/sync.sh --from <copy>` with those variables redirected.
   and `installed-name-collision`; a casefold case (`workflows/Retro.md` beside
   `workflows/retro.md`) also yields `installed-name-collision` and is skipped, with the reason
   printed, when the temporary filesystem is case-insensitive.
-- **AC-11** (REQ-19, REQ-32) — Given the delivered bootstrap rules, then each has ≤ 300 words
-  and only the two sections; and fixtures with 301 words, or with a third `## ` section, each
-  yield one finding.
+- **AC-11** (REQ-19, REQ-32) — Given the delivered bootstrap rules, then each has only the two
+  sections and either ≤ 300 words or exactly the word count of its row in
+  DM-20 → Bootstrap size exceptions, and for every listed rule the front matter, the moved
+  `## Context Bootstrap` section, the `## Phase Behaviors` heading and the citing line alone
+  exceed 300 words; and fixtures with 301 words, or with a third `## ` section, each yield one
+  finding, while a 316-word fixture listed with 316 words yields none and the same fixture
+  listed with 315 words yields one.
 - **AC-12** (REQ-20) — Given the delivered tree, then `rules/procedure-blocker-reconciliation.md`
   holds the three cases verbatim except DM-1 substitutions, `workflows/atomic-execution.md`
   and `workflows/atomic-execution-implement.md` cite the `procedure-blocker-reconciliation`
@@ -1491,6 +1516,11 @@ procedure: run `scripts/sync.sh --from <copy>` with those variables redirected.
   delivery whose amendment contains an entry with a value added to the set, then the oracle
   test names that value in its set and DM-20 → Superseded checks has a `pass` row for that
   entry.
+- **AC-50** (DM-16, REQ-31) — Given the 08 report accepted by the owner and the delivered tree,
+  then every reference that a 09-owned reference-defect finding of that report names outside
+  the DM-16 grammar is a row of DM-20 → Pre-existing reference defects whose Fix cell names
+  the applied fix, and the delivered text at that place is one span that names an existing
+  heading with its marker and carries no `.md` after a rule or workflow name.
 
 ## Traceability
 
@@ -1517,7 +1547,7 @@ procedure: run `scripts/sync.sh --from <copy>` with those variables redirected.
 | REQ-28 | AC-10, AC-44 |
 | REQ-29 | AC-06 |
 | REQ-30 | AC-07, AC-44 |
-| REQ-31 | AC-14 |
+| REQ-31 | AC-14, AC-50 |
 | REQ-32 | AC-11 |
 | REQ-33 | AC-19 |
 | REQ-34 | AC-20 |
@@ -1560,7 +1590,7 @@ procedure: run `scripts/sync.sh --from <copy>` with those variables redirected.
 | A name-only mask hides a semantic edit (a renamed token swapped back) | Weakened check passes | Low | Class-indexed mask rejects cross-class swaps and rule/workflow path swaps; every entry reviewed by the independent validator |
 | The first deployment adopts a path the user had edited | User text overwritten once, as sync does today | Medium | Documented in the runbook; the leftover and adopt lines name every path; spec 20 adds backups |
 | A task starts during deployment | Instructions change under a running task | Low | Freeze evaluated under the lock; residual note printed; owner runs sync between runs |
-| Bootstrap rules exceed 300 words after the move (certain for atomic execution and atomic validation, DM-10) | Obligations could be dropped to fit | High | Named overflow rules (DM-10), recorded in DM-20; nothing deleted |
+| Bootstrap rules exceed 300 words after the move (certain for atomic execution and atomic validation, DM-10; atomic execution cannot meet the limit by overflow alone, because its front matter and `## Context Bootstrap` already exceed it, AUD-08-063) | Obligations could be dropped or reworded to fit | High | Named overflow rules (DM-10), recorded in DM-20; nothing deleted; a rule whose front matter, moved `## Context Bootstrap` section, `## Phase Behaviors` heading and citing line alone exceed 300 words keeps that section whole and is listed in DM-20 → Bootstrap size exceptions, and the checker holds it to the listed word count, so later growth stays visible (REQ-19, REQ-32) |
 | Capability evidence for Codex unavailable | Codex records `unknown`; `/spec-run` refuses there | High | Intended conservative path (G4); records updated when evidence exists |
 | Specs 11, 19, 21 overlap the deployment and metadata contracts | Divergent formats | Medium | Notes → Peer requests and Follow-ups name the alignment each needs |
 | Scope exceeds eight subtasks | Large task | Medium | REQ-48 split boundary |
@@ -1609,6 +1639,7 @@ procedure: run `scripts/sync.sh --from <copy>` with those variables redirected.
 ## Decisions
 
 - D-01 | The 1,200-word limit counts the always-on body only: the generated always-on file with its provenance line, header and core, without the embedded capability declaration and without the installation record (REQ-54) | Overrides: the original text that counted the capability table in the limit | Rationale: the strict reading is unachievable, because `harness/claude/capabilities.md` alone has about 1,607 words, ADR-0009 requires the declaration to be embedded and ADR-0017 requires the git-rails residual risks to stay in it; the declaration's size is bounded by spec 11's 6,000-word budget, so it cannot grow without limit | Follow-up: none in this spec; restoring the strict reading would require shrinking the declaration under ADR-0017 and is a separate decision
+- D-02 | The accepted amendments AMD-08-01–AMD-08-07 of the rules and workflows audit (`docs/audits/2026-11-17-rules-workflows-audit.md`, `Accepted: owner 2026-11-18`; amendment records in its assessment) are applied whole, as two sets: references — AMD-08-01 extends DM-16's pre-existing-defect paragraph to the reference defects the report records with owner 09 outside the DM-16 grammar and states their fixes; AMD-08-02 adds AC-50, which checks them; AMD-08-05 widens DM-20 → Pre-existing reference defects to list them; bootstrap size — AMD-08-03 lets REQ-19 keep `## Context Bootstrap` whole and exceed 300 words when the front matter, that section, the `## Phase Behaviors` heading and the citing line alone exceed it; AMD-08-04 makes REQ-32 accept such a rule only at its listed word count; AMD-08-06 adds DM-20 → Bootstrap size exceptions; AMD-08-07 restates AC-11 with the exception and its 316/315-word fixtures | Overrides: the unconditional 300-word limit of REQ-19, REQ-32 and AC-11, and the checker-only scope of DM-20 → Pre-existing reference defects | Rationale: the atomic-execution bootstrap's front matter and `## Context Bootstrap` already have 316 words at the audited revision and DM-12 moves that section verbatim, so the previous REQ-19 could be met only by deleting or rewording load instructions, which it forbids (AUD-08-063); the unmarked, paragraph-label, split and `.md`-suffixed references the audit assigns to this migration (AUD-08-001, AUD-08-004, AUD-08-005, AUD-08-007, AUD-08-033, AUD-08-035, AUD-08-036, AUD-08-062) lie outside the DM-16 grammar and would otherwise survive unchecked; each set is consistent only when applied whole; no amendment requires an ADR | Follow-up: the Non-Functional Requirements row `Bootstrap rule`, the Edge Cases row `Bootstrap over 300 words after the move` and the matching Risks row restated to agree; DM-10's measurement of about 393 words states no rule and is left unchanged (443 words at the audited revision)
 
 Decisions carried from the previous revision are listed under Notes → Preserved decisions.
 
@@ -1899,6 +1930,19 @@ All three items are adopted by spec 19:
   sections created after this spec checked against the owning specs (12–15, 17) and unchanged.
 - 2026-11-14 — independent final review: REQ-69 fixes the prefix form of added values; DM-2 defines extension-key blocks; REQ-30 names `metadata-invalid-value`; split boundary moves REQ-14–REQ-16 and REQ-37 to 09b; REQ-11 and Scope item 1 include `docs/USAGE.md → ## Removed integrations`; DM-12 assigns the preamble; DM-16 form 1 excludes ` → ` spans; Guard requires 08's blockers list to be cleared; spec 19 alignment marked adopted; line 23 untouched.
 - 2026-11-14 — owner decision recorded: D-01 keeps the 1,200-word limit on the always-on body only (without the embedded declaration and the installation record); Q-01 resolved; REQ-54, Terminology, A-03, Risks, Rejected alternatives, Peer requests and the Readiness Checklist aligned.
+- 2026-11-18 — audit amendments applied (`/spec-sync`, owner acceptance of
+  `docs/audits/2026-11-17-rules-workflows-audit.md` on 2026-11-18; D-02). AMD-08-01: DM-16
+  covers the 09-owned reference defects outside its grammar and their fixes. AMD-08-02: AC-50
+  added (DM-16, REQ-31); Traceability row REQ-31 → AC-14, AC-50. AMD-08-03: REQ-19 bootstrap
+  size exception. AMD-08-04: REQ-32 accepts a listed rule only at its listed word count.
+  AMD-08-05: DM-20 → Pre-existing reference defects includes those defects. AMD-08-06:
+  DM-20 → Bootstrap size exceptions added. AMD-08-07: AC-11 restated for the exception. The
+  NFR row `Bootstrap rule`, the Edge Cases row `Bootstrap over 300 words after the move` and
+  the matching Risks row restated to agree. The report's `## Blockers for spec 09` findings
+  AUD-08-001, AUD-08-004, AUD-08-005, AUD-08-007, AUD-08-033, AUD-08-035, AUD-08-036,
+  AUD-08-062 (AMD-08-01, AMD-08-02, AMD-08-05) and AUD-08-063 (AMD-08-03, AMD-08-04,
+  AMD-08-06, AMD-08-07) are each cited by an applied amendment. No requirement or criterion
+  withdrawn or renumbered; line 23 untouched.
 
 ## Readiness Checklist
 
@@ -1924,6 +1968,8 @@ Reconciliation pass 2026-11-14: targeted edits (REQ-67, AC-47, A-31–A-34, Q-05
 Second reconciliation pass 2026-11-14: REQ-68, REQ-69, AC-48, AC-49, A-35–A-37 and the REQ-37 message text; no open question added; verdict unchanged.
 
 Owner decision pass 2026-11-14: D-01 recorded (Q-01 resolved); changed passages checked by one independent pass; verdict unchanged.
+
+Audit amendment pass 2026-11-18: AMD-08-01–AMD-08-07 applied (D-02: DM-16, DM-20, REQ-19, REQ-32, AC-11, new AC-50; NFR, Edge Cases and Risks rows restated); checks 3, 4 and 7 rerun on the changed passages (every REQ still maps to an AC and every AC names a REQ); no open question added; no independent pass on this edit; verdict unchanged.
 
 **Verdict: READY FOR DEVELOPMENT** once its prerequisites hold (spec 01 complete, 08 report
 accepted; Notes → Prerequisites). Automated readiness is not sign-off.
