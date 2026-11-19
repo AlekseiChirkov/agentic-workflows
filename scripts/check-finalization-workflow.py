@@ -187,6 +187,14 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertTrue(self.checkpoint('finish', archived)['complete'])
         self.assertEqual(updated, path.read_bytes())
 
+    def test_scope_index_current_record_accepts_bound_delivery_status(self) -> None:
+        prior, path, original = self.knowledge_fixture(relative='.ai/specs/00-remaining-scope-index.md')
+        updated = b'# Scope index\n\nPosition sizing delivered; tracker remains pending.\n'
+        changed = self.knowledge_delta(prior, path, original, updated)
+        self.assertEqual('recorded', changed['status'], changed)
+        self.assertEqual(original, Path(changed['knowledge_files'][0]['snapshot_path']).read_bytes())
+        self.assertEqual('', self.git(self.repo, 'diff', '--cached', '--name-only'))
+
     def test_knowledge_inventory_rejects_product_protected_and_executable_paths(self) -> None:
         for relative, kind in (('product', 'current-record'), ('.ai/specs/delivery.md', 'current-record'),
                                ('.ai/tasks/todo/task-delivery/state.md', 'current-record'),
