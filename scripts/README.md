@@ -134,7 +134,11 @@ Completed reruns use persisted journal evidence; an old optional evidence file b
 state before the completion marker is stale, and must not be presented as fresh evidence.
 Journals bind `remote_identity` to configured fetch/push URLs and expanded effective fetch/push
 URLs. Changed bindings or legacy incompatible journals fail closed; no rebinding/migration
-command exists. SSH alias PR resolution follows GitHub CLI's `ssh -G` translation, then an
+command exists. The single exception is a verified rename of the GitHub repository: the
+origin changes only in its owner/repository path, and `gh api repos/<old>` and
+`gh api repos/<new>` return the same repository id with the new name. That proof is appended
+to the journal's `remote_rebindings`; the original binding stays unchanged, and hook receipts
+authorize no deletion under the renamed origin. SSH alias PR resolution follows GitHub CLI's `ssh -G` translation, then an
 explicit canonical `gh repo view` identity check and repo-bound PR read. Reject unsafe host
 spellings, `GH_REPO`/`GH_HOST`, other default remotes and mismatched authority identities.
 Primary references: [CLI remote resolution](https://github.com/cli/cli/blob/trunk/pkg/cmd/factory/remote_resolver.go),

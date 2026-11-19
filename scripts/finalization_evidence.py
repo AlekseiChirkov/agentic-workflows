@@ -9,7 +9,7 @@ import re
 import subprocess
 import tempfile
 
-from finalization_support import Refusal, dated, digest, field, manifest, normalized_state, read_json, require, safe_path, section, text, visible_lines
+from finalization_support import Refusal, dated, digest, field, manifest, normalized_state, now, read_json, require, safe_path, section, text, visible_lines
 from finalization_knowledge import owns as owns_knowledge
 from finalization_attempts import receipt_is_newer
 
@@ -246,6 +246,16 @@ def fixture_authority(root: Path, repo: Path, evidence: dict) -> bool:
             and git(repo, 'config', '--get', 'orchestrail.fixture', codes=(0, 1)) == 'true')
 
 
+def github_ssh_host(repo: Path, host: str, check: str) -> str:
+    """Translate an SSH alias exactly as the GitHub CLI does (cli/go-gh pkg/ssh/ssh.go uses ssh -G)."""
+    translated = process(['ssh', '-G', host], repo)
+    hosts = re.findall(r'^hostname\s+(\S+)\s*$', translated.stdout, re.M)
+    require(translated.returncode == 0 and len(hosts) == 1
+            and hosts[0].casefold() in {'github.com', 'ssh.github.com'},
+            check, 'SSH alias has no authoritative GitHub hostname translation')
+    return hosts[0].casefold()
+
+
 def github_repository(repo: Path) -> tuple[str, dict]:
     """Bind PR identity to origin, using the GitHub CLI's SSH translation mechanism."""
     from urllib.parse import urlsplit
@@ -278,12 +288,7 @@ def github_repository(repo: Path) -> tuple[str, dict]:
     resolution: dict = {'kind': 'literal-origin'}
     if host.casefold() != 'github.com':
         require(scheme == 'ssh', 'pr-authority-unverified', 'Configured origin is not hosted on GitHub')
-        # cli/go-gh pkg/ssh/ssh.go uses ssh -G, then normalizes ssh.github.com.
-        translated = process(['ssh', '-G', host], repo)
-        hosts = re.findall(r'^hostname\s+(\S+)\s*$', translated.stdout, re.M)
-        require(translated.returncode == 0 and len(hosts) == 1
-                and hosts[0].casefold() in {'github.com', 'ssh.github.com'},
-                'pr-authority-unverified', 'SSH alias has no authoritative GitHub hostname translation')
+        resolved = github_ssh_host(repo, host, 'pr-authority-unverified')
         # An explicit canonical URL avoids gh's upstream/default-remote selection.
         observed = process(['gh', 'repo', 'view', 'https://github.com/' + identity,
                             '--json', 'url,nameWithOwner'], repo)
@@ -296,8 +301,8 @@ def github_repository(repo: Path) -> tuple[str, dict]:
                 and row['url'].casefold() == ('https://github.com/' + identity).casefold()
                 and isinstance(row.get('nameWithOwner'), str) and row['nameWithOwner'].casefold() == identity.casefold(),
                 'pr-repository-mismatch', 'Repository authority response differs from the configured origin')
-        resolution = {'kind': 'ssh-alias', 'ssh_argv': ['ssh', '-G', host], 'ssh_exit_code': translated.returncode,
-                      'resolved_hostname': hosts[0].casefold(), 'repository_argv': ['gh', 'repo', 'view',
+        resolution = {'kind': 'ssh-alias', 'ssh_argv': ['ssh', '-G', host], 'ssh_exit_code': 0,
+                      'resolved_hostname': resolved, 'repository_argv': ['gh', 'repo', 'view',
                       'https://github.com/' + identity, '--json', 'url,nameWithOwner'],
                       'repository_exit_code': observed.returncode, 'repository_response': row,
                       'provenance': 'fresh exact-origin SSH translation and explicit canonical repository authority'}
@@ -306,7 +311,9 @@ def github_repository(repo: Path) -> tuple[str, dict]:
                       'remote_identity': transport, 'resolution': resolution}
 
 
-def pr_evidence(root: Path, repo: Path, candidate: dict, target: dict, evidence: dict, *, proof_required: bool = True) -> dict | None:
+def pr_evidence(root: Path, repo: Path, candidate: dict, target: dict, evidence: dict, *, proof_required: bool = True,
+                renamed: frozenset[str] = frozenset()) -> dict | None:
+    """renamed holds casefolded names that a verified hosting rename proved to be this repository."""
     original = candidate.get('pr')
     if not original or original.strip().casefold() == 'none':
         return None
@@ -326,7 +333,9 @@ def pr_evidence(root: Path, repo: Path, candidate: dict, target: dict, evidence:
             explicit = re.fullmatch(r'https://github\.com/([^/]+/[^/]+)/pull/([1-9][0-9]*)', legacy.group(2))
         require(numbered is not None or explicit is not None, 'pr-authority-unverified', 'PR reference must be canonical #N draft/#N ready, a GitHub PR URL, or a matching legacy ready-for-review audit')
         if explicit:
-            require(explicit.group(1).casefold() == identity.casefold(), 'pr-repository-mismatch', 'Recorded PR URL belongs to another repository')
+            recorded = explicit.group(1).casefold()
+            require(recorded == identity.casefold() or (identity.casefold() in renamed and recorded in renamed),
+                    'pr-repository-mismatch', 'Recorded PR URL belongs to another repository')
         number = numbered.group(1) if numbered else explicit.group(2)
         expected_url = 'https://github.com/' + identity + '/pull/' + number
         observed = process(['gh', 'pr', 'view', number, '--repo', identity, '--json', 'url,state,baseRefName,headRefName,headRefOid,mergeCommit,mergedAt'], repo)
@@ -376,6 +385,95 @@ def remote_identity(repo: Path) -> dict:
         require(not git(repo, 'config', '--get', key, codes=(0, 1)), 'remote-unsafe', f'Executable transport configuration: {key}')
     return {'name': 'origin', 'configured_fetch_urls': urls, 'configured_push_urls': pushurls,
             'effective_fetch_urls': fetched, 'effective_push_urls': pushed}
+
+
+REBINDING_FIELDS = frozenset({'repository', 'from', 'to', 'from_identity', 'to_identity', 'repository_id',
+                              'host_resolution', 'checks', 'verified_at', 'provenance'})
+
+
+def origin_parts(remote: str) -> dict | None:
+    """Split a GitHub-style origin into the transport prefix, owner/name identity and suffix."""
+    from urllib.parse import urlsplit
+    scp = re.fullmatch(r'((?:[^@/:]+@)?([^/:]+):)([^/]+)/([^/]+)', remote)
+    if scp:
+        prefix, host, owner, project = scp.groups()
+        ssh = True
+    else:
+        parsed = urlsplit(remote)
+        if parsed.scheme not in {'https', 'ssh'} or not parsed.hostname or parsed.query or parsed.fragment:
+            return None
+        prefix = parsed.scheme + '://' + parsed.netloc + '/'
+        path = re.fullmatch(re.escape(prefix) + r'([^/]+)/([^/]+)', remote)
+        if path is None:
+            return None
+        (owner, project), host, ssh = path.groups(), parsed.hostname, parsed.scheme == 'ssh'
+    suffix = '.git' if project.endswith('.git') else ''
+    project = project[:len(project) - len(suffix)]
+    if not (re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9-]*', owner) and re.fullmatch(r'[A-Za-z0-9_.-]+', project)
+            and project not in {'.', '..'} and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]{0,252}', host)):
+        return None
+    return {'prefix': prefix, 'host': host, 'ssh': ssh, 'identity': owner + '/' + project, 'suffix': suffix}
+
+
+def rebinding_chain(journal: dict, repository: str, original: dict) -> list[dict]:
+    """Recorded rebindings for one repository, each continuing from the previous bound transport."""
+    rows = journal.get('remote_rebindings', [])
+    require(isinstance(rows, list) and all(isinstance(row, dict) for row in rows), 'journal-invalid', 'Remote rebindings must be a list of objects')
+    chain = [row for row in rows if row.get('repository') == repository]
+    previous = original
+    for row in chain:
+        require(set(row) == REBINDING_FIELDS and row['from'] == previous and isinstance(row['to'], dict)
+                and type(row['repository_id']) is int and row['repository_id'] > 0 and dated(row['verified_at'])
+                and isinstance(row['from_identity'], str) and isinstance(row['to_identity'], str)
+                and isinstance(row['checks'], list) and len(row['checks']) == 2
+                and isinstance(row['provenance'], str) and row['provenance'].strip(),
+                'journal-invalid', 'Recorded remote rebinding is malformed or does not continue its chain')
+        previous = row['to']
+    return chain
+
+
+def verify_rebinding(repo: Path, before: dict, after: dict) -> dict:
+    """Prove that a changed origin names the same GitHub repository after a hosting rename."""
+    def refuse(condition: object, reason: str) -> None:
+        require(condition, 'remote-identity-changed', reason + '; only a verified hosting rename may rebind the origin')
+    import json
+    refuse(not os.environ.get('GH_REPO') and not os.environ.get('GH_HOST'), 'Repository/host environment overrides cannot select hosting authority')
+    refuse(all(len(transport['configured_fetch_urls']) == 1 and not transport['configured_push_urls'] for transport in (before, after)),
+           'A rename needs exactly one configured origin URL and no push URL on both sides')
+    rewritten = [transport['effective_fetch_urls'] != transport['configured_fetch_urls'] for transport in (before, after)]
+    refuse(rewritten == [False, False] or (rewritten == [True, True] and before['effective_fetch_urls'] == after['effective_fetch_urls']),
+           'Expanded destinations must follow the configured name on both sides or stay identical')
+    old, new = origin_parts(before['configured_fetch_urls'][0]), origin_parts(after['configured_fetch_urls'][0])
+    refuse(old is not None and new is not None, 'Both origins must be GitHub owner/repository identities')
+    refuse(old['prefix'] == new['prefix'] and old['suffix'] == new['suffix'] and old['identity'] != new['identity'],
+           'Only the owner/repository path may differ; host, alias, user and form must stay the same')
+    if new['host'].casefold() == 'github.com':
+        resolution: dict = {'kind': 'literal-github'}
+    else:
+        refuse(new['ssh'], 'Origin is not hosted on GitHub')
+        argv = ['ssh', '-G', new['host']]
+        resolution = {'kind': 'ssh-alias', 'ssh_argv': argv, 'ssh_exit_code': 0,
+                      'resolved_hostname': github_ssh_host(repo, new['host'], 'remote-identity-changed')}
+    checks: list[dict] = []
+    for name in (old['identity'], new['identity']):
+        argv = ['gh', 'api', 'repos/' + name]
+        observed = process(argv, repo)
+        try:
+            response = json.loads(observed.stdout)
+        except ValueError:
+            response = None
+        refuse(observed.returncode == 0 and isinstance(response, dict), 'Hosting repository read failed or returned an invalid response')
+        checks.append({'argv': argv, 'exit_code': observed.returncode, 'response': response})
+    ids = [check['response'].get('id') for check in checks]
+    refuse(all(type(value) is int and value > 0 for value in ids) and ids[0] == ids[1],
+           'Old and new names are not the same hosting repository')
+    refuse(all(isinstance(check['response'].get('full_name'), str)
+               and check['response']['full_name'].casefold() == new['identity'].casefold() for check in checks),
+           'Hosting does not report the new name for both reads')
+    refuse(remote_identity(repo) == after, 'Origin changed during rename verification')
+    return {'repository': str(repo), 'from': before, 'to': after, 'from_identity': old['identity'],
+            'to_identity': new['identity'], 'repository_id': ids[0], 'host_resolution': resolution, 'checks': checks,
+            'verified_at': now(), 'provenance': 'fresh GitHub API reads: the old name redirects to the new name with the same repository id'}
 
 
 def remote_refs(repo: Path) -> tuple[dict[str, str], str | None]:
@@ -545,6 +643,7 @@ def assess(root: Path, task: Path, spec: Path, evidence: dict, journal: dict | N
         assigned[name].append(item)
     repositories: list[dict] = []
     actions: list[dict] = []
+    rebindings: list[dict] = []
     for entry in specs:
         repo = safe_path(Path(entry['path']), root)
         require(repo.is_dir(), 'repository-unavailable', f'Missing repository {repo}')
@@ -562,10 +661,21 @@ def assess(root: Path, task: Path, spec: Path, evidence: dict, journal: dict | N
         local_integration_tip = integration_tip
         require(integration_tip, 'integration-unverified', f'Intended integration branch {base} is missing')
         transport = remote_identity(repo)
+        bound = transport
+        renamed: frozenset[str] = frozenset()
         if journal:
             original = [item for item in journal['repositories'] if item['path'] == str(repo)]
-            require(len(original) == 1 and original[0].get('remote_identity') == transport,
-                    'remote-identity-changed', 'Original configured and effective remote destinations changed; no automatic rebinding is permitted')
+            require(len(original) == 1 and isinstance(original[0].get('remote_identity'), dict),
+                    'remote-identity-changed', 'Original configured and effective remote destinations are not bound')
+            # The original binding is never rewritten; a verified hosting rename is recorded beside it.
+            bound = original[0]['remote_identity']
+            chain = rebinding_chain(journal, str(repo), bound)
+            accepted = [bound, *(row['to'] for row in chain)]
+            if transport not in accepted:
+                rebinding = verify_rebinding(repo, accepted[-1], transport)
+                rebindings.append(rebinding)
+                chain.append(rebinding)
+            renamed = frozenset(name.casefold() for row in chain for name in (row['from_identity'], row['to_identity']))
         refs, remote_default = remote_refs(repo)
         require(remote_identity(repo) == transport, 'remote-identity-changed', 'Remote destinations changed while observing integration')
         remote_configured = remote_default is not None
@@ -632,7 +742,7 @@ def assess(root: Path, task: Path, spec: Path, evidence: dict, journal: dict | N
             for member in item['members']:
                 if member['pr']:
                     member_candidate = {**candidate, 'pr': member['pr'], 'original_tip': member['original_tip']}
-                    actual = pr_evidence(root, repo, member_candidate, target, evidence, proof_required=False)
+                    actual = pr_evidence(root, repo, member_candidate, target, evidence, proof_required=False, renamed=renamed)
                     if actual is not None:
                         actual_receipts.append(actual)
             candidate['pr_receipts'] = actual_receipts
@@ -641,7 +751,7 @@ def assess(root: Path, task: Path, spec: Path, evidence: dict, journal: dict | N
             if integrated:
                 candidate['integration_method'] = 'ancestry'
             else:
-                receipt = pr_evidence(root, repo, candidate, target, evidence)
+                receipt = pr_evidence(root, repo, candidate, target, evidence, renamed=renamed)
                 require(receipt is not None, 'integration-unverified', f'Original commits from {branch} are not integrated')
                 candidate['pr_receipt'] = receipt
                 candidate['integration_method'] = 'pr'
@@ -673,7 +783,7 @@ def assess(root: Path, task: Path, spec: Path, evidence: dict, journal: dict | N
                                 'remote_ref': candidate['remote_ref'], 'expected_tip': candidate['expected_remote_tip'],
                                 'command': ['git', '-C', str(repo), 'push', '--force-with-lease=' + candidate['remote_ref'] + ':' + candidate['expected_remote_tip'], 'origin', ':' + candidate['remote_ref']]})
         repositories.append({'name': entry['name'], 'path': str(repo), 'common_dir': str(common), 'integration': target,
-                             'remote_identity': transport,
+                             'remote_identity': bound,
                              'hosting_identity': next((receipt['hosting_identity'] for candidate in candidates
                                   for receipt in candidate['pr_receipts'] if 'hosting_identity' in receipt), None),
                              'protected': protected, 'current_branch': current, 'remote_evidence': 'live ls-remote' if remote_configured else 'origin not configured',
@@ -688,7 +798,10 @@ def assess(root: Path, task: Path, spec: Path, evidence: dict, journal: dict | N
         require(any(isinstance(row, dict) and final_receipt(row, root, task, repositories, journal) for row in rows),
                 'validation-evidence-missing', 'Canonical Final Verification requires dated task/state/source-bound successful command receipts and coverage')
         validation_info['source'] = 'recorded contract/review/TDD and independent source-bound final verification receipt; no tests rerun'
-    return {'repositories': repositories, 'actions': actions, 'validation_evidence': validation_info,
+    result = {'repositories': repositories, 'actions': actions, 'validation_evidence': validation_info,
             'outcomes': {'validation': 'complete', 'integration': 'complete', 'checkout': 'complete' if not any(a['kind'] in {'checkout', 'refresh'} for a in actions) else 'incomplete',
                          'cleanup': 'incomplete' if any(a['kind'].endswith('delete') for a in actions) else 'complete', 'knowledge': 'unverified', 'archival': 'incomplete',
                          'audit': 'unverified', 'deployment': 'unverified'}}
+    if rebindings:
+        result['remote_rebindings'] = rebindings
+    return result

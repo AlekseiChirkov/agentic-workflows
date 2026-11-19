@@ -601,6 +601,25 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.git(self.repo, 'config', 'remote.origin.pushurl', self.RENAMED)
         self.assert_rename_refused(prior)
 
+    def test_rename_that_also_changes_the_expanded_destination_refuses(self) -> None:
+        prior = self.rename_fixture()
+        other = self.root / '.ai/other-origin.git'
+        self.git(self.root, 'clone', '--bare', '--quiet', str(self.root / '.ai/fixture-origin.git'), str(other))
+        self.git(self.repo, 'remote', 'set-url', 'origin', self.RENAMED)
+        self.git(self.repo, 'config', 'url.' + other.as_uri() + '.insteadOf', self.RENAMED)
+        self.assert_rename_refused(prior)
+
+    def test_rename_proof_refuses_hosting_environment_overrides(self) -> None:
+        prior = self.rename_fixture()
+        self.rename_origin(self.RENAMED)
+        original = self.environment
+        for key, value in (('GH_REPO', 'fixture-org/renamed'), ('GH_HOST', 'github.com')):
+            with self.subTest(key=key):
+                self.environment = lambda: dict(original(), **{key: value})
+                self.assert_rename_refused(prior)
+        self.environment = original
+        self.assertEqual([], self.api_calls())
+
     def test_second_rename_without_its_own_proof_refuses(self) -> None:
         prior = self.rename_fixture()
         self.rename_origin(self.RENAMED)
