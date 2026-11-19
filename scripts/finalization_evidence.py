@@ -320,7 +320,11 @@ def pr_evidence(root: Path, repo: Path, candidate: dict, target: dict, evidence:
         identity, hosting = github_repository(repo)
         numbered = re.fullmatch(r'#([1-9][0-9]*) (?:draft|ready)', original)
         explicit = re.fullmatch(r'https://github\.com/([^/]+/[^/]+)/pull/([1-9][0-9]*)', original)
-        require(numbered is not None or explicit is not None, 'pr-authority-unverified', 'PR reference must be canonical #N draft/#N ready or a GitHub PR URL')
+        legacy = re.fullmatch(r'#([1-9][0-9]*) ready for review — (https://github\.com/[^/]+/[^/]+/pull/([1-9][0-9]*))', original)
+        if legacy:
+            require(legacy.group(1) == legacy.group(3), 'pr-authority-unverified', 'Recorded PR number differs from its URL')
+            explicit = re.fullmatch(r'https://github\.com/([^/]+/[^/]+)/pull/([1-9][0-9]*)', legacy.group(2))
+        require(numbered is not None or explicit is not None, 'pr-authority-unverified', 'PR reference must be canonical #N draft/#N ready, a GitHub PR URL, or a matching legacy ready-for-review audit')
         if explicit:
             require(explicit.group(1).casefold() == identity.casefold(), 'pr-repository-mismatch', 'Recorded PR URL belongs to another repository')
         number = numbered.group(1) if numbered else explicit.group(2)

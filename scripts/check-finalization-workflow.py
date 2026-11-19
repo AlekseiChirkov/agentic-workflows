@@ -399,6 +399,31 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
             self.assertEqual('ready', observed['status'], observed)
             self.assertEqual(audit, observed['repositories'][0]['candidates'][0]['pr'])
 
+    def test_ssh_alias_preserves_legacy_status_and_url_pr_audit(self) -> None:
+        audit = '#142 ready for review — https://github.com/fixture-org/product/pull/142'
+        result, _ = self.alias_pr(audit)
+        self.assertEqual('ready', result['status'], result)
+        self.assertEqual(audit, result['repositories'][0]['candidates'][0]['pr'])
+
+    def test_ssh_alias_rejects_legacy_pr_number_url_mismatch(self) -> None:
+        audit = '#141 ready for review — https://github.com/fixture-org/product/pull/142'
+        result, log = self.alias_pr(audit)
+        self.blocked(result, 'pr-authority-unverified')
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        self.assertFalse(any(row[:2] == ['pr', 'view'] for row in calls))
+
+    def test_ssh_alias_rejects_legacy_pr_repository_mismatch(self) -> None:
+        audit = '#142 ready for review — https://github.com/unrelated-org/product/pull/142'
+        result, log = self.alias_pr(audit)
+        self.blocked(result, 'pr-repository-mismatch')
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        self.assertFalse(any(row[:2] == ['pr', 'view'] for row in calls))
+
+    def test_legacy_pr_audit_rejects_arbitrary_trailing_text(self) -> None:
+        audit = '#142 ready for review — https://github.com/fixture-org/product/pull/142 extra'
+        result, _ = self.alias_pr(audit)
+        self.blocked(result, 'pr-authority-unverified')
+
     def test_ssh_alias_mismatched_authority_never_selects_other_repository(self) -> None:
         result, _ = self.alias_pr('#142 ready', returned_identity='unrelated-org/product')
         self.blocked(result, 'pr-repository-mismatch')
