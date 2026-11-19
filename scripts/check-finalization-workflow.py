@@ -567,6 +567,15 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertEqual('[Delivered product](completed/delivery.md)\n', path.read_text())
         self.assertTrue(self.checkpoint('finish', archived)['complete'])
 
+    def test_link_inside_inline_code_is_text_and_never_relocated_or_refused(self) -> None:
+        example = 'A rewrite example: `[/home/x](/home/x/y)` and ``[b](../../../../b.md)`` stay text.\n'
+        (self.task / 'state.md').write_text(self.state_text + '\n' + example)
+        prior = self.attested(self.clean_actions(self.prepare()))
+        archived = self.checkpoint('archive', prior)
+        self.assertEqual('archived', archived['status'], archived)
+        moved = self.root / '.ai/tasks/completed/task-delivery/state.md'
+        self.assertIn(example, moved.read_text())
+
     def test_outstanding_scope_in_any_completed_phase_keeps_whole_spec_active(self) -> None:
         for heading in ('Deferred', 'Outstanding Scope'):
             with self.subTest(heading=heading):
