@@ -20,7 +20,7 @@
 | T-16 | Fix: output boundary and render (proposals) | characterization and red tests → Zs/Cf escapes, quoted values, output-unwritable → cell backslashes, sorting, write-protected report, economics region → suite cache | T-15 | reviewed | claude-opus-5-5 |  |
 | T-17 | Fix: audit output corrections and fresh review (proposals) | scripted assertion red → assessment edits → render → gate → independent review → review line | T-16 | reviewed | claude-opus-5-5 |  |
 | T-18 | Feat: state tool memory consistency warning (proposals) | tests first → read-only memory parse → leaf comparison → warning code | — | reviewed | claude-opus-5-5 |  |
-| T-19 | Fix: separator pattern shadowing (reconciliation finding) | tests first → own name for the terminology pattern → re-point duplicate and statement units | T-17 | pending | claude-opus-5-5 |  |
+| T-19 | Fix: separator pattern shadowing (reconciliation finding) | tests first → own name for the terminology pattern → re-point duplicate and statement units | T-17 | reviewed | claude-opus-5-5 |  |
 
 ## Execution Strategy
 
