@@ -229,7 +229,10 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
   bytes, edge counts and load counts as separate fields, SHALL contain no token count and no
   monetary amount (DM-9 → `economics-claim`), and WHERE the auditor compares an installed copy,
   THE assessment SHALL record the source digest, the installed digest and the installed location
-  in `~/`-relative form, with conclusions limited to that installation.
+  in `~/`-relative form, with conclusions limited to that installation. A path or file name
+  copied verbatim from a scanned file (for example the edge `raw` `rules/reference/12ktokens.md`)
+  is not a token count, even where it matches the DM-9 token pattern; the verbatim-copy rule of
+  REQ-25 covers it. *(Clarified 2026-11-18 by `/spec-sync`; Decisions → D-03.)*
 - **REQ-04 Audit boundary.** THE audit delivery SHALL change no file outside the list of REQ-11,
   SHALL run neither `scripts/sync.sh`, an installer, a workflow nor a model, and SHALL record
   every change it proposes to spec 09 only as an amendment (DM-7).
@@ -262,7 +265,8 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
 - **REQ-11 Output files and permitted changes.** THE delivery SHALL create or change only:
   `scripts/audit-instructions.py`, `scripts/check-audit-instructions.py`, the three
   `docs/audits/<run_date>-rules-workflows-audit.*` files (DM-1, DM-7, DM-8), one index line in
-  `docs/README.md`, one table row per new script in `scripts/README.md`, the commands note in
+  `docs/README.md`, one table row per new script in `scripts/README.md`, the git version matrix
+  `scripts/audit-git-matrix/Dockerfile` and `scripts/audit-git-matrix/run.sh` (D-06), the commands note in
   `.ai/context/runbook.md`, the inventory sentence `.ai/memory/architecture.md:22-23`,
   `.ai/memory/state.md` and `.ai/memory/progress.md`, plus the records the pipeline itself
   writes for this task: `.ai/tasks/todo/task-*-rules-workflows-audit/**` and its archived copy
@@ -327,9 +331,17 @@ Rejected synonyms: "category" or "type" for kind; "link" for edge (a link is one
   `scripts/validate-contracts.sh` or `scripts/sync.sh`, SHALL build every fixture under a
   temporary directory, and SHALL contain at least one case per edge form, per status, per
   diagnostic code of DM-9 and per edge case listed with this requirement.
-- **REQ-25 Public hygiene.** THE audit outputs SHALL contain only repository-relative or
-  `~/`-relative paths and no occurrence of the former repository name, and WHEN the delivery is
-  complete, `bash scripts/validate-contracts.sh` SHALL finish with zero failures.
+- **REQ-25 Public hygiene.** THE audit outputs SHALL contain no machine-specific home path
+  (`/home/<name>/` or `/Users/<name>/`) and no occurrence of the former repository name, SHALL
+  state every path of their own (entry paths, locations, evidence) in repository-relative or
+  `~/`-relative form, and WHEN the delivery is complete, `bash scripts/validate-contracts.sh`
+  SHALL finish with zero failures. Other absolute paths, such as system paths (`/usr/bin/sg`,
+  `/tmp`), are allowed only inside text copied verbatim from a scanned file: the DM-6 text of
+  audited files, after its home rewrite, and edge `raw` values (DM-4). The suite's fixtures may
+  use placeholder absolute paths (`/home/someone/…`, `/opt/skills/SKILL.md`), because AC-27
+  needs a location that does not start `~/`; no fixture names a real home directory.
+  *(Narrowed 2026-11-18 by `/spec-sync` from "only repository-relative or `~/`-relative
+  paths"; Decisions → D-03.)*
 - **REQ-26 Index and knowledge.** THE delivery SHALL add the report to `docs/README.md` under
   ``## Audits (`audits/`)``, both scripts to the `scripts/README.md` table, the two commands to
   `.ai/context/runbook.md → ## Commands` notes, the updated script counts to
@@ -362,9 +374,9 @@ stated; "path order" means Python string order of the path.
 | Key | Type | Content |
 |---|---|---|
 | `schema_version` | integer | `1` |
-| `method_version` | string | `"08-extract-1"`; any change to DM-2–DM-6 behaviour changes it |
+| `method_version` | string | `"08-extract-1"`; any change to DM-2–DM-6 behaviour changes it, except the D-05 corrections, which keep `08-extract-1` by owner decision (D-06) |
 | `source_revision` | string or null | `git rev-parse --verify HEAD` of the root; null when git or the work tree is unavailable |
-| `worktree` | object | `{"state": "clean" | "dirty" | "unknown", "paths": [...]}`; `paths` lists, in path order, every audited or reader path (after the DM-3 exclusions) that `git status --porcelain=v1 -z --untracked-files=all` reports; `state` is `dirty` exactly when `paths` is non-empty, otherwise `clean`; changes to excluded or unread files (the audit outputs, `VERSION`) do not count; `unknown` with `[]` when git is unavailable |
+| `worktree` | object | `{"state": "clean" | "dirty" | "unknown", "paths": [...]}`; `paths` lists, in path order, every audited or reader path (after the DM-3 exclusions) that `git status --porcelain=v1 -z --untracked-files=all` reports; `state` is `dirty` exactly when `paths` is non-empty, otherwise `clean`; changes to excluded or unread files (the audit outputs, `VERSION`) do not count; `unknown` with `[]` when git is unavailable, and, without running `status`, when the root does not hold its own repository: it has no `.git` entry (for example a directory below the top level), its `.git` is neither a directory nor a regular file, or its `.git` directory has no `HEAD` naming a ref below `refs/` or an object name, or a common directory without `objects` and `refs` (`scripts/audit-instructions.py:1568-1585`, `:1738-1743`; D-05) |
 | `inventory_digest` | string | SHA-256 of the UTF-8 text formed by one line `<path>\t<set or class>\t<sha256 or ->\n` per entry of `files` and `readers` merged into one list sorted in path order |
 | `files` | list | DM-2 entries, path order |
 | `readers` | list | DM-3 entries, path order |
@@ -390,10 +402,20 @@ stated; "path order" means Python string order of the path.
 | `invocation_lines` | integer or null | Lines starting `Invocation: ` outside fences, for decodable `.md` files |
 | `sections` | list | DM-5 sections of a decodable `.md` file, in line order; `[]` otherwise |
 
+The adapter file `templates/codex-global-AGENTS.md` is an entry only when it is reached through
+real directories: when `templates/` is a symbolic link, a looping one included, the entry is
+absent and nothing behind the link is read; a lookup that fails other than by absence (for
+example an unsearchable `templates/`) refuses the root with `root-unreadable` in `extract` and
+`verify` (`scripts/audit-instructions.py:491-500`). *(Added 2026-11-18 by `/spec-sync`;
+Decisions → D-05.)*
+
 ### DM-3 Readers and classes
 
 A reader entry is `{"path", "class", "sha256", "lines", "decoded"}`. The extractor walks the root
-with `os.walk(followlinks=False)`, takes regular files only, skips `.git/`, `logs/`, `output/`,
+depth first in name order with its own stack, so directory depth is not bounded by recursion,
+never follows a link, and enters only a directory below which a class pattern can match; an
+unreadable directory it enters refuses the root (`root-unreadable`), any other directory is never
+read (`scripts/audit-instructions.py:548-576`; D-05). It takes regular files only, skips `.git/`, `logs/`, `output/`,
 `__pycache__/` and `*.pyc`, skips audited files, applies the exclusions of REQ-16 (the three
 audit output patterns and the tool's own two scripts, whose fixture literals would otherwise be
 edges), and assigns the
@@ -417,7 +439,9 @@ Edge entry: `{"source", "class", "line", "column", "context", "form", "raw", "lo
 content); `column` is the 0-based code-point offset of the first character of `raw` in the line
 with a trailing CR removed. `context` is `front-matter`, `fence`, `span` (inside a single-backtick span), `text`,
 and, in `scripts/validate-contracts.sh` only, `check-description` (inside the first double-quoted
-string after a line-initial `check `) or `comment` (first non-blank character `#`). `targets` is a
+string after a line-initial `check `; any text without a `"` may stand between `check ` and the
+quote, a backslash escapes the next character, and a string without a closing quote runs to the
+end of the line — D-05) or `comment` (first non-blank character `#`). `targets` is a
 list of `{"path", "heading_status"}` in path order; `heading_status` is null unless the form is
 `section-ref`.
 
@@ -444,7 +468,14 @@ list of `{"path", "heading_status"}` in path order; `heading_status` is null unl
    text equals `T` or starts with `T — `, `T (` or `T:` (`heading-unmarked`), else
    `missing-heading`; unmarked components after a resolved heading are sub-items and are not
    checked. A candidate's `heading_status` is its worst component (`missing-heading` worst, then
-   `heading-unmarked`, `resolved-prefix`, `resolved`).
+   `heading-unmarked`, `resolved-prefix`, `resolved`). Components are the verbatim text between
+   separators; a component is marked when it matches `#{1,6} .+`. When several headings in the
+   extent match, the first in line order is taken (an exact match before a ` — ` prefix match). A
+   marked component with trailing whitespace equals no heading (`missing-heading`); an empty
+   component or one starting with whitespace is unmarked, so it is `missing-heading` as the first
+   component and is not checked after it. A heading whose text contains ` → ` cannot be cited,
+   because the separator splits it; this is an accepted observation and the grammar is unchanged.
+   *(Clarified 2026-11-18 by `/spec-sync`; Decisions → D-05.)*
 3. `rule-name` — `^rule-([a-z0-9-]+)$`, or `^([a-z0-9][a-z0-9-]*)$` with the span immediately
    followed by ` rule` or ` rules`: the rule stem exists → `resolved` (the word "rule"
    disambiguates a shared stem); otherwise `missing-target`.
@@ -472,7 +503,9 @@ and front matter; applied form by form in this order, each match masking its cha
 later forms; a whole token is not preceded or followed by `[A-Za-z0-9_-]`):
 
 1. `path`/`glob` — `(?<![A-Za-z0-9_./-])(rules|workflows|harness)/[A-Za-z0-9_*./-]*[A-Za-z0-9_*]`
-   and the literal `templates/codex-global-AGENTS.md`, resolved as G1 form 4.
+   and the literal `templates/codex-global-AGENTS.md` not followed by
+   `[A-Za-z0-9_*./-]*[A-Za-z0-9_*]` (the right boundary of the other path tokens, so
+   `templates/codex-global-AGENTS.md.bak` yields no edge; D-05), resolved as G1 form 4.
 2. `md-name` — whole token `<stem>.md` for a rule or workflow stem: one candidate → `resolved`,
    two → `ambiguous-stem`; `md_suffix: true`.
 3. `skill-name` — whole token `rule-<stem>` with `<stem>` matching `[a-z0-9]+(-[a-z0-9]+)*`: rule
@@ -506,7 +539,8 @@ pre-existing defects spec 09 fixes (spec 09 DM-16, last paragraph). Otherwise fa
   `---` (`unclosed` when there is none: then no front matter is removed from the body). Inside it,
   a line `^([a-z_]+):( .*)?$` is a key (repeated keys are listed again in `keys`); `trigger` and
   `description` record the value after `: ` with trailing whitespace removed (first occurrence);
-  any other non-empty line is a continuation line.
+  any other non-blank line is a continuation line (a line holding only whitespace is not one;
+  D-05).
 - **Fences** (spec 11 → Section resolution, generalised to the indentation found in the sources):
   a line whose text after leading spaces starts with three or more backticks or tildes opens a
   fence; it closes at the next line whose text after leading spaces is a run of the same
@@ -517,7 +551,8 @@ pre-existing defects spec 09 fixes (spec 09 DM-16, last paragraph). Otherwise fa
   before the next heading of the same or a higher level, or to the end of the file; the whole
   file is the extent before the first component.
 - **Spans**: maximal single-backtick pairs on one line outside fences; double-backtick spans are
-  treated as two empty spans.
+  treated as two empty spans. Every backtick pairs with the next one on the line whatever the
+  length of its run, and a last unpaired backtick opens no span (D-05).
 - **Sections**: the file is partitioned at each level-2 heading outside fences. Entry
   `{"heading", "line", "words", "bytes"}`: `heading` is the heading line with trailing whitespace
   removed, or `(preamble)` for the lines before the first level-2 heading (omitted when there are
@@ -537,6 +572,11 @@ pre-existing defects spec 09 fixes (spec 09 DM-16, last paragraph). Otherwise fa
 
 ### DM-6 Candidates, legacy mentions and duplicate clusters
 
+Every detection below reads only audited files whose `encoding` is `utf-8`: calls come from the
+edges of such files, and full-output, harness-name, legacy and duplicate detection read no other
+file (`scripts/audit-instructions.py:1181-1186`, `:1228-1233`, `:1385-1391`). *(Stated
+2026-11-18 by `/spec-sync`; Decisions → D-05.)*
+
 - **Repeated loads `RL-NNN`.** Calls: `command` edges with status `resolved` and context `span` or
   `text`, whose source is a workflow with at least one `Invocation:` line (so the reference
   document `workflows/PIPELINE.md` is never a caller), whose target is another workflow, and whose
@@ -546,9 +586,9 @@ pre-existing defects spec 09 fixes (spec 09 DM-16, last paragraph). Otherwise fa
   from just after the last of `.`, `;`, `:`, `,`, `—`, `→`, `(`, `)` that precedes the edge's
   column, up to that column. The edge is a call when its clause contains a call verb, no
   negation (`\b(not|never|no)\b` or `n't\b`) occurs in the clause before that verb, and no
-  `**stop**` marker occurs earlier on the line (a quoted stop message names a prerequisite, not a
-  call). So "Do not run `/phase-execution` automatically" (`workflows/pd-finalize.md:113`) and
-  "**stop**: … run `/pd-analyze` first" (`workflows/pd-decompose.md:14`) are not calls, while
+  stop marker (`**stop**` or `**stop:**` in any letter case, outside spans; D-05) occurs earlier
+  on the line (a quoted stop message names a prerequisite, not a call). So "Do not run
+  `/phase-execution` automatically" (`workflows/pd-finalize.md:113`) and "**stop**: … run `/pd-analyze` first" (`workflows/pd-decompose.md:14`) are not calls, while
   "Run `/phase-discovery` in autonomous mode. Read-only resolution did not …"
   (`workflows/phase-pipeline.md:105`) and "… is not already complete → call
   `/phase-composite-validation`" (`workflows/pav-close.md:64`) are. For every
@@ -569,7 +609,9 @@ pre-existing defects spec 09 fixes (spec 09 DM-16, last paragraph). Otherwise fa
   audited file; `term` is the lowercased match, `text` as for `FO`.
 - **Duplicate clusters `DUP-NNN`.** Units are taken from audited `.md` files with `utf-8`
   encoding, outside front matter and fences, skipping heading lines and table separator lines
-  (`^\|[-:| ]+\|$`). A table row (a line starting with `|`) is one unit. Other non-blank lines
+  (`^\|[-:| ]+\|$`; matched after trailing whitespace is removed and with any whitespace inside,
+  `^\|[-:|\s]+\|$`, D-05; the terminology table of spec 09 has its own stricter pattern). A table
+  row (a line starting with `|`) is one unit. Other non-blank lines
   are grouped into paragraphs (maximal runs of non-blank, non-table lines); each line loses a
   leading `>`, leading whitespace and a leading list marker (`[-*+] ` or `\d+[.)] `); the
   paragraph's lines are joined with one space, whitespace runs are collapsed, and the text is
@@ -577,10 +619,30 @@ pre-existing defects spec 09 fixes (spec 09 DM-16, last paragraph). Otherwise fa
   Units whose text is equal in two or more places form a cluster
   `{"id", "sha256", "words", "text", "members": [{"path", "line_start", "line_end"}]}`, members
   in path then line order; clusters ordered by their first member; ids from `DUP-001`.
+- **Home-directory prefixes in copied text.** In every text copied from an audited file — the
+  `text` of `FO`, `HN` and legacy mentions and each line that enters a duplicate unit — each
+  home-directory prefix `/home/<name>/` or `/Users/<name>/` (not preceded by a word character,
+  `.`, `/`, `~` or `-`; `<name>` one path component without whitespace) is written as `~/`
+  before whitespace is collapsed and the text is cut, and before units are joined, split,
+  counted, compared and hashed (`scripts/audit-instructions.py:1206-1217`, `:1296-1310` at `df3aa06`).
+  Candidate matching and `line`/`column` values use the original line. Other absolute paths are
+  copied verbatim (REQ-25). `method_version` stays `08-extract-1`, because no output was produced
+  under the rule before this amendment. *(Amended 2026-11-18 by `/spec-sync`; Decisions → D-01.)*
+  Delivered form *(amended 2026-11-18 by `/spec-sync`; Decisions → D-05)*: after a start
+  `/home/` or `/Users/` (not preceded as above), the user name is the run of letters, digits,
+  `_`, `.`, `-` and combining marks; the home directory is written as `~/` when a non-empty name
+  is followed by `/`, and as `~` when the name without its trailing periods is non-empty and is
+  followed by anything else or by the end of the text; only the home directory is replaced, so
+  `[/home/x](/home/x/y)` becomes `[~](~/y)`, `|/home/someone|` becomes `|~|`, and `/home/ alone`
+  is unchanged (`scripts/audit-instructions.py:1322-1359`).
 
 ### DM-7 Assessment (new) — `docs/audits/<run_date>-rules-workflows-audit.assessment.json`
 
-Written by the auditor. Keys, in order; an unknown or missing key is `assessment-invalid`:
+Written by the auditor. Keys, in order; an unknown or missing key is `assessment-invalid`.
+Throughout DM-7, a non-empty text (`condition`, `reason`, `rationale`, `merge_reason`,
+`proposed`) means a non-blank one, holding a character other than whitespace; and the digits of
+the identifier and line forms (`AUD-08-NNN`, `AMD-08-NN`, `AC-NN`, `path:line`, `path:start-end`)
+are ASCII digits only. *(Stated 2026-11-18 by `/spec-sync`; Decisions → D-05.)*
 
 | Key | Content |
 |---|---|
@@ -606,7 +668,9 @@ with another name. `move`: one target in another directory. `split`: two or more
 `sections` lists together hold every section of the source exactly once; an optional overflow
 target (`spec09_optional`, spec 09 REQ-19) carries `sections: null`, holds no whole section and
 is left out of that cover. `merge`: one target
-shared with another entry. Top-level `rules/*.md` targets need a stem prefix `bootstrap-`,
+shared with another entry. Any decision may share a target path with another entry when every
+sharing entry gives that target a non-null `merge_reason` (`map-collision` otherwise); `merge`
+itself requires its single target to be shared (D-05). Top-level `rules/*.md` targets need a stem prefix `bootstrap-`,
 `contract-`, `protocol-` or `procedure-` (ADR-0009 Decision 3); `rules/reference/` targets (spec
 11) are exempt. Installed names: top-level `rules/<stem>.md` → `rule-<stem>`, `workflows/<stem>.md`
 → `<stem>`; other paths are not deployed.
@@ -666,13 +730,25 @@ finding id or `path:line`; `affected` AC ids occurring in spec 09; `depends_on` 
 three-way `workflow-reference` split, frozen `##` headings) or merges sections; `disposition`
 `proposed`.
 
+Delivered precision of the amendment rules *(stated 2026-11-18 by `/spec-sync`; Decisions →
+D-05)*: a `Notes:` target is compared with the text after `### ` with its trailing whitespace
+removed; a `Terminology:` target names the first cell of a body row (not the header or separator
+row) of the first table under spec 09's `## Terminology`, up to the next heading; an identifier
+target stays a literal whole token anywhere in spec 09, example text included (an example id
+such as `REQ-99` is an accepted observation). `current` for an existing target is non-blank. An
+amendment whose `depends_on` names itself, or leads back to it through other amendments, is
+`amendment-invalid` (each amendment on the cycle is reported, not those that only depend on it).
+`change` and `requires_adr` are the auditor's judgments: `verify` checks only their schema
+(`scripts/audit-instructions.py:2746-2774`, `:3094-3172`).
+
 ### DM-8 Report (new) — `docs/audits/<run_date>-rules-workflows-audit.md`
 
 Exact top-level layout, in this order: `# Rules and workflows audit — <run_date>`; `## Summary`
 (hand-written); `## Method` (hand-written: commands run, deviations from the plan, time taken);
 one line `<!-- audit:generated:begin -->`; the generated region; one line
 `<!-- audit:generated:end -->`; `## Blockers for spec 09` (hand-written; names every finding with
-`blocks_09: true`, or `None.`); `## Independent review` with exactly one line
+`blocks_09: true` and no other finding, or is exactly `None.` when no finding blocks; amendment
+ids and other text beside the listed ids are allowed); `## Independent review` with exactly one line
 `Reviewed: pending` or `Reviewed: <role> <YYYY-MM-DD> pass|fail <40-hex commit>` (`<role>` matches
 `^[A-Za-z][A-Za-z0-9-]*$`, the date is a valid calendar date, and the commit must exist:
 `git -C <root> cat-file -e <sha>^{commit}`); `## Acceptance` with exactly one line
@@ -681,9 +757,20 @@ delivery repository at the delivery commit; on a later tree or a clone without t
 commit (for example after a squash merge) it may print `review-commit-unknown` or
 `inventory-stale`, which does not reopen the audit (A-28).
 
+**Report file** *(stated 2026-11-18 by `/spec-sync`; Decisions → D-05)*: the report is read as a
+regular file without following a symbolic link, as strict UTF-8 of at most 64 MiB (67108864
+bytes). Its lines are separated by LF only: a CR before an LF stays part of the line, so CRLF
+marker lines and review or acceptance lines do not match (`report-layout`; `report-markers` under
+`render --write`), while headings are compared without trailing whitespace
+(`scripts/audit-instructions.py:3724-3806`). `render --write` replaces the region only in a report
+with owner write permission and keeps the report's permission bits.
+
 The generated region holds, in order, `###` subsections with these fixed column sets (rows in the
 order stated; cell text with `|` escaped and line breaks replaced by spaces; formatting otherwise
-the renderer's own and deterministic):
+the renderer's own and deterministic). Delivered precision (D-05): a cell doubles each run of
+backslashes directly before a `|` and then escapes the `|`, so the cell displays its text; the
+Inventory, Sections, defect-edge, Loads, Repetition review and Legacy mentions rows are sorted by
+path, line and column whatever the order of the inventory:
 
 | Subsection | Columns and rows |
 |---|---|
@@ -708,14 +795,21 @@ the renderer's own and deterministic):
 
 ### DM-9 Verifier rules and diagnostic codes
 
-Location is `<path>:<line>` (`0` for a whole file) or `<json file>#<id or index>`.
+Location is `<path>:<line>` (`0` for a whole file) or `<json file>#<id or index>`
+(delivered: `<json file>#<id, key or key[index]>`, paths relative to the root; D-05). The rules
+over the assessment (the codes from `digest-mismatch` to `installed-invalid`, except
+`spec09-unavailable` and the report codes; assessment strings for `economics-claim`) and the
+generated-region comparison run only when both JSON files meet their schemas; the
+report's file-name and title dates and its blockers checks need a schema-valid assessment; the
+report layout, the review commit and amounts outside the generated region are checked in any case
+(`scripts/audit-instructions.py:4030-4052`, `:4085-4096`; D-05).
 
 | Code | Raised when |
 |---|---|
 | `inventory-missing`, `assessment-missing`, `report-missing` | The file derived from `--report` is absent |
-| `inventory-invalid`, `assessment-invalid` | Not parseable, schema violated, unknown or missing key, enum value outside its set, or duplicate id |
+| `inventory-invalid`, `assessment-invalid` | Not parseable, schema violated, unknown or missing key, enum value outside its set, or duplicate id; or the file is a symbolic link (not followed; the location names the link), is not a regular file, or is not valid UTF-8 *(D-05)* |
 | `report-name-date` | A file name date differs from `run_date` |
-| `inventory-stale` | An audited path is added, removed or has another digest in the root than in the inventory; with `--strict`, any byte difference between a fresh extraction and the inventory |
+| `inventory-stale` | An audited path is added, removed, has another entry kind (`changed kind in the root`, reported in place of a digest change; D-05) or has another digest in the root than in the inventory; with `--strict`, any byte difference between a fresh extraction and the inventory |
 | `worktree-dirty` | `worktree.state` is not `clean` |
 | `digest-mismatch` | `inventory_digest` differs between the two JSON files |
 | `row-missing`, `row-extra`, `row-duplicate` | `files`, `coverage` or `map` does not hold exactly one entry per audited path |
@@ -729,6 +823,7 @@ Location is `<path>:<line>` (`0` for a whole file) or `<json file>#<id or index>
 | `defect-unrecorded` | A defect edge is named in no finding's `edges` |
 | `finding-invalid` | A finding breaks DM-7: owner not allowed for its type, `blocks_09` unequal to the blocking predicate, severity `blocker` with `blocks_09` false, bad `status`, `lines` or `section`, or a `09`-owned finding naming an edge with `in_spec09_grammar` false without an amendment id in `evidence` (REQ-29) |
 | `finding-stale` | A finding's `sha256` differs from its source's |
+| `evidence-unresolved` | A well-formed evidence item of a `files` row, finding or amendment does not resolve against the inventory: a `path:line`, `path:start-end` or bare path names no `files` or `readers` path, the entry has no line count, the range is reversed, or a line lies outside `1..lines` (a number of more than nine significant digits counts as outside; delivered under D-05: a number with more significant digits than the entry's line count has digits counts as outside, and only ASCII digits form a line number, so a `path:` followed by an Arabic-Indic digit is a bare path naming no inventory path); a finding id cited as finding evidence names no path. Line counts come from the inventory, so a later tree adds none. *(Added 2026-11-18 by `/spec-sync`; Decisions → D-04.)* |
 | `reference-unknown` | A finding, candidate, group or map entry cites an id that does not exist |
 | `map-invalid` | A decision's target shape is wrong (DM-7 → Decisions) |
 | `split-sections-incomplete` | A split does not cover every section of its source exactly once |
@@ -738,15 +833,29 @@ Location is `<path>:<line>` (`0` for a whole file) or `<json file>#<id or index>
 | `kind-prefix-invalid` | A top-level rule target lacks a kind prefix |
 | `deviation-unamended` | An entry deviates (DM-7 → Deviation) and its `amendment` is null or names no existing amendment |
 | `spec09-unavailable` | No single file matches `.ai/specs/09-*.md` under the root |
-| `amendment-invalid`, `amendment-target-unknown` | An amendment breaks DM-7, or its `target` does not satisfy DM-7 → Amendment target forms against spec 09, or an `affected` id is not a whole token of spec 09 |
+| `amendment-invalid`, `amendment-target-unknown` | An amendment breaks DM-7 (including, under D-05, a blank `current` for an existing target, a blank `proposed` or `reason`, and a `depends_on` that names the amendment itself or leads back to it), or its `target` does not satisfy DM-7 → Amendment target forms against spec 09, or an `affected` id is not a whole token of spec 09 |
 | `req21-invalid` | The statements are not exactly one per statement unit of `## Codebase Reading Rules` and `## Decision Protocol` of `rules/phase-discovery.md` (missing, extra, repeated or outside them), or the verdict contradicts the `covered_by` values |
 | `coverage-inconsistent` | An `unavailable` or `changed` entry has no `coverage-gap` finding, `not-a-file` is used for a regular file, or a non-file has another status |
-| `report-layout` | DM-8 headings, markers or the review/acceptance line are missing, repeated or malformed |
+| `report-layout` | DM-8 headings, markers or the review/acceptance line are missing, repeated or malformed; or `## Blockers for spec 09` is not exactly `None.` when no finding blocks, or holds a `None.` line beside blocking findings; or the report exists but cannot be read as DM-8 → Report file states (not a regular file, a symbolic link, over 64 MiB, not UTF-8, or unreadable): one diagnostic at `<report>:0` *(D-05)* |
 | `review-commit-unknown` | The commit of a `Reviewed:` line does not exist in the root's repository |
 | `report-generated-mismatch` | The generated region differs from `render` output |
 | `blocker-unlisted` | A `blocks_09: true` finding id does not occur in `## Blockers for spec 09` |
-| `economics-claim` | The report or any assessment string matches `(?i)\b\d[\d,.]*\s*k?\s*tokens?\b`, `[$€£]\s?\d` or `\b(USD|EUR)\b` |
+| `blocker-extra` | A whole finding id under `## Blockers for spec 09` names no finding, or a finding whose `blocks_09` is false; reported once per id per line *(added 2026-11-18 by `/spec-sync`; Decisions → D-04)* |
+| `economics-claim` | The report or any assessment string matches `(?i)\b\d[\d,.]*\s*k?\s*tokens?\b`, `[$€£]\s?\d` or `\b(USD|EUR)\b`. Delivered under D-05: the report's lines from the begin marker through the end marker are not scanned, because the generated region holds assessment strings, which are scanned at their source, and text copied verbatim from the inventory (REQ-03, verbatim-copy rule) |
 | `installed-invalid` | `installed` breaks REQ-03 (non-empty with `not-verified`, a location not starting `~/`, or a `source_sha256` unequal to the inventory) |
+
+**Refusals** *(stated 2026-11-18 by `/spec-sync`; Decisions → D-05)*. These codes are not
+diagnostics: the tool prints one `ERROR: <code>: <message>` line on standard error (a usage error
+`ERROR: usage: <message>`), writes no `--out` file and no report, and exits 2. `root-invalid`: no
+`rules/` or `workflows/` directory. `root-unreadable` (`extract` and `verify`): a file, or a
+directory that can hold an audited file or a reader, cannot be read, an adapter lookup fails
+other than by absence, or a file name is not valid UTF-8; other directories are never read.
+`out-unwritable`: the `--out` file cannot be written. `output-unwritable`: standard output
+cannot be written (a closed pipe or a full device). Under `render --write`, checked in this order
+before the inputs are read: `report-unreadable` (absent, not a regular file, a symbolic link, over
+64 MiB or not valid UTF-8), `report-markers` (not exactly one begin marker line followed by one
+end marker line) and `report-unwritable` (no owner write permission, or the replacement cannot be
+written; the report is left unchanged).
 
 ## Contracts & Interfaces
 
@@ -758,12 +867,31 @@ read-only; type annotations on every function (`principle-python-standards → #
 
 | Subcommand | Options | Output | Exit |
 |---|---|---|---|
-| `extract` | `--root DIR` (default: parent of `scripts/`), `--out FILE` (required) | DM-1 to `FILE`, written to a temporary file in the same directory and moved into place | 0 written; 2 `root-invalid` (no `rules/` or `workflows/` directory), unwritable `--out`, runtime guard |
-| `verify` | `--root DIR`, `--report FILE` (required), `--strict` | Diagnostics on standard output, one per line, ordered by code then location | 0 none; 1 any diagnostic; 2 usage error, unreadable root, runtime guard |
-| `render` | `--root DIR`, `--report FILE` (required), `--write` | The generated region including both marker lines on standard output, or with `--write` that region replaced in `FILE` atomically | 0 rendered; 1 the inputs fail a schema rule (diagnostics printed); 2 usage error, markers missing or repeated (`--write`), runtime guard |
+| `extract` | `--root DIR` (default: parent of `scripts/`), `--out FILE` (required) | DM-1 to `FILE`, written to a temporary file in the same directory and moved into place | 0 written; 2 `root-invalid` (no `rules/` or `workflows/` directory), unwritable `--out`, runtime guard; delivered (D-05): also `root-unreadable`; the unwritable `--out` is `out-unwritable` |
+| `verify` | `--root DIR`, `--report FILE` (required), `--strict` | Diagnostics on standard output, one per line, ordered by code then location | 0 none; 1 any diagnostic; 2 usage error, unreadable root, runtime guard; delivered (D-05): the unreadable root is `root-unreadable`, also `root-invalid` and `output-unwritable` |
+| `render` | `--root DIR`, `--report FILE` (required), `--write` | The generated region including both marker lines on standard output, or with `--write` that region replaced in `FILE` atomically | 0 rendered; 1 the inputs fail a schema rule (diagnostics printed); 2 usage error, markers missing or repeated (`--write`), runtime guard; delivered (D-05): under `--write` `report-unreadable`, `report-markers` (the markers case) and `report-unwritable`, checked in that order before the inputs; `output-unwritable` |
 
 The inventory and assessment paths are derived from `--report` by replacing `.md` with
 `.inventory.json` and `.assessment.json`. Usage errors print one `ERROR: …` line to standard error.
+Every exit-2 code is listed under DM-9 → Refusals.
+
+Delivered beyond this table *(stated 2026-11-18 by `/spec-sync`; Decisions → D-05)*:
+
+- A relative `--report` or `--root` resolves against the current directory, not against `--root`.
+  `--help`, alone or after a subcommand, prints usage on standard output and exits 0; every other
+  usage error is one `ERROR: usage: <message>` line and exit 2.
+- The inventory and the assessment are read as regular files without following a symbolic link
+  or blocking on a special file (DM-9 → `inventory-invalid`, `assessment-invalid`); the report as
+  DM-8 → Report file states.
+- **Output grammar.** A diagnostic is one line `<code> <location> <message>`; lines are sorted in
+  string order of code, then location. A value quoted in a message stands between `"` characters,
+  each `"` inside it doubled. Every line printed on standard output or standard error is escaped
+  for its stream: the backslash, control (Cc), format (Cf: bidirectional controls, joiners, the
+  byte order mark, the soft hyphen), surrogate (Cs), line-separator and paragraph-separator (Zl,
+  Zp) characters and every character the stream's encoding cannot hold are written `\xNN`,
+  `\uNNNN` or `\UNNNNNNNN` (lower-case hexadecimal of the code point), and inside a code or a
+  location every space separator (Zs) is escaped too, so each line stays one line and its three
+  fields stay apart (`scripts/audit-instructions.py:63-70`, `:4172-4259`).
 
 **Git use.** Only `git -C <root> rev-parse --verify HEAD`, `git -C <root> ls-files -z`,
 `git -C <root> status --porcelain=v1 -z --untracked-files=all` and, in `verify`,
@@ -771,13 +899,39 @@ The inventory and assessment paths are derived from `--report` by replacing `.md
 `GIT_OPTIONAL_LOCKS=0` and no pager; a failing or missing git yields the null/`unknown` values of
 DM-1 and DM-2, never an error.
 
+**Git isolation** *(delivered beyond this contract; recorded 2026-11-18 by `/spec-sync`; Decisions
+→ D-05; module docstring `scripts/audit-instructions.py:88-135`)*. Every git read also runs without
+inherited `GIT_*` variables, with the file-system monitor off, hooks pointed at an empty location,
+lazy fetching off (`GIT_NO_LAZY_FETCH`, git 2.45+), rename detection off (git 2.18+), and without
+the user's or the system's attributes file. When the root's own `.git` locates a repository whose
+configuration names the SHA-1 or SHA-256 object format, attributes are read from that format's
+empty tree (`GIT_ATTR_SOURCE`, git 2.41+), and every filter driver named by the repository's
+`info/attributes` gets an empty clean and process program (`GIT_CONFIG_COUNT`, git 2.31+), each
+line read up to its first NUL within git's limits of 2048 bytes a line and 100 MiB a file, at
+most 1000 names and 64 KiB of names. The `.git` file, `commondir` and `HEAD` are read as git
+reads them: only a regular file (checked before and after opening, so a device node or a
+first-in first-out entry is never opened), with only trailing CR and LF removed. git's line and
+file limits arrived with the January 2023 security releases (2.30.7, 2.31.6, 2.32.5, 2.33.6,
+2.34.6, 2.35.6, 2.36.4, 2.37.5, 2.38.3, 2.39.1) and every later release. Residuals, as the
+docstring lists them: below git 2.41 a tree `.gitattributes` filter can run; below 2.31 an
+`info/attributes` filter; from 2.31.0 to 2.39.0 without the security release a filter named by an
+`info/attributes` line of 2048 bytes or more; below 2.45 `status` or `cat-file` can fetch a
+missing object in a partial clone; a submodule's own `info/attributes` filter can run; a root
+without its own `.git` gets neither the empty attribute source nor the blanked names (its work
+tree reads `unknown`, DM-1); and files converted by attributes can read as changed when git hashes
+them again (the runbook suggests `git update-index --refresh` before `extract`). The container
+matrix `scripts/audit-git-matrix/` (`Dockerfile`, `run.sh`; git built from kernel.org sources,
+default list 2.30.6, 2.30.7, 2.31.0, 2.31.8, 2.40.1, 2.41.0, 2.44.2, 2.45.0, 2.53.0) has run the
+suite on the versions Decisions → D-05 lists; the others are open (Q-04).
+
 ### `scripts/check-audit-instructions.py`
 
 `python3 -I scripts/check-audit-instructions.py`: a `unittest` program; exit 0 when every case
 passes, 1 otherwise. Fixture roots are built under `tempfile.TemporaryDirectory()` with minimal
 `rules/`, `workflows/`, `harness/`, reader files and, where needed, an initialised git
 repository with `HOME` and `XDG_CONFIG_HOME` set to temporary paths for the git calls. Fixtures
-use synthetic stems (for example `alpha-flow`, `beta-step`), never the repository's names.
+use synthetic stems (for example `alpha-flow`, `beta-step`), never the repository's names, and
+may use placeholder absolute paths, never a real home directory (REQ-25).
 
 ## Non-Functional Requirements
 
@@ -789,7 +943,7 @@ use synthetic stems (for example `alpha-flow`, `beta-step`), never the repositor
 | Dependencies | Python 3.11+ standard library and git; no package installation | AC-26 |
 | Runtime | No target is set (A-12); the measured `extract` and `verify` times are recorded under `## Method` | Report review |
 | Public hygiene | Zero identity-ledger or hygiene failures | AC-22 |
-| Security | Symbolic links are recorded, never followed or read through; repository content is never executed or imported | AC-13 |
+| Security | Symbolic links are recorded, never followed or read through; repository content is never executed or imported. Delivered (D-05): a link above the adapter file is not followed, and the inventory, assessment, report and spec 09 are read without following a link | AC-13 |
 
 ## Edge Cases & Failure Modes
 
@@ -839,6 +993,21 @@ use synthetic stems (for example `alpha-flow`, `beta-step`), never the repositor
 | Concurrent writers of the assessment | Not supported: one writer (P4) | REQ-11 |
 | Python older than 3.11 | Exit 2 with the guard message | REQ-27 |
 | `render --write` on a report without markers | Exit 2, file unchanged | REQ-23 |
+| `templates/` is a symbolic link, a looping one included *(D-05; rows to the end of the table)* | The adapter entry is absent; nothing behind the link is read | REQ-01, REQ-15 |
+| The adapter lookup fails other than by absence (an unsearchable `templates/`) | `extract` and `verify` exit 2 with `root-unreadable` | REQ-01 |
+| An unreadable directory that can hold no audited file or reader | Never read; extraction proceeds | REQ-16 |
+| A reader directory chain deeper than the interpreter's recursion limit | Walked without a traceback | REQ-16 |
+| A root below the git top level, or a `.git` git would not take as a repository | `worktree` `unknown` without running `status`; `verify` reports `worktree-dirty` | REQ-13 |
+| An audited entry changes kind (a link becomes another entry) | Plain `verify` prints `inventory-stale … changed kind in the root` | REQ-13 |
+| The inventory or the assessment is a symbolic link or a special file | `<code>-invalid` at the link's name; not followed, never waited on | REQ-15, REQ-22 |
+| The report has CRLF line endings, is over 64 MiB, or cannot be read | `verify`: `report-layout` (unreadable: one line at `:0`); `render --write`: `report-markers` or `report-unreadable`, exit 2 | REQ-22, REQ-23 |
+| `render --write` on a report without owner write permission | Exit 2 `report-unwritable`, file unchanged; a writable report keeps its permission bits | REQ-15, REQ-23 |
+| Standard output fails (a closed pipe, a full device) | Exit 2, one `ERROR: output-unwritable: …` line | REQ-22 |
+| An amount copied verbatim from an audited file into the generated region | Not an `economics-claim`; assessment strings are checked at their source | REQ-03 |
+| An amendment depends on itself, or amendments depend on each other in a cycle | `amendment-invalid` for each amendment on the cycle | REQ-10 |
+| A non-ASCII digit in an identifier or evidence line number (for example Arabic-Indic digits) | Rejected by the form rule, or `evidence-unresolved` as a bare path | REQ-22 |
+| A format or Unicode space character in a printed value | Escaped at the output boundary (Contracts → Output grammar) | REQ-22 |
+| git older than a boundary version of Contracts → Git isolation | The listed residual applies; the tool still answers | REQ-15 |
 | Authorization | Not applicable: local read-only tool on a single-user checkout | — |
 
 ## Acceptance Criteria
@@ -855,7 +1024,11 @@ Fixture criteria (AC-11 onward, and the fixture parts of AC-01–AC-10) are case
 - **AC-02** (REQ-03, REQ-04) — Given an assessment string `saves 3,000 tokens` or `$5`, when
   `verify` runs, then it prints `economics-claim`; and given the delivery's last commit `<tip>`,
   when `git diff --name-only "$(git merge-base main <tip>)" <tip>` runs, then every listed path is
-  in the REQ-11 list.
+  in the REQ-11 list. *(Delivery 2026-11-18: the delivery stack is built on
+  `feat/multi-repository-spec-run`, draft PR #104 with tip `488edb1`, so that the audit covers its
+  rule and workflow changes; by the owner's decision D-02 the list was computed with base
+  `488edb1` in place of `merge-base main`, and every listed path is in the REQ-11 list. The
+  criterion's `merge-base main` form applies unchanged once PR #104 is in `main`.)*
 - **AC-03** (REQ-05, REQ-12, REQ-13) — Given a checkout of the inventory's `source_revision` in
   a temporary work tree, when `extract` writes a fresh inventory, then it equals the delivered
   inventory byte for byte; and the delivered assessment has one `coverage` entry per audited path
@@ -891,7 +1064,8 @@ Fixture criteria (AC-11 onward, and the fixture parts of AC-01–AC-10) are case
 - **AC-10** (REQ-14) — Given the delivered report, then `## Independent review` holds
   `Reviewed: <role> <date> pass <sha>`, `## Acceptance` holds `Accepted: pending`, and every
   finding with `blocks_09: true` is named under `## Blockers for spec 09`; and given a fixture
-  report missing one such id, `verify` prints `blocker-unlisted`.
+  report missing one such id, `verify` prints `blocker-unlisted`; given one listing a finding that
+  does not block, `blocker-extra`. *(Extended 2026-11-18 by `/spec-sync`; Decisions → D-04.)*
 - **AC-11** (REQ-15) — Given a fixture root and the SHA-256 of every file in it, when `extract`
   and `verify` run, then only the `--out` file is new or changed; and when `render --write` runs,
   then the report differs only between the two marker lines.
@@ -1055,8 +1229,115 @@ Every AC names at least one REQ above; no AC is unmapped.
 
 ## Decisions
 
-N/A — auto mode; no human decision was taken in this revision.
+N/A — auto mode; no human decision was taken in the 2026-11-14 revision.
 
+Owner decisions taken during the delivery (task 08, recorded by `/spec-sync` on 2026-11-18;
+source: `.ai/tasks/todo/task-08-rules-workflows-audit/state.md → ### Assumptions`, source user):
+
+- D-01 | 2026-11-17 | Home-directory prefixes in copied text | Decision: the tool writes
+  `/home/<name>/` and `/Users/<name>/` as `~/` in every text it copies from audited files, before
+  comparing and hashing, so the outputs meet REQ-25 and AC-22 and clusters stay intact;
+  `method_version` stays `08-extract-1`. Applied to DM-6. Raised by the duplicate-cluster
+  subtask during Execution.
+- D-02 | 2026-11-17 | Stack base | Decision: the delivery stack is built on
+  `feat/multi-repository-spec-run` (draft PR #104, tip `488edb1`), not on `main`, so the audit
+  covers the multi-repository changes to rules and workflows; that PR merges first, and the
+  permitted-changes check is computed against `488edb1`. Recorded at AC-02.
+- D-03 | 2026-11-18 | Absolute paths other than home paths | Decision: REQ-25 and the
+  delivery's derived Off-limits line "No absolute path … in any output or fixture" are narrowed
+  to machine-specific home paths; system paths copied verbatim (DM-6, edge `raw` values) and
+  placeholder absolute paths in test fixtures (AC-27 needs one) are allowed; no code or output
+  change. Taken at the contract-check critical-failure gate (`### Critical Failures Decision:
+  continue`). The token-pattern exemption for a copied file name (review finding 6, Issue List
+  [6], recorded with [1]) belongs to the same verbatim-copy rule. Applied to REQ-25, REQ-03 and
+  the suite contract.
+- D-04 | 2026-11-18 | Review follow-ups | Decision: the owner approved fixing the deferred
+  optional review findings 4, 5 and 7 ("fix all findings") after the first finalization.
+  `verify` checks the blockers section in both directions (`blocker-extra`; the `None.` rule as
+  `report-layout`) and resolves well-formed evidence against the inventory's paths and line
+  counts (`evidence-unresolved`); the runbook limits the silent `verify` to the delivery commit.
+  The delivered outputs are unchanged and verify silently. Applied to DM-8, DM-9 and AC-10.
+- D-05 | 2026-11-18 | Improvement proposals of the delivery | Decision: after PRs #105–#116
+  were merged into `main` (`09fba91`), the owner ordered "apply all improvement proposals now";
+  follow-up subtasks T-13–T-17 delivered them on a stack from `09fba91` (tip `ce56065`). Where a
+  proposal named a choice, the orchestrator took the recommended option and recorded it (source:
+  task state `## Fix-Tasks → Proposal follow-ups (2026-11-18)`, the T-13–T-17 progress blocks
+  and their `description.md`). Applied to DM-1–DM-9, Contracts, the Security row and Edge Cases.
+  By topic, with the proposal ids as provenance:
+  - *Extraction* (T-01 P1, P5; T-02 P1; T-03 P1, P3, P4; T-04 P9; T-13 review V1–V3, R1–R2 and
+    Do Later): the adapter file only through real directories, any other lookup error
+    `root-unreadable` in `extract` and `verify`; the reader walk keeps its own stack and enters
+    only directories that can hold a reader; the adapter literal has the right boundary of the
+    other path tokens; bare and prefix home forms are rewritten keeping every other character,
+    combining marks counting as name characters; separator rows match after trailing whitespace
+    with any whitespace inside; `**stop**` and `**stop:**` are stop markers in any letter case
+    outside spans.
+  - *Git* (T-11 Do Now 1–3, Optional 1–2 and Do Later; T-01 P3): `info/attributes` lines cut at
+    their first NUL; the `.git` file, `commondir` and `HEAD` read as regular files only, checked
+    before opening, with only trailing CR and LF removed; the work tree reads `unknown` without
+    `status` when the root does not hold its own repository; the docstring names the version
+    boundaries and residuals; a runbook bullet suggests `git update-index --refresh`; the
+    container matrix `scripts/audit-git-matrix/` ran the full suite (264 tests, passing) on the
+    four boundary versions the owner selected, 2.30.6, 2.30.7, 2.40.1 and 2.41.0, and on 2.31.0
+    and 2.31.8 before that cut, and confirmed each residual case where it applies; 2.44.2, 2.45.0
+    and 2.53.0 in a container were not run by owner decision, to run later (the host suite runs
+    on 2.53.0).
+  - *Verify inputs and forms* (T-04 P6, P7; T-05 P1, P2, P4, P5, P9; T-12 Do Later 2, Optional
+    2): plain `verify` reports a changed entry kind; the inventory and assessment are read
+    without following a link, as regular files, named by the link; blank `current` is rejected;
+    `Notes:` targets ignore trailing whitespace; `Terminology:` targets match body rows only;
+    self-dependencies and cycles are `amendment-invalid`; identifier and line forms take ASCII
+    digits; the line-digit bound comes from the entry's line count.
+  - *Output and render* (T-04 P1, P2, P11–P13; T-05 P8, the same as T-12 Do Later 3; T-06 P1, P4
+    option (a), P6–P8): format characters, and every space separator inside a code or location,
+    are escaped; a quoted value doubles its `"`; a failing standard output exits 2 with
+    `output-unwritable` instead of the interpreter's 120; a cell doubles the backslashes before a
+    `|`; tables are sorted explicitly; `render --write` refuses a report without owner write
+    permission (`report-unwritable`); the report's economics check skips the generated region.
+  - *Outputs* (T-07 Optional 1–2; T-08 Optional 1–2; T-09 Do Now and Optional 1–4; orchestrator
+    decision of 2026-11-18): citations, consequences and cross-references of the assessment and
+    AMD-08-01, -03, -05, -06 and -07 corrected; the inventory re-extracted at `8d7e484` with the
+    current tool, differing from the delivered one only by one false adapter edge (a planning
+    reader citing `templates/codex-global-AGENTS.md.bak`; 7006 → 7005 edges, `inventory_digest`
+    unchanged); the report re-rendered.
+  - *Current behaviour documented, no code change*: T-01 P4 (`root-unreadable` exits 2 in
+    `extract`); T-01 P6 (a whitespace-only front-matter line is no continuation line); T-02 P2
+    (duplicate headings: first in line order; components verbatim; a marked component with
+    trailing whitespace and an empty or space-led first component are `missing-heading`; unmarked
+    components after the first are not checked); T-02 P3 (a heading containing ` → ` cannot be
+    cited: accepted observation, grammar unchanged); T-02 P5 (each backtick pairs with the next on
+    the line whatever its run length); T-02 P6 (an unclosed `check "` string runs to the end of
+    the line; any text without a quote may precede the quote); T-03 P5 (full-output,
+    harness-name, legacy and call detection read only `utf-8` audited files); T-04 P3 (output
+    grammar and escape convention); T-04 P4 (a relative `--report` resolves against the current
+    directory); T-04 P5 (assessment rules run only when both JSON files meet their schemas); T-04
+    P10 (`--help` prints usage and exits 0); T-05 P3 (non-empty means non-blank, `proposed` and
+    `reason` included); T-05 P5 (`change` and `requires_adr` are auditor judgments checked by the
+    schema only); T-05 P6 (any decision may share a target when each sharing entry has a
+    `merge_reason`; `merge` requires a shared target); T-06 P2 (the `render --write` refusals
+    `report-unreadable`, `report-markers`, `report-unwritable`, checked before the inputs); T-06
+    P3 (the report is LF-only; a CR before the LF breaks matching); T-06 P5 (the 64 MiB report
+    cap; an unreadable report is `report-layout` at `:0`). T-04 P8 was settled by D-04.
+  - *Conflicts recorded; requirement and criterion text kept*: (1) DM-1 says any change to
+    DM-2–DM-6 behaviour changes `method_version`; the subtasks kept `08-extract-1` because the
+    schema pins it, so the re-extracted inventory carries the old value under changed rules.
+    (2) REQ-11 permits no file under `scripts/audit-git-matrix/`, so AC-02's permitted-changes
+    check over the follow-up stack lists the two matrix files. Both are resolved by the owner in D-06.
+  - *Recorded, not applied*: the optional validation findings T-14 O1–O6 and T-15 O1–O5 (owner:
+    minor findings recorded, not reworked); T-09 Do Later goes to spec 09 with the accepted
+    amendments (Notes → Follow-ups). T-16 and T-17 later passed independent validation (T-16
+    after one rework round for an amount a rendered cell displays); the T-17 review moved the
+    report's review line to `ce56065`, and the owner's acceptance is recorded as
+    `Accepted: owner 2026-11-18`. The accepted amendments AMD-08-01…07 are applied to spec 09.
+    The shadowed separator pattern of Q-06 (a) is fixed by T-19.
+
+- D-06 | 2026-11-19 | Open conflicts of the D-05 reconciliation (Q-06 (b), (c)) | Decision (owner):
+  (b) record an exception instead of a new `method_version`: the D-05 corrections keep
+  `08-extract-1`, because the re-extraction at the audited revision differs from the delivered
+  inventory by exactly one false adapter edge and was independently verified; a later change
+  to DM-2–DM-6 behaviour changes the version as DM-1 states. (c) REQ-11 lists the git version
+  matrix `scripts/audit-git-matrix/Dockerfile` and `run.sh` as permitted delivery files.
+  Applied to DM-1 and REQ-11; no other requirement or criterion changes.
 ## Clarifications
 
 ### Session 2026-11-14
@@ -1071,6 +1352,64 @@ resolved as A-01–A-28; open items are Q-01 and Q-02.
   reviews stay unverifiable; the new audit of the available snapshot is not blocked (previous §10).
 - Q-02 | non-blocker | Should `scripts/audit-instructions.py` stay after spec 09 lands, or be
   retired once spec 09's checker exists? Impact: maintenance of a second reference parser.
+- Q-03 | non-blocker | Should these delivered and verified behaviours, which go beyond the
+  Contracts table and have no owner approval, be added to it? (a) `extract` exits 2 with
+  `root-unreadable` for an unreadable directory or file or a file name that is not valid UTF-8
+  (the table lists an unreadable root only for `verify`); (b) `render --write` refuses with exit 2
+  and `report-unreadable` (absent, not a regular file, a symbolic link, over 64 MiB or not
+  UTF-8), `report-markers` or `report-unwritable`, and checks the report before its inputs;
+  (c) the report is read up to 64 MiB (67108864 bytes), and `verify` reports an unreadable report
+  as `report-layout` at `:0` (`scripts/audit-instructions.py:46-57`, `:3379-3420`, `:3648-3653`). Source: delivery
+  proposals T-01 P4, T-06 P2 and T-06 P5 (task 08). Impact: until then, the Contracts table
+  understates the exit-2 cases. *(Resolved 2026-11-18 by D-05: (a)–(c) recorded in the Contracts
+  table, DM-8 → Report file and DM-9 → Refusals; the cited lines are those of `df3aa06`.)*
+- Q-04 | non-blocker | Should Contracts → Git use and REQ-15 record the git isolation the
+  delivery added (lazy fetching off, rename detection off, the user's and the system's attributes
+  files not read, attributes read from the empty tree of the object format, filter drivers named
+  by `info/attributes` blanked, file-system monitor off, hooks pointed at an empty location), and
+  the git versions the guarantee needs? From the module docstring
+  (`scripts/audit-instructions.py:59-96`): with git older than 2.45, `status` or `cat-file` in a
+  partial clone can still fetch a missing object; older than 2.41, a tree attribute can still
+  select a filter; older than 2.31, an `info/attributes` filter can still run; a submodule's own
+  `info/attributes` and a root without its own `.git` are not covered. Source: the review
+  finding of task 08 fixed in its git-read fix subtask (PR #115); only git 2.53.0 was run.
+  Impact: REQ-15's offline and no-program statement holds as tested on current git only.
+  *(Resolved in part 2026-11-18 by D-05: Contracts → Git isolation records the settings, the
+  version boundaries and the residuals; REQ-15's text is unchanged. Still open: the matrix
+  versions 2.44.2, 2.45.0 and 2.53.0 in a container, not run by owner decision and to run later;
+  the matrix exercises the `info/attributes` blanking only from git 2.41, because its cases share
+  that gate, and no residual case pins lazy fetching below 2.45.)*
+- Q-05 | non-blocker | Other behaviour the delivery's validators proposed to settle in this spec,
+  pending an owner decision (task 08 proposals, not applied): T-01 P3 (roots below the git top
+  level); T-02 P2 (duplicate headings, untrimmed and empty components); T-03 P3 (table separator
+  rows with trailing whitespace); T-04 P3–P11 (output character set and escaping; relative
+  `--report`; assessment-only checks with an invalid inventory; plain `verify` on a changed
+  non-file kind; linked inventory and assessment files; evidence paths that are not repository
+  paths; recursion depth of the reader walk; `--help`; exit on a failing standard output);
+  T-05 P3–P6 (non-blank `reason`; `Terminology:` targets and whole-token ids in examples;
+  amendment self-dependency and cycles; `merge` for every shared target); T-06 P3 (report line
+  endings); T-12 Do Later (ASCII-only digits in evidence forms; escaping bidirectional control
+  characters in diagnostic messages). T-03 P2 is resolved by D-01 and D-03.
+  *(Resolved 2026-11-18 by D-05: every listed item is delivered or documented — T-01 P3 in DM-1;
+  T-02 P2 in DM-4; T-03 P3 in DM-6 (see Q-06 (a)); T-04 P3, P4, P10, P11 in Contracts and DM-9
+  → Refusals; T-04 P5 and P7 in DM-9; T-04 P6 in DM-9 → `inventory-stale`; T-04 P9 in DM-3; T-05
+  P3–P6 in DM-7 and DM-9; T-06 P3 in DM-8 → Report file; T-12 Do Later in DM-7 and Contracts →
+  Output grammar. T-04 P8 was settled by D-04: an evidence path must name an inventory path. Not
+  part of this question and still open: T-09 Do Later, applied to spec 09 after acceptance (Notes
+  → Follow-ups).)*
+- Q-06 | resolved | Observed while reconciling D-05 (2026-11-18); (b) and (c) resolved by the owner in D-06 (2026-11-19):
+  (a) [resolved 2026-11-18 by T-19: the terminology pattern has its own name, and duplicate and
+  statement units use DM-6's rule again] `scripts/audit-instructions.py` binds `TABLE_SEPARATOR_RE` twice (`:1404`, then `:2747` for
+  the terminology table); the later binding is the one the duplicate units (`:1455`) and the
+  statement units (`:2842`) use, so a separator row needs a `-` in every cell and a row such as
+  `| | |` or `|:|:|` is now content, unlike DM-5 and DM-6. The delivered inventory is unaffected
+  (the extraction at `8d7e484` equals it). Rename one pattern and keep DM-6's rule, or adopt the
+  stricter rule in DM-5 and DM-6? (b) DM-1 requires a new `method_version` for any change to
+  DM-2–DM-6 behaviour; D-05 changed that behaviour and kept `08-extract-1`. Bump the version
+  (schema, re-extraction) or record an exception? (c) REQ-11 permits no file under
+  `scripts/audit-git-matrix/`; extend REQ-11 for the matrix, or move it? Impact: (a) a later
+  extraction can count dash-less table rows as units; (b) and (c) AC-02 and DM-1 do not hold
+  literally for the follow-up stack.
 
 ## Notes
 
@@ -1148,6 +1487,10 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
 - Spec 09: name the report's `Accepted:` line as the acceptance its Guard checks; consider adding
   root `README.md` to scan set R; adopt or replace the kind definitions of A-04 in `domain.md`
   (REQ-34).
+- Spec 09, after the owner accepts AMD-08-03, -04, -06 and -07 (delivery proposal T-09 Do Later,
+  option (a) under D-05): restate the Non-Functional Requirements row `Bootstrap rule`, the Edge
+  Cases row and the Risks row on the bootstrap size exception through `/spec-sync` of spec 09;
+  DM-7's amendment target forms cannot address those `## ` table rows.
 - Spec 11: Scope item 9 consumes findings of proposal types with owner `11` by `AUD-08-NNN` id.
 - `docs/README.md:13-20` links five absent audit files (Context fact 6); an owner decision.
 - The identity ledger row `.ai/tasks/completed/task-01-git-source-of-truth/state.md:214`
@@ -1160,6 +1503,50 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
   AC-01–AC-10 restated in EARS and binary form; tool, data model, verifier codes, report layout,
   edge cases, REQ-15–REQ-29 and AC-11–AC-29 added; the absent test-suite review link removed.
 - 2026-11-14 — independent final review: optional overflow targets carry `sections: null` and stay out of the exactly-once cover; `in_spec09_grammar` narrowed to spec 09 DM-16 form 2 heads; README and spec citations by heading or id; line 23 untouched.
+- 2026-11-18 — `/spec-sync` of task 08 (`.ai/tasks/todo/task-08-rules-workflows-audit`), called
+  by validation finalization after the contract check (16 of 17 passed; the failed Off-limits
+  line decided by the owner), the review and the one fix were complete; `verify` silent and the
+  suite at 228/228 on the delivery stack. Deltas: (1) DM-6, implemented-differently — home
+  prefixes in copied text written as `~/` before comparing and hashing, `method_version`
+  unchanged; edit: new DM-6 bullet; source D-01. (2) REQ-25, implemented-differently (approved
+  narrowing) — from "only repository-relative or `~/`-relative paths" to no machine-specific home
+  path, with system paths in verbatim-copied text and placeholder fixture paths allowed; edit:
+  REQ-25 restated, one sentence added to the suite contract; source D-03. (3) REQ-03,
+  implemented-differently (clarification under the same rule) — a copied file name that matches
+  the token pattern is not a token count; edit: one sentence; source D-03, Issue List [6].
+  (4) AC-02, implemented-differently (verification base) — the permitted-changes list computed
+  from `488edb1` instead of `merge-base main`; edit: delivery annotation, criterion text kept;
+  source D-02. Owner decisions recorded under Decisions; behaviour beyond the spec without owner
+  approval and the validators' pending proposals listed as Q-03–Q-05; no requirement or
+  criterion removed or renumbered; REQ-15 and every other requirement unchanged.
+- 2026-11-18 — `/spec-sync` of task 08 after fix-task T-12 (owner-approved review follow-ups,
+  D-04): suite 237/237, `verify` silent. Deltas, all implemented-beyond with owner approval:
+  (1) DM-8 blockers rule stated in both directions; (2) DM-9 gains `blocker-extra` and
+  `evidence-unresolved`, and `report-layout` covers the `None.` rule; (3) AC-10 extended for
+  `blocker-extra` (AC-20 covers both codes through its every-code fixture). Q-05 lists the T-12
+  Do Later proposals. No requirement or criterion removed or renumbered; line 23 untouched.
+- 2026-11-18 — `/spec-sync` of task 08 after the proposal follow-ups T-13–T-17 (owner order
+  "apply all improvement proposals now"; D-05), reconciled against `09fba91..ce56065` of
+  `scripts/audit-instructions.py`, its module docstring and the task records. Deltas, all
+  implemented-beyond with owner approval unless stated: DM-1 `worktree` unknown rule; DM-2
+  adapter presence; DM-3 reader walk; DM-4 `check-description` string, section-reference
+  component rules, adapter literal boundary; DM-5 non-blank continuation lines, backtick pairing;
+  DM-6 `utf-8`-only detection, stop markers, separator rows, delivered home rewrite form; DM-7
+  non-blank texts, ASCII digits, shared targets, amendment target and dependency rules; DM-8
+  report file, cell escapes, row order; DM-9 location form, rule preconditions, the rows
+  `inventory-invalid`/`assessment-invalid`, `inventory-stale`, `evidence-unresolved`,
+  `amendment-invalid`, `report-layout`, `economics-claim`, and the new Refusals paragraph;
+  Contracts exit columns, path resolution, `--help`, input reads, output grammar, Git isolation;
+  the Security row; 15 Edge Cases rows. Not applied, recorded under D-05 and Q-06: the
+  `method_version` and REQ-11 conflicts and the shadowed separator pattern. Q-03 resolved, Q-04
+  resolved in part (matrix versions not run), Q-05 resolved; Q-06 added; spec 09 follow-up for
+  T-09 Do Later added. T-16 and T-17 then passed independent validation, the report's review
+  line names `ce56065`, the owner accepted the report on 2026-11-18, the amendments were
+  applied to spec 09, and T-19 fixes the shadowed separator pattern of Q-06 (a).
+  No requirement or criterion removed, renumbered or reworded; line 23 untouched.
+- 2026-11-19 — owner decisions on Q-06 (D-06): the D-05 corrections keep `method_version`
+  `08-extract-1` as a recorded exception in DM-1; REQ-11 lists the git version matrix files;
+  Q-06 resolved. Line 23 untouched.
 
 ## Readiness Checklist
 
@@ -1171,14 +1558,15 @@ extraction (they are readers, so `--strict` is run on a checkout of `source_revi
 | 4 | Every REQ maps to ≥1 AC; every AC names ≥1 REQ | PASS — Traceability table covers REQ-01–REQ-29 and AC-01–AC-29 |
 | 5 | Every AC is binary, observable and can guide a test before implementation | PASS — fixture cases with named inputs and expected codes; delivery checks with exact commands |
 | 6 | Non-functional targets measurable, standard-referenced or N/A | PASS — determinism, read-only, offline, dependencies, hygiene, security; runtime has no target by recorded decision (A-12) |
-| 7 | Data model and contracts specified | PASS — DM-1–DM-9; CLI, exit codes, git use, suite contract |
-| 8 | Error, empty, boundary and concurrency cases covered | PASS — Edge Cases table (encodings, links, empty files, stale trees, cycles, negations, single writer) |
-| 9 | Every ambiguity recorded as resolved or open | PASS — A-01–A-28; Q-01, Q-02 |
-| 10 | No blocker question remains | PASS — both open questions are non-blocking |
-| 11 | Every existing-code claim has a verified path:line citation | PASS — citations re-verified by the reviewer in every round |
+| 7 | Data model and contracts specified | PASS — DM-1–DM-9; CLI, exit codes, git use and isolation, output grammar, suite contract; exit-2 refusals in DM-9 → Refusals (D-05); untested git versions open in Q-04 |
+| 8 | Error, empty, boundary and concurrency cases covered | PASS — Edge Cases table (encodings, links, empty files, stale trees, cycles, negations, single writer; D-05 rows for linked inputs, report reads, output failures, git boundaries) |
+| 9 | Every ambiguity recorded as resolved or open | PASS — A-01–A-28; delivery decisions D-01–D-05; Q-01–Q-06 (Q-03 and Q-05 resolved, Q-04 in part) |
+| 10 | No blocker question remains | PASS — all six open questions are non-blocking |
+| 11 | Every existing-code claim has a verified path:line citation | PASS — citations re-verified by the reviewer in every round; the `scripts/audit-instructions.py` citations added on 2026-11-18 verified at `df3aa06`, those of D-05 at `ce56065` |
 | 12 | Terminology matches project domain definitions | PASS — Terminology table; kinds from ADR-0009 Decision 3 with operational definitions (A-04); word count from spec 09 |
 | 13 | Scope is feature-sized (1–8 subtasks) | PASS — four implementation steps (Notes), reading split by file group |
 | 14 | Devil's Advocate review passed | PASS — Review: 4 rounds, score 99/100, critic: sub-agent, open: F-33 (minor; applied after the final round) |
 
-**Verdict: READY FOR DEVELOPMENT.** Automated readiness is not sign-off; review before
-implementation.
+**Verdict: READY FOR DEVELOPMENT** (re-run 2026-11-18 by `/spec-sync` after the D-05
+reconciliation; check 14 is the authoring review and was not repeated). Automated readiness is
+not sign-off; review before implementation.

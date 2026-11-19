@@ -6,8 +6,8 @@ of every session. Updated after every phase transition.
 
 ## Active Tasks
 
+- [task-08-rules-workflows-audit](../tasks/todo/task-08-rules-workflows-audit/state.md) | phase: validation | status: complete | note: pinned audit of the 61 rule, workflow, harness and Codex template files at `8d7e484` ([report](../../docs/audits/2026-11-17-rules-workflows-audit.md)); delivery PRs #105–#116 merged into main 2026-11-18 (09fba91); all retained improvement proposals applied by follow-ups T-13–T-19 (stack PRs #117, #120–#125 from main; state-tool memory warning #119 from main), spec 11 intake extended (#118), report corrected, independently re-reviewed (`Reviewed: … ce56065`) and accepted (`Accepted: owner 2026-11-18`), amendments applied to spec 09 (AC-50); integration tree complete validator 725/0/2, audit suite 296 OK; spec 08 Q-06 decided by the owner as D-06 (2026-11-19); merge of #117–#125, #118, #119 by owner instruction, then archival by `/phase-finalize`; matrix versions 2.44.2, 2.45.0, 2.53.0 not run
 
-- [task-08-rules-workflows-audit](../tasks/todo/task-08-rules-workflows-audit/state.md) | phase: discovery | status: complete | note: plan ready, 10 subtasks; one-file read-only audit tool with a standalone suite, then extraction, full reading by file group, map and amendments, report and review line; execution not started
 
 
 Execution order fixed by ADR-0009 Decision 7 (amended 2026-09-17; ADR-0017 moves 06 before 08/09): **00 (scrub) first** → 01 → 08 → 09 → 04 → 02 → 03 → 05 → 06 → 10 → 11 → 19 → 20 → 21 → 22 → 23 (21 and 23 split on 2026-11-16); 07 is scheduled outside this order (ADR-0021). Since the renumbering of 2026-11-16 (ADR-0023) the open specifications 08–23 are numbered in execution order; the complete order with prerequisites is the table in `specs/README.md`. The roadmap is in `specs/README.md`; each spec becomes a task via

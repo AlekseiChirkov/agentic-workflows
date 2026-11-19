@@ -21,6 +21,9 @@ root from the parent of `scripts/`, unless `ORCHESTRAIL_HOME` selects another ch
 | `check-spec-draft.sh` | Check the specification-authoring review contract in milliseconds; standalone, outside the validator inventory. |
 | `repo-set.py` | Read-only repository-set facts for a multi-repository `/spec-run`: `mode`, per-repository `preflight`, plan `route` (shared order, one stack per repository, cross-repository dependencies) and checkpoint `reconcile`; one JSON result per call; Python 3.9+ standard library only. |
 | `check-repo-set.py` | Acceptance suite for `repo-set.py` and the multi-repository instruction contract, against disposable git repositories; standalone, outside the validator inventory. |
+| `audit-instructions.py` | Read-only audit tool for rules, workflows and harness adapters: `extract` writes a deterministic inventory of the audited and reader files, their reference edges and candidate findings; `verify` checks the inventory, its hand-written assessment and the audit report and prints one line per violation; `render --write` regenerates the report's generated region. Python 3.11+ standard library only; standalone, outside the validator inventory. |
+| `check-audit-instructions.py` | Acceptance suite for `audit-instructions.py`, against disposable fixture roots and git repositories; standalone, outside the validator inventory. |
+| `audit-git-matrix/` | `run.sh` runs the `check-audit-instructions.py` suite in one container per git release that the audit tool's git isolation names (git built from its kernel.org source tarball by the `Dockerfile`; the build needs network access and Docker); standalone, outside the validator inventory. |
 
 ## Exact run timing
 

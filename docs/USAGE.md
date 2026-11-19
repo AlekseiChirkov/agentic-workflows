@@ -981,6 +981,21 @@ reads, `blocks`; write commands add `operation_id`, `block_id`, `block_kind`, `r
 and `changed_fields`. Diagnostics go to stderr only. The acceptance suite
 runs with `bash scripts/validate-contracts.sh --state-tool-only`.
 
+`get` and `validate` also compare the task's entry in the project memory with its leaf
+blocks. They read `.ai/memory/state.md` under the root and take every line under
+`## Active Tasks` or `## Done` that names the task directory (a name followed by `.` names
+another directory). A claimed number of reviewed leaves (`all ten leaves reviewed`,
+`9 of 10 leaves reviewed`; digits or the words one to twenty) must equal the leaves whose
+`atomic-validation` is `complete`; `all` also needs every leaf complete and `of M` needs M
+leaves; a number after a dash, a letter or another number word (`twenty-one`, `twenty–one`,
+`twenty one`) is no claim. A pull request range `#A–#B` (en dash or hyphen, the second `#`
+optional) must not hold any `#N` of the `pr:` value of a leaf whose `atomic-validation` is
+not `complete`; numbers no leaf records are ignored. Otherwise the warning
+`memory-state-mismatch` is added; it never changes the exit code. The memory file is read
+only when it is a regular file reached without a symbolic link, of at most 1 MiB of UTF-8,
+on a platform that can refuse links; otherwise nothing is compared and no warning or error
+results.
+
 ### Write protocol
 
 1. Read the current revision: `source_revision` of a `get`, or `result_revision` of the
