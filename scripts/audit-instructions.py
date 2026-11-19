@@ -36,23 +36,39 @@ Usage:
       number too long for any line count lies outside the entry).
       Then the report FILE itself: its layout (title, the five `##` headings and the
       generated-region markers in order, one review and one acceptance line in their
-      grammars), that the reviewed commit exists (`cat-file`), amounts anywhere in it,
-      and, when the JSON files meet their schemas, its file-name date and title date
-      against run_date, the blockers heading in both directions (every blocking finding
+      grammars), that the reviewed commit exists (`cat-file`), amounts in its lines
+      outside its generated region (the region holds assessment strings, checked at
+      their source as stored and as a cell displays them, and text copied verbatim from
+      the inventory), and, when the JSON files meet their schemas, its file-name date and
+      title date against run_date, the blockers heading in both directions (every blocking finding
       is listed, every listed finding id names a blocking finding, and the section is
       exactly `None.` when nothing blocks and holds no `None.` beside a blocking finding),
       and the generated region against fresh render output. The report is read as
       strict UTF-8, at most 64 MiB, without following a symbolic link.
       Prints one `<code> <location> <message>` line per violation in string order of
       code and location. A location is `<path>:<line>` (`0` for a whole file) or
-      `<json file>#<id, key or key[index]>`, with paths relative to the root.
+      `<json file>#<id, key or key[index]>`, with paths relative to the root. A value
+      quoted in a message stands between `"` characters, each `"` inside it doubled.
   python3 -I scripts/audit-instructions.py render [--root DIR] --report FILE [--write]
       Render the generated region of the report from the inventory and the assessment
       named as for verify: both marker lines and the eighteen `###` subsections, written
-      to standard output as UTF-8 bytes. The output depends on the two JSON files only.
-      With --write, FILE is read as for verify and the lines from its begin marker to its
-      end marker are replaced by the region in a temporary file beside it that is moved
-      into place, keeping FILE's permission bits; nothing is printed.
+      to standard output as UTF-8 bytes. The output depends on the two JSON files only;
+      the Inventory, Sections, Loads, Defect edges, Repetition review and Legacy mentions
+      rows are sorted by path, line and column whatever the order of the inventory. A
+      cell doubles each backslash run directly before a `|` and escapes the `|`, so it
+      displays its text. With --write, FILE is read as for verify and must have owner
+      write permission, and the lines from its begin marker to its end marker are
+      replaced by the region in a temporary file beside it that is moved into place,
+      keeping FILE's permission bits; nothing is printed.
+
+Output boundary: every line printed on standard output or standard error is escaped
+for its stream. A backslash, control, surrogate and line-separator characters, format
+characters (bidirectional controls, joiners, the byte order mark, the soft hyphen) and
+every character the stream's encoding cannot hold are written as `\\xNN`, `\\uNNNN` or
+`\\UNNNNNNNN` (lower-case hexadecimal of the code point), so each line stays one line
+and shows what it holds; inside a code or a location every space separator is escaped
+too, so the three fields of a diagnostic stay apart. A standard output that cannot be
+written (a closed pipe or a full device) ends the run with output-unwritable.
 
 Exit codes:
   0  extract: the inventory was written; verify: no diagnostic; render: rendered
@@ -62,11 +78,13 @@ Exit codes:
   2  usage error, root-invalid (no rules/ or workflows/ directory), root-unreadable
      (a file, or a directory that can hold an audited file or a reader, that cannot be
      read, or a file name that is not valid UTF-8; other directories are never read),
-     out-unwritable, render --write refusals report-unreadable (absent, not a regular
-     file, a symbolic link, larger than 64 MiB or not valid UTF-8), report-markers (not
-     exactly one begin marker line followed by one end marker line) and
-     report-unwritable, or an interpreter older than Python 3.11; one `ERROR:` line on
-     standard error, and no --out file or report is written
+     out-unwritable, output-unwritable (standard output cannot be written), render
+     --write refusals report-unreadable (absent, not a regular file, a symbolic link,
+     larger than 64 MiB or not valid UTF-8), report-markers (not exactly one begin
+     marker line followed by one end marker line) and report-unwritable (no owner write
+     permission, or the replacement cannot be written), or an interpreter older than
+     Python 3.11; one `ERROR:` line on standard error, and no --out file or report is
+     written
 
 Read-only contract: the tool writes nothing but the --out file and, under
 render --write, the generated region of the report; verify writes nothing. It
@@ -254,6 +272,11 @@ class ToolError(Exception):
 
     def __init__(self, code: str, message: str) -> None:
         super().__init__(f"{code}: {message}")
+
+
+def quoted(value: object) -> str:
+    """A message value between `"` characters, each `"` inside it doubled."""
+    return '"' + str(value).replace('"', '""') + '"'
 
 
 # ---------------------------------------------------------------------------
@@ -1849,7 +1872,7 @@ def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> JsonObject:
     keys = [key for key, _ in pairs]
     duplicates = sorted({key for key in keys if keys.count(key) > 1})
     if duplicates:
-        raise JsonRejected(f'duplicate key "{duplicates[0]}"')
+        raise JsonRejected(f"duplicate key {quoted(duplicates[0])}")
     return dict(pairs)
 
 
@@ -2164,7 +2187,7 @@ def list_diagnostics(name: str, code: str, key: str, value: object, schema: List
             identity = json.dumps(cast(JsonObject, entry)[schema.unique])
             if identity in seen:
                 value = cast(JsonObject, entry)[schema.unique]
-                yield Diagnostic(code, location, f'duplicate {schema.unique} "{value}"')
+                yield Diagnostic(code, location, f"duplicate {schema.unique} {quoted(value)}")
             seen.add(identity)
 
 
@@ -2595,7 +2618,7 @@ def ownership_faults(check: Verification, finding: JsonObject) -> list[str]:
     if kind == "accepted-observation" and (finding["severity"] != "minor" or finding["blocks_09"]):
         faults.append("an accepted observation is minor and does not block")
     if finding["status"] not in ("open", "historical-fixed"):
-        faults.append(f"status \"{finding['status']}\" is not open or historical-fixed")
+        faults.append(f"status {quoted(finding['status'])} is not open or historical-fixed")
     return faults
 
 
@@ -2608,14 +2631,14 @@ def source_faults(check: Verification, finding: JsonObject) -> list[str]:
     faults = [f"line {line} lies outside the source" for line in cast(list[int], finding["lines"])
               if not 1 <= line <= limit]
     if not section_valid(check, source, str(finding["section"])):
-        faults.append(f"section \"{finding['section']}\" is not a section of the source")
+        faults.append(f"section {quoted(finding['section'])} is not a section of the source")
     return faults
 
 
 def evidence_faults(finding: JsonObject) -> list[str]:
     evidence = cast(list[str], finding["evidence"])
     faults = [] if evidence else ["evidence is empty"]
-    faults += [f"evidence \"{item}\" is not path:line, a path or an amendment id"
+    faults += [f"evidence {quoted(item)} is not path:line, a path or an amendment id"
                for item in evidence if not (EVIDENCE_LINE_RE.fullmatch(item)
                                             or AMENDMENT_ID_RE.fullmatch(item)
                                             or is_repository_path(item))]
@@ -2722,7 +2745,7 @@ class MigrationText:
 
 
 TERMINOLOGY_HEADING = "## Terminology"
-TABLE_SEPARATOR_RE = re.compile(r"\|(?:\s*:?-+:?\s*\|)+\s*")
+TERMINOLOGY_SEPARATOR_RE = re.compile(r"\|(?:\s*:?-+:?\s*\|)+\s*")
 
 
 def terminology_terms(lines: Sequence[str]) -> frozenset[str]:
@@ -2738,7 +2761,7 @@ def terminology_terms(lines: Sequence[str]) -> frozenset[str]:
             break
         if line.startswith("|"):
             rows.append(line)
-    if len(rows) < 2 or TABLE_SEPARATOR_RE.fullmatch(rows[1]) is None:
+    if len(rows) < 2 or TERMINOLOGY_SEPARATOR_RE.fullmatch(rows[1]) is None:
         return frozenset()
     return frozenset(row[2:].split(" |", 1)[0] for row in rows[2:]
                      if row.startswith("| ") and " |" in row[2:])
@@ -3085,11 +3108,11 @@ def current_faults(migration: MigrationText | None, row: JsonObject) -> list[str
 def amendment_faults(migration: MigrationText | None, row: JsonObject) -> list[str]:
     evidence = cast(list[str], row["evidence"])
     faults = [] if evidence else ["evidence is empty"]
-    faults += [f'evidence "{item}" is not a finding id or path:line' for item in evidence
+    faults += [f"evidence {quoted(item)} is not a finding id or path:line" for item in evidence
                if not (FINDING_ID_RE.fullmatch(item) or EVIDENCE_LINE_RE.fullmatch(item))]
     faults += current_faults(migration, row)
     faults += [f"{key} is blank" for key in ("proposed", "reason") if not str(row[key]).strip()]
-    faults += [f'affected "{item}" is not an acceptance criterion id'
+    faults += [f"affected {quoted(item)} is not an acceptance criterion id"
                for item in cast(list[str], row["affected"]) if not CRITERION_ID_RE.fullmatch(item)]
     return faults
 
@@ -3097,7 +3120,7 @@ def amendment_faults(migration: MigrationText | None, row: JsonObject) -> list[s
 def target_faults(migration: MigrationText, row: JsonObject) -> list[str]:
     target = str(row["target"])
     faults = [] if target in NEW_TARGETS or target_exists(migration, target) else [
-        f'target "{target}" is not found in the migration specification']
+        f"target {quoted(target)} is not found in the migration specification"]
     faults += [f"affected {item} is not a whole token of the migration specification"
                for item in cast(list[str], row["affected"])
                if CRITERION_ID_RE.fullmatch(item) and item not in migration.tokens]
@@ -3197,14 +3220,32 @@ def strings_in(value: object) -> Iterator[str]:
             pending.extend(reversed(item))
 
 
-def economic_claims(location: str, value: object) -> Iterator[Diagnostic]:
-    for text in strings_in(value):
+def cell_form(text: str) -> str:
+    """The text as a report cell displays it: every line-breaking or control character a
+    space."""
+    return "".join(" " if unicodedata.category(character) in CELL_BREAKING_CATEGORIES
+                   else character for character in text)
+
+
+def first_amount(text: str) -> re.Match[str] | None:
+    """The first amount the text names as stored, otherwise as its report cell displays
+    it."""
+    for form in (text, cell_form(text)):
         for pattern in ECONOMICS_PATTERNS:
-            found = pattern.search(text)
+            found = pattern.search(form)
             if found is not None:
-                yield Diagnostic("economics-claim", location,
-                                 f'names an amount: "{found.group(0)}"')
-                break
+                return found
+    return None
+
+
+def economic_claims(location: str, value: object) -> Iterator[Diagnostic]:
+    """One claim per string that names an amount as stored or as its report cell
+    displays it, since the generated region is not scanned itself."""
+    for text in strings_in(value):
+        found = first_amount(text)
+        if found is not None:
+            yield Diagnostic("economics-claim", location,
+                             f"names an amount: {quoted(found.group(0))}")
 
 
 def economics_rules(check: Verification) -> Iterator[Diagnostic]:
@@ -3246,18 +3287,18 @@ def evidence_fault(check: Verification, item: str, paths_allowed: bool) -> str |
     span = EVIDENCE_SPAN_RE.fullmatch(item)
     entry = check.entry(span.group(1) if span is not None else item)
     if entry is None:
-        return f'evidence "{item}" names no inventory path'
+        return f"evidence {quoted(item)} names no inventory path"
     if span is None:
         return None
     lines = entry["lines"]
     if not isinstance(lines, int):
-        return f'evidence "{item}" cites a line of an entry without a line count'
+        return f"evidence {quoted(item)} cites a line of an entry without a line count"
     start = cited_line(span.group(2), lines)
     end = cited_line(span.group(3), lines) if span.group(3) is not None else start
     if start > end:
-        return f'evidence "{item}" is a reversed range'
+        return f"evidence {quoted(item)} is a reversed range"
     if not 1 <= start <= end <= lines:
-        return f'evidence "{item}" lies outside lines 1-{lines} of its entry'
+        return f"evidence {quoted(item)} lies outside lines 1-{lines} of its entry"
     return None
 
 
@@ -3290,6 +3331,7 @@ ASSESSMENT_RULES: tuple[Callable[[Verification], Iterable[Diagnostic]], ...] = (
 REPORT_BEGIN = "<!-- audit:generated:begin -->"
 REPORT_END = "<!-- audit:generated:end -->"
 CELL_BREAKING_CATEGORIES = frozenset({"Cc", "Zl", "Zp"})
+PIPE_RE = re.compile(r"(\\*)\|")
 READER_CLASSES = ("active", "frozen", "planning", "history")
 IMPACT_CONTEXTS = ("text", "check-description", "comment")
 IMPACT_GROUPS = (*IMPACT_CONTEXTS, "tests", "frozen", "hooks", "active")
@@ -3340,16 +3382,15 @@ Position = tuple[str, int, int]
 
 def cell(value: object) -> str:
     """Cell text: `-` for null, true or false, `none` for an empty list, list items joined
-    by commas, `|` escaped and every line-breaking or control character a space."""
+    by commas, each backslash run directly before a `|` doubled and the `|` escaped, so the
+    cell displays its text, and every line-breaking or control character a space."""
     if value is None:
         return "-"
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, list):
         return ", ".join(cell(item) for item in value) if value else "none"
-    text = "".join(" " if unicodedata.category(character) in CELL_BREAKING_CATEGORIES
-                   else character for character in str(value))
-    return text.replace("|", "\\|")
+    return PIPE_RE.sub(lambda found: found.group(1) * 2 + "\\|", cell_form(str(value)))
 
 
 def table_row(cells: Sequence[str]) -> str:
@@ -3390,6 +3431,15 @@ def targets_text(targets: object) -> str | None:
 
 def by_field(rows: object, field: str) -> list[JsonObject]:
     return sorted(objects(rows), key=lambda row: str(row[field]))
+
+
+def by_position(rows: object) -> list[JsonObject]:
+    """Rows in path, line and column order, whatever the order of the input."""
+    return sorted(objects(rows), key=position)
+
+
+def files_by_path(check: Verification) -> list[tuple[str, JsonObject]]:
+    return sorted(check.files.items())
 
 
 def passport_body(check: Verification) -> Body:
@@ -3434,7 +3484,7 @@ def inventory_body(check: Verification) -> Body:
     mapped = first_by(check.doc["map"], lambda row: row["source"])
     findings = finding_ids_by_source(check)
     rows: Rows = []
-    for path, entry in check.files.items():
+    for path, entry in files_by_path(check):
         files_row, covered, entry_map = files_rows.get(path), coverage.get(path), mapped.get(path)
         rows.append([path, entry["set"], entry["entry"], entry["tracked"], entry["words"],
                      entry["bytes"], files_row["kinds"] if files_row else None,
@@ -3446,11 +3496,11 @@ def inventory_body(check: Verification) -> Body:
 def sections_body(check: Verification) -> Body:
     files_rows = first_by(check.doc["files"], lambda row: row["path"])
     rows: Rows = []
-    for path, entry in check.files.items():
+    for path, entry in files_by_path(check):
         files_row = files_rows.get(path)
         listed = first_by(files_row["sections"] if files_row else None,
                           lambda row: row["heading"])
-        for section in objects(entry["sections"]):
+        for section in sorted(objects(entry["sections"]), key=lambda row: number(row["line"])):
             match = listed.get(section["heading"])
             rows.append([path, section["heading"], section["line"], section["words"],
                          section["bytes"], match["kind"] if match else None,
@@ -3473,7 +3523,7 @@ def edge_target_text(target: JsonObject) -> str:
 
 
 def references_body(check: Verification) -> Body:
-    edges = objects(check.inv["edges"])
+    edges = by_position(check.inv["edges"])
     counts: dict[tuple[str, str], int] = {}
     for item in edges:
         key = (str(item["class"]), str(item["status"]))
@@ -3492,7 +3542,7 @@ def references_body(check: Verification) -> Body:
 def loads_body(check: Verification) -> Body:
     loads = first_by(check.doc["loads"], position)
     rows: Rows = []
-    for item in objects(check.inv["edges"]):
+    for item in by_position(check.inv["edges"]):
         if item["load"] is True and item["source"] in check.files:
             row = loads.get(position(item))
             rows.append([f"{item['source']}:{item['line']}",
@@ -3527,7 +3577,7 @@ def line_candidates_body(check: Verification, key: str) -> Body:
 def repetition_body(check: Verification) -> Body:
     files_rows = first_by(check.doc["files"], lambda row: row["path"])
     rows: Rows = []
-    for path, entry in check.files.items():
+    for path, entry in files_by_path(check):
         if WORKFLOW_FILE_RE.fullmatch(path) and number(entry["invocation_lines"]) > 0:
             files_row = files_rows.get(path)
             repetition = files_row["repetition"] if files_row else None
@@ -3539,7 +3589,7 @@ def repetition_body(check: Verification) -> Body:
 def legacy_body(check: Verification) -> Body:
     roles = first_by(check.doc["legacy"], position)
     rows: Rows = []
-    for item in objects(check.inv["legacy_mentions"]):
+    for item in by_position(check.inv["legacy_mentions"]):
         row = roles.get(position(item))
         rows.append([f"{item['source']}:{item['line']}", item["term"],
                      row["role"] if row else None, row["note"] if row else None])
@@ -3803,11 +3853,11 @@ def repeated_faults(name: str, indexes: Sequence[int]) -> list[tuple[int, str]]:
 
 
 def heading_faults(headings: Sequence[tuple[int, int, str]]) -> list[tuple[int, str]]:
-    faults = [(index + 1, f'unexpected heading "{text}"') for index, level, text in headings
+    faults = [(index + 1, f"unexpected heading {quoted(text)}") for index, level, text in headings
               if index > 0 and (level == 1 or text not in REPORT_HEADINGS)]
     for expected in REPORT_HEADINGS:
         found = [index for index, _, text in headings if text == expected]
-        faults += repeated_faults(f'the heading "{expected}"', found)
+        faults += repeated_faults(f"the heading {quoted(expected)}", found)
     return faults
 
 
@@ -3858,10 +3908,11 @@ def single_line_faults(lines: Sequence[str], headings: Sequence[tuple[int, int, 
         return []
     start, filled = body
     if not filled:
-        return [(start + 1, f'"{text}" holds no line in its grammar')]
-    faults = [(filled[0] + 1, f'"{text}" holds a malformed line')
+        return [(start + 1, f"{quoted(text)} holds no line in its grammar")]
+    faults = [(filled[0] + 1, f"{quoted(text)} holds a malformed line")
               ] if not line_matches(lines[filled[0]], pattern) else []
-    return faults + [(index + 1, f'"{text}" holds more than one line') for index in filled[1:]]
+    return faults + [(index + 1, f"{quoted(text)} holds more than one line")
+                     for index in filled[1:]]
 
 
 def layout_faults(lines: Sequence[str], headings: Sequence[tuple[int, int, str]],
@@ -3906,12 +3957,17 @@ def review_commit_rules(root: Path, report: ReportCheck) -> Iterator[Diagnostic]
 
 
 def report_economics_rules(report: ReportCheck) -> Iterator[Diagnostic]:
+    """Amounts in the lines outside the generated region: the region holds assessment
+    strings, checked at their source, and text copied verbatim from the inventory."""
+    bounds = region_bounds(report.lines)
     for index, line in enumerate(report.lines):
+        if bounds is not None and bounds[0] <= index <= bounds[1]:
+            continue
         for pattern in ECONOMICS_PATTERNS:
             found = pattern.search(line)
             if found is not None:
                 yield Diagnostic("economics-claim", report.at(index + 1),
-                                 f'names an amount: "{found.group(0)}"')
+                                 f"names an amount: {quoted(found.group(0))}")
                 break
 
 
@@ -3947,10 +4003,11 @@ def none_rule(report: ReportCheck, start: int, filled: Sequence[int],
     if blocking:
         for index in marked:
             yield Diagnostic("report-layout", report.at(index + 1),
-                             f'"{BLOCKERS_HEADING}" holds {NO_BLOCKERS} beside blocking findings')
+                             f"{quoted(BLOCKERS_HEADING)} holds {NO_BLOCKERS} beside blocking "
+                             "findings")
     elif [report.lines[index].strip() for index in filled] != [NO_BLOCKERS]:
         yield Diagnostic("report-layout", report.at(start + 1),
-                         f'"{BLOCKERS_HEADING}" holds other than {NO_BLOCKERS} although no '
+                         f"{quoted(BLOCKERS_HEADING)} holds other than {NO_BLOCKERS} although no "
                          "finding blocks")
 
 
@@ -4061,10 +4118,10 @@ def run_verify(root: Path, report: Path, strict: bool) -> int:
         raise UsageError("--report must name the report's .md file")
     try:
         validate_root(root)
-        diagnostics = sorted(verify_diagnostics(root, report, strict))
+        diagnostics = verify_diagnostics(root, report, strict)
     except OSError as error:
         raise ToolError("root-unreadable", f"cannot read the root ({error.strerror})") from error
-    write_lines(sys.stdout, [diagnostic_line(item) for item in diagnostics])
+    print_diagnostics(diagnostics)
     return 1 if diagnostics else 0
 
 
@@ -4084,6 +4141,8 @@ def report_for_write(report: Path) -> ReportText:
     if region_bounds(report_lines(current.text)) is None:
         raise ToolError("report-markers", "the report needs exactly one begin marker line "
                         "followed by exactly one end marker line")
+    if not current.mode & stat.S_IWUSR:
+        raise ToolError(REPORT_FAILURE[0], "the report has no owner write permission")
     return current
 
 
@@ -4098,13 +4157,15 @@ def replace_region(text: str, region: str) -> str:
 
 def write_region(region: str) -> None:
     """Write the region as UTF-8 bytes whatever the locale, as --write stores it."""
-    sys.stdout.flush()
     buffer = getattr(sys.stdout, "buffer", None)
-    if buffer is None:
-        sys.stdout.write(region)
-        return
-    buffer.write(region.encode("utf-8"))
-    buffer.flush()
+
+    def write() -> None:
+        if buffer is None:
+            sys.stdout.write(region)
+            return
+        sys.stdout.flush()
+        buffer.write(region.encode("utf-8"))
+    to_output(write)
 
 
 def run_render(root: Path, report: Path, write: bool) -> int:
@@ -4113,7 +4174,7 @@ def run_render(root: Path, report: Path, write: bool) -> int:
     current = report_for_write(report) if write else None
     inventory, assessment, problems = load_inputs(root, report)
     if inventory is None or assessment is None:
-        write_lines(sys.stdout, [diagnostic_line(item) for item in sorted(problems)])
+        print_diagnostics(problems)
         return 1
     region = render_region(inventory, assessment)
     if current is None:
@@ -4128,7 +4189,9 @@ def run_render(root: Path, report: Path, write: bool) -> int:
 # Output boundary
 # ---------------------------------------------------------------------------
 
-LINE_BREAKING_CATEGORIES = frozenset({"Cc", "Cs", "Zl", "Zp"})
+ESCAPED_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Zl", "Zp"})
+SPACE_SEPARATOR = "Zs"
+OUTPUT_FAILURE = ("output-unwritable", "cannot write standard output")
 
 
 def escaped_character(character: str) -> str:
@@ -4147,15 +4210,17 @@ def encodable(character: str, encoding: str) -> bool:
 
 
 def needs_escape(character: str, encoding: str, in_location: bool) -> bool:
-    """Backslash, control, surrogate and separator characters, and what the stream cannot hold."""
-    if character == "\\" or (in_location and character == " "):
+    """Backslash, control, format, surrogate and line-separator characters, every space
+    separator in a location, and what the stream cannot hold."""
+    category = unicodedata.category(character)
+    if character == "\\" or (in_location and category == SPACE_SEPARATOR):
         return True
-    return (unicodedata.category(character) in LINE_BREAKING_CATEGORIES
-            or not encodable(character, encoding))
+    return category in ESCAPED_CATEGORIES or not encodable(character, encoding)
 
 
 def output_text(text: str, encoding: str, in_location: bool = False) -> str:
-    """Text that encodes on the stream, holds no line break and, in a location, no space."""
+    """Text that encodes on the stream, holds no line break or format character and, in a
+    location, no space separator."""
     return "".join(escaped_character(character)
                    if needs_escape(character, encoding, in_location) else character
                    for character in text)
@@ -4182,6 +4247,33 @@ def write_lines(stream: TextIO, lines: Sequence[str | tuple[str, str, str]]) -> 
         else:
             rendered.append(output_text(line, encoding))
     stream.write("".join(f"{line}\n" for line in rendered))
+
+
+def discard_output() -> None:
+    """Point standard output at the null device, so that the output still buffered is
+    dropped at exit instead of failing a second time."""
+    with suppress(OSError, ValueError):
+        descriptor = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(descriptor, sys.stdout.fileno())
+        os.close(descriptor)
+
+
+def to_output(write: Callable[[], None]) -> None:
+    """Run a write to standard output and flush it; a failure such as a closed pipe or a
+    full device is output-unwritable."""
+    try:
+        write()
+        sys.stdout.flush()
+    except OSError as error:
+        discard_output()
+        code, message = OUTPUT_FAILURE
+        raise ToolError(code, f"{message} ({error.strerror})") from None
+
+
+def print_diagnostics(diagnostics: Iterable[Diagnostic]) -> None:
+    """Print the diagnostics through the output boundary in sorted order."""
+    lines = [diagnostic_line(item) for item in sorted(diagnostics)]
+    to_output(lambda: write_lines(sys.stdout, lines))
 
 
 # ---------------------------------------------------------------------------
