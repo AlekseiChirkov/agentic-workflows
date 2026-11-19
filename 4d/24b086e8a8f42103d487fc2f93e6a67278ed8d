@@ -1,0 +1,19 @@
+scripts/check-finalization-workflow.py
+  s_f576f9cbaee634::t_9d1a2ebf3ad890 190-197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4d24b086e8a8f42103d487fc2f93e6a67278ed8d",
+  "prompts": {},
+  "sessions": {
+    "s_f576f9cbaee634": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1ed04-729c-74b2-8f5b-86e8b5fe0676",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "AlekseiChirkov <tektonikboy98@gmail.com>"
+    }
+  }
+}
