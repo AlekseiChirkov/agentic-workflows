@@ -567,6 +567,43 @@ class WorkflowBehavior(FIXTURE.FinalizationChecks):
         self.assertEqual('[Delivered product](completed/delivery.md)\n', path.read_text())
         self.assertTrue(self.checkpoint('finish', archived)['complete'])
 
+    def test_link_inside_inline_code_is_text_and_never_relocated_or_refused(self) -> None:
+        example = 'A rewrite example: `[/home/x](/home/x/y)` and ``[b](../../../../b.md)`` stay text.\n'
+        (self.task / 'state.md').write_text(self.state_text + '\n' + example)
+        prior = self.attested(self.clean_actions(self.prepare()))
+        archived = self.checkpoint('archive', prior)
+        self.assertEqual('archived', archived['status'], archived)
+        moved = self.root / '.ai/tasks/completed/task-delivery/state.md'
+        self.assertIn(example, moved.read_text())
+
+    def test_link_whose_text_holds_inline_code_is_still_relocated_and_checked(self) -> None:
+        sys.path.insert(0, str(SOURCE / 'scripts'))
+        from finalization_archive import relocated_document
+        from finalization_support import Refusal
+        task, done = self.root / '.ai/tasks/todo/t', self.root / '.ai/tasks/completed/t'
+        spec, moved = self.root / '.ai/specs/s.md', self.root / '.ai/specs/completed/s.md'
+        task.mkdir(parents=True)
+        spec.write_text('spec\n')
+        source = task / 'state.md'
+
+        def relocate(value: str) -> str:
+            return relocated_document(source, done / 'state.md', value, self.root, task, done, spec, moved)
+        cases = (('[`s.md`](../../../specs/s.md)\n', '[`s.md`](../../../specs/completed/s.md)\n'),
+                 ('[`r`]: ../../../specs/s.md\n', '[`r`]: ../../../specs/completed/s.md\n'),
+                 ('\\`[s](../../../specs/s.md)\\`\n', '\\`[s](../../../specs/completed/s.md)\\`\n'))
+        for value, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(expected, relocate(value))
+        with self.subTest(value='code text, destination outside the project'):
+            with self.assertRaises(Refusal):
+                relocate('[`x`](/abs/outside)\n')
+        prefix = 'Half-open [0, n) range; regex `[^]]` and '
+        with self.subTest(value='stray bracket before code holding a closing bracket'):
+            self.assertEqual(prefix + '[spec](../../../specs/completed/s.md)\n', relocate(prefix + '[spec](../../../specs/s.md)\n'))
+        with self.subTest(value='stray bracket before code, destination outside the project'):
+            with self.assertRaises(Refusal):
+                relocate(prefix + '[x](/abs/outside)\n')
+
     def test_outstanding_scope_in_any_completed_phase_keeps_whole_spec_active(self) -> None:
         for heading in ('Deferred', 'Outstanding Scope'):
             with self.subTest(heading=heading):
